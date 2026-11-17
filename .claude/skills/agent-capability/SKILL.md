@@ -21,7 +21,8 @@ always part of a capability.
 | A tool that belongs to a decision somebody already makes | Add it to that capability's `_toolset.py` **and** its `tools=` tuple |
 | A genuinely new switch an agent author would want | New capability package |
 | Behaviour change, not a tool (reasoning, a guard, injected context) | New capability with `tools=()` — see `clock/`, `thinking/` |
-| A third-party SaaS that already publishes an MCP server | **No code.** See the `mcp-connections` skill and `docs/mcp.md` |
+| A SaaS operation already covered by a usable MCP connection | Prefer the connection; see `mcp-connections` and `docs/mcp.md` |
+| An existing native product, or a SaaS whose hosted MCP is unavailable for this deployment | Use `native-integration`; share its account and operation service instead of adding another client |
 | Same tool, different wording for one agent | Not code either — `tool_overrides` in that agent's spec |
 
 That last row catches a lot of requests. A tool's name and description *are*

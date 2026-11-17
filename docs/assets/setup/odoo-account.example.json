@@ -1,0 +1,9 @@
+{
+  "label": "Test Odoo",
+  "write": false,
+  "credential": {
+    "origin": "https://odoo.example.com",
+    "database": "company",
+    "api_key": "REPLACE_WITH_API_KEY"
+  }
+}

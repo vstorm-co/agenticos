@@ -227,7 +227,7 @@ class WatchLook:
             return 0
         if (
             connection.scope != "user"
-            or connection.purpose != "mcp"
+            or connection.purpose not in {"mcp", "account"}
             or connection.user_id != watch.user_id
         ):
             await self._mark_attempt(watch=watch, at=now, status=WatchAttemptStatus.ACCESS_REVOKED)
@@ -355,6 +355,10 @@ class WatchLook:
                 watch=watch, at=now, status=WatchAttemptStatus.DELIVERY_UNAVAILABLE
             )
             return 0
+        if receipt.integration_cursor is not None:
+            await watch_repo.update_fields(
+                self.db, watch=watch, changes={"integration_cursor": receipt.integration_cursor}
+            )
         await RoutineHealthService(self.db).watch_result(
             watch, at=now, status=WatchAttemptStatus.COMPLETED
         )

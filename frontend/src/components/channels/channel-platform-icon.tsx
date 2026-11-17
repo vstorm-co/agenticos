@@ -15,6 +15,7 @@ const MARKS = {
   imessage: MessageSquare,
 
   discord: brandMark("discord"),
+  whatsapp: brandMark("whatsapp"),
 } as const;
 
 /**

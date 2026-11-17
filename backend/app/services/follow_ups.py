@@ -131,6 +131,7 @@ class FollowUpService:
                 RunSurface.SMS,
                 RunSurface.EMAIL,
                 RunSurface.DISCORD,
+                RunSurface.WHATSAPP,
             }
             and channel is None
         ):

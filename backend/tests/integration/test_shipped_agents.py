@@ -1,7 +1,6 @@
 """Platform upgrades refresh defaults, not the user's model or unpublished work."""
 
-from unittest.mock import AsyncMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,9 +25,31 @@ pytestmark = pytest.mark.anyio
 
 @pytest.fixture(autouse=True)
 def no_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        SandboxConnectionService, "ensure_local_connection", AsyncMock(return_value=None)
-    )
+    """Provide publishable connection metadata without contacting a sandbox server."""
+    from app.db.models.sandbox_connection import SandboxConnection
+    from app.repositories import sandbox_connection_repo
+
+    async def registered(
+        service: SandboxConnectionService, organization_id: UUID
+    ) -> SandboxConnection:
+        existing = await sandbox_connection_repo.get_default(
+            service.db, organization_id=organization_id
+        )
+        if existing is not None:
+            return existing
+        connection = SandboxConnection(
+            organization_id=organization_id,
+            name="Test sandbox",
+            kind="docker",
+            base_url="https://sandbox.example.com",
+            secret_id=await provider_key(service.db, organization_id, purpose="sandbox_service"),
+            is_default=True,
+        )
+        service.db.add(connection)
+        await service.db.flush()
+        return connection
+
+    monkeypatch.setattr(SandboxConnectionService, "ensure_local_connection", registered)
 
 
 async def test_opening_an_old_organization_installs_both_with_memory(db: AsyncSession) -> None:
@@ -81,6 +102,7 @@ async def test_upgrade_delivers_new_skills_and_keeps_edits_and_retired_skills(
         "platform-workflows",
         "platform-automation",
         "durable-work",
+        "agenticos-guide",
         "document-production",
         "research-and-evidence",
         "presentation-decks",
@@ -96,10 +118,7 @@ async def test_upgrade_delivers_new_skills_and_keeps_edits_and_retired_skills(
             ).values()
         }
         assert required <= names
-        assert (
-            not {"platform-tables", "platform-context", "platform-skills", "agenticos-guide"}
-            & names
-        )
+        assert not {"platform-tables", "platform-context", "platform-skills"} & names
         assert "visual-design" not in names
     for retained in optional:
         assert (
@@ -541,7 +560,8 @@ async def test_new_console_agent_gets_common_work_tools_without_agenticos_only_a
         "platform-agents",
         "platform-automation",
         "durable-work",
+        "agenticos-guide",
         "document-production",
     } <= names
-    assert not {"platform-tables", "platform-context", "platform-skills", "agenticos-guide"} & names
+    assert not {"platform-tables", "platform-context", "platform-skills"} & names
     assert "ask_user_question" in spec.instructions

@@ -32,6 +32,11 @@ export interface TriggerDispatch extends Trigger {
 
 /** Where an event trigger's fire comes from. Mirrors the backend's `EventSource`. */
 export type EventSource =
+  | "slack"
+  | "teams"
+  | "google_sheets"
+  | "imap_mail"
+  | "odoo"
   | "github"
   | "gmail"
   | "google_calendar"

@@ -9,6 +9,9 @@ authors = [
 ]
 
 dependencies = [
+    # IMAP connected accounts reuse Mirage's email protocol and MIME parser.
+    # Keep this pin aligned with the optional terminal backends below.
+    "mirage-ai[email]==0.0.8",
     # Uncapped on purpose. FastAPI, Pydantic AI, Logfire and genai-prices track
     # the newest release: this platform's whole subject matter moves at their
     # pace, and genai-prices in particular *is* the model price snapshot, so an
@@ -683,6 +686,8 @@ include = [
     "app/services/rag/web_page.py",
     # Which host is sent the Entra app's secret, its Graph token or neither.
     "app/services/rag/connectors/sharepoint.py",
+    "app/services/rag/connectors/slack.py",
+    "app/services/rag/connectors/odoo.py",
     # The query strings a knowledge search runs, and the one place an expansion
     # failure is allowed to fall back to the plain query (#1649).
     "app/services/rag/query_analysis.py",
@@ -778,6 +783,7 @@ include = [
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/sms_media.py",
+    "app/services/channels/sms_setup.py",
     "app/services/channels/dedupe.py",
     "app/services/channels/stream_lease.py",
     "app/services/channels/feedback.py",
@@ -786,6 +792,9 @@ include = [
     "app/services/channels/observation.py",
     "app/schemas/channel_observer.py",
     "app/db/models/channel_observation.py",
+    "app/services/channels/public_line.py",
+    "app/services/channel_binding_requests.py",
+    "app/services/channels/whatsapp_erasure.py",
     # Approvals and questions offered as buttons in a chat, and the Slack app
     # around the bot (#2064, #2067, #2068).
     "app/services/channels/prompts.py",
@@ -803,6 +812,11 @@ include = [
     "app/services/channels/slack_manifest.py",
     "app/services/channels/telegram_format.py",
     "app/services/channels/telegram_press.py",
+    "app/services/channels/whatsapp_format.py",
+    "app/services/channels/whatsapp_interactive.py",
+    "app/services/channels/whatsapp_payload.py",
+    "app/services/channels/whatsapp_templates.py",
+    "app/services/channels/whatsapp_window.py",
     # What the Discord adapter says and reads, without the I/O (#2079).
     "app/services/channels/discord_protocol.py",
     "app/repositories/channel_prompt.py",
@@ -853,11 +867,15 @@ include = [
     "app/api/routes/v1/admin_announcements.py",
     "app/services/mcp_catalog.py",
     "app/services/portal_catalog.py",
+    "app/core/mail_credential.py",
+    "app/core/odoo_credential.py",
+    "app/services/integrations/**",
     "app/services/portals/__init__.py",
     "app/services/portals/base.py",
     "app/services/portals/exceptions.py",
     "app/services/portals/github.py",
     "app/services/portals/github_app.py",
+    "app/services/portals/github_app_manifest.py",
     "app/services/portals/_api.py",
     "app/services/portals/_calendar.py",
     "app/services/portals/_files.py",
@@ -949,6 +967,8 @@ include = [
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
     "app/repositories/channel_observation.py",
+    "app/repositories/channel_binding_request.py",
+    "app/repositories/customer_erasure.py",
     "app/repositories/agent_trigger.py",
     "app/repositories/ingestion_spend.py",
     "app/repositories/mcp_connection.py",
@@ -1567,6 +1587,8 @@ include = [
     "app/services/rag/web_page.py",
     # Which host is sent the Entra app's secret, its Graph token or neither.
     "app/services/rag/connectors/sharepoint.py",
+    "app/services/rag/connectors/slack.py",
+    "app/services/rag/connectors/odoo.py",
     # The query strings a knowledge search runs, and the one place an expansion
     # failure is allowed to fall back to the plain query (#1649).
     "app/services/rag/query_analysis.py",
@@ -1665,6 +1687,7 @@ include = [
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/sms_media.py",
+    "app/services/channels/sms_setup.py",
     "app/services/channels/dedupe.py",
     "app/services/channels/stream_lease.py",
     "app/services/channels/feedback.py",
@@ -1673,6 +1696,9 @@ include = [
     "app/services/channels/observation.py",
     "app/schemas/channel_observer.py",
     "app/db/models/channel_observation.py",
+    "app/services/channels/public_line.py",
+    "app/services/channel_binding_requests.py",
+    "app/services/channels/whatsapp_erasure.py",
     # Approvals and questions offered as buttons in a chat, and the Slack app
     # around the bot (#2064, #2067, #2068).
     "app/services/channels/prompts.py",
@@ -1690,6 +1716,11 @@ include = [
     "app/services/channels/slack_manifest.py",
     "app/services/channels/telegram_format.py",
     "app/services/channels/telegram_press.py",
+    "app/services/channels/whatsapp_format.py",
+    "app/services/channels/whatsapp_interactive.py",
+    "app/services/channels/whatsapp_payload.py",
+    "app/services/channels/whatsapp_templates.py",
+    "app/services/channels/whatsapp_window.py",
     # What the Discord adapter says and reads, without the I/O (#2079).
     "app/services/channels/discord_protocol.py",
     "app/repositories/channel_prompt.py",
@@ -1770,11 +1801,15 @@ include = [
     "app/api/routes/v1/admin_announcements.py",
     "app/services/mcp_catalog.py",
     "app/services/portal_catalog.py",
+    "app/core/mail_credential.py",
+    "app/core/odoo_credential.py",
+    "app/services/integrations/**",
     "app/services/portals/__init__.py",
     "app/services/portals/base.py",
     "app/services/portals/exceptions.py",
     "app/services/portals/github.py",
     "app/services/portals/github_app.py",
+    "app/services/portals/github_app_manifest.py",
     "app/services/portals/_api.py",
     "app/services/portals/_calendar.py",
     "app/services/portals/_files.py",
@@ -1866,6 +1901,8 @@ include = [
     "app/repositories/agent_environment.py",
     "app/repositories/agent_exposure.py",
     "app/repositories/channel_observation.py",
+    "app/repositories/channel_binding_request.py",
+    "app/repositories/customer_erasure.py",
     "app/repositories/agent_trigger.py",
     "app/repositories/ingestion_spend.py",
     "app/repositories/mcp_connection.py",

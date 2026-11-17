@@ -207,3 +207,40 @@ async def test_a_mailbox_sql_failure_rolls_back_its_work_and_does_not_poison_the
     assert failed.poll_cursor is None and failed.last_status == "error"
     assert failed.polled_at is not None
     assert succeeded.poll_cursor == {"history_id": "9"} and succeeded.polled_at is not None
+
+
+async def test_product_savepoints_keep_healthy_work_and_release_failed_delivery_claims(db):
+    from sqlalchemy import text
+    from sqlalchemy.exc import IntegrityError
+
+    from app.core import background
+
+    effects = []
+
+    async def record(name):
+        effects.append(name)
+
+    await db.execute(
+        text(
+            "CREATE TEMP TABLE integration_poll_progress (product TEXT PRIMARY KEY) ON COMMIT DROP"
+        )
+    )
+    async with background.deferred_savepoint(db):
+        await db.execute(text("INSERT INTO integration_poll_progress VALUES ('mail')"))
+        background.spawn_after_commit(db, record("mail queued"), name="healthy product")
+    with pytest.raises(IntegrityError):
+        async with background.deferred_savepoint(db):
+            background.spawn_after_commit(db, record("sheet queued"), name="failed product")
+            background.spawn_after_rollback(
+                db, record("sheet claim released"), name="failed delivery"
+            )
+            await db.execute(text("INSERT INTO integration_poll_progress VALUES ('sheet')"))
+            await db.execute(text("INSERT INTO integration_poll_progress VALUES ('sheet')"))
+    await background.drain()
+    assert effects == ["sheet claim released"]
+    result = await db.execute(text("SELECT product FROM integration_poll_progress"))
+    assert result.scalars().all() == ["mail"]
+    await db.commit()
+    background.start_deferred(db)
+    await background.drain()
+    assert effects == ["sheet claim released", "mail queued"]

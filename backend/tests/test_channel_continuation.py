@@ -18,12 +18,13 @@ import pytest
 
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.core.audit import current_impersonator, set_impersonator
-from app.core.exceptions import BadRequestError, RunExecutionError
+from app.core.exceptions import BadRequestError, NoSpendingLimitError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus
 from app.services.agent_runner import RunSegment
 from app.services.channels.continuation import (
     ChatDelivery,
+    _refuse,
     continue_in_chat,
     deliver_in_chat,
 )
@@ -392,6 +393,24 @@ class TestRefusing:
         p.post_notice.assert_awaited_once()
         assert p.post_notice.await_args.args[1][0].text == REFUSED_NOTICE
         p.record_chat_notice.assert_awaited_once()
+        p.deliver.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_a_continuation_with_no_spending_limit_left_is_refused_and_stays_parked(
+        self,
+    ) -> None:
+        """The run was admitted under a ceiling that is gone by the time a member decides it:
+        the resume refuses, the run stays parked and the chat is told once."""
+        with (
+            _Patched() as p,
+            patch(f"{_MODULE}._refuse", wraps=_refuse) as refuse,
+        ):
+            p.resume.side_effect = NoSpendingLimitError(details={"agent_id": "a"})
+            await _continue()
+        assert refuse.await_args.args[3] == "NoSpendingLimitError"
+        p.savepoint.rollback.assert_awaited_once()
+        p.post_notice.assert_awaited_once()
+        assert p.post_notice.await_args.args[1][0].text == REFUSED_NOTICE
         p.deliver.assert_not_awaited()
 
     async def test_a_savepoint_the_resume_already_closed_is_not_rolled_back_again(self) -> None:

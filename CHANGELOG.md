@@ -19,6 +19,111 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Prepare native change-trigger routines from the terminal, inspect accessible
+  accounts and explicitly create paused routines with source review required.
+
+- Set up an email bot and protected HMAC relay configuration from the terminal,
+  validate incoming receiver JSON without sending, and opt in to signed delivery.
+- Register an existing Twilio SMS number with hidden credentials; prepare its
+  webhook offline, inspect settings or explicitly apply the verified URL/method
+  without purchasing a number or sending a message.
+
+- Register a private GitHub App from a read-only manifest with a terminal wizard;
+  its one-time localhost callback sends generated credentials directly to the
+  chosen organization Vault.
+
+- Choose manual bot registration or the standalone
+  [Mattermost plugin](https://github.com/vstorm-co/agenticos-mattermost) when adding
+  a Mattermost channel. The plugin pairs a local bot with your own AgenticOS
+  instance, invites selected channels and revokes its access on disconnect.
+
+- Connect IMAP and Odoo without the console using documented API requests and
+  credential-free payload templates for personal or organization accounts.
+
+- Register channel bots from a terminal with a hidden token prompt, a protected
+  token file or stdin; existing `--token` arguments remain supported.
+
+- **WhatsApp as a channel** (#2076). A published agent answers on a WhatsApp Business
+  number through Meta's Cloud API, in direct chats. It reads images, documents and
+  voice notes (transcribed like voice on the other platforms) and sends charts and
+  files back; videos, stickers and contacts are refused by name. Linked members
+  answer approvals, questions and suggested next steps by tapping WhatsApp buttons
+  or a list. Register the bot from **Channels** or
+  `channel-add-bot --platform whatsapp`, then paste the callback URL it shows into
+  the Meta app. Every webhook POST is checked against Meta's signature with the app
+  secret before it is read. An unlinked sender confirms the link in the browser and
+  sends the 6-digit code it shows from the chat within 5 minutes. Answers are split
+  at 4096 characters and converted to WhatsApp formatting, with a read receipt and a
+  typing indicator. A bot whose access token Meta refuses is shown as down. The
+  `whitelist` policy is impractical on WhatsApp, because a sender is identified by a
+  business-scoped id an operator cannot see: use linking. Outbound traffic goes to
+  `graph.facebook.com`, and media is fetched only from `lookaside.fbsbx.com`.
+  An answer that comes more than 24 hours after the customer's last message (an
+  approval decided later, say) goes out inside an approved utility template chosen
+  on the bot. One that does not fit goes as a short preview, and the full answer
+  follows when the customer writes again. Without a template nothing is sent, and
+  the run page says why. Each late answer is a charged template message on a real
+  number. A late-answer template may carry at most one quick-reply button, so
+  templates with more are no longer offered. A notice that a run expired, was
+  stopped or could not continue waits the same way. When a customer's run is still
+  waiting for an approval 20 hours after their last message, the bot sends one
+  "Keep me posted" message whose tap reopens the window. Several numbers on one Meta
+  app can share its callback URL: each message reaches the bot registered for its
+  number, and only when that bot's own app secret verifies the delivery.
+  A WhatsApp bot can answer anyone who messages it, with the new **Answer people who
+  are not linked** switch (a public line). A stranger's run acts as the agent, with
+  only its published grants, and needs a monthly budget on the bound agent or an
+  organization cap. **Accept files from customers** (`accept_customer_files`, off by
+  default) lets a stranger send files; voice notes need an organization cap. A
+  customer view lists who has written, with the phone number shown to
+  `channels:manage`, and **Forget this customer** (`channel-forget-customer`)
+  erases one across the organization's WhatsApp bots. `channel-public-line` shows
+  the switch's warning and toggles it. Switching the line off leaves a parked
+  stranger's run without a message.
+- WhatsApp webhook messages and window-refusal statuses use durable worker jobs, committed with customer timestamps. The worker rechecks current bot authority, serializes each customer's batches and retains failed work for inspection. Customer erasure also removes non-running inbound payloads. Public-line warnings list connected organization accounts; personal accounts and platform MCP table tools remain unavailable to anonymous customers.
+- **Binding requests.** A member who may edit a binding but not manage channels can
+  ask for an agent to be bound to, moved to another environment on, or resumed on a
+  public-line WhatsApp bot, with a note of up to 500 characters. Holders of
+  `channels:manage` are notified (`channel_binding_requested`), and the requester
+  hears the decision (`channel_binding_decided`).
+
+- Native account consent can use an API-only AgenticOS Bridge or the organization's own OAuth app. Managed tokens stay in the deployment's Vault, with PKCE handoff and token-bound refresh receipts. Disabled and hidden by default; reviewed deployments configure `OAUTH_BRIDGE_URL` and a console-issued `OAUTH_BRIDGE_ACCESS_KEY` requested from dev@vstorm.co. Provider app readiness is checked before consent.
+- Configure API webhook signature formats and headers in the routine editor, and find Linear webhooks from the event picker.
+
+### Changed
+
+- Update compatible backend runtime, sandbox, parsing, documentation and test dependencies from #3058, and refresh their third-party notices.
+- Update FastAPI, Logfire and Pydantic AI Skills, with refreshed third-party notices (#3043).
+
+### Fixed
+
+- Align integration connection choices with the console control styles and retain
+  actual disconnected/unknown channel states alongside public WhatsApp line labels.
+- Keep personal-service setup tools out of runs acting as a public-line agent.
+
+- Prevent email reply loops from trusted automation/bounce metadata and the bot's
+  own sender address, and mark outbound bot replies as automatic responses.
+
+- Invalid channel-bot CLI configuration returns a credential-free validation
+  error, with token lengths checked against the bot API limits before registration.
+
+- Routine access reviews refresh their sources and action inventories after a personal or organization MCP connection is changed, checked or connected through OAuth, including live updates, without reloading the console (#3061).
+- Routine history clears the starting placeholder when the requested run appears, including runs already waiting for approval or finished before the first refresh. Older runs do not hide a new dispatch, and the exact queued activation keeps polling independent of concurrent fires, paginated history and browser/server clock differences (#3063). Waiting-for-answer runs have a translated status in every console language (#3064).
+- Run now returns an explicit conflict when no job or durable refusal can be recorded, instead of acknowledging work that will never run (#3069).
+- Preserve the cadence and run estimates of stored cron schedules by keeping croniter below 7 until its changed expression semantics can be migrated (#3067).
+- Choosing an improvement helper requires view access as well as run access. Missing or inaccessible helpers return 404 before their settings are read (#2685).
+
+### Upgrading
+
+- Apply `0339_merge_channel_runtime.py` to join the existing WhatsApp history with
+  main's channel, sync-source and memory revisions. Both histories retain their
+  revision IDs; no manual stamping or renumbering is needed.
+
+- `0332_routine_activation_lookup.py` builds a partial index for exact routine-fire polling. Existing runs are preserved; writes to `agent_runs` wait briefly while the transactional index builds.
+
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed

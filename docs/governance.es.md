@@ -1,5 +1,5 @@
 ---
-source_sha: "580be673475a"
+source_sha: "ae118943abf0"
 ---
 
 # Governance { #governance }
@@ -2547,6 +2547,9 @@ Las herramientas MCP de Inbox sirven a sesiones iniciadas y credenciales de
 confianza de un chat privado; estas últimas solo acceden a casos de ese chat.
 Las claves API ordinarias, ejecuciones desatendidas e identidades de respaldo del
 publicador no pueden leer ni resolver casos privados de Inbox.
+
+
+Las conexiones incorporadas de Google, Microsoft, Slack e IMAP también funcionan aquí. [Integraciones incorporadas](integrations.md) explica configuración, selección de cuenta, capabilities, operaciones workflow, sincronización de conocimiento y cursores persistentes.
 
 ## Grupos de aprobación { #approval-groups }
 

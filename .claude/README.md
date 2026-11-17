@@ -1,7 +1,11 @@
 # `.claude/` — what lives here
 
 Agent configuration for this repository. `AGENTS.md` at the root is the always-loaded
-brief; everything here is loaded on demand.
+brief; everything here is loaded on demand. `CLAUDE.md` is a relative link to it.
+Codex discovers the same skills through `.agents/skills`; OpenCode supports these
+compatibility paths directly. There is one skill source, not a separate copy per
+coding agent. On systems that do not check out symlinks, enable Git symlink support
+or read the canonical paths from `AGENTS.md` explicitly.
 
 ```
 .claude/
@@ -50,6 +54,8 @@ nothing until one is relevant.
 | Skill | For |
 |---|---|
 | `agent-capability` | A tool the model can call; a capability; approval; tool renames |
+| `native-integration` | Native product APIs, account authority and shared capability/workflow operations |
+| `workflow-node` | Typed node contracts, execution effects, retries and stored graph compatibility |
 | `agent-spec` | Changing `AgentSpec`, `SPEC_VERSION`, publish validation, YAML |
 | `permissions-rbac` | Any authorization work. `require()` vs `resolve_access` |
 | `vault-secrets` | Any credential at rest; secret kinds; leak review |

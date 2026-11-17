@@ -414,6 +414,7 @@ function ConnectionForm({
               </a>
             )}
             <McpOAuthClientFields
+              catalogKey={draft.row.entry?.key}
               clientId={clientId}
               clientSecret={clientSecret}
               onClientIdChange={setClientId}
@@ -505,6 +506,7 @@ function ConnectionForm({
                 not start a consent, so a client typed here would go nowhere. */}
             {ownClient && !googleClient && (
               <McpOAuthClientFields
+                catalogKey={draft.row.entry?.key}
                 clientId={clientId}
                 clientSecret={clientSecret}
                 onClientIdChange={setClientId}

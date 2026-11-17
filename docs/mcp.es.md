@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e6baca79ef"
+source_sha: "be25e917d548"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1106,6 +1106,16 @@ rechaza en su próxima publicación: enlaza en su lugar **Microsoft 365
 
 ### Gmail y Google Workspace { #gmail-and-google-workspace }
 
+### Elegir MCP o capabilities de Google incorporadas { #choose-mcp-or-built-in-google-capabilities }
+
+Para operaciones de Gmail, Calendar, Drive, Docs, Sheets y Slides ya cubiertas por AgenticOS, empiece por las [capabilities incorporadas](integrations.md). Usan las API normales de Google y no requieren el Developer Preview del MCP alojado ni un cliente OAuth para agentes de IA. Un administrador configura Google una vez en **Vault → Integraciones**; después cada persona conecta cuentas desde **Controles del chat → Preferencias → Tus cuentas** o **Configuración → Perfil → Tus cuentas conectadas**. Un agente también puede usar cuentas de la organización seleccionadas explícitamente. Se admiten varias cuentas.
+
+Los servidores Workspace MCP alojados por Google añaden requisitos: pertenecer al Developer Preview, habilitar API del producto y MCP, marcar el cliente OAuth para agentes de IA y configurar el callback. La admisión al preview y las aprobaciones administrativas pueden retrasar la configuración; no prometa acceso inmediato ni un plazo fijo. Los servidores Workspace MCP autoalojados o de terceros tienen sus propios requisitos y no son el mismo servicio preview. Consulte [la configuración MCP de Google](https://developers.google.com/workspace/guides/configure-mcp-servers).
+
+La verificación OAuth es distinta de la admisión a MCP. Las aplicaciones externas con permisos sensibles o restringidos pueden necesitar revisión de Google; existen excepciones para usos internos, personales y de prueba elegibles. Los permisos restringidos también pueden exigir una evaluación de seguridad. Esto puede aplicarse a las capabilities nativas: no evitan la verificación. Consulte [permisos sensibles](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification) y [restringidos](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification). Compruebe el estado real de la aplicación en lugar de afirmar que toda conexión debe esperar revisión.
+
+Al ayudar con Google, determine la operación y de quién son las cuentas. Prefiera una capability nativa si cubre la operación; proponga MCP para herramientas adicionales, un servidor ya configurado o una preferencia del usuario. Compruebe los vínculos del agente y el acceso a cuentas antes de prometer acciones. Si falta acceso, dirija al administrador a configurar el proveedor o al usuario a conectar su cuenta. Una capability incluida en AgenticOS no está necesariamente activada y conectada para ese agente.
+
 ### Servidores remotos oficiales de Google { #official-google-remote-servers }
 
 El catálogo incluye los servidores Workspace alojados por Google: Gmail, Calendar,
@@ -1504,6 +1514,9 @@ La migración `0293_connected_account_sources.py` exige renovar el consentimient
 Las pausas de aprobación de Mirage fijan identidades de cuentas y generaciones de secretos. Cambiarlas durante la espera requiere una ejecución nueva con aprobación. Las revisiones de fuentes de rutinas fijan las mismas generaciones; escrituras y comandos del terminal requieren consentimiento para efectos de la rutina incluso con las aprobaciones de escritura del montaje desactivadas.
 
 Eliminar a un miembro revoca permanentemente sus autorizaciones personales emitidas mediante esta organización; volver a invitarlo requiere un nuevo consentimiento.
+
+
+Las conexiones incorporadas de Google, Microsoft, Slack e IMAP también funcionan aquí. [Integraciones incorporadas](integrations.md) explica configuración, selección de cuenta, capabilities, operaciones workflow, sincronización de conocimiento y cursores persistentes.
 
 ## Descubrimiento acotado e inspección de ejecuciones { #bounded-discovery }
 

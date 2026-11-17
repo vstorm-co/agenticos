@@ -1,6 +1,7 @@
 "use client";
 import { ProfileIdentitySettings } from "@/components/settings/profile-identity-settings";
 import { AppearanceSettings } from "@/components/settings/appearance-settings";
+import { PersonalIntegrationAccounts } from "@/components/settings/personal-integration-accounts";
 import { CodingAccounts } from "@/components/settings/coding-accounts";
 import { ChatAccounts } from "@/components/settings/chat-accounts";
 import { ForgetMe } from "@/components/memory/forget-me";
@@ -14,6 +15,7 @@ export default function ProfileSettingsPage() {
         <ProfileIdentitySettings unifiedSave />
       </div>
       <div className="bg-card min-w-0 self-start rounded-2xl border px-5 pb-2 sm:px-6">
+        <PersonalIntegrationAccounts />
         <ChatAccounts />
         <CodingAccounts />
       </div>

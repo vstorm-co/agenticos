@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import {
   createWatch,
@@ -54,4 +55,20 @@ export function useWatchPresets() {
     staleTime: Infinity,
   });
   return data ?? ([] as WatchPreset[]);
+}
+
+export interface WatchConnection {
+  products?: string[];
+  id: string;
+  name: string;
+  label: string | null;
+  catalog_key: string | null;
+}
+
+export function useWatchConnections() {
+  const query = useQuery({
+    queryKey: qk.watches.connections(),
+    queryFn: () => apiClient.get<WatchConnection[]>("/me/watches/connections"),
+  });
+  return { connections: query.data ?? [], error: query.error, isLoading: query.isLoading };
 }

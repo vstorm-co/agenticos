@@ -4,6 +4,7 @@ import re
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field, replace
+from datetime import datetime
 from typing import Any, Literal
 
 from app.agents.capabilities.channel_tools import (
@@ -57,7 +58,16 @@ def broadcast_mentioned(platform: str, text: str) -> bool:
 # Surface a conversation is happening on. "web" is the chat UI / API; the
 # others are messaging platforms. Extend this when adding new channels.
 ChannelType = Literal[
-    "web", "slack", "telegram", "mattermost", "teams", "sms", "email", "discord", "imessage"
+    "web",
+    "slack",
+    "telegram",
+    "mattermost",
+    "teams",
+    "sms",
+    "email",
+    "discord",
+    "imessage",
+    "whatsapp",
 ]
 
 # Default access policy applied to new channel bots.  Imported by models and
@@ -273,6 +283,13 @@ class IncomingMessage:
     dedupe_claimed: bool = False
     """Request-only evidence that shared Redis admitted this delivery, not a fail-open path."""
 
+    sent_at: datetime | None = None
+    """When the person sent the message, as the platform says; `None` where it does not.
+
+    A message never answers a question that was offered after it was sent (see
+    `ChannelPrompts.reply`), so a message that waited behind other work is not
+    taken for the answer to a question that did not exist yet.
+    """
     broadcast_mention: bool = False
     addressed: bool | None = None
     """Whether this message named the bot, where the platform says.
@@ -344,6 +361,10 @@ class OutgoingMessage:
     # Slack and Telegram ignore it; a Mattermost bot cannot send without it,
     # because every deployment is somebody's own server.
     api_base_url: str | None = None
+    run_id: str | None = None
+    """The run this message answers, or the run waiting on this prompt, so a platform that cannot deliver it now can deliver it later (WhatsApp outside its 24-hour window). `None` for anything else, which is sent now or not at all."""
+    notice: str | None = None
+    """The key of a fixed platform sentence (`handback.NOTICES`) when the text is that sentence and not an answer; a platform with a send window holds the key, never the text, and sends it without callback data."""
 
 
 CHANNEL_COMMANDS: tuple[tuple[str, str], ...] = (
@@ -474,6 +495,8 @@ class PromptMessage:
     bot_id: str = ""
     """The bot posting it, for a platform whose buttons call back a per-bot URL."""
     api_base_url: str | None = None
+    run_id: str | None = None
+    """The run this message answers, or the run waiting on this prompt, so a platform that cannot deliver it now can deliver it later (WhatsApp outside its 24-hour window). `None` for anything else, which is sent now or not at all."""
 
 
 @dataclass
@@ -494,6 +517,11 @@ class IncomingPress:
     """What a platform needs told the press arrived - Telegram's callback query id."""
     trigger_id: str | None = None
     """What opens a form in reply to the press - Slack's modal, Mattermost's dialog."""
+    delivery_id: str | None = None
+    """The platform's id for this press's own delivery, where it may deliver one press twice.
+
+    WhatsApp's tap wamid. `None` where the platform never redelivers a press.
+    """
 
 
 @dataclass
@@ -529,6 +557,12 @@ class ChannelAdapter(ABC):
     """
 
     platform: str  # class-level constant e.g. "telegram"
+
+    buttons_outlive_a_press: bool = True
+    """Whether a message's buttons can still be pressed after one was.
+
+    Where they can't, a multi-select question is offered again after each pick.
+    """
 
     def prepare_connection(  # noqa: B027
         self,
@@ -680,12 +714,17 @@ class ChannelAdapter(ABC):
         """
         return False
 
-    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+    async def download_attachment(
+        self, bot_token: str, attachment: IncomingAttachment, *, max_bytes: int | None = None
+    ) -> bytes:
         """Fetch what somebody sent, using this platform's own second request.
 
         Not abstract: a platform this build cannot fetch files from is better off
         saying so than forcing every adapter to implement a stub. A surface that
         never produces attachments never calls this.
+
+        `max_bytes` narrows the adapter's own size limit for this one fetch; an
+        adapter that streams stops there, and the rest ignore it.
 
         Raises:
             NotImplementedError: If this platform's adapter cannot fetch files.
@@ -947,8 +986,17 @@ class ChannelAdapter(ABC):
                 platform_chat_id=prompt.platform_chat_id,
                 text=f"{prompt.text}\n{listed}",
                 api_base_url=prompt.api_base_url,
+                run_id=prompt.run_id,  # the text list still waits on this run
             ),
         )
+
+    def press_matches_chat(self, press: IncomingPress, platform_chat_id: str) -> bool:
+        """Whether a press came from the chat its prompt was posted in, where the platform can say.
+
+        WhatsApp can, because a chat is one customer. Slack and Mattermost thread ids
+        make that comparison unsafe, so the default does not compare.
+        """
+        return True
 
     async def acknowledge(  # noqa: B027 - most platforms need no acknowledgement
         self, bot_token: str, press: IncomingPress

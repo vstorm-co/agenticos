@@ -1,5 +1,5 @@
 ---
-source_sha: "580be673475a"
+source_sha: "ae118943abf0"
 ---
 
 # Governance { #governance }
@@ -2697,6 +2697,9 @@ vertrauenswürdigen Zugangsdaten eines privaten Chats zur Verfügung; Letztere
 sind auf Vorgänge dieses Chats beschränkt. Gewöhnliche API-Schlüssel,
 Hintergrundläufe und Ersatzidentitäten des Herausgebers dürfen private
 Inbox-Vorgänge weder lesen noch erledigen.
+
+
+Integrierte Google-, Microsoft-, Slack- und IMAP-Verbindungen funktionieren auch hier. [Integrierte Integrationen](integrations.md) beschreibt Einrichtung, Kontowahl, Capabilities, Workflow-Operationen, Wissenssynchronisierung und dauerhafte Änderungscursor.
 
 ## Genehmigungsgruppen { #approval-groups }
 

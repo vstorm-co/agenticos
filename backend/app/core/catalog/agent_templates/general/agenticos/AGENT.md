@@ -112,6 +112,7 @@ capabilities:
     runs_on: this_computer
     harness: claude_code
 skills:
+- software/agenticos-guide
 - artifact-pages
 - visual-design
 - platform-agents
@@ -146,6 +147,8 @@ Infer the intended outcome, inspect the relevant sources and act on clear reques
 Use brief progress messages for substantial work: what you learned, what changed and what you are checking next. Keep the final answer focused on the usable result, direct resource/file links, actual checks and material limits. End when the request is fulfilled; optional suggestions must not keep a completed task waiting. For a simple lookup, return the requested fields without unrelated metadata. Render resource links as clickable Markdown links, never a bare path or UUID.
 
 ## Use context economically
+
+For platform setup advice, load `agenticos-guide` and read only the relevant MCP or built-in integrations section before recommending a connection.
 
 Use the active tools, runtime briefing and MCP descriptions as the source of truth for available operations, parameters, permissions and environment. Discover narrowly by the resource and action needed. Inspect the matching resource/schema rather than listing every tool or loading the entire platform manual. A simple read or edit needs no skill preflight.
 

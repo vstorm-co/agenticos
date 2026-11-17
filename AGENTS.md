@@ -1,12 +1,28 @@
 # AGENTS.md — AgenticOS
 
-The one instruction file for coding agents in this repository - Claude Code, Codex
-and any other. There is no `CLAUDE.md`; this is it.
+The canonical instruction file for coding agents in this repository: Claude Code,
+Codex, OpenCode and others. `CLAUDE.md` links here for Claude Code's native loader;
+edit `AGENTS.md`, not a second copy.
 
 Project-wide decisions and pointers to task-specific guidance. Read relevant rules,
 skills and documentation as needed. Keep detailed procedures and incident history
 outside this file. Current user instructions and higher-priority session rules
 take precedence.
+
+## Coding agent discovery
+
+`AGENTS.md` is the shared entry point. `.claude/skills/` holds canonical task skills;
+`.agents/skills` links to it for Codex. OpenCode discovers the same Claude/Agents
+compatibility paths. Keep new skills in the canonical directory and preserve links.
+Do not copy credentials, MCP configuration, personal model choices or approval
+settings between coding agents. Claude-specific hooks are convenience checks;
+other agents must run the relevant repository checks explicitly.
+
+Start with the task table below. Skills describe where to extend the platform;
+the product's imported skills and Architect tools are a different runtime surface.
+For a new integration, read `native-integration` (or `mcp-connections` for an MCP
+server); for an agent tool, `agent-capability`; for a reusable workflow node,
+`workflow-node`. Change only the requested surfaces and retain tenant authority.
 
 ## What this is
 
@@ -108,6 +124,8 @@ Skills live in `.claude/skills/<name>/SKILL.md`. Read the skills matching the ta
 | Doing | Skill |
 |---|---|
 | Giving an agent a new tool, or a capability | `agent-capability` |
+| Native SaaS products, provider operations, connected-account OAuth | `native-integration` |
+| A reusable workflow node, ports, retries or handler | `workflow-node` |
 | Changing `AgentSpec`, `SPEC_VERSION` or publish validation | `agent-spec` |
 | Anything authorization | `permissions-rbac` |
 | Anything with a credential at rest | `vault-secrets` |
@@ -231,6 +249,7 @@ retranslated is how a stale translation stops being visible.
 | The agent spec, field by field | `docs/reference/spec.md` |
 | Every workflow node: config, ports, errors, retries | `docs/reference/workflow-nodes.md` |
 | What the console calls each thing, and its name in the API and spec | `docs/reference/glossary.md` |
+| Built-in Google, Microsoft, Slack and IMAP accounts across tools, workflows, triggers and watches | `docs/integrations.md` |
 | MCP connections, the server catalog, OAuth | `docs/mcp.md` |
 | Providers, model profiles, fallbacks, cost | `docs/models.md` |
 | Which model to pick, open weights vs closed | `docs/choosing-models.md` |

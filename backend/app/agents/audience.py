@@ -146,11 +146,11 @@ def derive_audience(
     same human into a browser store and a Slack store and left them reporting that
     the agent forgets them between the two.
 
-    There is no fallback to the chat account itself. It would need a run with a
-    chat identity, no room and no real subject - an unlinked direct message, which
-    the bot policy refuses before a run starts (#639) - and in a room the person is
-    not consulted at all. An unreachable branch is one nobody tests, so it is gone
-    rather than kept for a policy that might change (#1470).
+    There is no fallback to the chat account itself. An unlinked direct message on
+    a line that answers strangers has a chat identity, no room and no real subject,
+    and it runs as its agent with no member behind it; it keys on nobody, so its
+    memory and conversation search stay off. In a room the person is not consulted
+    at all (#1470).
 
     The trap this function exists to avoid is `user_id` on a hosted or embedded
     surface, where it is the *publisher* standing in for an unidentified visitor
@@ -259,3 +259,34 @@ def for_no_person() -> bool:
     attributed by its own caller, not by this flag.
     """
     return _for_no_person.get()
+
+
+_decider: ContextVar[tuple[str, UUID] | None] = ContextVar("run_decider", default=None)
+
+
+@contextmanager
+def acting_decider(tool_call_id: str, user_id: UUID | None) -> Generator[None]:
+    """Say, for the block's duration, who approved the one tool call it executes.
+
+    Opened by the approval gate around an approved call in a run that acts as its
+    agent and as no member. The pair is bound to the call: a tool honours it only
+    when its own `tool_call_id` matches, so a call made inside this one - another
+    tool a child task reaches, a delegate's - never borrows the decider's standing.
+    With no `user_id` nothing is set. Reset on the way out however the block ends.
+    """
+    if user_id is None:
+        yield
+        return
+    token = _decider.set((tool_call_id, user_id))
+    try:
+        yield
+    finally:
+        _decider.reset(token)
+
+
+def decider_for(tool_call_id: str | None) -> UUID | None:
+    """The member who approved this tool call, or `None` for any other call."""
+    held = _decider.get()
+    if held is None or tool_call_id is None or held[0] != tool_call_id:
+        return None
+    return held[1]

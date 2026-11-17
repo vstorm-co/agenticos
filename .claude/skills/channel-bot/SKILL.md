@@ -1,9 +1,9 @@
 ---
 name: channel-bot
-description: Work with messaging-channel bots — Telegram, Slack, Mattermost, Microsoft Teams or Discord. Register a bot, route inbound messages through an agent, choose webhook vs polling, handle an @slug mention, or add a new channel adapter. Use when wiring chat into a messaging platform or debugging bot delivery, identity linking or "the bot answered as itself".
+description: Work with messaging-channel bots — Telegram, Slack, Mattermost, Microsoft Teams, Discord or WhatsApp. Register a bot, route inbound messages through an agent, choose webhook vs polling, handle an @slug mention, or add a new channel adapter. Use when wiring chat into a messaging platform or debugging bot delivery, identity linking or "the bot answered as itself".
 ---
 
-# Channels — Telegram, Slack, Mattermost, Teams, Discord
+# Channels — Telegram, Slack, Mattermost, Teams, Discord, WhatsApp
 
 **Read `docs/channels.md`.** Code: `app/services/channels/` — a thick service with
 per-platform adapters plus a router that funnels inbound messages into the **same**
@@ -18,6 +18,8 @@ agent pipeline as the web chat.
 | `imessage.py`, `imessage_transport.py` | Company BlueBubbles Mac: bounded HTTP, separately authenticated webhook, text/files, optional tapbacks and numbered prompts; no polling |
 | `teams.py`, `teams_auth.py` | Microsoft Teams over the Bot Connector's HTTP protocol (#1985): JWT-verified activities, Adaptive Cards, conversation references in `teams_conversations` |
 | `discord.py`, `discord_protocol.py` | Discord over its Gateway and REST API, no library (#2079); the protocol module holds the pure payloads, chunking and the channel-visibility arithmetic |
+| `whatsapp.py`, `whatsapp_payload.py`, `whatsapp_format.py`, `whatsapp_graph.py`, `whatsapp_window.py`, `whatsapp_templates.py`, `whatsapp_customers.py`, `whatsapp_inbound.py`, `whatsapp_nudge.py` | WhatsApp over Meta's Cloud API (#2076): HMAC-verified webhook batches queued durably in the webhook transaction and grouped per customer, Markdown converted and split to 4096 UTF-16 units, the Graph client (a refused token marks the bot down in the console list); the 24-hour window: the customer record the webhook keeps, late answers and fixed chat notices in the bot's utility template or held until the customer writes, and a one-button nudge before the window closes on a run awaiting approval |
+
 | `ingress.py` | Durable normalized admission, per-thread queue and same-sender additions at model boundaries |
 | `reply_receipts.py` | Terminal reply snapshot and single submission fence; never replay model/tool effects |
 | `router.py` | Inbound platform message → conversation/session → agent run → reply |
@@ -80,20 +82,62 @@ These are the ones worth testing and the ones easiest to break:
   carry whatever permissions it was registered with, which is how a channel becomes a
   privilege-escalation path.
 - **An unlinked identity is refused, not run with no role.** "No role" is not a safe
-  default; it is an unauthenticated run.
+  default; it is an unauthenticated run. The one exception is a direct chat on a
+  WhatsApp bot whose public line is on (`answer_unlinked_direct`): it runs *as the
+  agent*, with only the spec's grants, and needs a spending ceiling. See
+  `docs/channels.md#whatsapp-public-line`.
 
 `tests/test_channel_mentions.py` and `tests/test_channel_bot_org_scope.py` pin these.
+
+## Mattermost setup plugin
+
+The installable Go plugin lives in the separate repository
+[vstorm-co/agenticos-mattermost](https://github.com/vstorm-co/agenticos-mattermost).
+It owns packaging, setup dialogs, local bot provisioning and plugin CI. This
+repository owns the channel adapter, Vault API, identity checks and agent runner.
+Read the plugin's README and AGENTS.md before changing that half. Do not copy its
+source or build workflow back into AgenticOS.
+
+The channel dialog offers manual token registration and plugin setup. Plugin
+setup must not submit the manual form or invent a local connection; after setup
+in Mattermost, refresh channel and exposure queries. Keep administrator setup
+credentials ephemeral and sender authorization in the existing channel router.
 
 ## CLI
 
 ```bash
 uv run agenticos cmd channel-add-bot \
-    --platform telegram --name "Support" --token <token> --mode jwt_linked
+    --platform telegram --name "Support" --mode jwt_linked
 uv run agenticos cmd channel-list-bots [--platform telegram]
 uv run agenticos cmd channel-test-message --bot-id <uuid> --chat-id <chat> --text ping
 uv run agenticos cmd channel-webhook-register --bot-id <uuid>
 uv run agenticos cmd channel-webhook-delete --bot-id <uuid>   # back to polling
+uv run agenticos cmd channel-public-line --bot-id <uuid> [--on|--off]   # WhatsApp public line
+uv run agenticos cmd channel-forget-customer --bot-id <uuid> --by bsuid|phone
 ```
+
+Omit `--token` for a hidden prompt. For automation, use `--token-file <protected-file>`
+or `--token-file -` for stdin. Never put a real token in an example, shell history
+or a process argument. These input options work for every platform; platform-specific
+webhook/app secrets still follow their existing configuration contract.
+
+Own-account setup commands are also available:
+
+```bash
+uv run agenticos cmd channel-add-email --name "Mail" --address agent@example.com --relay-config /private/path/relay.json --org <uuid>
+uv run agenticos cmd email-relay-send --config /private/path/relay.json --message received.json
+uv run agenticos cmd channel-add-sms --name "SMS" --account-sid <sid> --from-number <e164> --org <uuid>
+uv run agenticos cmd channel-configure-sms-webhook --bot-id <uuid> --org <uuid>
+```
+
+Email relay validation and SMS webhook planning are offline by default. Email
+submission requires `--send`; Twilio reads/writes require `--inspect` / `--apply`.
+Do not send messages as a configuration check. Email still needs a trusted DMARC
+receiver and a delivering deployment mail provider; it does not poll IMAP. Relay
+HMAC keys are created exclusively in a private file for the customer-owned receiver;
+the corresponding platform copy is sealed in Vault. Preserve Message-ID on retries.
+Twilio setup verifies the existing number, account and SMS capability before writing
+only its incoming URL/method. A request rate limit is not a spending cap.
 
 There is no `cmd channel` group — the commands are flat, hyphenated names.
 
@@ -115,6 +159,12 @@ makes the *other* modes refuse in a channel too (#639).
   the service and `channel-webhook-register` refuse a webhook for it. An
   interaction must be acknowledged within three seconds, so the adapter defers
   first and does the work after.
+- **WhatsApp is push only too** - Meta's `X-Hub-Signature-256` is checked over the raw body
+  with the app secret (`verify_signature`), never skipped for a bot without one. A
+  customer is a business-scoped user id, never a phone number, and the number is
+  never logged. One Meta app has one callback URL for all its numbers, so
+  `WhatsAppInbound.route_others` hands a change for another number to the active
+  bot registered for it, and only when that bot's own app secret verifies the body.
 
 ## Adding an adapter
 

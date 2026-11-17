@@ -116,6 +116,7 @@ from app.agents.voice import (
 )
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
+from app.services.integrations.catalog import PRODUCTS
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,7 @@ _AUDIENCE_AWARE = frozenset(
         BROWSER_CAPABILITY_ID,
         MEMORY_FILES_CAPABILITY_ID,
         CONVERSATION_SEARCH_CAPABILITY_ID,
+        *PRODUCTS,
     }
 )
 
@@ -233,6 +235,7 @@ def build_agent(
     audience: RunAudience | None = None,
     run_person: UUID | None = None,
     impersonated: bool = False,
+    acts_as_agent: bool = False,
     granted_scopes: frozenset[str] | None = None,
     resources: dict[str, Any] | None = None,
     secrets: Mapping[UUID, StorableSecret] | None = None,
@@ -269,6 +272,8 @@ def build_agent(
             tool that needs a person refuses on `None`.
         impersonated: The run was started while an administrator impersonated its
             person. Handed to `AgentDeps` unchanged.
+        acts_as_agent: The run acts as its agent and as no member. Handed to
+            `AgentDeps` unchanged.
         granted_scopes: Scopes the organization allows. Passing `None` skips
             the check and is for internal runs only.
         gate_every_tool: Ask about every tool the agent can reach, not only the
@@ -457,6 +462,7 @@ def build_agent(
         conversation_id=conversation_id,
         user_id=user_id,
         user_name=user_name,
+        acts_as_agent=acts_as_agent,
         audience=bound_audience,
         run_person=run_person,
         impersonated=impersonated,

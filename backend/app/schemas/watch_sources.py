@@ -11,6 +11,9 @@ from app.schemas.base import BaseSchema
 class WatchSources(BaseSchema):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    integration_product_id: str | None = None
+    integration_binding_hash: str | None = None
+    integration_channels: tuple[str, ...] = ()
     connection_id: UUID
     authorization_generation: UUID | None = None
     catalog_key: str

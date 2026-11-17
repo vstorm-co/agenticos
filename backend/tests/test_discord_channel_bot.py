@@ -262,7 +262,7 @@ async def test_server_approvals_are_rejected_before_writing_a_non_discord_bot() 
     )
     with patch("app.services.channel_bot.channel_bot_repo.create", AsyncMock()) as saved:
         with pytest.raises(BadRequestError) as failure:
-            await service.create(data)
+            await service.create(data, actor_user_id=None)
         assert failure.value.details["fields"][0]["field"] == "access_policy.discord_guild_ids"
         saved.assert_not_awaited()
 

@@ -42,7 +42,7 @@ export const REACTIONS: readonly (readonly [name: string, emoji: string])[] = [
 ];
 
 /**
- * Where the bot can react to a question. Teams and Discord answer without one,
+ * Where the bot can react to a question. Teams, Discord and WhatsApp answer without one,
  * so a reaction chosen there would be saved and never drawn.
  */
 const REACTS: readonly ChannelPlatform[] = ["slack", "telegram", "mattermost", "imessage"];

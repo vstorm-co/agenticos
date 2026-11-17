@@ -1,5 +1,5 @@
 ---
-source_sha: "54831c55840b"
+source_sha: "66361fa2c773"
 ---
 
 # Licencias y avisos de terceros { #licences-and-third-party-notices }
@@ -40,11 +40,12 @@ Las herramientas de compilación que se ejecutan en una fase de builder y no est
 en la capa final, como `uv`, quedan registradas en `licenses/components.toml` como
 no distribuidas.
 
-Los extras opcionales `kerberos` y `mirage` no están en las imágenes publicadas,
-así que los avisos los dejan fuera. La imagen del backend sí incluye `browser`. Quien construye una imagen
-con `EXTRAS` distribuye también esos paquetes, bajo sus propias licencias. El extra
-`mirage` trae [Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0) y los
-clientes de servicios que usan sus backends.
+El backend publicado incluye `browser` y [Mirage](https://github.com/strukto-ai/mirage)
+con su extra `email` para IMAP (Apache-2.0). Estas dependencias de producción
+figuran en los avisos. El extra opcional `kerberos` y los clientes de servicios
+adicionales del extra completo `mirage` no están en las imágenes publicadas.
+Quien construye con esos `EXTRAS` distribuye los paquetes adicionales bajo sus
+propias licencias.
 
 ## El inventario { #the-inventory }
 

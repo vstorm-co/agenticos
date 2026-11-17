@@ -16,13 +16,16 @@ from uuid import UUID
 import httpx
 from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
+from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.channel_tools._directory import HistoryQuery
+from app.agents.prompt_variables import channel_name
 from app.agents.steering import SteeringInbox
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
     AuthorizationError,
     BadRequestError,
+    NoSpendingLimitError,
 )
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.channel_identity import ChannelIdentity
@@ -42,7 +45,7 @@ from app.repositories import (
 from app.schemas.channel_bot import AccessPolicy
 from app.services import rate_limit, transcription_usage
 from app.services.channel_bot import unseal_bot_token
-from app.services.channel_link import ChannelLinkService
+from app.services.channel_link import AWAITING_CODE, LINK_CONFIRMED, ChannelLinkService
 from app.services.channels import get_adapter, membership, sms_prompts
 from app.services.channels.attachments import ChannelAttachmentService
 from app.services.channels.base import (
@@ -58,12 +61,23 @@ from app.services.channels.base import (
     memory_room_key,
     split_thread,
 )
-from app.services.channels.dedupe import claim_delivery, release_delivery, remember_unaddressed
+from app.services.channels.dedupe import (
+    claim_delivery,
+    delivery_ref,
+    release_delivery,
+    remember_unaddressed,
+)
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
 from app.services.channels.discord_roles import DiscordRoleSync
 from app.services.channels.exceptions import ChannelNotConfigured
-from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
+from app.services.channels.formatting import (
+    LINK_ACCOUNT_INSTRUCTION,
+    PICTURE_DELIVERY_UNCONFIRMED,
+    PICTURE_DELIVERY_UNCONFIRMED_STRANGER,
+    STRANGER_REFUSAL,
+    WAITS_FOR_A_PERSON,
+)
 from app.services.channels.live_reply import (
     WORKING,
     AnswerSink,
@@ -79,12 +93,19 @@ from app.services.channels.mentions import (
 )
 from app.services.channels.next_steps import ChannelNextSteps
 from app.services.channels.prompts import ChannelPrompts
+from app.services.channels.public_line import (
+    STRANGER_RECORDING_MAX_BYTES,
+    bot_answers_unlinked_direct,
+    bot_ceiling,
+    parse_policy,
+)
 from app.services.channels.steering import InFlight, answering_aside, aside_question, steerable
 from app.services.conversation import ConversationService
 from app.services.message_history import ModelHistory
 from app.services.ml import measure_audio_seconds
 from app.services.rate_limit import Limit
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
+from app.services.spend import assert_organization_within_budget
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 from app.services.transcription import (
     RECORDING_EXTENSIONS,
@@ -109,6 +130,9 @@ if TYPE_CHECKING:
     from app.db.models.channel_session import ChannelSession
 
 logger = logging.getLogger(__name__)
+
+STRANGER_NO_VOICE = "This line does not accept voice messages."
+"""The one sentence a stranger is told whenever their voice note is not taken."""
 
 _DEFAULT_RPM = 10
 
@@ -159,7 +183,8 @@ def chat_lock(bot_id: str, chat_id: str) -> AbstractAsyncContextManager[None]:
     """The router's per-chat lock, for work that posts into a chat outside a turn.
 
     A continuation decided elsewhere takes it before any row lock, so its post
-    cannot interleave with a turn the same chat is running.
+    cannot interleave with a turn the same chat is running. Not reentrant:
+    `route` takes it itself, so hold it only around work that does not route.
     """
     return _chat_locks.hold(bot_id, chat_id)
 
@@ -257,6 +282,10 @@ def _empty_answer(answered: Any) -> str:
     page over a decision that was never raised.
     """
     if answered.awaiting_approval_run_id is not None:
+        # A customer is not given the console's address or the run's id: somebody
+        # at the company decides, and the answer arrives in this chat.
+        if answered.acts_as_agent:
+            return WAITS_FOR_A_PERSON
         return _needs_approval(answered.awaiting_approval_run_id)
     if answered.status == RunStatus.AWAITING_ANSWER:
         # The question itself follows, as its own message with buttons (#2064).
@@ -268,15 +297,18 @@ def _empty_answer(answered: Any) -> str:
     return "Sorry, I could not produce an answer to that. Please try again."
 
 
-def _kept_back(paths: list[str]) -> list[str]:
+def _kept_back(paths: list[str], *, stranger: bool = False) -> list[str]:
     """What the agent produced and the reply could not carry, as one sentence.
 
     A bare list of workspace paths under an answer reads as output. This says why
     they are there and where they still are, which is the difference between an
-    explanation and a puzzle.
+    explanation and a puzzle. A `stranger` is told only that a file did not fit:
+    the workspace's paths are not theirs to read.
     """
     if not paths:
         return []
+    if stranger:
+        return ["(Some files could not be posted here.)"]
     return [
         f"({', '.join(paths)} stayed in the workspace - too large to post here, "
         "or past the file limit for one reply.)"
@@ -453,7 +485,7 @@ class ChannelMessageRouter:
                 "Duplicate channel delivery ignored: bot=%s platform=%s message=%s",
                 incoming.bot_id,
                 incoming.platform,
-                incoming.message_id,
+                delivery_ref(incoming.message_id),
             )
             return
         key = f"{incoming.bot_id}:{incoming.platform_chat_id}"
@@ -583,6 +615,10 @@ class ChannelMessageRouter:
             1. Load bot config from DB.
             2. Check access policy.
             3. Resolve or create ChannelIdentity.
+            3a. If this chat confirmed a link in the browser, take the message
+               as its code: a match links and answers, other text answers
+               what to do and stops, while the sender is unlinked
+               (`ChannelLinkService.complete_with_code`).
             4. Handle commands (/start, /new, /help, /link, /unlink), the
                state-changing ones gated on the same link admission as a turn.
             5. Resolve or create ChannelSession (+ Conversation).
@@ -648,8 +684,32 @@ class ChannelMessageRouter:
             except BadRequestError as exc:
                 await self._refuse_if_named(bot, incoming, exc.message)
                 return
+        # A chat that confirmed its link in the browser is waiting to send the
+        # code back. Decided on the request's state, before anything else reads
+        # the text: the code is not a question for an agent, and an invitation
+        # here would delete the request it is waiting on.
+        code_outcome = await ChannelLinkService(db).complete_with_code(incoming)
+        if code_outcome == "linked":
+            await self._send_reply(bot, incoming, LINK_CONFIRMED)
+            return
+        if code_outcome == "awaiting" and identity.user_id is None:
+            try:
+                await self._check_rate_limit(bot, str(identity.id))
+            except BadRequestError as exc:
+                await self._send_reply(bot, incoming, exc.message)
+                return
+            await self._send_reply(bot, incoming, AWAITING_CODE)
+            return
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
+        # A private chat on a line that answers people with no account. Handed to the
+        # agent router as it is, which gives a sender who is a member their own
+        # standing whatever this says, so a membership that ends between this read
+        # and its own never leaves the turn under the binding's creator.
+        answers_as_agent = self._answers_as_agent(incoming, bot)
+        # Whether *this sender* is the stranger, for how the turn speaks and what is
+        # taken from them: a member in the same chat is not.
+        as_agent = answers_as_agent and not await self._sender_is_active_member(db, bot, identity)
 
         # Commands are handled after the identity is known, so the state-changing
         # ones can be gated on the same admission the turn takes (#1455).
@@ -702,6 +762,7 @@ class ChannelMessageRouter:
             platform_chat_id=incoming.platform_chat_id,
             platform_user_id=incoming.platform_user_id,
             text=incoming.text,
+            sent_at=incoming.sent_at,
         ):
             return
 
@@ -726,7 +787,9 @@ class ChannelMessageRouter:
             )
         recordings, rest = self._split_recordings(incoming)
         incoming.attachments = rest
-        files, file_refusals = await self._receive_files(db, bot, incoming, identity)
+        files, file_refusals = await self._receive_files(
+            db, bot, incoming, identity, as_agent=as_agent
+        )
         # Attributed to the linked person only while they are still a member: a
         # room admits an unlinked or departed sender, and a usage row naming a
         # former member puts a call on the record of somebody who no longer
@@ -737,7 +800,7 @@ class ChannelMessageRouter:
             else None
         )
         transcripts, voice_refusals = await self._transcribe(
-            db, bot, recordings, requested_by=requested_by
+            db, bot, recordings, requested_by=requested_by, as_agent=as_agent
         )
         file_refusals += voice_refusals
         incoming.text = self._with_transcripts(incoming.text, transcripts)
@@ -774,6 +837,8 @@ class ChannelMessageRouter:
             db,
             directory,
             admit_unlinked,
+            as_agent=answers_as_agent,
+            stranger=as_agent,
             files=files,
             file_refusals=file_refusals,
             message_history=history,
@@ -805,6 +870,7 @@ class ChannelMessageRouter:
                 user_id=identity.user_id,
                 channel_identity_id=identity.id,
                 admit_unlinked=admit_unlinked,
+                as_agent=answers_as_agent,
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
                 memory_room_key=memory_room_key(
@@ -825,6 +891,7 @@ class ChannelMessageRouter:
             files=files,
             file_refusals=file_refusals,
             streamed=streamed,
+            as_agent=as_agent,
         )
 
     async def _deliver(
@@ -848,6 +915,8 @@ class ChannelMessageRouter:
         answer as it ends, on an edited one once the edit landed.
         """
         text = answer or _empty_answer(answered)
+        # The run rides on the message so a platform with a send window can hold it.
+        run_id = str(answered.run_id) if answered.run_id is not None else None
         rated = (
             str(answered.run_id)
             if bot.rate_answers
@@ -858,7 +927,13 @@ class ChannelMessageRouter:
         if streamed is not None:
             if not await self._finish_streamed(bot, incoming, streamed, text, rated):
                 return await self._send_reply(
-                    bot, incoming, text, answered.attachments, image_png=answered.image_png
+                    bot,
+                    incoming,
+                    text,
+                    answered.attachments,
+                    image_png=answered.image_png,
+                    run_id=run_id,
+                    as_agent=answered.acts_as_agent,
                 )
             if answered.image_png is None and not answered.attachments:
                 return True
@@ -890,6 +965,8 @@ class ChannelMessageRouter:
             text,
             answered.attachments,
             image_png=answered.image_png,
+            run_id=run_id,
+            as_agent=answered.acts_as_agent,
         )
 
     async def _answer_mention(
@@ -905,6 +982,8 @@ class ChannelMessageRouter:
         files: list[Any],
         file_refusals: list[str],
         message_history: list[ModelMessage] | None = None,
+        as_agent: bool = False,
+        stranger: bool = False,
     ) -> bool:
         """Answer `@handle …` with that agent, and report whether we did.
 
@@ -926,6 +1005,12 @@ class ChannelMessageRouter:
         this one runs first: receiving them here as well downloaded and stored
         every attachment on an unaddressed message twice, and only the second row
         was ever linked to the turn (#683).
+
+        Two decisions arrive, and they differ for a member. `as_agent` is the line's:
+        a private chat on a line that answers strangers, handed to the agent router,
+        which gives a sender who is a member their own standing whatever it says.
+        `stranger` is this sender's: they are not a member, so a refusal is worded
+        for a customer.
         """
         live, handle_of = self._lazy_reply(bot, incoming)
         return await self._run_turn(
@@ -941,6 +1026,7 @@ class ChannelMessageRouter:
                 user_id=identity.user_id,
                 channel_identity_id=identity.id,
                 admit_unlinked=admit_unlinked,
+                as_agent=as_agent,
                 conversation_id=session.conversation_id,
                 platform_chat_id=incoming.platform_chat_id,
                 memory_room_key=memory_room_key(
@@ -955,6 +1041,7 @@ class ChannelMessageRouter:
             handle=handle_of,
             files=files,
             file_refusals=file_refusals,
+            as_agent=stranger,
         )
 
     async def _start_workflow(
@@ -1002,6 +1089,7 @@ class ChannelMessageRouter:
         files: list[Any],
         file_refusals: list[str],
         streamed: StreamedReply | None = None,
+        as_agent: bool = False,
     ) -> bool:
         """Run one turn's answering coroutine and answer, refuse or apologise once.
 
@@ -1034,6 +1122,12 @@ class ChannelMessageRouter:
         False is the mention path's `UnaddressedMessage`: the handle named nobody
         of ours, so the message goes on to the default agent. The default path
         never raises it and ignores the result.
+
+        A turn answered `as_agent` speaks to somebody with no account here, so a
+        refusal is one fixed sentence whatever raised it - an archived agent, a
+        missing model or a scope is not theirs to read - and the exception's type
+        name is logged. The spending refusal is the exception: its own sentence
+        is written for a customer to read.
         """
         from app.services.channels.reply_receipts import RequiredReply, required_reply
         from app.services.channels.steering import current_receipt
@@ -1050,8 +1144,15 @@ class ChannelMessageRouter:
             return False
         except AppException as exc:
             await self._discard_files(db, files)
+            refusal = exc.message
+            if as_agent and not isinstance(exc, NoSpendingLimitError):
+                logger.warning(
+                    "channel_turn_refused",
+                    extra={"bot_id": str(incoming.bot_id), "error": type(exc).__name__},
+                )
+                refusal = STRANGER_REFUSAL
             if receipt is None or await receipt.begin_submission():
-                delivered = await self._post_failure(bot, incoming, handle(), exc.message, streamed)
+                delivered = await self._post_failure(bot, incoming, handle(), refusal, streamed)
                 if receipt is not None:
                     await receipt.settle(delivered=delivered)
             return True
@@ -1071,7 +1172,10 @@ class ChannelMessageRouter:
             return True
 
         answer = self._with_notes(
-            answered.text, file_refusals, _kept_back(answered.refused), answered.delivery_notices
+            answered.text,
+            file_refusals,
+            _kept_back(answered.refused, stranger=answered.acts_as_agent),
+            answered.delivery_notices,
         )
         if answered.run_id is not None and receipt is None:
             await conversation_repo.bind_channel_source(
@@ -1107,7 +1211,7 @@ class ChannelMessageRouter:
             await ChannelNextSteps(db).offer(
                 bot, incoming, run_id=answered.run_id, steps=answered.next_steps
             )
-        elif answered.run_id is not None:
+        elif answered.run_id is not None and not answered.acts_as_agent:
             from app.core.background import spawn_after_commit
             from app.services.channels.next_steps import offer_after_answer
 
@@ -1306,9 +1410,9 @@ class ChannelMessageRouter:
 
         Each recording is logged with its type, because the type is the
         platform's and this is the line that says why a voice note was or was
-        not heard - and by the platform's message id and its place on the
-        message rather than its file name, which a sender chose and which can
-        be personal.
+        not heard - and by a reference to the platform's message id (not the id
+        itself) and its place on the message rather than its file name, which a
+        sender chose and which can be personal.
         """
         recordings = [a for a in incoming.attachments if a.mime_type.startswith("audio/")]
         rest = [a for a in incoming.attachments if not a.mime_type.startswith("audio/")]
@@ -1316,7 +1420,7 @@ class ChannelMessageRouter:
             logger.info(
                 "Voice message routed to transcription: bot=%s message=%s recording=%d type=%s",
                 incoming.bot_id,
-                incoming.message_id,
+                delivery_ref(incoming.message_id),
                 index,
                 recording.mime_type,
             )
@@ -1329,8 +1433,12 @@ class ChannelMessageRouter:
         recordings: list[IncomingAttachment],
         *,
         requested_by: UUID | None,
+        as_agent: bool = False,
     ) -> tuple[list[str], list[str]]:
         """What the voice notes on this message said, and what could not be read.
+
+        `as_agent` is the router's decision that the sender is a stranger on a line
+        that answers them; it is taken as given, never worked out again here.
 
         Returns transcripts and refusal lines, the same pair `_receive_files`
         returns, because they are answered the same way: the reply carries what did
@@ -1363,7 +1471,10 @@ class ChannelMessageRouter:
             return [], []
         if not bot.transcribe_voice_notes:
             return [], [
-                "This bot does not listen to voice messages - transcription is turned off for it."
+                STRANGER_NO_VOICE
+                if as_agent
+                else "This bot does not listen to voice messages - "
+                "transcription is turned off for it."
             ]
         settings = await SpeechToTextSettingsService(db).for_bot(bot)
         if not settings.exposed:
@@ -1371,9 +1482,15 @@ class ChannelMessageRouter:
         resolved = settings.resolved
         if resolved is None:
             return [], [
-                "This bot cannot listen to voice messages - nobody has set up a "
+                STRANGER_NO_VOICE
+                if as_agent
+                else "This bot cannot listen to voice messages - nobody has set up a "
                 "transcription provider for it."
             ]
+
+        if as_agent and (stranger_refusal := await self._stranger_voice_refusal(db, bot)):
+            return [], [stranger_refusal]
+        limit = STRANGER_RECORDING_MAX_BYTES if as_agent else TRANSCRIPTION_MAX_BYTES
 
         adapter = get_adapter(bot.platform)
         token = unseal_bot_token(bot)
@@ -1387,18 +1504,26 @@ class ChannelMessageRouter:
             # before any limit applied - and a channel bot is a rate-limited
             # public surface, so one large file, or a few senders at once, was a
             # worker's memory.
-            if recording.size > TRANSCRIPTION_MAX_BYTES:
-                refusals.append(
-                    f"{recording.filename}: too large to transcribe "
-                    f"({recording.size // (1024 * 1024)} MB; the limit is "
-                    f"{TRANSCRIPTION_MAX_BYTES // (1024 * 1024)} MB)."
-                )
+            if recording.size > limit:
+                refusals.append(self._too_large_to_transcribe(recording, recording.size, limit))
                 continue
             try:
-                content = await adapter.download_attachment(token, recording)
+                content = await adapter.download_attachment(
+                    token, recording, max_bytes=limit if as_agent else None
+                )
+            except NotImplementedError:
+                # The platform's adapter cannot fetch files yet: a known limit, not a failure.
+                refusals.append(
+                    f"{recording.filename}: this build cannot fetch files from "
+                    f"{channel_name(adapter.platform)} yet."
+                )
+                continue
             except Exception:
                 logger.warning("Could not fetch a voice message: bot=%s", bot.id, exc_info=True)
                 refusals.append(f"{recording.filename}: could not be downloaded.")
+                continue
+            if as_agent and len(content) > limit:
+                refusals.append(self._too_large_to_transcribe(recording, len(content), limit))
                 continue
             # Held to the organization's longest dictation before any provider is
             # paid: 25 MB of low-bitrate audio is hours of it, and the sender's
@@ -1469,6 +1594,33 @@ class ChannelMessageRouter:
         return transcripts, refusals
 
     @staticmethod
+    def _too_large_to_transcribe(recording: IncomingAttachment, size: int, limit: int) -> str:
+        return (
+            f"{recording.filename}: too large to transcribe "
+            f"({size // (1024 * 1024)} MB; the limit is {limit // (1024 * 1024)} MB)."
+        )
+
+    @staticmethod
+    async def _stranger_voice_refusal(db: AsyncSession, bot: ChannelBot) -> str | None:
+        """Why a voice note from somebody with no account is not transcribed, or `None`.
+
+        Asked before anything is downloaded or paid for. The line needs a spending
+        limit at all, and takes voice only under the organization's own monthly
+        cap - an agent budget alone does not bound what strangers send in - which
+        must not be spent already.
+        """
+        ceiling = await bot_ceiling(db, bot)
+        if not ceiling.exists:
+            return NoSpendingLimitError.message
+        if ceiling.organization_monthly_usd is None:
+            return STRANGER_NO_VOICE
+        try:
+            await assert_organization_within_budget(db, bot.organization_id)
+        except BudgetExceeded:
+            return NoSpendingLimitError.message
+        return None
+
+    @staticmethod
     def _as_sent(recording: IncomingAttachment, content: bytes) -> Recording:
         """The recording as the provider is sent it: `voice.<ext>` for its type.
 
@@ -1516,19 +1668,27 @@ class ChannelMessageRouter:
         bot: ChannelBot,
         incoming: IncomingMessage,
         identity: ChannelIdentity,
+        *,
+        as_agent: bool = False,
     ) -> tuple[list[Any], list[str]]:
         """Fetch, validate and store what arrived with the message.
+
+        `as_agent` is the router's decision that the sender is a stranger on a line
+        that answers them; it is taken as given, never worked out again here.
 
         Returns the rows and a line per file that did not make it, for the reply to
         carry. A message with no attachments costs nothing here - not even a token
         decryption - which is the common case.
 
-        An unlinked sender is not handled specially: a stored file belongs to a
-        user row, and the agent router refuses an unlinked sender anyway. Without
-        the check this would raise where the refusal reads better.
+        A stranger on a line that answers them (`as_agent`) is handled by
+        `_receive_customer_files`. Any other unlinked sender is told to connect an
+        account: a stored file belongs to a user row, and without the check this
+        would raise where the refusal reads better.
         """
         if not incoming.attachments:
             return [], []
+        if as_agent:
+            return await self._receive_customer_files(db, bot, incoming)
         if identity.user_id is None:
             return [], [
                 "To read your files, connect your account first. " + LINK_ACCOUNT_INSTRUCTION
@@ -1540,6 +1700,31 @@ class ChannelMessageRouter:
             unseal_bot_token(bot),
             incoming.attachments,
             user_id=identity.user_id,
+        )
+
+    async def _receive_customer_files(
+        self, db: AsyncSession, bot: ChannelBot, incoming: IncomingMessage
+    ) -> tuple[list[Any], list[str]]:
+        """What a customer with no account sent, when the line takes files at all.
+
+        Off unless the bot's policy turns it on, and answered with one neutral
+        sentence - never an invitation to link, which a customer has no account for.
+        A stored file belongs to a user row, so it is stored under the person who
+        bound the agent to the line; a binding with no such person takes none. Held
+        to the smaller public upload size.
+        """
+        refusal = ["This line does not accept files."]
+        if parse_policy(bot.access_policy).get("accept_customer_files") is not True:
+            return [], refusal
+        binding = await agent_exposure_repo.bound_to_bot(db, channel_bot_id=bot.id)
+        if binding is None or binding.created_by_user_id is None:
+            return [], refusal
+        return await ChannelAttachmentService(db).receive(
+            get_adapter(incoming.platform),
+            unseal_bot_token(bot),
+            incoming.attachments,
+            user_id=binding.created_by_user_id,
+            max_bytes=settings.EMBED_MAX_UPLOAD_SIZE_MB * 1024 * 1024,
         )
 
     @staticmethod
@@ -1663,8 +1848,11 @@ class ChannelMessageRouter:
         carry the link, because the link is a bearer credential and everybody in
         the channel can read it (#639).
 
-        In a direct message, no. It is a conversation with one person, the link
-        is safe to send, and the account it connects is the point of it.
+        In a direct message, only on a line that answers strangers
+        (`public_line.bot_answers_unlinked_direct`: a platform that can take it and a
+        policy that says so), and then as the agent itself.
+        Otherwise no: it is a conversation with one person, the link is safe to
+        send, and the account it connects is the point of it.
 
         `require_link` is the way back to refusing both, and this is what makes
         it mean anything: it sat in the default policy, the schema, the CLI and
@@ -1677,11 +1865,34 @@ class ChannelMessageRouter:
         applied and was inert, behaviourally the same as `open`.
         """
         if incoming.chat_type == "private":
-            return False
+            return bot_answers_unlinked_direct(bot)
         policy = self._parse_policy(bot)
         if policy.get("mode") == "jwt_linked":
             return False
         return not bool(policy.get("require_link", False))
+
+    def admits_stranger(self, incoming: IncomingMessage, bot: ChannelBot) -> bool:
+        """Whether this message is from somebody the line answers as a stranger.
+
+        The access policy lets it through, and it is a private chat on a line that
+        answers people with no account. Whether the sender is in fact a member is
+        the caller's to settle from their standing.
+        """
+        try:
+            self._check_access(incoming, bot)
+        except AuthorizationError:
+            return False
+        return self._answers_as_agent(incoming, bot)
+
+    def _answers_as_agent(self, incoming: IncomingMessage, bot: ChannelBot) -> bool:
+        """Whether an unlinked sender here is a stranger the agent answers as itself.
+
+        A private chat on a line that answers strangers. A room's unlinked senders
+        keep running under the binding, on every platform, so this is never true
+        for one - and it says nothing about a sender who is a member, which the
+        caller settles from the sender's own standing.
+        """
+        return incoming.chat_type == "private" and bot_answers_unlinked_direct(bot)
 
     @staticmethod
     def _apply_broadcast_policy(incoming: IncomingMessage, bot: ChannelBot) -> None:
@@ -1865,7 +2076,7 @@ class ChannelMessageRouter:
                 # them a room that participant management can then never reach.
                 new_conv = await conversation_repo.create_conversation(
                     db,
-                    title=f"{incoming.platform.capitalize()} Chat",
+                    title=f"{channel_name(incoming.platform)} Chat",
                     user_id=issuer,
                     organization_id=bot.organization_id,
                 )
@@ -2077,7 +2288,7 @@ class ChannelMessageRouter:
         Linking a platform identity authenticates the sender; it does not authorize
         a bot or bridge to receive the person's pre-existing console history.
         """
-        title = f"{incoming.platform.capitalize()} Chat"
+        title = f"{channel_name(incoming.platform)} Chat"
         conv = await conversation_repo.create_conversation(
             db, title=title, user_id=identity.user_id, organization_id=bot.organization_id
         )
@@ -2275,6 +2486,8 @@ class ChannelMessageRouter:
         attachments: list[OutgoingAttachment] | None = None,
         *,
         image_png: bytes | None = None,
+        run_id: str | None = None,
+        as_agent: bool = False,
     ) -> bool:
         """Decrypt the bot token and send a reply via the appropriate adapter.
 
@@ -2293,6 +2506,7 @@ class ChannelMessageRouter:
                 api_base_url=getattr(bot, "api_base_url", None),
                 attachments=attachments or [],
                 image_png=image_png,
+                run_id=run_id,
             )
             native_id = await adapter.send_message(decrypted_token, out)
             from app.services.channels.reply_receipts import remember_delivered_post
@@ -2307,7 +2521,13 @@ class ChannelMessageRouter:
             if image_png is not None:
                 # Do not retry an ambiguous upload: report its unconfirmed
                 # outcome using a separate, text-only reply.
-                await self._send_reply(bot, incoming, PICTURE_DELIVERY_UNCONFIRMED)
+                await self._send_reply(
+                    bot,
+                    incoming,
+                    PICTURE_DELIVERY_UNCONFIRMED_STRANGER
+                    if as_agent
+                    else PICTURE_DELIVERY_UNCONFIRMED,
+                )
             return False
         else:
             return True

@@ -94,3 +94,107 @@ class TestWhichOrganizationACommandActsFor:
 
         assert isinstance(await _resolve_org(None, None), UUID)
         assert isinstance(await _resolve_org(None, str(only.id)), UUID)
+
+
+class TestThePublicLineCommand:
+    """`channel-public-line` prints the warning, and its switch refuses as the API does."""
+
+    @staticmethod
+    def _read(**changes):
+        from app.schemas.channel_bot import PublicLineRead
+
+        values = {
+            "answers_unlinked": False,
+            "agent_name": "Front desk",
+            "agent_version": 3,
+            "agent_monthly_usd": None,
+            "organization_monthly_usd": None,
+            "can_turn_on": False,
+            "accept_customer_files": False,
+            "voice": "off",
+            "rate_limit_rpm": 10,
+            "approval_expiry_hours": 72,
+            "recording_max_mb": 2,
+            "file_max_mb": 5,
+            "reaches": [{"kind": "knowledge", "names": ["Handbook"], "detail": None}],
+            "refused": ["memory"],
+        }
+        return PublicLineRead(**{**values, **changes})
+
+    @staticmethod
+    def _service(read, bot=None, update=None):
+        from contextlib import asynccontextmanager
+
+        svc = AsyncMock()
+        svc.public_line.return_value = read
+        svc.get.return_value = bot or SimpleNamespace(
+            access_policy={"mode": "open", "rate_limit_rpm": 10}
+        )
+        if update is not None:
+            svc.update.side_effect = update
+
+        @asynccontextmanager
+        async def opened(_org):
+            yield svc
+
+        return svc, opened
+
+    def _run(self, monkeypatch, svc_opened, *args):
+        from click.testing import CliRunner
+
+        from app.commands import channel
+
+        monkeypatch.setattr(channel, "_channel_service", svc_opened)
+        return CliRunner().invoke(channel.channel_public_line, [*args])
+
+    def test_it_prints_every_line_of_the_warning(self, monkeypatch):
+        _svc, opened = self._service(self._read())
+
+        result = self._run(monkeypatch, opened, "--bot-id", str(uuid4()))
+
+        assert result.exit_code == 0
+        for expected in ("Front desk", "Handbook", "72", "No spending limit", "memory"):
+            assert expected in result.output
+
+    def test_it_says_in_words_why_voice_notes_are_refused(self, monkeypatch):
+        _svc, opened = self._service(self._read(voice="refused_no_org_cap"))
+
+        result = self._run(monkeypatch, opened, "--bot-id", str(uuid4()))
+
+        assert "refused_no_org_cap" not in result.output
+        assert "monthly spending cap" in result.output
+
+    def test_on_goes_through_the_service_and_its_refusal_is_printed(self, monkeypatch):
+        from app.core.exceptions import BadRequestError
+
+        def refuse(*_a, **_k):
+            raise BadRequestError(message="needs a spending limit")
+
+        svc, opened = self._service(self._read(), update=refuse)
+
+        result = self._run(monkeypatch, opened, "--bot-id", str(uuid4()), "--on")
+
+        assert result.exit_code != 0
+        assert "needs a spending limit" in result.output
+        sent = svc.update.await_args.args[1].access_policy
+        assert sent.answer_unlinked_direct is True
+        assert sent.rate_limit_rpm == 10
+
+    def test_off_closes_the_line(self, monkeypatch):
+        svc, opened = self._service(self._read(answers_unlinked=True, can_turn_on=True))
+
+        result = self._run(monkeypatch, opened, "--bot-id", str(uuid4()), "--off")
+
+        assert result.exit_code == 0
+        assert svc.update.await_args.args[1].access_policy.answer_unlinked_direct is False
+
+    def test_a_bot_id_that_is_no_bot_is_said_so(self, monkeypatch):
+        from app.core.exceptions import NotFoundError
+
+        svc, opened = self._service(self._read())
+        svc.public_line.side_effect = NotFoundError(message="Channel bot not found")
+
+        result = self._run(monkeypatch, opened, "--bot-id", str(uuid4()))
+
+        assert result.exit_code != 0
+        assert "not found" in result.output.lower()

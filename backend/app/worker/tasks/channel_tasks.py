@@ -3,8 +3,10 @@
 import json
 import logging
 from dataclasses import replace
+from datetime import UTC, datetime
 
 import anyio
+from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
@@ -14,8 +16,16 @@ from app.services.channels.base import IncomingMessage, OutgoingAttachment
 from app.services.channels.continuation import ChatDelivery, deliver_in_chat
 from app.services.channels.discord_roles import sweep_discord_roles
 from app.services.channels.handback import ChatNotice, ensure_channel_adapters, send_notice
+from app.services.channels.whatsapp_nudge import send_due_nudges
 from app.services.transcript import RecordedToolCall
-from app.worker.jobs import ChannelDelivery, ChannelHandback, ChannelMessage, EmailDelivery
+from app.worker.jobs import (
+    ChannelDelivery,
+    ChannelHandback,
+    ChannelMessage,
+    EmailDelivery,
+    WhatsAppDelivery,
+    WhatsAppWindowRefusal,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -234,3 +244,49 @@ async def deliver_initial_reply(job: ChannelHandback) -> None:
         raise BadRequestError(
             message="The final answer delivery was not confirmed; do not repeat the agent's actions"
         )
+
+
+async def send_whatsapp_nudges() -> int:
+    """Nudge the WhatsApp customers whose window is about to close while a run waits on them."""
+    ensure_channel_adapters()
+    return await send_due_nudges(datetime.now(UTC))
+
+
+async def process_whatsapp_delivery(job: WhatsAppDelivery) -> None:
+    from app.repositories import channel_bot_repo
+    from app.services.channels.whatsapp_inbound import handle_customer
+    from app.services.channels.whatsapp_payload import WhatsAppMessage
+
+    ensure_channel_adapters()
+    async with get_db_context() as db:
+        bot = await channel_bot_repo.get_for_inbound(db, job.bot_id)
+        if (
+            bot is None
+            or not bot.is_active
+            or bot.organization_id != job.organization_id
+            or bot.platform != "whatsapp"
+        ):
+            return
+    messages = TypeAdapter(list[WhatsAppMessage]).validate_json(job.messages_json)
+    if not messages or any(message.bsuid != job.chat_id for message in messages):
+        raise ValueError("Stored WhatsApp delivery has mismatched customer identifiers")
+    await handle_customer(str(job.bot_id), job.organization_id, job.chat_id, messages)
+
+
+async def process_whatsapp_window_refusal(job: WhatsAppWindowRefusal) -> None:
+    from app.repositories import channel_bot_repo
+    from app.services.channels.whatsapp_inbound import reclaim_after_refusal
+
+    ensure_channel_adapters()
+    async with get_db_context() as db:
+        bot = await channel_bot_repo.get_for_inbound(db, job.bot_id)
+        if (
+            bot is None
+            or not bot.is_active
+            or bot.organization_id != job.organization_id
+            or bot.platform != "whatsapp"
+        ):
+            return
+    await reclaim_after_refusal(
+        str(job.bot_id), job.organization_id, job.chat_id, job.run_id, job.at
+    )

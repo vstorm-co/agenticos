@@ -239,6 +239,14 @@ export const qk = {
     // every fetch, and renaming a bot is no reason to ask Discord again (#2569).
     discordRoleMappings: (botId: string) => ["discord-role-mappings", botId] as const,
     discordServers: (botId: string) => ["discord-servers", botId] as const,
+    /** The templates Meta lists for one WhatsApp bot's account (#2076). */
+    whatsappTemplates: (botId: string) => ["channel-bots", botId, "whatsapp-templates"] as const,
+    /** What a public line reaches; under the bot, so a bot update refreshes the warning. */
+    publicLine: (botId: string) => ["channel-bots", botId, "public-line"] as const,
+    /** Requests waiting for somebody with `channels:manage`. */
+    bindingRequests: () => ["channel-bots", "binding-requests"] as const,
+    /** The people who wrote to one WhatsApp bot with no account. */
+    whatsappCustomers: (botId: string) => ["channel-bots", botId, "whatsapp-customers"] as const,
   },
   dictation: {
     // Whether the composer can dictate to one agent, and on which provider. Its
@@ -269,6 +277,8 @@ export const qk = {
     all: () => ["exposures"] as const,
     list: (agentId: string) => ["exposures", agentId] as const,
     targets: (agentId: string) => ["exposures", agentId, "targets"] as const,
+    /** One agent's requests to bind, re-environment or resume a public line. */
+    requests: (agentId: string) => ["exposures", agentId, "requests"] as const,
   },
   triggers: {
     activation: (agentId: string, triggerId: string, activationId: string, jobId: string | null) =>
@@ -780,6 +790,7 @@ export const qk = {
   },
   // What the platform proposed to the signed-in person overnight (#2301).
   watches: {
+    connections: () => ["watches", "connections"] as const,
     mine: () => ["watches"] as const,
     presets: () => ["watches", "presets"] as const,
   },
@@ -803,6 +814,7 @@ export const qk = {
     unreadCount: () => ["notifications", "unread-count"] as const,
   },
   connectedAccounts: {
+    setup: (provider: string) => ["connected-accounts", "setup", provider] as const,
     all: () => ["connected-accounts"] as const,
     // A person's own, and the organization's: two owners, two lists.
     mine: () => ["connected-accounts", "mine"] as const,

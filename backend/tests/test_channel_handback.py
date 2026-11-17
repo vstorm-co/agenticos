@@ -15,6 +15,7 @@ from app.services.channels import _adapters, get_adapter, handback
 from app.services.channels.base import OutgoingMessage
 from app.services.channels.handback import (
     EXPIRED_NOTICE,
+    NOTICES,
     REFUSED_NOTICE,
     STOPPED_NOTICE,
     STRANDED_NOTICE,
@@ -23,6 +24,7 @@ from app.services.channels.handback import (
     continues_in_chat,
     decided_by_a_person,
     ensure_channel_adapters,
+    notice_key,
     send_notice,
 )
 
@@ -36,7 +38,7 @@ def admitted_notice():
     with (
         patch(
             "app.services.channels.handback.agent_run_repo.get_run",
-            new=AsyncMock(return_value=MagicMock()),
+            new=AsyncMock(return_value=MagicMock(runs_as_agent=False)),
         ),
         patch(
             "app.services.channels.next_steps.incoming_for_run",
@@ -164,14 +166,28 @@ async def test_a_notice_is_posted_to_the_recorded_chat_with_the_bots_current_tok
     bot = _bot()
     adapter = MagicMock(send_message=AsyncMock())
 
-    await _post(bot, MagicMock(return_value=adapter))
+    run_id = await _post(bot, MagicMock(return_value=adapter))
 
     adapter.send_message.assert_awaited_once_with(
         "tok",
         OutgoingMessage(
-            platform_chat_id="C1:1.0", text=EXPIRED_NOTICE, api_base_url=bot.api_base_url
+            platform_chat_id="C1:1.0",
+            text=EXPIRED_NOTICE,
+            api_base_url=bot.api_base_url,
+            run_id=str(run_id),
+            notice="expired",
         ),
     )
+
+
+async def test_a_sentence_that_is_not_a_notice_has_no_key() -> None:
+    adapter = MagicMock(send_message=AsyncMock())
+
+    await _post(_bot(), MagicMock(return_value=adapter), text="Something else.")
+
+    assert adapter.send_message.await_args.args[1].notice is None
+    assert notice_key("Something else.") is None
+    assert {notice_key(text) for text in NOTICES.values()} == set(NOTICES)
 
 
 @pytest.mark.parametrize("bot", [None, _bot(active=False)])
@@ -242,8 +258,9 @@ async def test_ensuring_adapters_registers_each_platform_once_and_starts_nothing
     from app.services.channels.slack import SlackAdapter
     from app.services.channels.teams import TeamsAdapter
     from app.services.channels.telegram import TelegramAdapter
+    from app.services.channels.whatsapp import WhatsAppAdapter
 
-    platforms = ["slack", "telegram", "mattermost", "discord", "teams"]
+    platforms = ["slack", "telegram", "mattermost", "discord", "teams", "whatsapp"]
     with patch.dict(_adapters, {}, clear=True):
         started = [
             patch.object(cls, name, AsyncMock())
@@ -253,6 +270,7 @@ async def test_ensuring_adapters_registers_each_platform_once_and_starts_nothing
                 MattermostAdapter,
                 DiscordAdapter,
                 TeamsAdapter,
+                WhatsAppAdapter,
             )
             for name in ("start_polling", "stop_polling")
             if hasattr(cls, name)
@@ -295,3 +313,52 @@ async def test_notices_recheck_admission_immediately_before_posting(revoked: str
     ):
         await _post(_bot(), MagicMock(return_value=adapter))
     adapter.send_message.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("as_agent", "text", "expected"),
+    [
+        (True, STOPPED_NOTICE, "This request was stopped."),
+        (False, STOPPED_NOTICE, STOPPED_NOTICE),
+        (True, EXPIRED_NOTICE, EXPIRED_NOTICE),
+    ],
+)
+def test_the_stop_sentence_names_no_console_for_a_run_acting_as_its_agent(
+    as_agent: bool, text: str, expected: str
+) -> None:
+    from app.services.channels.handback import for_the_run
+
+    assert for_the_run(MagicMock(runs_as_agent=as_agent), text) == expected
+
+
+@pytest.mark.security
+async def test_a_stop_notice_to_a_customer_names_no_console() -> None:
+    bot = _bot()
+    adapter = MagicMock(send_message=AsyncMock())
+    context = MagicMock()
+    context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+    context.return_value.__aexit__ = AsyncMock(return_value=False)
+    with (
+        patch.object(handback, "get_db_context", context),
+        patch.object(handback.channel_bot_repo, "get_for_org", AsyncMock(return_value=bot)),
+        patch.object(
+            handback.agent_run_repo,
+            "get_run",
+            AsyncMock(return_value=MagicMock(runs_as_agent=True)),
+        ),
+        patch.object(handback, "get_adapter", MagicMock(return_value=adapter)),
+        patch.object(handback, "unseal_bot_token", return_value="tok"),
+    ):
+        await send_notice(ChatNotice(_ORG, uuid4(), _DESTINATION, STOPPED_NOTICE))
+
+    sent = adapter.send_message.await_args.args[1]
+    assert sent.text == "This request was stopped."
+    assert sent.notice == "stopped_stranger"
+
+
+def test_every_notice_key_fits_the_held_notice_column() -> None:
+    from app.db.models.whatsapp_customer import WhatsAppHeldRun
+    from app.services.channels.handback import NOTICES
+
+    width = WhatsAppHeldRun.__table__.c.held_notice.type.length
+    assert all(len(key) <= width for key in NOTICES)

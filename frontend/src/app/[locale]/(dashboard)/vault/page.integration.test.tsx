@@ -1,3 +1,4 @@
+vi.mock("@/components/vault/integration-providers", () => ({ IntegrationProviders: () => null }));
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -33,7 +34,11 @@ vi.mock("@/hooks", () => ({
   }),
 }));
 vi.mock("@/hooks/use-connected-accounts", () => ({
-  useConnectedAccounts: (owner: "personal" | "organization", options?: { enabled: boolean }) => {
+  INTEGRATION_PROVIDERS: ["google", "microsoft", "slack", "imap", "odoo"],
+  useConnectedAccounts: (
+    owner: "personal" | "organization",
+    options?: { enabled?: boolean; provider?: string },
+  ) => {
     state.hook(owner, options);
     return {
       accounts: state[owner],
@@ -44,6 +49,26 @@ vi.mock("@/hooks/use-connected-accounts", () => ({
       disconnect: (id: string) => state.disconnect(owner, id),
     };
   },
+}));
+vi.mock("@/components/vault/connected-account-setup", () => ({
+  ConnectedAccountSetup: ({
+    target,
+    onClose,
+  }: {
+    target: { owner: string; provider: string; products?: string[]; account?: ConnectedAccount };
+    onClose: () => void;
+  }) => (
+    <div
+      role="dialog"
+      aria-label="Account setup"
+      data-owner={target.owner}
+      data-provider={target.provider}
+      data-products={target.products?.join(",")}
+      data-account={target.account?.id}
+    >
+      <button onClick={onClose}>Close setup</button>
+    </div>
+  ),
 }));
 vi.mock("@/components/vault/secret-dialog", () => ({
   AddSecretDialog: () => null,
@@ -95,10 +120,10 @@ describe("vault inventory", () => {
   it("does not list organization accounts without view access", async () => {
     state.permissions.delete(Perm.connectionsView);
     render(<VaultPage />);
-    expect(state.hook).toHaveBeenCalledWith("organization", { enabled: false });
+    expect(state.hook).toHaveBeenCalledWith("organization", { enabled: false, provider: "all" });
     expect(screen.queryByText("organization@example.test")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Connect account" }));
-    expect(screen.queryByRole("menuitem", { name: "Organization account" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "Organization account" })).toBeNull();
   });
   it("respects organization management authority while retaining personal actions", () => {
     state.permissions.delete(Perm.mcpManage);
@@ -108,11 +133,23 @@ describe("vault inventory", () => {
     ).toBeNull();
     expect(screen.getByRole("button", { name: "Disconnect personal@example.test" })).toBeVisible();
   });
-  it("connects in the selected owner scope and preserves the return route", async () => {
+  it("opens native setup in the selected owner scope", async () => {
     render(<VaultPage />);
     await userEvent.click(screen.getByRole("button", { name: "Connect account" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Your account" }));
-    expect(state.connect).toHaveBeenCalledWith("personal", "/en/vault");
+    await userEvent.click(screen.getByRole("radio", { name: "My account" }));
+    await userEvent.click(screen.getByRole("button", { name: "Gmail" }));
+    expect(screen.getByRole("dialog", { name: "Account setup" })).toHaveAttribute(
+      "data-owner",
+      "personal",
+    );
+    expect(screen.getByRole("dialog", { name: "Account setup" })).toHaveAttribute(
+      "data-provider",
+      "google",
+    );
+    expect(screen.getByRole("dialog", { name: "Account setup" })).toHaveAttribute(
+      "data-products",
+      "gmail",
+    );
   });
   it("requires confirmation before disconnecting the selected account", async () => {
     render(<VaultPage />);
@@ -142,4 +179,22 @@ describe("vault inventory", () => {
     rerender(<VaultPage />);
     expect(screen.getByText("No credentials yet")).toBeVisible();
   });
+});
+
+it("repairs the selected provider account and clears it before creating another", async () => {
+  state.personal = [
+    { ...account("personal"), provider: "slack", needs_reconnect: false, polling_failed: true },
+  ];
+  render(<VaultPage />);
+  await userEvent.click(screen.getByRole("button", { name: "Reconnect personal@example.test" }));
+  const setup = screen.getByRole("dialog", { name: "Account setup" });
+  expect(setup).toHaveAttribute("data-provider", "slack");
+  expect(setup).toHaveAttribute("data-account", "personal");
+  await userEvent.click(screen.getByRole("button", { name: "Close setup" }));
+  await userEvent.click(screen.getByRole("button", { name: "Connect account" }));
+  await userEvent.click(screen.getByRole("button", { name: "Odoo" }));
+  const fresh = screen.getByRole("dialog", { name: "Account setup" });
+  expect(fresh).toHaveAttribute("data-owner", "organization");
+  expect(fresh).toHaveAttribute("data-provider", "odoo");
+  expect(fresh).not.toHaveAttribute("data-account");
 });

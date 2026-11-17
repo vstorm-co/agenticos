@@ -1411,6 +1411,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.secretsEdit,
     inTour: true,
   },
+  {
+    id: "integration-provider-setup",
+    page: ROUTES.VAULT,
+    target: "integration-provider-setup",
+    permission: Perm.connectionsView,
+  },
   { id: "vault-keys", page: ROUTES.VAULT, target: "vault-keys", permission: Perm.secretsView },
 
   {
@@ -1459,6 +1465,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   {
+    id: "channels-mattermost-setup",
+    page: ROUTES.CHANNELS,
+    target: "channels-mattermost-setup",
+    permission: Perm.channelsManage,
+    optional: true,
+    inTour: true,
+  },
+  {
     id: "channels-list",
     page: ROUTES.CHANNELS,
     target: "channels-list",
@@ -1488,6 +1502,22 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: ROUTES.CHANNELS,
     target: "channels-discord-roles",
     permission: Perm.membersManage,
+    optional: true,
+  },
+  // Only on a page with a request waiting, and only a WhatsApp row has the customers
+  // button, so neither is promised to a tour that has nothing to point at.
+  {
+    id: "channels-binding-requests",
+    page: ROUTES.CHANNELS,
+    target: "channels-binding-requests",
+    permission: Perm.channelsManage,
+    optional: true,
+  },
+  {
+    id: "channels-customers",
+    page: ROUTES.CHANNELS,
+    target: "channels-customers",
+    permission: Perm.channelsManage,
     optional: true,
   },
 
@@ -1615,6 +1645,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // in the shared layout, so it lands on whichever of the four pages the reader
   // opened help from. Ungated: everyone has their own settings.
   { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
+  {
+    id: "personal-integration-accounts",
+    page: SETTINGS_DETAIL,
+    target: "personal-integration-accounts",
+    optional: true,
+  },
   {
     id: "personal-coding-accounts",
     page: SETTINGS_DETAIL,

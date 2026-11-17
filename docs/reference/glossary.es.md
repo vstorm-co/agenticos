@@ -1,5 +1,5 @@
 ---
-source_sha: "38183986d0d8"
+source_sha: "e7cfdf5d9e23"
 ---
 
 # Glosario { #glossary }
@@ -48,7 +48,7 @@ tal como se ven en pantalla.
 | En la consola | Qué es | En la API y el spec |
 |---|---|---|
 | Chat | La conversación web con un agent | `conversation` |
-| Channel | Slack, Telegram, Mattermost o Discord, donde las personas hablan con un agent | `channel_bot` |
+| Channel | Slack, Telegram, Mattermost, Teams, Discord o WhatsApp, donde las personas hablan con un agent | `channel_bot` |
 | Routine | Un agent que se ejecuta solo, con un horario o un evento | `trigger` |
 | Suite de evals | Un dataset con el que se mide un agent, ejecutado con un horario, al publicar o promocionar, o tras un cambio | `eval_suite` |
 | Run | Una vez que un agent respondió, con su coste y sus pasos | `agent_run` |
@@ -127,6 +127,26 @@ se describe en [Capabilities](capabilities.md).
 | Ask the user | `ask_user` |
 | Borradores | `drafts` |
 | Web browser | `browser_use` |
+| Word | `word` |
+| IMAP mail | `imap_mail` |
+| Odoo Contacts | `odoo_contacts` |
+| Odoo CRM | `odoo_crm` |
+| Odoo Sales | `odoo_sales` |
+| Odoo Invoicing | `odoo_accounting` |
+| Odoo Inventory | `odoo_inventory` |
+| Odoo Projects | `odoo_projects` |
+| Slack | `slack` |
+| Teams | `teams` |
+| Excel | `excel` |
+| OneDrive / SharePoint | `microsoft_files` |
+| Outlook Calendar | `outlook_calendar` |
+| Outlook mail | `outlook_mail` |
+| Google Slides | `google_slides` |
+| Google Sheets | `google_sheets` |
+| Google Docs | `google_docs` |
+| Google Drive | `google_drive` |
+| Google Calendar | `google_calendar` |
+| Gmail | `gmail` |
 | Chat channel lookup | `channel_tools` |
 | Aplicaciones de chat conectadas | `channel_actions` |
 | Llamadas telefónicas | `phone_calls` |

@@ -31,11 +31,18 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.mark.parametrize(
-    "changed", ["unchanged", "tenant", "membership", "rotation", "removed", "legacy"]
+    "changed",
+    ["unchanged", "tenant", "membership", "rotation", "removed", "legacy", "legacy_generation"],
 )
 async def test_personal_account_keeps_the_issuing_tenant_and_current_client(monkeypatch, changed):
     account = _account()
-    payload = _payload(account_source_secret_id=None) if changed == "legacy" else _payload()
+    payload = (
+        _payload(account_source_secret_id=None)
+        if changed == "legacy"
+        else _payload(account_source_generation=None)
+        if changed == "legacy_generation"
+        else _payload()
+    )
     account.oauth_payload = _sealed(account, payload)
     member = AsyncMock(return_value=None if changed == "membership" else MagicMock())
     generation = AsyncMock(
@@ -51,7 +58,7 @@ async def test_personal_account_keeps_the_issuing_tenant_and_current_client(monk
         account, organization_id=uuid4() if changed == "tenant" else SOURCE_ORG
     )
     assert (result is not None) is (changed == "unchanged")
-    if changed in {"tenant", "legacy"}:
+    if changed in {"tenant", "legacy", "legacy_generation"}:
         member.assert_not_awaited()
         generation.assert_not_awaited()
 

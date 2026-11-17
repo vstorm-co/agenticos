@@ -1,5 +1,5 @@
 ---
-source_sha: "34fa5b94abdb"
+source_sha: "57cc44416764"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3453,6 +3453,12 @@ Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej akt
 
 Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno, aby ich migawki plików się nie nakładały; niezależne sesje lokalne nadal działają równolegle.
 
+
+Wbudowane połączenia Google, Microsoft, Slack i IMAP również działają w tym obszarze. [Wbudowane integracje](../integrations.md) opisują konfigurację, wybór konta, capabilities, operacje workflow, synchronizację wiedzy i trwałe kursory zmian.
+
+### Obszary biznesowe Odoo { #odoo-business-areas }
+
+`odoo_contacts`, `odoo_crm`, `odoo_sales`, `odoo_accounting`, `odoo_inventory` i `odoo_projects` korzystają ze wspólnych ustawień konta integracji. Wyszukiwanie, odczyt i metadane pól są tylko do odczytu; tworzenie i edycja zawsze wymagają zatwierdzenia. Stany magazynowe są tylko do odczytu. Transport JSON-2, wymagane moduły, limity zmian i indeksowanie wybranych pól opisuje [Odoo](../integrations.md#odoo). Podpięcie konta organizacji wymaga dostępu do połączenia; wykonanie ponownie sprawdza aktualne uprawnienia autora opublikowanej wersji.
 
 ## Podłączone komunikatory (`channel_actions`) { #connected-chat-apps-channel_actions }
 

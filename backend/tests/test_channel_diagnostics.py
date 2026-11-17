@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.agents.spec import PersonalMcpServerRef
+from app.agents.spec import AgentSpec, PersonalMcpServerRef
 from app.core.exceptions import NotFoundError
 from app.repositories import (
     agent_exposure_repo,
@@ -51,8 +51,25 @@ async def test_personal_checks_describe_only_this_caller(monkeypatch, linked, co
     )
     accounts = AsyncMock(return_value=[object()] if connected else [])
     monkeypatch.setattr(mcp_connection_repo, "list_user_scoped_by_catalog_key", accounts)
+    from app.services.integrations import IntegrationService
+
+    native = AsyncMock(
+        return_value=[
+            SimpleNamespace(
+                catalog_key="google",
+                account_authorized=True,
+                authorization_expired=False,
+                auth_type="oauth",
+                granted_scopes=["https://www.googleapis.com/auth/gmail.readonly"],
+            )
+        ]
+        if connected
+        else []
+    )
+    monkeypatch.setattr(IntegrationService, "available_accounts", native)
     published_spec = SimpleNamespace(
-        mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")]
+        capabilities=AgentSpec(name="Assistant", capabilities=[{"id": "gmail"}]).capabilities,
+        mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
     )
     registry = AsyncMock(
         return_value=published_spec if published else None,
@@ -68,6 +85,11 @@ async def test_personal_checks_describe_only_this_caller(monkeypatch, linked, co
     if published:
         assert checks["personal_service"] == ("ok" if linked and connected else "warning")
         assert accounts.await_args.kwargs["user_id"] == user
+        assert any(check.detail == "Gmail" for check in result.checks)
+        if linked:
+            assert native.await_args.kwargs["person_id"] == user
+        else:
+            native.assert_not_awaited()
     else:
         accounts.assert_not_awaited()
 
@@ -154,10 +176,11 @@ async def test_nonpersonal_bindings_and_api_keys_do_not_borrow_a_persons_account
         ),
     )
     spec = SimpleNamespace(
+        capabilities=[],
         mcp_servers=[
             SimpleNamespace(account="org"),
             PersonalMcpServerRef(account="personal", catalog_key="notion"),
-        ]
+        ],
     )
     monkeypatch.setattr(ChannelBotService, "_diagnostic_spec", AsyncMock(return_value=spec))
     accounts = AsyncMock()
@@ -235,3 +258,68 @@ async def test_publication_inspection_uses_organization_scope_and_no_run_authori
         )
         assert version_lookup.await_args.kwargs["organization_id"] == org
     run_check.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "state",
+    ["ready", "missing", "expired", "revoked", "denied", "unlinked", "key", "scope_missing"],
+)
+async def test_native_personal_diagnostics_use_only_this_callers_accounts(monkeypatch, state):
+    from app.core.exceptions import AuthorizationError
+    from app.services.integrations import IntegrationService
+
+    org, user = uuid4(), uuid4()
+    ctx = SimpleNamespace(user_id=None if state == "key" else user)
+    account = SimpleNamespace(
+        catalog_key="google",
+        account_authorized=state != "revoked",
+        authorization_expired=state == "expired",
+        auth_type="oauth",
+        granted_scopes=[]
+        if state == "scope_missing"
+        else ["https://www.googleapis.com/auth/gmail.readonly"],
+    )
+    lookup = AsyncMock(return_value=[] if state == "missing" else [account])
+    if state == "denied":
+        lookup.side_effect = AuthorizationError(message="Source account access changed")
+    monkeypatch.setattr(IntegrationService, "available_accounts", lookup)
+    spec = AgentSpec(name="Assistant", capabilities=[{"id": "gmail"}])
+    checks = await ChannelBotService(MagicMock(), org)._native_personal_checks(
+        spec, ctx, linked=state != "unlinked"
+    )
+    assert len(checks) == 1 and checks[0].detail == "Gmail"
+    assert checks[0].status == ("ok" if state == "ready" else "warning")
+    if state in {"unlinked", "key"}:
+        lookup.assert_not_awaited()
+    else:
+        assert lookup.await_args.kwargs["organization_id"] == org
+        assert lookup.await_args.kwargs["person_id"] == user
+
+
+async def test_native_diagnostics_do_not_borrow_org_accounts_or_check_disabled_capabilities(
+    monkeypatch,
+):
+    from app.services.integrations import IntegrationService
+
+    org = uuid4()
+    lookup = AsyncMock()
+    monkeypatch.setattr(IntegrationService, "available_accounts", lookup)
+    spec = AgentSpec(
+        name="Assistant",
+        capabilities=[
+            {"id": "gmail", "enabled": False},
+            {"id": "charts"},
+            {
+                "id": "outlook_mail",
+                "config": {"account": "organization", "connection_ids": [str(uuid4())]},
+            },
+        ],
+    )
+    assert (
+        await ChannelBotService(MagicMock(), org)._native_personal_checks(
+            spec, SimpleNamespace(user_id=uuid4()), linked=True
+        )
+        == []
+    )
+    lookup.assert_not_awaited()

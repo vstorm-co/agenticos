@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import Field, JsonValue
 
 from app.schemas.base import BaseSchema
+from app.schemas.connected_account import ConnectedAccountRead
 
 
 class PortalPresetRead(BaseSchema):
@@ -26,6 +27,8 @@ class PortalPresetRead(BaseSchema):
 
 
 class PortalRead(BaseSchema):
+    connection_choices: list[ConnectedAccountRead] = []
+    native_provider: str | None = None
     """One connectable service and the events it fires an agent on."""
 
     key: str

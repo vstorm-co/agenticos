@@ -96,6 +96,9 @@ _SECRET_PATH = re.compile(
 #:   MCP OAuth return its provider's `code` and `state`, under the same names;
 #: - `invitation_handle` on `/oauth/<provider>/login` and `/auth/kerberos/login`:
 #:   the one-time handle that stands in for an invitation token and redeems it;
+#: - `hub.verify_token` on a WhatsApp bot's `/whatsapp/<bot>/webhook`: the secret
+#:   Meta's subscription handshake presents in the query string, which an access log
+#:   would otherwise record;
 #: - `token` on the console's `/reset-password`, `/auth/magic-link` and
 #:   `/auth/email-change`, the links an email carries - the API never sees those
 #:   addresses, but a proxy's log does, and `token` is already on the list.
@@ -109,16 +112,19 @@ _SECRET_PATH = re.compile(
 #: for its argument to fill, so the line still formats. `%d` counts as a
 #: placeholder only when no hex digit follows it - `%d3` is a percent-encoded byte
 #: of a value, and a value that starts with one is still a credential.
-SECRET_QUERY_PARAMS = frozenset({"code", "invitation_handle", "state", "token", "visitor"})
+SECRET_QUERY_PARAMS = frozenset(
+    {"code", "hub.verify_token", "invitation_handle", "state", "token", "visitor"}
+)
 _SECRET_QUERY = re.compile(
-    rf"((?:^|[?&])(?:{'|'.join(sorted(SECRET_QUERY_PARAMS))})=)"
+    rf"((?:^|[?&])(?:{'|'.join(re.escape(name) for name in sorted(SECRET_QUERY_PARAMS))})=)"
     r"(?!%(?:[sr(]|d(?![0-9a-fA-F])))[^&#\s\"']+"
 )
-_DISCORD_CDN_QUERY = re.compile(
-    r"(https?://(?:cdn\.discordapp\.com|media\.discordapp\.net)(?::[0-9]+)?/[^?\s\"'<>]*)"
-    r"\?[^\s\"'<>]+",
+_SIGNED_MEDIA_QUERY = re.compile(
+    r"(https?://(?:cdn\.discordapp\.com|media\.discordapp\.net|lookaside\.fbsbx\.com)"
+    r"(?::[0-9]+)?/[^?\s\"'<>]*)\?[^\s\"'<>]+",
     re.IGNORECASE,
 )
+_GRAPH_MEDIA_ID = re.compile(r"(graph\.facebook\.com/v[0-9.]+/)[0-9]+(?![0-9/])")
 
 
 def redact_secret_paths(value: str) -> str:
@@ -126,13 +132,15 @@ def redact_secret_paths(value: str) -> str:
 
     That is the credential segment of a secret-bearing path (`_SECRET_PATH`) and
     the value of a credential query parameter (`_SECRET_QUERY`), and the entire
-    query of a signed Discord attachment address (`_DISCORD_CDN_QUERY`). One helper for
+    query of a signed Discord or WhatsApp media address (`_SIGNED_MEDIA_QUERY`) and the
+    media id in a Graph lookup (`_GRAPH_MEDIA_ID`). One helper for
     every place an address is recorded - the log filter below and the Logfire
     request spans (`app/core/logfire_setup.py`) - so the two cannot disagree about
     which part is the secret.
     """
     value = _SECRET_PATH.sub(rf"\1{SECRET_PATH_MARKER}", value)
-    value = _DISCORD_CDN_QUERY.sub(rf"\1?{SECRET_PATH_MARKER}", value)
+    value = _SIGNED_MEDIA_QUERY.sub(rf"\1?{SECRET_PATH_MARKER}", value)
+    value = _GRAPH_MEDIA_ID.sub(rf"\1{SECRET_PATH_MARKER}", value)
     return _SECRET_QUERY.sub(rf"\1{SECRET_PATH_MARKER}", value)
 
 
@@ -163,7 +171,8 @@ class PiiRedactionFilter(logging.Filter):
     PATTERNS: ClassVar[list[tuple[re.Pattern[str], str]]] = [
         # First, so a secret-bearing address reads the same whatever its token looks like.
         (_SECRET_PATH, rf"\1{SECRET_PATH_MARKER}"),
-        (_DISCORD_CDN_QUERY, rf"\1?{SECRET_PATH_MARKER}"),
+        (_SIGNED_MEDIA_QUERY, rf"\1?{SECRET_PATH_MARKER}"),
+        (_GRAPH_MEDIA_ID, rf"\1{SECRET_PATH_MARKER}"),
         (_SECRET_QUERY, rf"\1{SECRET_PATH_MARKER}"),
         (re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"), "[EMAIL_REDACTED]"),
         # JWT tokens (header.payload.signature)
@@ -182,6 +191,25 @@ class PiiRedactionFilter(logging.Filter):
             "[SECRET_REDACTED]",
         ),
         (re.compile(r"Bearer\s+[A-Za-z0-9._~+/=-]{10,}"), "Bearer [TOKEN_REDACTED]"),
+        # A database error's DETAIL line names the offending row's values
+        # (`Key (platform_user_id)=(US.1) already exists.`).
+        (re.compile(r"^(DETAIL:  ).*$", re.MULTILINE), r"\1[REDACTED]"),
+        # asyncpg quotes the value it could not encode for a bound argument.
+        (re.compile(r"(invalid input for query argument \$\d+[^:]*: ).*"), r"\1[REDACTED]"),
+        # asyncpg's uuid codec, which the line above is raised from, repeats the value.
+        # Python's repr switches quotes when the value holds one, so redact to the line end.
+        (re.compile(r"(invalid UUID ).*"), r"\1[REDACTED]"),
+        (re.compile(r"(a bytes or str object expected, got ).*"), r"\1[REDACTED]"),
+        # Postgres quotes the value it could not parse as a type or an enum (a schema-
+        # qualified name has a dot), or found out of range for a type. The value may
+        # hold a quote of its own, so each redacts to the last quote on the line.
+        (
+            re.compile(r'(invalid input (?:syntax for type [\w. ]+|value for enum [\w.]+): )".*"'),
+            r'\1"[REDACTED]"',
+        ),
+        (re.compile(r'"[^\n]*"(?= is out of range for type)'), '"[REDACTED]"'),
+        (re.compile(r"(date/time field value out of range: ).*"), r"\1[REDACTED]"),
+        (re.compile(r"(malformed array literal: ).*"), r"\1[REDACTED]"),
         # A Discord interaction's token is the last segment of the URL that
         # answers it, and a failed call's error carries that URL. Whoever holds
         # the token may post and edit as the bot there for fifteen minutes.

@@ -39,6 +39,7 @@ from app.services.channels.discord import DiscordAdapter
 from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.slack import SlackAdapter
 from app.services.channels.telegram import TelegramAdapter
+from app.services.channels.whatsapp import WhatsAppAdapter
 
 pytestmark = pytest.mark.anyio
 
@@ -405,6 +406,11 @@ class TestWhatEachPlatformCanActuallyAnswer:
             "list_channel_members",
             "send_channel_file",
         }
+
+    def test_whatsapp_offers_only_the_file_tool(self):
+        """It sends files but has no directory a bot may read: no history, no members."""
+        assert PLATFORM_TOOLS["whatsapp"] == ("send_channel_file",)
+        assert supported_tools(WhatsAppAdapter) == {"send_channel_file"}
 
     def test_every_registered_tool_has_a_method_that_would_answer_it(self):
         """A fifth tool cannot be added without saying what implements it."""

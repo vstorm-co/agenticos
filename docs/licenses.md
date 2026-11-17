@@ -34,11 +34,11 @@ Development and documentation tooling (`uv sync --dev`, the `docs` dependency gr
 in a builder stage and are absent from the final layer, such as `uv`, are recorded
 in `licenses/components.toml` as not distributed.
 
-The optional `kerberos` and `mirage` extras are not in the published images,
-so the notices leave them out. The published backend does include `browser`. An operator who builds an image with
-`EXTRAS` distributes those packages too, under their own licences. The `mirage`
-extra brings [Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0) and the
-service clients its backends use.
+The published backend includes `browser` and [Mirage](https://github.com/strukto-ai/mirage)
+with its `email` extra for IMAP (Apache-2.0). Those production dependencies are in
+the notices. The optional `kerberos` extra and the additional service clients in
+the full `mirage` extra are not in the published images. An operator who builds
+with those `EXTRAS` distributes the additional packages under their own licences.
 
 ## The inventory
 

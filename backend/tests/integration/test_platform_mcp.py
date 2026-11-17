@@ -413,7 +413,7 @@ async def test_a_draft_the_assistant_proposes_waits_for_a_person(
         "granted": ApprovalGranted(tool_args=proposed),
     }[decision]
     ask = AsyncMock(return_value=answer)
-    deps = SimpleNamespace(request_approval=ask, run_id=uuid.uuid4())
+    deps = SimpleNamespace(request_approval=ask, run_id=uuid.uuid4(), acts_as_agent=False)
     agent = PydanticAgent(
         FunctionModel(proposes_a_draft),
         toolsets=[toolset],

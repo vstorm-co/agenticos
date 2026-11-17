@@ -150,6 +150,9 @@ def _fresh_rate_floor(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.services import rate_limit
 
     monkeypatch.setattr(rate_limit, "_floor", rate_limit.LocalWindows())
+    # Worker polling also configures this process global. Its Redis pool belongs
+    # to that test's loop and must not leak into a later API test's loop.
+    monkeypatch.setattr(rate_limit, "_redis", None)
 
 
 @pytest.fixture

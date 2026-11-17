@@ -160,6 +160,8 @@ export {
 export { useSharing } from "./use-sharing";
 export { useEmbeds } from "./use-embeds";
 export { useChannelBots } from "./use-channel-bots";
+export { useBindingRequests, useChannelBindingRequests } from "./use-binding-requests";
+export { useWhatsAppCustomers } from "./use-whatsapp-customers";
 export { useAgentEnvironments } from "./use-agent-environments";
 export { useExposures } from "./use-exposures";
 export { usePollWhileIngesting, type IngestingDocument } from "./use-poll-while-ingesting";

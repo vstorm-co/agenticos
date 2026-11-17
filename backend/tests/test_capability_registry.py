@@ -571,6 +571,60 @@ class TestReadOnlyDeclarations:
 
     WRITES = frozenset(
         {
+            ("gmail", "gmail_create_draft"),
+            ("gmail", "gmail_send_message"),
+            ("gmail", "gmail_modify_labels"),
+            ("google_calendar", "google_calendar_create_event"),
+            ("google_calendar", "google_calendar_update_event"),
+            ("google_drive", "google_drive_copy_file"),
+            ("google_drive", "google_drive_upload_file"),
+            ("google_docs", "google_docs_create"),
+            ("google_docs", "google_docs_batch_update"),
+            ("google_sheets", "google_sheets_create"),
+            ("google_sheets", "google_sheets_batch_update"),
+            ("google_sheets", "google_sheets_append_rows"),
+            ("google_sheets", "google_sheets_update_cells"),
+            ("google_slides", "google_slides_create"),
+            ("google_slides", "google_slides_batch_update"),
+            ("outlook_mail", "outlook_mail_create_draft"),
+            ("outlook_mail", "outlook_mail_send_mail"),
+            ("outlook_calendar", "outlook_calendar_create_event"),
+            ("outlook_calendar", "outlook_calendar_update_event"),
+            ("microsoft_files", "microsoft_files_upload_file"),
+            ("excel", "excel_append_rows"),
+            ("teams", "teams_post_message"),
+            ("teams", "teams_post_channel"),
+            ("slack", "slack_post_message"),
+            ("slack", "slack_open_dm"),
+            ("slack", "slack_react"),
+            ("word", "word_write_document"),
+            ("odoo_contacts", "odoo_contacts_create_contacts"),
+            ("odoo_contacts", "odoo_contacts_update_contacts"),
+            ("odoo_crm", "odoo_crm_create_leads"),
+            ("odoo_crm", "odoo_crm_update_leads"),
+            ("odoo_sales", "odoo_sales_create_orders"),
+            ("odoo_sales", "odoo_sales_update_orders"),
+            ("odoo_sales", "odoo_sales_create_order_lines"),
+            ("odoo_sales", "odoo_sales_update_order_lines"),
+            ("odoo_sales", "odoo_sales_confirm_orders"),
+            ("odoo_accounting", "odoo_accounting_create_invoices"),
+            ("odoo_accounting", "odoo_accounting_update_invoices"),
+            ("odoo_accounting", "odoo_accounting_create_invoice_lines"),
+            ("odoo_accounting", "odoo_accounting_update_invoice_lines"),
+            ("odoo_accounting", "odoo_accounting_post_invoices"),
+            ("odoo_inventory", "odoo_inventory_create_products"),
+            ("odoo_inventory", "odoo_inventory_update_products"),
+            ("odoo_inventory", "odoo_inventory_create_transfers"),
+            ("odoo_inventory", "odoo_inventory_update_transfers"),
+            ("odoo_inventory", "odoo_inventory_create_moves"),
+            ("odoo_inventory", "odoo_inventory_update_moves"),
+            ("odoo_inventory", "odoo_inventory_confirm_transfers"),
+            ("odoo_inventory", "odoo_inventory_reserve_transfers"),
+            ("odoo_inventory", "odoo_inventory_validate_transfers"),
+            ("odoo_projects", "odoo_projects_create_projects"),
+            ("odoo_projects", "odoo_projects_update_projects"),
+            ("odoo_projects", "odoo_projects_create_tasks"),
+            ("odoo_projects", "odoo_projects_update_tasks"),
             ("background_tasks", "list_background_tasks"),
             ("background_tasks", "start_background_task"),
             ("background_tasks", "stop_background_task"),
@@ -1163,7 +1217,7 @@ ART_DIR = (
 
 
 def _capabilities_with_art() -> frozenset[str]:
-    """The capability ids the Toolbox has a scene for, read out of the two art tables.
+    """The capability ids the Toolbox has a scene for, read out of the scene tables and product-mark map.
 
     `art.generated.ts` is the design canvas's export, one key per scene at two
     spaces; `art.drawn.ts` holds the scenes drawn by hand since, in `DRAWN_ART`.
@@ -1171,9 +1225,12 @@ def _capabilities_with_art() -> frozenset[str]:
     generated = (ART_DIR / "art.generated.ts").read_text(encoding="utf-8")
     drawn = (ART_DIR / "art.drawn.ts").read_text(encoding="utf-8")
     table = drawn[drawn.index("export const DRAWN_ART") :]
-    return frozenset(
-        re.findall(r"^  ([a-z0-9_]+):\n    '<svg", generated, re.MULTILINE)
-    ) | frozenset(re.findall(r"^  ([a-z0-9_]+): [A-Z0-9_]+,$", table, re.MULTILINE))
+    integrations = (ART_DIR / "integration-art.tsx").read_text(encoding="utf-8")
+    return (
+        frozenset(re.findall(r"^  ([a-z0-9_]+):\n    '<svg", generated, re.MULTILINE))
+        | frozenset(re.findall(r"^  ([a-z0-9_]+): [A-Z0-9_]+,$", table, re.MULTILINE))
+        | frozenset(re.findall(r'^  ([a-z0-9_]+): "[a-z0-9_]+",$', integrations, re.MULTILINE))
+    )
 
 
 class TestToolboxArt:

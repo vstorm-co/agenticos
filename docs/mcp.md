@@ -1028,6 +1028,16 @@ bind **Microsoft 365 (self-hosted)** or **Microsoft Work IQ** instead.
 
 ### Gmail and Google Workspace
 
+### Choose MCP or built-in Google capabilities
+
+For Gmail, Calendar, Drive, Docs, Sheets and Slides operations already covered by AgenticOS, start with the [built-in capabilities](integrations.md). They call ordinary Google APIs and do not require Google's hosted MCP Developer Preview or an AI-agent OAuth client. An administrator configures Google once in **Vault → Integrations**; each person then connects accounts in **Chat controls → Preferences → Your accounts** or **Settings → Profile → Your connected accounts**. Agents can instead use explicitly selected organization accounts. Several accounts can be connected.
+
+Google's hosted Workspace MCP servers are another option, but onboarding has extra prerequisites: Developer Preview membership, product and MCP APIs, an OAuth client marked for an AI-powered agent, and the correct callback. Preview admission and administrator approvals can delay setup; do not promise immediate access or a fixed waiting time. Self-hosted or third-party Workspace MCP servers have their own setup and are not the same preview service. See [Google's MCP setup requirements](https://developers.google.com/workspace/guides/configure-mcp-servers).
+
+OAuth verification is separate from MCP admission. External apps using sensitive or restricted scopes may need Google review; exceptions include eligible internal, personal and testing use. Restricted scopes can also require a security assessment. These requirements can apply to native capabilities too: they are not a verification bypass. See [sensitive-scope verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification) and [restricted-scope verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification). Check the app's actual status instead of claiming every connection must wait for review.
+
+When helping someone connect Google, identify the operation and whose accounts it should use. Prefer an existing native capability when it covers that operation; propose MCP for additional tools, an already configured server or a preference for MCP. Check the agent's actual bindings and account access before promising an action. If access is missing, direct the administrator to provider setup or the person to connect their own account. A capability shipping in AgenticOS does not mean it is enabled or connected for that agent.
+
 ### Official Google remote servers
 
 The catalog includes Google's hosted Workspace servers: Gmail, Calendar, Drive,
@@ -1407,6 +1417,9 @@ Migration `0293_connected_account_sources.py` leaves unverifiable older personal
 Mirage approval pauses pin account identities and credential generations. Changing either while a run waits requires a new run and approval. Routine source reviews bind the same generations, and terminal writes and commands require routine effect consent even when per-mount write approvals are disabled.
 
 Removing a member permanently revokes their personal grants issued through this organization; inviting them back requires new consent.
+
+
+Built-in Google, Microsoft, Slack and IMAP connections also work here. See [built-in integrations](integrations.md) for setup, account selection, capabilities, workflow operations, knowledge sync and durable change feeds.
 
 ## Bounded discovery and run inspection { #bounded-discovery }
 

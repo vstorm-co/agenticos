@@ -59,4 +59,6 @@ Create in this order:
 10. **Docs** — if this changes behaviour a page describes, update it. See the table in
     `AGENTS.md`.
 
-11. `make lint && make test-fast`, then `make check` before opening a PR.
+11. Run the relevant lint half and the specific test files covering the change.
+    Do not run the full suites on a laptop. Push and inspect CI for that commit's
+    SHA; the full gates are described in `AGENTS.md`.

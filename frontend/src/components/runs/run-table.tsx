@@ -98,6 +98,8 @@ export function RunTable({
       const description = t(chat.bot_name ? "askedInChatThrough" : "askedInChat", {
         platform: surfaceLabel(chat.platform, t),
         name: chat.name,
+        hasHandle: chat.handle ? "yes" : "no",
+        handle: chat.handle ?? "",
         bot: chat.bot_name ?? "",
       });
       return (

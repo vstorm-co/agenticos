@@ -7,7 +7,14 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
+from pydantic import (
+    SecretStr,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+    ValidationInfo,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.map_tiles import MapTiles, resolve as resolve_map_tiles
@@ -461,6 +468,32 @@ class Settings(BaseSettings):
     # after the first change, so a burst of them is one run on the end state.
     EVAL_SUITE_DEPENDENCY_DEBOUNCE_SECONDS: int = 600
     ALGORITHM: str = "HS256"
+    OAUTH_BRIDGE_ACCESS_KEY: SecretStr = SecretStr("")
+    """Console-issued deployment key; server-only and never returned to the browser."""
+    OAUTH_BRIDGE_URL: str = ""
+    """Trusted HTTPS OAuth broker origin; empty keeps account consent fully local."""
+
+    @field_validator("OAUTH_BRIDGE_URL")
+    @classmethod
+    def validate_oauth_bridge_url(cls, value: str) -> str:
+        if not value:
+            return value
+        url = urlsplit(value)
+        if (
+            url.scheme != "https"
+            or not url.hostname
+            or url.username
+            or url.password
+            or url.query
+            or url.fragment
+            or url.path not in {"", "/"}
+        ):
+            raise ValueError("OAUTH_BRIDGE_URL must be an HTTPS origin")
+        if any(ord(char) <= 32 or char == "\\" for char in value):
+            raise ValueError("OAUTH_BRIDGE_URL must not contain whitespace or backslashes")
+        _ = url.port
+        return value.rstrip("/")
+
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
 
@@ -1171,6 +1204,9 @@ class Settings(BaseSettings):
     # bound secret to. Exact host names. Empty allows no typed address at all;
     # SaaS backends (Drive, GitHub, Notion...) reach their fixed APIs regardless.
     MIRAGE_ALLOWED_HOSTS: list[str] = []
+
+    # Exact Odoo hosts approved by the operator to receive database API keys.
+    ODOO_ALLOWED_HOSTS: list[str] = []
 
     # The browser a person signs in to a site with from Settings (#2129). An
     # agent's browser is named in its spec; signing in from Settings involves no

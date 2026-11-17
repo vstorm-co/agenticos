@@ -17,6 +17,7 @@ from app.core.exceptions import AuthorizationError, BadRequestError
 
 @dataclass
 class WatchReadReceipt:
+    integration_cursor: dict[str, JsonValue] | None = None
     completed_calls: int = 0
     check: RoutineCheck | None = None
     failed_requests: set[str] = field(default_factory=set)

@@ -1,6 +1,6 @@
-"""In-process handler for channel-bot webhook events (Telegram, Slack).
+"""In-process handler for channel-bot webhook events (Telegram, Slack, Teams).
 
-Dispatched via FastAPI `BackgroundTasks` from the webhook routes so the platform
+Spawned with `app.core.background.spawn` from the webhook routes so the platform
 gets a fast 200 OK while routing/AI happens in the background.
 """
 
@@ -10,7 +10,11 @@ from uuid import UUID
 
 from app.db.session import get_db_context
 from app.repositories import channel_bot_repo
-from app.services.channels.base import FeedbackComment, read_feedback
+from app.services.channels.base import (
+    FeedbackComment,
+    read_feedback,
+)
+from app.services.channels.dedupe import claim_press
 from app.services.channels.feedback import ChannelFeedback
 from app.services.channels.next_steps import ChannelNextSteps, read_next
 from app.services.channels.prompts import ChannelPrompts
@@ -51,9 +55,11 @@ async def process_channel_press(press: Any) -> None:
     """Decide or answer what a pressed button was offered for (#2064, #2067).
 
     The same bargain as a message: the platform has had its 200, so a failure is
-    logged rather than raised.
+    logged rather than raised. A press its platform delivers twice is taken once.
     """
     try:
+        if not await claim_press(press):
+            return
         async with get_db_context() as db:
             # A thumbs button rates an answer, a next step is the presser's next
             # message, and every other button answers a prompt.

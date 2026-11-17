@@ -56,7 +56,9 @@ async def _created(data: ChannelBotCreate) -> dict:
         "app.services.channel_bot.channel_bot_repo.create",
         new=AsyncMock(return_value=MagicMock()),
     ) as repo_create:
-        await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).create(data)
+        await ChannelBotService(MagicMock(), organization_id=uuid.uuid4()).create(
+            data, actor_user_id=None
+        )
     return repo_create.call_args.kwargs
 
 

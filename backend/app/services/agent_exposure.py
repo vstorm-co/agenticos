@@ -25,6 +25,7 @@ import re
 from typing import Any
 from uuid import UUID, uuid4
 
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import CapabilityToolInfo
@@ -35,9 +36,11 @@ from app.agents.system_agents import refuse_system_agent
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.field_errors import field_details
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject_shared
 from app.db.models.agent_exposure import AgentExposure, ExposureSurface
+from app.db.models.channel_binding_request import BindingRequestKind
 from app.db.models.channel_bot import ChannelBot
 from app.db.updates import writable
 from app.repositories import agent_environment_repo, agent_exposure_repo, channel_bot_repo
@@ -49,13 +52,24 @@ from app.schemas.agent_exposure import (
     ExposureUpdate,
     ExposureVariable,
 )
+from app.schemas.channel_binding_request import BindingDeferred
 from app.schemas.channel_bot import UsageReporting
 from app.schemas.channel_observer import ChannelObservationConfig
 from app.services.agent_registry import AgentRegistryService
 from app.services.capability_contracts import ToolContract, tool_contracts
+from app.services.channel_binding_requests import (
+    file_request,
+    void_for_taken_bot,
+    waiting_for,
+)
 from app.services.channels.directory import PLATFORM_TOOLS
 from app.services.channels.formatting import TEST_ENVIRONMENT_GUIDANCE, house_style
 from app.services.channels.prompt_variables import VARIABLES as PROMPT_VARIABLES
+from app.services.channels.public_line import (
+    bot_answers_unlinked_direct,
+    refuse_without_ceiling,
+    spec_served_by,
+)
 
 # How many bots one organization can have bound before the picker stops being a
 # picker. Far above any real deployment; it exists so the query is bounded.
@@ -227,13 +241,14 @@ class AgentExposureService:
         exposures = await agent_exposure_repo.list_for_agent(
             self.db, agent_id=agent.id, organization_id=ctx.organization_id
         )
-        names = await self._bot_names(ctx)
-        return [await self._read(exposure, names) for exposure in exposures]
+        bots = await self._bots(ctx)
+        return [await self._read(exposure, bots) for exposure in exposures]
 
     @staticmethod
-    async def _read(exposure: AgentExposure, names: dict[UUID, str]) -> ExposureRead:
+    async def _read(exposure: AgentExposure, bots: dict[UUID, ChannelBot]) -> ExposureRead:
         """One binding as the Builder shows it, lookups included."""
         surface = ExposureSurface(exposure.surface)
+        bot = bots.get(exposure.channel_bot_id)
         return ExposureRead(
             id=exposure.id,
             agent_id=exposure.agent_id,
@@ -242,7 +257,8 @@ class AgentExposureService:
             # A bot deleted concurrently would take its bindings with it, so
             # this is the window between the two queries rather than a state
             # anyone can persist. Naming it beats rendering a blank row.
-            channel_bot_name=names.get(exposure.channel_bot_id, "(removed)"),
+            channel_bot_name="(removed)" if bot is None else bot.name,
+            public_line=bot is not None and bot_answers_unlinked_direct(bot),
             environment_id=exposure.environment_id,
             session_scope=exposure.session_scope,
             prompt=exposure.prompt,
@@ -291,6 +307,7 @@ class AgentExposureService:
                 platform=ExposureSurface(bot.platform),
                 name=bot.name,
                 is_active=bot.is_active,
+                public_line=bot_answers_unlinked_direct(bot),
             )
             for bot in bots
             if bot.platform in _EXPOSABLE_PLATFORMS
@@ -300,24 +317,36 @@ class AgentExposureService:
             and taken.get(bot.id, agent.id) == agent.id
         ]
 
-    async def create(self, ctx: AuthContext, agent_id: UUID, data: ExposureCreate) -> AgentExposure:
+    async def create(
+        self, ctx: AuthContext, agent_id: UUID, data: ExposureCreate
+    ) -> AgentExposure | BindingDeferred:
         """Make an agent available through one of the organization's bots.
+
+        On a bot that answers people with no account, who puts an agent behind it is for
+        someone who holds `channels:manage` to decide. Anyone else who may publish the
+        agent files a request instead, after every check a direct binding goes through,
+        and gets a :class:`BindingDeferred`; nothing is bound until it is approved.
 
         Raises:
             NotFoundError: If the agent is not reachable by this caller, or the
                 bot is not in this organization. A bot from another tenant is
                 reported as missing rather than forbidden, so ids stay
                 unprobeable - the same rule the agent routes follow.
-            BadRequestError: If the bot's platform has no exposure surface.
+            BadRequestError: If the bot's platform has no exposure surface, or the
+                bot answers strangers and the agent would serve them with no
+                spending limit.
             AlreadyExistsError: If this agent is already bound to this bot.
                 Silently returning the existing row would make an accidental
                 second bind indistinguishable from the first, and the caller
                 would never learn the two requests were not both effective.
         """
-        agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
+        # Locked, as publish locks it: a bind and a publish that each passed their own
+        # spending-limit check must not both commit.
+        agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
+        # The agent first, then the bot: the order every change to a binding locks in.
         refuse_system_agent(agent, action="a channel")
         bot = await channel_bot_repo.get_for_org(
-            self.db, data.channel_bot_id, organization_id=ctx.organization_id
+            self.db, data.channel_bot_id, organization_id=ctx.organization_id, for_update=True
         )
         if bot is None:
             raise NotFoundError(
@@ -353,6 +382,30 @@ class AgentExposureService:
         if data.environment_id is not None:
             await self._environment_of(ctx, agent.id, data.environment_id)
 
+        public_line = bot_answers_unlinked_direct(bot)
+        if public_line:
+            await refuse_without_ceiling(
+                self.db,
+                organization_id=ctx.organization_id,
+                spec=await spec_served_by(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    agent_id=agent.id,
+                    environment_id=data.environment_id,
+                ),
+                channel_bot_id=bot.id,
+            )
+            if not ctx.has(Perm.CHANNELS_MANAGE):
+                return await self._defer(
+                    ctx,
+                    bot,
+                    agent.id,
+                    kind=BindingRequestKind.BIND,
+                    environment_id=data.environment_id,
+                    note=data.request_note,
+                    session_scope=data.session_scope,
+                )
+
         exposure = await agent_exposure_repo.create(
             self.db,
             organization_id=ctx.organization_id,
@@ -376,14 +429,51 @@ class AgentExposureService:
                 "exposure_id": str(exposure.id),
                 "surface": surface.value,
                 "channel_bot_id": str(bot.id),
+                **({"public_line": True} if public_line else {}),
             },
+        )
+        await void_for_taken_bot(
+            self.db, organization_id=ctx.organization_id, channel_bot_id=bot.id
         )
         return exposure
 
+    async def _defer(
+        self,
+        ctx: AuthContext,
+        bot: ChannelBot,
+        agent_id: UUID,
+        *,
+        kind: BindingRequestKind,
+        exposure_id: UUID | None = None,
+        environment_id: UUID | None = None,
+        note: str | None = None,
+        session_scope: str | None = None,
+    ) -> BindingDeferred:
+        """File the change as a request for someone who manages channels to decide."""
+        request = await file_request(
+            self.db,
+            ctx,
+            bot_id=bot.id,
+            agent_id=agent_id,
+            kind=kind,
+            exposure_id=exposure_id,
+            environment_id=environment_id,
+            note=note,
+            session_scope=session_scope,
+        )
+        return BindingDeferred(
+            request_id=request.id, waiting_for=await waiting_for(self.db, ctx.organization_id)
+        )
+
     async def update(
         self, ctx: AuthContext, agent_id: UUID, exposure_id: UUID, data: ExposureUpdate
-    ) -> AgentExposure:
+    ) -> AgentExposure | BindingDeferred:
         """Pause, resume, or rebind a binding to another environment.
+
+        On a bot that answers people with no account, changing what the binding serves -
+        another environment, or a paused binding coming back - is for someone who holds
+        `channels:manage` to decide. Anyone else files a request after every check and gets
+        a :class:`BindingDeferred`; the binding is left as it is. Pausing applies directly.
 
         Only the fields the caller actually sent are applied. Pausing a binding
         must not silently move it back to the default environment, and a schema
@@ -392,10 +482,18 @@ class AgentExposureService:
 
         Raises:
             BadRequestError: If `tools` names a lookup this binding's platform
-                cannot answer.
+                cannot answer, or the change would leave a bot that answers
+                strangers with no spending limit.
         """
-        exposure = await self._owned(ctx, agent_id, exposure_id)
-        changes = writable(data, over=AgentExposure)
+        exposure = await self._owned(ctx, agent_id, exposure_id, for_update=True)
+        # The agent, then the bot, then the binding: the order every change locks in.
+        bot = await channel_bot_repo.get_for_org(
+            self.db, exposure.channel_bot_id, organization_id=ctx.organization_id, for_update=True
+        )
+        exposure = await self._owned(
+            ctx, agent_id, exposure_id, for_update=True, lock_exposure=True
+        )
+        changes = writable(data, over=AgentExposure, exclude={"request_note"})
         if data.observation is not None:
             from app.services.channels.observation import validate_configuration
 
@@ -420,6 +518,17 @@ class AgentExposureService:
             changes["tools"] = await _checked_tools(
                 changes["tools"], ExposureSurface(exposure.surface)
             )
+        served = await self._refuse_unbounded_line(ctx, exposure, bot, changes)
+        if served is not None and bot is not None and not ctx.has(Perm.CHANNELS_MANAGE):
+            return await self._defer(
+                ctx,
+                bot,
+                agent_id,
+                kind=served,
+                exposure_id=exposure.id,
+                environment_id=changes.get("environment_id"),
+                note=data.request_note,
+            )
         updated = await agent_exposure_repo.update(self.db, exposure=exposure, update_data=changes)
         await record_audit(
             self.db,
@@ -430,9 +539,71 @@ class AgentExposureService:
             target_id=str(agent_id),
             # The values, not just the keys. "Somebody changed the binding" is not
             # an audit entry anyone can act on a month later.
-            details={"exposure_id": str(exposure.id), "changes": changes},
+            details={"exposure_id": str(exposure.id), "changes": jsonable_encoder(changes)},
         )
         return updated
+
+    async def _refuse_unbounded_line(
+        self,
+        ctx: AuthContext,
+        exposure: AgentExposure,
+        bot: ChannelBot | None,
+        changes: dict[str, Any],
+    ) -> BindingRequestKind | None:
+        """Refuse a change that would serve strangers with no spending limit.
+
+        Only a change of what the binding serves is judged: another environment, or
+        a paused binding coming back. Pausing, and edits to the prompt or the tools,
+        serve nothing new.
+
+        Returns:
+            Which change a bot that answers strangers would have decided by someone who
+            manages channels, or `None` when the change needs no such decision.
+
+        Raises:
+            BadRequestError: The change would leave the bot with no spending limit, or it
+                moves the environment and resumes at once, which a request cannot carry.
+        """
+        environment_id = changes.get("environment_id", exposure.environment_id)
+        moves = environment_id != exposure.environment_id
+        resumes = changes.get("is_active") is True and not exposure.is_active
+        if not (moves or resumes) or bot is None or not bot_answers_unlinked_direct(bot):
+            return None
+        await refuse_without_ceiling(
+            self.db,
+            organization_id=ctx.organization_id,
+            spec=await spec_served_by(
+                self.db,
+                organization_id=ctx.organization_id,
+                agent_id=exposure.agent_id,
+                environment_id=environment_id,
+            ),
+            channel_bot_id=bot.id,
+        )
+        if not ctx.has(Perm.CHANNELS_MANAGE):
+            if moves and resumes:
+                raise BadRequestError(
+                    message="Change the environment and resume the binding as two requests.",
+                    details=field_details(
+                        "environment_id",
+                        "Change the environment and resume the binding as two requests.",
+                    ),
+                )
+            others = sorted(set(changes) - {"environment_id", "is_active"})
+            if others:
+                raise BadRequestError(
+                    message="Send the change that needs approval on its own.",
+                    details={
+                        "fields": [
+                            {
+                                "field": field,
+                                "message": "Send the change that needs approval on its own.",
+                            }
+                            for field in others
+                        ]
+                    },
+                )
+        return BindingRequestKind.ENVIRONMENT if moves else BindingRequestKind.RESUME
 
     async def delete(self, ctx: AuthContext, agent_id: UUID, exposure_id: UUID) -> None:
         """Remove a binding entirely - the agent stops answering there."""
@@ -464,7 +635,15 @@ class AgentExposureService:
                 details={"environment_id": str(environment_id)},
             )
 
-    async def _owned(self, ctx: AuthContext, agent_id: UUID, exposure_id: UUID) -> AgentExposure:
+    async def _owned(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        exposure_id: UUID,
+        *,
+        for_update: bool = False,
+        lock_exposure: bool = False,
+    ) -> AgentExposure:
         """The exposure, if it belongs to this agent and this caller may change it.
 
         Both halves are checked. The organization scope alone would let somebody
@@ -475,9 +654,11 @@ class AgentExposureService:
             NotFoundError: If the exposure is missing, in another organization,
                 or on a different agent than the one in the path.
         """
-        agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
+        agent = await self.agents.get(
+            ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=for_update
+        )
         exposure = await agent_exposure_repo.get(
-            self.db, exposure_id, organization_id=ctx.organization_id
+            self.db, exposure_id, organization_id=ctx.organization_id, for_update=lock_exposure
         )
         if exposure is None or exposure.agent_id != agent.id:
             raise NotFoundError(
@@ -485,8 +666,8 @@ class AgentExposureService:
             )
         return exposure
 
-    async def _bot_names(self, ctx: AuthContext) -> dict[UUID, str]:
+    async def _bots(self, ctx: AuthContext) -> dict[UUID, ChannelBot]:
         bots = await channel_bot_repo.list_for_org(
             self.db, organization_id=ctx.organization_id, limit=_MAX_TARGETS
         )
-        return {bot.id: bot.name for bot in bots}
+        return {bot.id: bot for bot in bots}

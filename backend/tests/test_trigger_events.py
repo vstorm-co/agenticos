@@ -831,6 +831,21 @@ def test_a_plain_sender_fragment_narrows_the_address(source, fragment, matches):
     )
 
 
+def test_odoo_changes_only_match_the_selected_business_area():
+    assert trigger_events.event_matches(
+        "odoo",
+        headers={},
+        payload={"product_id": "odoo_projects"},
+        config={"product_id": "odoo_projects"},
+    )
+    assert not trigger_events.event_matches(
+        "odoo",
+        headers={},
+        payload={"product_id": "odoo_inventory"},
+        config={"product_id": "odoo_projects"},
+    )
+
+
 class TestLinearWebhook:
     def test_fresh_authentic_delivery_and_filters(self):
         body = b'{"webhookTimestamp":1000000,"type":"Issue","action":"create"}'

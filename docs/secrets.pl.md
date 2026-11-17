@@ -1,5 +1,5 @@
 ---
-source_sha: "f0b3009ed75d"
+source_sha: "b74c832caa01"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -251,7 +251,7 @@ podaje adres konta i przyznane zakresy, nigdy token.
 bota jednym wspólnym `key_version`: token bota, signing secret i app token
 aplikacji Slacka oraz wspólny sekret, wobec którego uwierzytelniany jest
 przychodzący webhook — `X-Telegram-Bot-Api-Secret-Token` Telegrama, token
-wychodzącego webhooka Mattermosta. Zobacz [Kanały](channels.md).
+wychodzącego webhooka Mattermosta oraz app secret i verify token bota WhatsApp. Zobacz [Kanały](channels.md).
 
 **Wyzwalacze zdarzeń.** Sekret, wobec którego weryfikowany jest przychodzący
 webhook wyzwalacza zdarzeń — klucz HMAC GitHuba albo signing secret wysyłany

@@ -259,6 +259,9 @@ describe("cadenceText", () => {
 
     expect(event("github")).toBe("event.github");
     expect(event("gmail")).toBe("event.gmail");
+    for (const source of ["slack", "teams", "google_sheets", "odoo", "imap_mail"] as const) {
+      expect(event(source)).toBe(`event.${source}`);
+    }
     expect(event("outlook")).toBe("event.outlook");
     expect(event("webhook")).toBe("event.webhook");
     expect(event("hubspot")).toBe("event.hubspot");

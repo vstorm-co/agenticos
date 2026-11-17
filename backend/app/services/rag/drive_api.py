@@ -9,6 +9,7 @@ still signs the service account's token; this module only speaks the REST.
 Synchronous on purpose: both callers already run Drive work in a thread.
 """
 
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Self
@@ -69,7 +70,9 @@ class DriveClient:
     A context manager: it holds an HTTP connection pool, closed on exit.
     """
 
-    def __init__(self, credentials: Token, http: httpx.Client | None = None) -> None:
+    def __init__(
+        self, credentials: Token | Callable[[], str], http: httpx.Client | None = None
+    ) -> None:
         self._credentials = credentials
         self._http = http or httpx.Client(base_url=DRIVE_API, timeout=_TIMEOUT)
 
@@ -124,6 +127,8 @@ class DriveClient:
                     fh.write(chunk)
 
     def _authorization(self) -> dict[str, str]:
+        if callable(self._credentials):
+            return {"Authorization": f"Bearer {self._credentials()}"}
         if not self._credentials.valid:
             from google.auth.transport.requests import Request
 

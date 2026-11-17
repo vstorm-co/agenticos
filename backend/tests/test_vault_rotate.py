@@ -58,6 +58,7 @@ def _bot(org_id: uuid.UUID, **overrides) -> ChannelBot:
         "webhook_secret_encrypted": None,
         "slack_signing_secret_encrypted": None,
         "slack_app_token_encrypted": None,
+        "whatsapp_verify_token_encrypted": None,
         "secret_key_version": 1,
     }
     return ChannelBot(**{**defaults, **overrides})
@@ -74,6 +75,7 @@ class TestRotateTable:
             org_id,
             token_encrypted=seal("bot-token", scope=scope).ciphertext,
             webhook_secret_encrypted=seal("hook-secret", scope=scope).ciphertext,
+            whatsapp_verify_token_encrypted=seal("verify-token", scope=scope).ciphertext,
         )
 
         monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A, 2: KEY_B})
@@ -86,6 +88,10 @@ class TestRotateTable:
         assert bot.secret_key_version == 2
         assert unseal(bot.token_encrypted, scope=scope, key_version=2) == "bot-token"
         assert unseal(bot.webhook_secret_encrypted, scope=scope, key_version=2) == "hook-secret"
+        assert (
+            unseal(bot.whatsapp_verify_token_encrypted, scope=scope, key_version=2)
+            == "verify-token"
+        )
 
     async def test_a_dry_run_unseals_every_envelope_and_writes_nothing(self, monkeypatch):
         monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A})

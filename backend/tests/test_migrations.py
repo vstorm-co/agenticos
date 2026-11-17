@@ -38,7 +38,7 @@ from uuid import uuid4
 import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, delete, insert, select, text, update
+from sqlalchemy import create_engine, delete, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as DatabaseSession
@@ -531,19 +531,28 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
             chat = Conversation(organization_id=org_id, user_id=owner.id, title="Private")
             db.add_all([agent, chat])
             db.flush()
-            # A Core insert names only these columns: the model is at head and the
-            # schema here is not.
+            # SQL names only historical columns; even a Core model insert adds
+            # Python defaults for fields introduced after this revision.
             run_id = uuid4()
             db.execute(
-                insert(AgentRun).values(
-                    id=run_id,
-                    organization_id=org_id,
-                    agent_id=agent.id,
-                    started_at=datetime.now(UTC),
-                    user_id=owner.id,
-                    conversation_id=chat.id,
-                    routine_policy={"approved_sources": []},
-                )
+                text(
+                    "INSERT INTO agent_runs "
+                    "(id, organization_id, agent_id, started_at, user_id, "
+                    "conversation_id, routine_policy, surface, status, input_tokens, "
+                    "output_tokens, cost_usd, cost_is_partial) VALUES "
+                    "(:id, :organization_id, :agent_id, :started_at, :user_id, "
+                    ":conversation_id, CAST(:routine_policy AS jsonb), "
+                    "'web', 'running', 0, 0, 0, false)"
+                ),
+                {
+                    "id": run_id,
+                    "organization_id": org_id,
+                    "agent_id": agent.id,
+                    "started_at": datetime.now(UTC),
+                    "user_id": owner.id,
+                    "conversation_id": chat.id,
+                    "routine_policy": json.dumps({"approved_sources": []}),
+                },
             )
             db.commit()
             owner_id = owner.id
@@ -681,6 +690,8 @@ class TestMigrations:
         "0312_skill_check_reasons",
         "0314_tool_approval_always_asks",
         "0306_shared_page_attribution",
+        "0296_integration_watch_cursor",
+        "0330_linear_trigger",
     ],
 )
 def test_improvement_merge_upgrades_either_existing_history(starting_revision: str) -> None:
@@ -1109,6 +1120,8 @@ def test_workflow_migrations_preserve_main_notification_types(table: str) -> Non
             "artifact_owner_changed",
             "artifact_share_requested",
             "workflow_log_alert",
+            "channel_binding_requested",
+            "channel_binding_decided",
         ):
             assert f"'{event}'" in definition
     finally:
@@ -1435,6 +1448,163 @@ class TestChatNoticeColumn:
                         "WHERE table_name='agent_runs' AND column_name='chat_notice_sent_at'"
                     )
                 ).first()
+        finally:
+            engine.dispose()
+
+
+class TestRunsAsAgentColumn:
+    def test_existing_runs_are_member_runs_and_the_models_match_head(self):
+        top = _alembic("upgrade", "head")
+        assert top.returncode == 0, top.stderr
+        before = _alembic("downgrade", "0335_whatsapp_followups")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        run_id = uuid4()
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO agent_runs (id, organization_id, agent_id, status, surface, "
+                        "modality, started_at, input_tokens, output_tokens, cache_read_tokens, "
+                        "cache_write_tokens, cost_usd, cost_is_partial, tool_args_repaired) "
+                        "VALUES (:id, :org, :agent, 'completed', 'whatsapp', 'text', now(), "
+                        "0, 0, 0, 0, 0, false, 0)"
+                    ),
+                    {"id": run_id, "org": uuid4(), "agent": uuid4()},
+                )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(
+                        text("SELECT runs_as_agent FROM agent_runs WHERE id=:id"), {"id": run_id}
+                    )
+                    is False
+                )
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+            down = _alembic("downgrade", "0335_whatsapp_followups")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(
+                        text("SELECT status FROM agent_runs WHERE id=:id"), {"id": run_id}
+                    )
+                    == "completed"
+                )
+                assert not connection.execute(
+                    text(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_name='agent_runs' AND column_name='runs_as_agent'"
+                    )
+                ).first()
+        finally:
+            engine.dispose()
+
+
+class TestChannelBindingRequestsTable:
+    def test_the_table_and_the_notification_types_come_and_go_with_the_revision(self):
+        top = _alembic("upgrade", "head")
+        assert top.returncode == 0, top.stderr
+        before = _alembic("downgrade", "0335_whatsapp_followups")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        user_id = uuid4()
+        try:
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(text("SELECT to_regclass('channel_binding_requests')"))
+                    is None
+                )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                for event in ("channel_binding_requested", "channel_binding_decided"):
+                    connection.execute(
+                        text(
+                            "INSERT INTO notifications (id, organization_id, recipient_user_id, "
+                            "event_type, occurrence_id, summary, in_app_visible) "
+                            "VALUES (:id, :org, :user, :event, 'x', 'Somebody asked.', true)"
+                        ),
+                        {"id": uuid4(), "org": uuid4(), "user": user_id, "event": event},
+                    )
+                    connection.execute(
+                        text(
+                            "INSERT INTO notification_preferences (id, user_id, event_type, "
+                            "channel, enabled) VALUES (:id, :user, :event, 'in_app', false)"
+                        ),
+                        {"id": uuid4(), "user": user_id, "event": event},
+                    )
+                bot, requester = uuid4(), uuid4()
+                insert = text(
+                    "INSERT INTO channel_binding_requests (id, organization_id, channel_bot_id, "
+                    "agent_id, exposure_id, kind, requester_user_id, status) "
+                    "VALUES (:id, :org, :bot, :agent, :exposure, :kind, :requester, :status)"
+                )
+                connection.execute(
+                    insert,
+                    {
+                        "id": uuid4(),
+                        "org": uuid4(),
+                        "bot": bot,
+                        "agent": uuid4(),
+                        "exposure": None,
+                        "kind": "bind",
+                        "requester": requester,
+                        "status": "pending",
+                    },
+                )
+            for refused in (
+                {"kind": "unbind", "status": "pending", "bot": uuid4(), "requester": uuid4()},
+                {"kind": "bind", "status": "waiting", "bot": uuid4(), "requester": uuid4()},
+                {"kind": "bind", "status": "pending", "bot": bot, "requester": requester},
+                {
+                    "kind": "resume",
+                    "status": "pending",
+                    "bot": uuid4(),
+                    "requester": uuid4(),
+                    "exposure": None,
+                },
+                {
+                    "kind": "bind",
+                    "status": "pending",
+                    "bot": uuid4(),
+                    "requester": uuid4(),
+                    "exposure": uuid4(),
+                },
+            ):
+                with (
+                    pytest.raises(Exception, match="channel_binding_request"),
+                    engine.begin() as connection,
+                ):
+                    connection.execute(text("SET LOCAL session_replication_role = replica"))
+                    connection.execute(
+                        insert,
+                        {
+                            "id": uuid4(),
+                            "org": uuid4(),
+                            "agent": uuid4(),
+                            "exposure": None,
+                            **refused,
+                        },
+                    )
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+            down = _alembic("downgrade", "0335_whatsapp_followups")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.scalar(text("SELECT to_regclass('channel_binding_requests')"))
+                    is None
+                )
+                for left in (
+                    "SELECT count(*) FROM notifications WHERE event_type LIKE 'channel_binding_%'",
+                    "SELECT count(*) FROM notification_preferences "
+                    "WHERE event_type LIKE 'channel_binding_%'",
+                ):
+                    assert connection.scalar(text(left)) == 0
         finally:
             engine.dispose()
 
@@ -2051,6 +2221,31 @@ class TestDraftPresentationMigration:
                     ).all()
                 )
                 assert rows == {real_id: "draft", spoof_id: None}
+
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+        finally:
+            engine.dispose()
+
+
+class TestWhatsAppCustomerPhoneColumn:
+    def test_the_column_comes_and_goes_and_the_models_match_head(self):
+        top = _alembic("upgrade", "head")
+        assert top.returncode == 0, top.stderr
+        before = _alembic("downgrade", "0336_whatsapp_public_line")
+        assert before.returncode == 0, before.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        query = text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name='whatsapp_customers' AND column_name='phone'"
+        )
+        try:
+            with engine.connect() as connection:
+                assert not connection.execute(query).first()
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                assert connection.execute(query).first()
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
         finally:
@@ -2395,10 +2590,15 @@ def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
                 text(
                     "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
                     "input_tokens, output_tokens, cost_usd, cost_is_partial, routine_policy) "
-                    "VALUES (:id, :org, :agent, 'schedule', 'completed', 0, 0, 0, false, "
-                    "'{\"acts_as_creator\": true}'::jsonb)"
+                    "VALUES (:id, :org, :agent, 'schedule', 'completed', "
+                    "0, 0, 0, false, CAST(:policy AS jsonb))"
                 ),
-                {"id": run_id, "org": org.id, "agent": agent.id},
+                {
+                    "id": run_id,
+                    "org": org.id,
+                    "agent": agent.id,
+                    "policy": json.dumps({"acts_as_creator": True}),
+                },
             )
             db.commit()
         result = _alembic("upgrade", "head")
@@ -2452,6 +2652,8 @@ def test_memory_snapshot_upgrade_preserves_legacy_runs_and_downgrades_cleanly() 
             )
             assert rows[old_run] is None
             assert rows[new_run].startswith("boot:")
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
         check = _alembic("check")
         assert check.returncode == 0, check.stderr
         result = _alembic("downgrade", "0335_defer_run_conversation_fk")
@@ -2465,3 +2667,22 @@ def test_memory_snapshot_upgrade_preserves_legacy_runs_and_downgrades_cleanly() 
         assert result.returncode == 0, result.stderr
     finally:
         engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "starting_revision", ["0338_merge_whatsapp_routines", "0336_run_memory_snapshot"]
+)
+def test_channel_runtime_merge_accepts_either_existing_history(starting_revision: str) -> None:
+    """Both the PR's deployed history and released main must reach the same head."""
+    for action, revision in (
+        ("downgrade", "base"),
+        ("upgrade", starting_revision),
+        ("upgrade", "head"),
+    ):
+        result = _alembic(action, revision)
+        assert result.returncode == 0, result.stderr
+    current = _alembic("current")
+    assert current.returncode == 0, current.stderr
+    assert "0339_merge_channel_runtime (head)" in current.stdout
+    check = _alembic("check")
+    assert check.returncode == 0, check.stderr

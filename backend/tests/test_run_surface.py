@@ -49,6 +49,7 @@ class TestEveryMemberIsAssignedBySomething:
             "sms",
             "email",
             "imessage",
+            "whatsapp",
             "discord",
             "schedule",
             "eval",
@@ -84,6 +85,7 @@ class TestEveryMemberIsAssignedBySomething:
             "sms",
             "email",
             "imessage",
+            "whatsapp",
         }
         assert _SURFACES["mattermost"] is RunSurface.MATTERMOST
 

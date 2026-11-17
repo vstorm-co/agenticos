@@ -24,7 +24,11 @@ const AddChannelDialog = dynamic(() =>
 );
 
 function channelPlatform(value: string | undefined): ChannelPlatform | undefined {
-  return value === "slack" || value === "telegram" || value === "mattermost" || value === "teams"
+  return value === "slack" ||
+    value === "telegram" ||
+    value === "mattermost" ||
+    value === "teams" ||
+    value === "whatsapp"
     ? value
     : undefined;
 }
@@ -61,7 +65,7 @@ export function ChannelBotPicker({
   const caption = label ?? t("pickerBotLabel");
   const { can } = usePermissions();
   const mayManage = can(Perm.channelsManage);
-  const { bots: every, isLoading, create } = useChannelBots(mayManage);
+  const { bots: every, isLoading, create, refresh } = useChannelBots(mayManage);
   const [adding, setAdding] = useState(false);
   const platforms = typeof platform === "string" ? [platform] : platform;
   const bots =
@@ -110,6 +114,7 @@ export function ChannelBotPicker({
       )}
       {adding && (
         <AddChannelDialog
+          onPluginSetup={() => void refresh()}
           open
           onOpenChange={setAdding}
           initialPlatform={channelPlatform(only)}

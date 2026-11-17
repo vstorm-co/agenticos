@@ -10,6 +10,7 @@ import type { CapabilityCatalogEntry } from "@/types/agents";
 
 import { DRAWN_ART, DRAWN_HUE } from "./art.drawn";
 import { CAPABILITY_ART, CAPABILITY_HUE } from "./art.generated";
+import { IntegrationArt, integrationIllustration } from "./integration-art";
 import "./capability-art.css";
 
 /** A hue for a capability the canvas drew nothing for, steady across renders. */
@@ -33,11 +34,16 @@ export function CapabilityArt({
   off?: boolean;
 }) {
   const svg = CAPABILITY_ART[id] ?? DRAWN_ART[id];
+  const integration = integrationIllustration(id);
   const style = { "--h": CAPABILITY_HUE[id] ?? DRAWN_HUE[id] ?? hueOf(id) } as CSSProperties;
   const stage = "stage v-B h-20 sm:h-24";
   return (
     <div className={cn("cap-art", off && "is-off")} style={style}>
-      {svg !== undefined ? (
+      {integration ? (
+        <div className={stage}>
+          <IntegrationArt illustration={integration} />
+        </div>
+      ) : svg !== undefined ? (
         // Static markup generated from our own design canvas - no input of
         // anybody's reaches it. Inline rather than an <img>, so the scene takes
         // the console's theme and its CSS animation.

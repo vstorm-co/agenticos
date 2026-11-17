@@ -57,6 +57,21 @@ export function EventOptions({
   }
   return (
     <div className="space-y-4">
+      {(source === "slack" || source === "teams") && (
+        <>
+          {text("channels", "integrationConversations", true)}
+          {text("contains", "textFilterLabel")}
+          {toggle("mentions_only", "integrationMentions")}
+          {source === "slack" && toggle("direct_only", "integrationDirect")}
+        </>
+      )}
+      {source === "imap_mail" && text("contains", "textFilterLabel")}
+      {source === "google_sheets" && (
+        <>
+          {text("spreadsheet_id", "integrationSpreadsheet")}
+          {text("sheet_name", "integrationSheet")}
+        </>
+      )}
       {source === "gmail" && text("label", "mailLabelFilter")}
       {source === "outlook" && text("folder", "mailFolderFilter")}
       {source === "outlook" && canManageConnections && text("mailbox", "sharedMailboxFilter")}
@@ -91,7 +106,14 @@ export function EventOptions({
 }
 
 /** Keep incomplete calendar leads in the form until they satisfy the API contract. */
-export function eventOptionsValid(config: Record<string, unknown>): boolean {
+export function eventOptionsValid(config: Record<string, unknown>, source?: EventSource): boolean {
+  if (
+    source === "google_sheets" &&
+    (typeof config.spreadsheet_id !== "string" || !/^[A-Za-z0-9_-]+$/.test(config.spreadsheet_id))
+  )
+    return false;
+  if (source === "slack" && (!Array.isArray(config.channels) || config.channels.length === 0))
+    return false;
   const lead = config.minutes_before;
   return (
     lead === undefined ||

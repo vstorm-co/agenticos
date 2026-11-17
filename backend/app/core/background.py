@@ -24,7 +24,8 @@ id, and under `READ COMMITTED` does not find it (#417).
 import asyncio
 import contextvars
 import logging
-from collections.abc import Coroutine
+from collections.abc import AsyncGenerator, Coroutine
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, Final, cast
 
@@ -156,6 +157,27 @@ def spawn_after_rollback(
     """
     queue = cast(list[_Deferred], session.info.setdefault(_ON_ROLLBACK_KEY, []))
     queue.append(_Deferred(coro=coro, name=name))
+
+
+@asynccontextmanager
+async def deferred_savepoint(session: AsyncSession) -> AsyncGenerator[None]:
+    """Keep a savepoint's commit/rollback handoffs independent of earlier work."""
+    transaction = await session.begin_nested()
+    earlier_commit = _take(session)
+    earlier_rollback = _take(session, _ON_ROLLBACK_KEY)
+    try:
+        yield
+        await transaction.commit()
+    except BaseException:
+        try:
+            await transaction.rollback()
+        finally:
+            start_after_rollback(session)
+            discard_deferred(session)
+        raise
+    finally:
+        session.info[_DEFERRED_KEY] = earlier_commit + _take(session)
+        session.info[_ON_ROLLBACK_KEY] = earlier_rollback + _take(session, _ON_ROLLBACK_KEY)
 
 
 def start_deferred(session: AsyncSession) -> None:

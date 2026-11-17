@@ -353,6 +353,13 @@ at full authority — an account that cannot sign in, still spending the
 organization's budget. It is one joined read (`member_repo.get_active`) rather than
 two, because it is answered on every turn a public surface takes.
 
+A WhatsApp bot with its [public line](channels.md#whatsapp-public-line) on is the
+exception to "a run needs a member's role". A stranger there runs **as the agent**:
+the run has no role at all, and what it may reach is the grants carried on the
+agent's published spec, nothing a member has. The publisher fallback is still
+recorded on the run, and the run is marked as acting as the agent, so it is
+distinguishable afterwards.
+
 Who **asked** is carried separately — `channel_identity_id`, the chat account that
 spoke. Merging the two would make a channel run claim the sender's authority, which
 is exactly what an unlinked sender does not have.
@@ -609,6 +616,14 @@ rewriting what they ran as. See
 
 What such a run is allowed to do comes from the **exposure** that admitted it,
 created by somebody who did have a role.
+
+A run that acts as its agent is the one case where no member's role is read:
+
+- It holds only the agent’s published grants and explicitly bound organization connections. It cannot borrow personal accounts or use the platform MCP server, including its table operations. A person deciding an approval must still be an active member.
+- Binding an agent to a public-line bot needs `channels:manage`, or a request that
+  a holder approves. A Builder who publishes a wider version of an agent already
+  bound to a public line needs no `channels:manage`; the publish is still refused
+  when it would leave the line without a spending ceiling.
 
 ## What the frontend reads
 

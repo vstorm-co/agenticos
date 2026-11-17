@@ -3,6 +3,28 @@
 // apart from `art.generated.ts`, which the canvas rewrites whole.
 
 export const DRAWN_HUE: Readonly<Record<string, number>> = {
+  word: 220,
+  imap_mail: 220,
+  odoo_contacts: 280,
+  odoo_crm: 280,
+  odoo_sales: 280,
+  odoo_accounting: 280,
+  odoo_inventory: 280,
+  odoo_projects: 280,
+
+  gmail: 220,
+  google_calendar: 220,
+  google_drive: 220,
+  google_docs: 220,
+  google_sheets: 220,
+  google_slides: 220,
+  outlook_mail: 220,
+  outlook_calendar: 220,
+  microsoft_files: 220,
+  excel: 220,
+  teams: 220,
+  slack: 220,
+
   channel_actions: 220,
   visuals: 140,
   background_tools: 222,

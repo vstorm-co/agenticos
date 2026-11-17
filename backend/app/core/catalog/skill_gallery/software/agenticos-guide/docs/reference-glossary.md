@@ -43,7 +43,7 @@ rename.
 | In the console | What it is | In the API and spec |
 |---|---|---|
 | Chat | The web conversation with an agent | `conversation` |
-| Channel | Slack, Telegram, Mattermost or Discord, where people reach an agent | `channel_bot` |
+| Channel | Slack, Telegram, Mattermost, Teams, Discord or WhatsApp, where people reach an agent | `channel_bot` |
 | Routine | An agent running on its own, on a schedule or an event | `trigger` |
 | Eval suite | A dataset an agent is held to, run on a schedule, on publish or promotion, or after a change | `eval_suite` |
 | Run | One time an agent answered, with its cost and steps | `agent_run` |
@@ -122,6 +122,26 @@ in [Capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/)
 | Ask the user | `ask_user` |
 | Drafts | `drafts` |
 | Web browser | `browser_use` |
+| Word | `word` |
+| IMAP mail | `imap_mail` |
+| Odoo Contacts | `odoo_contacts` |
+| Odoo CRM | `odoo_crm` |
+| Odoo Sales | `odoo_sales` |
+| Odoo Invoicing | `odoo_accounting` |
+| Odoo Inventory | `odoo_inventory` |
+| Odoo Projects | `odoo_projects` |
+| Slack | `slack` |
+| Teams | `teams` |
+| Excel | `excel` |
+| OneDrive / SharePoint | `microsoft_files` |
+| Outlook Calendar | `outlook_calendar` |
+| Outlook mail | `outlook_mail` |
+| Google Slides | `google_slides` |
+| Google Sheets | `google_sheets` |
+| Google Docs | `google_docs` |
+| Google Drive | `google_drive` |
+| Google Calendar | `google_calendar` |
+| Gmail | `gmail` |
 | Chat channel lookup | `channel_tools` |
 | Connected chat apps | `channel_actions` |
 | Telephone calls | `phone_calls` |

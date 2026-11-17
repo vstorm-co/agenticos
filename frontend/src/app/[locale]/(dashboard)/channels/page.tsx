@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { MessagesSquare, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { BindingRequestsCard } from "@/components/channels/binding-requests-card";
+import { WhatsAppCustomersSheet } from "@/components/channels/whatsapp-customers-sheet";
 import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
 import { ChannelBotsTable } from "@/components/channels/channel-bots-table";
 import { DiscordRoleMappingsDialog } from "@/components/channels/discord-role-mappings-dialog";
@@ -57,13 +59,15 @@ export default function ChannelsPage() {
   // too - so the hook is told not to fetch at all for somebody without it,
   // rather than putting a 403 in the network log of every member who visits.
   const canManage = can(Perm.channelsManage);
-  const { bots, isLoading, error, create, update, setActive, remove } = useChannelBots(canManage);
+  const { bots, isLoading, error, create, update, setActive, remove, refresh } =
+    useChannelBots(canManage);
   const [adding, setAdding] = useState(false);
   // The row being edited, which is also what opens the dialog: a bot and an
   // open flag can disagree, and the disagreement renders last row's answers.
   const [editing, setEditing] = useState<ChannelBot | null>(null);
   const [deleting, setDeleting] = useState<ChannelBot | null>(null);
   const [mapping, setMapping] = useState<ChannelBot | null>(null);
+  const [customersOf, setCustomersOf] = useState<ChannelBot | null>(null);
 
   if (!permissionsLoading && !permissionsError && !canManage) {
     return (
@@ -93,6 +97,7 @@ export default function ChannelsPage() {
         }
       />
 
+      <BindingRequestsCard />
       <BotsCard count={error || permissionsError ? null : bots.length}>
         {isLoading || permissionsLoading ? (
           <ChannelBotsTable
@@ -135,12 +140,14 @@ export default function ChannelsPage() {
             onToggleActive={(bot) => setActive.mutate({ botId: bot.id, isActive: !bot.is_active })}
             onDelete={setDeleting}
             onMapRoles={can(Perm.membersManage) ? setMapping : undefined}
+            onCustomers={setCustomersOf}
           />
         )}
       </BotsCard>
 
       {canManage && !permissionsLoading && (
         <AddChannelDialog
+          onPluginSetup={() => void refresh()}
           open={adding}
           onOpenChange={setAdding}
           onSubmit={create.mutateAsync}
@@ -160,6 +167,8 @@ export default function ChannelsPage() {
           onConfirm={() => remove.mutate(deleting.id, { onSuccess: () => setDeleting(null) })}
         />
       )}
+
+      <WhatsAppCustomersSheet bot={customersOf} onClose={() => setCustomersOf(null)} />
 
       <EditChannelDialog
         bot={editing}

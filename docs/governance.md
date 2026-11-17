@@ -2401,6 +2401,9 @@ credentials; the latter are restricted to cases belonging to that chat. Ordinary
 API keys, unattended runs and publisher fallback identities cannot read or settle
 private Inbox cases.
 
+
+Built-in Google, Microsoft, Slack and IMAP connections also work here. See [built-in integrations](integrations.md) for setup, account selection, capabilities, workflow operations, knowledge sync and durable change feeds.
+
 ## Approval groups
 
 Workflow human-approval and MCP-call steps can name individual approvers, organization groups, or both. Any one eligible person may decide, and they must independently hold `approvals:decide`. With neither users nor groups configured, the existing unrestricted permission-based rule applies. A configured empty or deleted group never makes a request unrestricted.

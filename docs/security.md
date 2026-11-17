@@ -37,6 +37,13 @@ plus the permission catalog (`app/core/permissions.py`), resolved per resource.
 Two callers who share a role can reach different rows, because a grant on one
 resource widens what a role allows without promoting the member.
 
+A WhatsApp bot can answer anyone who messages its [public line](channels.md#whatsapp-public-line). The stranger runs as the agent with its published grants and explicitly bound organization connections. It cannot use personal accounts, platform MCP table operations or page publishing.
+
+Opening, binding, changing the environment or resuming the line requires a spending ceiling. Customers receive a neutral refusal without configuration details. Review every enabled native capability and organization MCP tool before opening the line.
+
+Only public-line customers may have their phone number retained; full numbers require `channels:manage` and are excluded from request traces. See [Data protection](data-protection.md#whatsapp-customers).
+
+
 ## What leaves the deployment
 
 Apart from [deployment diagnostics](configuration.md#diagnostics), which are on by
@@ -46,7 +53,7 @@ boundary a client's review will ask about.
 | To | What | When |
 |---|---|---|
 | The configured model provider | The prompt, the model's output, tool arguments and results | Every run — unless the model runs on the operator's own infrastructure, in which case nothing leaves |
-| The configured channel (Slack, Teams, Telegram, Mattermost) | The agent's generated replies — text, images and attachments | Whenever an agent is exposed through that channel; each `send_message` posts to the provider (`app/services/channels/`) |
+| The configured channel (Slack, Teams, Telegram, Mattermost, Discord, WhatsApp) | The agent's generated replies — text, images and attachments; WhatsApp's go to `graph.facebook.com`, and AgenticOS stores only a sender's business-scoped id, profile name and masked number, never a message id or phone number in a log | Whenever an agent is exposed through that channel; each `send_message` posts to the provider (`app/services/channels/`) |
 | Logfire | Traces, which carry prompts and outputs unless the agent says otherwise | Two independent paths. A per-agent observability token traces that agent, and its `content` mode decides how much the span carries - `none` reduces it to timing, tokens, cost and tool names (#1413). A deployment-wide `LOGFIRE_TOKEN` instruments **every** run, in the API and in the worker alike (`app/core/logfire_setup.py`), so with it set, the content of any agent that did not ask for `none` leaves; an agent that did is pinned to content-free instrumentation on that tracer too (`suppress_content`), so the mode holds on both paths, and a specialist of that agent inherits it, written inline or invented mid-run. One gap it does not cover: an attach that fails, which is logged and left. Neither path is on by default. There is deliberately no filtered middle ground - a partly-scrubbed export is a guarantee nobody can audit ([#1616](https://github.com/vstorm-co/agenticos/issues/1616)) |
 | MCP servers | Tool calls and their arguments | Only for the tools an agent is bound to |
 | A web-search vendor (Tavily, DuckDuckGo) | The search query | Only when the search capability is granted |
@@ -278,6 +285,7 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | Per-resource routes authorize in the service, not on the route | A route acting on one agent, skill or collection carries no `require()` gate — a role gate would refuse a grant-holder before the grant applied — and calls `resolve_access` instead (`app/services/access.py`) | `test_platform_routes.py::TestEveryPlatformRouteIsGuarded` (every route is gated or service-decided) |
 | A grant widens access without promoting the member | Per-resource `resolve_access` takes `max(role scope, grant)` (`app/services/access.py`) | `test_resource_access.py::TestGrantsWidenAccess`, `::TestPermissionsGrantsCannotWiden` |
 | A page starts a workflow only as the person who confirms it | The publish allowlist (`app/services/artifact_actions.py`), the viewer's own list, the console's origin and nonce checks and confirmation dialog (`frontend/src/hooks/use-artifact-actions.ts`), the `acts` claim that only the viewer's address carries (`app/core/security.py`), and a start route that runs the workflow as the caller and refuses another version or an impersonated session. See [a page that starts workflows](#a-page-that-starts-workflows) | `tests/integration/test_artifact_actions.py`, `tests/integration/test_artifact_action_runs.py`, `src/components/artifacts/artifact-actions.test.tsx` |
+| A public-line stranger runs as the agent, with only its published grants | The context carries the agent's grants and no role; publishing a page and the platform MCP server are refused, and the ceiling is checked on opening, binding, environment change, resume, reactivation, publish and at run time (`app/services/channels/public_line.py`) | `test_public_line.py` |
 | A channel mention runs as the sender, not the bot | A linked, active sender's own `AuthContext` is used (`app/services/channels/mentions.py`) | `test_channel_mentions.py::TestAnswer::test_the_run_carries_the_senders_own_role` |
 
 ### Authentication · HIPAA §164.312(d) · SOC 2 CC6
@@ -332,7 +340,7 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | Control | Mechanism | Held by |
 |---|---|---|
 | No plaintext secret in any API response or audit entry | `SealedStr`/`CredentialStr` mask every repr; hints are last-4 only (`app/core/secret_kinds.py`, `app/core/vault.py`) | `test_no_secret_escapes.py` (sweeps the whole OpenAPI surface), `test_capability_secrets.py::TestInjection` |
-| Logs are not part of that guarantee | A malformed MCP OAuth token response reaches the logs through a Pydantic `ValidationError` that echoes its input — a known gap, [#1626](https://github.com/vstorm-co/agenticos/issues/1626) | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (documents that the token lands in `caplog`) |
+| Logs are not part of that guarantee | A malformed MCP OAuth token response reaches the logs through a Pydantic `ValidationError` that echoes its input — a known gap, [#1626](https://github.com/vstorm-co/agenticos/issues/1626). With `LOGFIRE_TOKEN` set, Logfire stores a failed query's exception message and stack trace as they are, so a constraint error's `DETAIL` line, which carries the offending values, reaches Logfire — also a known gap | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (documents that the token lands in `caplog`) |
 | Signed links in access logs | The application redacts credential-bearing paths and query values, including uvicorn access and error logs. The bundled Nginx and Traefik configurations omit the request path, query and Referer from access logs. Operators using other proxies must configure equivalent protection. | `test_logging.py::test_a_signed_link_in_the_access_log_is_redacted` |
 | No provider credential reaches a voice call's browser | The server answers the SDP offer and holds the sideband; an offer with a data channel is refused; client secrets are never minted; the key is unsealed for a call, and for a hang-up only through `OrganizationSecretService.voice_call_key`, whose plaintext goes to the provider's hang-up endpoint and nowhere else (`app/services/voice/transport.py`, `app/services/voice/hangup.py`) | `test_voice_session.py::test_no_frame_carries_the_provider_key`, `test_voice_transport.py::test_an_offer_with_a_data_channel_is_refused` |
 | A credential is bound to its organization at rest | Per-owner HKDF envelope (`app/core/vault.py`); scope is connector and API credentials — see "What is encrypted where" for the bearer tokens it does not cover | `test_secret_tenant_isolation.py`, `test_vault.py` |

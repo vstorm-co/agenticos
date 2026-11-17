@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Pause, Play, Trash2 } from "lucide-react";
 
 import { LoadingState } from "@/components/states";
@@ -11,13 +12,21 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Label,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Textarea,
 } from "@/components/ui";
-import { useAgentEnvironments, useChannelBots, useExposures, usePermissions } from "@/hooks";
+import {
+  useAgentEnvironments,
+  useBindingRequests,
+  useChannelBots,
+  useExposures,
+  usePermissions,
+} from "@/hooks";
 import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
 import { ExposureChannelTiles, SURFACE_LABEL } from "@/components/agents/exposure-channel-tiles";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
@@ -25,7 +34,8 @@ import { ExposurePrompt } from "@/components/agents/exposure-prompt";
 import { ExposureCostReporting } from "@/components/agents/exposure-cost-reporting";
 import { ExposureTools } from "@/components/agents/exposure-tools";
 import { ExposureObservation } from "@/components/agents/exposure-observation";
-import type { ExposureSurface } from "@/types/exposures";
+import { ROUTES } from "@/lib/constants";
+import type { ExposureSurface, ExposureTarget } from "@/types/exposures";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
@@ -63,6 +73,8 @@ interface ExposuresPanelProps {
  */
 /** Sentinel for "the default environment" - a Select item may not be empty. */
 const DEFAULT_ENV = "__default__";
+/** What the server accepts as a request's note. */
+const MAX_REQUEST_NOTE = 500;
 
 export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPanelProps) {
   const t = useTranslations("agents");
@@ -80,12 +92,16 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
     revoke,
   } = useExposures(agentId);
   const { environments } = useAgentEnvironments(agentId);
+  const { data: requests = [] } = useBindingRequests(agentId);
   const { can } = usePermissions();
   const canRegister = can(Perm.channelsManage);
   // Only the mutation: the bot list is the exposure targets above, and reading
   // `/channels/bots` too would ask `channels:manage` of every publisher.
-  const { create: createBot } = useChannelBots(false);
+  const { create: createBot, refresh } = useChannelBots(false);
   const [registering, setRegistering] = useState<ExposureSurface | null>(null);
+  // The public line somebody without `channels:manage` is writing a request for.
+  const [asking, setAsking] = useState<ExposureTarget | null>(null);
+  const [note, setNote] = useState("");
   // Only worth a control when there is a choice: with the default alone, every
   // binding serves it and a picker would offer one option.
   const namedEnvironments = environments.filter((environment) => !environment.is_default);
@@ -175,6 +191,19 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
               </Button>
             </div>
 
+            {/* The bot answers customers with no account, so the agent is in front of
+                people who are not colleagues here. The line's own warning is on the bot. */}
+            {exposure.public_line === true && (
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                {t("publicLineBinding")}{" "}
+                {canRegister && (
+                  <Link href={ROUTES.CHANNELS} className="underline underline-offset-4">
+                    {t("publicLineReview")}
+                  </Link>
+                )}
+              </p>
+            )}
+
             {/* Under the row rather than behind a dialog: it is the one thing
                 about a binding somebody actually wants to change after making
                 it, and a surface's own instructions are worth reading beside
@@ -227,6 +256,50 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
           </div>
         ))}
 
+        {requests.map((request) => (
+          <p
+            key={request.id}
+            className="text-muted-foreground rounded-md border border-dashed p-3 text-sm"
+          >
+            {t("waitingForAdministrator", { bot: request.channel_bot_name })}
+          </p>
+        ))}
+
+        {asking && (
+          <div className="space-y-2 rounded-md border p-3">
+            <Label htmlFor="exposure-request-note">{t("noteForAdministrator")}</Label>
+            <Textarea
+              id="exposure-request-note"
+              value={note}
+              maxLength={MAX_REQUEST_NOTE}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder={t("noteForAdministratorPlaceholder", { bot: asking.name })}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setAsking(null)}>
+                {t("cancel")}
+              </Button>
+              <Button
+                size="sm"
+                disabled={expose.isPending}
+                onClick={() =>
+                  expose.mutate(
+                    { channelBotId: asking.id, requestNote: note.trim() },
+                    {
+                      onSuccess: () => {
+                        setAsking(null);
+                        setNote("");
+                      },
+                    },
+                  )
+                }
+              >
+                {t("sendRequest")}
+              </Button>
+            </div>
+          </div>
+        )}
+
         {canManage && (
           <ExposureChannelTiles
             available={available}
@@ -234,13 +307,18 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
             separated={exposures.length > 0}
             canRegister={canRegister}
             disabled={expose.isPending || createBot.isPending}
-            onBind={(botId) => expose.mutate(botId)}
+            onBind={(bot) =>
+              bot.public_line === true && !canRegister
+                ? setAsking(bot)
+                : expose.mutate({ channelBotId: bot.id })
+            }
             onRegister={setRegistering}
           />
         )}
       </CardContent>
       {registering && (
         <AddChannelDialog
+          onPluginSetup={() => void refresh()}
           open
           initialPlatform={registering}
           onOpenChange={(open) => !open && setRegistering(null)}
@@ -248,7 +326,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
           // is bound straight away rather than left for a second click.
           onSubmit={async (bot) => {
             const created = await createBot.mutateAsync(bot);
-            expose.mutate(created.id);
+            expose.mutate({ channelBotId: created.id });
           }}
           isPending={createBot.isPending}
         />

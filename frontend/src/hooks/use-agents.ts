@@ -667,7 +667,7 @@ export function usePromptVariables() {
  * dropped whenever a sandbox connection changes.
  */
 export function useCapabilityCatalog() {
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, isFetching, refetch, error } = useQuery({
     queryKey: qk.agents.capabilityCatalog(),
     queryFn: () => apiClient.get<CapabilityCatalog>("/agents/capabilities"),
     staleTime: 60_000,
@@ -683,7 +683,7 @@ export function useCapabilityCatalog() {
       }),
     [data, guide],
   );
-  return { capabilities, isLoading, isFetching, refetch };
+  return { capabilities, isLoading, isFetching, refetch, error };
 }
 
 /**

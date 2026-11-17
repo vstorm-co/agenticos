@@ -4,6 +4,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import type { CapabilityCatalogEntry } from "@/types/agents";
+import { BRAND_GLYPHS, type BrandName } from "@/lib/brand-glyphs.generated";
 
 import { CAPABILITY_ART } from "./art.generated";
 import { CapabilityArt, CapabilityCard } from "./capability-card";
@@ -87,6 +88,42 @@ afterEach(() => {
 });
 
 describe("the capability art", () => {
+  it.each<[string, BrandName]>([
+    ["gmail", "gmail"],
+    ["google_calendar", "googlecalendar"],
+    ["google_drive", "gdrive"],
+    ["google_docs", "gdocs"],
+    ["google_sheets", "gsheets"],
+    ["google_slides", "gslides"],
+    ["outlook_mail", "outlook"],
+    ["outlook_calendar", "outlookcalendar"],
+    ["microsoft_files", "onedrive"],
+    ["excel", "excel"],
+    ["word", "word"],
+    ["teams", "microsoftteams"],
+    ["slack", "slack"],
+    ["odoo_contacts", "odoo"],
+    ["odoo_crm", "odoo"],
+    ["odoo_sales", "odoo"],
+    ["odoo_accounting", "odoo"],
+    ["odoo_inventory", "odoo"],
+    ["odoo_projects", "odoo"],
+  ])("draws %s with its canonical product logo inside the scene", (id, brand) => {
+    const { container } = render(<CapabilityArt id={id} name={id} />);
+    const scene = container.querySelector(".stage > svg");
+    const logo = scene?.querySelector("svg");
+    expect(scene).toHaveAttribute("aria-hidden", "true");
+    expect(logo).toHaveAttribute("viewBox", BRAND_GLYPHS[brand].viewBox);
+    expect(logo?.querySelector("path")).toHaveAttribute("d", BRAND_GLYPHS[brand].paths[0]?.d);
+    expect(scene?.querySelector(".draw")).not.toBeNull();
+  });
+
+  it("uses a mail symbol for the IMAP protocol", () => {
+    const { container } = render(<CapabilityArt id="imap_mail" name="Email (IMAP)" off />);
+    expect(container.querySelector(".stage .lucide-mail")).not.toBeNull();
+    expect(container.querySelector(".cap-art")).toHaveClass("is-off");
+  });
+
   it("draws every registered capability", () => {
     expect(Object.keys(CAPABILITY_ART).sort()).toEqual(REGISTERED);
   });

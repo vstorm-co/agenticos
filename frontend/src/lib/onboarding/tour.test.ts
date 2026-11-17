@@ -360,6 +360,7 @@ describe("stepsForPage", () => {
       "phone-contact",
       "phone-dial",
       "settings-tabs",
+      "personal-integration-accounts",
       "personal-coding-accounts",
       "desktop-local-agents",
       "settings-appearance",
@@ -778,4 +779,21 @@ it("describes every stage of an improvement on its own page", () => {
 it("uses the improvement walkthrough while the start modal is open over an agent", () => {
   expect(pageKey("/agents/a1?improve=new")).toBe(IMPROVEMENT_START);
   expect(pageKey("/agents/a1?tab=evals&improve=baseline")).toBe(IMPROVEMENT_START);
+});
+
+describe("the channels page's conditional stops", () => {
+  it("offers the binding requests and the customers button only to a channel manager, optionally", () => {
+    const byId = new Map(TOUR_STEPS.map((step) => [step.id, step]));
+    for (const id of ["channels-binding-requests", "channels-customers"]) {
+      expect(byId.get(id)).toMatchObject({
+        page: ROUTES.CHANNELS,
+        target: id,
+        permission: Perm.channelsManage,
+        optional: true,
+      });
+    }
+    const ids = stepsForPage(ROUTES.CHANNELS, () => false).map((step) => step.id);
+    expect(ids).not.toContain("channels-binding-requests");
+    expect(ids).not.toContain("channels-customers");
+  });
 });

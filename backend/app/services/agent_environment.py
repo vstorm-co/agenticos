@@ -60,6 +60,7 @@ from app.schemas.agent_environment import (
 )
 from app.services.access import SECRET, resolve_access
 from app.services.agent_registry import AgentRegistryService
+from app.services.channels.public_line import refuse_unbounded_bindings, served_versions
 from app.services.promotion_gate import PromotionGateService
 
 logger = logging.getLogger(__name__)
@@ -230,8 +231,9 @@ class AgentEnvironmentService:
                 version is not.
             BadRequestError: If the target is the default environment being
                 renamed - its name is part of the publish contract - the
-                update names nothing to change, or the version it moves to runs
-                on a ChatGPT sign-in the caller cannot use.
+                update names nothing to change, the version it moves to runs
+                on a ChatGPT sign-in the caller cannot use, or the move would
+                leave a bot that answers strangers with no spending limit.
             AlreadyExistsError: If the new name is taken on this agent.
             PromotionBlockedError: If the environment's eval suites have not all
                 passed on the version, and the caller did not override them.
@@ -313,6 +315,14 @@ class AgentEnvironmentService:
             await self.agents.refuse_borrowed_sign_ins(ctx, version)
             await self.agents.refuse_archived_forks(ctx, version)
 
+        # Only a change that can move a version can leave a binding without a limit.
+        served_before = (
+            {}
+            if version is None
+            else await served_versions(
+                self.db, organization_id=ctx.organization_id, agent_id=agent.id
+            )
+        )
         gate = PromotionGateService(self.db)
         if data.guard_suite_ids is not None:
             await gate.set_guards(
@@ -356,6 +366,13 @@ class AgentEnvironmentService:
             # publish moves neither, this is where they stay in step.
             await agent_repo.update(
                 self.db, agent=agent, update_data={"current_version_id": environment.version_id}
+            )
+        if version is not None:
+            await refuse_unbounded_bindings(
+                self.db,
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                served_before=served_before,
             )
         await record_audit(
             self.db,
@@ -424,7 +441,8 @@ class AgentEnvironmentService:
         Raises:
             NotFoundError: If the environment is not this agent's.
             BadRequestError: If it is the default - an agent without a default
-                is an agent plain surfaces cannot run.
+                is an agent plain surfaces cannot run - or a bot that answers
+                strangers would fall back to a version with no spending limit.
             ConcurrentChangeError: If a run of it is still running or parked on
                 an approval, or an eval run in it is queued or running. Deleting
                 the row sets that run's `environment_id` to null, which reads as
@@ -466,6 +484,17 @@ class AgentEnvironmentService:
                 ),
                 details={"environment_id": str(environment.id), "eval_runs": evals},
             )
+        # What a binding on this environment falls back to is judged before the
+        # delete, while the environment can still be told apart from the default.
+        await refuse_unbounded_bindings(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent.id,
+            served_before=await served_versions(
+                self.db, organization_id=ctx.organization_id, agent_id=agent.id
+            ),
+            excluding_environment_id=environment.id,
+        )
         name = environment.name
         from app.services.eval_suite import EvalSuiteService
 

@@ -82,7 +82,7 @@ def test_a_platform_with_no_receiver_is_refused_rather_than_invented():
     with pytest.raises(KeyError):
         inbound_webhook_url("discord", uuid.uuid4())
     with pytest.raises(KeyError):
-        inbound_webhook_url("whatsapp", uuid.uuid4())
+        inbound_webhook_url("signal", uuid.uuid4())
 
 
 def test_the_url_is_built_from_the_one_public_base():

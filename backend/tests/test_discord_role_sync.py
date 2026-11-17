@@ -74,6 +74,10 @@ class TestWhereItRunsInATurn:
                 new=AsyncMock(return_value=MagicMock(user_id=uuid.uuid4())),
             ),
             patch.object(DiscordRoleSync, "on_turn", new=on_turn),
+            patch(
+                f"{router_module.__name__}.ChannelLinkService.complete_with_code",
+                AsyncMock(return_value="none"),
+            ),
             patch.object(ChannelMessageRouter, "_handle_command", new=command),
             patch.object(ChannelMessageRouter, "_send_reply", new=AsyncMock()),
         ):
@@ -119,6 +123,10 @@ class TestTheRoleSyncsAllowance:
                 ChannelMessageRouter, "_resolve_identity", new=AsyncMock(return_value=identity)
             ),
             patch.object(DiscordRoleSync, "on_turn", new=on_turn),
+            patch(
+                f"{router_module.__name__}.ChannelLinkService.complete_with_code",
+                AsyncMock(return_value="none"),
+            ),
             patch.object(ChannelMessageRouter, "_handle_command", new=command),
             patch.object(ChannelMessageRouter, "_send_reply", new=AsyncMock()),
             patch.object(ChannelMessageRouter, "_refuse_if_named", new=refuse),

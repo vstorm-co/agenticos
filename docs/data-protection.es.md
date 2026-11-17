@@ -1,5 +1,5 @@
 ---
-source_sha: "21a474aff367"
+source_sha: "f95c2a3c1fb6"
 ---
 
 # Protección de datos { #data-protection }
@@ -131,7 +131,9 @@ El límite total se comprueba en el savepoint de la modificación, bajo un bloqu
 | `notifications`, `notification_deliveries` | Cada notificación dirigida a alguien y su envío por correo. La fila se escribe incluso cuando el destinatario ha desactivado todos los canales para ese evento — es lo que impide escribir dos veces la misma ocurrencia — y simplemente no se muestra ni se envía nunca; solo la fila de envío es condicional | El destinatario, un resumen prerrenderizado (nunca un comentario en bruto ni un valor secreto) y las variables tipadas a partir de las cuales un correo se vuelve a renderizar; una fila de envío añade su canal, estado, intentos y un motivo de fallo depurado — nunca el texto de error del provider. Una aprobación pedida por una cuenta de chat sin enlazar conserva ese nombre visible o handle en el resumen y las variables, hasta que el barrido de retención de notificaciones elimina la fila; borrar la identidad no lo alcanza | Alertas que una persona lee una vez, sin supervisión. Consulta [Gobernanza](governance.md#alerts) |
 | `notification_preferences`, `announcements` | Interruptores de canal por evento, y las difusiones propias del app admin | Un id de usuario por interruptor; el remitente de una difusión, su cuerpo y las organizaciones y el rol a los que iba dirigida — nunca la lista resuelta de destinatarios, que solo se puede reconstruir a partir de `notifications` hasta que esa fila caduca en [el barrido de retención de notificaciones](governance.md#alerts) — después de lo cual la entrada de audit detrás de ella conserva solo un recuento, nunca los destinatarios | Exclusión voluntaria, y el registro propio de quien la escribió |
 | `notification_routes` | Tu chat privado elegido expresamente para una plataforma en una organización | Identificadores de persona, organización, sesión privada y generación de autorización; sin credenciales ni contenido de mensajes | Notificaciones con consentimiento. Sustituir revoca las rutas pendientes. Incluido en tu exportación; eliminar la persona, sesión u organización elimina la fila |
-| `embed_visitors`, `channel_identities`, `channel_sessions` | Desconocidos en una página alojada y personas en Slack, Teams, Telegram o Mattermost | Una clave de visitante aleatoria; un id de usuario de la plataforma, nombre de usuario y nombre visible; el id del chat | Retomar el hilo correcto. Para quien pregunta sin cuenta enlazada, el nombre visible o el handle también se muestra en la cola de aprobaciones, su exportación CSV y el correo de aprobación, a las personas que deciden |
+| `embed_visitors`, `channel_identities`, `channel_sessions` | Desconocidos en una página alojada y personas en Slack, Teams, Telegram, Mattermost, Discord o WhatsApp | Una clave de visitante aleatoria; un id de usuario de la plataforma, nombre de usuario y nombre visible; el id del chat. Para un remitente de WhatsApp: el business-scoped user ID, el nombre de perfil que eligió y, como etiqueta, el nombre de usuario de WhatsApp si lo tiene y, si no, su número de teléfono enmascarado como `•••• 1234` | Retomar el hilo correcto. Para quien pregunta sin cuenta enlazada, el nombre visible o el handle también se muestra en la cola de aprobaciones, su exportación CSV y el correo de aprobación, a las personas que deciden |
+| `whatsapp_customers`, `whatsapp_held_runs` | Clientes de WhatsApp que escribieron a un bot, y los runs cuyas respuestas los esperan | La business-scoped user ID, cuándo escribieron por última vez (hora de Meta), cuándo Meta rechazó por última vez un mensaje por estar fuera de la ventana de 24 horas, cuándo se les avisó por última vez de que una respuesta está en camino, y lo que les espera: los ids de los runs y de las respuestas guardadas y la clave de un aviso fijo (punteros y claves, nunca el texto). El número de teléfono se guarda solo para un remitente que el bot admitió como desconocido en una [línea pública](channels.md#whatsapp-public-line), como dígitos, y se borra cuando el remitente vincula una cuenta; un remitente vinculado no lo tiene. Sin texto de mensajes. Desaparecen con su bot, su organización o su run, o cuando alguien usa [Olvidar a este cliente](#whatsapp-customers) | Saber si la [ventana de 24 horas](channels.md#whatsapp-late-answers) de WhatsApp está abierta y qué queda pendiente |
+| Trabajos de entrega WhatsApp en `background_jobs` | Lotes de webhook verificados y estados de ventana cerrada | Texto, metadatos del remitente, identificadores de medios y de bot/organización/cliente necesarios para el worker; sin bytes de medios descargados ni credenciales del proveedor. Retención local de trabajos; olvidar al cliente elimina copias no ejecutándose | Entrega resistente a reinicios, separada del bridge OAuth |
 | `message_ratings` | Pulgares y comentarios sobre las respuestas | Quien valora y su comentario | Revisión de calidad |
 | `suggestions` | Lo que el [trabajo por iniciativa propia](governance.md#proactive-work) propuso a una persona, y si lo aceptó | La persona, un título y una línea de detalle sacados de sus peticiones recientes, el prompt de rutina o el perfil que fijaría, y una clave que impide volver a proponer algo descartado | Propuestas sobre las que decide la persona |
 | `watches` | Lo que una persona pidió al [trabajo por iniciativa propia](governance.md#proactive-work) vigilar en sus propias conexiones | La persona, cuál de sus conexiones, qué buscar y qué omitir con sus propias palabras, cada cuánto y cuándo revisó por última vez | Vigilancias que configura la persona |
@@ -241,7 +243,7 @@ decide cada uno.
 | Un provider de voz realtime | Durante una [llamada de voz](voice.md): el audio de quien llama, las instrucciones del agent y las definiciones de herramientas, los resultados de las herramientas, y los turnos anteriores de la conversación como texto cuando una llamada empieza o se reconecta | La sección Voice del agent: `provider`, `model` (o un deployment de Azure) y la clave del vault `secret_id`, publicada; sin sección Voice el agent no atiende llamadas. Sobre WebRTC (OpenAI) el audio va directamente entre el navegador y el provider; sobre el relay (Azure, Gemini, xAI) pasa por este despliegue sin guardarse. Aquí no se conserva audio, y la sesión solo conserva transcripciones | La del provider |
 | Texto a voz | El texto que se va a decir y cualquier indicación sobre cómo decirlo | El `provider` de la capability `text_to_speech`: `openai`, `elevenlabs` o `google`, con la clave del binding | La del provider |
 | Generación de vídeo | El prompt y la imagen inicial, si la hay | El `provider` de la capability `video_generation`: `google`, `byteplus`, `xai` o `alibaba`, con la clave del binding. `google` guarda la interacción (`store: true`), porque Gemini solo entrega un clip por dirección desde una guardada; a los otros tres no se les pide | La del provider |
-| Slack, Teams, Telegram, Mattermost | Las respuestas del agent; la dirección de correo de un miembro nuevo, para encontrarlo para una [bienvenida](channels.md#a-welcome-for-a-new-member) en Slack, Mattermost o Teams | Una fila `channel_bots` con su token en el vault | El proveedor de mensajería ya tiene el chat |
+| Slack, Teams, Telegram, Mattermost, Discord, WhatsApp (`graph.facebook.com`; el contenido multimedia se descarga de `lookaside.fbsbx.com`) | Las respuestas y los archivos del agent; la dirección de correo de un miembro nuevo, para encontrarlo para una [bienvenida](channels.md#a-welcome-for-a-new-member) en Slack, Mattermost o Teams | Una fila `channel_bots` con su token en el vault | El proveedor de mensajería ya tiene el chat |
 | Inicio de sesión con Google | Nada hacia fuera; Google devuelve el correo, el nombre, la foto y el id de la cuenta | `GOOGLE_CLIENT_ID` | La de Google |
 | Tu relay SMTP | El correo de arriba y el texto de un paso [`email.send`](reference/workflow-nodes.md#email-send), a las direcciones que eligió su autor | `SMTP_HOST`, `SMTP_TLS` | La tuya, luego la de cada destinatario |
 
@@ -345,7 +347,7 @@ una laguna, y así queda dicho.
 | En tránsito, hacia los almacenes | `POSTGRES_SSLMODE` y `REDIS_SSL`; `agenticos cmd doctor` informa de si la conexión que estableció iba cifrada | [Conexiones cifradas](configuration.md#encrypted-connections-tls); `tests/integration/test_store_tls.py` |
 | En tránsito, hacia los providers | HTTPS a todo endpoint catalogado. Una `base_url` propia se rechaza sin host o con credenciales dentro, pero **`http://` se acepta**, para un Ollama o una pasarela en la propia red del deployment; un perfil en HTTP plano que apunte fuera de esa red envía los prompts y la clave en claro. El punto 4 de la lista de comprobación enumera todos esos perfiles | `refused_field("base_url", ...)` en el servicio de perfiles de modelo; el esquema es control del operador |
 | Secretos en respuestas, logs, auditoría, exportaciones | Ningún endpoint devuelve un texto en claro; `SecretStr` en todas partes; los specs referencian secretos por id | [Secretos](secrets.md#what-never-happens) |
-| Datos personales en los logs | `app/core/logging.py` redacta direcciones de correo, JWT, claves de API, tokens bearer, tokens de interacción de Discord, consultas completas de las URL firmadas de adjuntos de Discord, pares `password=` y el segmento secreto de una dirección (la clave de enlace o el token de contenido de un artefacto, y el token de una conversación compartida, de un formulario de workflow, de una prueba de webhook, de un enlace de canal o de una invitación, o el token de reanudación de una ejecución de workflow) y el valor de un parámetro de consulta que hace de credencial (`visitor` y `token` en el socket del widget del agente, `code`, `state` e `invitation_handle` en un inicio de sesión, y el `token` de un enlace enviado por correo) de cada registro de log, tanto en la API como en el worker, incluidos el log de acceso de uvicorn y sus líneas de WebSocket. Los mismos segmentos y valores se redactan en los spans de Logfire y en los argumentos de endpoint que llevan, antes de que un span se copie o se imprima. Las configuraciones de Traefik y Nginx incluidas dejan la ruta, la query string y el `Referer` fuera del log de acceso del proxy Una llamada a Discord autenticada con un token de interacción, que viaja en su URL, no se traza | `tests/test_logging.py`, `tests/test_logfire_redaction.py`; el worker lo instala en `app/worker/__main__.py`, y cada proceso hijo de ingesta en `app/worker/child.py` (#440); [Despliegue](deploy.md#choose-a-reverse-proxy) |
+| Datos personales en los logs | `app/core/logging.py` redacta direcciones de correo, JWT, claves de API, tokens bearer, tokens de interacción de Discord, consultas completas de las URL firmadas de adjuntos de Discord y de contenido multimedia de WhatsApp, el id del contenido multimedia en la ruta de una consulta Graph de WhatsApp, pares `password=` y el segmento secreto de una dirección (la clave de enlace o el token de contenido de un artefacto, y el token de una conversación compartida, de un formulario de workflow, de una prueba de webhook, de un enlace de canal o de una invitación, o el token de reanudación de una ejecución de workflow) y el valor de un parámetro de consulta que hace de credencial (`visitor` y `token` en el socket del widget del agente, `code`, `state` e `invitation_handle` en un inicio de sesión, y el `token` de un enlace enviado por correo) de cada registro de log, tanto en la API como en el worker, incluidos el log de acceso de uvicorn y sus líneas de WebSocket. Una sentencia de base de datos fallida se registra con su SQL pero sin sus valores: cada motor oculta los parámetros de la sentencia, y el filtro redacta la línea `DETAIL:` que añade Postgres y el valor citado en un error sobre un valor no válido. Se elimina toda la línea `DETAIL:`, así que también quedan ocultos los diagnósticos que no son datos personales, como los ids de proceso de un interbloqueo. Los mismos segmentos y valores se redactan en los spans de Logfire y en los argumentos de endpoint que llevan, antes de que un span se copie o se imprima. Las configuraciones de Traefik y Nginx incluidas dejan la ruta, la query string y el `Referer` fuera del log de acceso del proxy. Una llamada a Discord autenticada con un token de interacción, que viaja en su URL, no se traza | `tests/test_logging.py`, `tests/test_logfire_redaction.py`; el worker lo instala en `app/worker/__main__.py`, y cada proceso hijo de ingesta en `app/worker/child.py` (#440); [Despliegue](deploy.md#choose-a-reverse-proxy) |
 | Datos personales que llegan al modelo | La capability `guardrails` redacta IBAN, números de tarjeta, números de seguridad social estadounidenses, números de teléfono y direcciones de correo de los prompts, las respuestas, los resultados y los argumentos de herramientas cuando está configurada | [Capabilities](reference/capabilities.md); sus pruebas bajo `tests/` |
 | Datos personales en una columna de fallo | `rag_documents.error_message` y similares registran la etapa y la clase, nunca el texto del cliente | `app/services/rag/failures.py` (#423) |
 | Rendición de cuentas | Las entradas de auditoría comparten la transacción que actúa y fallan en cerrado; la suplantación nombra a ambas personas; las exportaciones masivas quedan registradas | [Gobernanza](governance.md#audit) |
@@ -393,6 +395,48 @@ programada es [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 | Borrar una organización | Todo lo acotado a ella, con el mismo desmontaje diferido - sus medios generados por prefijo, incluidos los archivos escritos antes de que se registraran | Las colecciones personales que solo llevaban el id |
 
 Los mensajes de canal guardan solo el texto del remitente. Las etiquetas del autor se resuelven desde las identidades de canal justo antes de enviar la solicitud al modelo, fuera de las instrucciones del sistema. La consola y las acciones de copiar, fijar y crear atajos reciben el texto original. Los historiales guardados y las ejecuciones pausadas conservan referencias opacas; los manifiestos omiten las partes de referencia del canal añadidas. Al eliminar la cuenta se borran sus identidades, por lo que las solicitudes futuras no pueden resolver sus etiquetas; se conservan los mensajes compartidos.
+
+### Clientes de WhatsApp { #whatsapp-customers }
+
+Una [línea pública](channels.md#whatsapp-public-line) responde a personas que nadie
+ha vinculado a una cuenta, así que guarda datos personales de gente que no son
+miembros.
+
+- **El número de teléfono** (`whatsapp_customers.phone`) se escribe cuando un
+  remitente sin vincular es admitido como desconocido y se borra cuando vincula una
+  cuenta. Quien tiene `channels:manage` lo ve completo en la vista de clientes y
+  puede buscar por él. La búsqueda envía el número en el cuerpo de la petición, y
+  una traza de petición oculta cualquier campo del cuerpo llamado `phone`, así que
+  el número no llega a una traza.
+- **No hay retención automática.** Una fila de cliente se queda hasta que alguien
+  olvida al cliente o se borra el bot, la organización o el run al que pertenece.
+- **Los archivos de desconocidos** pertenecen al miembro que creó la vinculación y
+  siguen el borrado de su cuenta.
+
+**Olvidar a este cliente** (o `channel-forget-customer`) borra a un cliente en los
+bots de WhatsApp de la organización. Cancela sus runs aparcados, borra las
+notificaciones de aprobaciones pendientes y oculta los argumentos, el contexto y la
+nota de cada aprobación de sus runs. Borra los manifiestos de esos runs, algo que
+el borrado de cuenta no hace, y los trabajos de devolución que no están en marcha.
+Sus sandboxes se eliminan tras el commit. Las aprobaciones se marcan como caducadas
+sin una entrada de auditoría cada una; la única entrada de auditoría del borrado
+contiene solo recuentos.
+
+Lo que no alcanza:
+
+- **La cadena de auditoría** conserva las entradas escritas al pedir o decidir las
+  aprobaciones.
+- **Filas de tabla que un agente escribió** para el cliente: una fila no tiene
+  enlace al cliente, así que no se puede encontrar.
+- **Runs anteriores de un miembro** de un periodo en que la cuenta de chat estaba
+  vinculada.
+- **Un turno en curso** en el momento del borrado. Termina o falla contra la
+  conversación borrada, y el siguiente mensaje del cliente empieza de cero.
+- **Un trabajo de entrega en marcha**, que sobrevive hasta la limpieza de retención
+  de trabajos.
+- **Redis**, donde una clave de deduplicación vive 15 minutos.
+- **Logfire y Meta**, que conservan lo que recibieron según su propia retención, y
+  **las copias de seguridad**.
 
 Ninguno de estos alcanza una copia de seguridad. Una restauración devuelve lo
 que se había borrado, así que la caducidad de las copias forma parte de la
