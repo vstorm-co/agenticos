@@ -4124,6 +4124,8 @@
       "allRunsDescription": "Görebildiğiniz workflowların tüm runları, en yeniden başlayarak.",
       "runRetryMark": "yeniden deneme",
       "runModeTest": "Taslak (test)",
+      "runModeStep": "Adım testi",
+      "runModeStepNamed": "Adım testi · {step}",
       "runModeReal": "Yayımlandı",
       "runFilterAnyStatus": "Tüm durumlar",
       "runFilterAnyMode": "Tüm sürümler",

@@ -8189,6 +8189,8 @@
       "allRunsDescription": "Jeder Lauf der Workflows, die Sie sehen, der neueste zuerst.",
       "runRetryMark": "Wiederholung",
       "runModeTest": "Entwurf (Test)",
+      "runModeStep": "Schritttest",
+      "runModeStepNamed": "Schritttest · {step}",
       "runModeReal": "Veröffentlicht",
       "runFilterAnyStatus": "Jeder Status",
       "runFilterAnyMode": "Jede Version",

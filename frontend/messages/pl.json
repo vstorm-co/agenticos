@@ -4002,6 +4002,8 @@
       "allRunsDescription": "Każdy run workflow, które widzisz, od najnowszego.",
       "runRetryMark": "ponowienie",
       "runModeTest": "Wersja robocza (test)",
+      "runModeStep": "Test kroku",
+      "runModeStepNamed": "Test kroku · {step}",
       "runModeReal": "Opublikowana",
       "runFilterAnyStatus": "Dowolny status",
       "runFilterAnyMode": "Dowolna wersja",
