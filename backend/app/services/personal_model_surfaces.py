@@ -24,7 +24,7 @@ async def require_organization_agent(
     agent = await AgentRegistryService(db).get(ctx, agent_id, perm=perm, for_update=True)
     require_organization_model(AgentSpec.model_validate(agent.draft_spec))
     selected = version_id or agent.current_version_id
-    if environment_id is not None:
+    if environment_id is not None and version_id is None:
         environment = await agent_environment_repo.get(
             db, environment_id, organization_id=ctx.organization_id
         )

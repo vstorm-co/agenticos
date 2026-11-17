@@ -160,3 +160,32 @@ async def test_membership_is_required_by_the_database_and_removal_deletes_the_ke
                 sealed_secret="x",
                 key_version=1,
             )
+
+
+async def test_published_credential_mode_metadata_ignores_the_draft(db: AsyncSession) -> None:
+    from app.agents.spec import AgentSpec
+    from app.db.models.agent import Agent, AgentVersion
+    from app.repositories import agent_repo
+
+    ctx, _, _ = await setup(db)
+    agent = Agent(
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        name="Shared",
+        slug=uuid4().hex,
+        draft_spec=AgentSpec(name="Draft").model_dump(mode="json"),
+    )
+    db.add(agent)
+    await db.flush()
+    version = AgentVersion(
+        agent_id=agent.id,
+        organization_id=ctx.organization_id,
+        version=1,
+        spec=AgentSpec(name="Published", model_credential_mode="personal").model_dump(mode="json"),
+    )
+    db.add(version)
+    await db.flush()
+    assert await agent_repo.published_personal_model_keys(db, version_ids=[]) == set()
+    assert await agent_repo.published_personal_model_keys(db, version_ids=[version.id]) == {
+        version.id
+    }

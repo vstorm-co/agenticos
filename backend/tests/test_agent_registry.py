@@ -6374,3 +6374,91 @@ def organization_key_model_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
         "app.services.agent_registry.agent_repo.published_personal_model_keys",
         AsyncMock(return_value=set()),
     )
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("surface", ["channel", "embed", "trigger", "none", "a2a"])
+async def test_personal_model_publish_refuses_existing_noninteractive_surfaces(surface: str):
+    from app.db.models.credential import ModelProfile
+
+    ctx, agent_id = _ctx(), uuid.uuid4()
+    service = AgentRegistryService(_db())
+    chosen = _spec(model_profile_id=uuid.uuid4(), model_credential_mode="personal")
+    profile = ModelProfile(
+        id=chosen.model_profile_id,
+        label="Gateway",
+        provider="openai",
+        model="gpt-5",
+        base_url="https://approved.example/v1",
+        fallback_profile_ids=[],
+        api="chat",
+        secret_id=None,
+    )
+    row = _agent(ctx, a2a_enabled=surface == "a2a")
+    with (
+        patch(f"{REGISTRY_PATH}.credential_repo.get_profile", AsyncMock(return_value=profile)),
+        patch(f"{REGISTRY_PATH}.agent_repo.get", AsyncMock(return_value=row)),
+        patch(
+            f"{REGISTRY_PATH}.agent_exposure_repo.list_for_agent",
+            AsyncMock(return_value=[MagicMock(is_active=True)] if surface == "channel" else []),
+        ),
+        patch(
+            "app.repositories.agent_embed_repo.list_for_agent",
+            AsyncMock(return_value=[MagicMock(is_active=True)] if surface == "embed" else []),
+        ),
+        patch(
+            f"{REGISTRY_PATH}.agent_trigger_repo.list_for_agent",
+            AsyncMock(return_value=[MagicMock(is_active=True)] if surface == "trigger" else []),
+        ),
+    ):
+        if surface == "none":
+            await service.validate_spec(ctx, chosen, agent_id=agent_id)
+        else:
+            with pytest.raises(BadRequestError) as refused:
+                await service.validate_spec(ctx, chosen, agent_id=agent_id)
+            assert any(
+                field["field"] == "model_credential_mode"
+                for field in refused.value.details["fields"]
+            )
+        profile.fallback_profile_ids = [str(uuid.uuid4())]
+        assert (
+            "fallback" in (await service.model_profile_problems(ctx, profile.id, personal=True))[0]
+        )
+
+
+@pytest.mark.anyio
+async def test_promoting_a_personal_model_version_rechecks_surface_compatibility():
+    ctx, service = _ctx(), AgentRegistryService(_db())
+    chosen = _spec(model_credential_mode="personal")
+    version = _version(uuid.uuid4(), spec=chosen)
+    with (
+        patch.object(service, "get", AsyncMock()),
+        patch.object(service, "validate_spec", AsyncMock()) as validate,
+    ):
+        await service.refuse_borrowed_sign_ins(ctx, version)
+        validate.assert_awaited_once_with(ctx, chosen, agent_id=version.agent_id)
+
+
+@pytest.mark.anyio
+async def test_a_personal_model_agent_cannot_be_enabled_as_an_a2a_service():
+    ctx, service = _ctx(), AgentRegistryService(_db())
+    row = _agent(ctx, draft_spec=_spec(model_credential_mode="personal").model_dump(mode="json"))
+    with (
+        patch.object(service, "get", AsyncMock(return_value=row)),
+        pytest.raises(BadRequestError, match="signed-in web chat"),
+    ):
+        await service.set_a2a(ctx, row.id, enabled=True)
+
+
+@pytest.mark.anyio
+async def test_a_personal_published_version_cannot_serve_a2a_after_editing_the_draft():
+    ctx, service = _ctx(), AgentRegistryService(_db())
+    row = _agent(ctx, draft_spec=_spec().model_dump(mode="json"), current_version_id=uuid.uuid4())
+    version = _version(row.id, spec=_spec(model_credential_mode="personal"))
+    with (
+        patch.object(service, "get", AsyncMock(return_value=row)),
+        patch(f"{REGISTRY_PATH}.agent_repo.get_version", AsyncMock(return_value=version)),
+        pytest.raises(BadRequestError, match="signed-in web chat"),
+    ):
+        await service.set_a2a(ctx, row.id, enabled=True)

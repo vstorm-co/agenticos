@@ -245,7 +245,7 @@ export function ChatControls({
                 {t("whichModelRunsHere")}
               </p>
               {personalModel ? (
-                <PersonalModelConnection key={selectedAgentId} agentId={selectedAgentId} />
+                <PersonalModelConnection key={selectedAgentId} agentId={selectedAgentId} manage />
               ) : (
                 <ChatModelPicker
                   value={profileId}

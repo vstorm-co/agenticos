@@ -6,14 +6,20 @@ import { Button, Input, Label } from "@/components/ui";
 import { usePersonalModelKeys } from "@/hooks/use-personal-model-keys";
 import { getErrorMessage } from "@/lib/api-error";
 
-export function PersonalModelConnection({ agentId }: { agentId: string | null }) {
+export function PersonalModelConnection({
+  agentId,
+  manage = false,
+}: {
+  agentId: string | null;
+  manage?: boolean;
+}) {
   const t = useTranslations("personalModelKeys");
   const errors = useTranslations("errors");
   const id = useId();
   const [key, setKey] = useState("");
   const { status, save } = usePersonalModelKeys(agentId);
   if (status.isError) return <p role="alert">{getErrorMessage(status.error, errors)}</p>;
-  if (!status.data?.personal || !agentId) return null;
+  if (!status.data?.personal || !agentId || (status.data.connected && !manage)) return null;
   return (
     <form
       method="post"
