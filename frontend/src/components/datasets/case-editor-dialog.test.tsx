@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UnsavedChangesGuard } from "@/components/layout/unsaved-changes-guard";
 import { ApiError } from "@/lib/api-error";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
+import { announceChange } from "@/lib/live-updates";
 import { CaseEditorDialog } from "./case-editor-dialog";
 import { DEFAULT_SCORING } from "@/lib/scoring";
 import type { DatasetCase } from "@/types/datasets";
@@ -676,4 +677,65 @@ it("closes case details with Escape without entering its editor", async () => {
   await userEvent.keyboard("{Escape}");
   expect(close).toHaveBeenCalledWith(false);
   expect(screen.queryByRole("button", { name: "Save case" })).toBeNull();
+});
+
+describe("a case saved elsewhere while it is open", () => {
+  const elsewhere = () =>
+    act(() =>
+      announceChange({
+        organization_id: "org-1",
+        resource: "dataset",
+        id: "d1",
+        action: "updated",
+        surface: "console",
+        actor_user_id: "someone-else",
+        actor_name: "Ada",
+        origin_tab: "another-tab",
+      }),
+    );
+  const dialog = (input: string, fetchedAt: number) => (
+    <CaseEditorDialog
+      open
+      onOpenChange={vi.fn()}
+      initial={draftOf(STORED)}
+      onSave={vi.fn()}
+      title="Case"
+      remote={{ datasetId: "d1", stored: { ...draftOf(STORED), input }, fetchedAt }}
+    />
+  );
+
+  it("asks before replacing an edit made here, and keeps it on request", async () => {
+    const { rerender } = render(dialog(STORED.input, 1));
+    const question = screen.getByRole("textbox", { name: "User message" });
+    await userEvent.type(question, " Still?");
+
+    elsewhere();
+    rerender(dialog("Changed by Ada", 2));
+    expect(screen.getByText(/Ada changed this in the console/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Keep my changes" }));
+
+    expect(screen.queryByText(/Ada changed this/)).toBeNull();
+    expect(question).toHaveValue(`${STORED.input} Still?`);
+  });
+
+  it("takes the stored case when nothing was edited here", () => {
+    const { rerender } = render(dialog(STORED.input, 1));
+
+    elsewhere();
+    rerender(dialog("Changed by Ada", 2));
+
+    expect(screen.queryByText(/Ada changed this/)).toBeNull();
+    expect(screen.getByRole("textbox", { name: "User message" })).toHaveValue("Changed by Ada");
+  });
+
+  it("counts an edit in the JSON view as an edit, and reloading leaves it", async () => {
+    const { rerender } = render(dialog(STORED.input, 1));
+    await userEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
+
+    elsewhere();
+    rerender(dialog("Changed by Ada", 2));
+    await userEvent.click(screen.getByRole("button", { name: "Reload" }));
+
+    expect(screen.getByRole("textbox", { name: "User message" })).toHaveValue("Changed by Ada");
+  });
 });

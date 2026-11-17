@@ -8,6 +8,7 @@ import type { Dataset } from "@/types/datasets";
 import type { DatasetScoring } from "@/types/scoring";
 import { UnsavedChangesGuard } from "@/components/layout/unsaved-changes-guard";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
+import { announceChange } from "@/lib/live-updates";
 import { GradingPanel } from "./grading-panel";
 
 const state = vi.hoisted(() => ({
@@ -171,6 +172,38 @@ describe("GradingPanel", () => {
     expect(saved().reference.enabled).toBe(true);
     rerender(<GradingPanel dataset={dataset(saved())} />);
     expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull();
+  });
+
+  it("asks before taking grading saved elsewhere over unsaved changes, and adopts it otherwise", async () => {
+    const elsewhere = () =>
+      act(() =>
+        announceChange({
+          organization_id: "org-1",
+          resource: "dataset",
+          id: "d1",
+          action: "updated",
+          surface: "mcp",
+          actor_user_id: "someone-else",
+          actor_name: "Ada",
+          origin_tab: "another-tab",
+        }),
+      );
+    const { rerender } = render(<GradingPanel dataset={dataset(DEFAULT_SCORING)} fetchedAt={1} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: "Reference answer" }));
+
+    elsewhere();
+    rerender(<GradingPanel dataset={dataset(JUDGED)} fetchedAt={2} />);
+    expect(screen.getByText(/Ada changed this over MCP/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Reload" }));
+    expect(screen.queryByText(/Ada changed this/)).toBeNull();
+    expect(screen.getByRole("textbox", { name: "What the criterion asks" })).toHaveValue("Polite");
+    expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull();
+
+    // Nothing edited here: the change is taken as it is, with nothing to ask.
+    elsewhere();
+    rerender(<GradingPanel dataset={dataset(DEFAULT_SCORING)} fetchedAt={3} />);
+    expect(screen.queryByText(/Ada changed this/)).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "What the criterion asks" })).toBeNull();
   });
 
   it("discards every card's changes at once", async () => {
