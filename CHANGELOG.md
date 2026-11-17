@@ -47,6 +47,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Build Linux AppImages with the updated Tauri bundler to avoid bundled Wayland libraries crashing WebKitGTK on newer Mesa. Verify extracted AppImages in installer CI and before release uploads, rejecting the bundled Wayland client library that conflicts with host Mesa (#3041).
 
+- Capitalize role names in the organization member filter, matching the membership role controls.
+
 ### Upgrading
 
 - Apply migration `0337_github_filter_diagnostic.py` for the routine's bounded filter diagnostic. Existing author policies are unchanged; old configurations without `authors` remain member-only.
