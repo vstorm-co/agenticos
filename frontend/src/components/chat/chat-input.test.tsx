@@ -175,7 +175,12 @@ describe("ChatInput offline", () => {
     fireEvent.submit(editor.closest("form")!);
 
     expect(onSteer).not.toHaveBeenCalled();
-    expect(onSend).toHaveBeenCalledWith("Use this page as context", undefined, undefined, undefined);
+    expect(onSend).toHaveBeenCalledWith(
+      "Use this page as context",
+      undefined,
+      undefined,
+      undefined,
+    );
   });
 
   it("keeps a steer draft when the connection drops", async () => {

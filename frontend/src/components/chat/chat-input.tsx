@@ -572,12 +572,7 @@ export function ChatInput({
       }
       // Corrections carry text only. Full turns keep their files, mentions,
       // reply and frozen page submission by following the ordinary send path.
-      if (
-        files?.length ||
-        selectedMentions?.length ||
-        replyTo !== null ||
-        !steerContextAvailable
-      ) {
+      if (files?.length || selectedMentions?.length || replyTo !== null || !steerContextAvailable) {
         onSend(content, fileIds, files, selectedMentions);
         clearDraft();
         return;
