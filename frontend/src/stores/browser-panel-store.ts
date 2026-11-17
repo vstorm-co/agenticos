@@ -4,7 +4,7 @@ import { create, createStore, type StateCreator } from "zustand";
 
 import { scopedStore } from "./chat-scope-context";
 
-export type WorkspaceSurface = "browser" | "computer" | "files" | "settings";
+export type WorkspaceSurface = "browser" | "computer" | "files" | "settings" | "tasks";
 export type BrowseSurface = Extract<WorkspaceSurface, "browser" | "computer">;
 
 export interface BrowserPanelState {

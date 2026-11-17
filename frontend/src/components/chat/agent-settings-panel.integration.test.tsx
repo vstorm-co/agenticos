@@ -202,7 +202,12 @@ describe("agent settings beside the chat", () => {
       <WorkspaceRail
         filesSlot={() => undefined}
         hasAgent
-        panelIds={{ browser: "browser", computer: "computer", settings: "settings" }}
+        panelIds={{
+          browser: "browser",
+          computer: "computer",
+          settings: "settings",
+          tasks: "tasks",
+        }}
       />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Open agent settings" }));

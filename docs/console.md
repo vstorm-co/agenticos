@@ -911,6 +911,8 @@ A conversation with a saved checklist can be forked only at its latest message, 
 
 ### Background topics { #background-topics }
 
+In full desktop chat, **Tasks** on the right opens background work beside the conversation. Choose **This chat** or **All my tasks**, search titles, and open a task from **Needs you**, **Working**, **Waiting** or **Finished**. A new chat starts with your tasks across agents in the active organization. You can resize or expand the panel. Opening it starts no work; read-only chats keep links and hide **Stop**. A failed read offers **Retry**.
+
 Enable **Background topics** on a published agent to ask, for example: “Investigate the export bug in a new topic while we continue the release plan”, or “Have the finance agent check these figures while we discuss the proposal”. It can use its own pinned version or a published delegate pinned in its spec. Start from a conversation you own; the fresh topic belongs to the same project and carries the agent's brief and a link back, without copying the original transcript.
 
 The **Background topics** strip above the composer shows queued, working and waiting tasks. Open the independent topic to inspect its work or answer an ordinary approval/question. **Stop** cancels further work; it cannot undo file edits or external actions already completed. The dashboard has the same tasks. Up to four may be active per person; a task and its result turn cannot spawn another background topic.

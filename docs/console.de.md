@@ -1,5 +1,5 @@
 ---
-source_sha: "22b67b0bc732"
+source_sha: "68a8eb22391c"
 ---
 
 # Die Konsole { #the-console }
@@ -1020,6 +1020,8 @@ Ausgelagerter Text und Medien einer übernommenen Zusammenfassung werden in die 
 Eine Unterhaltung mit einer gespeicherten Checkliste kann nur an ihrer neuesten Nachricht abgezweigt werden, wenn diese eine Antwort des Assistenten ist. Die Kopie behält diese Checkliste einschließlich Aufgaben-IDs und Abhängigkeiten. Frühere Checklistenstände werden nicht gespeichert; eine frühere Abzweigung wird daher abgelehnt, statt spätere Aufgaben in einen älteren Verlauf zu kopieren.
 
 ### Hintergrundthemen { #background-topics }
+
+Im vollständigen Desktop-Chat öffnet **Aufgaben** rechts die Hintergrundarbeit neben der Unterhaltung. Wählen Sie **Dieser Chat** oder **Alle meine Aufgaben**, suchen Sie nach Titeln und öffnen Sie Aufgaben unter **Benötigt dich**, **In Arbeit**, **Wartend** oder **Beendet**. Ein neuer Chat zeigt Ihre Aufgaben aller Agents in der aktiven Organisation. Sie können die Breite ändern oder das Panel vergrößern. Das Öffnen startet keine Arbeit; schreibgeschützte Chats behalten Links und blenden **Stoppen** aus. Bei einem Lesefehler können Sie es erneut versuchen.
 
 Aktiviere **Hintergrundthemen** bei einem veröffentlichten Agenten und bitte etwa: „Untersuche den Exportfehler in einem neuen Thema, während wir den Release planen“ oder „Lass den Finanzagenten diese Zahlen prüfen, während wir das Angebot besprechen“. Der Agent verwendet seine eigene festgelegte Version oder einen im Spec festgelegten veröffentlichten Delegaten. Starte aus einem eigenen Gespräch; das neue Thema gehört zum selben Projekt und enthält den Auftrag des Agenten und einen Rücklink, ohne das ursprüngliche Protokoll zu kopieren.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "22b67b0bc732"
+source_sha: "68a8eb22391c"
 ---
 
 # La consola { #the-console }
@@ -967,6 +967,8 @@ El texto y los medios externalizados de un resumen válido se restauran dentro d
 Una conversación con una lista de tareas guardada solo puede bifurcarse en su último mensaje, que debe ser una respuesta del asistente. La copia conserva esa lista, incluidos los identificadores de tareas y las dependencias. No se guardan versiones anteriores de la lista, por lo que se rechaza una bifurcación anterior para evitar copiar tareas posteriores en un historial más antiguo.
 
 ### Temas en segundo plano { #background-topics }
+
+En el chat completo de escritorio, **Tasks** a la derecha abre el trabajo en segundo plano junto a la conversación. Elige **This chat** o **All my tasks**, busca títulos y abre una tarea de **Needs you**, **Working**, **Waiting** o **Finished**. Un chat nuevo muestra tus tareas de todos los agents en la organización activa. Puedes cambiar el ancho o ampliar el panel. Abrirlo no inicia trabajo; los chats de solo lectura conservan los enlaces y ocultan **Stop**. Un error de lectura ofrece **Retry**.
 
 Activa **Temas en segundo plano** en un agente publicado y pide, por ejemplo: «Investiga el error de exportación en otro tema mientras seguimos planificando la versión» o «Que el agente financiero revise estas cifras mientras comentamos la propuesta». Puede usar su propia versión fijada o un delegado publicado fijado en su especificación. Empieza desde una conversación propia; el tema nuevo pertenece al mismo proyecto e incluye el encargo del agente y un enlace al origen, sin copiar la transcripción original.
 

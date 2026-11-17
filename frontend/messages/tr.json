@@ -8155,6 +8155,10 @@
         "body": "Slack, Telegram veya Mattermost gibi bir sohbet platformu kaydedin; ardından yanıt vermesi için herhangi bir agent’ı bağlayabilirsiniz. Bot token’ı vault’ta korunur. Buradan bir kanal ekleyin.",
         "title": "Agent’lara insanların bulunduğu yerden ulaşın"
       },
+      "chat-workspace-tasks": {
+        "title": "Konuşmanın yanındaki görevler",
+        "body": "Bu sohbetin veya tüm agent'larınızın arka plan görevlerini açın. İlginizi gerektiren işleri inceleyin, konuşmasını açın veya etkin bir görevi durdurun."
+      },
       "chat-workspace": {
         "title": "Workspace'inizi açın",
         "body": "Chat'in yanında Tarayıcı, Bilgisayar veya Dosyalar'ı açın. Yapılandırılmış bir barındırılan aracı başlatmasını seçili Agent'tan isteyin. Yalnızca bir paneli açmak oturum başlatmaz."
@@ -8862,6 +8866,27 @@
     }
   },
   "chat": {
+    "workspaceTasks": {
+      "title": "Görevler",
+      "open": "Görevleri aç",
+      "close": "Görevleri kapat",
+      "expand": "Görevleri genişlet",
+      "restore": "Görevleri geri yükle",
+      "scopeHint": "Bu kuruluştaki arka plan görevleriniz. Konuşmasına devam etmek için bir görevi açın.",
+      "scope": "Görev kapsamı",
+      "thisChat": "Bu sohbet",
+      "allMine": "Tüm görevlerim",
+      "search": "Görev ara",
+      "loadFailed": "Görevler yüklenemedi.",
+      "empty": "Henüz arka plan görevi yok. Başlamak için bir agent'tan arka planda bir konu üzerinde çalışmasını isteyin.",
+      "noMatches": "Aramanızla eşleşen görev yok.",
+      "groups": {
+        "needsYou": "Size ihtiyaç var ({count})",
+        "working": "Çalışıyor ({count})",
+        "waiting": "Bekliyor ({count})",
+        "finished": "Tamamlandı ({count})"
+      }
+    },
     "loadEarlierMessages": "Önceki mesajları yükle",
     "accessLevel": "Erişim düzeyi",
     "accessRevoked": "Erişim iptal edildi",

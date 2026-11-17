@@ -1,6 +1,6 @@
 "use client";
 
-import { Globe, Monitor, Settings2 } from "lucide-react";
+import { Globe, ListTodo, Monitor, Settings2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { Ref } from "react";
 
@@ -16,10 +16,11 @@ export function WorkspaceRail({
 }: {
   filesSlot: Ref<HTMLSpanElement>;
   hasAgent?: boolean;
-  panelIds: Record<"browser" | "computer" | "settings", string>;
+  panelIds: Record<"browser" | "computer" | "settings" | "tasks", string>;
 }) {
   const t = useTranslations("chat.workspace");
   const settings = useTranslations("chat.agentSettings");
+  const tasks = useTranslations("chat.workspaceTasks");
   const surface = useBrowserPanelStore((state) => state.surface);
   const open = useBrowserPanelStore((state) => state.openSurface);
   const close = useBrowserPanelStore((state) => state.close);
@@ -59,6 +60,25 @@ export function WorkspaceRail({
         ref={filesSlot}
         className="flex size-11 items-center justify-center @min-[900px]/browser-layout:size-9"
       />
+      <button
+        type="button"
+        data-tour="chat-workspace-tasks"
+        aria-label={tasks("open")}
+        title={tasks("open")}
+        aria-expanded={surface === "tasks"}
+        aria-controls={panelIds.tasks}
+        onClick={() => {
+          closeSources();
+          if (surface === "tasks") close();
+          else open("tasks");
+        }}
+        className={cn(
+          "text-muted-foreground hover:text-foreground hover:bg-accent/60 flex size-11 items-center justify-center rounded-lg transition-colors @min-[900px]/browser-layout:size-9",
+          surface === "tasks" && "bg-foreground/[0.06] text-foreground",
+        )}
+      >
+        <ListTodo className="size-4" aria-hidden />
+      </button>
       {hasAgent && (
         <button
           type="button"

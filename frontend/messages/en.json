@@ -1270,6 +1270,27 @@
     "title": "Billing"
   },
   "chat": {
+    "workspaceTasks": {
+      "title": "Tasks",
+      "open": "Open tasks",
+      "close": "Close tasks",
+      "expand": "Expand tasks",
+      "restore": "Restore tasks",
+      "scopeHint": "Your background tasks in this organization. Open a task to continue its conversation.",
+      "scope": "Task scope",
+      "thisChat": "This chat",
+      "allMine": "All my tasks",
+      "search": "Search tasks",
+      "loadFailed": "Tasks could not be loaded.",
+      "empty": "No background tasks yet. Ask an agent to work on a background topic to get started.",
+      "noMatches": "No tasks match your search.",
+      "groups": {
+        "needsYou": "Needs you ({count})",
+        "working": "Working ({count})",
+        "waiting": "Waiting ({count})",
+        "finished": "Finished ({count})"
+      }
+    },
     "loadEarlierMessages": "Load earlier messages",
     "accessLevel": "Access level",
     "accessRevoked": "Access revoked",
@@ -5311,6 +5332,10 @@
       "channels-phone": {
         "body": "Choose a Twilio SMS bot, a public voice exposure for inbound calls, limits and authorized transfer contacts. Copy the webhook URLs into Twilio. Member phone consent is separate.",
         "title": "Set up telephone routing"
+      },
+      "chat-workspace-tasks": {
+        "title": "Tasks beside the conversation",
+        "body": "Open background tasks for this chat or all your agents. Review work that needs you, open its conversation, or stop an active task."
       },
       "chat-workspace": {
         "title": "Open your workspace",
