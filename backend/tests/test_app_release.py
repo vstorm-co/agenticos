@@ -124,9 +124,19 @@ def test_desktop_updater_manifest_has_only_one_writer() -> None:
     assert set(updater["needs"]) == {"resolve", "desktop"}
     assert "if" not in updater
     assert action["with"]["uploadUpdaterSignatures"] is True
+    jobs = dict(release["jobs"])
+    arch = jobs.pop("arch")
+    assert arch["uses"] == "./.github/workflows/arch-package.yml"
+    assert arch["with"]["source_ref"] == "${{ needs.resolve.outputs.commit }}"
+    reusable = yaml.safe_load((ROOT / arch["uses"]).read_text())
+    for name, job in reusable["jobs"].items():
+        # Every reusable job is inspected; another level must be explicitly traversed too.
+        assert "uses" not in job
+        jobs[f"arch/{name}"] = job
+    assert action["with"]["uploadUpdaterJson"] is False
     publishers = [
         name
-        for name, job in release["jobs"].items()
+        for name, job in jobs.items()
         if any(
             'gh release upload "$TAG" "$RUNNER_TEMP/latest.json"' in step.get("run", "")
             for step in job["steps"]
