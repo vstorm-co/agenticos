@@ -8,10 +8,11 @@ its run row and its surface is what the platform does, not what a stub was told.
 import asyncio
 import re
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
@@ -1117,8 +1118,19 @@ class TestWhenTheJudgeCannotRun:
         assert recorded.error is not None
         assert "Truly" not in recorded.error
 
+    @pytest.mark.parametrize(
+        "broken",
+        [
+            pytest.param(lambda grades: "all pass", id="not a list"),
+            pytest.param(lambda grades: grades[:1], id="a criterion left out"),
+            pytest.param(lambda grades: [{**grades[0], "score": 9}, *grades[1:]], id="off scale"),
+            pytest.param(
+                lambda grades: [{**grades[0], "id": "x9"}, *grades[1:]], id="an id not asked"
+            ),
+        ],
+    )
     async def test_a_judge_answer_that_breaks_its_schema_is_sent_back_and_then_graded(
-        self, db, monkeypatch
+        self, db, monkeypatch, broken: Callable[[list[dict[str, Any]]], object]
     ) -> None:
         judging = Judge()
         asked = 0
@@ -1126,11 +1138,15 @@ class TestWhenTheJudgeCannotRun:
         async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             nonlocal asked
             asked += 1
-            if asked == 1:
-                return ModelResponse(
-                    parts=[ToolCallPart(info.output_tools[0].name, {"grades": "all pass"})]
-                )
-            return await judging.model().function(messages, info)  # type: ignore[misc]
+            full = await judging.model().function(messages, info)  # type: ignore[misc]
+            if asked > 1:
+                return full
+            [call] = full.parts
+            assert isinstance(call, ToolCallPart)
+            grades = call.args_as_dict()["grades"]
+            return ModelResponse(
+                parts=[ToolCallPart(info.output_tools[0].name, {"grades": broken(grades)})]
+            )
 
         monkeypatch.setattr(ModelRequestSpec, "build", lambda self: FunctionModel(respond))
         tenant = await _tenant(db)

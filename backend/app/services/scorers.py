@@ -19,7 +19,7 @@ from uuid import UUID
 import regex
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
-from pydantic import BaseModel, Field, JsonValue, field_validator
+from pydantic import BaseModel, Field, JsonValue, TypeAdapter, field_validator
 from pydantic import ValidationError as PydanticValidationError
 from referencing.exceptions import Unresolvable
 
@@ -473,6 +473,22 @@ class JudgeVerdict(BaseModel):
     """The judge's answer: one grade per criterion id."""
 
     grades: list[JudgeGrade]
+
+
+def verdict_schema(criteria: Sequence[JudgeCriterion], *, scale_max: int) -> dict[str, Any]:
+    """The verdict's JSON schema for these criteria: a grade on the scale for each one.
+
+    The judge answers through this schema, so a verdict that leaves a criterion
+    out, grades one off the scale or names an id it was not given is sent back
+    to it rather than read with those criteria ungraded.
+    """
+    schema = TypeAdapter(JudgeVerdict).json_schema()
+    grade = schema["$defs"]["JudgeGrade"]["properties"]
+    grade["id"]["enum"] = [criterion.id for criterion in criteria]
+    grade["score"].update(minimum=1, maximum=scale_max)
+    grades = schema["properties"]["grades"]
+    grades["minItems"] = grades["maxItems"] = len(criteria)
+    return schema
 
 
 # Bumped whenever what `judge_prompt` hands the judge changes, so a score graded

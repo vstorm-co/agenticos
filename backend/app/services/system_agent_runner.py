@@ -118,6 +118,7 @@ class SystemAgentRunner:
         version_id: UUID | None = None,
         improvement_run_id: UUID | None = None,
         knowledge_base_ids: Sequence[UUID] = (),
+        schema: dict[str, Any] | None = None,
     ) -> SystemAgentResult[T]:
         """Run system agent `key` on `prompt` as the caller, and validate its answer.
 
@@ -138,6 +139,9 @@ class SystemAgentRunner:
             knowledge_base_ids: What the run is about - the graded agent's
                 knowledge bases, a gap's, a generation's sources. An agent that
                 searches searches these alone, as far as the caller may read them.
+            schema: The shape the run answers in, when this call narrows the
+                result type's own - the ids a verdict must grade. Whatever it
+                allows must still validate as `output_type`.
 
         Raises:
             NotFoundError: The chosen agent is missing or the caller may not view it.
@@ -169,7 +173,7 @@ class SystemAgentRunner:
                 agent.id,
                 prompt,
                 surface=RunSurface.EVAL,
-                output_schema=output_schema(output_type),
+                output_schema=schema or output_schema(output_type),
                 structured=structured,
                 model_profile_id=model_profile_id,
                 isolation=RunIsolation(improvement_run_id=improvement_run_id, knowledge=knowledge),

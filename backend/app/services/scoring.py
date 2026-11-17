@@ -111,6 +111,7 @@ from app.services.scorers import (
     rubric_hash,
     run_checks,
     score_trajectory,
+    verdict_schema,
 )
 from app.services.system_agent_runner import SystemAgentRunner
 from app.services.system_agents import SystemAgentService
@@ -865,6 +866,7 @@ class ScoringService:
                 key=JUDGE.key,
                 prompt=judge_prompt(case, answer, criteria, scale_max=scoring.judge.scale_max),
                 output_type=JudgeVerdict,
+                schema=verdict_schema(criteria, scale_max=scoring.judge.scale_max),
                 agent_id=scoring.judge.agent_id,
                 model_profile_id=scoring.judge.model_profile_id,
                 instructions=scoring.judge.instructions,

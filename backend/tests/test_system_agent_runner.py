@@ -159,6 +159,16 @@ class TestRun:
         assert isolation.knowledge is not None
         assert isolation.knowledge.knowledge_base_ids == tuple(bases)
 
+    async def test_a_narrowed_schema_is_the_shape_the_run_answers_in(self, monkeypatch) -> None:
+        runner, execute = _runner(monkeypatch)
+        narrowed = {**output_schema(Verdict), "maxProperties": 2}
+
+        await runner.run(
+            _ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict, schema=narrowed
+        )
+
+        assert execute.call_args.kwargs["output_schema"] == narrowed
+
     async def test_dataset_instructions_and_model_are_passed_without_changing_the_published_agent(
         self, monkeypatch
     ) -> None:
