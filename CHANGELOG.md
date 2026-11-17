@@ -69,6 +69,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- The frontend audit temporarily excepts unpatched picomatch advisory GHSA-fc5q-39xc-vjpf after reviewing the production trace and fixed image patterns. Track #3102 for upstream remediation and removal of the named exception. No audit severity threshold is lowered.
+
 - Older private checkpoints without recipient provenance fall back to visible chat history. Restart waiting runs created before provenance was recorded; newer waiting runs require their original model destinations before resuming. No stored conversation messages are deleted.
 
 - Apply `0339_organization_text_to_speech.py` after `0338_personal_model_keys.py`. Existing agents retain their own TTS settings; inheritance is opt-in and requires an organization-visible provider key.
