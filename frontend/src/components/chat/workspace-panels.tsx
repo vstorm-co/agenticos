@@ -16,6 +16,7 @@ import { BrowserPanel } from "./browser-panel";
 import { WorkspaceFiles } from "./workspace-files";
 import { WorkspaceRail } from "./workspace-rail";
 import { ChatAgentSettingsPanel } from "./agent-settings-panel";
+import { WorkspaceTasksPanel } from "./workspace-tasks-panel";
 
 interface WorkspacePanelsProps {
   teamRoom: boolean;
@@ -56,6 +57,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
     browser: `${panelPrefix}-browser`,
     computer: `${panelPrefix}-computer`,
     settings: `${panelPrefix}-settings`,
+    tasks: `${panelPrefix}-tasks`,
   };
   const localSelected = useWorkOnStore((state) =>
     Boolean(
@@ -134,6 +136,17 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
       />
       {surface !== "browser" && <div id={panelIds.browser} hidden aria-hidden="true" />}
       {surface !== "computer" && <div id={panelIds.computer} hidden aria-hidden="true" />}
+      {surface === "tasks" ? (
+        <WorkspaceTasksPanel
+          key={`${account}:${organization}:${props.agentId}:${props.conversationId}`}
+          panelId={panelIds.tasks}
+          conversationId={props.conversationId}
+          readOnly={props.readOnly || props.loading}
+          onClose={close}
+        />
+      ) : (
+        <div id={panelIds.tasks} hidden aria-hidden="true" />
+      )}
       {settingsAgentId !== null && surface !== "settings" && (
         <div id={panelIds.settings} hidden aria-hidden="true" />
       )}

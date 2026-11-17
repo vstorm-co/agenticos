@@ -1,5 +1,5 @@
 ---
-source_sha: "22b67b0bc732"
+source_sha: "68a8eb22391c"
 ---
 
 # Konsola { #the-console }
@@ -941,6 +941,8 @@ Tekst i media zapisane poza bazą w kopiowanym podsumowaniu są odtwarzane w roz
 Rozmowę z zapisaną checklistą można rozgałęzić tylko przy jej najnowszej wiadomości, jeśli jest odpowiedzią agenta. Kopia zachowuje checklistę, w tym identyfikatory zadań i zależności. Wcześniejsze wersje checklisty nie są przechowywane, dlatego wcześniejsze rozgałęzienie jest odrzucane, aby nie kopiować późniejszych zadań do starszej historii.
 
 ### Tematy w tle { #background-topics }
+
+W pełnym czacie na komputerze **Zadania** po prawej otwierają pracę w tle obok rozmowy. Wybierz **Ten czat** albo **Wszystkie moje zadania**, wyszukaj tytuł i otwórz zadanie z grupy **Wymaga uwagi**, **W toku**, **Oczekujące** lub **Zakończone**. Nowy czat pokazuje twoje zadania wszystkich agentów w aktywnej organizacji. Panel można rozszerzyć lub zmienić jego szerokość. Otwarcie nie uruchamia pracy; czat tylko do odczytu zachowuje linki i ukrywa **Zatrzymaj**. Błąd odczytu udostępnia ponowienie próby.
 
 Włącz **Tematy w tle** u opublikowanego agenta i poproś np.: „Zbadaj błąd eksportu w nowym temacie, a my kontynuujmy plan wydania” albo „Niech agent finansowy sprawdzi te liczby, gdy omawiamy ofertę”. Agent może użyć swojej przypiętej wersji albo opublikowanego delegata przypiętego w specyfikacji. Zacznij z rozmowy, której jesteś właścicielem; nowy temat należy do tego samego projektu i zawiera brief agenta oraz odnośnik do źródła, bez kopiowania pierwotnego transkryptu.
 

@@ -1269,6 +1269,27 @@
     "title": "Abrechnung"
   },
   "chat": {
+    "workspaceTasks": {
+      "title": "Aufgaben",
+      "open": "Aufgaben öffnen",
+      "close": "Aufgaben schließen",
+      "expand": "Aufgaben vergrößern",
+      "restore": "Aufgaben wiederherstellen",
+      "scopeHint": "Deine Hintergrundaufgaben in dieser Organisation. Öffne eine Aufgabe, um ihre Unterhaltung fortzusetzen.",
+      "scope": "Aufgabenbereich",
+      "thisChat": "Dieser Chat",
+      "allMine": "Alle meine Aufgaben",
+      "search": "Aufgaben suchen",
+      "loadFailed": "Aufgaben konnten nicht geladen werden.",
+      "empty": "Noch keine Hintergrundaufgaben. Bitte einen Agenten, ein Thema im Hintergrund zu bearbeiten.",
+      "noMatches": "Keine Aufgaben entsprechen deiner Suche.",
+      "groups": {
+        "needsYou": "Benötigt dich ({count})",
+        "working": "In Arbeit ({count})",
+        "waiting": "Wartend ({count})",
+        "finished": "Beendet ({count})"
+      }
+    },
     "loadEarlierMessages": "Ältere Nachrichten laden",
     "accessLevel": "Zugriffsstufe",
     "accessRevoked": "Zugriff widerrufen",
@@ -5133,6 +5154,10 @@
       "channels-phone": {
         "body": "Wähle einen Twilio-SMS-Bot, eine öffentliche Sprachoberfläche für eingehende Anrufe, Grenzen und erlaubte Weiterleitungskontakte. Kopiere die Webhook-URLs nach Twilio. Mitglieder stimmen separat zu.",
         "title": "Telefonrouting einrichten"
+      },
+      "chat-workspace-tasks": {
+        "title": "Aufgaben neben der Unterhaltung",
+        "body": "Öffne Hintergrundaufgaben dieses Chats oder aller deiner Agenten. Prüfe Arbeit, die dich benötigt, öffne ihre Unterhaltung oder stoppe eine aktive Aufgabe."
       },
       "chat-workspace": {
         "title": "Ihren Workspace öffnen",

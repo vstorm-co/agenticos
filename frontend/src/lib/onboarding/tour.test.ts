@@ -304,6 +304,7 @@ describe("stepsForPage", () => {
       "chat-agent-picker",
       "chat-composer",
       "chat-workspace",
+      "chat-workspace-tasks",
       "chat-agent-settings",
       "chat-team-room",
       "chat-team-composer",

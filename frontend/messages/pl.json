@@ -286,6 +286,27 @@
     "title": "Profil"
   },
   "chat": {
+    "workspaceTasks": {
+      "title": "Zadania",
+      "open": "Otwórz zadania",
+      "close": "Zamknij zadania",
+      "expand": "Rozwiń zadania",
+      "restore": "Przywróć zadania",
+      "scopeHint": "Twoje zadania w tle w tej organizacji. Otwórz zadanie, aby kontynuować jego rozmowę.",
+      "scope": "Zakres zadań",
+      "thisChat": "Ten czat",
+      "allMine": "Wszystkie moje zadania",
+      "search": "Szukaj zadań",
+      "loadFailed": "Nie udało się wczytać zadań.",
+      "empty": "Nie ma jeszcze zadań w tle. Poproś agenta o pracę nad tematem w tle.",
+      "noMatches": "Brak zadań pasujących do wyszukiwania.",
+      "groups": {
+        "needsYou": "Wymaga uwagi ({count})",
+        "working": "W toku ({count})",
+        "waiting": "Oczekujące ({count})",
+        "finished": "Zakończone ({count})"
+      }
+    },
     "loadEarlierMessages": "Wczytaj wcześniejsze wiadomości",
     "accessLevel": "Poziom dostępu",
     "accessRevoked": "Dostęp cofnięty",
@@ -6925,6 +6946,10 @@
       "channels-phone": {
         "body": "Wybierz bota SMS Twilio, publiczną rozmowę głosową dla połączeń przychodzących, limity i dozwolone kontakty przekierowań. Skopiuj adresy webhooków do Twilio. Zgody członków są osobne.",
         "title": "Skonfiguruj telefonię"
+      },
+      "chat-workspace-tasks": {
+        "title": "Zadania obok rozmowy",
+        "body": "Otwórz zadania w tle tego czatu lub wszystkich swoich agentów. Sprawdź pracę wymagającą uwagi, otwórz jej rozmowę lub zatrzymaj aktywne zadanie."
       },
       "chat-workspace": {
         "title": "Otwórz swój workspace",
