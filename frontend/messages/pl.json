@@ -1067,7 +1067,28 @@
       "reactingToMessage": "Dodawanie reakcji do wiadomości",
       "messageReactions": "Reakcje na wiadomości",
       "exportingArtifact": "Eksportowanie PDF…",
-      "exportArtifact": "Eksportuj opublikowaną aplikację"
+      "exportArtifact": "Eksportuj opublikowaną aplikację",
+      "tableCall": {
+        "allRecords": "Wszystkie rekordy",
+        "search": "Pasujące do „{text}”",
+        "sortedBy": "Sortowanie: {column}, {direction, select, desc {malejąco} other {rosnąco}}",
+        "createdAt": "Utworzono",
+        "updatedAt": "Ostatnia zmiana",
+        "limit": "{count, plural, one {Najwyżej # rekord} few {Najwyżej # rekordy} many {Najwyżej # rekordów} other {Najwyżej # rekordu}}",
+        "externalId": "Zewnętrzne ID: {id}",
+        "found": "{count, plural, =0 {Nie znaleziono rekordów} one {Znaleziono # rekord} few {Znaleziono # rekordy} many {Znaleziono # rekordów} other {Znaleziono # rekordu}}",
+        "hasMore": "kolejne na następnej stronie",
+        "moreRows": "{count, plural, one {i jeszcze # rekord} few {i jeszcze # rekordy} many {i jeszcze # rekordów} other {i jeszcze # rekordu}}",
+        "exists": "Istnieje rekord z tym zewnętrznym ID",
+        "missing": "Żaden rekord nie ma tego zewnętrznego ID",
+        "deleted": "Rekord usunięty",
+        "record": "Rekord „{title}” · wersja {revision}",
+        "recordUntitled": "Rekord · wersja {revision}",
+        "table": "Tabela",
+        "column": "Kolumna",
+        "value": "Wartość",
+        "recordLabel": "Rekord"
+      }
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -2356,6 +2377,8 @@
       "perMonth": "${amount} miesięcznie"
     },
     "agents": {
+      "draftChanged": "Ta wersja robocza zmieniła się w innym miejscu. Twoje wpisy nadal tu są, ale zapis został wstrzymany. Skopiuj to, co chcesz zachować, a potem wczytaj najnowszą wersję roboczą.",
+      "reloadDraft": "Wczytaj najnowszą wersję roboczą",
       "voiceUnreportedTokenUsage": "Ten provider nie raportuje kosztów tokenów. Rozmowy nie mogą startować z limitem wydatków; zapisany koszt audio jest dolną granicą.",
       "agentAposSBehaviour": "Zachowanie agenta mieszka tutaj, a nie w kodzie. Bądź konkretny: co ma robić, czego odmawiać i jak cytować. Markdown, a model czyta strukturę - nagłówki i listy sprawiają, że długi prompt da się śledzić, dlatego podgląd pokazuje je wyrenderowane.",
       "agentAposSOwn": "Własny miesięczny limit wydatków tego agenta. Limit organizacji obowiązuje dodatkowo - agent może go zaostrzyć, nigdy poluzować. Limit kroków łapie inny rodzaj ucieczki: pętlę narzędzi, która jest tania na wywołanie i nigdy się nie kończy.",
@@ -2508,7 +2531,13 @@
       "setBaseline": "Wyznacz punkt odniesienia",
       "improveFromGaps": "Popraw tego agenta na podstawie tych braków",
       "systemAgentReadOnly": "Agenta systemowego może zmienić tylko administrator organizacji. Tutaj możesz sprawdzić, jak działa.",
-      "continueConversation": "Kontynuuj moją rozmowę"
+      "continueConversation": "Kontynuuj moją rozmowę",
+      "modelCredentialMode": "Dostęp do modelu",
+      "organizationModelKey": "Użyj klucza organizacji",
+      "personalModelKey": "Każdy użytkownik podłącza własny klucz",
+      "personalModelLimits": "Model i endpoint pozostają stałe. Tylko czat zalogowanego użytkownika. Przed publikacją wyłącz aktywne kanały, widgety, strony publiczne i rutyny. Uruchomienia przez HTTP API, tematy w tle, głos, delegowanie, recenzenci, osobne modele kroków i modele zapasowe nie są obsługiwane.",
+      "speechUseOrganizationDefaults": "Użyj ustawień organizacji",
+      "speechOrganizationDefaultsHint": "Dziedzicz wspólnie dostawcę, model, głos i klucz organizacji. Wyłącz, aby skonfigurować własny głos agenta."
     },
     "auth": {
       "backSign": "Wróć do logowania",
@@ -6024,7 +6053,14 @@
       "save": "Zapisz zmiany",
       "saved": "Zapisano ustawienia głosu",
       "notReadyNoKey": "Nie wybrano klucza dla {provider}. Agenci i boty, które go dziedziczą, nie mogą transkrybować przez providera, dopóki nie wybierzesz klucza poniżej.",
-      "summary": "Domyślny dostawca transkrypcji i limity nagrań."
+      "summary": "Domyślny dostawca transkrypcji i limity nagrań.",
+      "tts": {
+        "title": "Tekst na mowę",
+        "description": "Domyślny dostawca, model, głos i klucz organizacji dla agentów korzystających z ustawień organizacji. Agent może wybrać własną konfigurację głosu.",
+        "voice": "Głos",
+        "required": "Przed włączeniem wybierz dostawcę, model i klucz dostępny dla całej organizacji.",
+        "catalogUnavailable": "Nie udało się wczytać modeli mowy. Spróbuj ponownie przed zmianą dostawcy."
+      }
     },
     "publicAttribution": "AgenticOS na udostępnionych stronach",
     "publicAttributionDescription": "Pokazuj pływające oznaczenie AgenticOS z linkiem do GitHuba na publicznych aplikacjach, dashboardach i raportach oraz pod udostępnionymi rozmowami.",
@@ -6049,7 +6085,7 @@
       "discardChanges": "Odrzuć zmiany",
       "title": "Sugestie asystenta i monitorowanie",
       "description": "Sugestie na podstawie rozmów i monitorowanie źródeł działają niezależnie. Rutyny czasowe i zdarzeniowe nie wymagają włączenia sugestii.",
-      "nightly": "Nocne propozycje",
+      "nightly": "Codzienny briefing i sugestie",
       "nightlyHint": "Proponuj rutyny, agentów i zmiany profilu na podstawie ostatnich rozmów i pamięci. Nie przegląda skrzynek pocztowych. Utworzenie proponowanej rutyny wymaga potwierdzenia użytkownika.",
       "model": "Model",
       "modelHint": "Tylko do proponowania usprawnień na podstawie rozmów. Monitorowanie używa modelu wybranego agenta.",
@@ -6063,8 +6099,8 @@
       "hourHint": "W strefie czasowej każdej osoby.",
       "hourFallbackHint": "Dla osób, których profil nie podaje godzin pracy, w ich strefie czasowej.",
       "save": "Zapisz",
-      "saved": "Nocne propozycje zapisane",
-      "off": "Nocne propozycje są wyłączone",
+      "saved": "Zapisano ustawienia pracy w tle",
+      "off": "Funkcje pracy w tle są wyłączone",
       "invalid": "Podaj kwotę w dolarach, 0 lub więcej.",
       "welcome": "Wiadomość powitalna w aplikacjach czatu",
       "welcomeHint": "Nowa osoba dostaje wiadomość prywatną od Twoich botów w Slacku, Teams i Mattermost.",
@@ -6083,8 +6119,6 @@
     },
     "systemAgents": {
       "configure": "Model i budżet",
-      "title": "Usługi działające w tle",
-      "description": "Usługi platformy korzystające z modeli. Rozwiń usługę, aby ustawić jej model i budżet. Zużycie i ostatnie runy są widoczne poniżej.",
       "on": "Włączona",
       "off": "Wyłączona",
       "enabled": "Uruchamiaj tę rolę",
@@ -6111,8 +6145,7 @@
           "what": "Czyta zakończony czat raz i zapisuje trwałe fakty, preferencje i decyzje z niego, w zakresie samej rozmowy. Nic nie działa, gdy jest wyłączona albo nie ma modelu."
         }
       },
-      "starterAgentMissing": "Ta rola teraz nic nie robi: agent startowy AgenticOS, pod którym jest zapisywana, nie istnieje, nie jest opublikowany albo zmieniono jego nazwę. Opublikuj go ponownie pod uchwytem agenticos.",
-      "summary": "Modele, budżety i ostatnie uruchomienia usług platformy."
+      "starterAgentMissing": "Ta rola teraz nic nie robi: agent startowy AgenticOS, pod którym jest zapisywana, nie istnieje, nie jest opublikowany albo zmieniono jego nazwę. Opublikuj go ponownie pod uchwytem agenticos."
     }
   },
   "theme": {
@@ -7738,6 +7771,10 @@
       "channels-diagnostics": {
         "title": "Sprawdź gotowość",
         "body": "Sprawdź połączenie bota, publikację agenta i własne powiązane konta bez uruchamiania zadania."
+      },
+      "agent-model-credentials": {
+        "title": "Kto podaje klucz do modelu",
+        "body": "Użyj klucza organizacji lub wymagaj prywatnego klucza w vaulcie od każdego zalogowanego użytkownika czatu. Model i endpoint pozostają stałe; kanały i automatyczne uruchomienia wymagają klucza organizacji."
       }
     },
     "chooseLanguage": "Język",
@@ -9105,7 +9142,24 @@
     "noRoutineMatchesHint": "Spróbuj nazwy agenta, tytułu rutyny lub słów z jej wiadomości.",
     "setupRequired": "Wymaga konfiguracji",
     "setupRequiredHint": "Zapisano i wstrzymano. Napraw źródła, sprawdź dostęp, a następnie włącz rutynę.",
-    "setupOwnerRequired": "Zapisana i wstrzymana. Jej twórca musi naprawić i sprawdzić źródła."
+    "setupOwnerRequired": "Zapisana i wstrzymana. Jej twórca musi naprawić i sprawdzić źródła.",
+    "filteredEventTitle": "Ostatnie odfiltrowane zdarzenie GitHub",
+    "filteredEventHint": "Pokazujemy ostatnie zapisane odrzucenie przez filtr, aktualizowane najwyżej raz na minutę. Nie uruchomiło runa. Treść zdarzenia nie jest zapisywana.",
+    "filteredEventEmpty": "Nie zapisano jeszcze odfiltrowanego zdarzenia. Nie potwierdza to otrzymania webhooka.",
+    "filteredEventError": "Nie udało się odczytać diagnostyki filtrowania",
+    "filteredEventPolicy": "Filtr autorów przy odbiorze: {policy}",
+    "filteredEventReason": {
+      "event": "Typ zdarzenia nie pasował.",
+      "action": "Akcja zdarzenia nie pasowała.",
+      "bot": "Nadawcą był bot.",
+      "ignored_login": "Nadawca odpowiadał wykluczonemu podłączonemu kontu.",
+      "author": "Powiązanie autora zostało wykluczone przez filtr autorów.",
+      "draft": "Pull request został otwarty jako wersja robocza.",
+      "branch": "Gałąź nie pasowała.",
+      "mention": "Komentarz nie zawierał wymaganej wzmianki.",
+      "conclusion": "Wynik workflow nie pasował.",
+      "not_branch": "Push usuwał gałąź lub nie dotyczył gałęzi."
+    }
   },
   "portals": {
     "backToServices": "Wróć do usług",
@@ -9187,7 +9241,18 @@
     "installationIdLabel": "ID instalacji",
     "mailLabelFilter": "ID etykiety Gmail",
     "mailFolderFilter": "Folder skrzynki",
-    "sharedMailboxFilter": "Skrzynka współdzielona"
+    "sharedMailboxFilter": "Skrzynka współdzielona",
+    "githubAuthorsLabel": "Czyje zdarzenia mogą uruchomić rutynę",
+    "githubAuthors": {
+      "members": "Członkowie repozytorium (domyślnie)",
+      "contributors": "Członkowie i contributorzy",
+      "anyone": "Każdy"
+    },
+    "githubAuthorsHint": {
+      "members": "OWNER, MEMBER i COLLABORATOR. Zewnętrzni contributorzy są wykluczeni. Boty i podłączone konto nadal są wykluczone.",
+      "contributors": "OWNER, MEMBER, COLLABORATOR i CONTRIBUTOR. Osoby wnoszące pierwszy wkład są wykluczone. Boty i podłączone konto nadal są wykluczone.",
+      "anyone": "Wszystkie powiązania autorów, także osoby wnoszące pierwszy wkład i bez wcześniejszego wkładu. Boty i podłączone konto nadal są wykluczone."
+    }
   },
   "agents": {
     "accentColour": "Kolor akcentu",
@@ -10762,6 +10827,10 @@
       "max_characters": {
         "title": "Najdłuższy tekst",
         "description": "Najwięcej tekstu, jaki może wypowiedzieć jedno wywołanie, co ogranicza koszt pojedynczego wywołania."
+      },
+      "use_organization_defaults": {
+        "title": "Użyj ustawień organizacji",
+        "description": "Dziedzicz wspólnie dostawcę, model, głos i klucz organizacji. Wyłącz, aby skonfigurować własny głos agenta."
       }
     },
     "video_generation": {
@@ -11437,6 +11506,12 @@
     "panelProblemsCount": "{count, plural, =1 {1 problem} few {# problemy} many {# problemów} other {# problemu}}",
     "nodeFormNoFields": "Ten węzeł nie ma pól do skonfigurowania.",
     "nodeFormAddRow": "Dodaj wiersz",
+    "nodeFormFilterColumn": "Kolumna",
+    "nodeFormFilterColumnPlaceholder": "Wybierz kolumnę",
+    "nodeFormFilterColumnNoTable": "Najpierw wybierz tabelę",
+    "nodeFormFilterValue": "Wartość",
+    "nodeFormFilterValuePlaceholder": "Wybierz opcję",
+    "nodeFormFilterOptionArchived": "{label} (zarchiwizowana)",
     "nodeFormRow": "Wiersz {index}",
     "nodeFormMoveUp": "Przesuń wiersz {index} w górę",
     "nodeFormMoveDown": "Przesuń wiersz {index} w dół",
@@ -11550,6 +11625,7 @@
     "publishedVersion": "Opublikowana wersja {version}",
     "validationTriggerNotEntry": "Użyj po jednym wyzwalaczu każdego rodzaju automatycznego.",
     "triggerHintManual": "Uruchom go przyciskiem Run w prawym górnym rogu edytora albo ze strony runów. Zadeklaruj pola, żeby prosił o nie przy starcie.",
+    "dataValueSetOnce": "Ustawiana raz na run i nigdy nienadpisywana: kolejne kroki czytają tę wartość, ale nie mogą jej zmienić. Aby ją zmienić, dodaj krok, który zbuduje z niej nową wartość.",
     "triggerHintChat": "Członkowie wybierają ten workflow w czacie. Kolejne kroki czytają wiadomość jako prompt, razem z rozmową i nadawcą.",
     "triggerHintWebhook": "Publikacja daje temu workflow własny adres i sekret do podpisu, które zostają takie same przy kolejnych publikacjach. Kolejne kroki czytają JSON dostawy jako body.",
     "publishTrigger": "Startuje od: {trigger}. Webhook, harmonogram lub wyzwalacz tabeli po publikacji działa jako Ty.",
@@ -13350,12 +13426,7 @@
     "description": "Asystent w rogu każdej strony, dla każdego, kto może uruchamiać agentów. To agent jak każdy inny: nazwę, model i wiedzę edytujesz w Agent Builderze, a jego koszty liczą się jak każdego agenta.",
     "openBuilder": "Otwórz w Agent Builderze",
     "enabled": "Włączony",
-    "enabledHint": "Wyłączony znika z każdej strony dla wszystkich w organizacji i nikt nie może go uruchomić.",
-    "needsModel": "Nie ma jeszcze modelu, więc nie może odpowiadać. Wybierz go w sekcji Model w Agent Builderze.",
-    "greeting": "Powitanie",
-    "greetingHint": "Co mówi, gdy ktoś go otworzy. Zostaw puste, by użyć domyślnego.",
-    "save": "Zapisz",
-    "summary": "Asystent workspace i jego powitanie."
+    "needsModel": "Nie ma jeszcze modelu, więc nie może odpowiadać. Wybierz go w sekcji Model w Agent Builderze."
   },
   "capabilityGuide": {
     "artifacts": {
@@ -17804,6 +17875,10 @@
         "name": "Mapuj pola",
         "description": "Wybierz wartości z wcześniejszych wyjść i nadaj każdej z nich typ."
       },
+      "data_value": {
+        "name": "Dane",
+        "description": "Przechowaj obiekt, listę lub wartość dla kolejnych kroków. Ustawiane raz na run."
+      },
       "debug_echo": {
         "name": "Echo",
         "description": "Zwraca swoje wejście bez zmian. Nie ma żadnego realnego efektu."
@@ -20526,5 +20601,19 @@
         }
       }
     }
+  },
+  "personalModelKeys": {
+    "title": "Twoje połączenie z modelem",
+    "fixed": "Model: {model}. Adres: {endpoint}.",
+    "connected": "Twój klucz jest zapisany. Wymień go tutaj, jeśli uwierzytelnienie się nie powiedzie.",
+    "required": "Podłącz własny klucz API przed wysłaniem wiadomości.",
+    "key": "Twój klucz API",
+    "replace": "Wymień klucz",
+    "connect": "Podłącz klucz",
+    "privacy": "Zapisany prywatnie w vaulcie. Nigdy nie trafia do czatu. Bez przejścia na klucz organizacji.",
+    "vaultHelp": "Te klucze należą tylko do Ciebie. Podłącz lub wymień je w ustawieniach czatu agenta. Usunięcie blokuje kolejne uruchomienia do czasu ponownego podłączenia.",
+    "remove": "Usuń połączenie",
+    "loading": "Wczytywanie połączeń…",
+    "defaultEndpoint": "Domyślny adres dostawcy"
   }
 }

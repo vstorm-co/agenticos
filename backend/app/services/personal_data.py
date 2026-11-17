@@ -52,6 +52,7 @@ from app.schemas.personal_data import (
     RoutineHealthExport,
     RoutineSourceExport,
 )
+from app.schemas.personal_model_key import PersonalModelKeyRead
 from app.services.dataset import redact_credentials
 
 logger = logging.getLogger(__name__)
@@ -351,6 +352,10 @@ class PersonalDataService:
                 await personal_data_repo.notification_routes_of(self.db, user_id),
                 ("id", "organization_id", "channel", "session_id", "created_at"),
             ),
+            personal_model_keys=[
+                PersonalModelKeyRead.model_validate(row)
+                for row in await personal_data_repo.personal_model_keys_of(self.db, user_id)
+            ],
             coding_accounts=personal_data_repo.as_rows(
                 await personal_data_repo.coding_accounts_of(self.db, user_id),
                 (

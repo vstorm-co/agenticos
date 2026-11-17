@@ -116,12 +116,14 @@ GithubConclusion = Literal[
 ]
 """A finished workflow run's `conclusion`, as GitHub spells it."""
 
-GithubAuthors = Literal["members", "anyone"]
+GithubAuthors = Literal["members", "contributors", "anyone"]
 """Whose issues, pull requests and comments may fire a trigger.
 
 `members` - the default - is an author GitHub calls the repository's `OWNER`,
 `MEMBER` or `COLLABORATOR`. On a public repository anyone can open an issue, and
-every one would otherwise be an agent run and a page of somebody's text in it."""
+every one would otherwise be an agent run and a page of somebody's text in it.
+`contributors` also admits `CONTRIBUTOR`; first-time contributors still need
+`anyone`. Bot and connected-account exclusions apply to all three choices."""
 
 # Where the filter's per-event fields belong, so one sent for another event is a
 # 422 rather than a filter that silently never applies.
@@ -137,8 +139,8 @@ class GithubTriggerConfig(BaseSchema):
 
     `event` is the webhook it fires on (the `X-GitHub-Event` header), `issues`
     unless it says otherwise; `actions` narrows which of that event's actions
-    fire, defaulting to the one somebody would act on. `authors` keeps issues,
-    pull requests and comments to the repository's own people, and a bot never
+    fire, defaulting to the one somebody would act on. `authors` chooses whose
+    issues, pull requests and comments may fire (members by default), and a bot never
     fires a trigger except through a workflow run.
 
     `mention` is a phrase a comment has to contain (`@agent`), `branches` the
@@ -800,6 +802,33 @@ class TriggerUpdate(BaseSchema):
                 if field in data and data[field] is None:
                     raise ValueError(f"{field} cannot be set to null")
         return data
+
+
+GithubFilterReason = Literal[
+    "event",
+    "action",
+    "bot",
+    "ignored_login",
+    "author",
+    "draft",
+    "branch",
+    "mention",
+    "conclusion",
+    "not_branch",
+]
+
+
+class GithubFilteredEvent(BaseSchema):
+    """The latest retained sample of verified GitHub rejections, without event content."""
+
+    received_at: datetime
+    recorded_at: datetime | None = Field(default=None, exclude=True)
+    reason: GithubFilterReason
+    authors: GithubAuthors
+
+
+class TriggerFilteredEventRead(BaseSchema):
+    last_event: GithubFilteredEvent | None = None
 
 
 class TriggerRead(BaseSchema, TimestampSchema):

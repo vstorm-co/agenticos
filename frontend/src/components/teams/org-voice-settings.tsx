@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { SetupIndicator } from "@/components/settings/setup-indicator";
 import { voiceSetupHints } from "@/lib/setup-hints";
 import { SettingsSection } from "@/components/settings/settings-section";
+import { OrgTextToSpeechSettings } from "./org-text-to-speech-settings";
 import { OrgVoiceUsage } from "@/components/teams/org-voice-usage";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { SpeechKeyField } from "@/components/vault/speech-key-field";
@@ -23,6 +24,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
 } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { useOrganizations, usePermissions } from "@/hooks";
@@ -107,7 +109,12 @@ export function OrgVoiceSettings({
   const { can } = usePermissions();
   // A separate component so that its catalog and vault reads are never issued
   // for somebody who may not change them.
-  return can(Perm.orgSettings) ? <VoiceForm org={org} collapsible={collapsible} /> : null;
+  return can(Perm.orgSettings) ? (
+    <>
+      <VoiceForm org={org} collapsible={collapsible} />
+      <OrgTextToSpeechSettings org={org} />
+    </>
+  ) : null;
 }
 
 /**
@@ -209,17 +216,41 @@ function VoiceForm({ org, collapsible }: { org: Organization; collapsible: boole
   const t = useTranslations("teams");
   const { providers, languages } = useSpeechToTextProviders();
   const form = useVoiceDraft(org);
+  const [forceOpen, setForceOpen] = useState(false);
   const { draft, failure } = form;
 
   return (
     <div id="org-voice" data-tour="org-voice">
       <SettingsSection
         collapsible={collapsible}
+        open={forceOpen}
+        onOpenChange={setForceOpen}
+        action={
+          <Switch
+            aria-label={t("voice.sttTitle")}
+            checked={Boolean(draft.provider && draft.model)}
+            disabled={form.saving}
+            onCheckedChange={(enabled) => {
+              const provider = providers[0];
+              const model = provider?.models[0];
+              form.edit(
+                enabled
+                  ? {
+                      provider: provider?.provider ?? null,
+                      model: model?.id ?? null,
+                      secretId: null,
+                    }
+                  : { provider: null, model: null, secretId: null },
+              );
+              setForceOpen(true);
+            }}
+          />
+        }
         status={<SetupIndicator hints={voiceSetupHints(org)} />}
-        title={t("voice.title")}
+        title={t("voice.sttTitle")}
+        className="bg-card rounded-xl border p-4 sm:p-5"
         description={t(collapsible ? "voice.summary" : "voice.description")}
       >
-        <h3 className="text-sm font-semibold">{t("voice.sttTitle")}</h3>
         <p className="text-muted-foreground mt-0.5 mb-4 text-sm">{t("voice.sttDescription")}</p>
         <OrgVoiceUsage />
         <NotReady org={org} providers={providers} />

@@ -68,7 +68,7 @@ from itertools import islice
 from typing import Any, Union, get_args, get_origin
 from uuid import UUID
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel, JsonValue, TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1058,14 +1058,14 @@ def _resolve_field_path(ports: tuple[Port, ...], port_id: str, field_path: tuple
 def _is_dynamic(annotation: Any) -> bool:
     """Whether a path may reach into `annotation` with no schema to follow.
 
-    `Any`, or a `dict` whose values are such (optionally `| None`): a
+    `Any`, `JsonValue`, or a `dict` whose values are such (optionally `| None`): a
     trigger's payload, a mapped record, an agent's structured answer. What
     such a path finds is only known once the run has it, so it resolves to
     `Any` here and is validated against the target field when the node is
     dispatched - `_resolve_io` refuses a value that does not fit, which fails
     the run rather than handing a handler the wrong type.
     """
-    if annotation is Any:
+    if annotation is Any or annotation is JsonValue:
         return True
     origin = get_origin(annotation)
     if origin in (Union, types.UnionType):
@@ -1085,8 +1085,14 @@ def _members(annotation: Any) -> list[Any]:
 
 
 def _types_compatible(source: Any, target: Any) -> bool:
-    # `Any` on either side is checked at dispatch rather than here; see `_is_dynamic`.
-    if source is target or source is Any or target is Any:
+    # An opaque JSON value is checked against its concrete target at dispatch.
+    if (
+        source is target
+        or source is Any
+        or target is Any
+        or source is JsonValue
+        or target is JsonValue
+    ):
         return True
     # A free-form object field takes any structured value: a model's output
     # reaches it as the dict it is stored as.

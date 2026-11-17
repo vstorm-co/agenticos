@@ -26,6 +26,12 @@ vi.mock("./chart-message", async () => {
     ),
   };
 });
+// The table view reads its table through the query layer; here only which view opens matters.
+vi.mock("./tool-results/table-call", () => ({
+  TableToolResult: ({ toolName }: { toolName: string }) => (
+    <div data-testid="table-call">{toolName}</div>
+  ),
+}));
 const servers = vi.hoisted(() => ({ list: [] as { name: string; url: string }[] }));
 vi.mock("@/hooks", () => ({
   useMcpToolServers: () => servers.list,
@@ -216,6 +222,23 @@ describe("a tool call in the transcript", () => {
       expect(screen.getAllByText(expected)[0], expected).toBeInTheDocument();
       unmount();
     }
+  });
+
+  it("reads a platform table call through its table, and an external one as sent", async () => {
+    const args = { table_id: "t1", query: { limit: 20 } };
+    const { unmount } = card({
+      name: "agenticos_query_virtual_table",
+      tool_id: "agenticos_query_virtual_table",
+      args,
+    });
+    await open();
+    expect(screen.getByTestId("table-call")).toHaveTextContent("agenticos_query_virtual_table");
+    unmount();
+
+    card({ name: "agenticos_query_virtual_table", presentation_kind: "generic", args });
+    await open();
+    expect(screen.queryByTestId("table-call")).not.toBeInTheDocument();
+    expect(screen.getByText("Arguments")).toBeVisible();
   });
 
   it("humanises a tool nobody named", () => {

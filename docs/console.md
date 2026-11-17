@@ -213,7 +213,7 @@ reads your personal connected accounts and sends findings to your private Inbox.
 Each check makes at most 30 model requests, with long results trimmed, so a watch
 on a large workspace stays cheap. Each tab has its own creation controls. `/routines?tab=watches` opens watches.
 
-Organization → AI & services → Assistant suggestions and monitoring separates suggestions, monitoring, shared limits, delivery timing and welcome messages. Unsaved changes can be discarded. Background services show status and usage, with model and budget controls expanded per service.
+Organization → AI & services shows individual cards with switches and expandable settings. Daily briefing & suggestions uses one model, budget and delivery schedule; monitoring and welcome messages have their own cards. Unsaved changes can be discarded.
 
 Scheduled, event and monitoring routines use the same dialog frame, with a fixed header and navigation and a scrolling form. Creating a watch walks through Configure, Message and Schedule; Back preserves your draft. Agent pickers show the same avatars as chat. Watch execution and delivery settings live together under one Advanced options panel.
 
@@ -373,8 +373,8 @@ Before a model is connected, the Architect opens the same chat with a visual set
 The Architect is an agent like any other, so its name, model, knowledge and the
 rest of its spec are edited in the Agent Builder - by somebody who may change
 the organization's settings, because everyone in the organization runs it. The
-organization's page has a card that switches it off for everyone and sets its
-greeting. **Settings → Assistant** holds only your own tips.
+organization's page has a card that switches it off for everyone and links to the
+Agent Builder. **Settings → Assistant** holds only your own tips.
 
 ## Shipped agent defaults
 
@@ -445,6 +445,12 @@ notifications only you. When the connection
 drops the console works as before and reconnects on its own.
 
 ## Chat
+
+Shared rooms, project chats and conversations shared for editing replay visible chat turns instead of hidden model checkpoints. Another participant does not inherit private tool results or reasoning from a previous author; the agent queries again using the current person’s connections when needed. Forking a shared source also leaves hidden checkpoints behind. Private web chats and direct messages keep structured model history.
+
+Private checkpoints are tied to the agent, resolved model destinations including fallback connections, and the live MCP account, endpoint and authorization generation used for the turn. Changing the agent, endpoint or connection rebuilds history from visible chat turns instead of sending earlier hidden tool results to a different recipient.
+
+Older checkpoints without this provenance also use the visible transcript. A waiting run cannot resume after its destination changes; restore its original configuration or start a new turn. Waiting runs created before recipient provenance was recorded must be restarted.
 
 Where you talk to a published agent. The picker chooses which agent answers, and
 the run behaves exactly as it would in Slack or behind the API — same budget,
@@ -936,9 +942,9 @@ session, what it measured, what was decided and what it cost. A finished session
 opens its wizard to be read, with what was decided on its last step; see
 [Improvement history](authoring.md#improvement-history).
 
-Organization details use three tabs: **Members**, **Budget and approvals**, and **AI & services**. Members has name/email search, a role filter and the latest recorded action in this workspace. This is an audited action, not a visit or sign-in; impersonated actions are excluded and missing history shows a dash. **Edit workspace** opens a guarded name, avatar and colour dialog. AI & services starts with Background services, followed by AI Architect, suggestions and monitoring, and Voice. Expand configuration without losing drafts. Controls retain their own permission gates. Old `?tab=profile` links open the workspace dialog; `?tab=voice` and `?tab=proactivity` open their settings in AI & services.
+Organization details use three tabs: **Members**, **Budget and approvals**, and **AI & services**. Members has name/email search, a role filter and the latest recorded action in this workspace. This is an audited action, not a visit or sign-in; impersonated actions are excluded and missing history shows a dash. **Edit workspace** opens a guarded name, avatar and colour dialog. AI & services uses individual function cards without parent groups. Expand configuration without losing drafts. Controls retain their own permission gates. Old `?tab=profile` links open the workspace dialog; `?tab=voice` and `?tab=proactivity` open their settings in AI & services.
 
-Daily briefing can be configured directly in Background services; it updates the same organization model and per-person limit used by suggestions. Memory maintenance starts off, and legacy profiles with no model are reported off. Choose a model before enabling either service. Disabled services do not show a setup warning. Voice provider names do not include credential-status suffixes; credentials retain their separate picker and validation.
+Daily briefing & suggestions is one service, configured once rather than through duplicate controls. Its card also shows spending and recent executions. Memory maintenance has its own model and budget and starts off. Choose a model before enabling either service. AI Architect keeps its switch and Agent Builder link visible, without a greeting editor.
 
 After signing in, addressed email invitations also appear in the console and onboarding without opening the email link. The recipient chooses a workspace and accepts explicitly; Later keeps an Invitations shortcut available. Only live invitations to the account’s current email are shown, excluding shareable links and organizations already joined. Acceptance switches to the chosen organization and opens its welcome flow. The server never returns the invitation token through this inbox.
 

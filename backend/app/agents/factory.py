@@ -640,10 +640,11 @@ def build_agent(
     agent = PydanticAgent[AgentDeps, AgentOutput](
         model=RecordingModel(model_spec.build(), recorder),
         model_settings=model_settings,
-        # A realtime session reads only `instructions=` (#54), so a call carries
-        # the spec's instructions there and no system prompt at all.
-        system_prompt="" if voice is not None else spec.instructions or "",
-        instructions=None if voice is None else voice_instructions(spec.instructions, voice),
+        # Instructions are resolved on every run, including one continuing a
+        # stored model history from an older published version.
+        instructions=(spec.instructions or "")
+        if voice is None
+        else voice_instructions(spec.instructions, voice),
         # The answer first - text, or the spec's object - then
         # `DeferredToolRequests`, which is not a shape the model can choose: it
         # is what the run ends with when the approval gate parks a call.

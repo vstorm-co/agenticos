@@ -236,6 +236,7 @@ async def test_agent_task_is_pinned_and_ends_in_review_or_blocked_state(
     agent = Agent(
         organization_id=data.org.id,
         name="Researcher",
+        draft_spec={"name": "Researcher"},
         slug=f"research-{uuid4().hex}",
         owner_user_id=data.users[0].id,
     )
@@ -886,6 +887,7 @@ async def test_scope_teardown_disables_its_agent_and_cancels_queued_fire(db: Asy
         organization_id=data.org.id,
         owner_user_id=data.users[0].id,
         name="Worker",
+        draft_spec={"name": "Worker"},
         slug=f"worker-{uuid4().hex}",
     )
     project = Project(organization_id=data.org.id, owner_user_id=data.users[0].id, name="Tasks")
@@ -982,6 +984,7 @@ async def test_cancelling_a_task_expires_its_parked_approval(db: AsyncSession) -
         organization_id=data.org.id,
         owner_user_id=data.users[0].id,
         name="Worker",
+        draft_spec={"name": "Worker"},
         slug=f"worker-{uuid4().hex}",
     )
     db.add(agent)
