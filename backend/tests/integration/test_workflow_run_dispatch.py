@@ -53,7 +53,7 @@ from app.workflows._registry import REGISTRY, register
 from app.workflows.contracts.definition import NodeDefinition, Port
 from app.workflows.contracts.results import Completed, Failed, NodeResult, Waiting, WorkflowError
 from app.workflows.graph.model import Edge, NodeInstance, NodePosition, WorkflowGraph
-from tests.integration.workflow_run_support import queued_dispatches
+from tests.integration.workflow_run_support import SkewedClock, queued_dispatches
 
 pytestmark = pytest.mark.anyio
 
@@ -906,6 +906,57 @@ class TestWaits:
 
         assert attempts == [1, 2]
         assert (await _run_row(seeded)).status == WorkflowRunStatus.SUCCEEDED.value
+
+    @pytest.mark.parametrize("skew", [timedelta(hours=1), timedelta(hours=-1)])
+    async def test_a_retry_backoff_is_measured_on_the_databases_clock(
+        self, engine: AsyncEngine, node_kind, skew: timedelta
+    ):
+        """A host clock an hour off neither stretches the backoff by that hour nor
+        makes the retry claimable at once: the row and its job come due on the
+        database's clock, the one a claim compares against."""
+
+        async def handler(_config: object, _input: object) -> NodeResult:
+            return Waiting(reason="retry_backoff", resume_token="t")
+
+        seeded = await _seed(engine, _chain(node_kind(handler), 1))
+
+        with patch("app.services.workflow_execution.dispatcher.datetime", SkewedClock(skew)):
+            await _tick(seeded, seeded.entry.id)
+
+        [row] = [
+            row
+            for row in await _outbox_rows(seeded)
+            if row.status == DispatchOutboxStatus.PENDING.value
+        ]
+        async with seeded.factory() as db:
+            left = row.available_at - await workflow_run_repo.database_time(db)
+        backoff = timedelta(seconds=settings.WORKFLOW_RETRY_BACKOFF_BASE_SECONDS)
+        assert backoff - timedelta(seconds=10) < left <= backoff
+        assert row.available_at in {
+            job.run_after for job in await queued_dispatches(seeded.factory)
+        }
+
+    async def test_a_timer_wait_keeps_its_absolute_time_whatever_the_host_clock(
+        self, engine: AsyncEngine, node_kind
+    ):
+        resume_at = datetime.now(UTC).replace(microsecond=0) + timedelta(minutes=10)
+
+        async def handler(_config: object, _input: object) -> NodeResult:
+            return Waiting(reason="timer", resume_token="t", resume_at=resume_at)
+
+        seeded = await _seed(engine, _chain(node_kind(handler), 1))
+
+        with patch(
+            "app.services.workflow_execution.dispatcher.datetime", SkewedClock(timedelta(hours=1))
+        ):
+            await _tick(seeded, seeded.entry.id)
+
+        [row] = [
+            row
+            for row in await _outbox_rows(seeded)
+            if row.status == DispatchOutboxStatus.PENDING.value
+        ]
+        assert row.available_at == resume_at
 
     async def test_a_node_that_leaves_its_wait_forgets_the_agent_run_it_waited_on(
         self, engine: AsyncEngine, node_kind

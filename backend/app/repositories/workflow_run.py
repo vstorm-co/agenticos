@@ -1436,6 +1436,7 @@ async def create_outbox(
     workflow_run_id: UUID,
     node_run_id: UUID,
     available_at: datetime | None = None,
+    delay: timedelta | None = None,
 ) -> DispatchOutbox:
     """Insert a dispatch row. Raises `IntegrityError` if one is already live.
 
@@ -1443,24 +1444,32 @@ async def create_outbox(
     failure wrap this in `db.begin_nested()`, the same savepoint shape
     `UserService.confirm_email_change` uses for its own race.
 
-    `available_at=None` means due now by the database's own clock - the clock
-    `claim_outbox` compares against - so an application host running slightly
-    ahead of the database cannot write a row that is not yet claimable when
-    its job arrives.
+    With neither `available_at` nor `delay` the row is due now by the database's
+    own clock - the clock `claim_outbox` compares against - so an application
+    host running slightly ahead of the database cannot write a row that is not
+    yet claimable when its job arrives. `delay` is measured on that clock too: a
+    retry's backoff waits as long as it says whatever the host's clock reads.
+    `available_at` is an absolute time, such as a Wait step's, and is kept as
+    given.
 
     `submitted_at` is when the row's job is due to run - now, or `available_at`
     when later - for the caller (`dispatch_queue.queue_dispatch`) queues that job
     in the same transaction. The poll then looks only at rows still pending a
     lease after they came due.
     """
+    due: datetime | ColumnElement[datetime]
+    if delay is not None:
+        due = func.now() + literal(delay, Interval())
+    elif available_at is not None:
+        due = available_at
+    else:
+        due = func.now()
     outbox = DispatchOutbox(
         organization_id=organization_id,
         workflow_run_id=workflow_run_id,
         node_run_id=node_run_id,
-        available_at=func.now() if available_at is None else available_at,
-        submitted_at=func.now()
-        if available_at is None
-        else func.greatest(func.now(), available_at),
+        available_at=due,
+        submitted_at=func.greatest(func.now(), due),
     )
     db.add(outbox)
     await db.flush()
