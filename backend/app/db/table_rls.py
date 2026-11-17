@@ -169,8 +169,10 @@ async def require_table_connection_role(db: AsyncSession, *, maintenance: bool =
     """Check the login and every role it can assume, not only inherited privileges.
 
     Neither connection may own a protected table or assume an owner, superuser,
-    BYPASSRLS, CREATEROLE or REPLICATION role, belong to pg_database_owner, create
-    objects in the protected schema, or hold TRUNCATE, TRIGGER or REFERENCES on it.
+    BYPASSRLS, CREATEROLE or REPLICATION role, belong to pg_database_owner or a
+    server program or server file role, or hold TRUNCATE, TRIGGER or REFERENCES (on
+    any column) on a protected object. CREATE on the schema stays allowed: the
+    vector store creates its collection tables there with the runtime login.
     A maintenance login gains its explicit policy exception through the NOLOGIN
     maintenance group. Runtime logins must have no path into that group.
     """
@@ -190,10 +192,12 @@ async def require_table_connection_role(db: AsyncSession, *, maintenance: bool =
                 "pg_catalog.to_regrole('pg_database_owner'), 'MEMBER') OR "
                 "pg_catalog.pg_has_role(session_user, "
                 "pg_catalog.to_regrole('pg_database_owner'), 'MEMBER'), false) AS database_owner, "
-                "EXISTS (SELECT 1 FROM pg_catalog.pg_roles AS r "
-                "WHERE (pg_catalog.pg_has_role(current_user, r.oid, 'MEMBER') OR "
-                "pg_catalog.pg_has_role(session_user, r.oid, 'MEMBER')) "
-                "AND pg_catalog.has_schema_privilege(r.oid, 'public', 'CREATE')) AS schema_create, "
+                "EXISTS (SELECT 1 FROM unnest(ARRAY['pg_execute_server_program', "
+                "'pg_read_server_files', 'pg_write_server_files']) AS s(name) "
+                "WHERE COALESCE(pg_catalog.pg_has_role(current_user, "
+                "pg_catalog.to_regrole(s.name), 'MEMBER') OR "
+                "pg_catalog.pg_has_role(session_user, "
+                "pg_catalog.to_regrole(s.name), 'MEMBER'), false)) AS server_files, "
                 "EXISTS (SELECT 1 FROM pg_catalog.pg_class AS c "
                 "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace "
                 "WHERE n.nspname = 'public' AND c.relname = ANY(:objects) "
@@ -223,7 +227,7 @@ async def require_table_connection_role(db: AsyncSession, *, maintenance: bool =
                 "WHERE n.nspname = 'public' AND c.relname = ANY(:objects) "
                 "AND (pg_catalog.pg_has_role(current_user, r.oid, 'MEMBER') OR "
                 "pg_catalog.pg_has_role(session_user, r.oid, 'MEMBER')) "
-                "AND pg_catalog.has_table_privilege(r.oid, c.oid, 'REFERENCES')) AS can_references, "
+                "AND pg_catalog.has_any_column_privilege(r.oid, c.oid, 'REFERENCES')) AS can_references, "
                 "EXISTS (SELECT 1 FROM pg_catalog.pg_class AS c "
                 "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace "
                 "WHERE n.nspname = 'public' AND c.relname = ANY(:objects) "
@@ -243,11 +247,11 @@ async def require_table_connection_role(db: AsyncSession, *, maintenance: bool =
         (row.unsafe_role, "it can assume a SUPERUSER, BYPASSRLS or CREATEROLE role"),
         (row.replication, "it can assume a REPLICATION role"),
         (row.database_owner, "it is a member of pg_database_owner"),
+        (row.server_files, "it can assume a server program or server file role"),
         (row.owns_tables, "it can assume the owner of a protected object"),
         (row.can_truncate, "it has TRUNCATE on a protected object"),
         (row.can_trigger, "it has TRIGGER on a protected object"),
         (row.can_references, "it has REFERENCES on a protected object"),
-        (row.schema_create, "it can assume a role with CREATE on schema public"),
         (row.missing_dml, "grant SELECT, INSERT, UPDATE and DELETE on every protected object"),
         (
             bool(row.maintenance) != maintenance or bool(row.login_maintenance) != maintenance,

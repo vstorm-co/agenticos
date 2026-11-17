@@ -325,13 +325,15 @@ async def test_policy_fingerprints_do_not_depend_on_role_search_path(rls_world):
         ("truncate", "TRUNCATE"),
         ("trigger", "TRIGGER"),
         ("references", "REFERENCES"),
+        ("column_references", "REFERENCES"),
         ("maintenance_trigger", "TRIGGER"),
         ("replication", "REPLICATION"),
         ("assumed_replication", "REPLICATION"),
         ("maintenance_replication", "REPLICATION"),
-        ("schema_create", "CREATE on schema public"),
-        ("maintenance_schema_create", "CREATE on schema public"),
         ("database_owner", "pg_database_owner"),
+        ("pg_execute_server_program", "server program or server file role"),
+        ("pg_read_server_files", "server program or server file role"),
+        ("maintenance_pg_write_server_files", "server program or server file role"),
         ("maintenance", "maintenance group"),
         ("owner", "owner"),
         ("missing_dml", "grant SELECT"),
@@ -346,6 +348,7 @@ async def test_effective_role_privileges_are_checked(rls_world, privilege, cause
         "truncate": [f'GRANT TRUNCATE ON virtual_tables TO "{runtime}"'],
         "trigger": [f'GRANT TRIGGER ON virtual_tables TO "{runtime}"'],
         "references": [f'GRANT REFERENCES ON virtual_table_records TO "{runtime}"'],
+        "column_references": [f'GRANT REFERENCES (id) ON virtual_table_records TO "{runtime}"'],
         "maintenance_trigger": [f'GRANT TRIGGER ON virtual_tables TO "{group}"'],
         "replication": [f'ALTER ROLE "{runtime}" REPLICATION'],
         "assumed_replication": [
@@ -354,9 +357,10 @@ async def test_effective_role_privileges_are_checked(rls_world, privilege, cause
             f'GRANT "{assumed}" TO "{runtime}"',
         ],
         "maintenance_replication": [f'ALTER ROLE "{maintenance}" REPLICATION'],
-        "schema_create": [f'GRANT CREATE ON SCHEMA public TO "{runtime}"'],
-        "maintenance_schema_create": [f'GRANT CREATE ON SCHEMA public TO "{group}"'],
         "database_owner": [f'ALTER DATABASE "{{database}}" OWNER TO "{runtime}"'],
+        "pg_execute_server_program": [f'GRANT pg_execute_server_program TO "{runtime}"'],
+        "pg_read_server_files": [f'GRANT pg_read_server_files TO "{runtime}"'],
+        "maintenance_pg_write_server_files": [f'GRANT pg_write_server_files TO "{group}"'],
         "maintenance": [f'GRANT "{group}" TO "{runtime}"'],
         "owner": [
             f'GRANT CREATE ON SCHEMA public TO "{runtime}"',
@@ -383,12 +387,55 @@ async def test_effective_role_privileges_are_checked(rls_world, privilege, cause
                 await db.execute(text(f'ALTER TABLE virtual_tables OWNER TO "{owner}"'))
             if privilege == "database_owner":
                 await db.execute(text(f'ALTER DATABASE "{database}" OWNER TO "{owner}"'))
-            if privilege.endswith("schema_create") or privilege == "owner":
+            if privilege == "owner":
+                await db.execute(text(f'REVOKE CREATE ON SCHEMA public FROM "{runtime}"'))
+            if privilege.endswith(("_server_program", "_server_files")):
                 grantee = group if privilege.startswith("maintenance_") else runtime
-                await db.execute(text(f'REVOKE CREATE ON SCHEMA public FROM "{grantee}"'))
+                server_role = privilege.removeprefix("maintenance_")
+                await db.execute(text(f'REVOKE {server_role} FROM "{grantee}"'))
             if privilege == "assumed_replication":
                 await db.execute(text(f'DROP ROLE "{assumed}"'))
             await db.commit()
+
+
+async def test_the_documented_role_setup_with_vector_schema_create_passes_preflight(rls_world):
+    """The cutover runbook grants CREATE on public so PgVectorStore can create collection tables."""
+    world = rls_world
+    async with world.migration() as db:
+        await db.execute(
+            text(
+                f'GRANT CREATE ON SCHEMA public TO "{world.runtime_role}", "{world.maintenance_role}"'
+            )
+        )
+        await db.commit()
+    try:
+        async with world.runtime() as db:
+            assert await table_rls.require_table_connection_role(db) == world.runtime_role
+        async with world.maintenance() as db:
+            await table_rls.require_table_connection_role(db, maintenance=True)
+    finally:
+        async with world.migration() as db:
+            await db.execute(
+                text(
+                    f'REVOKE CREATE ON SCHEMA public FROM "{world.runtime_role}", "{world.maintenance_role}"'
+                )
+            )
+            await db.commit()
+
+
+async def test_switching_tenant_refuses_unflushed_writes_instead_of_dropping_them(rls_world):
+    world = rls_world
+    first, second = world.tenants
+    async with world.runtime() as db:
+        await table_rls.bind_table_access(db, first.ctx)
+        cached = await db.get(VirtualTable, first.source.id)
+        assert cached is not None
+        await db.commit()
+        cached.name = "renamed before the switch"
+        with pytest.raises(TableTenantContextError, match="pending changes"):
+            await table_rls.bind_table_access(db, second.ctx)
+        assert cached in db
+        assert cached in db.dirty
 
 
 async def test_a_new_organization_never_reads_the_previous_tenants_cached_rows(rls_world):

@@ -65,6 +65,11 @@ async def bind_table_tenant(db: AsyncSession, ctx: AuthContext) -> None:
     if isinstance(bound, _BoundTenant) and bound.organization_id != ctx.organization_id:
         # Sessions keep loaded objects across commit (expire_on_commit=False), so an
         # identity-map hit would return the previous tenant's row without a query.
+        # Expunging would also drop unflushed writes silently, so refuse them instead.
+        if db.new or db.dirty or db.deleted:
+            raise TableTenantContextError(
+                "Flush or discard pending changes before switching table tenant"
+            )
         db.expunge_all()
     if transaction is None:
         transaction = await db.begin()
