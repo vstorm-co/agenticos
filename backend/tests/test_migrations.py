@@ -38,7 +38,7 @@ from uuid import uuid4
 import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, delete, insert, select, text, update
+from sqlalchemy import create_engine, delete, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as DatabaseSession
@@ -531,19 +531,28 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
             chat = Conversation(organization_id=org_id, user_id=owner.id, title="Private")
             db.add_all([agent, chat])
             db.flush()
-            # A Core insert names only these columns: the model is at head and the
-            # schema here is not.
+            # SQL names only historical columns; even a Core model insert adds
+            # Python defaults for fields introduced after this revision.
             run_id = uuid4()
             db.execute(
-                insert(AgentRun).values(
-                    id=run_id,
-                    organization_id=org_id,
-                    agent_id=agent.id,
-                    started_at=datetime.now(UTC),
-                    user_id=owner.id,
-                    conversation_id=chat.id,
-                    routine_policy={"approved_sources": []},
-                )
+                text(
+                    "INSERT INTO agent_runs "
+                    "(id, organization_id, agent_id, started_at, user_id, "
+                    "conversation_id, routine_policy, surface, status, input_tokens, "
+                    "output_tokens, cost_usd, cost_is_partial) VALUES "
+                    "(:id, :organization_id, :agent_id, :started_at, :user_id, "
+                    ":conversation_id, CAST(:routine_policy AS jsonb), "
+                    "'web', 'running', 0, 0, 0, false)"
+                ),
+                {
+                    "id": run_id,
+                    "organization_id": org_id,
+                    "agent_id": agent.id,
+                    "started_at": datetime.now(UTC),
+                    "user_id": owner.id,
+                    "conversation_id": chat.id,
+                    "routine_policy": json.dumps({"approved_sources": []}),
+                },
             )
             db.commit()
             owner_id = owner.id

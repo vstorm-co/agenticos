@@ -709,6 +709,10 @@ class TestTheNextStepWriter:
 
         with (
             patch.object(router, "_deliver", new=AsyncMock()),
+            patch(
+                "app.services.channels.router.conversation_repo.bind_channel_source",
+                new=AsyncMock(),
+            ),
             patch("app.core.background.spawn_after_commit") as spawn,
             patch("app.services.channels.next_steps.offer_after_answer", new=MagicMock()),
         ):

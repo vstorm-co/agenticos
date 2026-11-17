@@ -20,6 +20,8 @@ Revocation blocks subsequent starts, callbacks, token exchanges and refreshes, b
 
 When using your own credentials, an administrator first opens **Vault → Integrations**, configures the provider app and saves one organization-visible OAuth client. This setup shows the exact callback URL, provider console and permissions. “OAuth client saved” only confirms a stored client; the provider may still require consent or app approval. Missing or multiple clients block account consent with guidance to the administrator. Members then choose apps and sign in from chat or their profile, without configuring the provider console. Read access is the default; write permissions are opt-in.
 
+In **Connect an account**, choose a specific service such as Gmail, Google Calendar, Outlook mail or Excel. Google and Microsoft services each have their own entry and logo. The consent form preselects only that service; you can add other services before signing in. Choosing a service does not grant access until you approve the provider’s consent screen.
+
 Google: create a Cloud project, enable the listed APIs (the wizard supplies a `gcloud services enable` command), configure the consent screen and create a **Web application** OAuth client. Copy the callback exactly and store `google_oauth_app`. Choose Internal only for a Workspace organization that owns the project. External apps in Testing can issue refresh tokens that expire after seven days. A normal API integration does not need an AI-powered-agent client or the hosted MCP APIs.
 
 Microsoft: register an Entra app, choose the supported account types and tenant, add a Web redirect and the displayed delegated Graph permissions, and save `microsoft_oauth_app`. Work/school and personal Microsoft accounts work only where the chosen Graph product supports them; Teams requires work/school accounts. Administrator consent can still be required by the tenant's policy.
@@ -83,6 +85,36 @@ See [capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/
 Set a label such as Work when connecting; use the same label for each person’s corresponding account.
 
 Native triggers created through the API require `connection_id`. Filter edits recheck the account, permissions and conversation selection. Each distinct Slack/Teams conversation selection keeps its own cursor and only feeds its associated triggers; one selection can contain up to 20 conversations.
+
+## Connect without a browser
+
+IMAP and Odoo can be connected through the HTTP API. Copy the [IMAP payload](assets/setup/imap-account.example.json) or [Odoo payload](assets/setup/odoo-account.example.json) and [curl authentication template](assets/setup/agenticos-auth.example.conf) outside the repository. Replace every example value with the authorized test account and an [AgenticOS access token](api.md). Restrict both local files to the operator (`chmod 600 account.json auth.conf`); never commit filled credentials. The templates contain no working credentials.
+
+Allow the exact IMAP host in backend `MIRAGE_ALLOWED_HOSTS`, or the Odoo host in `ODOO_ALLOWED_HOSTS`, preserving existing entries. IMAP uses verified TLS; Odoo requires HTTPS and version 19+ JSON-2. Run the request against your AgenticOS deployment:
+
+```bash
+curl --fail-with-body --config auth.conf --json @account.json \
+  https://agenticos.example.com/api/v1/me/connected-accounts/imap
+```
+
+For Odoo, change the final path to `/odoo`; the template keeps write access off. For an organization account, use `/api/v1/connected-accounts/imap` or `/odoo` instead; the caller needs `mcp:manage`. Success returns the connection ID, not its credentials. Reconnect in place by adding `connection_id` to the payload. A refused hostname or invalid credential must be repaired before the account is usable. Templates and local tests do not establish a live connection.
+
+### Configure polled routines from the terminal
+
+For an already connected account, `integration-trigger-setup --list` lists the native polling presets from the platform catalog without network access. `--accounts` reads accessible account IDs, ownership and reconnect/polling status from your own instance; it does not contact Google, Microsoft or another provider. Use your personal AgenticOS access token, entered at the hidden prompt or read with `--access-token-file`. The account listing requires `agents:view`; creation checks access to the selected agent and account through the existing API.
+
+```bash
+uv run agenticos cmd integration-trigger-setup --list
+uv run agenticos cmd integration-trigger-setup --accounts --portal google \
+  --base-url https://agenticos.example.com --org ORGANIZATION_UUID
+uv run agenticos cmd integration-trigger-setup \
+  --portal google --preset inbox_only --agent AGENT_UUID \
+  --connection CONNECTION_UUID --prompt-file prompt.txt
+```
+
+The last command only prints a JSON request locally, including the prompt; it does not create or run a routine. Replace the UUID placeholders and provide a UTF-8 instructions file. Optional `--filter-file filters.json` supplies a JSON object of preset overrides. Offline preparation validates the request shape, not account availability or source-specific filter semantics. For example, Sheets requires its spreadsheet filter; Slack and Teams require conversation selection where applicable. The server validates those fields on creation.
+
+Add `--apply --base-url https://agenticos.example.com --org ORGANIZATION_UUID` to create the routine **paused**, with source review required before activation. Creation uses a single authenticated request with no automatic retry or agent run. If the outcome is uncertain, inspect existing routines before repeating it. Polling uses existing workers and durable cursors; this command creates no Pub/Sub topic, provider webhook or expiring push subscription, and does not change polling frequency. A missing OAuth connection still requires consent; the terminal command does not bypass it.
 
 ## Odoo
 
