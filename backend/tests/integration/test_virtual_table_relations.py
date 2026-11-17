@@ -957,3 +957,93 @@ async def test_purging_a_linked_task_board_removes_the_links_and_keeps_the_table
     assert (
         await relation_repo.definitions(db, organization_id=org.id, source_table_id=source.id) == []
     )
+
+
+async def _release(db, org, target):
+    from app.services.virtual_tables.relations import RelationOperations
+
+    await RelationOperations(db).release_links_to(organization_id=org.id, table_id=target.id)
+
+
+async def _stored_columns(db, service, ctx, table_id):
+    table = await service.describe_table(ctx, table_id)
+    stored = await virtual_table_repo.get_schema_version(
+        db, table_id=table_id, version=table.schema_version
+    )
+    return table.schema_version, [
+        (item["label"], item["type"], item["archived"]) for item in stored.columns
+    ]
+
+
+async def test_releasing_links_keeps_a_formula_that_still_checks_live(db):
+    service, ctx, org, _owner, source, target, _targets = await _setup(db)
+    source = await service.update_schema(
+        ctx,
+        source.id,
+        SchemaUpdate(
+            expected_version=source.schema_version,
+            columns=[*_columns(source), column("Shout", "formula", formula="UPPER({Name})")],
+        ),
+    )
+
+    await _release(db, org, target)
+
+    version, columns = await _stored_columns(db, service, ctx, source.id)
+    assert version == source.schema_version + 1
+    assert columns == [
+        ("Name", "text", False),
+        ("Assignee", "user", False),
+        ("Shout", "formula", False),
+    ]
+
+
+async def test_a_table_whose_link_was_already_released_is_left_unchanged(db):
+    """The released link's definition stays, archived, until the target is deleted."""
+    service, ctx, org, _owner, source, target, _targets = await _setup(db)
+    await _release(db, org, target)
+    released = await _stored_columns(db, service, ctx, source.id)
+    assert await relation_repo.referencing_tables(
+        db, organization_id=org.id, target_table_id=target.id
+    ) == [source.id]
+
+    await _release(db, org, target)
+
+    assert await _stored_columns(db, service, ctx, source.id) == released
+
+
+async def test_a_referencing_table_deleted_before_its_lock_is_skipped(db, monkeypatch):
+    """A source table deleted by another transaction after `referencing_tables` read it.
+
+    The composite foreign key keeps a definition's source table in the same
+    organization, so only a concurrent delete reaches this branch; the patch stands in
+    for that delete, and the other referencing table is still released.
+    """
+    service, ctx, org, _owner, source, target, _targets = await _setup(db)
+    other = await service.create_table(
+        ctx,
+        TableCreate(
+            name="Invoices",
+            visibility="org",
+            columns=[column("Name", "text"), column("Customers", "link", link_table_id=target.id)],
+        ),
+    )
+    before = await _stored_columns(db, service, ctx, source.id)
+    get_table = virtual_table_repo.get_table
+
+    async def deleted_concurrently(db, table_id, *, organization_id, for_update=False, **kwargs):
+        if for_update and table_id == source.id:
+            return None
+        return await get_table(
+            db, table_id, organization_id=organization_id, for_update=for_update, **kwargs
+        )
+
+    monkeypatch.setattr(virtual_table_repo, "get_table", deleted_concurrently)
+
+    await _release(db, org, target)
+
+    monkeypatch.setattr(virtual_table_repo, "get_table", get_table)
+    assert await _stored_columns(db, service, ctx, source.id) == before
+    assert await _stored_columns(db, service, ctx, other.id) == (
+        other.schema_version + 1,
+        [("Name", "text", False)],
+    )
