@@ -19,29 +19,36 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-### Fixed
+### Added
 
-- **The judge and the other system agents answer in their schema.** The eval judge, the Improve helper, the case generator and the knowledge gap drafter and classifier answer through a structured output instead of JSON written in prose. An answer that breaks the schema is sent back to the agent to fix, twice at most, so one misplaced brace no longer leaves a case not graded. The judge's schema names the criteria it must grade and the scale, so a verdict that leaves a criterion out or grades off the scale is sent back like one that breaks the schema - twice at most - instead of leaving the case not graded (#3086).
-- Purge task-board batch-write receipts with their table, including failure details that can hold personal data (#3000).
+- Distinguish workflow **Test step** runs from whole-draft tests. Run history shows the tested step's name and offers a **Step test** filter. Run responses expose `tested_step`; `GET /workflow-runs` accepts `step_test`.
 
-### Upgrading
-
-- Migration `0340_record_batch_receipt_table.py` adds table IDs to batch receipts. It erases older batch results whose table cannot be recovered, preserving their keys and original expiry to prevent duplicate writes. Retries return `IDEMPOTENCY_RESULT_PURGED` (409); check the table before submitting a fresh operation.
-- **Workflow retry timing.** A step's retry backoff, a retry after an interrupted attempt and a spender's wait for the run's budget are measured on the database's clock, the one a claim compares against. An application host whose clock runs ahead no longer makes a retry wait longer than its backoff, and one that runs behind no longer lets it run early. A Wait step's absolute time is kept as set.
-- **Step tests in a workflow's run history.** A run started with **Test step** is stored as a step test and listed as **Step test** with the step's name, apart from **Draft (test)**, a test of the whole draft. The **Version** filter can show step tests alone, and **Draft (test)** now leaves them out. The run read and `GET /workflow-runs` carry `tested_step`, and the list takes `step_test`. Runs from before the upgrade keep the **Draft (test)** label.
-
-### Upgrading
-
-- Migration `0341_workflow_run_tested_step` adds a nullable `tested_step_node_id` column to `workflow_runs`. It rewrites no rows.
-- **Notifications in the reader's language.** The bell words every platform notification in the console's language: finished and failed runs and routines, routines that need attention or are waiting on their budget, ingestion and syncs, pages and shares, MCP servers, capability requests, suggestions and briefings, eval suites and promotions, shared changes, security and configuration notices, paused background jobs, usage reports, workflow log alerts and grouped notices. Each row keeps the values its sentence is built from and names its `wording`. A row written before the upgrade keeps its English sentence, and so does text a person or an agent wrote, such as a finding's title or a workflow step's message.
 ### Changed
 
-- **Evals and Improve on the shared components.** Improve's figure tiles are the dashboard's figure cards, its before-and-after change is the shared delta chip, and its step panels are cards. A dataset case's JSON is edited in the code area. The pass-rate trend lists fewer than three runs, with their pass rates, instead of drawing a line through them. A dataset's grading and an open case show who changed them elsewhere and ask before replacing unsaved edits; with nothing edited they take the new version.
-- **The sign-in page sends somebody already signed in on into the app.** It
-  showed the form even when the session check had found an account, so a second
-  tab opened on `/login` (or `/`) asked for the password again. It now goes where
-  a sign-in would, honouring `returnTo`, and a tab left on the form moves on by
-  itself once another tab signs in.
+- Localize platform notification wording in the bell, dashboard and desktop. Existing notifications and text written by people or agents retain their original wording. New notifications expose separate `wording_params`, preserving the English summary for older consoles.
+
+- Use shared figure cards, delta chips, panels and JSON editors in Evals and Improve. Sparse pass-rate trends show the available runs and keep series names instead of drawing a misleading line.
+
+### Fixed
+
+- Request structured outputs from eval judges, Improve helpers, case generators and knowledge-gap drafting/classification agents, with at most two schema-correction retries. Require one grade per criterion and preserve supported legacy classifier values, partial generated cases and normalized judge inputs. Record a safe validation diagnosis in Activity when retries are exhausted; tool and protocol failures retain their distinct errors (#3086).
+
+- Purge batch-write receipts with their table, including failure details that can contain personal data. Preserve unresolvable legacy operation keys as tombstones until expiry so a retry cannot duplicate a write (#3000).
+
+- Measure workflow retry backoff, interrupted-attempt retries and budget waits against the current database clock, including long transactions. Application-host clock skew no longer delays or prematurely admits retries. Absolute Wait times remain unchanged.
+
+- Preserve dataset grading and case edits when another tab changes the same data. Remote adoption updates the baseline and read view; historical snapshots retain their selected version. If a case disappears or a refetch fails, show an error and Retry, preserve local edits and prevent saving until the remote state is reconciled.
+
+- Redirect authenticated visitors from sign-in to their validated local destination, including when another tab signs in. Requested fragment redirects replace the browser-history entry.
+
+### Upgrading
+
+- Apply `0340_record_batch_receipt_table.py` after `0339_organization_text_to_speech.py`, followed by `0341_workflow_run_tested_step.py`. The latter adds a nullable tested-step reference without rewriting existing runs; older runs retain their draft-test classification.
+
+- The receipt migration erases older batch results whose table cannot be recovered, retaining their operation keys and original expiry. A retry returns `IDEMPOTENCY_RESULT_PURGED` (409); inspect the table before submitting a fresh operation.
+
+## [1.81.0] - 2026-11-17
+
 ### Added
 
 - Configure organization text-to-speech defaults as a provider, model, voice and shared vault key. Agents explicitly opt in or retain their own override; waiting runs keep their chosen destination while key revocation and disabling the service still apply.
@@ -22027,7 +22034,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.80.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.81.0...HEAD
+[1.81.0]: https://github.com/vstorm-co/agenticos/compare/v1.80.0...v1.81.0
 [1.80.0]: https://github.com/vstorm-co/agenticos/compare/v1.79.0...v1.80.0
 [1.79.0]: https://github.com/vstorm-co/agenticos/compare/v1.78.1...v1.79.0
 [1.78.1]: https://github.com/vstorm-co/agenticos/compare/v1.78.0...v1.78.1
