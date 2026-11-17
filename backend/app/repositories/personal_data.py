@@ -80,6 +80,7 @@ from app.db.models.notification_route import NotificationRoute
 from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.outcome import Outcome
+from app.db.models.personal_model_key import PersonalModelKey
 from app.db.models.project_tracking import ProjectTracking
 from app.db.models.routine_delivery import RoutineDelivery
 from app.db.models.routine_device_wait import RoutineDeviceWait
@@ -1836,4 +1837,10 @@ async def private_task_schemas_of(
             .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
             .order_by(VirtualTableSchemaVersion.table_id, VirtualTableSchemaVersion.version)
         )
+    )
+
+
+async def personal_model_keys_of(db: AsyncSession, user_id: UUID) -> list[PersonalModelKey]:
+    return list(
+        await db.scalars(select(PersonalModelKey).where(PersonalModelKey.user_id == user_id))
     )

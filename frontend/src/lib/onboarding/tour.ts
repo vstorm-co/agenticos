@@ -491,6 +491,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-build",
     permission: Perm.agentsView,
   },
+  {
+    id: "agent-model-credentials",
+    page: AGENT_BUILDER,
+    target: "agent-model-credentials",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
+  },
   // The Voice card, right under the model: dictation and, below it, the
   // realtime model, key and voice the agent takes calls with (#54).
   {

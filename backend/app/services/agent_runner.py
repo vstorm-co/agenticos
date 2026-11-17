@@ -409,6 +409,11 @@ from app.services.model_profile import ModelProfileService, reaches_a_sign_in
 from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
+from app.services.personal_model_key import PersonalModelKeyService
+from app.services.personal_model_policy import (
+    require_organization_model,
+    require_personal_model_run,
+)
 from app.services.project import ProjectService
 from app.services.rag.overlay import with_overlay
 from app.services.routine_authority import MCP_SOURCES, RoutineAuthority
@@ -4143,12 +4148,26 @@ class AgentRunnerService:
                 api_key_id=None,
             )
         )
+        require_personal_model_run(
+            spec,
+            models_ctx,
+            surface,
+            override=model_profile_id,
+            local_model=local is not None and local.model_service is not None,
+            voice=voice is not None,
+            public_origin=public_origin,
+        )
         # A caller's override wins over the spec's choice. Only the model is
         # replaced - instructions, tools, budgets and the approval gate are the
         # agent's, so this cannot be used to run something the agent is not.
         local_model_choice: tuple[str, UUID] | None = None
         model_spec: ModelRequestSpec | None = None
-        if local is not None and local.model_service is not None:
+        if spec.model_credential_mode == "personal":
+            profile = await self.models.profile_for_organization(
+                models_ctx.organization_id, profile_id=spec.model_profile_id
+            )
+            model_spec = await PersonalModelKeyService(self.db).resolve(models_ctx, profile)
+        elif local is not None and local.model_service is not None:
             if voice is not None:
                 raise BadRequestError(message="Local models are available for text conversations")
             profile = await self.models.profile_for_organization(
@@ -5957,6 +5976,7 @@ class AgentRunnerService:
                 # other.
                 runnable = _without_delegation(pinned)
 
+        require_organization_model(runnable)
         model = await self.models.resolve(
             delegation.models_ctx, profile_id=runnable.model_profile_id
         )

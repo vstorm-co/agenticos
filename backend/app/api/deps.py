@@ -2494,3 +2494,13 @@ def get_onboarding_service(db: DBSession) -> OnboardingService:
 
 
 OnboardingSvc = Annotated[OnboardingService, Depends(get_onboarding_service)]
+
+
+from app.services.personal_model_key import PersonalModelKeyService
+
+
+def get_personal_model_key_service(db: DBSession) -> PersonalModelKeyService:
+    return PersonalModelKeyService(db)
+
+
+PersonalModelKeySvc = Annotated[PersonalModelKeyService, Depends(get_personal_model_key_service)]

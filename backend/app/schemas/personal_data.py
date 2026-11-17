@@ -7,6 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
+from app.schemas.personal_model_key import PersonalModelKeyRead
 from app.schemas.routine_actions import RoutineConsent
 from app.schemas.routine_sources import RoutineSourcePolicy
 from app.schemas.telephony import PhoneContactConfig
@@ -299,6 +300,9 @@ class PersonalDataExport(BaseModel):
     )
     notification_routes: list[dict[str, Any]] = Field(
         default_factory=list, description="Their explicit private notification destinations."
+    )
+    personal_model_keys: list[PersonalModelKeyRead] = Field(
+        default_factory=list, description="Personal LLM connection metadata; never API keys."
     )
     coding_accounts: list[dict[str, Any]] = Field(
         default_factory=list,

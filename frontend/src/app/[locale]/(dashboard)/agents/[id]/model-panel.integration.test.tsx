@@ -400,3 +400,18 @@ it("keeps sharing and export available to a reader through More actions", async 
   expect(screen.getByRole("menuitem", { name: /Export YAML/ })).toBeVisible();
   expect(screen.queryByRole("menuitem", { name: /Upload avatar/ })).toBeNull();
 });
+
+it("defaults to the organization key and explains the restrictions when personal access is selected", async () => {
+  await mount();
+  expect(await screen.findByRole("radio", { name: "Use the organization’s key" })).toBeChecked();
+  await userEvent.click(screen.getByRole("radio", { name: "Each user connects their own key" }));
+  expect(screen.getByRole("radio", { name: "Each user connects their own key" })).toBeChecked();
+  expect(screen.getByText(/Disable active channels, widgets, hosted pages/)).toBeInTheDocument();
+});
+it("does not let a viewer change the model credential mode", async () => {
+  state.canEdit = false;
+  await mount();
+  expect(
+    await screen.findByRole("radio", { name: "Each user connects their own key" }),
+  ).toBeDisabled();
+});

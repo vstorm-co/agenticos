@@ -6365,3 +6365,12 @@ async def test_model_validation_distinguishes_decision_profiles_and_fallbacks():
             AsyncMock(return_value={uuid.UUID(profile.fallback_profile_ids[0]): fallback}),
         ):
             assert "not conversation" in (await service.model_profile_problems(ctx, profile.id))[0]
+
+
+@pytest.fixture(autouse=True)
+def organization_key_model_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing listing fixtures publish organization-key agents unless overridden."""
+    monkeypatch.setattr(
+        "app.services.agent_registry.agent_repo.published_personal_model_keys",
+        AsyncMock(return_value=set()),
+    )

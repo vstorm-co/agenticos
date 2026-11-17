@@ -1742,6 +1742,25 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     <p className="text-muted-foreground text-xs">{t("noModelNeedsConnections")}</p>
                   )}
                 </div>
+                <fieldset className="space-y-2" data-tour="agent-model-credentials">
+                  <legend className="text-sm font-medium">{t("modelCredentialMode")}</legend>
+                  {(["organization", "personal"] as const).map((mode) => (
+                    <label key={mode} className="flex min-h-11 items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="model-credential-mode"
+                        value={mode}
+                        checked={(spec.model_credential_mode ?? "organization") === mode}
+                        disabled={!canEdit}
+                        onChange={() => update({ model_credential_mode: mode })}
+                      />
+                      {t(mode === "organization" ? "organizationModelKey" : "personalModelKey")}
+                    </label>
+                  ))}
+                  {spec.model_credential_mode === "personal" && (
+                    <p className="text-muted-foreground text-xs">{t("personalModelLimits")}</p>
+                  )}
+                </fieldset>
                 <MoreOptions label={t("modelSettings")}>
                   <ModelSettingsForm
                     value={spec.model_settings}
@@ -2104,13 +2123,23 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsContent>
 
           <TabsContent value="availability" className="mt-4 space-y-4">
+            {spec.model_credential_mode === "personal" && (
+              <p role="status" className="bg-muted text-muted-foreground rounded-xl p-4 text-sm">
+                {t("personalModelLimits")}
+              </p>
+            )}
             {/* Where people reach it first - a website, a page, the API - then the
                 chat apps, then what runs it on its own. Two cards here were both
                 called "where", and the one most people came for was last. */}
             <div data-tour="agent-availability">
-              <EmbedsPanel agentId={id} canManage={canPublish} />
+              <EmbedsPanel
+                agentId={id}
+                canManage={canPublish}
+                personalModel={spec.model_credential_mode === "personal"}
+              />
             </div>
             <ExposuresPanel
+              personalModel={spec.model_credential_mode === "personal"}
               agentId={id}
               canManage={canPublish}
               hasWorkspace={spec.capabilities.some(
@@ -2122,7 +2151,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               publishing it - the server resolves `agents:run` per row. */}
             <TriggersPanel
               agentId={id}
-              canCreate={agent.can_run}
+              canCreate={agent.can_run && spec.model_credential_mode !== "personal"}
               reachesPersonal={
                 spec.capabilities.some(
                   (binding) =>

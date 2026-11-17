@@ -10,6 +10,11 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  personalModelKeys: {
+    all: (scope: string) => ["personal-model-keys", scope] as const,
+    agent: (scope: string, agentId: string | null) =>
+      ["personal-model-keys", scope, agentId] as const,
+  },
   improvements: {
     all: () => ["improvements"] as const,
     awaiting: () => ["improvements", "awaiting"] as const,

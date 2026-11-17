@@ -1,5 +1,5 @@
 ---
-source_sha: "3ce26481a019"
+source_sha: "341868c248fc"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -24,6 +24,16 @@ model profile → credential → unsealed secret → provider client → Model
 ```
 
 Nada sobre qué modelo usa un agent vive en `.env`.
+
+## Claves personales de modelos { #personal-model-keys }
+
+En **Model access** del Builder, conserva **Use the organization’s key** (predeterminado) o selecciona **Each user connects their own key**. El modo personal mantiene fijos el modelo y el destino del administrador. Admite proveedores de chat con clave API, sin modelos alternativos ni cambios de modelo por conversación.
+
+Un miembro con sesión iniciada conecta su clave en el formulario privado sobre el campo de mensajes o en los ajustes del chat. Las claves nunca entran en mensajes, prompts ni instrucciones del agente. La conexión se reutiliza entre agentes de esta organización con el mismo proveedor y destino. Sin clave, la ejecución se bloquea antes de solicitar el modelo; los fallos de autenticación nunca cambian a la clave de la organización. Sustituye la clave en los ajustes del chat o elimina la conexión en **Vault → Your model connection**. Guardar la clave no la comprueba con el proveedor.
+
+El modo personal no admite canales privados ni grupales, widgets, páginas públicas, ejecuciones por HTTP API, horarios, triggers, temas en segundo plano, voz, revisores, delegación ni modelos separados para capacidades. Pausa o elimina canales, superficies públicas y rutinas activos antes de publicar. Se rechaza crear o reactivar una superficie incompatible; la misma regla se aplica al ejecutar. Las páginas públicas y los JWT de widgets no identifican a un miembro con sesión iniciada en la instancia.
+
+Las claves se cifran para su propietario en el almacén y se eliminan al borrar su membresía o cuenta. Cambiar el destino aprobado requiere una nueva conexión. Rotar la clave de un miembro no cambia las claves de otros ni el perfil de modelo compartido.
 
 ## Un perfil de modelo { #a-model-profile }
 

@@ -5605,3 +5605,9 @@ async def test_explicit_setup_review_stays_pending_even_when_initial_sources_are
         )
     assert created.is_active is False
     assert created.approved_sources == {"pending_review": True, "unavailable_sources": []}
+
+
+@pytest.fixture(autouse=True)
+def organization_model_surface(monkeypatch: pytest.MonkeyPatch) -> None:
+    """This suite's fake registry represents an organization-key agent."""
+    monkeypatch.setattr("app.services.agent_trigger.require_organization_agent", AsyncMock())

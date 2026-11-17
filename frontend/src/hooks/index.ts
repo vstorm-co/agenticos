@@ -213,3 +213,5 @@ export { useWikiGraph } from "./use-wiki-graph";
 export { useDurableTasks } from "./use-durable-tasks";
 
 export { useCodingAccounts } from "./use-coding-accounts";
+
+export { usePersonalModelKeys } from "./use-personal-model-keys";

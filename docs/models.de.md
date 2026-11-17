@@ -1,5 +1,5 @@
 ---
-source_sha: "3ce26481a019"
+source_sha: "341868c248fc"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -25,6 +25,16 @@ model profile → credential → unsealed secret → provider client → Model
 ```
 
 Nichts davon, welches Modell ein Agent verwendet, steht in `.env`.
+
+## Persönliche Modellschlüssel { #personal-model-keys }
+
+Behalte im Builder unter **Modellzugriff** die Voreinstellung **Organisationsschlüssel verwenden** oder wähle **Jeder Nutzer verbindet seinen eigenen Schlüssel**. Im persönlichen Modus bleiben Modell und Endpunkt des Administrators fest. Unterstützt werden Chat-Anbieter mit API-Schlüssel, ohne Ersatzmodelle oder Modellwechsel pro Gespräch.
+
+Ein angemeldetes Mitglied verbindet seinen Schlüssel über das private Formular über dem Nachrichteneingabefeld oder in den Chat-Einstellungen. Schlüssel gelangen nie in Nachrichten, Prompts oder Agentenanweisungen. Dieselbe Verbindung gilt für Agenten dieser Organisation mit gleichem Anbieter und Endpunkt. Ohne Schlüssel wird der Lauf vor der Modellanfrage blockiert; Authentifizierungsfehler wechseln nie zum Organisationsschlüssel. Ersetze den Schlüssel in den Chat-Einstellungen oder entferne die Verbindung unter **Vault → Deine Modellverbindung**. Das Speichern prüft den Schlüssel nicht beim Anbieter.
+
+Der persönliche Modus unterstützt derzeit keine privaten oder Gruppenkanäle, Widgets, öffentlichen Seiten, HTTP-API-Läufe, Zeitpläne, Trigger, Hintergrundthemen, Sprache, Reviewer, Delegation oder separate Modelle für Fähigkeiten. Pausiere oder entferne aktive Kanäle, öffentliche Freigaben und Routinen vor der Veröffentlichung. Das Erstellen oder erneute Aktivieren einer unvereinbaren Freigabe wird abgelehnt; dieselbe Regel gilt zur Laufzeit. Öffentliche Seiten und Widget-JWTs identifizieren kein angemeldetes Mitglied der Instanz.
+
+Schlüssel werden im Tresor für ihren Eigentümer verschlüsselt und beim Entfernen der Mitgliedschaft oder des Kontos gelöscht. Ein geänderter Endpunkt benötigt eine neue Verbindung. Die Rotation eines persönlichen Schlüssels ändert weder andere Schlüssel noch das gemeinsame Modellprofil.
 
 ## Ein Model Profile { #a-model-profile }
 

@@ -326,6 +326,7 @@ class AgentRead(BaseSchema):
             "before its first run. Filled by the listing."
         ),
     )
+    personal_model_key: bool = False
     published_model: PublishedModel | None = Field(
         default=None,
         description=(

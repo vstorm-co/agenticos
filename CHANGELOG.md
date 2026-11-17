@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Let shared agents require each signed-in web-chat user's own API key while keeping the model and endpoint fixed. Store keys privately in the vault, reuse them for the same provider and endpoint, and manage them without organization connection permissions. Refuse unsupported public surfaces, channels, automated runs and model overrides at configuration and run time; never fall back to an organization key (#2921).
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed
