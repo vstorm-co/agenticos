@@ -2452,6 +2452,8 @@ def test_memory_snapshot_upgrade_preserves_legacy_runs_and_downgrades_cleanly() 
             )
             assert rows[old_run] is None
             assert rows[new_run].startswith("boot:")
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
         check = _alembic("check")
         assert check.returncode == 0, check.stderr
         result = _alembic("downgrade", "0335_defer_run_conversation_fk")
