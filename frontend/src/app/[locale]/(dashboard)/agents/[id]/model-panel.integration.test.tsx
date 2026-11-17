@@ -43,7 +43,7 @@ const state = {
   canEdit: true,
   agentError: null as Error | null,
   permissions: [] as Permission[],
-  profiles: [MODEL_PROFILE] as (typeof MODEL_PROFILE)[],
+  profiles: [MODEL_PROFILE] as (typeof MODEL_PROFILE & { missing_key?: boolean })[],
   // Both queries settle successfully by default; a case that wants the failed
   // or still-pending read says so, because that is where an empty list stops
   // meaning "the organization has none".
@@ -418,4 +418,14 @@ it("does not let a viewer change the model credential mode", async () => {
   expect(
     await screen.findByRole("radio", { name: "Each user connects their own key" }),
   ).toBeDisabled();
+});
+
+it("does not ask a personal-key agent builder to connect an organization model key", async () => {
+  state.permissions = [Perm.agentsEdit];
+  state.profiles = [{ ...MODEL_PROFILE, missing_key: true }];
+  await mount();
+  expect(await screen.findByText(/no model yet/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("radio", { name: /Each user connects their own key/ }));
+  expect(screen.queryByText(/no model yet/)).toBeNull();
+  expect(screen.getByRole("radio", { name: /openai default/ })).toBeEnabled();
 });

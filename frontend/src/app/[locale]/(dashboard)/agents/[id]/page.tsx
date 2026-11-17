@@ -61,7 +61,7 @@ import { ContextHelp } from "@/components/ui/context-help";
 import { InstructionsEditor } from "@/components/agents/instructions-editor";
 import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
 import { StartersPanel } from "@/components/agents/starters-panel";
-import { usableForAgents } from "@/lib/model-profiles";
+import { runsAgents, usableForAgents } from "@/lib/model-profiles";
 import { glideOrJump } from "@/lib/motion";
 import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
@@ -529,7 +529,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // either alone tells a caller who has models, or who may add one, they are stuck.
   const modelDeadEnd =
     profilesStatus === "loaded" &&
-    !profiles.some(usableForAgents) &&
+    !profiles.some(spec?.model_credential_mode === "personal" ? runsAgents : usableForAgents) &&
     permissionsLoaded &&
     !can(Perm.connectionsManage);
 
