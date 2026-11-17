@@ -10,8 +10,8 @@ import type { ChangeResource, MadeChange } from "@/types/change-events";
 interface RemoteDraftOptions<T> {
   resource: ChangeResource;
   id: string;
-  /** What is being edited here, or null before it was adopted. */
-  local: T | null;
+  /** The editor representation (including raw JSON), or null before adoption. */
+  local: unknown;
   /** The stored version the server last answered with. */
   stored: T | null | undefined;
   /** When `stored` was last answered for - see `useAgent`'s `fetchedAt`. */

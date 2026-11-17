@@ -6,7 +6,9 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { sameJson } from "@/lib/canonical-json";
+import { RemoteChangeBanner } from "@/components/live-updates/remote-change-banner";
 import { Button } from "@/components/ui";
+import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { useSetScoring } from "@/hooks/use-scoring";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { getErrorMessage } from "@/lib/api-error";
@@ -33,12 +35,15 @@ export interface GradingCopy {
 /** Dataset grading: deterministic rules and model-backed criteria, saved together. */
 export function GradingPanel({
   dataset,
+  fetchedAt = 0,
   onDirtyChange,
   localCopy,
   restore,
   onContinue,
 }: {
   dataset: Dataset;
+  /** When `dataset` was last answered for, so a change saved elsewhere is noticed. */
+  fetchedAt?: number;
   onContinue?: () => void;
   /** Told whether any card holds a change not yet saved, so the page can say so. */
   onDirtyChange?: (dirty: boolean) => void;
@@ -73,6 +78,16 @@ export function GradingPanel({
       })),
     [],
   );
+  // Somebody else saving this dataset's grading: adopted when nothing is edited
+  // here, and asked about when something is, rather than overwritten unseen.
+  const remote = useRemoteDraft<GradingCopy>({
+    resource: "dataset",
+    id: dataset.id,
+    local: { draft, defaults },
+    stored: { draft: stored, defaults: stored.checks.defaults.map(checkDraft) },
+    fetchedAt,
+    adopt: setCopy,
+  });
   const [defaultsProblem, setDefaultsProblem] = useState<string | null>(null);
   const [restored, setRestored] = useState<number | null>(null);
   if (restore !== undefined && restore.at !== restored) {
@@ -80,7 +95,7 @@ export function GradingPanel({
     setCopy(restore.value);
   }
   const canEdit = dataset.can_edit;
-  const disabled = !canEdit || save.isPending;
+  const disabled = !canEdit || save.isPending || remote.held;
   const modelBacked = disabled;
   const set = <K extends Part>(key: K, value: DatasetScoring[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
@@ -105,7 +120,7 @@ export function GradingPanel({
   useEffect(() => onDirtyChange?.(unsaved), [onDirtyChange, unsaved]);
   useUnsavedChanges(`grading:${dataset.id}`, {
     dirty: unsaved,
-    save: problem === null ? submit : undefined,
+    save: problem === null && !remote.held ? submit : undefined,
     discard,
     copy: localCopy && { ...localCopy, value: { draft, defaults } satisfies GradingCopy },
   });
@@ -148,6 +163,13 @@ export function GradingPanel({
 
   return (
     <div className="flex flex-1 flex-col gap-4" data-tour="datasets-grading">
+      {remote.conflict && (
+        <RemoteChangeBanner
+          change={remote.conflict}
+          onReload={remote.reload}
+          onKeepMine={remote.keepMine}
+        />
+      )}
       {canEdit && problem === null && ungraded > 0 && (
         <p
           role="status"
@@ -248,7 +270,7 @@ export function GradingPanel({
       {canEdit && unsaved && (
         <GradingSaveBar
           problem={problem === null ? null : t(problem)}
-          saving={save.isPending}
+          saving={save.isPending || remote.held}
           onSave={() => void submit()}
           onDiscard={discard}
         />

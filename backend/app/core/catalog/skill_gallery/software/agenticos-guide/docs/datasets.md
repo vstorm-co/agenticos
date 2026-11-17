@@ -474,6 +474,10 @@ error, rather than whichever grade came last. The judge's run in Activity says
 which fields could not be read, never the answer, which can repeat a case of a
 dataset its reader may not see.
 
+The judge answers in that shape through a structured output, not in prose. An
+answer that breaks the shape goes back to the judge to fix, twice at most; only
+then is the case not graded.
+
 Each score keeps its model, published helper identity, rubric hash, task version and instruction hash. Changing the dataset model or instructions is allowed; grades from different configurations are not treated as directly comparable.
 
 ### Review { #review }

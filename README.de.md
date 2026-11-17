@@ -1,4 +1,4 @@
-<!-- source_sha: 445dada428b6 -->
+<!-- source_sha: 77ea62e54a8b -->
 
 <div align="center">
 
@@ -423,7 +423,7 @@ Nutze bestehende Unternehmenskonten über **OIDC Single Sign-on** (Entra ID, Okt
 
 ## 🧭 Finde deinen Weg
 
-Du baust darauf auf? Weiter zu [Für Entwickler und Betreiber](#-für-entwickler-und-betreiber).
+Du baust darauf auf? Weiter zu [Für Entwickler und Betreiber](#für-entwickler-und-betreiber).
 
 <details>
 <summary><b>Du entscheidest über die Einführung</b>: welches Problem es löst, was es braucht, wie man anfängt</summary>
@@ -542,7 +542,7 @@ Berechtigungen der Quellsysteme werden nicht automatisch gespiegelt; ein Agent k
 
 Es gibt zwei übliche Varianten. **Selbst gehostet, mit gehosteten Modellen:** AgenticOS, Dokumente, Vektoren und Logs laufen auf deinen Servern, die Modelle kommen von einem Anbieter unter deinem eigenen Vertrag und mit deinen Schlüsseln. **Vollständig lokal:** dieselbe Schicht mit offenen Modellen über Ollama oder vLLM auf deiner Hardware, dazu lokale Parser und Werkzeuge. Eine selbst gehostete Konsole macht nicht jedes Modell, jeden Parser und jedes Werkzeug lokal, also prüfe jedes Ziel, das du konfigurierst. [Modelle konfigurieren](https://vstorm-co.github.io/agenticos/de/models/) · [Sicherheit und Datenflüsse](https://vstorm-co.github.io/agenticos/de/security/)
 
-## 🛠️ Für Entwickler und Betreiber
+## Für Entwickler und Betreiber
 
 AgenticOS ist gebaut mit FastAPI, Pydantic AI, PostgreSQL mit pgvector, Redis und Next.js. Entwickler ergänzen Capabilities, Sync-Konnektoren und Einträge im MCP-Katalog in typisiertem Python; Teams stellen in der Konsole Agenten aus den registrierten Capabilities zusammen.
 

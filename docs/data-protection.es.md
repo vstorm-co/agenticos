@@ -1,5 +1,5 @@
 ---
-source_sha: "21a474aff367"
+source_sha: "33238295f67f"
 ---
 
 # Protección de datos { #data-protection }
@@ -103,7 +103,7 @@ El límite total se comprueba en el savepoint de la modificación, bajo un bloqu
 | `chat_files` | Adjuntos de un mensaje | Nombre de archivo, tipo, tamaño, el texto extraído (`parsed_content`) y la ruta de los bytes en disco | Responder sobre un archivo |
 | `generated_media` | Una fila por cada imagen, clip de voz o vídeo que generó un agent | La organización, la conversación en la que se hizo si el run tenía una, el nombre del archivo, su ruta de almacenamiento y su tamaño - **no su contenido**, que es un archivo bajo `MEDIA_DIR` | Contar los medios generados de cada organización contra su cuota, y borrarlos con su conversación o tras su periodo de retención |
 | `context_files` | Conocimiento permanente que un builder escribió para los agents | Lo que el autor pusiera ahí — y llega al prompt literalmente. Consulta [Archivos de contexto](context.md) | Instrucciones y hechos que un agent debe saber siempre |
-| `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | Las filas de una [Virtual Table](virtual-tables.md) y el rastro de cada cambio en ellas | Lo que la organización puso en sus celdas, que puede ser dato personal. Los valores actuales (records); el registro completo en un create y un delete, y solo las celdas que cambiaron en un update (history); el registro completo tal como lo devolvió una escritura con clave (receipts); los ids y el external id de cada registro creado (outbox, sin valores). Borrar un registro elimina solo la fila actual: history y receipts conservan los valores hasta que el barrido diario de retención los elimina: los receipts a las 24 horas, las filas de outbox despachadas a los 3 días y el history a los 365 días, todo como ajustes del deployment. Borrar una cuenta elimina sus receipts y la borra como actor en history; quitar un grupo, un proyecto o una cuenta purga la tabla de su tablero de tareas con cada receipt que guarda sus registros; borrar la organización elimina las cuatro | Registros tipados para agents y workflows, reintentos seguros de una escritura y el traspaso de un registro creado |
+| `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | Las filas de una [Virtual Table](virtual-tables.md) y el rastro de cada cambio en ellas | Lo que la organización puso en sus celdas, que puede ser dato personal. Los valores actuales (records); el registro completo en un create y un delete, y solo las celdas que cambiaron en un update (history); el registro completo tal como lo devolvió una escritura con clave, o el resultado de un lote con detalles de rechazos (receipts); los ids y el external id de cada registro creado (outbox, sin valores). Borrar un registro elimina solo la fila actual: history y receipts conservan los valores hasta que el barrido diario de retención los elimina: los receipts a las 24 horas, las filas de outbox despachadas a los 3 días y el history a los 365 días, todo como ajustes del deployment. Borrar una cuenta elimina sus receipts y la borra como actor en history; quitar un grupo, un proyecto o una cuenta purga la tabla de su tablero de tareas con sus receipts de registros y lotes. La actualización borra los resultados de lotes antiguos sin una tabla asociada recuperable y conserva las claves hasta caducar para impedir escrituras repetidas (consulta [Reintentos seguros](virtual-tables.md#safe-retries)); borrar la organización elimina las cuatro | Registros tipados para agents y workflows, reintentos seguros de una escritura y el traspaso de un registro creado |
 | `virtual_table_triggers`, `virtual_table_trigger_revisions`, `table_trigger_admissions` | Los [triggers](virtual-tables.md#triggers) de una tabla, cada configuración que han tenido y lo que cada uno decidió sobre un registro creado | El miembro con el que se ejecuta un trigger; los valores de sus filtros y las claves de su mapeo, que pueden contener datos personales si un builder los escribió (un filtro por una dirección de correo). Una decisión guarda un estado, un motivo general y el run que inició, nunca los valores del registro. Ninguna clase de retención los barre: se van con su tabla y su trigger, y borrar una cuenta la quita como miembro, tras lo cual el trigger no inicia nada | Ejecutar un workflow cuando se añade un registro |
 | `artifacts`, `artifact_versions` y sus archivos | Páginas que los agents publicaron — informes, dashboards | Lo que muestre la página, que el run construyó con lo que podía leer — o, para una página vinculada a datos de tabla, sus page queries (tabla, filtros, orden, límite y columnas, cada una resuelta a ids), con los propios registros leídos en el momento de verla con el acceso del propietario de la página y nunca guardados en ella; por versión, quién la publicó y el consentimiento del propietario para compartir sus datos (una huella de las queries, la membresía del propietario y cuándo) y el consentimiento de datos públicos de la página (quién lo confirmó, la membresía del propietario, cuándo); la fila de la organización guarda el interruptor `public_live_data`; el propietario, el run que escribió cada versión y, cuando hay uno activo, la clave del enlace público, sus ajustes (una contraseña como hash bcrypt) y cuántas veces se abrió — un número y una hora, nada sobre el visitante. Consulta [Aplicaciones](artifacts.md) | Compartir un resultado bajo un enlace estable |
 | `datasets`, `dataset_cases` | Casos de prueba para evals | Preguntas y respuestas copiadas de conversaciones cuando alguien eligió "Añadir al dataset", el comentario de una respuesta valorada negativamente como nota del caso, y lo que contenía un archivo importado. Las credenciales se ocultan antes de guardar un caso. Cada caso registra además de quién son las palabras que contiene - quién preguntó, quién escribió cada turno anterior, de quién es el comentario que es su nota -, algo que nunca se muestra ni se exporta y que sobrevive a la conversación. Borrar a la persona que preguntó anonimiza el caso en todas las versiones que lo contienen; borrar a cualquier otra persona cuyo turno o comentario conservó sustituye ese turno y la respuesta del agent a él, y vacía esa nota. Consulta [Datasets](datasets.md#personal-data) | Comprobar si un agent mejoró |
@@ -434,8 +434,8 @@ pedirá la revisión, distinta de la capacidad técnica que la hace posible.
 
 Comprobaciones reproducibles, desde el host, contra el deployment en marcha. Cada
 una imprime hechos que la revisión puede adjuntar; ninguna imprime una credencial
-ni los datos de una persona. Ejecútalas desde `backend/`, o a través de
-`docker compose exec api`.
+ni los datos de una persona. Desde un checkout del código fuente, ejecuta los
+siguientes comandos en `backend/` con la configuración del despliegue:
 
 ```bash
 # 1. ¿Arranca siquiera, y van cifradas las conexiones a los almacenes?
@@ -460,6 +460,18 @@ uv run agenticos cmd audit-verify
 #    de retención, y los archivos bajo `MEDIA_DIR` a los que ya no apunta ninguna
 #    fila.
 uv run agenticos cmd data-protection-report --older-than 365
+```
+
+En un despliegue con Compose, usa directamente la CLI instalada; la imagen de
+ejecución no incluye `uv`. Ejecuta los comandos desde el directorio del despliegue
+con los mismos archivos Compose, archivo de entorno y opciones de proyecto que
+la pila en ejecución:
+
+```bash
+docker compose exec app agenticos cmd doctor
+docker compose exec app agenticos cmd vault-rotate --dry-run
+docker compose exec app agenticos cmd audit-verify
+docker compose exec app agenticos cmd data-protection-report --older-than 365
 ```
 
 El punto 4 es el que hay que adjuntar. Imprime configuración y recuentos, nunca

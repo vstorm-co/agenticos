@@ -1488,8 +1488,7 @@ class TestFiring:
         # the owner gets a repair direction without raw preparation errors.
         service.db.rollback.assert_awaited()
         detail = notices.return_value.routine_blocked.await_args.kwargs["detail"]
-        assert "published version" in detail and "routine settings" in detail
-        assert "not runnable" not in detail
+        assert detail == "agent_misconfigured"
 
     async def test_a_fired_run_runs_as_the_creator_and_is_stamped_schedule(self):
         activation_id = uuid.uuid4()

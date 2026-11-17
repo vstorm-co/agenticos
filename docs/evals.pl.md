@@ -1,5 +1,5 @@
 ---
-source_sha: "e0f27fa2e9f9"
+source_sha: "e0b40c6f22e9"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -26,6 +26,9 @@ run po runie, od najstarszego po lewej, z linią na każdy dataset, każdą z in
 kreską. Punkt jest czerwony, gdy run zepsuł przypadki, zielony, gdy je naprawił,
 bursztynowy, gdy zrobił jedno i drugie, a pusty dla wersji roboczej; najechanie na punkt
 mówi, co uruchomiono, z czym porównano i kiedy, a kliknięcie otwiera run.
+
+Mniej niż trzy zmierzone runy to jeszcze nie trend: w miejscu wykresu jest ich
+lista, każdy z odsetkiem zaliczeń i odnośnikiem, oraz informacja, ile runów jest na razie.
 
 Oś pokazuje godziny, gdy historia mieści się w jednym dniu, także minionym. Przy historii obejmującej kilka dni pokazuje daty starszych runów i godziny dzisiejszych, bez powtarzania identycznych etykiet. Podpowiedź zachowuje pełną datę i godzinę startu. Powyżej 10 runów przełącznik nad wykresem
 pokazuje ostatnie 10, ostatnie 30 albo wszystkie runy; otwiera się na ostatnich

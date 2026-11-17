@@ -1,5 +1,5 @@
 ---
-source_sha: "e0f27fa2e9f9"
+source_sha: "e0b40c6f22e9"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -26,6 +26,9 @@ aprobados run a run, el más antiguo a la izquierda, una línea por dataset, cad
 una con su propio trazo. Un punto es rojo donde el run rompió casos, verde donde
 los arregló, ámbar donde hizo ambas cosas y hueco para un borrador; al pasar el
 cursor dice qué se ejecutó, frente a qué y cuándo, y un clic abre el run.
+
+Menos de tres runs medidos aún no son una tendencia: en lugar del gráfico aparece su
+lista, cada uno con su tasa de aprobación y un enlace, y cuántos runs hay hasta ahora.
 
 El eje muestra horas cuando el historial cabe en un día, incluso uno pasado. Si abarca varios días, muestra fechas para runs anteriores y horas para los de hoy, sin repetir etiquetas idénticas. La ayuda emergente conserva la fecha y hora completas de inicio. Con más de 10 runs, un selector
 encima del gráfico muestra los últimos 10, los últimos 30 o todos; se abre con

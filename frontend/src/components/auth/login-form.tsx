@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ArrowRight } from "lucide-react";
 
 import { DirectoryLoginForm } from "@/components/auth/directory-login-form";
 import { OAuthBlock } from "@/components/auth/oauth-buttons";
+import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { returnToForAttempt } from "@/lib/oauth-return";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
@@ -22,7 +23,8 @@ export function LoginForm() {
   const t = useTranslations("auth");
   const tErrors = useTranslations("errors");
   const search = useSearchParams();
-  const { login } = useAuth();
+  const router = useRouter();
+  const { login, isAuthenticated, isLoading: checkingSession } = useAuth();
   // Where "create an account" goes. An invitee with no account is bounced here by
   // `AuthGuard` with the invitation in `returnTo`, and a plain link to /register
   // would drop it - leaving an `invite_only` deployment refusing somebody who is
@@ -36,6 +38,15 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
   const [directory, setDirectory] = useState(false);
+
+  // Somebody already signed in - in this tab, or in another one the session
+  // check hears about - goes on to where a sign-in would take them, not to a
+  // form asking for the password again.
+  useEffect(() => {
+    if (checkingSession || !isAuthenticated) return;
+    const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+    goToDestination(postSignInDestination(returnTo), (href) => router.replace(href), true);
+  }, [checkingSession, isAuthenticated, router]);
 
   const emailValid = !email || EMAIL_RE.test(email);
 

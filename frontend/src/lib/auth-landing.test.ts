@@ -64,3 +64,18 @@ describe("getting to where a fresh session lands", () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 });
+
+it("replaces browser history for a signed-in fragment redirect", () => {
+  const replace = vi.fn();
+  const assign = vi.fn();
+  vi.spyOn(window, "location", "get").mockReturnValue({
+    ...window.location,
+    assign,
+    replace,
+  } as Location);
+  const navigate = vi.fn();
+  goToDestination("/agents/a-1#tools", navigate, true);
+  expect(replace).toHaveBeenCalledWith("/agents/a-1#tools");
+  expect(assign).not.toHaveBeenCalled();
+  expect(navigate).not.toHaveBeenCalled();
+});

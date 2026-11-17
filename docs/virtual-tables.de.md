@@ -1,5 +1,5 @@
 ---
-source_sha: "774a82d93b5e"
+source_sha: "4d8a6c479c11"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -475,6 +475,14 @@ längere Pause als neue Anfrage. Die Lebensdauer wird beim Verwenden des Schlüs
 durchgesetzt und gilt daher auf die Stunde genau; der tägliche Sweep gibt nur den Platz
 von Receipts frei, die niemand wiederholt hat.
 
+Beim Entfernen einer Gruppe, eines Projekts oder eines Kontos werden die der
+Task-Board-Tabelle zugeordneten Receipts gelöscht, einschließlich der Batch-Ergebnisse.
+Beim Upgrade werden ältere Batch-Ergebnisse ohne Tabellen-id gelöscht, da sich ihre
+Tabellenzuordnung nicht rekonstruieren lässt. Ihre Schlüssel bleiben bis zum Ablauf
+erhalten: Dieselbe Anfrage liefert `IDEMPOTENCY_RESULT_PURGED` (409) und schreibt nichts.
+Prüfen Sie die Tabelle, bevor Sie einen neuen Schreibzugriff starten. Andere Receipt-Arten
+bleiben unverändert.
+
 ## Auflisten und Filtern { #listing-and-filtering }
 
 `GET /tables/{id}/records` blättert durch eine Tabelle; `POST /tables/{id}/records/query`
@@ -817,6 +825,7 @@ Jede Ablehnung antwortet mit `{"error": {"code", "message", "details"}}`, und de
 | `INVALID_QUERY` | 422 | Ein Filter oder eine Sortierung, die die Tabelle nicht beantworten kann |
 | `INVALID_SCHEMA` | 422 | Eine widersprüchliche Schemaänderung |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Der Schlüssel wurde für eine andere Anfrage verwendet |
+| `IDEMPOTENCY_RESULT_PURGED` | 409 | Ein älteres Batch-Ergebnis wurde beim Upgrade gelöscht; sein Schlüssel verhindert bis zum Ablauf einen erneuten Schreibzugriff |
 | `QUOTA_EXCEEDED` | 402 | Der Schreibzugriff würde ein Speicherlimit überschreiten; `details` nennt das Limit (`tables`, `records`, `record_bytes`, `storage_bytes`) und seine Obergrenze |
 | `RATE_LIMIT_EXCEEDED` | 429 | Zu viele Tabellenschreibzugriffe in der letzten Minute; siehe `Retry-After` |
 | `VALIDATION_ERROR` | 422 | Die Anfrage selbst ist fehlerhaft: ein falscher Typ, ein unbekanntes Feld, eine Grenze oder NUL, ein Zeilenumbruch oder ein einzelnes Surrogat in einer id, einem Schlüssel oder Namen. Die Route lehnt sie ab, bevor der Service läuft |
