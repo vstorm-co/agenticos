@@ -1,5 +1,5 @@
 ---
-source_sha: "673afa1052f7"
+source_sha: "c951b42a4668"
 ---
 
 # Desplegar en Kubernetes { #deploy-on-kubernetes }
@@ -26,8 +26,8 @@ un proveedor de nube.
 | Despliegue | Evidencia y comprobaciones pendientes |
 | --- | --- |
 | Kubernetes con Helm | Prueba smoke reproducible en kind descrita abajo; el ingress público y la aplicación de NetworkPolicy requieren pruebas en tu clúster |
-| OpenShift con Helm | Perfil candidato `values-openshift.yaml`; falta validar SCC, SELinux, Routes y almacenamiento en un clúster real |
-| Argo CD en ambas plataformas | Correspondencia de hooks de migración descrita abajo; la prueba de Helm no valida una sincronización de Argo CD |
+| OpenShift con Helm | OpenShift local 5.0.0 superó restricted-v2, ciclo Helm, HTTPS Routes, WSS y aplicación de NetworkPolicy; valida por separado tu clúster y almacenamiento |
+| Argo CD en OpenShift local | Argo CD Core 3.6.1 superó instalación mediante full sync, rechazo de migración, cambio de configuración y reversión Git compatible sobre el mismo esquema |
 | Sandbox y OIDC | Integraciones opcionales con configuración y pruebas de aceptación independientes descritas abajo |
 
 ## Compatibilidad y límites { #compatibility-and-limits }
@@ -39,11 +39,13 @@ upload S3, ingesta y ejecución duradera en segundo plano. El modelo es un fixtu
 determinista del protocolo; no verifica disponibilidad ni calidad de un proveedor
 de pago.
 
-**OpenShift sigue sin validar.** `values-openshift.yaml` elimina UID fijos y
-`fsGroup` para que `restricted-v2` asigne los rangos del namespace. Pruébalo en tu
-versión real de OpenShift. Un UID arbitrario en Kubernetes no valida admisión SCC,
-SELinux, Routes ni controladores de almacenamiento. No concedas `anyuid`, SCC
-privilegiadas ni acceso al socket del nodo para conseguir que arranque.
+**OpenShift Local se ha probado** con CRC 2.65.0, OpenShift 5.0.0
+(Kubernetes 1.36.5), Helm 4.3.1 e imágenes de aplicación 1.80.0. API, worker y
+consola se admitieron bajo `restricted-v2`, con UID asignados por el namespace
+y sistemas raíz de solo lectura. No se concedieron `anyuid`, SCC privilegiados
+ni sockets del nodo. `values-openshift.yaml` deja UID y `fsGroup` a SCC. Esta
+evidencia no cubre otras versiones de OpenShift, integración Azure ni
+controladores de almacenamiento.
 
 El chart base no incluye daemon de sandbox, servicio de navegador ni renderer de
 artefactos, y no monta el socket de Docker. La ejecución en contenedores, el uso
@@ -249,6 +251,24 @@ Prueba rechazo tras migración fallida, actualización correcta y reversión com
 con tu versión de Argo CD antes de habilitar sincronización automática. No uses
 Helm y Argo CD como propietarios competidores del mismo release.
 
+Para OpenShift, carga el perfil como **archivo de valores** Helm de Argo CD:
+
+```yaml
+helm:
+  releaseName: agenticos
+  valueFiles:
+    - values-openshift.yaml
+```
+
+Es la configuración `spec.source.helm` para la ruta fuente `charts/agenticos`;
+añade los ajustes del clúster sin secretos y referencias a Secrets existentes
+como se indicó antes. No dependas de valores nulos inline en `valuesObject` para
+eliminar UID predeterminados o `fsGroup`. En la prueba local no llegaron a Helm
+como se esperaba; cargar el archivo del perfil resolvió el rechazo SCC de
+UID/grupo 1000 sin ampliar permisos.
+
+Argo CD Core 3.6.1 local superó el primer full sync, rechazo tras fallo PreSync sin cambiar especificaciones Deployment, cambio de configuración de consola y reversión de revisión Git compatible sobre el mismo esquema de base de datos. Su controller solo podía escribir en el namespace de validación y usó [`resource.respectRBAC: strict`](https://argo-cd.readthedocs.io/en/stable/operator-manual/declarative-setup/). No obtuvo uso de `anyuid` ni SCC privilegiados. Esto no valida el operador Red Hat OpenShift GitOps ni un downgrade de base de datos.
+
 ## Configuración de OIDC y sandbox { #oidc-and-sandbox-configuration }
 
 Configura los ajustes OIDC no secretos del backend en `extraEnv` de nivel superior,
@@ -274,14 +294,32 @@ acceso a organización, cierre de sesión y restricciones de registro. Consulta
 [OIDC genérico](configuration.md#single-sign-on-generic-oidc) para claims y ajustes
 por proveedor. Una prueba de inicio con contraseña no valida SSO.
 
-Para herramientas sandbox, conecta un servidor OpenSandbox administrado por separado
-en **Settings → Sandboxes → Connections**, con su clave API en el vault de la
-organización. El chart base no instala ese servidor. AgenticOS validó su ciclo de
-vida en Docker; Kubernetes Secure Access y aislamiento OpenShift requieren pruebas
-en vivo. Sigue la [configuración de sandbox](sandbox.md) y prueba creación,
-ejecución de shell, escritura y lectura entre turnos, reset explícito y limpieza.
-Prueba navegador y renderizado por separado. Nunca montes el socket Docker de un
-nodo en pods de la aplicación.
+Para las herramientas sandbox, opera un servidor OpenSandbox independiente y
+registra URL, imagen y clave del vault en **Settings → Sandboxes → Connections**.
+El chart base no lo instala. La validación local de OpenShift usó servidor,
+controller, execd y gateway 1.2.1, Kubernetes BatchSandbox y Secure Access. Una
+herramienta real escribió un archivo y el siguiente turno volvió a conectarse
+y lo leyó; la prueba de conexión ejecutó un comando de shell POSIX. Esto prueba
+la autenticación de endpoints y el workload restringido, no gVisor, aislamiento
+VM, política egress, navegador ni renderizado.
+
+El chart del servidor del proveedor 1.2.1 declara el puerto de contenedor 80.
+En esta prueba restringida, `configToml` usó `server.port = 8080` y
+`scripts/kubernetes/opensandbox_ports.py` cambió el puerto HTTP nombrado del
+contenedor a 8080, conservando las referencias de Service y probes. Este
+post-renderer ejecutable requiere Helm 3 (probado 3.22.1); Helm 4 requiere un
+plugin de post-renderer. La plantilla del workload montó `emptyDir` privados en
+`/workspace` y `/tmp`, dejando UID/grupos a SCC. Secure Access usó el gateway
+privado y un Secret separado para el keyring. Son ajustes del proveedor, no
+valores del chart AgenticOS.
+
+**La limpieza requiere la corrección del borrado de conversaciones de este cambio.**
+La versión publicada 1.80.0 eliminaba referencias al workspace antes de encolar
+su destrucción remota. El handler candidato se probó sobre esa imagen: borrar
+la conversación eliminó sandbox y pod. La etiqueta de imagen por sí sola no
+confirma la corrección. La exploración/descarga OpenSandbox mediante la API de
+archivo del workspace de la consola no está implementada; las herramientas de
+archivos del agente usan otra ruta. Consulta [configuración sandbox](sandbox.md).
 
 ## Salud, almacenamiento y capacidad { #health-storage-and-capacity }
 
@@ -374,7 +412,8 @@ Después prepara e inicia el preset OpenShift en el host:
 ```bash
 crc config set preset openshift
 crc setup
-crc start
+crc start --cpus 6 --memory 13312 --disk-size 45 \
+  --pull-secret-file /path/to/pull-secret
 ```
 
 `crc setup` configura red y virtualización del host y puede necesitar permisos de
@@ -404,6 +443,48 @@ El éxito local en OpenShift es evidencia para esa versión y configuración. Id
 y red Azure, controladores de almacenamiento y configuración Argo CD del usuario
 requieren validación en su entorno. Marca los puntos incompletos como no probados,
 no como aprobados.
+
+### Validación local medida de OpenShift { #measured-local-openshift-validation }
+
+La prueba base superó bootstrap, inicio de sesión, ejecución determinista del
+agente, upload S3, ingesta del worker mediante pgvector y tarea duradera en
+segundo plano. Un fallo de migración detuvo Helm sin cambiar las especificaciones
+de Deployment; upgrade y rollback compatible sobre el mismo esquema pasaron.
+HTTPS Routes con verificación de certificados superaron login BFF, cookies
+Secure/HttpOnly, renderizado de páginas en servidor y upgrade/ping WSS autenticado.
+Un namespace ajeno no pudo acceder directamente a ninguno de los servicios
+protegidos. Esto no mide cadenas completas de reenvío del cliente ni tamaños
+máximos de upload.
+
+Keycloak 26.8.2 superó discovery, PKCE, validación de token firmado, intercambio de
+código de consola de un solo uso, acceso a organización y revocación de refresh
+tras logout mediante Routes TLS. Se rechazaron email sin verificar, dominio no
+permitido y registro sin invitación. Es evidencia de OIDC genérico, no de Microsoft
+Entra ni Azure. Las pruebas de renderizado en servidor no reproducen la ruta
+`router-cache` reportada ni sustituyen la navegación interactiva por todas las pantallas.
+
+La ejecución base necesitó **6 CPU, 13 GiB de RAM de VM y disco virtual de 45 GB**.
+Con el mínimo CRC de 10.5 GB, los pods de migración de estos fixtures no pudieron
+programarse. Las integraciones avanzadas se ejecutaron por etapas: el SDK sandbox
+solicita 2 GiB por workspace. Planifica capacidad adicional y margen para rolling
+updates; 13 GiB es evidencia de este fixture base, no una recomendación de producción.
+
+Tras iniciar CRC, usa Python con PyYAML, `oc`, `helm` y kubeconfig separado:
+
+```bash
+export KUBECONFIG="$HOME/.crc/machines/crc/kubeconfig"
+scripts/kubernetes/run-openshift-smoke.sh
+python3 scripts/kubernetes/local_integrations.py --kubeconfig "$KUBECONFIG" routes
+python3 scripts/kubernetes/local_integrations.py --kubeconfig "$KUBECONFIG" oidc
+```
+
+El runner base rechaza namespaces de validación existentes; el helper exige sus
+etiquetas de propiedad y rechaza APIs distintas de CRC. Conserva namespaces
+desechables y archivos temporales privados para inspección. `sandbox_probe.py`
+requiere un stack de proveedor preparado por separado con la configuración
+anterior; el runner base no lo instala. Tras inspeccionar, elimina solo namespaces
+y recursos de proveedor que hayas creado, borra el directorio temporal de
+certificados indicado y detén CRC. Mantén privado tu pull secret.
 
 ## Reproducir la prueba { #reproduce-the-test }
 

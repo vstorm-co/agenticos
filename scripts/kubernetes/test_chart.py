@@ -3,10 +3,16 @@
 import json
 import os
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
+from local_integrations import Cluster
+from model_fixture import sandbox_message
+from opensandbox_ports import render as render_ports
+from openshift_fixtures import fixtures
 
 ROOT = Path(__file__).resolve().parents[2]
 HELM = os.environ.get("HELM", "helm")
@@ -49,6 +55,96 @@ def render(*arguments: str) -> list[dict[str, object]]:
 
 
 class ChartTest(unittest.TestCase):
+    def test_local_integrations_refuse_other_clusters_before_any_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            kubeconfig = Path(temporary) / "kubeconfig"
+            kubeconfig.touch()
+            with patch.object(Cluster, "run", return_value="https://production.example.com") as run:
+                with self.assertRaisesRegex(ValueError, "refuse a cluster other than CRC"):
+                    Cluster(kubeconfig)
+                run.assert_called_once_with("oc", "whoami", "--show-server")
+
+    def test_local_integrations_refuse_namespaces_without_validation_ownership(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            kubeconfig = Path(temporary) / "kubeconfig"
+            kubeconfig.touch()
+            with (
+                patch.object(
+                    Cluster, "run", side_effect=["https://api.crc.testing:6443", '{"metadata": {}}']
+                ),
+                self.assertRaisesRegex(ValueError, "Refusing namespace not owned"),
+            ):
+                Cluster(kubeconfig)
+
+    def test_vendor_server_uses_an_unprivileged_named_http_port(self) -> None:
+        source = yaml.safe_dump(
+            {
+                "apiVersion": "apps/v1",
+                "kind": "Deployment",
+                "metadata": {"name": "opensandbox-server"},
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": [
+                                {
+                                    "name": "server",
+                                    "ports": [{"name": "http", "containerPort": 80}],
+                                    "readinessProbe": {
+                                        "httpGet": {"port": "http", "path": "/health"}
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                },
+            }
+        )
+        document = obj(yaml.safe_load(render_ports(source)))
+        container = array(at(document, "spec", "template", "spec", "containers"))[0]
+        self.assertEqual(at(array(at(container, "ports"))[0], "containerPort"), 8080)
+        self.assertEqual(at(container, "readinessProbe", "httpGet", "port"), "http")
+        with self.assertRaisesRegex(ValueError, "upstream HTTP port changed"):
+            render_ports(source.replace("containerPort: 80", "containerPort: 8080"))
+
+    def test_openshift_data_fixtures_leave_identity_to_scc(self) -> None:
+        for resource in array(fixtures()["items"]):
+            if at(resource, "kind") != "Deployment":
+                continue
+            pod = at(resource, "spec", "template", "spec")
+            security = obj(at(pod, "securityContext"))
+            self.assertNotIn("fsGroup", security)
+            self.assertNotIn("runAsUser", security)
+            for container in array(at(pod, "containers")):
+                self.assertNotIn("runAsUser", obj(at(container, "securityContext")))
+                self.assertFalse(at(container, "securityContext", "allowPrivilegeEscalation"))
+                self.assertTrue(at(container, "securityContext", "readOnlyRootFilesystem"))
+            for volume in array(at(pod, "volumes")):
+                self.assertNotIn("hostPath", obj(volume))
+
+    def test_sandbox_model_fixture_calls_the_exposed_tool_name(self) -> None:
+        message, finish = sandbox_message(
+            {
+                "messages": [{"role": "user", "content": "OPENSHIFT-SANDBOX-WRITE"}],
+                "tools": [{"function": {"name": "sandbox__write_file"}}],
+            }
+        )
+        self.assertEqual(finish, "tool_calls")
+        call = obj(array(message["tool_calls"])[0])
+        self.assertEqual(at(call, "function", "name"), "sandbox__write_file")
+
+    def test_sandbox_model_fixture_preserves_tool_errors(self) -> None:
+        message, finish = sandbox_message(
+            {"messages": [{"role": "tool", "content": "Error: permission denied"}]}
+        )
+        self.assertEqual(finish, "stop")
+        self.assertEqual(message["content"], "Error: permission denied")
+
+    def test_sandbox_model_fixture_refuses_missing_tools(self) -> None:
+        with self.assertRaisesRegex(ValueError, "not exposed"):
+            sandbox_message(
+                {"messages": [{"role": "user", "content": "OPENSHIFT-SANDBOX-READ"}], "tools": []}
+            )
+
     def test_frontend_receives_oidc_display_settings_without_backend_secrets(
         self,
     ) -> None:
