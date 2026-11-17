@@ -109,3 +109,83 @@ async def test_dns_resolution_shares_the_five_second_probe_deadline(
     assert status == "not_checked"
     assert "none answering on 9222" in detail
     assert deadlines == [5.0]
+
+
+@pytest.mark.parametrize("ipv4_responds", [True, False])
+async def test_ipv4_browser_is_probed_after_an_unreachable_ipv6_address(
+    monkeypatch: pytest.MonkeyPatch, ipv4_responds: bool
+) -> None:
+    monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["localhost"])
+    monkeypatch.setattr(
+        asyncio.get_running_loop(),
+        "getaddrinfo",
+        AsyncMock(
+            return_value=[
+                (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::1", 9222, 0, 0)),
+                (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::1", 9222, 0, 0)),
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 9222)),
+            ]
+        ),
+    )
+    addresses: list[str] = []
+
+    def chromium(request: httpx.Request) -> httpx.Response:
+        addresses.append(request.url.host)
+        if request.url.host == "::1" or not ipv4_responds:
+            raise httpx.ConnectError("no listener", request=request)
+        return httpx.Response(200, json={"Browser": "Chrome/156"})
+
+    client_type = httpx.AsyncClient
+
+    def client(*, timeout: float) -> httpx.AsyncClient:
+        return client_type(timeout=timeout, transport=httpx.MockTransport(chromium))
+
+    monkeypatch.setattr(httpx, "AsyncClient", client)
+    status, detail = await doctor._browser_endpoints()
+    assert addresses == ["::1", "127.0.0.1"]
+    if ipv4_responds:
+        assert (status, detail) == ("healthy", "localhost (Chrome/156)")
+    else:
+        assert status == "not_checked"
+        assert "localhost allowed, none answering on 9222" in detail
+
+
+async def test_address_fallbacks_share_one_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["localhost"])
+    monkeypatch.setattr(
+        asyncio.get_running_loop(),
+        "getaddrinfo",
+        AsyncMock(
+            return_value=[
+                (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::1", 9222, 0, 0)),
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 9222)),
+            ]
+        ),
+    )
+    original_timeout = asyncio.timeout
+    deadlines: list[float] = []
+    addresses: list[str] = []
+
+    def timeout(delay: float) -> asyncio.Timeout:
+        deadlines.append(delay)
+        return original_timeout(0.01)
+
+    async def chromium(request: httpx.Request) -> httpx.Response:
+        addresses.append(request.url.host)
+        if request.url.host == "::1":
+            raise httpx.ConnectError("no listener", request=request)
+        await asyncio.sleep(60)
+        return httpx.Response(200, json={"Browser": "Chrome/156"})
+
+    client_type = httpx.AsyncClient
+
+    def client(*, timeout: float) -> httpx.AsyncClient:
+        return client_type(timeout=timeout, transport=httpx.MockTransport(chromium))
+
+    monkeypatch.setattr(doctor.asyncio, "timeout", timeout)
+    monkeypatch.setattr(httpx, "AsyncClient", client)
+    status, detail = await doctor._browser_endpoints()
+    assert status == "not_checked"
+    assert "none answering on 9222" in detail
+    assert addresses == ["::1", "127.0.0.1"]
+    assert deadlines == [5.0]
