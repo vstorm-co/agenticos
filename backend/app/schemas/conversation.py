@@ -638,6 +638,24 @@ class ConversationForkOrigin(BaseSchema):
     title: str | None = None
 
 
+class ConversationForkRead(BaseSchema):
+    """A child conversation the source owner may open beside its anchor."""
+
+    id: UUID
+    title: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+    is_archived: bool
+    forked_from: ConversationForkOrigin
+
+
+class ConversationForkList(BaseSchema):
+    """A bounded page of personal forks from one conversation."""
+
+    items: list[ConversationForkRead]
+    total: int
+
+
 class ConversationRead(ConversationBase, TimestampSchema):
     """Schema for reading a conversation (API response)."""
 

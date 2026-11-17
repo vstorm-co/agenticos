@@ -1,5 +1,5 @@
 ---
-source_sha: "494af57c16d6"
+source_sha: "4e14aeb9974b"
 ---
 
 # Konsola { #the-console }
@@ -939,6 +939,12 @@ Zachowane rozgałęzienia mają osobny limit 100 MiB na członka w organizacji i
 Tekst i media zapisane poza bazą w kopiowanym podsumowaniu są odtwarzane w rozgałęzieniu, więc usunięcie oryginału nie usuwa tego kontekstu. Odtworzona treść wlicza się do limitu 20 MiB. Odtwarzanie obejmuje najwyżej 100 odwołań i trwa do dziesięciu sekund. Niedostępna treść lub przekroczenie limitu przerywa operację bez tworzenia częściowej kopii.
 
 Rozmowę z zapisaną checklistą można rozgałęzić tylko przy jej najnowszej wiadomości, jeśli jest odpowiedzią agenta. Kopia zachowuje checklistę, w tym identyfikatory zadań i zależności. Wcześniejsze wersje checklisty nie są przechowywane, dlatego wcześniejsze rozgałęzienie jest odrzucane, aby nie kopiować późniejszych zadań do starszej historii.
+
+### Wątki poboczne { #chat-side-threads }
+
+Przy zakończonej odpowiedzi asystenta w należącej do Ciebie prywatnej rozmowie opcja **Wątki poboczne** pozwala rozpocząć osobną rozmowę od tego miejsca lub ponownie otworzyć odgałęzienie tej samej odpowiedzi. Nowa rozmowa otwiera się obok głównej, z własnym polem wpisywania i kolejnymi wiadomościami. Historia, szkic i kolejka rozmowy głównej pozostają na miejscu; wiadomości wysłane w odgałęzieniu należą do niego.
+
+**Powrót do rozmowy nadrzędnej** zamyka panel i otwiera dokładną odpowiedź źródłową, wczytując starszą historię w razie potrzeby. Zamknięcie panelu nie usuwa rozmowy. Zmiana rozmowy źródłowej, konta lub organizacji usuwa stary panel. Zarchiwizowane odgałęzienia są tylko do odczytu. Lista pozwala wczytać więcej odgałęzień tej odpowiedzi, a błąd odczytu lub tworzenia umożliwia ponowienie bez przełączania głównej rozmowy.
 
 ### Znajdowanie wiadomości { #chat-message-search }
 

@@ -292,6 +292,21 @@
       "unavailable": "Ta wiadomość nie jest już dostępna w tej rozmowie.",
       "cancel": "Anuluj przejście"
     },
+    "sideThreads": {
+      "loadMore": "Wczytaj więcej",
+      "untitledFork": "Wątek poboczny bez tytułu",
+      "title": "Wątki poboczne",
+      "start": "Rozpocznij wątek poboczny",
+      "open": "Otwórz wątek poboczny",
+      "backToParent": "Wróć do rozmowy nadrzędnej",
+      "loading": "Wczytywanie wątku pobocznego…",
+      "empty": "Ta wiadomość nie ma jeszcze wątków pobocznych.",
+      "error": "Nie udało się wczytać wątków pobocznych.",
+      "retry": "Spróbuj ponownie",
+      "archived": "Zarchiwizowany",
+      "close": "Zamknij wątek poboczny",
+      "createFailed": "Nie udało się rozpocząć wątku pobocznego."
+    },
     "trace": {
       "toggle": "Wyszukaj i filtruj aktywność",
       "title": "Przeszukaj aktywność tej tury",
@@ -6993,6 +7008,10 @@
       "chat-send-mode": {
         "title": "Kolejka lub kierowanie",
         "body": "Podczas pracy agenta dodaj następną wiadomość do kolejki albo przekaż wskazówki zwykłym tekstem. Pliki i pozostały kontekst pozostają w zwykłej kolejce."
+      },
+      "chat-side-threads": {
+        "title": "Rozwiń wątek poboczny",
+        "body": "Rozpocznij osobną rozmowę od tej odpowiedzi lub otwórz istniejące odgałęzienie obok rozmowy głównej. Powrót prowadzi do dokładnej wiadomości źródłowej."
       },
       "chat-message-search": {
         "title": "Znajdź wiadomość w rozmowach",

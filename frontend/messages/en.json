@@ -1276,6 +1276,21 @@
       "unavailable": "This message is no longer available in this conversation.",
       "cancel": "Cancel jump"
     },
+    "sideThreads": {
+      "loadMore": "Load more",
+      "untitledFork": "Untitled side thread",
+      "title": "Side threads",
+      "start": "Start a side thread",
+      "open": "Open side thread",
+      "backToParent": "Back to parent conversation",
+      "loading": "Loading side thread…",
+      "empty": "No side threads for this message yet.",
+      "error": "Couldn’t load side threads.",
+      "retry": "Try again",
+      "archived": "Archived",
+      "close": "Close side thread",
+      "createFailed": "Couldn’t start a side thread."
+    },
     "trace": {
       "toggle": "Search and filter activity",
       "title": "Search this turn's activity",
@@ -5377,6 +5392,10 @@
       "chat-send-mode": {
         "title": "Queue or steer",
         "body": "While an agent is working, queue your next message or steer the current turn with plain text. Files and other context keep the ordinary queued path."
+      },
+      "chat-side-threads": {
+        "title": "Explore a side thread",
+        "body": "Start a separate conversation from this answer, or reopen an existing branch beside the parent. Back to parent returns to the exact source message."
       },
       "chat-message-search": {
         "title": "Find a message across conversations",

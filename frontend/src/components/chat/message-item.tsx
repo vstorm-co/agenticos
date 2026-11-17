@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  ConversationSideThreads,
+  type ConversationSideThreadActions,
+} from "./conversation-side-threads";
+
 import type { Delegation } from "@/types";
 
 import { memo, useId, useState } from "react";
@@ -114,6 +119,7 @@ interface MessageItemProps {
    */
   turnUsage?: TurnUsage;
   onRegenerate?: () => void;
+  sideThreadActions?: ConversationSideThreadActions;
   /** Fork the conversation at a message, given its id; absent where the reader may not (#2762). */
   onFork?: (messageId: string) => void;
   onOpenThread?: (messageId: string) => void;
@@ -142,6 +148,7 @@ export const MessageItem = memo(function MessageItem({
   turnUsage,
   openLastStep = false,
   onRegenerate,
+  sideThreadActions,
   onFork,
   onOpenThread,
   canStartThread = false,
@@ -160,6 +167,7 @@ export const MessageItem = memo(function MessageItem({
   const [actionsOpen, setActionsOpen] = useState(false);
   const actionsId = useId();
   const isUser = message.role === "user";
+  const savedMessageId = message.persistedId ?? (message.isTemporaryId ? null : message.id);
   // A mention sits in the text it was typed into; only one the text does not
   // carry - a turn sent before that was so - is shown as a chip beside it.
   const unplaced = (message.mentions ?? []).filter(
@@ -634,6 +642,18 @@ export const MessageItem = memo(function MessageItem({
                 )}
               </button>
             )}
+            {message.role === "assistant" &&
+              savedMessageId !== null &&
+              !message.isStreaming &&
+              sideThreadActions && (
+                <ConversationSideThreads
+                  sourceConversationId={sideThreadActions.sourceConversationId}
+                  messageId={savedMessageId}
+                  creatingMessageId={sideThreadActions.creatingMessageId}
+                  onCreate={sideThreadActions.onCreate}
+                  onOpen={(fork) => sideThreadActions.onOpen(savedMessageId, fork)}
+                />
+              )}
             {/* A rating is stored against the saved message; a turn that failed
                 before the server saved it has only a client id, which the
                 rating endpoint answers with "Message not found". */}

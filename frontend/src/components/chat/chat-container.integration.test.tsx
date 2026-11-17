@@ -23,6 +23,7 @@ import { useConversations } from "@/hooks/use-conversations";
 import type { ConversationWorkspace } from "@/lib/conversation-workspace-api";
 import type { Project } from "@/types/projects";
 import type { ConversationCost, ConversationMessage } from "@/types";
+import type { ConversationForkRead } from "@/lib/conversation-forks-api";
 import { qk } from "@/lib/query-keys";
 import { initialCall } from "@/lib/voice/call-reducer";
 import { useChatControlsStore, currentChatControlScope } from "@/stores/chat-controls-store";
@@ -2441,16 +2442,22 @@ it("keeps the draft focused when tapping dock buttons while leaving keyboard foc
 });
 
 describe("the chat container - forking a conversation (#2762)", () => {
-  function listOwnedBy(owner: string, forkedFrom: unknown = null) {
+  function listOwnedBy(
+    owner: string,
+    forkedFrom: unknown = null,
+    sideForks: ConversationForkRead[] = [],
+  ) {
     const base = get.getMockImplementation()!;
-    get.mockImplementation((url: string) =>
-      url.startsWith("/conversations?")
+    get.mockImplementation((url: string) => {
+      if (url === "/conversations/c-mine/forks")
+        return Promise.resolve({ items: sideForks, total: sideForks.length });
+      return url.startsWith("/conversations?")
         ? Promise.resolve({
             items: [{ id: "c-mine", title: "Pricing", user_id: owner, forked_from: forkedFrom }],
             total: 1,
           })
-        : base(url),
-    );
+        : base(url);
+    });
     useConversationStore.getState().setCurrentConversationId("c-mine");
     loadTranscript([
       {
@@ -2524,6 +2531,122 @@ describe("the chat container - forking a conversation (#2762)", () => {
 
     await screen.findByText("Start at 10.", undefined, SETTLE);
     expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
+  });
+
+  it("creates a side thread in its own scope without switching the main transcript or URL", async () => {
+    listOwnedBy(SIGNED_IN.id);
+    const child: ConversationForkRead = {
+      id: "c-side",
+      title: "Alternative path",
+      created_at: "2026-11-17T12:00:00Z",
+      updated_at: null,
+      is_archived: false,
+      forked_from: {
+        conversation_id: "c-mine",
+        message_id: "m-answer",
+        title: "Pricing",
+      },
+    };
+    vi.mocked(apiClient.post).mockImplementation((path: string) =>
+      path === "/conversations/c-mine/fork" ? Promise.resolve(child) : Promise.resolve(undefined),
+    );
+    mount();
+    const mainMessages = structuredClone(useConversationStore.getState().currentMessages);
+    const address = window.location.href;
+
+    await userEvent.click(await screen.findByRole("button", { name: "Side threads" }, SETTLE));
+    await userEvent.click(await screen.findByRole("button", { name: "Start a side thread" }));
+
+    await screen.findByRole("dialog", { name: "Alternative path" }, SETTLE);
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-mine/fork", {
+        message_id: "m-answer",
+      }),
+    );
+    expect(useConversationStore.getState().currentConversationId).toBe("c-mine");
+    expect(useConversationStore.getState().currentMessages).toEqual(mainMessages);
+    expect(window.location.href).toBe(address);
+
+    await userEvent.click(screen.getByRole("button", { name: "Close side thread" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Alternative path" })).toBeNull(),
+    );
+    expect(useConversationStore.getState().currentConversationId).toBe("c-mine");
+    expect(useConversationStore.getState().currentMessages).toEqual(mainMessages);
+    expect(window.location.href).toBe(address);
+  });
+
+  it("opens an existing child from only its exact answer without selecting it in the main chat", async () => {
+    const child: ConversationForkRead = {
+      id: "c-side",
+      title: "Alternative path",
+      created_at: "2026-11-17T12:00:00Z",
+      updated_at: null,
+      is_archived: true,
+      forked_from: {
+        conversation_id: "c-mine",
+        message_id: "m-answer",
+        title: "Pricing",
+      },
+    };
+    listOwnedBy(SIGNED_IN.id, null, [child]);
+    mount();
+    const mainMessages = structuredClone(useConversationStore.getState().currentMessages);
+    const address = window.location.href;
+
+    await userEvent.click(await screen.findByRole("button", { name: "Side threads" }, SETTLE));
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith("/conversations/c-mine/forks", {
+        params: { message_id: "m-answer", skip: "0", limit: "100" },
+      }),
+    );
+    await userEvent.click(await screen.findByRole("button", { name: /Alternative path/ }));
+
+    await screen.findByRole("dialog", { name: "Alternative path" }, SETTLE);
+    expect(useConversationStore.getState().currentConversationId).toBe("c-mine");
+    expect(useConversationStore.getState().currentMessages).toEqual(mainMessages);
+    expect(window.location.href).toBe(address);
+  });
+
+  it("jumps back to the exact parent answer without restoring focus to the side-thread opener", async () => {
+    const child: ConversationForkRead = {
+      id: "c-side",
+      title: "Alternative path",
+      created_at: "2026-11-17T12:00:00Z",
+      updated_at: null,
+      is_archived: false,
+      forked_from: {
+        conversation_id: "c-mine",
+        message_id: "m-answer",
+        title: "Pricing",
+      },
+    };
+    listOwnedBy(SIGNED_IN.id, null, [child]);
+    const onOpenParent = vi.fn(() => document.getElementById("parent-message-anchor")?.focus());
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <button type="button">Main chat</button>
+        <div id="parent-message-anchor" tabIndex={-1} />
+        <ChatContainer onOpenParent={onOpenParent} />
+      </QueryClientProvider>,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "Side threads" }, SETTLE));
+    await userEvent.click(await screen.findByRole("button", { name: /Alternative path/ }));
+    await screen.findByRole("dialog", { name: "Alternative path" }, SETTLE);
+    await userEvent.click(screen.getByRole("button", { name: "Back to parent conversation" }));
+
+    await waitFor(() =>
+      expect(onOpenParent).toHaveBeenCalledExactlyOnceWith({
+        conversationId: "c-mine",
+        messageId: "m-answer",
+      }),
+    );
+    expect(document.getElementById("parent-message-anchor")).toHaveFocus();
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Alternative path" })).toBeNull(),
+    );
   });
 });
 

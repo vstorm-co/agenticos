@@ -19,6 +19,8 @@ interface SheetContentProps {
   side?: "left" | "right" | "bottom";
   /** Navigation opens on its container, without selecting a close control or opening a keyboard. */
   focusContent?: boolean;
+  /** A close action that moves focus elsewhere can prevent restoring the old opener. */
+  onCloseAutoFocus?: React.ComponentProps<typeof DialogPrimitive.Content>["onCloseAutoFocus"];
 }
 
 export function Sheet({ open, onOpenChange, children }: SheetProps) {
@@ -34,6 +36,7 @@ export function SheetContent({
   className,
   side = "left",
   focusContent = false,
+  onCloseAutoFocus,
 }: SheetContentProps) {
   const opener = React.useRef<HTMLElement | null>(null);
   const content = React.useRef<HTMLDivElement>(null);
@@ -64,6 +67,8 @@ export function SheetContent({
           }
         }}
         onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event);
+          if (event.defaultPrevented) return;
           event.preventDefault();
           if (opener.current?.isConnected) opener.current.focus({ preventScroll: true });
         }}

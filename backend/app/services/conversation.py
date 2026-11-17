@@ -1821,6 +1821,57 @@ class ConversationService:
                 )
             )
 
+    async def list_forks(
+        self,
+        conversation_id: UUID,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        ctx: AuthContext,
+        message_id: UUID | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> tuple[list[Conversation], int]:
+        """List this owner's personal forks, including archived children.
+
+        A project conversation may be visible to its members, but its forks use
+        project context and are not personal side threads. Treat that case, and
+        any source the caller does not own, as absent.
+        """
+        source = await self.get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_messages=False,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        if source.user_id != user_id or source.project_id is not None:
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"conversation_id": conversation_id},
+            )
+        forks, total = await conversation_repo.list_conversation_forks(
+            self.db,
+            organization_id=organization_id,
+            owner_id=user_id,
+            source_id=source.id,
+            message_id=message_id,
+            skip=skip,
+            limit=limit,
+        )
+        # The source has just been authorized as this reader's personal chat, so
+        # it is the trusted origin for every row in this source-scoped query. Use
+        # it directly instead of a second title lookup that could race a delete
+        # and leave a response without the required origin object.
+        for fork in forks:
+            fork.forked_from = ConversationForkOrigin(
+                conversation_id=source.id,
+                message_id=fork.forked_from_message_id,
+                title=source.title,
+            )
+        return forks, total
+
     async def update_conversation(
         self,
         conversation_id: UUID,

@@ -1,5 +1,5 @@
 ---
-source_sha: "494af57c16d6"
+source_sha: "4e14aeb9974b"
 ---
 
 # La consola { #the-console }
@@ -965,6 +965,12 @@ Las bifurcaciones conservadas tienen una cuota separada de 100 MiB por miembro d
 El texto y los medios externalizados de un resumen válido se restauran dentro de la copia, por lo que eliminar el original no elimina ese contexto. El contenido restaurado cuenta para el límite de 20 MiB. La restauración admite hasta 100 referencias externas y diez segundos. Si falta contenido o se supera un límite, se rechaza la operación sin crear una copia parcial.
 
 Una conversación con una lista de tareas guardada solo puede bifurcarse en su último mensaje, que debe ser una respuesta del asistente. La copia conserva esa lista, incluidos los identificadores de tareas y las dependencias. No se guardan versiones anteriores de la lista, por lo que se rechaza una bifurcación anterior para evitar copiar tareas posteriores en un historial más antiguo.
+
+### Conversaciones paralelas { #chat-side-threads }
+
+En una respuesta completada del asistente dentro de una conversación personal de tu propiedad, **Conversaciones paralelas** permite iniciar otra conversación desde ese punto o reabrir una rama de la misma respuesta. La rama se abre junto a la original con su propio cuadro de escritura y sus mensajes posteriores. El historial, el borrador y la cola de la conversación original se conservan; los mensajes enviados en la rama pertenecen a ella.
+
+**Volver a la conversación original** cierra el panel lateral y abre la respuesta de origen exacta, cargando mensajes anteriores cuando hace falta. Cerrar el panel no elimina la rama. Cambiar la conversación de origen, la cuenta o la organización retira el panel anterior. Las ramas archivadas se abren en modo de solo lectura. La lista permite cargar más ramas de esta respuesta; los errores de lectura o creación se pueden reintentar sin cambiar la conversación principal.
 
 ### Encontrar un mensaje { #chat-message-search }
 
