@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { Button } from "@/components/ui";
+import { Button, Card } from "@/components/ui";
 import { usd } from "@/components/evals/format";
 import type { Improvement } from "@/types/improvement";
 import { AttemptChoice } from "./attempt-choice";
@@ -200,7 +200,7 @@ function ResultDecision({
     </Button>
   );
   return (
-    <section className="space-y-4 rounded-xl border p-4 sm:p-6" data-tour="improvement-decision">
+    <Card className="space-y-4 p-4 sm:p-6" data-tour="improvement-decision">
       <h2 className="font-medium">{t("resultDecision.title")}</h2>
       <p
         role={session.status === "failed" && session.stop_reason ? "alert" : undefined}
@@ -259,6 +259,6 @@ function ResultDecision({
         </div>
       )}
       {diagnosed && noise && <UnstableQuestions noise={noise} />}
-    </section>
+    </Card>
   );
 }

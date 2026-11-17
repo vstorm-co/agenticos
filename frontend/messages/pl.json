@@ -15550,7 +15550,7 @@
     "group": "{name} · {count, plural, one {# run} few {# runy} many {# runów} other {# runu}}",
     "trend": {
       "label": "Odsetek zaliczeń według runów",
-      "single": "Na razie jeden run. Uruchom kolejny, żeby zobaczyć trend.",
+      "soFar": "{count, plural, one {Na razie jeden run.} few {Na razie # runy.} many {Na razie # runów.} other {Na razie # runu.}} Trend wymaga co najmniej trzech; uruchom kolejny, żeby go zobaczyć.",
       "legend": "Każdy punkt to run, najstarszy po lewej; najedź na punkt, żeby zobaczyć, co uruchomiono, z czym porównano i kiedy, a kliknij, żeby otworzyć run.",
       "range": "Pokazane runy",
       "last": "Ostatnie {count}",

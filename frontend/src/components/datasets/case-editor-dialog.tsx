@@ -41,6 +41,9 @@ import {
   SheetClose,
   Textarea,
 } from "@/components/ui";
+import { RemoteChangeBanner } from "@/components/live-updates/remote-change-banner";
+import { CodeArea } from "@/components/ui/code-area";
+import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_BODY, DIALOG_BROAD, DIALOG_COLUMN } from "@/lib/dialog-sizes";
@@ -97,6 +100,11 @@ interface CaseEditorDialogProps {
   startFrom?: CaseCopy;
   /** Where an unsaved edit is kept in this browser, and the version it is made on. */
   localCopy?: { key: string; base: number };
+  /**
+   * The stored case as its dataset is read now, for an edit to notice a change saved
+   * elsewhere: adopted when nothing is edited here, asked about when something is.
+   */
+  remote?: { datasetId: string; stored: CaseDraft | undefined; fetchedAt: number };
 }
 
 /** What a kept copy of an unsaved case edit holds. */
@@ -224,6 +232,7 @@ export function CaseEditorDialog({
   twins,
   startFrom,
   localCopy,
+  remote,
 }: CaseEditorDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
@@ -239,6 +248,19 @@ export function CaseEditorDialog({
     addAnyway: () => void;
   } | null>(null);
   const [repeat, setRepeat] = useState(false);
+  // An edit in the JSON view is compared as its text, so it always counts as an edit.
+  const elsewhere = useRemoteDraft<CaseDraft | string>({
+    resource: "dataset",
+    id: remote?.datasetId ?? "",
+    local: json ?? draft,
+    stored: remote?.stored,
+    fetchedAt: remote?.fetchedAt ?? 0,
+    // `stored` is always the case's fields; only `local` can be the JSON text.
+    adopt: (stored) => {
+      setDraft(stored as CaseDraft);
+      setJson(null);
+    },
+  });
   const readOnly = onSave === undefined || !editing;
   const changed = !readOnly && (json !== null || JSON.stringify(draft) !== JSON.stringify(initial));
   const missing =
@@ -406,6 +428,13 @@ export function CaseEditorDialog({
           </DialogDescription>
         </DialogHeader>
         <div className={DIALOG_BODY}>
+          {elsewhere.conflict && (
+            <RemoteChangeBanner
+              change={elsewhere.conflict}
+              onReload={elsewhere.reload}
+              onKeepMine={elsewhere.keepMine}
+            />
+          )}
           <fieldset disabled={saving} className="min-w-0">
             <legend className="sr-only">{title}</legend>
             {editing && json !== null && (
@@ -415,12 +444,16 @@ export function CaseEditorDialog({
                 description={t("caseJsonHint")}
                 error={jsonProblem ? t("caseJsonInvalid") : undefined}
               >
-                <Textarea
-                  rows={18}
-                  className="font-mono text-base md:text-xs"
+                <CodeArea
+                  id="case-json"
+                  name="case.json"
+                  aria-label={t("caseJson")}
+                  className="border-input h-96 rounded-md border max-sm:h-72"
                   value={json}
-                  onChange={(event) => {
-                    setJson(event.target.value);
+                  invalid={jsonProblem}
+                  describedBy={jsonProblem ? "case-json-err" : "case-json-desc"}
+                  onChange={(next) => {
+                    setJson(next);
                     setJsonProblem(false);
                   }}
                 />

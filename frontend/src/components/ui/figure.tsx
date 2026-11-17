@@ -44,6 +44,12 @@ export interface FigureProps {
   /** `lg` is for the one figure a view leads with. */
   size?: "md" | "lg";
   /**
+   * Wrap a long label rather than cut it. For a row of narrow tiles on a phone,
+   * where "Answers rated down" does not fit one line and a cut label is a number
+   * nobody can name.
+   */
+  wrapLabel?: boolean;
+  /**
    * The colour this measure is drawn in - a dot by its label, its sparkline,
    * its meter. A row of figures gives each its own, so runs, spend and people
    * are told apart before they are read; one figure alone takes the chart ink.
@@ -89,6 +95,7 @@ export function Figure({
   sparkFormat,
   meter,
   size = "md",
+  wrapLabel = false,
   tone,
   className,
 }: FigureProps) {
@@ -97,17 +104,20 @@ export function Figure({
     <div className={cn("flex min-w-0 flex-col", className)}>
       {label ? (
         <p
-          className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs leading-relaxed"
+          className={cn(
+            "text-muted-foreground flex min-w-0 gap-1.5 text-xs leading-relaxed",
+            wrapLabel ? "items-start" : "items-center",
+          )}
           title={label}
         >
           {tone && (
             <span
               aria-hidden
-              className="size-2 shrink-0 rounded-full"
+              className={cn("size-2 shrink-0 rounded-full", wrapLabel && "mt-1.5")}
               style={{ background: ink }}
             />
           )}
-          <span className="truncate">{label}</span>
+          <span className={wrapLabel ? "min-w-0 wrap-anywhere" : "truncate"}>{label}</span>
         </p>
       ) : null}
       <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -174,28 +184,39 @@ export function Figure({
  * `rising` says which direction is the good one, because it is not the same
  * question on every card: more runs is adoption, more spend is a bill. The
  * caller answers it; the chip only paints. Zero is neither, and takes the
- * neutral dash rather than being rounded into whichever tone `>= 0` means.
+ * neutral dash rather than being rounded into whichever tone `>= 0` means. A
+ * change that cannot be judged - a difference inside the noise - is `neutral`
+ * whichever way it points.
  */
 export function DeltaChip({
   delta,
   label,
   rising = "good",
+  percent = true,
 }: {
   delta: number;
   /** What the comparison is against, already translated ("vs the last 30 days"). */
-  label: string;
-  rising?: "good" | "bad";
+  label?: string;
+  rising?: "good" | "bad" | "neutral";
+  /** A difference in percent; a count otherwise ("3 more answers"). */
+  percent?: boolean;
 }) {
   const good = delta > 0 ? rising === "good" : rising === "bad";
-  const tone = delta === 0 ? "text-muted-foreground" : good ? "text-success" : "text-destructive";
+  const tone =
+    delta === 0 || rising === "neutral"
+      ? "text-muted-foreground"
+      : good
+        ? "text-success"
+        : "text-destructive";
   const Arrow = delta === 0 ? Minus : delta > 0 ? ArrowUpRight : ArrowDownRight;
   return (
     <span className="inline-flex items-baseline gap-1 text-xs">
       <span className={cn("inline-flex items-center gap-0.5 font-medium", tone)}>
         <Arrow className="size-3" aria-hidden />
-        {Math.abs(delta)}%
+        {/* A count keeps its sign, so the number says its direction without the arrow. */}
+        {percent ? `${Math.abs(delta)}%` : `${delta > 0 ? "+" : ""}${delta}`}
       </span>
-      <span className="text-muted-foreground">{label}</span>
+      {label && <span className="text-muted-foreground">{label}</span>}
     </span>
   );
 }

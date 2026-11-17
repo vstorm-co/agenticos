@@ -1,5 +1,5 @@
 ---
-source_sha: "e0f27fa2e9f9"
+source_sha: "e0b40c6f22e9"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -27,6 +27,10 @@ Bestehensquote Run für Run, der älteste links, eine Linie pro Dataset, jede mi
 eigener Strichart. Ein Punkt ist rot, wo der Run Fälle verschlechtert hat, grün,
 wo er sie behoben hat, bernsteinfarben, wo beides, und hohl für einen Entwurf; der
 Hover sagt, was lief, wogegen und wann, und ein Klick öffnet den Run.
+
+Weniger als drei gemessene Runs sind noch kein Trend: An der Stelle des Diagramms
+stehen sie als Liste, jeder mit seiner Bestehensquote und einem Link, und dazu, wie
+viele Runs es bisher gibt.
 
 Die Achse zeigt Uhrzeiten, wenn die Historie innerhalb eines Tages liegt, auch eines vergangenen. Über mehrere Tage zeigt sie Daten für ältere Runs und Uhrzeiten für heutige, ohne gleiche Beschriftungen zu wiederholen. Der Tooltip enthält das vollständige Startdatum mit Uhrzeit. Ab mehr als 10 Runs zeigt ein
 Schalter über dem Diagramm die letzten 10, die letzten 30 oder alle Runs; er
