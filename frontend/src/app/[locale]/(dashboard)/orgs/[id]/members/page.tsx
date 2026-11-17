@@ -493,7 +493,10 @@ export default function OrgMembersPage({ params }: PageProps) {
                   placeholder={t("searchMembers")}
                 />
                 <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  <SelectTrigger className="w-auto min-w-36" aria-label={t("filterRole")}>
+                  <SelectTrigger
+                    className="w-auto min-w-36 capitalize"
+                    aria-label={t("filterRole")}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -501,7 +504,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                     {Array.from(new Set(members.map((member) => member.role)))
                       .sort()
                       .map((role) => (
-                        <SelectItem key={role} value={role}>
+                        <SelectItem key={role} value={role} className="capitalize">
                           {role}
                         </SelectItem>
                       ))}

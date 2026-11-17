@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Capitalize role names in the organization member filter, matching the membership role controls.
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed
