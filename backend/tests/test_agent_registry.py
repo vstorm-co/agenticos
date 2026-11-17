@@ -6378,7 +6378,7 @@ def organization_key_model_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.anyio
 @pytest.mark.security
-@pytest.mark.parametrize("surface", ["channel", "embed", "trigger", "none", "a2a"])
+@pytest.mark.parametrize("surface", ["channel", "embed", "trigger", "none", "unattached", "a2a"])
 async def test_personal_model_publish_refuses_existing_noninteractive_surfaces(surface: str):
     from app.db.models.credential import ModelProfile
 
@@ -6412,8 +6412,10 @@ async def test_personal_model_publish_refuses_existing_noninteractive_surfaces(s
             AsyncMock(return_value=[MagicMock(is_active=True)] if surface == "trigger" else []),
         ),
     ):
-        if surface == "none":
-            await service.validate_spec(ctx, chosen, agent_id=agent_id)
+        if surface in {"none", "unattached"}:
+            await service.validate_spec(
+                ctx, chosen, agent_id=agent_id if surface == "none" else None
+            )
         else:
             with pytest.raises(BadRequestError) as refused:
                 await service.validate_spec(ctx, chosen, agent_id=agent_id)
@@ -6462,3 +6464,33 @@ async def test_a_personal_published_version_cannot_serve_a2a_after_editing_the_d
         pytest.raises(BadRequestError, match="signed-in web chat"),
     ):
         await service.set_a2a(ctx, row.id, enabled=True)
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("personal", [True, False])
+async def test_pinned_delegates_cannot_borrow_a_web_chat_users_personal_key(personal: bool) -> None:
+    from app.agents.spec import SubagentRef
+
+    ctx, service = _ctx(), AgentRegistryService(_db())
+    child = _agent(ctx, status=AgentStatus.PUBLISHED.value)
+    version = _version(
+        child.id,
+        spec=_spec(model_credential_mode="personal" if personal else "organization"),
+    )
+    with (
+        patch(f"{REGISTRY_PATH}.agent_repo.get_many", AsyncMock(return_value={child.id: child})),
+        patch(f"{REGISTRY_PATH}.agent_repo.get_version", AsyncMock(return_value=version)),
+        patch(f"{REGISTRY_PATH}.resolve_access", AsyncMock(return_value=True)),
+    ):
+        resolved = await service._resolve_pins(
+            ctx, [SubagentRef(agent_id=child.id, agent_version_id=version.id)]
+        )
+    if personal:
+        assert resolved.problems == ["Agents using personal model keys cannot be delegated to"]
+        assert resolved.delegates == []
+        assert resolved.handles == []
+    else:
+        assert resolved.problems == []
+        assert [delegate.version_id for delegate in resolved.delegates] == [version.id]
+        assert resolved.handles == [child.slug]
