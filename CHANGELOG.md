@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Count Improve’s source cards from the selected evidence sample, including positive feedback and reviewed test answers, and keep empty-state messages hidden while the preview refreshes or its test set is still loading (#2555).
+
 ## [1.82.0] - 2026-11-17
 
 ### Added

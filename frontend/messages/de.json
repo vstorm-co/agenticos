@@ -16244,10 +16244,10 @@
     "trainQuestion": "Zum Schreiben der Änderungen verwendet",
     "holdoutQuestion": "Nicht zum Schreiben der Änderungen verwendet",
     "sourceSignals": "Quellen zum Lernen",
-    "signalWindow": "Feedback und fehlgeschlagene Runs der letzten 30 Tage sowie Fehler aus dem letzten Test.",
+    "signalWindow": "{count, plural, one {# ausgewähltes Quellbeispiel} other {# ausgewählte Quellbeispiele}} aus den letzten 30 Tagen, höchstens {limit}. Frühere Agentenversionen und überprüfte Testantworten sind enthalten.",
     "ratedSignals": "Negativ bewertete Antworten",
-    "failedSignals": "Fehlgeschlagene Runs",
-    "noLearningExamples": "Noch nichts zum Lernen: In den letzten 30 Tagen hat niemand eine Antwort bewertet. Bewerten Sie zuerst eine Antwort oder schreiben Sie Testfragen.",
+    "failedSignals": "Fehlgeschlagene Runs ohne Bewertung",
+    "noLearningExamples": "Noch nichts zum Lernen: keine lesbaren Quellbeispiele aus den letzten 30 Tagen. Bewerten Sie eine Antwort oder führen Sie Testfragen aus und überprüfen Sie sie.",
     "evidenceSample": "{count} ausgewählte Beispiele, höchstens {limit}. Gelöschte oder nicht mehr lesbare Quellen werden ausgelassen.",
     "unknownCauses": "Für einige Antworten ist keine Ursache gespeichert. Sie bleiben unklassifiziert und werden mit den Agentenbeispielen zur Prüfung angezeigt.",
     "cause": {
@@ -16280,7 +16280,7 @@
     "baseline": "Heutige Antworten des Agenten testen",
     "estimate": "Erneut schätzen",
     "estimating": "Zeit und Kosten werden geschätzt…",
-    "sessionQuote": "Bis zu {cost} (Schätzung), um {answers, plural, one {# Antwort} other {# Antworten}} mit Feedback zu sortieren. Jeder Versuch danach dauert etwa {minutes, plural, one {# Minute} other {# Minuten}} und kostet ungefähr {perRound}; er wird erneut bepreist, bevor Sie ihn drücken, und das Limit von {limit} gilt für die ganze Sitzung.",
+    "sessionQuote": "Bis zu {cost} (Schätzung), um {answers, plural, one {# ausgewähltes Quellbeispiel} other {# ausgewählte Quellbeispiele}} zu sortieren. Jeder Versuch danach dauert etwa {minutes, plural, one {# Minute} other {# Minuten}} und kostet ungefähr {perRound}; er wird erneut bepreist, bevor Sie ihn drücken, und das Limit von {limit} gilt für die ganze Sitzung.",
     "evidence": "Auf Grundlage von {count, plural, one {# Antwort} other {# Antworten}} mit Feedback.",
     "budget": "Ausgabenlimit der Sitzung (USD)",
     "start": "Verbesserung starten",
@@ -16819,7 +16819,9 @@
     "evidenceOnly": {
       "body": "Jede Frage dieses Datasets stammt aus den Gesprächen, aus denen diese Änderung gelernt hat, daher kann keine sie testen.",
       "addQuestions": "Fragen aus anderen Gesprächen hinzufügen"
-    }
+    },
+    "likedSignals": "Positiv bewertete Antworten",
+    "reviewedSignals": "Weitere überprüfte Testantworten"
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",
