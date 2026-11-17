@@ -296,6 +296,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
         _api_key("groq", "Groq"),
         _api_key("heroku", "Heroku AI", base_url_param="base_url"),
         _api_key("mistral", "Mistral"),
+        _api_key("minimax", "MiniMax", base_url_param="base_url", model_prefix="openai-chat"),
         _api_key("moonshotai", "Moonshot AI"),
         _api_key("nebius", "Nebius AI Studio"),
         _api_key("ovhcloud", "OVHcloud AI Endpoints"),
@@ -491,6 +492,17 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
     endpoint: dict[str, str] = {}
     if credential.base_url is not None and spec.base_url_param is not None:
         endpoint[spec.base_url_param] = credential.base_url
+    if spec.id == "minimax":
+        from pydantic_ai.providers.openai_compatible import OpenAICompatibleProvider
+
+        if not isinstance(secret, ApiKeySecret):
+            raise BadRequestError(message="MiniMax requires a vault API key")
+        # A compatible API is a different history authority, not an OpenAI proxy.
+        return OpenAICompatibleProvider(
+            "minimax",
+            base_url=credential.base_url or "https://api.minimax.io/v1",
+            api_key=secret.api_key.get_secret_value(),
+        )
     provider_class = infer_provider_class(spec.prefix)
     if isinstance(secret, NoSecret):
         return provider_class(**endpoint)

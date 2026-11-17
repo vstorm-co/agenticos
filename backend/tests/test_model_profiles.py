@@ -205,6 +205,94 @@ def _db():
 
 
 class TestProviderCatalog:
+    def test_minimax_does_not_accept_a_keyless_profile(self) -> None:
+        with pytest.raises(BadRequestError, match="MiniMax requires a vault API key"):
+            build_model(ResolvedCredential(provider="minimax", secret=NoSecret()), "MiniMax-M3")
+
+    @pytest.mark.anyio
+    async def test_minimax_completes_a_tool_round_trip_on_its_compatible_api(self) -> None:
+        from pydantic_ai import Agent
+
+        requests: list[httpx2.Request] = []
+
+        def lookup() -> str:
+            return "verified lookup result"
+
+        def respond(request: httpx2.Request) -> httpx2.Response:
+            requests.append(request)
+            message = (
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call-1",
+                            "type": "function",
+                            "function": {"name": "lookup", "arguments": "{}"},
+                        }
+                    ],
+                }
+                if len(requests) == 1
+                else {"role": "assistant", "content": "Lookup completed"}
+            )
+            return httpx2.Response(
+                200,
+                json={
+                    "id": "minimax-response",
+                    "object": "chat.completion",
+                    "created": 1,
+                    "model": "MiniMax-M3.1-Flash",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "finish_reason": "tool_calls" if len(requests) == 1 else "stop",
+                            "message": message,
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                },
+            )
+
+        model = build_model(
+            ResolvedCredential(provider="minimax", secret=ApiKeySecret(api_key="minimax-plan-key")),
+            "MiniMax-M3.1-Flash",
+        )
+        assert isinstance(model, OpenAIChatModel)
+        async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as client:
+            model._provider._client = model.client.with_options(http_client=client, max_retries=0)
+            result = await Agent(model, tools=[lookup]).run("Look up the result")
+        assert result.output == "Lookup completed"
+        assert len(requests) == 2
+        assert all(str(r.url) == "https://api.minimax.io/v1/chat/completions" for r in requests)
+        assert all(r.headers["Authorization"] == "Bearer minimax-plan-key" for r in requests)
+        assert b"verified lookup result" in requests[1].content
+        assert result.response.provider_name == "minimax"
+
+    def test_minimax_uses_its_own_history_identity_and_selected_key(self) -> None:
+        credential = ResolvedCredential(
+            provider="minimax", secret=ApiKeySecret(api_key="minimax-plan-key")
+        )
+        model = build_model(credential, "MiniMax-M3.1-Flash")
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == "https://api.minimax.io/v1/"
+        assert model.client.api_key == "minimax-plan-key"
+        assert model.system == "minimax"
+        assert model._provider.canonical_system == "minimax"
+
+    def test_minimax_custom_endpoint_is_used_without_openai_credentials(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("OPENAI_API_KEY", "unrelated-openai-key")
+        credential = ResolvedCredential(
+            provider="minimax",
+            secret=ApiKeySecret(api_key="regional-plan-key"),
+            base_url="https://api.minimaxi.com/v1",
+        )
+        model = build_model(credential, "MiniMax-M3.1-Flash")
+        assert isinstance(model, OpenAIChatModel)
+        assert str(model.client.base_url) == "https://api.minimaxi.com/v1/"
+        assert model.client.api_key == "regional-plan-key"
+
     @pytest.mark.parametrize(
         "endpoint",
         ["https://api.z.ai/api/coding/paas/v4", "https://open.bigmodel.cn/api/coding/paas/v4"],

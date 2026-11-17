@@ -1,5 +1,5 @@
 ---
-source_sha: "787da318dbe6"
+source_sha: "c6c67e5a6472"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -361,7 +361,7 @@ Direkte `provider:model`-Selektoren nutzen für AgenticOS-Budgets den gebündelt
 
 ## Provider { #providers }
 
-Chat-Provider von Pydantic AI sowie Otari über sein Integrationspaket und Stav mit regionalem Routing.
+Chat-Provider von Pydantic AI sowie Otari über sein Integrationspaket, Stav mit regionalem Routing und MiniMax über seine kompatible API.
 
 Standard-Provider verwenden die Modell- und Provider-Ableitung von Pydantic AI. Die Plattform beschreibt die Form der Zugangsdaten und bindet bei Bedarf Provider-Pakete ein.
 
@@ -397,6 +397,7 @@ Standard-Provider verwenden die Modell- und Provider-Ableitung von Pydantic AI. 
 | Groq | `groq` | API-Key | |
 | Heroku AI | `heroku` | API-Key | ✓ |
 | Mistral | `mistral` | API-Key | |
+| MiniMax | `minimax` | API-Key | ✓ |
 | Moonshot AI | `moonshotai` | API-Key | |
 | Nebius AI Studio | `nebius` | API-Key | |
 | OVHcloud AI Endpoints | `ovhcloud` | API-Key | |
@@ -408,6 +409,8 @@ Standard-Provider verwenden die Modell- und Provider-Ableitung von Pydantic AI. 
 | xAI (Grok) | `xai` | API-Key | ✓ (`api_host`) |
 | Cohere | `cohere` | API-Key | |
 | Hugging Face | `huggingface` | API-Key | ✓ |
+
+Wähle **MiniMax** für seine OpenAI-kompatible Chat-Completions-API. Speichere deinen M-Plan-API-Schlüssel als MiniMax-Schlüssel im Vault; ein normaler API-Schlüssel nutzt seine eigene Abrechnung. Ein leerer Endpoint verwendet `https://api.minimax.io/v1`. Einen eigenen Endpoint setzt du nur für die Region oder das Gateway deines Schlüssels. Gib die genaue Modell-ID deines Kontos ein, etwa `MiniMax-M3.1-Flash`; die Integration lädt keinen planspezifischen Katalog. MiniMax-Verläufe haben eine eigene Provider-Identität, sodass verschlüsselte OpenAI-Denkinhalte nicht dorthin gesendet werden. Bekannte Tokenpreise dienen als Budgetschätzungen, nicht als Abonnementrechnung.
 
 Für einen **Z.AI GLM Coding Plan** wähle **Z.AI** und setze **Endpoint** ausdrücklich auf `https://api.z.ai/api/coding/paas/v4` (global) oder `https://open.bigmodel.cn/api/coding/paas/v4` (China), mit einem Schlüssel für diesen Plan und diese Region. Ein leerer Endpoint behält die normale nutzungsabhängige API bei; bestehende Profile ändern sich nicht.
 

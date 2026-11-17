@@ -1,5 +1,5 @@
 ---
-source_sha: "787da318dbe6"
+source_sha: "c6c67e5a6472"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -332,7 +332,7 @@ Bezpośrednie selektory `provider:model` korzystają w budżetach AgenticOS z ka
 
 ## Providery { #providers }
 
-Providery czatu obsługiwane przez Pydantic AI oraz Otari przez jego pakiet integracyjny i Stav z routingiem regionalnym.
+Providery czatu obsługiwane przez Pydantic AI oraz Otari przez jego pakiet integracyjny, Stav z routingiem regionalnym i MiniMax przez zgodne API.
 
 Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic AI. Platforma opisuje kształt poświadczeń i w razie potrzeby integruje pakiety providerów.
 
@@ -368,6 +368,7 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | Groq | `groq` | klucz API | |
 | Heroku AI | `heroku` | klucz API | ✓ |
 | Mistral | `mistral` | klucz API | |
+| MiniMax | `minimax` | klucz API | ✓ |
 | Moonshot AI | `moonshotai` | klucz API | |
 | Nebius AI Studio | `nebius` | klucz API | |
 | OVHcloud AI Endpoints | `ovhcloud` | klucz API | |
@@ -379,6 +380,8 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | xAI (Grok) | `xai` | klucz API | ✓ (`api_host`) |
 | Cohere | `cohere` | klucz API | |
 | Hugging Face | `huggingface` | klucz API | ✓ |
+
+Wybierz **MiniMax**, aby użyć jego API Chat Completions zgodnego z OpenAI. Zapisz klucz API M Plan jako klucz MiniMax w sejfie; zwykły klucz API korzysta z własnego rozliczenia. Pusty Endpoint oznacza `https://api.minimax.io/v1`; własny adres ustaw tylko dla regionu lub bramy właściwych dla klucza. Wpisz dokładny identyfikator modelu z konta, np. `MiniMax-M3.1-Flash`; integracja nie pobiera katalogu planu. Historia MiniMax ma osobną tożsamość dostawcy, więc nie wysyłamy tam zaszyfrowanego rozumowania OpenAI. Znane ceny tokenów służą do szacowania budżetu, a nie rachunku za subskrypcję.
 
 Dla **Z.AI GLM Coding Plan** wybierz **Z.AI** i ustaw **Endpoint** na `https://api.z.ai/api/coding/paas/v4` (globalny) lub `https://open.bigmodel.cn/api/coding/paas/v4` (Chiny), używając klucza właściwego dla planu i regionu. Puste pole Endpoint zachowuje zwykłe API rozliczane według użycia; istniejące profile się nie zmieniają.
 

@@ -320,7 +320,7 @@ Direct `provider:model` selectors use the upstream model's bundled catalog price
 
 ## Providers
 
-Chat providers supported by Pydantic AI, plus Otari through its integration package and Stav with its regional routing.
+Chat providers supported by Pydantic AI, plus Otari through its integration package, Stav with its regional routing and MiniMax through its compatible API.
 
 Standard providers use Pydantic AI's model and provider inference. The platform records credential shapes and integrates provider packages where needed.
 
@@ -356,6 +356,7 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | Groq | `groq` | API key | |
 | Heroku AI | `heroku` | API key | ✓ |
 | Mistral | `mistral` | API key | |
+| MiniMax | `minimax` | API key | ✓ |
 | Moonshot AI | `moonshotai` | API key | |
 | Nebius AI Studio | `nebius` | API key | |
 | OVHcloud AI Endpoints | `ovhcloud` | API key | |
@@ -367,6 +368,8 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | xAI (Grok) | `xai` | API key | ✓ (`api_host`) |
 | Cohere | `cohere` | API key | |
 | Hugging Face | `huggingface` | API key | ✓ |
+
+Select **MiniMax** for its OpenAI-compatible Chat Completions API. Store your M Plan API key as a MiniMax vault key; a metered API key uses its own billing instead. An empty Endpoint uses `https://api.minimax.io/v1`; set a custom Endpoint only for the region or gateway your key belongs to. Enter the exact model ID from your account, for example `MiniMax-M3.1-Flash`; this integration does not enumerate a plan-specific catalog. MiniMax history has its own provider identity, so OpenAI encrypted reasoning is not sent to it. Token prices, when known, are budget estimates rather than your subscription bill.
 
 For a **Z.AI GLM Coding Plan**, select **Z.AI** and explicitly set **Endpoint** to `https://api.z.ai/api/coding/paas/v4` (global) or `https://open.bigmodel.cn/api/coding/paas/v4` (China), using a key for that plan and region. Leaving Endpoint empty keeps the ordinary metered API; existing profiles do not change.
 

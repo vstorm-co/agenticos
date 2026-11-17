@@ -1,5 +1,5 @@
 ---
-source_sha: "787da318dbe6"
+source_sha: "c6c67e5a6472"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -341,7 +341,7 @@ Los selectores directos `provider:model` usan el precio de catálogo del proveed
 
 ## Providers { #providers }
 
-Providers de chat compatibles con Pydantic AI, además de Otari mediante su paquete de integración y Stav con routing regional.
+Providers de chat compatibles con Pydantic AI, además de Otari mediante su paquete de integración, Stav con routing regional y MiniMax mediante su API compatible.
 
 Los providers estándar usan la inferencia de modelos y providers de Pydantic AI. La plataforma describe la forma de las credenciales e integra paquetes de providers cuando es necesario.
 
@@ -377,6 +377,7 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | Groq | `groq` | clave de API | |
 | Heroku AI | `heroku` | clave de API | ✓ |
 | Mistral | `mistral` | clave de API | |
+| MiniMax | `minimax` | clave de API | ✓ |
 | Moonshot AI | `moonshotai` | clave de API | |
 | Nebius AI Studio | `nebius` | clave de API | |
 | OVHcloud AI Endpoints | `ovhcloud` | clave de API | |
@@ -388,6 +389,8 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | xAI (Grok) | `xai` | clave de API | ✓ (`api_host`) |
 | Cohere | `cohere` | clave de API | |
 | Hugging Face | `huggingface` | clave de API | ✓ |
+
+Selecciona **MiniMax** para su API Chat Completions compatible con OpenAI. Guarda la clave API de M Plan como clave MiniMax en el almacén; una clave API de pago por uso utiliza su propia facturación. Un Endpoint vacío usa `https://api.minimax.io/v1`; configura otro solo para la región o el gateway de tu clave. Escribe el ID exacto del modelo de tu cuenta, por ejemplo `MiniMax-M3.1-Flash`; esta integración no enumera un catálogo del plan. El historial MiniMax tiene identidad propia y no recibe razonamiento cifrado de OpenAI. Los precios conocidos de tokens estiman el presupuesto, no la factura de suscripción.
 
 Para un **Z.AI GLM Coding Plan**, selecciona **Z.AI** y configura **Endpoint** explícitamente como `https://api.z.ai/api/coding/paas/v4` (global) o `https://open.bigmodel.cn/api/coding/paas/v4` (China), con una clave del plan y la región correspondientes. Un Endpoint vacío conserva la API habitual facturada por uso; los perfiles existentes no cambian.
 
