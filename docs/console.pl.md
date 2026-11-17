@@ -1,5 +1,5 @@
 ---
-source_sha: "e1e797d2487d"
+source_sha: "cbc3104b095a"
 ---
 
 # Konsola { #the-console }
@@ -465,7 +465,9 @@ Gdy połączenie zostanie zerwane, konsola działa jak dotąd i sama się ponown
 
 Wspólne pokoje, czaty projektowe i rozmowy udostępnione do edycji odtwarzają widoczne tury czatu zamiast ukrytych checkpointów modelu. Kolejny uczestnik nie dziedziczy prywatnych wyników narzędzi ani rozumowania poprzedniego autora; w razie potrzeby agent ponawia odczyt przez połączenia bieżącej osoby. Fork wspólnej rozmowy także pomija ukryty checkpoint. Prywatne czaty webowe i wiadomości bezpośrednie zachowują ustrukturyzowaną historię modelu.
 
-Prywatny checkpoint jest przypisany do agenta i rzeczywistych celów połączeń z modelami, w tym połączeń fallback. Zmiana agenta, endpointu lub połączenia odtwarza historię z widocznych wiadomości zamiast wysyłać wcześniejsze ukryte wyniki narzędzi innemu odbiorcy. Starsze checkpointy bez tych danych także korzystają z widocznego zapisu. Oczekujący run nie wznowi się po zmianie celu: przywróć poprzednią konfigurację albo rozpocznij nową turę. Runy zaparkowane przed dodaniem informacji o odbiorcy wymagają ponownego uruchomienia.
+Prywatny checkpoint jest przypisany do agenta, rzeczywistych celów połączeń z modelami (w tym fallback) oraz kont, adresów i wersji autoryzacji MCP użytych w tej turze. Zmiana agenta, endpointu lub połączenia odtwarza historię z widocznych wiadomości zamiast wysyłać wcześniejsze ukryte wyniki narzędzi innemu odbiorcy.
+
+Starsze checkpointy bez tych danych także korzystają z widocznego zapisu. Oczekujący run nie wznowi się po zmianie celu: przywróć poprzednią konfigurację albo rozpocznij nową turę. Runy zaparkowane przed dodaniem informacji o odbiorcy wymagają ponownego uruchomienia.
 
 Miejsce, w którym rozmawiasz z opublikowanym agentem. Selektor wybiera, który
 agent odpowiada, a run zachowuje się dokładnie tak, jak zachowałby się w Slacku
