@@ -3129,7 +3129,20 @@
       "transcriptionInheritedNoKey": "Bu ayar çiftinin devralındığı yerde anahtar seçilmemiş. Anahtar seçilene kadar sesli mesajlar yazıya çevrilmez.",
       "discordGuilds": "İzin verilen Discord sunucu ID’leri",
       "discordGuildsHint": "Discord’da Developer Mode’u açın ve izin verilen her sunucu ID’sini kopyalayın. ID’leri virgül veya boşlukla ayırın. Liste boşsa yalnızca DM’lere izin verilir; sunucu mesajları engellenir.",
-      "discordGuildsInvalid": "Virgül veya boşlukla ayrılmış ondalık sunucu ID’leri girin (en fazla 2.500 sunucu)."
+      "discordGuildsInvalid": "Virgül veya boşlukla ayrılmış ondalık sunucu ID’leri girin (en fazla 2.500 sunucu).",
+      "mattermostSetupMethod": "Bağlantı yöntemi",
+      "mattermostSetupManual": "Manuel kurulum",
+      "mattermostSetupManualHint": "Mevcut bot belirtecini ve sunucu adresini girin.",
+      "mattermostSetupPlugin": "Eklentiyi kullan",
+      "mattermostSetupPluginHint": "Botu Mattermost üzerinden oluşturun ve bağlayın.",
+      "mattermostPluginIntro": "AgenticOS eklentisini kendi Mattermost sunucunuza kurun. AgenticOS Bridge hesabı gerekmez.",
+      "mattermostPluginInstall": "Eklenti paketini indirin veya derleyin, Mattermost → Sistem Konsolu → Eklenti Yönetimi üzerinden yükleyin ve etkinleştirin.",
+      "mattermostPluginConfigure": "Eklenti ayarlarına bu AgenticOS örneğinin HTTPS adresini, kuruluş kimliğinizi ve yayımlanmış bir aracının kimliğini girin.",
+      "mattermostPluginConnect": "Hedef Mattermost kanalında <command>/agenticos connect</command> komutunu çalıştırın ve özel iletişim kutusunda yetkilendirmeyi tamamlayın.",
+      "mattermostPluginOrganization": "Kuruluş kimliği: <code>{id}</code>",
+      "mattermostPluginInstructions": "Eklenti ve kurulum talimatları",
+      "mattermostPluginFinishHint": "Mattermost bağlantısından sonra buradaki kanalları yenileyin. Sohbetten önce herkes kendi AgenticOS hesabını bağlamalıdır.",
+      "mattermostPluginRefresh": "Kanalları yenile"
     },
     "agents": {
       "voiceUnreportedTokenUsage": "Bu sağlayıcı token ücretlerini bildirmez. Harcama bütçesi olan aramalar başlatılamaz; kaydedilen ses maliyeti bir alt sınırdır.",
@@ -9475,6 +9488,10 @@
       "personal-integration-accounts": {
         "title": "Bağlı hesaplarınız",
         "body": "Hesaplarınızı buradan ekleyin, yeniden bağlayın veya bağlantısını kesin. Aynı hizmet için birden fazla hesap bağlayabilirsiniz."
+      },
+      "channels-mattermost-setup": {
+        "title": "Mattermost bağlantı yöntemini seçin",
+        "body": "Mevcut bot belirtecini kullanın veya botu kendi sunucunuzda oluşturup bağlamak için Mattermost eklentisini kurun."
       }
     }
   },

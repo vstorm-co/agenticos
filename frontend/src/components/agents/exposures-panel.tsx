@@ -97,7 +97,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
   const canRegister = can(Perm.channelsManage);
   // Only the mutation: the bot list is the exposure targets above, and reading
   // `/channels/bots` too would ask `channels:manage` of every publisher.
-  const { create: createBot } = useChannelBots(false);
+  const { create: createBot, refresh } = useChannelBots(false);
   const [registering, setRegistering] = useState<ExposureSurface | null>(null);
   // The public line somebody without `channels:manage` is writing a request for.
   const [asking, setAsking] = useState<ExposureTarget | null>(null);
@@ -318,6 +318,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
       </CardContent>
       {registering && (
         <AddChannelDialog
+          onPluginSetup={() => void refresh()}
           open
           initialPlatform={registering}
           onOpenChange={(open) => !open && setRegistering(null)}

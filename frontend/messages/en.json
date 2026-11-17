@@ -6120,6 +6120,10 @@
       "channels-customers": {
         "title": "The people who write in",
         "body": "See who has written to a WhatsApp line without an account, search by number, and forget a customer across the organization's bots when asked to."
+      },
+      "channels-mattermost-setup": {
+        "title": "Choose how to connect Mattermost",
+        "body": "Use an existing bot token or install the Mattermost plugin to create and connect the bot from your own server."
       }
     },
     "chooseLanguage": "Language",
@@ -7473,7 +7477,20 @@
       "customerForgetBody": "This erases the customer across all of the organization's WhatsApp bots: their number, name and messages, and the files and approvals from their chats. Their runs stay as accounting, without what they said. This cannot be undone.",
       "customerForgetConfirm": "Forget customer",
       "customerForgotten": "Customer forgotten",
-      "publicLineReachIntegrations": "Connected organization accounts: {names}"
+      "publicLineReachIntegrations": "Connected organization accounts: {names}",
+      "mattermostSetupMethod": "Connection method",
+      "mattermostSetupManual": "Manual setup",
+      "mattermostSetupManualHint": "Enter an existing bot token and server URL.",
+      "mattermostSetupPlugin": "Use plugin",
+      "mattermostSetupPluginHint": "Create and connect the bot from Mattermost.",
+      "mattermostPluginIntro": "Install the AgenticOS plugin on your own Mattermost server. No AgenticOS Bridge account is needed.",
+      "mattermostPluginInstall": "Download or build the plugin bundle, upload it in Mattermost → System Console → Plugin Management, and enable it.",
+      "mattermostPluginConfigure": "Set this AgenticOS instance’s HTTPS URL, your organization ID and a published agent ID in the plugin settings.",
+      "mattermostPluginConnect": "Run <command>/agenticos connect</command> in the target Mattermost channel and complete the private authorization dialog.",
+      "mattermostPluginOrganization": "Organization ID: <code>{id}</code>",
+      "mattermostPluginInstructions": "Plugin and installation instructions",
+      "mattermostPluginFinishHint": "After connecting in Mattermost, refresh the channels here. Each person must link their own AgenticOS account before chatting.",
+      "mattermostPluginRefresh": "Refresh channels"
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",

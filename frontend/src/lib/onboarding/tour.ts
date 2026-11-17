@@ -1465,6 +1465,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   {
+    id: "channels-mattermost-setup",
+    page: ROUTES.CHANNELS,
+    target: "channels-mattermost-setup",
+    permission: Perm.channelsManage,
+    optional: true,
+    inTour: true,
+  },
+  {
     id: "channels-list",
     page: ROUTES.CHANNELS,
     target: "channels-list",

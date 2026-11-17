@@ -1,5 +1,5 @@
 ---
-source_sha: "a19472d7e356"
+source_sha: "baff99887e82"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1576,9 +1576,15 @@ bleiben, und antwortet im Thema einer Forengruppe in diesem Thema.
 
 ## Mattermost { #mattermost }
 
+Wählen Sie unter **Kanäle → Kanal hinzufügen → Mattermost** die **manuelle
+Einrichtung** für einen vorhandenen Bot oder **Plugin verwenden** für die
+geführte Installation. Nach der Verbindung in Mattermost lädt **Kanäle
+aktualisieren** die Kanal- und Agentenverknüpfungen neu.
+
+
 ### Das Einrichtungsplugin installieren { #install-the-setup-plugin }
 
-Das [Mattermost-Serverplugin](https://github.com/vstorm-co/agenticos/tree/main/plugins/mattermost)
+Das [Mattermost-Serverplugin](https://github.com/vstorm-co/agenticos-mattermost)
 erstellt den lokalen Bot und verbindet ihn mit einem Agenten Ihrer eigenen
 AgenticOS-Instanz. Erstellen Sie das Linux-amd64/arm64-Paket, laden Sie es in der
 Plugin-Verwaltung von Mattermost hoch und setzen Sie die HTTPS-Adresse von

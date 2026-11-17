@@ -81,13 +81,17 @@ These are the ones worth testing and the ones easiest to break:
 
 ## Mattermost setup plugin
 
-`plugins/mattermost/` contains the installable Go server plugin. It provisions a
-local bot through Mattermost's API and calls the existing channel/exposure APIs;
-it does not relay messages or add another runner. Read its README before changes.
-Keep setup administrator credentials ephemeral, retain cleanup metadata on uncertain
-registration and keep chat sender authorization in the existing channel router.
-Run `make -C plugins/mattermost check bundle`; its separate workflow tests and
-packages both Linux architectures. Do not claim live installation from fake API tests.
+The installable Go plugin lives in the separate repository
+[vstorm-co/agenticos-mattermost](https://github.com/vstorm-co/agenticos-mattermost).
+It owns packaging, setup dialogs, local bot provisioning and plugin CI. This
+repository owns the channel adapter, Vault API, identity checks and agent runner.
+Read the plugin's README and AGENTS.md before changing that half. Do not copy its
+source or build workflow back into AgenticOS.
+
+The channel dialog offers manual token registration and plugin setup. Plugin
+setup must not submit the manual form or invent a local connection; after setup
+in Mattermost, refresh channel and exposure queries. Keep administrator setup
+credentials ephemeral and sender authorization in the existing channel router.
 
 ## CLI
 

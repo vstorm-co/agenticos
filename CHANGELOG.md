@@ -21,8 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Install a Mattermost server plugin to pair a local bot with your own AgenticOS
-  instance, invite it to selected channels and revoke its access on disconnect.
+- Choose manual bot registration or the standalone
+  [Mattermost plugin](https://github.com/vstorm-co/agenticos-mattermost) when adding
+  a Mattermost channel. The plugin pairs a local bot with your own AgenticOS
+  instance, invites selected channels and revokes its access on disconnect.
 
 - Connect IMAP and Odoo without the console using documented API requests and
   credential-free payload templates for personal or organization accounts.

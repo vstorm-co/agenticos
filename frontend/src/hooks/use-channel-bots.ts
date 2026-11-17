@@ -98,7 +98,17 @@ export function useChannelBots(enabled: boolean) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
-  return { bots: data?.items ?? [], isLoading, error, refetch, create, update, setActive, remove };
+  return {
+    bots: data?.items ?? [],
+    isLoading,
+    error,
+    refetch,
+    refresh: invalidate,
+    create,
+    update,
+    setActive,
+    remove,
+  };
 }
 
 /**

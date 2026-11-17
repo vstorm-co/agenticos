@@ -59,7 +59,8 @@ export default function ChannelsPage() {
   // too - so the hook is told not to fetch at all for somebody without it,
   // rather than putting a 403 in the network log of every member who visits.
   const canManage = can(Perm.channelsManage);
-  const { bots, isLoading, error, create, update, setActive, remove } = useChannelBots(canManage);
+  const { bots, isLoading, error, create, update, setActive, remove, refresh } =
+    useChannelBots(canManage);
   const [adding, setAdding] = useState(false);
   // The row being edited, which is also what opens the dialog: a bot and an
   // open flag can disagree, and the disagreement renders last row's answers.
@@ -146,6 +147,7 @@ export default function ChannelsPage() {
 
       {canManage && !permissionsLoading && (
         <AddChannelDialog
+          onPluginSetup={() => void refresh()}
           open={adding}
           onOpenChange={setAdding}
           onSubmit={create.mutateAsync}

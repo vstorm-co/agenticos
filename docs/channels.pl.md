@@ -1,5 +1,5 @@
 ---
-source_sha: "a19472d7e356"
+source_sha: "baff99887e82"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1475,9 +1475,14 @@ samym temacie.
 
 ## Mattermost { #mattermost }
 
+W **Kanały → Dodaj kanał → Mattermost** wybierz **Konfiguracja ręczna**, aby użyć
+istniejącego bota, lub **Użyj pluginu**, aby przejść przez instalację. Po połączeniu
+w Mattermoście przycisk **Odśwież kanały** wczyta listy kanałów i powiązań agentów.
+
+
 ### Zainstaluj plugin konfiguracji { #install-the-setup-plugin }
 
-[Plugin serwerowy Mattermost](https://github.com/vstorm-co/agenticos/tree/main/plugins/mattermost)
+[Plugin serwerowy Mattermost](https://github.com/vstorm-co/agenticos-mattermost)
 tworzy lokalnego bota i łączy go z agentem we własnej instancji AgenticOS.
 Zbuduj paczkę dla Linuxa amd64/arm64, wgraj ją w zarządzaniu pluginami Mattermosta
 i ustaw adres HTTPS AgenticOS, ID organizacji oraz ID opublikowanego agenta.

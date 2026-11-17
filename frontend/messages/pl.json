@@ -2743,7 +2743,20 @@
       "customerForgetBody": "To usuwa klienta ze wszystkich botów WhatsApp organizacji: jego numer, imię i wiadomości oraz pliki i zatwierdzenia z jego czatów. Jego runy zostają jako ewidencja, bez tego, co napisał. Tej operacji nie można cofnąć.",
       "customerForgetConfirm": "Zapomnij klienta",
       "customerForgotten": "Klient zapomniany",
-      "publicLineReachIntegrations": "Podłączone konta organizacji: {names}"
+      "publicLineReachIntegrations": "Podłączone konta organizacji: {names}",
+      "mattermostSetupMethod": "Sposób połączenia",
+      "mattermostSetupManual": "Konfiguracja ręczna",
+      "mattermostSetupManualHint": "Podaj token istniejącego bota i adres serwera.",
+      "mattermostSetupPlugin": "Użyj pluginu",
+      "mattermostSetupPluginHint": "Utwórz i podłącz bota z poziomu Mattermosta.",
+      "mattermostPluginIntro": "Zainstaluj plugin AgenticOS na własnym serwerze Mattermost. Konto AgenticOS Bridge nie jest potrzebne.",
+      "mattermostPluginInstall": "Pobierz lub zbuduj paczkę pluginu, wgraj ją w Mattermost → Konsola systemowa → Zarządzanie pluginami i włącz plugin.",
+      "mattermostPluginConfigure": "W ustawieniach pluginu podaj adres HTTPS tej instancji AgenticOS, ID organizacji i ID opublikowanego agenta.",
+      "mattermostPluginConnect": "Wywołaj <command>/agenticos connect</command> w docelowym kanale Mattermosta i dokończ autoryzację w prywatnym formularzu.",
+      "mattermostPluginOrganization": "ID organizacji: <code>{id}</code>",
+      "mattermostPluginInstructions": "Plugin i instrukcja instalacji",
+      "mattermostPluginFinishHint": "Po połączeniu w Mattermoście odśwież tutaj listę kanałów. Przed rozmową każda osoba musi powiązać własne konto AgenticOS.",
+      "mattermostPluginRefresh": "Odśwież kanały"
     },
     "invitations": {
       "acceptInvitation": "Przyjmij zaproszenie",
@@ -7908,6 +7921,10 @@
       "channels-customers": {
         "title": "Osoby, które piszą",
         "body": "Zobacz, kto napisał na linię WhatsApp bez konta, szukaj po numerze i na prośbę zapomnij klienta we wszystkich botach organizacji."
+      },
+      "channels-mattermost-setup": {
+        "title": "Wybierz sposób połączenia z Mattermostem",
+        "body": "Podaj token istniejącego bota lub zainstaluj plugin Mattermost, aby utworzyć i podłączyć bota z własnego serwera."
       }
     },
     "chooseLanguage": "Język",

@@ -371,6 +371,17 @@ describe("the channels page", () => {
     }
   });
 
+  it("refreshes externally registered plugin bots without posting a manual registration", async () => {
+    serve([]);
+    await mount();
+    await userEvent.click((await screen.findAllByRole("button", { name: "Add channel" })).at(-1)!);
+    await userEvent.click(screen.getByRole("radio", { name: /Use plugin/ }));
+    serve([bot()]);
+    await userEvent.click(screen.getByRole("button", { name: "Refresh channels" }));
+    expect(await screen.findByText("Acme Support")).toBeVisible();
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
   it("will not register a Mattermost bot without its server", async () => {
     // Mattermost is self-hosted: a bot that does not know its server cannot
     // reply, and the backend refuses to save one. Said before the round trip.

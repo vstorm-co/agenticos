@@ -1439,9 +1439,14 @@ topic in that topic.
 
 ## Mattermost
 
+In **Channels → Add channel → Mattermost**, choose **Manual setup** to use an
+existing bot, or **Use plugin** for the guided installation path. After connecting
+in Mattermost, **Refresh channels** reloads the channel and agent-binding lists.
+
+
 ### Install the setup plugin
 
-The [Mattermost server plugin](https://github.com/vstorm-co/agenticos/tree/main/plugins/mattermost)
+The [Mattermost server plugin](https://github.com/vstorm-co/agenticos-mattermost)
 creates the local bot and pairs it with an agent in your own AgenticOS instance.
 Build its Linux amd64/arm64 bundle, upload it in Mattermost's Plugin Management,
 and set the AgenticOS HTTPS URL, organization ID and published agent ID.
