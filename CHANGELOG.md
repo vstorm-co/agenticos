@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Check browser health through its resolved IP address so Chromium accepts Compose service hosts in `agenticos cmd doctor`; bound DNS resolution and the HTTP probe together.
+
 ## [1.81.0] - 2026-11-17
 
 ### Added
@@ -52,8 +56,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Workflow record filters choose their column by name from the step's table instead of asking for a column id, and a single or multi select column's value from its options, so Record exists? no longer refuses an option typed by its label. The Record exists? and List records steps no longer offer a column list they never read; a stored narrowing stays visible so it can be cleared.
 
 ### Fixed
-
-- Check browser health through its resolved IP address so Chromium accepts Compose service hosts in `agenticos cmd doctor`; bound DNS resolution and the HTTP probe together.
 
 - Bind private model-history checkpoints to their agent and resolved model destinations, including fallback connections, and to the live MCP account, endpoint and authorization generation. Changing a recipient rebuilds visible transcript history instead of sending earlier hidden tool results to another endpoint.
 
