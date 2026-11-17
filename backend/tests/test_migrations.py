@@ -2452,6 +2452,8 @@ def test_memory_snapshot_upgrade_preserves_legacy_runs_and_downgrades_cleanly() 
             )
             assert rows[old_run] is None
             assert rows[new_run].startswith("boot:")
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
         check = _alembic("check")
         assert check.returncode == 0, check.stderr
         result = _alembic("downgrade", "0335_defer_run_conversation_fk")
@@ -2461,6 +2463,67 @@ def test_memory_snapshot_upgrade_preserves_legacy_runs_and_downgrades_cleanly() 
         }
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT count(*) FROM agent_runs")) == 2
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()
+
+
+def test_batch_receipts_name_their_table_and_unattributed_ones_are_dropped() -> None:
+    """0337: a batch receipt from before it names no table, so the upgrade deletes it,
+    keeps every other receipt, and refuses a new batch receipt without a table."""
+    from sqlalchemy import inspect
+    from sqlalchemy.exc import IntegrityError
+
+    result = _alembic("downgrade", "base")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("upgrade", "0336_run_memory_snapshot")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    insert = text(
+        "INSERT INTO virtual_table_receipts (id, organization_id, principal_id, operation, "
+        "operation_key, payload_hash, outcome) "
+        "VALUES (:id, :org, :user, :operation, :key, :hash, '{}'::jsonb)"
+    )
+    batch, single = uuid4(), uuid4()
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            for receipt_id, operation in ((batch, "record.batch"), (single, "record.create")):
+                connection.execute(
+                    insert,
+                    {
+                        "id": receipt_id,
+                        "org": uuid4(),
+                        "user": uuid4(),
+                        "operation": operation,
+                        "key": str(receipt_id),
+                        "hash": "0" * 64,
+                    },
+                )
+        result = _alembic("upgrade", "0337_record_batch_receipt_table")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as connection:
+            kept = connection.scalars(text("SELECT id FROM virtual_table_receipts")).all()
+            assert kept == [single]
+        with pytest.raises(IntegrityError, match="batch_names_table"), engine.begin() as connection:
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(
+                insert,
+                {
+                    "id": uuid4(),
+                    "org": uuid4(),
+                    "user": uuid4(),
+                    "operation": "record.batch",
+                    "key": "new",
+                    "hash": "0" * 64,
+                },
+            )
+        result = _alembic("downgrade", "0336_run_memory_snapshot")
+        assert result.returncode == 0, result.stderr
+        assert "table_id" not in {
+            column["name"] for column in inspect(engine).get_columns("virtual_table_receipts")
+        }
         result = _alembic("upgrade", "head")
         assert result.returncode == 0, result.stderr
     finally:

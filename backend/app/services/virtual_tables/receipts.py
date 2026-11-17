@@ -77,12 +77,15 @@ async def run_once[Outcome: BaseModel](
     payload: dict[str, Any],
     outcome_type: type[Outcome],
     action: Callable[[], Awaitable[Outcome]],
+    table_id: UUID | None = None,
 ) -> tuple[Outcome, bool]:
     """Run `action` once per key, and say whether this call replayed a stored outcome.
 
     The action, the receipt and everything the action writes share one savepoint,
     so a failure anywhere leaves no receipt behind even if the caller keeps the
-    session. Without a key the action simply runs.
+    session. Without a key the action simply runs. `table_id` is stored on the
+    receipt for an operation whose outcome does not name its table, so purging
+    the table finds the receipt.
 
     Raises:
         IdempotencyKeyReuseError: The key was used before with a different request.
@@ -109,6 +112,7 @@ async def run_once[Outcome: BaseModel](
             operation=operation,
             operation_key=operation_key,
             payload_hash=digest,
+            table_id=table_id,
         )
         if claimed is None:
             stored = await virtual_table_repo.read_receipt(

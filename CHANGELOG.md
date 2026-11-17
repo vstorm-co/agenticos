@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Task board purge and record batches.** Removing a group, a project or an account now also deletes the idempotency receipts of record batches written to its task board's table. A batch receipt keeps the refused rows' details, which can include an external id such as an email, and now records its table so the purge finds it. Batch receipts written before the upgrade cannot be attributed to a table and are deleted by the migration, so a batch retried across the upgrade under the same key is written again instead of replayed.
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed
