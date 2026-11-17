@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 
 import { SetupIndicator } from "@/components/settings/setup-indicator";
 import { architectSetupHints } from "@/lib/setup-hints";
-import { SettingsSection } from "@/components/settings/settings-section";
+import { ServiceCard } from "@/components/settings/service-card";
 import { Button, Switch } from "@/components/ui";
 import { useAssistant, useUpdateAssistant } from "@/hooks/use-assistant";
 import { ROUTES } from "@/lib/constants";
@@ -37,8 +37,9 @@ function AssistantCard({ assistant, agentId }: { assistant: AssistantState; agen
 
   return (
     <div data-tour="org-assistant">
-      <SettingsSection
-        className="bg-card rounded-xl border p-4 sm:p-5"
+      <ServiceCard
+        icon={Bot}
+        collapsible
         action={
           <Switch
             checked={assistant.status !== "disabled"}
@@ -64,7 +65,7 @@ function AssistantCard({ assistant, agentId }: { assistant: AssistantState; agen
             </Button>
           </div>
         </div>
-      </SettingsSection>
+      </ServiceCard>
     </div>
   );
 }

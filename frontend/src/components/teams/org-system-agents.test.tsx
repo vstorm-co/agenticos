@@ -150,7 +150,7 @@ describe("OrgSystemAgents", () => {
     render(<OrgSystemAgents org={ORG} />);
     const card = within(screen.getByTestId("system-agent-daily_briefing"));
     expect(card.queryByRole("link")).not.toBeInTheDocument();
-    await userEvent.click(card.getByText("configure"));
+    await userEvent.click(card.getByRole("button", { name: /^roles\./ }));
     await userEvent.click(card.getByRole("button", { name: "pick" }));
     await userEvent.click(card.getByRole("button", { name: "save" }));
     expect(state.setProactivity).toHaveBeenCalledWith("o1", {
@@ -166,7 +166,7 @@ describe("OrgSystemAgents", () => {
     render(<OrgSystemAgents org={ORG} />);
     const card = within(screen.getByTestId("system-agent-memory_maintenance"));
     expect(card.getByText("off")).toBeVisible();
-    await userEvent.click(card.getByText("configure"));
+    await userEvent.click(card.getByRole("button", { name: /^roles\./ }));
     expect(card.getByRole("switch")).not.toBeChecked();
     expect(card.getByRole("switch")).toBeDisabled();
     await userEvent.click(card.getByRole("button", { name: "pick" }));
@@ -187,7 +187,9 @@ describe("OrgSystemAgents", () => {
     ).not.toBeVisible();
     expect(screen.getByTestId("system-agent-memory_maintenance")).toHaveTextContent("noRuns");
     await userEvent.click(
-      within(screen.getByTestId("system-agent-memory_maintenance")).getByText("configure"),
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: /^roles\./,
+      }),
     );
     expect(
       within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
@@ -248,7 +250,9 @@ describe("OrgSystemAgents", () => {
   it("refuses to turn on without a model and a budget that is not a number", async () => {
     render(<OrgSystemAgents org={ORG} />);
     await userEvent.click(
-      within(screen.getByTestId("system-agent-memory_maintenance")).getByText("configure"),
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: /^roles\./,
+      }),
     );
     const card = screen.getByTestId("system-agent-memory_maintenance");
 
@@ -267,7 +271,9 @@ describe("OrgSystemAgents", () => {
   it("saves the switch, the model and the budget together", async () => {
     render(<OrgSystemAgents org={ORG} />);
     await userEvent.click(
-      within(screen.getByTestId("system-agent-memory_maintenance")).getByText("configure"),
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: /^roles\./,
+      }),
     );
     const card = screen.getByTestId("system-agent-memory_maintenance");
 
@@ -294,7 +300,9 @@ describe("OrgSystemAgents", () => {
     ];
     render(<OrgSystemAgents org={ORG} />);
     await userEvent.click(
-      within(screen.getByTestId("system-agent-memory_maintenance")).getByText("configure"),
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: /^roles\./,
+      }),
     );
     const card = screen.getByTestId("system-agent-memory_maintenance");
 
@@ -316,7 +324,9 @@ describe("OrgSystemAgents", () => {
   it("holds the save while a model is being created", async () => {
     render(<OrgSystemAgents org={ORG} />);
     await userEvent.click(
-      within(screen.getByTestId("system-agent-memory_maintenance")).getByText("configure"),
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: /^roles\./,
+      }),
     );
     await userEvent.type(screen.getByLabelText("budget"), "1");
     const save = within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
@@ -346,7 +356,9 @@ describe("OrgSystemAgents", () => {
     );
     render(<OrgSystemAgents org={ORG} />);
     await userEvent.click(
-      within(screen.getByTestId("system-agent-memory_maintenance")).getByText("configure"),
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: /^roles\./,
+      }),
     );
     await userEvent.type(screen.getByLabelText("budget"), "1");
     await userEvent.click(
@@ -363,7 +375,9 @@ describe("OrgSystemAgents", () => {
 it("keeps Save disabled until the role configuration changes and after it is restored", async () => {
   render(<OrgSystemAgents org={ORG} />);
   await userEvent.click(
-    within(screen.getByTestId("system-agent-memory_maintenance")).getByText("configure"),
+    within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+      name: /^roles\./,
+    }),
   );
   const save = within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
     name: "save",

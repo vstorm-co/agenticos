@@ -1,5 +1,5 @@
 ---
-source_sha: "cbc3104b095a"
+source_sha: "79ff311d2516"
 ---
 
 # Die Konsole { #the-console }
@@ -1049,7 +1049,7 @@ ihren Assistenten nur zum Lesen, mit der Entscheidung im letzten Schritt; siehe
 
 Organisationsdetails haben drei Registerkarten: **Mitglieder**, **Budget und Freigaben** und **KI & Dienste**. Mitglieder bietet Namens-/E-Mail-Suche, Rollenfilter und die letzte erfasste Aktion in diesem Arbeitsbereich. Dies ist eine Audit-Aktion, kein Besuch oder Login; Aktionen durch Identitätsübernahme werden ausgeschlossen und fehlende Historie erscheint als Strich. **Arbeitsbereich bearbeiten** öffnet einen Dialog für Name, Avatar und Farbe mit Schutz ungespeicherter Änderungen. KI & Dienste zeigt einzelne Funktionskarten ohne übergeordnete Gruppen. Aufklappen erhält Entwürfe. Alle Steuerelemente behalten ihre Berechtigungsprüfungen. Alte Links mit `?tab=profile` öffnen den Arbeitsbereich-Dialog; `?tab=voice` und `?tab=proactivity` öffnen die passenden Einstellungen in KI & Dienste.
 
-Tägliches Briefing und Vorschläge sind ein Dienst mit gemeinsamen Einstellungen. Seine Karte zeigt auch Ausgaben und letzte Ausführungen. Die Speicherpflege hat ein eigenes Modell und Budget und beginnt ausgeschaltet. Wählen Sie vor dem Einschalten ein Modell. Beim KI-Architekten bleiben Schalter und Agent-Builder-Link sichtbar, ohne Begrüßungseditor.
+Tägliches Briefing und Vorschläge sind ein Dienst mit gemeinsamen Einstellungen. Seine Karte zeigt auch Ausgaben und letzte Ausführungen. Die Speicherpflege hat ein eigenes Modell und Budget und beginnt ausgeschaltet. Wählen Sie vor dem Einschalten ein Modell. Beim KI-Architekten bleibt der Schalter sichtbar; der Agent-Builder-Link steht in der aufgeklappten Karte, ohne Begrüßungseditor. Alle sieben Funktionen verwenden denselben Kartenkopf, dasselbe Symbollayout und dieselben Aufklappschaltflächen.
 
 Nach der Anmeldung erscheinen an die Konto-E-Mail adressierte Einladungen auch in Konsole und Onboarding, ohne den E-Mail-Link zu öffnen. Der Empfänger wählt eine Organisation und nimmt ausdrücklich an; Später lässt die Verknüpfung Einladungen verfügbar. Angezeigt werden nur gültige Einladungen an die aktuelle Konto-Adresse, ohne geteilte Links und bereits beigetretene Organisationen. Die Annahme wechselt zur gewählten Organisation und öffnet deren Begrüßung. Der Server gibt in diesem Posteingang keine Einladungstokens zurück.
 

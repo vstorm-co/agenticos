@@ -25,6 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Use the same icon, heading, description, spacing and disclosure controls for all organization AI & services cards. AI Architect, speech-to-text and text-to-speech now match the background-service cards; switches remain separate from expansion and retain their save behavior.
+
 - Count Improve’s source cards from the selected evidence sample, including positive feedback and reviewed test answers, and keep empty-state messages hidden while the preview refreshes or its test set is still loading (#2555).
 
 - Lock and reauthorize a conversation before queuing sandbox cleanup and deleting its workspace references. Preserve post-commit remote destruction and the durable retry queue, including rollback on a final authorization refusal.
