@@ -2452,6 +2452,8 @@ def test_memory_snapshot_upgrade_preserves_legacy_runs_and_downgrades_cleanly() 
             )
             assert rows[old_run] is None
             assert rows[new_run].startswith("boot:")
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
         check = _alembic("check")
         assert check.returncode == 0, check.stderr
         result = _alembic("downgrade", "0335_defer_run_conversation_fk")
@@ -2527,6 +2529,76 @@ def test_github_filter_diagnostic_preserves_existing_routine_policy() -> None:
                     assert row.event_config == {"actions": ["opened"]}
                     assert row.last_filtered_event is None
         result = _alembic("check")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()
+
+
+def test_organization_speech_defaults_preserve_old_agents_and_run_destinations() -> None:
+    """0339 adds only nullable defaults; a parked run may pin its original destination."""
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", "0338_personal_model_keys")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    organization_id, run_id = uuid4(), uuid4()
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(
+                text(
+                    "INSERT INTO organizations (id, name, slug, created_by_user_id, is_personal) VALUES (:id, 'Legacy voice', :slug, :owner, false)"
+                ),
+                {"id": organization_id, "slug": uuid4().hex, "owner": uuid4()},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, input_tokens, output_tokens, cost_usd, cost_is_partial) VALUES (:id, :org, :agent, 'chat', 'completed', 0, 0, 0, false)"
+                ),
+                {"id": run_id, "org": organization_id, "agent": uuid4()},
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT text_to_speech FROM organizations WHERE id=:id"),
+                    {"id": organization_id},
+                ).one()[0]
+                is None
+            )
+            assert (
+                connection.execute(
+                    text("SELECT text_to_speech_defaults FROM agent_runs WHERE id=:id"),
+                    {"id": run_id},
+                ).one()[0]
+                is None
+            )
+            snapshot = {
+                "enabled": True,
+                "provider": "openai",
+                "model": "gpt-4o-mini-tts",
+                "voice": "coral",
+                "secret_id": str(uuid4()),
+            }
+            connection.execute(
+                text(
+                    "UPDATE agent_runs SET text_to_speech_defaults=CAST(:snapshot AS jsonb) WHERE id=:id"
+                ),
+                {"snapshot": json.dumps(snapshot), "id": run_id},
+            )
+            assert (
+                connection.execute(
+                    text("SELECT text_to_speech_defaults FROM agent_runs WHERE id=:id"),
+                    {"id": run_id},
+                ).scalar_one()
+                == snapshot
+            )
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr
+        result = _alembic("downgrade", "0338_personal_model_keys")
+        assert result.returncode == 0, result.stderr
+        result = _alembic("upgrade", "head")
         assert result.returncode == 0, result.stderr
     finally:
         engine.dispose()

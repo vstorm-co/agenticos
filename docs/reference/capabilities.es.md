@@ -1,5 +1,5 @@
 ---
-source_sha: "260df66e53b4"
+source_sha: "2bc3e7bad49a"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1584,8 +1584,13 @@ Lee un texto en voz alta con el provider de voz que elige el autor y se comporta
 como la generación de imágenes: el clip se guarda, aparece en la conversación como
 reproductor y se escribe en `output/` cuando hay un workspace abierto (#2259).
 
+Los valores de la organización son opcionales. En **Organización → AI & services → Text to speech**, un administrador guarda provider, modelo, voz y clave del vault visible para la organización como un grupo. El agente solo lo hereda cuando su autor activa **Use organization defaults**; los agentes existentes conservan su configuración. Un run en espera conserva el grupo resuelto aunque cambien los valores. Desactivar el TTS de la organización o revocar la clave sigue impidiendo generar voz. La configuración propia del agente usa conjuntamente su provider y su clave.
+
+El catálogo HTTP incluye Eleven v4 mediante su endpoint text-to-dialogue, con fragmentos de hasta 2000 caracteres, además de Eleven v3 y Flash v2. Los modelos conversacionales exclusivos de WebSocket requieren otro transporte y no se ofrecen para generar clips.
+
 | Configuración | Por defecto | Valores |
 | --- | --- | --- |
+| `use_organization_defaults` | `false` | Heredar conjuntamente provider, modelo, voz y clave de la organización; en caso contrario usar este binding |
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | Los modelos de ese provider, de `app/core/catalog/text_to_speech_models.json` |
 | `voice` | la primera del modelo | La voz por defecto del agente; puede cambiarla en cada clip dentro de `voices`. Una voz del catálogo para OpenAI y Gemini; un id de tu propia biblioteca de voces para ElevenLabs |

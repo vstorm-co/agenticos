@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Configure organization text-to-speech defaults as a provider, model, voice and shared vault key. Agents explicitly opt in or retain their own override; waiting runs keep their chosen destination while key revocation and disabling the service still apply.
+
+- Offer current recorded-audio transcription models and Eleven v4, Eleven v3 and Flash v2 speech generation. Eleven v4 uses its dialogue endpoint with bounded text chunks; existing model selections are preserved.
+
 - **Table calls read in the table's own names.** When an agent queries, reads,
   adds, updates, upserts or deletes Virtual Table records through the platform
   tools, the chat step shows the table, the record it targets, its conditions,
@@ -37,9 +41,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Expose GitHub routine author filters, including a members-and-contributors option, while preserving existing defaults. Routine owners can inspect the latest verified event rejected by a filter without storing webhook content or creating a run (#3072).
 
-- Let shared agents require each signed-in web-chat user's own API key while keeping the model and endpoint fixed. Store keys privately in the vault, reuse them for the same provider and endpoint, and manage them without organization connection permissions. Refuse unsupported public surfaces, channels, automated runs and model overrides at configuration and run time; never fall back to an organization key (#2921).
+- Let shared agents require each signed-in web-chat user's own API key while keeping the model and endpoint fixed. Store keys privately in the vault, reuse them for the same provider and endpoint, and manage them without organization connection permissions. Refuse unsupported public surfaces, channels, automated runs and model overrides at configuration and run time; never fall back to an organization key. Refuse private-key saves when the model destination changed after the form opened (#2921).
 
 ### Changed
+
+- Flatten organization AI settings into individual function cards. Daily briefing and suggestions share one model, budget and schedule card; memory maintenance and monitoring retain their own switches. Keep the AI Architect switch and Builder link visible without a greeting editor.
 
 - Workflow record filters choose their column by name from the step's table instead of asking for a column id, and a single or multi select column's value from its options, so Record exists? no longer refuses an option typed by its label. The Record exists? and List records steps no longer offer a column list they never read; a stored narrowing stays visible so it can be cleared.
 
@@ -55,9 +61,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Apply `0339_organization_text_to_speech.py` after `0338_personal_model_keys.py`. Existing agents retain their own TTS settings; inheritance is opt-in and requires an organization-visible provider key.
+
+- Apply `0338_personal_model_keys.py` after `0337_github_filter_diagnostic.py`; both changes now form one migration chain. Existing agents continue using organization model keys unless explicitly changed.
+
 - Apply migration `0337_github_filter_diagnostic.py` for the routine's bounded filter diagnostic. Existing author policies are unchanged; old configurations without `authors` remain member-only.
 
-- Draft API clients must read `draft_revision` from `GET /agents/{id}` and send it as `expected_revision` with `PUT /agents/{id}/draft`. Missing tokens return 422; stale tokens return 409 without changes. Reload older Builder tabs after upgrading. No database migration or spec-version change is required (#2618).
+- Draft API clients must read `draft_revision` from `GET /agents/{id}` or the edit-authorized `GET /agents/{id}/draft-revision` and send it as `expected_revision` with `PUT /agents/{id}/draft` and YAML replacements at `POST /agents/{id}/spec.yaml`. Missing tokens return 422; stale tokens return 409 without changes. Reload older Builder tabs after upgrading. No database migration or spec-version change is required (#2618).
 
 ## [1.80.0] - 2026-11-16
 

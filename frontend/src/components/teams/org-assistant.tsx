@@ -24,7 +24,7 @@ import type { AssistantState } from "@/types/assistant";
  * that organization's page - and only for somebody who may change it, like the
  * spending limit beside it.
  */
-export function OrgAssistant({ orgId }: { orgId: string; collapsible?: boolean }) {
+export function OrgAssistant({ orgId }: { orgId: string }) {
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { assistant } = useAssistant();
   if (orgId !== activeOrgId || !assistant?.can_configure || !assistant.agent_id) return null;

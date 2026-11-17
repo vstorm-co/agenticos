@@ -625,3 +625,13 @@ Built with care by [**Vstorm**](https://vstorm.co) · [Vstorm on GitHub](https:/
 Everyone who has helped build AgenticOS:
 
 <a href="https://github.com/vstorm-co/agenticos/graphs/contributors"><img src="https://contrib.rocks/image?repo=vstorm-co/agenticos" alt="Avatars of everyone who has contributed to AgenticOS"></a>
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=vstorm-co%2Fagenticos&type=date&legend=bottom-right">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&theme=dark&legend=bottom-right" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&legend=bottom-right" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&legend=bottom-right" />
+ </picture>
+</a>

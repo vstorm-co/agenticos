@@ -2535,7 +2535,9 @@
       "modelCredentialMode": "Dostęp do modelu",
       "organizationModelKey": "Użyj klucza organizacji",
       "personalModelKey": "Każdy użytkownik podłącza własny klucz",
-      "personalModelLimits": "Model i endpoint pozostają stałe. Tylko czat zalogowanego użytkownika. Przed publikacją wyłącz aktywne kanały, widgety, strony publiczne i rutyny. Uruchomienia przez HTTP API, tematy w tle, głos, delegowanie, recenzenci, osobne modele kroków i modele zapasowe nie są obsługiwane."
+      "personalModelLimits": "Model i endpoint pozostają stałe. Tylko czat zalogowanego użytkownika. Przed publikacją wyłącz aktywne kanały, widgety, strony publiczne i rutyny. Uruchomienia przez HTTP API, tematy w tle, głos, delegowanie, recenzenci, osobne modele kroków i modele zapasowe nie są obsługiwane.",
+      "speechUseOrganizationDefaults": "Użyj ustawień organizacji",
+      "speechOrganizationDefaultsHint": "Dziedzicz wspólnie dostawcę, model, głos i klucz organizacji. Wyłącz, aby skonfigurować własny głos agenta."
     },
     "auth": {
       "backSign": "Wróć do logowania",
@@ -6051,7 +6053,14 @@
       "save": "Zapisz zmiany",
       "saved": "Zapisano ustawienia głosu",
       "notReadyNoKey": "Nie wybrano klucza dla {provider}. Agenci i boty, które go dziedziczą, nie mogą transkrybować przez providera, dopóki nie wybierzesz klucza poniżej.",
-      "summary": "Domyślny dostawca transkrypcji i limity nagrań."
+      "summary": "Domyślny dostawca transkrypcji i limity nagrań.",
+      "tts": {
+        "title": "Tekst na mowę",
+        "description": "Domyślny dostawca, model, głos i klucz organizacji dla agentów korzystających z ustawień organizacji. Agent może wybrać własną konfigurację głosu.",
+        "voice": "Głos",
+        "required": "Przed włączeniem wybierz dostawcę, model i klucz dostępny dla całej organizacji.",
+        "catalogUnavailable": "Nie udało się wczytać modeli mowy. Spróbuj ponownie przed zmianą dostawcy."
+      }
     },
     "publicAttribution": "AgenticOS na udostępnionych stronach",
     "publicAttributionDescription": "Pokazuj pływające oznaczenie AgenticOS z linkiem do GitHuba na publicznych aplikacjach, dashboardach i raportach oraz pod udostępnionymi rozmowami.",
@@ -6076,7 +6085,7 @@
       "discardChanges": "Odrzuć zmiany",
       "title": "Sugestie asystenta i monitorowanie",
       "description": "Sugestie na podstawie rozmów i monitorowanie źródeł działają niezależnie. Rutyny czasowe i zdarzeniowe nie wymagają włączenia sugestii.",
-      "nightly": "Nocne propozycje",
+      "nightly": "Codzienny briefing i sugestie",
       "nightlyHint": "Proponuj rutyny, agentów i zmiany profilu na podstawie ostatnich rozmów i pamięci. Nie przegląda skrzynek pocztowych. Utworzenie proponowanej rutyny wymaga potwierdzenia użytkownika.",
       "model": "Model",
       "modelHint": "Tylko do proponowania usprawnień na podstawie rozmów. Monitorowanie używa modelu wybranego agenta.",
@@ -6090,8 +6099,8 @@
       "hourHint": "W strefie czasowej każdej osoby.",
       "hourFallbackHint": "Dla osób, których profil nie podaje godzin pracy, w ich strefie czasowej.",
       "save": "Zapisz",
-      "saved": "Nocne propozycje zapisane",
-      "off": "Nocne propozycje są wyłączone",
+      "saved": "Zapisano ustawienia pracy w tle",
+      "off": "Funkcje pracy w tle są wyłączone",
       "invalid": "Podaj kwotę w dolarach, 0 lub więcej.",
       "welcome": "Wiadomość powitalna w aplikacjach czatu",
       "welcomeHint": "Nowa osoba dostaje wiadomość prywatną od Twoich botów w Slacku, Teams i Mattermost.",
@@ -6110,8 +6119,6 @@
     },
     "systemAgents": {
       "configure": "Model i budżet",
-      "title": "Usługi działające w tle",
-      "description": "Usługi platformy korzystające z modeli. Rozwiń usługę, aby ustawić jej model i budżet. Zużycie i ostatnie runy są widoczne poniżej.",
       "on": "Włączona",
       "off": "Wyłączona",
       "enabled": "Uruchamiaj tę rolę",
@@ -6138,8 +6145,7 @@
           "what": "Czyta zakończony czat raz i zapisuje trwałe fakty, preferencje i decyzje z niego, w zakresie samej rozmowy. Nic nie działa, gdy jest wyłączona albo nie ma modelu."
         }
       },
-      "starterAgentMissing": "Ta rola teraz nic nie robi: agent startowy AgenticOS, pod którym jest zapisywana, nie istnieje, nie jest opublikowany albo zmieniono jego nazwę. Opublikuj go ponownie pod uchwytem agenticos.",
-      "summary": "Modele, budżety i ostatnie uruchomienia usług platformy."
+      "starterAgentMissing": "Ta rola teraz nic nie robi: agent startowy AgenticOS, pod którym jest zapisywana, nie istnieje, nie jest opublikowany albo zmieniono jego nazwę. Opublikuj go ponownie pod uchwytem agenticos."
     }
   },
   "theme": {
@@ -10821,6 +10827,10 @@
       "max_characters": {
         "title": "Najdłuższy tekst",
         "description": "Najwięcej tekstu, jaki może wypowiedzieć jedno wywołanie, co ogranicza koszt pojedynczego wywołania."
+      },
+      "use_organization_defaults": {
+        "title": "Użyj ustawień organizacji",
+        "description": "Dziedzicz wspólnie dostawcę, model, głos i klucz organizacji. Wyłącz, aby skonfigurować własny głos agenta."
       }
     },
     "video_generation": {

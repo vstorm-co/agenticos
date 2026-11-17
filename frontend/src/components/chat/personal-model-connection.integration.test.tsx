@@ -1,16 +1,19 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { PersonalModelConnection } from "./personal-model-connection";
 import { PersonalModelKeys } from "@/components/vault/personal-model-keys";
 import { useAuthStore } from "@/stores";
 import * as api from "@/lib/personal-model-keys-api";
+import { ApiError } from "@/lib/api-error";
+import { qk } from "@/lib/query-keys";
 import type { AgentModelConnection } from "@/lib/personal-model-keys-api";
 
+const tenant = vi.hoisted(() => ({ id: "org" as string | null, valid: true }));
 vi.mock("@/hooks/use-organizations", () => ({
-  useTenantId: () => "org",
-  useTenantGuard: () => () => true,
+  useTenantId: () => tenant.id,
+  useTenantGuard: () => () => tenant.valid,
 }));
 vi.mock("@/lib/personal-model-keys-api", () => ({
   agentModelConnection: vi.fn(),
@@ -30,10 +33,15 @@ function mount(children = <PersonalModelConnection agentId="agent" />) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(<QueryClientProvider client={client}>{children}</QueryClientProvider>);
+  return {
+    ...render(<QueryClientProvider client={client}>{children}</QueryClientProvider>),
+    client,
+  };
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  tenant.id = "org";
+  tenant.valid = true;
   useAuthStore.setState({
     user: {
       id: "person",
@@ -57,7 +65,16 @@ it("connects a masked private key without giving the user a model or endpoint ov
   await user.click(screen.getByRole("button", { name: "Connect key" }));
   await waitFor(() =>
     expect(api.savePersonalModelKey).toHaveBeenCalledWith(
-      { agentId: "agent", api_key: "secret-personal-token" },
+      {
+        agentId: "agent",
+        api_key: "secret-personal-token",
+        expected_destination: {
+          profile_id: connection.profile_id,
+          provider: connection.provider,
+          endpoint: connection.endpoint,
+          model: connection.model,
+        },
+      },
       expect.anything(),
     ),
   );
@@ -108,5 +125,50 @@ it("keeps a connected key out of the conversation composer", async () => {
   vi.mocked(api.agentModelConnection).mockResolvedValue({ ...connection, connected: true });
   mount();
   await waitFor(() => expect(api.agentModelConnection).toHaveBeenCalled());
+  expect(screen.queryByRole("form")).not.toBeInTheDocument();
+});
+
+it("clears the typed key when a refreshed agent points at another destination", async () => {
+  const user = userEvent.setup();
+  const { client } = mount();
+  const input = await screen.findByLabelText("Your API key");
+  await user.type(input, "original-provider-key");
+  act(() =>
+    client.setQueryData(qk.personalModelKeys.agent("org:person", "agent"), {
+      ...connection,
+      endpoint: "https://replacement.example/v1",
+    }),
+  );
+  await waitFor(() => expect(input).toHaveValue(""));
+  expect(screen.getByText(/shared-model/)).toHaveTextContent("https://replacement.example/v1");
+  expect(api.savePersonalModelKey).not.toHaveBeenCalled();
+});
+
+it("refreshes a stale destination refusal and asks for a new key instead of retrying it", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.savePersonalModelKey).mockRejectedValue(
+    new ApiError(409, "The destination changed", {
+      error: { code: "PERSONAL_MODEL_DESTINATION_CHANGED", message: "The destination changed" },
+    }),
+  );
+  mount();
+  const input = await screen.findByLabelText("Your API key");
+  await user.type(input, "original-provider-key");
+  vi.mocked(api.agentModelConnection).mockResolvedValue({
+    ...connection,
+    endpoint: "https://replacement.example/v1",
+  });
+  await user.click(screen.getByRole("button", { name: "Connect key" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("The destination changed");
+  await waitFor(() => expect(input).toHaveValue(""));
+  expect(screen.getByText(/shared-model/)).toHaveTextContent("https://replacement.example/v1");
+  expect(api.savePersonalModelKey).toHaveBeenCalledTimes(1);
+});
+
+it("does not read another destination before a signed-in tenant or selected agent exists", async () => {
+  tenant.id = null;
+  useAuthStore.setState({ user: null });
+  mount(<PersonalModelConnection agentId={null} />);
+  expect(api.agentModelConnection).not.toHaveBeenCalled();
   expect(screen.queryByRole("form")).not.toBeInTheDocument();
 });

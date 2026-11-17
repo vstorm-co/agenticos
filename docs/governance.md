@@ -863,7 +863,7 @@ notifications and decisions.
 Some work is the platform's own and still needs a model. A **system role** gives it
 an owner an operator can see: one configuration per organization and role, never
 an agent row, never one per job, and never attributed to the starter agent or any
-agent whose instructions did not run (#2575). **Organizations → AI & services → Background services** (`budgets:manage`) lists each role with what it runs on, this month's
+agent whose instructions did not run (#2575). **Organizations → AI & services** (`budgets:manage`) lists each role with what it runs on, this month's
 spend and its recent executions.
 
 | Role                 | What it does                                                                                                                                             | Configured                                                             |

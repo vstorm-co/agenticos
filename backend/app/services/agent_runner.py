@@ -342,6 +342,7 @@ from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.repositories.voice_call import VoiceChain
 from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.schemas.agent_run import ChatAskerRead, RunOriginRead
+from app.schemas.organization import OrganizationTextToSpeech
 from app.schemas.user import WorkingHours
 from app.services import change_feed
 from app.services.agent_registry import (
@@ -440,6 +441,7 @@ from app.services.spend import (
     organization_monthly_spend,
     organization_spend_since,
 )
+from app.services.text_to_speech_settings import TextToSpeechSettingsService
 from app.services.transcript import (
     STOPPED_TOOL_RESULT,
     RecordedToolCall,
@@ -4339,6 +4341,21 @@ class AgentRunnerService:
                 existing_run.environment_id if existing_run is not None else environment_id
             ),
         )
+        speech_snapshot = (
+            OrganizationTextToSpeech.model_validate(existing_run.text_to_speech_defaults)
+            if existing_run is not None
+            and any(
+                binding.enabled
+                and binding.id == "text_to_speech"
+                and binding.config.get("use_organization_defaults") is True
+                for binding in spec.capabilities
+            )
+            and existing_run.text_to_speech_defaults is not None
+            else None
+        )
+        spec, speech_defaults = await TextToSpeechSettingsService(self.db).resolve_spec(
+            ctx.organization_id, spec, snapshot=speech_snapshot
+        )
         spec, test_bindings = _with_test_secrets(spec, test_connections.secrets)
 
         # Unsealed here and handed straight to the factory, which hands them to
@@ -4591,6 +4608,9 @@ class AgentRunnerService:
                 started_at=opened_at,
                 is_test=is_test,
                 test_spec=test_spec,
+                text_to_speech_defaults=speech_defaults.model_dump(mode="json")
+                if speech_defaults is not None
+                else None,
             )
         elif run.skill_uses_recorded:
             # Recorded up to the park; this segment's uses are unknown until its own
@@ -5776,6 +5796,9 @@ class AgentRunnerService:
                 shared,
             )
         )
+        spec = await TextToSpeechSettingsService(self.db).for_run(
+            ctx.organization_id, spec, delegation.run
+        )
         own_resources = await self._delegate_resources(
             ctx,
             spec,
@@ -5977,6 +6000,9 @@ class AgentRunnerService:
                 runnable = _without_delegation(pinned)
 
         require_organization_model(runnable)
+        runnable = await TextToSpeechSettingsService(self.db).for_run(
+            ctx.organization_id, runnable, delegation.run
+        )
         model = await self.models.resolve(
             delegation.models_ctx, profile_id=runnable.model_profile_id
         )

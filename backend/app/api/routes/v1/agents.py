@@ -60,6 +60,7 @@ from app.schemas.agent import (
     AgentClone,
     AgentCreate,
     AgentDetail,
+    AgentDraftRevision,
     AgentDraftUpdate,
     AgentKnowledgeReach,
     AgentList,
@@ -479,6 +480,12 @@ async def get_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any
     )
 
 
+@router.get("/{agent_id}/draft-revision", response_model=AgentDraftRevision)
+async def draft_revision(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any:
+    """Read the draft token with agents:edit, including edit-only API keys."""
+    return await service.draft_revision(ctx, agent_id)
+
+
 @router.put(
     "/{agent_id}/draft",
     response_model=AgentDetail,
@@ -651,7 +658,9 @@ async def import_spec(
     agent_id: UUID, data: AgentSpecImport, service: AgentRegistrySvc, ctx: Auth
 ) -> Any:
     """Replace the draft with a hand-written or externally-managed spec."""
-    return await service.import_spec(ctx, agent_id, data.yaml)
+    return await service.import_spec(
+        ctx, agent_id, data.yaml, expected_revision=data.expected_revision
+    )
 
 
 @router.post(

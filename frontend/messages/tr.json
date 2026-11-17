@@ -3323,7 +3323,9 @@
       "identityHelp": "Taslakla birlikte kaydedilir. Adı değiştirmek @{slug} tanıtıcısını korur; böylece ona bağlı delegasyonlar ve bahsetmeler çalışmaya devam eder.",
       "ownedByWorkflow": "Bu agent workflow adımında yapılandırılır ve workflow ile birlikte sürümlenir. Değişikliği orada yapın.",
       "openWorkflow": "Workflowu aç",
-      "goToModel": "Modele git"
+      "goToModel": "Modele git",
+      "speechUseOrganizationDefaults": "Organizasyon varsayılanlarını kullan",
+      "speechOrganizationDefaultsHint": "Organizasyonun sağlayıcı, model, ses ve anahtarını birlikte kullanın. Bu ajanın kendi sesini yapılandırmak için kapatın."
     },
     "tables": {
       "title": "Tablolar",
@@ -5622,6 +5624,10 @@
       "max_characters": {
         "title": "En uzun metin",
         "description": "Tek çağrıda seslendirilebilecek en uzun metin; böylece tek çağrının maliyeti sınırlanır."
+      },
+      "use_organization_defaults": {
+        "title": "Organizasyon varsayılanlarını kullan",
+        "description": "Organizasyonun sağlayıcı, model, ses ve anahtarını birlikte kullanın. Bu ajanın kendi sesini yapılandırmak için kapatın."
       }
     },
     "video_generation": {
@@ -11102,7 +11108,14 @@
       "save": "Değişiklikleri kaydet",
       "saved": "Ses ayarları kaydedildi",
       "notReadyNoKey": "{provider} için key seçilmedi. Bunu devralan agent’lar ve botlar aşağıdan bir key seçene kadar provider ile transkripsiyon yapamaz.",
-      "summary": "Varsayılan transkripsiyon sağlayıcısı ve kayıt sınırları."
+      "summary": "Varsayılan transkripsiyon sağlayıcısı ve kayıt sınırları.",
+      "tts": {
+        "title": "Metinden konuşmaya",
+        "description": "Organizasyon varsayılanlarını seçen ajanlar için varsayılan sağlayıcı, model, ses ve organizasyon anahtarı. Ajanlar kendi ses yapılandırmalarını da kullanabilir.",
+        "voice": "Ses",
+        "required": "Etkinleştirmeden önce sağlayıcı, model ve organizasyon genelinde görünen bir anahtar seçin.",
+        "catalogUnavailable": "Konuşma modelleri yüklenemedi. Sağlayıcıyı değiştirmeden önce tekrar deneyin."
+      }
     },
     "publicAttribution": "Paylaşılan sayfalarda AgenticOS",
     "publicAttributionDescription": "Herkese açık uygulama, pano ve raporlarda yüzen bir AgenticOS rozeti ve GitHub bağlantısı; paylaşılan konuşmaların altında aynı rozeti gösterin.",
@@ -11119,8 +11132,6 @@
     "publicLiveDataConfirmWhy": "Bir sayfanın herkese açık bağlantısına sahip herkes ve sayfayı embed eden tüm siteler, oturum açmadan tablo verilerini görür. Sayfanın sahibi veya bir Owner ya da Admin onaylayana kadar hiçbir veri gösterilmez. Daha önce onaylanmış sayfalar verilerini hemen yeniden gösterir.",
     "publicLiveDataConfirm": "İzin ver",
     "systemAgents": {
-      "title": "Arka plan hizmetleri",
-      "description": "Model kullanan platform hizmetleri. Model ve bütçeyi yapılandırmak için bir hizmeti genişletin. Kullanım ve son çalıştırmalar aşağıda görünür.",
       "configure": "Model ve bütçeyi yapılandır",
       "on": "Açık",
       "off": "Kapalı",
@@ -11148,8 +11159,7 @@
           "what": "Tamamlanan bir sohbeti okuyarak kalıcı bilgileri, tercihleri ve kararları sohbetin kapsamına kaydeder. Kapalıyken veya modeli yokken çalışmaz."
         }
       },
-      "starterAgentMissing": "Bu rol şu anda çalışmıyor: kayıt için kullandığı AgenticOS başlangıç temsilcisi eksik, yayınlanmamış veya yeniden adlandırılmış. agenticos adıyla yeniden yayınlayın.",
-      "summary": "Platform hizmetlerinin modelleri, bütçeleri ve son çalışmaları."
+      "starterAgentMissing": "Bu rol şu anda çalışmıyor: kayıt için kullandığı AgenticOS başlangıç temsilcisi eksik, yayınlanmamış veya yeniden adlandırılmış. agenticos adıyla yeniden yayınlayın."
     },
     "proactive": {
       "budgetTitle": "Bütçe ve sınırlar",
@@ -11160,7 +11170,7 @@
       "discardChanges": "Değişiklikleri iptal et",
       "title": "Asistan önerileri ve izleme",
       "description": "Sohbet tabanlı öneriler ve salt okunur izleme bağımsızdır. Zamanlanmış ve olay rutinleri önerilerin etkin olmasını gerektirmez.",
-      "nightly": "Gece önerileri",
+      "nightly": "Günlük özet ve öneriler",
       "nightlyHint": "Son sohbetlerden ve bellekten rutin, ajan ve profil güncellemeleri önerir. Posta kutularını taramaz. Önerilen rutini oluşturmak kullanıcı onayı gerektirir.",
       "model": "Model",
       "modelHint": "Yalnızca sohbetlerden iyileştirme önermek içindir. İzleme seçilen ajanın modelini kullanır.",
@@ -11174,8 +11184,8 @@
       "hourHint": "Her kişinin kendi saat diliminde.",
       "hourFallbackHint": "Profillerinde çalışma saati belirtilmeyen kişiler için kendi saat dilimlerinde.",
       "save": "Kaydet",
-      "saved": "Gece önerileri kaydedildi",
-      "off": "Gece önerileri kapalı",
+      "saved": "Arka plan ayarları kaydedildi",
+      "off": "Arka plan özellikleri kapalı",
       "invalid": "Dolar cinsinden 0 veya daha büyük bir tutar girin.",
       "welcome": "Sohbet uygulamalarındaki karşılama mesajı",
       "welcomeHint": "Yeni üyeye Slack, Teams ve Mattermost botlarınızdan doğrudan mesaj gönderilir.",

@@ -465,6 +465,12 @@ class AgentCreate(AudienceChoice):
         return normalize_labels_strict(v)
 
 
+class AgentDraftRevision(BaseSchema):
+    """The current draft token, available to callers authorized to edit it."""
+
+    draft_revision: str
+
+
 class AgentDraftUpdate(BaseSchema):
     spec: AgentSpec
     expected_revision: str = Field(
@@ -692,6 +698,7 @@ class AgentSpecImport(BaseSchema):
     """Import a spec written by hand or exported from another deployment."""
 
     yaml: str = Field(min_length=1)
+    expected_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class CapabilityToolContract(BaseSchema):

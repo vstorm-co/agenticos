@@ -1,5 +1,5 @@
 ---
-source_sha: "827cfb585e78"
+source_sha: "923d18e84884"
 ---
 
 # Governance { #governance }
@@ -917,7 +917,7 @@ Część pracy należy do samej platformy i mimo to potrzebuje modelu. **Rola
 systemowa** daje jej właściciela, którego operator widzi: jedna konfiguracja na
 organizację i rolę, nigdy wiersz agenta, nigdy jedna na zadanie i nigdy
 przypisana agentowi startowemu ani żadnemu agentowi, którego instrukcje się nie
-wykonały (#2575). **Organizacje → AI i usługi → Usługi w tle**
+wykonały (#2575). **Organizacje → AI i usługi**
 (`budgets:manage`) wylicza każdą rolę z modelem, na którym działa, wydatkami w tym
 miesiącu i ostatnimi wykonaniami.
 

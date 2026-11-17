@@ -384,6 +384,16 @@ async def set_public_live_data(
     return org
 
 
+async def set_text_to_speech(
+    db: AsyncSession, org: Organization, *, defaults: dict[str, str | bool | None] | None
+) -> Organization:
+    """Replace or clear the validated default voice atomically with its key reference."""
+    org.text_to_speech = defaults
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def set_speech_settings(
     db: AsyncSession,
     org: Organization,

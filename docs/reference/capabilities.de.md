@@ -1,5 +1,5 @@
 ---
-source_sha: "260df66e53b4"
+source_sha: "2bc3e7bad49a"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1647,8 +1647,13 @@ Liest einen Text über einen Sprach-Provider vor, den der Autor wählt, und verh
 sich wie die Bilderzeugung: Der Clip wird gespeichert, im Gespräch als Player
 gezeigt und unter `output/` abgelegt, wenn ein Workspace offen ist (#2259).
 
+Organisationsvorgaben sind optional. Unter **Organisation → AI & services → Text to speech** speichert ein Administrator Provider, Modell, Stimme und organisationsweit sichtbaren Vault-Schlüssel als eine Gruppe. Ein Agent übernimmt sie erst, wenn sein Autor **Use organization defaults** aktiviert; bestehende Agenten behalten ihre eigenen Einstellungen. Ein wartender Run behält seine aufgelöste Gruppe bei Änderungen der Vorgabe. Deaktiviertes Organisations-TTS oder ein entzogener Schlüssel verhindert die Sprachausgabe weiterhin. Ein Agent-Override verwendet seinen eigenen Provider und Schlüssel gemeinsam.
+
+Der HTTP-Katalog enthält Eleven v4 über den Text-to-dialogue-Endpunkt mit Abschnitten von höchstens 2.000 Zeichen sowie Eleven v3 und Flash v2. Konversationsmodelle, die nur WebSocket unterstützen, benötigen einen anderen Transport und werden nicht für Audioclips angeboten.
+
 | Konfiguration | Standard | Werte |
 | --- | --- | --- |
+| `use_organization_defaults` | `false` | Provider, Modell, Stimme und Schlüssel der Organisation gemeinsam übernehmen; sonst dieses Binding verwenden |
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | Die Modelle dieses Providers aus `app/core/catalog/text_to_speech_models.json` |
 | `voice` | die erste des Modells | Die Voreinstellung, mit der der Agent spricht; er darf pro Clip innerhalb von `voices` wechseln. Eine Katalogstimme für OpenAI und Gemini; eine ID aus Ihrer eigenen Stimmenbibliothek für ElevenLabs |

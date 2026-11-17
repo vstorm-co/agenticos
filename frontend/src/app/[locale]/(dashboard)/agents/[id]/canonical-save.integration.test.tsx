@@ -60,6 +60,7 @@ const state = {
   // meaning "the organization has none".
   profilesStatus: "loaded" as ProfilesStatus,
   permissionsLoaded: true,
+  saving: false,
   versions: [] as { version: number }[],
   nextPublished: 1,
   // This caller's access to this agent, which the page reads rather than the role.
@@ -85,7 +86,7 @@ vi.mock("@/hooks", async () => {
       },
       isLoading: false,
       refetch: refetchAgent,
-      saveDraft: { mutateAsync: saveDraft, isPending: false },
+      saveDraft: { mutateAsync: saveDraft, isPending: state.saving },
       validate: async () => ({ problems: [], fields: [], fixes: [] }),
       publish: {
         mutateAsync: vi.fn().mockResolvedValue({ version: state.nextPublished }),
@@ -237,6 +238,7 @@ beforeEach(() => {
   refetchAgent.mockReset();
   state.permissions = [Perm.agentsEdit];
   state.access = { can_edit: true, can_publish: false };
+  state.saving = false;
   state.profiles = [MODEL_PROFILE];
   state.profilesStatus = "loaded";
   state.permissionsLoaded = true;
@@ -375,6 +377,7 @@ it("keeps its base revision after an unannounced refetch and holds edits until r
   await act(async () => new Promise((resolve) => setTimeout(resolve, 1500)));
   expect(saveDraft).toHaveBeenCalledTimes(1);
   expect(name).toHaveValue("My local edit still here");
+  expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
   await userEvent.click(screen.getByRole("button", { name: "Publish" }));
   expect(saveDraft).toHaveBeenCalledTimes(1);
   await userEvent.click(screen.getByRole("button", { name: "Reload latest draft" }));
@@ -405,3 +408,11 @@ it("keeps its base revision after an unannounced refetch and holds edits until r
     { timeout: 6000 },
   );
 }, 15000);
+
+it("disables Publish while an autosave is pending", async () => {
+  state.access.can_publish = true;
+  state.saving = true;
+  await mount();
+  expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
+  expect(saveDraft).not.toHaveBeenCalled();
+});

@@ -69,7 +69,7 @@ async def _agent(db, org: Organization) -> Agent:
         organization_id=org.id,
         slug=f"a-{uuid.uuid4().hex[:8]}",
         name="Nightly",
-        draft_spec={},
+        draft_spec={"name": "Nightly"},
     )
     db.add(agent)
     await db.flush()

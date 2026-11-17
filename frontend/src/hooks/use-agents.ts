@@ -379,6 +379,8 @@ export function useAgent(agentId: string | null) {
     [queryClient, agentId],
   );
 
+  const tDraft = useTranslations("pages.agents");
+
   const saveDraft = useMutation({
     mutationFn: (update: AgentDraftUpdate) =>
       apiClient.put<AgentDetail>(`/agents/${agentId}/draft`, update),
@@ -386,7 +388,7 @@ export function useAgent(agentId: string | null) {
     onError: (error) =>
       toast.error(
         error instanceof ApiError && error.details?.reason === "draft_changed"
-          ? t("draftChanged")
+          ? tDraft("draftChanged")
           : getErrorMessage(error, tErrors),
       ),
   });

@@ -21,7 +21,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
 from app.core.config import settings
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentKind, AgentStatus
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.main import app
@@ -210,3 +210,65 @@ async def test_a_stale_draft_is_a_write_free_conflict(owner_client: OpenClient) 
     assert response.status_code == 409
     assert response.json()["error"]["details"] == {"reason": "draft_changed"}
     write.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_an_edit_only_key_can_obtain_a_revision_without_reading_the_draft(
+    owner_client: OpenClient,
+) -> None:
+    from app.agents.spec import AgentSpec
+    from app.schemas.agent import agent_draft_revision
+
+    agent = _agent()
+    spec = AgentSpec(name="Private instructions", instructions="Do not disclose this")
+    agent.draft_spec = spec.model_dump(mode="json")
+    ctx = AuthContext(
+        user_id=agent.owner_user_id,
+        organization_id=_ORGANIZATION_ID,
+        role=OrgRoleName.OWNER,
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.AGENTS_EDIT}),
+    )
+    app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+    with (
+        patch(f"{REGISTRY_PATH}.agent_repo.get", new=AsyncMock(return_value=agent)),
+        patch(
+            f"{REGISTRY_PATH}.organization_assistant_repo.for_agent",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
+        async with owner_client() as http:
+            token = await http.get(f"{settings.API_V1_STR}/agents/{agent.id}/draft-revision")
+            detail = await http.get(f"{settings.API_V1_STR}/agents/{agent.id}")
+    assert token.status_code == 200
+    assert token.json() == {"draft_revision": agent_draft_revision(spec)}
+    assert detail.status_code == 404
+
+
+async def test_a_stale_yaml_import_cannot_replace_a_newer_draft(owner_client: OpenClient) -> None:
+    from app.agents.spec import AgentSpec
+
+    agent = _agent()
+    agent.draft_spec = AgentSpec(name="Newer").model_dump(mode="json")
+    with (
+        patch.object(AgentRegistryService, "get", new=AsyncMock(return_value=agent)),
+        patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as write,
+    ):
+        async with owner_client() as http:
+            response = await http.post(
+                f"{settings.API_V1_STR}/agents/{agent.id}/spec.yaml",
+                json={"yaml": "name: Stale", "expected_revision": "0" * 64},
+            )
+    assert response.status_code == 409
+    write.assert_not_awaited()
+
+
+async def test_a_yaml_import_requires_its_base_revision(owner_client: OpenClient) -> None:
+    with patch.object(AgentRegistryService, "import_spec", new=AsyncMock()) as save:
+        async with owner_client() as http:
+            response = await http.post(
+                f"{settings.API_V1_STR}/agents/{uuid.uuid4()}/spec.yaml",
+                json={"yaml": "name: Stale"},
+            )
+    assert response.status_code == 422
+    save.assert_not_awaited()

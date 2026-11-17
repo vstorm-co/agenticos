@@ -79,8 +79,6 @@
     "sessionsCouldNotBeRead": "The sessions could not be read."
   },
   "agents": {
-    "draftChanged": "This draft changed elsewhere. Your edits are still here, but saving is paused. Copy anything you want to keep, then reload the latest draft.",
-    "reloadDraft": "Reload latest draft",
     "voiceUnreportedTokenUsage": "This provider does not report token charges. Calls cannot start with a spending budget; recorded audio cost is a lower bound.",
     "accentColour": "Accent colour",
     "actsOutsideWorld": "acts on the outside world",
@@ -7250,7 +7248,11 @@
       "modelCredentialMode": "Model access",
       "organizationModelKey": "Use the organization’s key",
       "personalModelKey": "Each user connects their own key",
-      "personalModelLimits": "The model and endpoint stay fixed. Signed-in web chat only. Disable active channels, widgets, hosted pages and routines before publishing. HTTP API runs, background topics, voice, delegation, reviewers, separate step models and model fallbacks are not supported."
+      "personalModelLimits": "The model and endpoint stay fixed. Signed-in web chat only. Disable active channels, widgets, hosted pages and routines before publishing. HTTP API runs, background topics, voice, delegation, reviewers, separate step models and model fallbacks are not supported.",
+      "draftChanged": "This draft changed elsewhere. Your edits are still here, but saving is paused. Copy anything you want to keep, then reload the latest draft.",
+      "reloadDraft": "Reload latest draft",
+      "speechUseOrganizationDefaults": "Use organization defaults",
+      "speechOrganizationDefaultsHint": "Inherit the organization’s provider, model, voice and key together. Turn off to configure this agent’s own voice."
     },
     "auth": {
       "backSign": "Back to sign in",
@@ -9737,7 +9739,14 @@
       "save": "Save changes",
       "saved": "Voice settings saved",
       "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below.",
-      "summary": "Default transcription provider and recording limits."
+      "summary": "Default transcription provider and recording limits.",
+      "tts": {
+        "title": "Text to speech",
+        "description": "Default provider, model, voice and organization key for agents that choose organization defaults. Agents can instead use their own voice configuration.",
+        "voice": "Voice",
+        "required": "Choose a provider, model and organization-wide key before enabling text to speech.",
+        "catalogUnavailable": "Speech models could not be loaded. Try again before changing the provider."
+      }
     },
     "publicAttribution": "AgenticOS on shared pages",
     "publicAttributionDescription": "Show a small floating AgenticOS badge with a GitHub link on public apps, dashboards and reports, and below shared conversations.",
@@ -9762,7 +9771,7 @@
       "discardChanges": "Discard changes",
       "title": "Assistant suggestions and monitoring",
       "description": "Conversation-based suggestions and read-only monitoring are independent. Scheduled and event routines do not require suggestions to be enabled.",
-      "nightly": "Nightly suggestions",
+      "nightly": "Daily briefing & suggestions",
       "nightlyHint": "Suggest routines, agents and profile updates from recent conversations and memory. Does not scan mailboxes. Creating a suggested routine still needs the person’s confirmation.",
       "model": "Model",
       "modelHint": "Used only to suggest improvements from conversations. Monitoring uses each selected agent’s model.",
@@ -9776,8 +9785,8 @@
       "hourHint": "In each person's own time zone.",
       "hourFallbackHint": "For people whose profile states no working hours, in their own time zone.",
       "save": "Save",
-      "saved": "Nightly suggestions saved",
-      "off": "Nightly suggestions are off",
+      "saved": "Background settings saved",
+      "off": "Background features are off",
       "invalid": "Enter an amount in dollars, 0 or more.",
       "welcome": "Welcome message in chat apps",
       "welcomeHint": "A new member gets a direct message from your Slack, Teams and Mattermost bots.",
@@ -9796,8 +9805,6 @@
     },
     "systemAgents": {
       "configure": "Configure model and budget",
-      "title": "Background services",
-      "description": "Model-powered platform services. Expand a service to configure its model and budget. Usage and recent runs stay visible below.",
       "on": "On",
       "off": "Off",
       "enabled": "Run this role",
@@ -9824,8 +9831,7 @@
           "what": "Reads a finished chat once and records the durable facts, preferences and decisions in it, in the conversation's own scope. Nothing runs while it is off or has no model."
         }
       },
-      "starterAgentMissing": "This role does nothing right now: the AgenticOS starter agent it is recorded under is missing, unpublished or renamed. Publish it again under the agenticos handle.",
-      "summary": "Models, budgets and recent runs for platform services."
+      "starterAgentMissing": "This role does nothing right now: the AgenticOS starter agent it is recorded under is missing, unpublished or renamed. Publish it again under the agenticos handle."
     }
   },
   "theme": {
@@ -14060,6 +14066,10 @@
       "max_characters": {
         "title": "Longest text",
         "description": "The most text one call may speak, which caps what a single call can cost."
+      },
+      "use_organization_defaults": {
+        "title": "Use organization defaults",
+        "description": "Inherit the organization's provider, model, voice and key as one group. Turn off to choose an agent override."
       }
     },
     "video_generation": {

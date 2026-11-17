@@ -1,5 +1,5 @@
 ---
-source_sha: "2225d063f6ba"
+source_sha: "99fbe6811e3c"
 ---
 
 # Konsola { #the-console }
@@ -224,7 +224,7 @@ prywatnego Inbox. Każda zakładka ma własne przyciski tworzenia.
 30 zapytań do modelu, a długie wyniki są przycinane, więc obserwacja dużego
 workspace pozostaje tania.
 
-Organizacja → AI i usługi → Sugestie i monitoring oddziela sugestie, monitoring, wspólne limity, harmonogram dostarczania i powitania. Niezapisane zmiany można odrzucić. Usługi działające w tle pokazują stan i zużycie, a ustawienia modelu i budżetu rozwija się przy konkretnej usłudze.
+Organizacja → AI i usługi pokazuje osobne karty funkcji z przełącznikami i rozwijanymi ustawieniami. Codzienny briefing i sugestie mają jeden model, budżet i harmonogram; monitoring oraz wiadomość powitalna mają własne karty. Niezapisane zmiany można odrzucić.
 
 Rutyny harmonogramowe, zdarzeniowe i obserwacje korzystają z tej samej ramy modalu: stałego nagłówka i nawigacji oraz przewijanego formularza. Tworzenie obserwacji prowadzi przez konfigurację, wiadomość i częstotliwość; przycisk Wstecz zachowuje wpisane dane. Wybór agenta pokazuje te same avatary co czat. Ustawienia wykonania i dostarczania obserwacji są zebrane w jednym panelu opcji zaawansowanych.
 
@@ -390,7 +390,7 @@ Przed podłączeniem modelu Architect otwiera ten sam czat z graficzną kartą k
 Architekt jest agentem jak każdy inny, więc jego nazwę, model, wiedzę i resztę
 spec edytuje się w Agent Builderze - może to zrobić ktoś, kto zmienia ustawienia
 organizacji, bo uruchamia go każdy w organizacji. Na stronie organizacji jest
-karta, która wyłącza go dla wszystkich i ustawia jego powitanie. **Ustawienia →
+karta, która wyłącza go dla wszystkich i prowadzi do Agent Buildera. **Ustawienia →
 Asystent** to już tylko twoje własne wskazówki.
 
 ## Domyślne agenty platformy { #shipped-agent-defaults }
@@ -966,9 +966,9 @@ każdą sesję Popraw, co zmierzyła, co postanowiono i ile kosztowała. Zakońc
 sesja otwiera kreator tylko do odczytu, z decyzją w ostatnim kroku; zobacz
 [Historię usprawnień](authoring.md#improvement-history).
 
-Szczegóły organizacji mają trzy zakładki: **Members**, **Budget and approvals** oraz **AI & services**. Members pozwala szukać po nazwie i e-mailu, filtrować role i sprawdzić ostatnie zapisane działanie w tym workspace. To działanie z audytu, nie wizyta ani logowanie; działania przez impersonację są pomijane, a brak historii pokazuje kreskę. **Edit workspace** otwiera okno nazwy, avatara i koloru z ochroną niezapisanych zmian. AI & services zaczyna się od Background services, potem zawiera AI Architect, sugestie i monitoring oraz Voice. Rozwijanie konfiguracji zachowuje szkice. Każda kontrolka zachowuje własne uprawnienia. Stare linki `?tab=profile` otwierają modal workspace, a `?tab=voice` i `?tab=proactivity` odpowiednie ustawienia w AI & services.
+Szczegóły organizacji mają trzy zakładki: **Members**, **Budget and approvals** oraz **AI & services**. Members pozwala szukać po nazwie i e-mailu, filtrować role i sprawdzić ostatnie zapisane działanie w tym workspace. To działanie z audytu, nie wizyta ani logowanie; działania przez impersonację są pomijane, a brak historii pokazuje kreskę. **Edit workspace** otwiera okno nazwy, avatara i koloru z ochroną niezapisanych zmian. AI & services zawiera osobne karty funkcji bez nadrzędnych grup. Rozwijanie konfiguracji zachowuje szkice. Każda kontrolka zachowuje własne uprawnienia. Stare linki `?tab=profile` otwierają modal workspace, a `?tab=voice` i `?tab=proactivity` odpowiednie ustawienia w AI & services.
 
-Daily briefing można skonfigurować bezpośrednio w Background services; zmienia ten sam model organizacji i limit na osobę, z których korzystają sugestie. Memory maintenance zaczyna jako wyłączone, a stare profile bez modelu są pokazywane jako wyłączone. Najpierw wybierz model, potem włącz usługę. Wyłączone usługi nie pokazują ostrzeżenia konfiguracji. Nazwy providerów Voice nie zawierają dopisków o kluczach; klucze mają osobny wybór i walidację.
+Codzienny briefing i sugestie to jedna usługa, konfigurowana w jednym miejscu. Jej karta pokazuje też wydatki i ostatnie wykonania. Utrzymanie pamięci ma własny model i budżet oraz zaczyna jako wyłączone. Najpierw wybierz model, potem włącz usługę. AI Architect zachowuje widoczny przełącznik i link do Agent Buildera, bez edytora powitania.
 
 Po zalogowaniu zaproszenia wysłane na e-mail konta pojawiają się także w konsoli i onboardingu, bez otwierania linku z wiadomości. Odbiorca wybiera organizację i jawnie przyjmuje zaproszenie; Później zostawia dostępny skrót Zaproszenia. Lista zawiera tylko aktualne zaproszenia na bieżący adres konta, bez linków współdzielonych i organizacji, do których użytkownik już należy. Przyjęcie przełącza organizację i otwiera jej powitanie. Serwer nie zwraca tokenu zaproszenia w tej skrzynce.
 

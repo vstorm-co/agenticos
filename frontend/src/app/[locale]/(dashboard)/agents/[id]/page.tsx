@@ -1375,7 +1375,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             canPublish && (
               <Button
                 onClick={handlePublish}
-                disabled={publish.isPending || !spec?.name.trim()}
+                disabled={publish.isPending || storing || draftConflict || !spec?.name.trim()}
                 data-tour="agent-publish"
               >
                 <Upload className="h-4 w-4" />
@@ -1388,9 +1388,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
         {draftConflict && (
           <Alert variant="warning" role="alert">
             <AlertDescription className="flex flex-wrap items-center gap-3">
-              <span className="min-w-0 flex-1">{tMenu("draftChanged")}</span>
+              <span className="min-w-0 flex-1">{t("draftChanged")}</span>
               <Button size="sm" onClick={() => void reloadDraft()}>
-                {tMenu("reloadDraft")}
+                {t("reloadDraft")}
               </Button>
             </AlertDescription>
           </Alert>
@@ -1771,6 +1771,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     // The Builder is where an organization's models are managed,
                     // so it is the one panel that also takes one away.
                     allowRemove={can(Perm.connectionsManage)}
+                    requireOrganizationKey={spec.model_credential_mode !== "personal"}
                     profiles={profiles}
                     profilesStatus={profilesStatus}
                     value={spec.model_profile_id ?? null}

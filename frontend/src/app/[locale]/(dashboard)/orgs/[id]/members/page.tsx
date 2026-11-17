@@ -638,8 +638,8 @@ export default function OrgMembersPage({ params }: PageProps) {
           forceMount
           className="space-y-6 data-[state=inactive]:hidden"
         >
-          {org && canSystemServices && <OrgSystemAgents org={org} collapsible />}
-          {canConfigureAssistant && <OrgAssistant orgId={id} collapsible />}
+          {org && canSystemServices && <OrgSystemAgents org={org} excludeBriefing />}
+          {canConfigureAssistant && <OrgAssistant orgId={id} />}
           <div data-tour="org-proactivity">
             {org && (
               <OrgProactivity org={org} collapsible defaultOpen={tabParam === "proactivity"} />

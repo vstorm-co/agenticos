@@ -1,5 +1,5 @@
 ---
-source_sha: "260df66e53b4"
+source_sha: "2bc3e7bad49a"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1554,8 +1554,13 @@ Odczytuje tekst na głos przez providera mowy wybranego przez autora i zachowuje
 się jak generowanie obrazów: nagranie jest zapisywane, pokazywane w rozmowie jako
 odtwarzacz i zapisywane w `output/`, gdy workspace jest otwarty (#2259).
 
+Domyślne TTS organizacji jest opcjonalne. W **Organizacja → AI & services → Text to speech** administrator zapisuje providera, model, głos i klucz z vault widoczny dla organizacji jako jedną grupę. Agent dziedziczy ją dopiero po włączeniu **Use organization defaults** przez autora; istniejący agenci zachowują własne ustawienia. Oczekujący run zachowuje rozstrzygniętą grupę po zmianie ustawień, ale wyłączenie TTS organizacji lub cofnięcie dostępu do klucza blokuje mowę. Własna konfiguracja agenta łączy jego providera z jego kluczem.
+
+Katalog HTTP obejmuje Eleven v4 przez endpoint text-to-dialogue, z fragmentami do 2000 znaków, oraz Eleven v3 i Flash v2. Modele konwersacyjne dostępne wyłącznie przez WebSocket wymagają innego transportu i nie są oferowane do generowania klipów.
+
 | Konfiguracja | Domyślnie | Wartości |
 | --- | --- | --- |
+| `use_organization_defaults` | `false` | Dziedzicz razem providera, model, głos i klucz organizacji; w przeciwnym razie użyj tego bindingu |
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | Modele tego providera z `app/core/catalog/text_to_speech_models.json` |
 | `voice` | pierwszy głos modelu | Domyślny głos agenta; może przełączyć się dla każdego klipu w obrębie `voices`. Głos z katalogu dla OpenAI i Gemini; id z własnej biblioteki głosów dla ElevenLabs |

@@ -1491,8 +1491,13 @@ Reads a text aloud through a speech provider the author picks, and behaves as
 image generation does: the clip is stored, shown in the conversation as a player,
 and written under `output/` when a workspace is open (#2259).
 
+Organization defaults are optional. In **Organization → AI & services → Text to speech**, an administrator saves the provider, model, voice and organization-visible vault key as one group. An agent inherits that group only after its author enables **Use organization defaults**; existing agents keep their explicit settings. A waiting run keeps its resolved group when the default changes, but disabling organization TTS or revoking the key still refuses speech. An agent override uses its own provider and key together.
+
+The HTTP catalog includes Eleven v4 through its text-to-dialogue endpoint, with chunks of at most 2,000 characters, plus Eleven v3 and Flash v2. WebSocket-only conversational models belong to a different transport and are not offered for clip generation.
+
 | Config | Default | Values |
 |---|---|---|
+| `use_organization_defaults` | `false` | Inherit the organization's provider, model, voice and key together; otherwise use this binding |
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | That provider's models, from `app/core/catalog/text_to_speech_models.json` |
 | `voice` | the model's first | The default the agent speaks in; it may switch per clip within `voices`. A catalog voice for OpenAI and Gemini; an id from your own voice library for ElevenLabs |

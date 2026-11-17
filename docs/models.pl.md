@@ -1,5 +1,5 @@
 ---
-source_sha: "341868c248fc"
+source_sha: "d096e601b2da"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -30,6 +30,8 @@ Nic z tego, którego modelu używa agent, nie mieszka w `.env`.
 W Builderze, w sekcji **Dostęp do modelu**, pozostaw domyślne **Użyj klucza organizacji** lub wybierz **Każdy użytkownik podłącza własny klucz**. Tryb osobisty zachowuje model i endpoint administratora. Obsługuje modele czatu z kluczem API, bez modeli zapasowych i zmiany modelu dla pojedynczej rozmowy.
 
 Zalogowany członek otwiera agenta w czacie i podłącza klucz przez prywatny formularz nad polem wiadomości lub w ustawieniach czatu. Klucz nigdy nie trafia do wiadomości, promptów ani instrukcji agenta. Połączenie jest wspólne dla agentów tej organizacji korzystających z tego samego dostawcy i endpointu. Brak klucza blokuje run przed zapytaniem do modelu; błąd uwierzytelnienia nigdy nie przełącza na klucz organizacji. Wymień klucz w ustawieniach czatu lub usuń połączenie w **Vault → Twoje połączenie z modelem**. Zapis klucza nie sprawdza go u dostawcy.
+
+Formularz prywatnego klucza przesyła oczekiwany profil, dostawcę, endpoint i model pokazane użytkownikowi. Jeśli cel zmieni się przed zapisem, serwer odrzuca klucz jako konflikt; formularz odświeża cel i usuwa wpisany klucz przed kolejną próbą.
 
 Tryb osobisty nie obsługuje obecnie kanałów prywatnych ani grupowych, widgetów, stron publicznych, uruchomień przez HTTP API, harmonogramów, triggerów, tematów w tle, głosu, recenzentów, delegowania ani osobnych modeli funkcji. Przed publikacją wstrzymaj lub usuń aktywne kanały, publiczne udostępnienia i rutyny. Utworzenie lub ponowne włączenie niezgodnego udostępnienia zostaje odrzucone; run sprawdza tę samą zasadę. Strony publiczne i tokeny JWT widgetów nie identyfikują zalogowanego członka instancji.
 

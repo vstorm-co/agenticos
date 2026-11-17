@@ -86,6 +86,8 @@ interface SettingsSectionProps {
   toggleTour?: string;
   collapsible?: boolean;
   defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   title: string;
   status?: ReactNode;
   description?: string;
@@ -102,6 +104,8 @@ export function SettingsSection({
   toggleTour,
   collapsible = false,
   defaultOpen = false,
+  open: controlledOpen,
+  onOpenChange,
   title,
   status,
   description,
@@ -111,8 +115,13 @@ export function SettingsSection({
   className,
 }: SettingsSectionProps) {
   const panelId = useId();
-  const [open, setOpen] = useState(defaultOpen);
-  if (useChanged(defaultOpen) && defaultOpen) setOpen(true);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  if (useChanged(defaultOpen) && defaultOpen) setInternalOpen(true);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (next: boolean) => {
+    setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   return (
     <section
       data-tour={tour}

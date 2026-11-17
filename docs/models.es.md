@@ -1,5 +1,5 @@
 ---
-source_sha: "341868c248fc"
+source_sha: "d096e601b2da"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -27,7 +27,9 @@ Nada sobre qué modelo usa un agent vive en `.env`.
 
 ## Claves personales de modelos { #personal-model-keys }
 
-En **Model access** del Builder, conserva **Use the organization’s key** (predeterminado) o selecciona **Each user connects their own key**. El modo personal mantiene fijos el modelo y el destino del administrador. Admite proveedores de chat con clave API, sin modelos alternativos ni cambios de modelo por conversación.
+En **Model access** del Builder, conserva **Use the organization’s key** (predeterminado) o selecciona **Each user connects their own key**. El formulario de clave privada envía el perfil, provider, endpoint y modelo esperados que vio el usuario. Si el destino cambia antes de guardar, el servidor rechaza la clave con un conflicto; el formulario recarga el destino y borra la clave escrita antes de otro intento.
+
+El modo personal mantiene fijos el modelo y el destino del administrador. Admite proveedores de chat con clave API, sin modelos alternativos ni cambios de modelo por conversación.
 
 Un miembro con sesión iniciada conecta su clave en el formulario privado sobre el campo de mensajes o en los ajustes del chat. Las claves nunca entran en mensajes, prompts ni instrucciones del agente. La conexión se reutiliza entre agentes de esta organización con el mismo proveedor y destino. Sin clave, la ejecución se bloquea antes de solicitar el modelo; los fallos de autenticación nunca cambian a la clave de la organización. Sustituye la clave en los ajustes del chat o elimina la conexión en **Vault → Your model connection**. Guardar la clave no la comprueba con el proveedor.
 

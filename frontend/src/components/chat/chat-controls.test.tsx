@@ -467,3 +467,14 @@ it("offers the private connection instead of a model picker for a fixed personal
   expect(screen.getByText("Private model connection form")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /pick a model/ })).not.toBeInTheDocument();
 });
+
+it("clears a saved model override when switching to a personal-key agent", async () => {
+  const changed = vi.fn();
+  const { rerender } = render(<ChatControls onModelProfileChange={changed} />);
+  await userEvent.click(trigger());
+  await userEvent.click(screen.getByRole("button", { name: /pick a model/ }));
+  expect(changed).toHaveBeenLastCalledWith("p-1");
+  state.personalModel = true;
+  rerender(<ChatControls onModelProfileChange={changed} />);
+  expect(changed).toHaveBeenLastCalledWith(null);
+});

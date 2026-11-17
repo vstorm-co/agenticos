@@ -25,6 +25,8 @@ In the Builder's **Model access**, keep **Use the organization’s key** (the de
 
 A signed-in member opens the agent in web chat and connects their key through the private form above the composer or in chat controls. Keys never enter messages, prompts or agent instructions. The same connection is reused across agents in this organization with the same provider and endpoint. A missing key blocks the run before a model request; authentication errors never switch to the organization's key. Replace the key in chat settings, or remove the connection in **Vault → Your model connection**. Saving a key does not test it against the provider.
 
+The private-key form submits the expected profile, provider, endpoint and model shown to the user. If that destination changes before saving, the server refuses the key with a conflict; the form reloads the destination and clears the typed key before another attempt.
+
 Personal mode currently excludes channels (private and group), widgets, hosted pages, HTTP API runs, schedules, triggers, background topics, voice, reviewers, delegation and separate capability models. Pause or remove active channels, public surfaces and routines before publishing this mode. Creating or reactivating an incompatible surface is refused, and the runtime enforces the same rule. Hosted pages and widget JWTs do not identify a signed-in member of the instance.
 
 Credentials are encrypted for their owner in the vault, and are deleted when their membership or user account is removed. Changing the approved endpoint requires a new connection. Rotating one member's key does not change another member's key or the shared model profile.

@@ -3,6 +3,7 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTenantGuard, useTenantId } from "@/hooks/use-organizations";
 import { useAuthStore } from "@/stores";
+import { ApiError } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import {
   agentModelConnection,
@@ -41,7 +42,20 @@ export function usePersonalModelKeys(agentId: string | null = null) {
   return {
     status,
     keys,
-    save: useMutation({ mutationFn: savePersonalModelKey, ...lifecycle }),
+    save: useMutation({
+      mutationFn: savePersonalModelKey,
+      ...lifecycle,
+      onError: (error, _variables, started) => {
+        if (
+          error instanceof ApiError &&
+          error.code === "PERSONAL_MODEL_DESTINATION_CHANGED" &&
+          started &&
+          guard(started.tenant) &&
+          useAuthStore.getState().user?.id === started.user
+        )
+          void client.invalidateQueries({ queryKey: qk.personalModelKeys.all(started.scope) });
+      },
+    }),
     remove: useMutation({ mutationFn: deletePersonalModelKey, ...lifecycle }),
   };
 }

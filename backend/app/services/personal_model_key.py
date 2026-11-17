@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from pydantic import SecretStr, TypeAdapter
+from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.audience import run_impersonated
@@ -15,13 +15,18 @@ from app.agents.model_resolver import (
     is_decision_api,
 )
 from app.core.audit import record_audit
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret, unseal_secret
 from app.core.vault import VaultScope
 from app.db.models.credential import ModelProfile
 from app.repositories import personal_model_key as key_repo
-from app.schemas.personal_model_key import AgentModelConnectionRead, PersonalModelKeyRead
+from app.schemas.personal_model_key import (
+    AgentModelConnectionRead,
+    PersonalModelDestination,
+    PersonalModelKeyCreate,
+    PersonalModelKeyRead,
+)
 from app.services.model_outputs import model_outputs
 
 
@@ -102,13 +107,24 @@ class PersonalModelKeyService:
         )
 
     async def save(
-        self, ctx: AuthContext, agent_id: UUID, api_key: SecretStr
+        self, ctx: AuthContext, agent_id: UUID, data: PersonalModelKeyCreate
     ) -> AgentModelConnectionRead:
         profile = await self._profile(ctx, agent_id)
         if profile is None:
             raise BadRequestError(message="This agent uses its organization's model key")
+        destination = PersonalModelDestination(
+            profile_id=profile.id,
+            provider=profile.provider,
+            endpoint=profile.base_url,
+            model=profile.model,
+        )
+        if data.expected_destination != destination:
+            raise ConflictError(
+                message="The agent's model destination changed. Review it before entering your key again.",
+                code="PERSONAL_MODEL_DESTINATION_CHANGED",
+            )
         owner = _owner(ctx)
-        sealed = seal_secret(ApiKeySecret(api_key=api_key), scope=VaultScope.user(owner))
+        sealed = seal_secret(ApiKeySecret(api_key=data.api_key), scope=VaultScope.user(owner))
         await key_repo.save(
             self.db,
             organization_id=ctx.organization_id,

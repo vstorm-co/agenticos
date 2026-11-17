@@ -62,6 +62,7 @@ async def world(
         name="Worker",
         slug=f"worker-{uuid4()}",
         status="published",
+        draft_spec=spec.model_dump(mode="json"),
     )
     db.add(agent)
     await db.flush()

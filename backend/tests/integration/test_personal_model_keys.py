@@ -16,6 +16,7 @@ from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import personal_model_key as key_repo
+from app.schemas.personal_model_key import PersonalModelDestination, PersonalModelKeyCreate
 from app.services.personal_data import PersonalDataService
 from app.services.personal_model_key import PersonalModelKeyService
 
@@ -55,21 +56,30 @@ async def setup(db: AsyncSession) -> tuple[AuthContext, AuthContext, ModelProfil
     )
 
 
+def key_request(held: ModelProfile, key: str) -> PersonalModelKeyCreate:
+    return PersonalModelKeyCreate(
+        api_key=SecretStr(key),
+        expected_destination=PersonalModelDestination(
+            profile_id=held.id, provider=held.provider, endpoint=held.base_url, model=held.model
+        ),
+    )
+
+
 async def test_two_members_use_the_same_model_with_isolated_rotatable_keys(
     db: AsyncSession,
 ) -> None:
     first, second, held = await setup(db)
     service = PersonalModelKeyService(db)
     with patch.object(service, "_profile", AsyncMock(return_value=held)):
-        await service.save(first, uuid4(), SecretStr("first-private-key"))
-        await service.save(second, uuid4(), SecretStr("second-private-key"))
+        await service.save(first, uuid4(), key_request(held, "first-private-key"))
+        await service.save(second, uuid4(), key_request(held, "second-private-key"))
         assert (await service.status(first, uuid4())).connected
         for ctx, value in [(first, "first-private-key"), (second, "second-private-key")]:
             resolved = await service.resolve(ctx, held)
             assert isinstance(resolved.credential.secret, ApiKeySecret)
             assert resolved.credential.secret.api_key.get_secret_value() == value
             assert resolved.model == held.model and resolved.credential.base_url == held.base_url
-        await service.save(first, uuid4(), SecretStr("first-replacement"))
+        await service.save(first, uuid4(), key_request(held, "first-replacement"))
         assert len(await service.mine(first)) == 1
         assert len(await service.mine(second)) == 1
         for ctx, value in [(first, "first-replacement"), (second, "second-private-key")]:
@@ -91,7 +101,7 @@ async def test_key_envelopes_and_metadata_never_cross_owner_or_tenant(db: AsyncS
     assert first.user_id is not None and second.user_id is not None
     service = PersonalModelKeyService(db)
     with patch.object(service, "_profile", AsyncMock(return_value=held)):
-        await service.save(first, uuid4(), SecretStr("vault-personal-private"))
+        await service.save(first, uuid4(), key_request(held, "vault-personal-private"))
     row = await key_repo.get(
         db,
         organization_id=first.organization_id,
@@ -140,7 +150,7 @@ async def test_membership_is_required_by_the_database_and_removal_deletes_the_ke
     assert first.user_id is not None
     service = PersonalModelKeyService(db)
     with patch.object(service, "_profile", AsyncMock(return_value=held)):
-        await service.save(first, uuid4(), SecretStr("revoked-on-leaving"))
+        await service.save(first, uuid4(), key_request(held, "revoked-on-leaving"))
     await db.execute(
         delete(OrganizationMember).where(
             OrganizationMember.organization_id == first.organization_id,

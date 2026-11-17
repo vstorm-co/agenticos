@@ -1,5 +1,5 @@
 ---
-source_sha: "827cfb585e78"
+source_sha: "923d18e84884"
 ---
 
 # Governance { #governance }
@@ -932,7 +932,7 @@ Parte del trabajo es de la propia plataforma y aun así necesita un modelo. Un
 **rol de sistema** le da un responsable que un operador puede ver: una
 configuración por organización y rol, nunca una fila de agent, nunca una por tarea
 y nunca atribuida al agent inicial ni a ningún agent cuyas instrucciones no se
-ejecutaron (#2575). **Organizaciones → AI & services → Background services**
+ejecutaron (#2575). **Organizaciones → AI & services**
 (`budgets:manage`) lista cada rol con el modelo en que corre, el gasto de este mes
 y sus últimas ejecuciones.
 

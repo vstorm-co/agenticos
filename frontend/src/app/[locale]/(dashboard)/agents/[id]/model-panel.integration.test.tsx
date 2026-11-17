@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
-import type { AgentSpec } from "@/types/agents";
+import type { AgentSpec, AgentDraftUpdate } from "@/types/agents";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
 import { ApiError } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
@@ -67,6 +67,7 @@ vi.mock("@/hooks", async () => {
             has_avatar: false,
             can_edit: state.canEdit,
             can_publish: true,
+            draft_revision: "base",
             draft_spec: {
               name: "Support",
               instructions: "Be helpful.",
@@ -84,7 +85,10 @@ vi.mock("@/hooks", async () => {
       error: state.agentError,
       refetch: refetchAgent,
       saveDraft: {
-        mutateAsync: vi.fn(async (spec: AgentSpec) => ({ draft_spec: spec })),
+        mutateAsync: vi.fn(async ({ spec }: AgentDraftUpdate) => ({
+          draft_spec: spec,
+          draft_revision: "saved",
+        })),
         isPending: false,
       },
       validate,

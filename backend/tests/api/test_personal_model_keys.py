@@ -31,7 +31,7 @@ async def service() -> AsyncGenerator[AsyncMock]:
 async def test_member_can_connect_replace_and_delete_without_organization_management(
     service: AsyncMock,
 ) -> None:
-    agent_id, key_id = uuid4(), uuid4()
+    agent_id, key_id, profile_id = uuid4(), uuid4(), uuid4()
     status = AgentModelConnectionRead(
         personal=True, connected=True, provider="openai", model="approved"
     )
@@ -42,11 +42,22 @@ async def test_member_can_connect_replace_and_delete_without_organization_manage
     ]
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.put(
-            f"/api/v1/personal-model-keys/agents/{agent_id}", json={"api_key": "private-key"}
+            f"/api/v1/personal-model-keys/agents/{agent_id}",
+            json={
+                "api_key": "private-key",
+                "expected_destination": {
+                    "profile_id": str(profile_id),
+                    "provider": "openai",
+                    "endpoint": "https://approved.example/v1",
+                    "model": "approved",
+                },
+            },
         )
         assert response.status_code == 200 and "private-key" not in response.text
         args = service.save.call_args.args
-        assert args[:2] == (CTX, agent_id) and args[2].get_secret_value() == "private-key"
+        assert args[:2] == (CTX, agent_id) and args[2].api_key.get_secret_value() == "private-key"
+        assert args[2].expected_destination.profile_id == profile_id
+        assert args[2].expected_destination.endpoint == "https://approved.example/v1"
         response = await client.get(f"/api/v1/personal-model-keys/agents/{agent_id}")
         assert response.status_code == 200 and response.json()["personal"]
         response = await client.get("/api/v1/personal-model-keys")
@@ -62,7 +73,28 @@ async def test_member_can_connect_replace_and_delete_without_organization_manage
 async def test_empty_key_is_rejected_before_service_or_provider_use(service: AsyncMock) -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.put(
-            f"/api/v1/personal-model-keys/agents/{uuid4()}", json={"api_key": ""}
+            f"/api/v1/personal-model-keys/agents/{uuid4()}",
+            json={
+                "api_key": "",
+                "expected_destination": {
+                    "profile_id": str(uuid4()),
+                    "provider": "openai",
+                    "endpoint": None,
+                    "model": "fixed",
+                },
+            },
         )
     assert response.status_code == 422
     service.save.assert_not_awaited()
+
+
+async def test_a_key_without_the_destination_the_person_reviewed_is_refused(
+    service: AsyncMock,
+) -> None:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.put(
+            f"/api/v1/personal-model-keys/agents/{uuid4()}", json={"api_key": "private-key"}
+        )
+    assert response.status_code == 422
+    service.save.assert_not_awaited()
+    assert "private-key" not in response.text

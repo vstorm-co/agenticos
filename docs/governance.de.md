@@ -1,5 +1,5 @@
 ---
-source_sha: "827cfb585e78"
+source_sha: "923d18e84884"
 ---
 
 # Governance { #governance }
@@ -976,7 +976,7 @@ Manche Arbeit gehört der Plattform selbst und braucht dennoch ein Modell. Eine
 **Systemrolle** gibt ihr einen Eigentümer, den ein Betreiber sehen kann: eine
 Konfiguration je Organisation und Rolle, nie eine Agent-Zeile, nie eine je Job und
 nie dem Starter-Agent oder einem Agent zugeschrieben, dessen Anweisungen nicht
-liefen (#2575). **Organisationen → KI und Dienste → Hintergrunddienste** (`budgets:manage`)
+liefen (#2575). **Organisationen → KI und Dienste** (`budgets:manage`)
 listet jede Rolle mit ihrem Modell, den Ausgaben dieses Monats und ihren letzten
 Ausführungen.
 

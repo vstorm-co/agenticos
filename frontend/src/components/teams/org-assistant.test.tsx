@@ -92,7 +92,7 @@ describe("OrgAssistant", () => {
   });
 
   it("keeps its switch and Builder link visible without an expansion step", () => {
-    render(<OrgAssistant orgId="o1" collapsible />);
+    render(<OrgAssistant orgId="o1" />);
     expect(screen.getByRole("switch", { name: "Switched on" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Open in Agent Builder" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "AI Architect" })).not.toBeInTheDocument();

@@ -8,7 +8,7 @@ import pytest
 from pydantic import SecretStr
 
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret, seal_secret
 from app.core.vault import VaultScope
@@ -16,6 +16,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import RunSurface
 from app.db.models.credential import ModelProfile
 from app.db.models.personal_model_key import PersonalModelKey
+from app.schemas.personal_model_key import PersonalModelDestination, PersonalModelKeyCreate
 from app.services.personal_model_key import PersonalModelKeyService, personal_profile_problem
 from app.services.personal_model_policy import (
     personal_model_problems,
@@ -44,6 +45,15 @@ def profile() -> ModelProfile:
         api="chat",
         region=None,
         context_length=128000,
+    )
+
+
+def key_request(held: ModelProfile, key: str) -> PersonalModelKeyCreate:
+    return PersonalModelKeyCreate(
+        api_key=SecretStr(key),
+        expected_destination=PersonalModelDestination(
+            profile_id=held.id, provider=held.provider, endpoint=held.base_url, model=held.model
+        ),
     )
 
 
@@ -200,7 +210,7 @@ async def test_organization_mode_has_no_personal_connection_and_cannot_accept_a_
     with patch.object(service, "_profile", AsyncMock(return_value=None)):
         assert not (await service.status(context(), uuid4())).personal
         with pytest.raises(BadRequestError, match="organization"):
-            await service.save(context(), uuid4(), SecretStr("never-stored"))
+            await service.save(context(), uuid4(), key_request(profile(), "never-stored"))
 
 
 @pytest.mark.security
@@ -359,3 +369,31 @@ async def test_surface_admission_checks_the_selected_environment_or_explicit_ver
                 await require_organization_agent(
                     AsyncMock(), ctx, agent_id, version_id=uuid4(), environment_id=environment_id
                 )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("changed", ["profile_id", "provider", "endpoint", "model"])
+async def test_connection_refuses_a_destination_changed_after_the_form_was_opened(
+    changed: str,
+) -> None:
+    service, ctx, held = PersonalModelKeyService(AsyncMock()), context(), profile()
+    request = key_request(held, "key-for-original-destination")
+    if changed == "profile_id":
+        held.id = uuid4()
+    elif changed == "endpoint":
+        held.base_url = "https://replacement.example.com/v1"
+    elif changed == "provider":
+        held.provider = "openrouter"
+    else:
+        held.model = "replacement-model"
+    with (
+        patch.object(service, "_profile", AsyncMock(return_value=held)),
+        patch("app.services.personal_model_key.seal_secret") as seal,
+        patch("app.services.personal_model_key.key_repo.save", AsyncMock()) as save,
+        pytest.raises(ConflictError) as refused,
+    ):
+        await service.save(ctx, uuid4(), request)
+    assert refused.value.code == "PERSONAL_MODEL_DESTINATION_CHANGED"
+    seal.assert_not_called()
+    save.assert_not_awaited()
+    assert "key-for-original" not in str(refused.value)

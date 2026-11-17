@@ -79,8 +79,6 @@
     "sessionsCouldNotBeRead": "Die Sitzungen konnten nicht gelesen werden."
   },
   "agents": {
-    "draftChanged": "Dieser Draft wurde an anderer Stelle geändert. Deine Eingaben bleiben erhalten, aber das Speichern ist angehalten. Kopiere alles, was du behalten möchtest, und lade dann den neuesten Draft.",
-    "reloadDraft": "Neuesten Draft laden",
     "voiceUnreportedTokenUsage": "Dieser Anbieter meldet keine Tokenkosten. Anrufe mit Ausgabenlimit können nicht starten; die erfassten Audiokosten sind eine Untergrenze.",
     "accentColour": "Akzentfarbe",
     "actsOutsideWorld": "wirkt auf die Außenwelt",
@@ -6523,7 +6521,11 @@
       "modelCredentialMode": "Modellzugriff",
       "organizationModelKey": "Organisationsschlüssel verwenden",
       "personalModelKey": "Jeder Nutzer verbindet seinen eigenen Schlüssel",
-      "personalModelLimits": "Modell und Endpunkt bleiben fest. Nur Web-Chat für angemeldete Nutzer. Deaktiviere vor der Veröffentlichung aktive Kanäle, Widgets, öffentliche Seiten und Routinen. HTTP-API-Läufe, Hintergrundthemen, Sprache, Delegation, Reviewer, separate Schrittmodelle und Ersatzmodelle werden nicht unterstützt."
+      "personalModelLimits": "Modell und Endpunkt bleiben fest. Nur Web-Chat für angemeldete Nutzer. Deaktiviere vor der Veröffentlichung aktive Kanäle, Widgets, öffentliche Seiten und Routinen. HTTP-API-Läufe, Hintergrundthemen, Sprache, Delegation, Reviewer, separate Schrittmodelle und Ersatzmodelle werden nicht unterstützt.",
+      "draftChanged": "Dieser Draft wurde an anderer Stelle geändert. Deine Eingaben bleiben erhalten, aber das Speichern ist angehalten. Kopiere alles, was du behalten möchtest, und lade dann den neuesten Draft.",
+      "reloadDraft": "Neuesten Draft laden",
+      "speechUseOrganizationDefaults": "Organisationsvorgaben verwenden",
+      "speechOrganizationDefaultsHint": "Anbieter, Modell, Stimme und Schlüssel der Organisation gemeinsam übernehmen. Ausschalten, um die eigene Stimme dieses Agents zu konfigurieren."
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
@@ -9608,7 +9610,14 @@
       "save": "Änderungen speichern",
       "saved": "Spracheinstellungen gespeichert",
       "notReadyNoKey": "Für {provider} ist kein Schlüssel gewählt. Agents und Bots, die ihn erben, können erst über einen Provider transkribieren, wenn Sie unten einen wählen.",
-      "summary": "Standardanbieter für Transkription und Aufnahmelimits."
+      "summary": "Standardanbieter für Transkription und Aufnahmelimits.",
+      "tts": {
+        "title": "Text zu Sprache",
+        "description": "Standardanbieter, Modell, Stimme und Organisationsschlüssel für Agents, die Organisationseinstellungen übernehmen. Agents können stattdessen eine eigene Stimme konfigurieren.",
+        "voice": "Stimme",
+        "required": "Wählen Sie Anbieter, Modell und einen organisationsweit sichtbaren Schlüssel vor dem Einschalten.",
+        "catalogUnavailable": "Sprachmodelle konnten nicht geladen werden. Versuchen Sie es vor einem Anbieterwechsel erneut."
+      }
     },
     "sending2": "Wird gesendet …",
     "sendInvite": "Einladung senden",
@@ -9642,7 +9651,7 @@
       "discardChanges": "Änderungen verwerfen",
       "title": "Assistentenvorschläge und Überwachung",
       "description": "Gesprächsbasierte Vorschläge und lesende Überwachung funktionieren unabhängig. Zeit- und ereignisgesteuerte Routinen benötigen keine aktivierten Vorschläge.",
-      "nightly": "Nächtliche Vorschläge",
+      "nightly": "Tägliches Briefing und Vorschläge",
       "nightlyHint": "Aus Gesprächen und Erinnerungen Routinen, Agenten und Profiländerungen vorschlagen. Keine Postfachprüfung. Vorgeschlagene Routinen benötigen eine Bestätigung.",
       "model": "Modell",
       "modelHint": "Nur für Verbesserungsvorschläge aus Gesprächen. Überwachung verwendet das Modell des gewählten Agenten.",
@@ -9656,8 +9665,8 @@
       "hourHint": "In der Zeitzone jeder Person.",
       "hourFallbackHint": "Für Personen ohne Arbeitszeit im Profil, in ihrer eigenen Zeitzone.",
       "save": "Speichern",
-      "saved": "Nächtliche Vorschläge gespeichert",
-      "off": "Nächtliche Vorschläge sind aus",
+      "saved": "Hintergrundeinstellungen gespeichert",
+      "off": "Hintergrundfunktionen sind ausgeschaltet",
       "invalid": "Geben Sie einen Betrag in Dollar ein, 0 oder mehr.",
       "welcome": "Willkommensnachricht in Chat-Apps",
       "welcomeHint": "Ein neues Mitglied erhält eine Direktnachricht von Ihren Slack-, Teams- und Mattermost-Bots.",
@@ -9676,8 +9685,6 @@
     },
     "systemAgents": {
       "configure": "Modell und Budget konfigurieren",
-      "title": "Hintergrunddienste",
-      "description": "Modellgestützte Plattformdienste. Klappen Sie einen Dienst auf, um Modell und Budget festzulegen. Verbrauch und letzte Ausführungen bleiben darunter sichtbar.",
       "on": "An",
       "off": "Aus",
       "enabled": "Diese Rolle ausführen",
@@ -9704,8 +9711,7 @@
           "what": "Liest einen beendeten Chat einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin fest, im eigenen Scope der Unterhaltung. Solange sie aus ist oder kein Modell hat, läuft nichts."
         }
       },
-      "starterAgentMissing": "Diese Rolle tut gerade nichts: Der AgenticOS-Starter-Agent, unter dem sie aufgezeichnet wird, fehlt, ist nicht veröffentlicht oder umbenannt. Veröffentlichen Sie ihn erneut unter dem Handle agenticos.",
-      "summary": "Modelle, Budgets und letzte Ausführungen der Plattformdienste."
+      "starterAgentMissing": "Diese Rolle tut gerade nichts: Der AgenticOS-Starter-Agent, unter dem sie aufgezeichnet wird, fehlt, ist nicht veröffentlicht oder umbenannt. Veröffentlichen Sie ihn erneut unter dem Handle agenticos."
     }
   },
   "theme": {
@@ -13746,6 +13752,10 @@
       "max_characters": {
         "title": "Längster Text",
         "description": "Der meiste Text, den ein Aufruf sprechen darf, was die Kosten eines einzelnen Aufrufs begrenzt."
+      },
+      "use_organization_defaults": {
+        "title": "Organisationsvorgaben verwenden",
+        "description": "Anbieter, Modell, Stimme und Schlüssel der Organisation gemeinsam übernehmen. Ausschalten, um die eigene Stimme dieses Agents zu konfigurieren."
       }
     },
     "video_generation": {

@@ -126,6 +126,7 @@ from app.schemas.agent import (
     MAX_CATEGORIES,
     MAX_TAGS,
     AgentCeiling,
+    AgentDraftRevision,
     AgentRead,
     AgentTemplateCatalog,
     AgentTemplateRead,
@@ -2150,6 +2151,13 @@ class AgentRegistryService:
                 return candidate
         return _copy_name(base, _MAX_COPIES)
 
+    async def draft_revision(self, ctx: AuthContext, agent_id: UUID) -> AgentDraftRevision:
+        """Expose a base token without requiring read authority or returning draft content."""
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT)
+        return AgentDraftRevision(
+            draft_revision=agent_draft_revision(AgentSpec.model_validate(agent.draft_spec))
+        )
+
     async def save_draft(
         self,
         ctx: AuthContext,
@@ -2196,7 +2204,9 @@ class AgentRegistryService:
             },
         )
 
-    async def import_spec(self, ctx: AuthContext, agent_id: UUID, text: str) -> Agent:
+    async def import_spec(
+        self, ctx: AuthContext, agent_id: UUID, text: str, *, expected_revision: str | None = None
+    ) -> Agent:
         """Replace the draft with a spec exported into a client's own repository.
 
         The parse happens before the agent is read. What it refuses depends only
@@ -2208,7 +2218,9 @@ class AgentRegistryService:
             BadRequestError: If the document does not parse, is not a mapping, or
                 breaks a field rule.
         """
-        return await self.save_draft(ctx, agent_id, _parse_spec_yaml(text))
+        return await self.save_draft(
+            ctx, agent_id, _parse_spec_yaml(text), expected_revision=expected_revision
+        )
 
     async def validate_spec(
         self,
@@ -2437,6 +2449,11 @@ class AgentRegistryService:
         thought of as an agent.
         """
         problems = _SpecProblems()
+        inherited_speech = (
+            binding.enabled
+            and binding.id == "text_to_speech"
+            and binding.config.get("use_organization_defaults") is True
+        )
         try:
             definition = get_capability(binding.id)
         except BadRequestError:
@@ -2452,6 +2469,11 @@ class AgentRegistryService:
                 ]
             )
         try:
+            from app.services.text_to_speech_settings import TextToSpeechSettingsService
+
+            binding = await TextToSpeechSettingsService(self.db).resolve_binding(
+                ctx.organization_id, binding
+            )
             config = definition.validate_config(binding.config)
         except BadRequestError as exc:
             problems.merge(_config_problems(binding.id, exc))
@@ -2488,7 +2510,8 @@ class AgentRegistryService:
                 ]
             )
         problems.add(_tool_override_problems(binding, definition))
-        problems.add(await self._secret_problems(ctx, binding, definition))
+        if not inherited_speech:
+            problems.add(await self._secret_problems(ctx, binding, definition))
         return problems
 
     async def _mirage_problems(self, ctx: AuthContext, config: MirageConfig) -> list[str]:

@@ -29,7 +29,7 @@ async def connection(agent_id: UUID, ctx: Auth, service: PersonalModelKeySvc) ->
 async def connect(
     agent_id: UUID, data: PersonalModelKeyCreate, ctx: Auth, service: PersonalModelKeySvc
 ) -> Any:
-    return await service.save(ctx, agent_id, data.api_key)
+    return await service.save(ctx, agent_id, data)
 
 
 @router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
