@@ -101,6 +101,26 @@ describe("RunButton", () => {
     expect(mutate).toHaveBeenCalledTimes(2);
   });
 
+  it("says which steps hand on pinned test data instead of running", async () => {
+    seed();
+    const graph = store.getState().graph!;
+    const pinned = { ...graph.nodes[0]!, label: "Fetch lead", pinned_output: { id: 1 } };
+    store.getState().seedGraph({ ...graph, nodes: [pinned] });
+    render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+
+    const badge = screen.getByText("1 step pinned");
+    await userEvent.hover(badge);
+    expect(
+      (await screen.findAllByText(/hand on their pinned test data instead\. Fetch lead/))[0],
+    ).toBeInTheDocument();
+  });
+
+  it("shows no pinned-data badge when nothing is pinned", () => {
+    seed();
+    render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    expect(screen.queryByText(/pinned/)).toBeNull();
+  });
+
   it("asks for the declared fields first", async () => {
     seed({ fields: [{ name: "email", type: "text" }] });
     render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);

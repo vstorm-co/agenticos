@@ -174,6 +174,7 @@ export {
 } from "./use-workflows";
 export { useWorkflowActions } from "./use-workflow-actions";
 export { useWorkflowTables, useWorkflowTable } from "./use-workflow-tables";
+export { useWorkflowTableDrift } from "./use-workflow-table-drift";
 export { useCausingRun, useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
 export { useWorkflowChatRun, useWorkflowRunQuestions } from "./use-workflow-questions";
 export { useWorkflowApprovalHistory, useWorkflowApprovals } from "./use-workflow-approvals";

@@ -29,6 +29,8 @@ import {
   type WorkflowRunRead,
 } from "@/lib/workflows/types";
 import { toastDone } from "@/lib/toast";
+import { isTableRefusalField } from "@/lib/workflows/table-drift";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 /** How often a live run is read again - its steps move on their own. */
 const LIVE_POLL_MS = 2000;
@@ -52,7 +54,15 @@ export function useWorkflowRuns(workflowId: string, inputErrorsInForm = false) {
       toastDone(t("runStarted"));
     },
     onError: (error) => {
-      const fields = fieldProblems(error);
+      const all = fieldProblems(error);
+      // A table changed since the editor last read it: read it again, and the
+      // editor updates the steps it safely can - said once, not as a path per step.
+      const tables = all.some(({ field }) => isTableRefusalField(field));
+      if (tables) {
+        useWorkflowEditorStore.getState().refreshTables();
+        toast.error(t("runTablesChanged"));
+      }
+      const fields = all.filter(({ field }) => !isTableRefusalField(field));
       const toastFields = inputErrorsInForm
         ? fields.filter(({ field }) => field !== "input" && !field.startsWith("input."))
         : fields;
@@ -60,7 +70,7 @@ export function useWorkflowRuns(workflowId: string, inputErrorsInForm = false) {
         toast.error(
           toastFields.map((problem) => `${problem.field}: ${problem.message}`).join("\n"),
         );
-      else if (fields.length === 0) toast.error(getErrorMessage(error, tErrors));
+      else if (all.length === 0) toast.error(getErrorMessage(error, tErrors));
     },
   });
   return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading, start };

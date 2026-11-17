@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 import { qk } from "@/lib/query-keys";
 import * as logsApi from "@/lib/workflows/logs-api";
@@ -111,6 +112,34 @@ describe("useWorkflowRuns", () => {
       "nodes.start.config.input_schema: Invalid trigger schema",
     );
   });
+  it("says once that a table changed, and asks the editor to read the tables again", async () => {
+    vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.startWorkflowRun).mockRejectedValue(
+      new ApiError(422, "Graph invalid", {
+        error: {
+          code: "GRAPH_INVALID",
+          message: "Graph invalid",
+          details: {
+            fields: [
+              { field: "nodes.a.config.table", message: "This table's schema has changed" },
+              { field: "bindings.2", message: "This table's schema has changed" },
+            ],
+          },
+        },
+      }),
+    );
+    const before = useWorkflowEditorStore.getState().tablesStale;
+    const { result } = renderHook(() => useWorkflowRuns("wf"), { wrapper });
+    await act(async () => {
+      await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringMatching(/has changed or is no longer available/),
+    );
+    expect(useWorkflowEditorStore.getState().tablesStale).toBe(before + 1);
+  });
+
   it("lists a workflow's runs and starts one", async () => {
     vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [run("running")], total: 1 });
     vi.mocked(api.startWorkflowRun).mockResolvedValue(run("queued"));

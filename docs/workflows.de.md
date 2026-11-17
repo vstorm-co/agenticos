@@ -1,5 +1,5 @@
 ---
-source_sha: "37be6df188e7"
+source_sha: "f719aa86f471"
 ---
 
 # Workflows { #workflows }
@@ -470,9 +470,14 @@ hat:
 Jedes Auswahlfeld unterscheidet gleichnamige Zeilen durch Kontext und markiert
 eine Referenz, deren Ziel verschwunden ist. Die Auswahlfelder **Agent** und
 **Secret** bieten zusätzlich einen Link zum Neuanlegen — immer, nicht nur wenn die
-Liste leer ist — während das **Table**-Auswahlfeld keinen hat. Eine Tabelle, deren Schema sich seit dem Binden geändert
-hat, sagt es und bietet **Rebind to the current schema** an, sodass ein veralteter
-Spaltensatz eine sichtbare Aufforderung ist statt eines stillen Bruchs.
+Liste leer ist — während das **Table**-Auswahlfeld keinen hat. Ändert sich das Schema einer Tabelle, nachdem ein Schritt an sie gebunden wurde,
+verschiebt der Editor den Schritt selbst auf das neue Schema, solange jede Spalte,
+die der Schritt liest, noch mit demselben Typ existiert - eine hinzugefügte Spalte
+oder eine Änderung an einer, die der Schritt nicht liest, verlangt nichts von dir.
+Wurde eine gelesene Spalte entfernt oder hat sie ihren Typ geändert, zeigt der
+Schritt stattdessen ein Problem, und sowohl das **Table**-Feld des Schritts als auch
+die Problemliste der Werkzeugleiste bieten **Update to the current schema** an, das
+jede gewählte Spalte behält, die noch existiert. Prüfe danach, was den Schritt liest.
 
 ### Evals für einen Modellschritt { #evals-for-a-model-step }
 
@@ -715,13 +720,12 @@ nicht tat.
 
 Jedes Speichern wird gegen die Revision geschrieben, die Sie geöffnet haben, sodass
 ein an zwei Stellen zugleich bearbeiteter Draft nicht still überschreiben kann.
-Passiert das, hebt der Editor ein Banner mit dem Titel **This draft changed
-elsewhere**: *Someone edited this workflow since you opened it. Overwrite keeps your
-changes; reload replaces them with the latest saved draft.* Sie wählen:
+Passiert das, hebt der Editor ein Banner mit dem Titel **Someone else also edited this workflow**: *They saved changes while you were editing. Keep your changes, or load
+their version and lose your unsaved edits.* Sie wählen:
 
-- **Overwrite** — behalten Sie Ihre Version und schreiben Sie sie über die
+- **Keep my changes** — behalten Sie Ihre Version und schreiben Sie sie über die
   anderswo gespeicherte.
-- **Reload** — verwerfen Sie Ihre ungespeicherten Änderungen und nehmen Sie den
+- **Load their version** — verwerfen Sie Ihre ungespeicherten Änderungen und nehmen Sie den
   zuletzt gespeicherten Draft.
 
 ## Eine Version veröffentlichen und die Versionshistorie { #publishing-a-version-and-version-history }
@@ -1563,7 +1567,7 @@ Skill- und Kontextgalerien eingebetteter Agenten laden alle Metadatenseiten und 
 - Ein Parameter ist **ein Wert oder Daten aus einem Schritt** — **Data** liest sie aus
   einer erreichbaren, typkompatiblen vorgelagerten Ausgabe oder fügt sie in Text ein.
 - Der Draft **speichert sich selbst**, und eine Bearbeitung von zwei Stellen hebt
-  ein Banner mit **Overwrite** oder **Reload**.
+  ein Banner mit **Keep my changes** oder **Load their version**.
 - **Publish** wird blockiert, solange ein Problem besteht, und validiert erneut auf
   dem Server; frühere Versionen bleiben schreibgeschützt einsehbar, und **Restore to
   draft** macht eine davon wieder zum Draft.

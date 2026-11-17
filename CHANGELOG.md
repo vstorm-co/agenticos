@@ -19,6 +19,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Pinned test data beside Test draft.** The workflow editor shows how many steps have pinned test data next to **Test draft**, and its tooltip names the steps that will hand on that data instead of running.
+- **Connected to this agent filter.** The agent builder's MCP server picker filters by **Organization connections** (formerly **Connected only**) and, separately, by servers **Connected to this agent**.
+- **Why standing consent is unavailable.** A routine's action consent dialog says whether the caller lacks `approvals:decide` or the organization turned standing consent off, and links an approver to the setting. `GET …/action-consents` returns this as `waive_blocked_reason`.
+
+### Changed
+
+- **Workflow tables follow their schema.** When a table's schema changes, the workflow editor moves each step bound to it onto the new schema by itself as long as every column the step reads still exists with the same type. When one was removed or retyped, the step shows a problem and **Update to the current schema** - on the step and in the toolbar's problem list - fixes every such step at once, keeping the chosen columns that still exist. Test runs and publishing no longer fail on a schema change the step never read. A run or publish refused over a table, or coming back to the editor's tab, makes the editor read its tables again at once, with no reload. A step adding or updating a record also drops values bound to a column archived since, which its form no longer shows and every run refused with `UNKNOWN_COLUMN`.
+- **Plainer workflow conflict banner.** A draft edited in two places offers **Keep my changes** and **Load their version** instead of **Overwrite** and **Reload**.
+- **Wide tables scroll sideways from anywhere.** A table that grows with the page keeps its horizontal scrollbar pinned to the bottom of the screen, so you no longer scroll to its last row to move sideways.
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed

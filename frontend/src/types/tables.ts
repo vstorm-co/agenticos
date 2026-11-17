@@ -215,6 +215,14 @@ export interface TableSummary {
   can_edit: boolean;
 }
 
+/** One version of a table's schema, as `GET /tables/{id}/schema-versions` lists it. */
+export interface SchemaVersionRead {
+  version: number;
+  columns: ColumnDef[];
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface TableRead extends TableSummary {
   columns: ColumnDef[];
   /**

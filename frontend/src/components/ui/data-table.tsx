@@ -6,6 +6,7 @@ import { EmptyIllustration } from "@/components/illustrations/empty-illustration
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { SortButton } from "@/components/ui/sort-button";
+import { StickyScrollbar } from "@/components/ui/sticky-scrollbar";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -413,6 +414,8 @@ export function DataTable<T>({
           </div>
         )}
       </div>
+      {/* Its own bar is under the last row; this one floats while that is off screen. */}
+      <StickyScrollbar target={scrollRef} />
     </div>
   );
 }

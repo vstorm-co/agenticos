@@ -25,7 +25,7 @@ import { ContextMenu, ContextMenuTrigger } from "@/components/ui";
 import { readNodeDragData } from "@/components/workflows/palette";
 import { fittingMergeConfigs } from "@/components/workflows/property-panel/merge-config";
 import { problemText } from "@/components/workflows/property-panel/problems";
-import { graphWarnings, validateGraph } from "@/components/workflows/validation";
+import { graphWarnings, validateGraph, withTableDrift } from "@/components/workflows/validation";
 import { useNarrowScreen } from "@/hooks/use-narrow-screen";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
@@ -111,6 +111,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const fitOptions = useMemo(() => fitViewOptions(readOnly, narrow), [readOnly, narrow]);
 
   const graph = useWorkflowEditorStore((state) => state.graph);
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
   const scopePath = useWorkflowEditorStore((state) => state.scopePath);
   const applyNodeChanges = useWorkflowEditorStore((state) => state.applyNodeChanges);
   const applyEdgeChanges = useWorkflowEditorStore((state) => state.applyEdgeChanges);
@@ -323,8 +324,12 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     () =>
       readOnly || graph === null
         ? []
-        : validateGraph(graph, { items: catalog, total: catalog.length }, t),
-    [readOnly, graph, catalog, t],
+        : withTableDrift(
+            validateGraph(graph, { items: catalog, total: catalog.length }, t),
+            tableDrift,
+            t,
+          ),
+    [readOnly, graph, catalog, t, tableDrift],
   );
   const problemTexts = useMemo(() => {
     const texts = new Map<string, string[]>();

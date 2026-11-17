@@ -16,6 +16,7 @@ import { ColumnTypeIcon } from "@/components/tables/column-type-icon";
 import { useWorkflowTable, useWorkflowTables } from "@/hooks";
 import { COMPUTED_TYPES } from "@/types/tables";
 import type { ColumnDef, ColumnTypeName, TableSummary } from "@/types/tables";
+import { rebindRef } from "@/lib/workflows/table-drift";
 import type { TableIORef } from "@/lib/workflows/types";
 import { cn } from "@/lib/utils";
 
@@ -180,6 +181,11 @@ export function TableColumnPicker({
       (column) => !column.archived && !(storedOnly && COMPUTED_TYPES.has(column.type)),
     ) ?? [];
 
+  const droppedColumns =
+    value?.column_ids == null
+      ? 0
+      : value.column_ids.filter((id) => !liveColumns.some((column) => column.id === id)).length;
+
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
@@ -228,13 +234,20 @@ export function TableColumnPicker({
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                 {t("pickerSchemaChanged")}
               </p>
+              {droppedColumns > 0 && (
+                <p className="text-muted-foreground mt-1 text-xs">
+                  {t("pickerRebindDropped", { count: droppedColumns })}
+                </p>
+              )}
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="mt-2"
                 disabled={disabled}
-                onClick={() => table && onChange(refForTable(table))}
+                onClick={() =>
+                  table && onChange(rebindRef(value, table.schema_version, liveColumns))
+                }
               >
                 {t("pickerRebind")}
               </Button>

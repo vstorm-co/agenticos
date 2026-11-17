@@ -4,12 +4,19 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChatPanel } from "./chat-panel";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
-import { Play } from "lucide-react";
+import { Pin, Play } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
-import { validateGraph } from "@/components/workflows/validation";
+import { validateGraph, withTableDrift } from "@/components/workflows/validation";
 import { useWorkflowRuns } from "@/hooks";
 import {
   declaredFields,
@@ -48,13 +55,20 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
   const isDirty = useWorkflowEditorStore((state) => state.isDirty);
   const revealProblems = useWorkflowEditorStore((state) => state.revealProblems);
   const watchRun = useWorkflowEditorStore((state) => state.watchRun);
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
   const [asking, setAsking] = useState(false);
   const { start } = useWorkflowRuns(workflowId, asking);
 
   const problems = useMemo(
     () =>
-      graph === null ? [] : validateGraph(graph, { items: catalog, total: catalog.length }, tw),
-    [graph, catalog, tw],
+      graph === null
+        ? []
+        : withTableDrift(
+            validateGraph(graph, { items: catalog, total: catalog.length }, tw),
+            tableDrift,
+            tw,
+          ),
+    [graph, catalog, tw, tableDrift],
   );
   const fields = declaredFields(graph);
   const inputSchema = declaredInputSchema(graph);
@@ -74,6 +88,17 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
             sample: sampleRunInput(branch),
           };
         });
+  // Steps with pinned test data hand on that data instead of running: the
+  // builder should know before starting a test run which ones will.
+  const pinnedSteps =
+    graph?.nodes
+      .filter((node) => node.pinned_output != null)
+      .map(
+        (node) =>
+          node.label ??
+          catalog.find((definition) => definition.id === node.definition_id)?.name ??
+          node.definition_id,
+      ) ?? [];
   const empty = graph === null || graph.nodes.length === 0;
   const blocked = empty || problems.length > 0 || isDirty || start.isPending;
 
@@ -131,6 +156,21 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
         <Play className="h-4 w-4" />
         {t("runDraft")}
       </Button>
+      {pinnedSteps.length > 0 && (
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="outline" className="gap-1" tabIndex={0} data-pinned-steps>
+                <Pin className="h-3 w-3" />
+                {t("runPinnedCount", { count: pinnedSteps.length })}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              {t("runPinnedHint", { steps: pinnedSteps.join(", ") })}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
       <Sheet open={chatOpen} onOpenChange={setChatOpen}>
         <SheetContent side="right" className="flex w-full flex-col sm:max-w-xl">
           <SheetHeader>

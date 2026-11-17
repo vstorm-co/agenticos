@@ -86,6 +86,8 @@ export function CanvasToolbar({
     onPhone ? state.phoneMinimapShown : state.minimapShown,
   );
   const toggleMinimap = useWorkflowEditorStore((state) => state.toggleMinimap);
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
+  const rebindTables = useWorkflowEditorStore((state) => state.rebindTables);
   const nodeStyle = useWorkflowNodeStyleStore((state) => state.style);
   const setNodeStyle = useWorkflowNodeStyleStore((state) => state.setStyle);
   // Opened from the "+", from Tab, or from the "+" on a connection.
@@ -215,6 +217,28 @@ export function CanvasToolbar({
                 </PopoverTrigger>
                 <PopoverContent align="end" sideOffset={8} className="w-96 p-3">
                   <p className="text-muted-foreground mb-2 text-xs">{t("toolbarProblemsHint")}</p>
+                  {tableDrift.length > 0 && (
+                    // One click for every step whose table changed under it, rather
+                    // than opening each step to update it.
+                    <div className="mb-3 rounded-lg border border-dashed p-2.5">
+                      <p className="text-muted-foreground text-xs">
+                        {t("toolbarTablesChanged", { count: tableDrift.length })}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() =>
+                          rebindTables(
+                            tableDrift.map((entry) => ({ site: entry.site, ref: entry.rebound })),
+                          )
+                        }
+                      >
+                        {t("toolbarRebindTables")}
+                      </Button>
+                    </div>
+                  )}
                   <ProblemsFooter
                     problems={problems}
                     names={names}

@@ -18,6 +18,7 @@ import type {
   RecordExportQuery,
   RecordList,
   RecordQuery,
+  SchemaVersionRead,
   RecordRead,
   RecordSource,
   RecordUpdate,
@@ -66,6 +67,11 @@ export function createTable(data: TableCreate): Promise<TableRead> {
 
 export function getTable(tableId: string): Promise<TableRead> {
   return apiClient.get<TableRead>(`/tables/${tableId}`);
+}
+
+/** Every version of a table's schema, each with the columns it had. */
+export function listSchemaVersions(tableId: string): Promise<{ items: SchemaVersionRead[] }> {
+  return apiClient.get<{ items: SchemaVersionRead[] }>(`/tables/${tableId}/schema-versions`);
 }
 
 export function updateTable(tableId: string, data: TableUpdate): Promise<TableRead> {

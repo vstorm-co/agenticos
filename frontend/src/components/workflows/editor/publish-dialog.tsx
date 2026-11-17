@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { nodeNames, ProblemsFooter } from "@/components/workflows/property-panel/problems";
 import type { ValidationProblem } from "@/components/workflows/validation";
-import { graphWarnings, validateGraph } from "@/components/workflows/validation";
+import { graphWarnings, validateGraph, withTableDrift } from "@/components/workflows/validation";
 import { ApiError, fieldProblems } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,7 @@ import { triggerNodeOf } from "@/lib/workflows/triggers";
 import { deriveScopes, resolveDefinitions } from "@/components/workflows/validation/topology";
 import { scopePathTo } from "@/components/workflows/canvas/scope-view";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+import { isTableRefusalField } from "@/lib/workflows/table-drift";
 
 import { useLiveChanges } from "./workflow-status";
 
@@ -91,6 +92,8 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
   const setScopePath = useWorkflowEditorStore((state) => state.setScopePath);
   const setConflict = useWorkflowEditorStore((state) => state.setConflict);
   const revealProblems = useWorkflowEditorStore((state) => state.revealProblems);
+  const refreshTables = useWorkflowEditorStore((state) => state.refreshTables);
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
 
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -105,8 +108,9 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
   );
 
   const clientProblems = useMemo(
-    () => (graph === null ? [] : validateGraph(graph, nodeCatalog, t)),
-    [graph, nodeCatalog, t],
+    () =>
+      graph === null ? [] : withTableDrift(validateGraph(graph, nodeCatalog, t), tableDrift, t),
+    [graph, nodeCatalog, t, tableDrift],
   );
 
   const trigger = useMemo(() => {
@@ -179,7 +183,7 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
       // A `REVISION_CONFLICT` (`409`) means the draft moved on since this editor
       // read it — publishing into a stale revision. It carries the current
       // revision but no field problems, so it would otherwise vanish. Hand it to
-      // the shared conflict banner (Overwrite / Reload) and close the dialog.
+      // the shared conflict banner (Keep my changes / Load their version) and close the dialog.
       if (error instanceof ApiError && error.status === 409) {
         const current = error.details?.current_revision;
         if (typeof current === "number") {
@@ -188,8 +192,13 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
           return;
         }
       }
+      const problems = fieldProblems(error);
+      // A table changed or went away since the editor last read it: read it
+      // again, so the steps it safely can are updated and the rest show why.
+      const tables = problems.some(({ field }) => isTableRefusalField(field));
+      if (tables) refreshTables();
       setServerProblems(
-        fieldProblems(error).map((problem) => toValidationProblem(problem.field, problem.message)),
+        problems.map((problem) => toValidationProblem(problem.field, problem.message)),
       );
     } finally {
       setSubmitting(false);

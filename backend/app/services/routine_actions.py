@@ -32,6 +32,7 @@ from app.schemas.routine_actions import (
     RoutineMcpActionKey,
     RoutineMcpActionOption,
     RoutineReviewChange,
+    WaiveBlockedReason,
 )
 from app.services.agent_registry import AgentRegistryService
 
@@ -250,13 +251,17 @@ class RoutineActionService:
         if not prior_keys.issubset({action_key(option) for option in options if option.waivable}):
             review_changes.append("actions")
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
+        blocked: WaiveBlockedReason | None = None
+        if not ctx.has(Perm.APPROVALS_DECIDE):
+            blocked = "permission"
+        elif organization is None or not organization.chat_may_waive_approvals:
+            blocked = "organization"
         return RoutineActionOptions(
             review_changes=review_changes,
             review_token=action_review(trigger, version, mcp, instructions_hash=instructions),
             unavailable_sources=unavailable,
-            can_waive=ctx.has(Perm.APPROVALS_DECIDE)
-            and organization is not None
-            and organization.chat_may_waive_approvals,
+            can_waive=blocked is None,
+            waive_blocked_reason=blocked,
             items=[
                 option.model_copy(
                     update={

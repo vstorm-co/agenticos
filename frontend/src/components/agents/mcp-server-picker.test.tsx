@@ -330,7 +330,25 @@ describe("McpServerPicker", () => {
       }),
     );
 
-    await userEvent.click(screen.getByRole("checkbox", { name: "Connected only" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Organization connections" }));
+
+    expect(screen.getByText("GitHub")).toBeInTheDocument();
+    expect(screen.queryByText("Linear")).toBeNull();
+  });
+
+  it("narrows to the servers this agent is bound to when asked", async () => {
+    // The organization may hold many connections; the agent uses a few of them.
+    const linear = entry({ key: "linear", name: "Linear" });
+    const github = connection({ catalog_key: "github" });
+    render(
+      picker({
+        connections: [github, connection({ id: "c-linear", catalog_key: "linear" })],
+        catalog: [...CATALOG, linear],
+        value: [bound(github.id)],
+      }),
+    );
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Connected to this agent" }));
 
     expect(screen.getByText("GitHub")).toBeInTheDocument();
     expect(screen.queryByText("Linear")).toBeNull();
