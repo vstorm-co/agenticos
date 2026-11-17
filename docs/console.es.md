@@ -1,5 +1,5 @@
 ---
-source_sha: "48df7f75a5c9"
+source_sha: "da2b712157b6"
 ---
 
 # La consola { #the-console }
@@ -971,6 +971,12 @@ Una conversación con una lista de tareas guardada solo puede bifurcarse en su �
 En una respuesta completada del asistente dentro de una conversación personal de tu propiedad, **Conversaciones paralelas** permite iniciar otra conversación desde ese punto o reabrir una rama de la misma respuesta. La rama se abre junto a la original con su propio cuadro de escritura y sus mensajes posteriores. El historial, el borrador y la cola de la conversación original se conservan; los mensajes enviados en la rama pertenecen a ella.
 
 **Volver a la conversación original** cierra el panel lateral y abre la respuesta de origen exacta, cargando mensajes anteriores cuando hace falta. Cerrar el panel no elimina la rama. Cambiar la conversación de origen, la cuenta o la organización retira el panel anterior. Las ramas archivadas se abren en modo de solo lectura. La lista permite cargar más ramas de esta respuesta; los errores de lectura o creación se pueden reintentar sin cambiar la conversación principal.
+
+### Compactar el contexto de la conversación { #chat-compact-now }
+
+En una conversación personal inactiva de tu propiedad, **Compactar ahora** en la cabecera pide al agente publicado que resuma el contexto anterior. La acción aparece cuando el agente tiene una estrategia de compactación por resumen compatible. Los mensajes guardados y tu borrador siguen disponibles. No se ofrece en discusiones de sala, chats archivados o de solo lectura, flujos de trabajo ni paneles de prueba de borradores.
+
+Un aviso sobre el editor muestra el progreso y el resultado: contexto compactado, sin reducción adicional, ocupado, no disponible o fallido. El envío y el inicio de llamadas de voz se pausan durante la compactación; **Detener** cancela la solicitud. Cambiar de conversación no la repite. La acción utiliza el modelo seleccionado para el chat cuando corresponde y respeta los presupuestos habituales de uso. El indicador de contexto conserva la última medición hasta una solicitud posterior al modelo.
 
 ### Responder a texto seleccionado { #chat-selected-quote }
 

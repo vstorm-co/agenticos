@@ -36,6 +36,7 @@ import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
 import { ChatModelHeader } from "./chat-model-header";
+import { ChatCompactionControl, ChatCompactionNotice } from "./chat-compaction-control";
 import { SheetRow } from "./composer-sheet";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatRoomBar } from "./chat-room-bar";
@@ -85,6 +86,7 @@ import type {
   AskUserQuestion,
   AskUserAnswer,
   Compaction,
+  ChatCompactionStatus,
   ConnectionRequest,
   PersonalServiceGap,
   ConversationCost,
@@ -455,19 +457,6 @@ export function ChatContainer({
     );
   }, [phase, callId, callRun, startedAt, callConversation, questions, setLiveCall]);
   useEffect(() => () => setLiveCall(null), [setLiveCall]);
-  const startCall = useCallback(
-    (transport: VoiceTransport) => {
-      if (selectedAgentId === null) return;
-      openCallRef.current = { conversationId: currentConversationId, agentId: selectedAgentId };
-      void voice.start({
-        kind: "console",
-        agentId: selectedAgentId,
-        conversationId: currentConversationId,
-        transport,
-      });
-    },
-    [selectedAgentId, currentConversationId, voice],
-  );
   // A call belongs to its conversation: opening another, or a new chat, hangs
   // it up, and an ended call's summary does not follow anybody elsewhere.
   const { end: endCall, dismiss: dismissCall } = voice;
@@ -545,6 +534,11 @@ export function ChatContainer({
     canStopParked,
     compacting,
     compactionImpossible,
+    compactionAvailable = false,
+    compactionReady = false,
+    compactionStatus = "idle",
+    compactionProgress = null,
+    compactConversation,
     sandboxPreparing,
     interrupted,
     detachedTurnPending,
@@ -591,6 +585,19 @@ export function ChatContainer({
     testing,
     pageContext,
   });
+  const startCall = useCallback(
+    (transport: VoiceTransport) => {
+      if (selectedAgentId === null || compactionStatus === "running") return;
+      openCallRef.current = { conversationId: currentConversationId, agentId: selectedAgentId };
+      void voice.start({
+        kind: "console",
+        agentId: selectedAgentId,
+        conversationId: currentConversationId,
+        transport,
+      });
+    },
+    [selectedAgentId, currentConversationId, voice, compactionStatus],
+  );
   // Scope before any rendered-list upsert: a thread delta never flashes in the room.
   const messages = useMemo(
     () => rawMessages.filter((message) => message.threadRootMessageId === undefined),
@@ -723,7 +730,7 @@ export function ChatContainer({
       : null;
   const askAgain = useCallback(
     (question: string) => {
-      if (sendDisabled || roomProjectId !== null) return;
+      if (sendDisabled || roomProjectId !== null || compactionStatus === "running") return;
       const submission = pageContext ? captureSubmission() : undefined;
       setLostIn(null);
       if (submission) sendMessage(question, undefined, undefined, undefined, submission);
@@ -967,6 +974,7 @@ export function ChatContainer({
       captureSubmission,
       sendDisabled,
       roomProjectId,
+      compactionStatus,
     ],
   );
   const sendSteer = useCallback(
@@ -1004,13 +1012,20 @@ export function ChatContainer({
     ],
   );
   useEffect(() => {
-    if (held.current === null || holdSending || sendDisabled || roomProjectId !== null) return;
+    if (
+      held.current === null ||
+      holdSending ||
+      sendDisabled ||
+      roomProjectId !== null ||
+      compactionStatus === "running"
+    )
+      return;
     const waiting = held.current;
     // A held contextual question must pass the gate for its chosen agent.
     if (waiting[4] && waiting[4].agentId !== selectedAgentId) return;
     held.current = null;
     sendMessage(...waiting);
-  }, [holdSending, sendMessage, sendDisabled, selectedAgentId, roomProjectId]);
+  }, [holdSending, sendMessage, sendDisabled, selectedAgentId, roomProjectId, compactionStatus]);
 
   const handleRegenerate = useCallback(
     (assistantMessageId: string) => {
@@ -1160,13 +1175,14 @@ export function ChatContainer({
       !isConnected ||
       holdSending ||
       sendDisabled ||
+      compactionStatus === "running" ||
       sentPromptRef.current === prompt.id
     ) {
       return;
     }
     sentPromptRef.current = prompt.id;
     send(prompt.text);
-  }, [prompt, isConnected, holdSending, send, sendDisabled]);
+  }, [prompt, isConnected, holdSending, send, sendDisabled, compactionStatus]);
 
   // Slash command handlers - passed down to ChatInput so the / palette can
   // run them locally without going through the agent.
@@ -1190,6 +1206,42 @@ export function ChatContainer({
     <>
       <LocalAccessDialog />
       <ChatUI
+        manualCompaction={
+          ownsOpenConversation &&
+          !testing &&
+          !readOnly &&
+          roomProjectId === null &&
+          threadRootId === null &&
+          selectedWorkflow === null &&
+          pageContext === undefined
+            ? {
+                available: compactionAvailable,
+                status: compactionStatus,
+                progress: compactionProgress,
+                onCompact: compactConversation,
+                disabled:
+                  !compactionReady ||
+                  !jumpReady ||
+                  sendDisabled ||
+                  holdSending ||
+                  !isConnected ||
+                  isProcessing ||
+                  isStopping ||
+                  canStopParked ||
+                  interrupted ||
+                  detachedTurnPending ||
+                  leftTurnPending ||
+                  runningSince !== null ||
+                  queuedMessages.length > 0 ||
+                  pendingApproval != null ||
+                  !!pendingQuestions?.length ||
+                  !!pendingSecretRequests?.length ||
+                  pendingConnection != null ||
+                  pendingComputerAccess != null ||
+                  callActive(voice),
+              }
+            : undefined
+        }
         sideThreadActions={sideThreadActions}
         messagePinActions={
           canUseMessagePins
@@ -1317,7 +1369,11 @@ export function ChatContainer({
         // Only into the hook: nothing on screen is a share of it, unlike the
         // context gauge the model switch has to move.
         onApprovalModeChange={setApprovalMode}
-        onRegenerate={readOnly || roomProjectId !== null ? undefined : handleRegenerate}
+        onRegenerate={
+          readOnly || roomProjectId !== null || compactionStatus === "running"
+            ? undefined
+            : handleRegenerate
+        }
         onFork={ownsOpenConversation && access.known ? handleFork : undefined}
         forkingMessageId={forkingMessageId}
         forkedFrom={forkableConversation?.forked_from ?? null}
@@ -1383,6 +1439,13 @@ export function ChatContainer({
 }
 
 interface ChatUIProps {
+  manualCompaction?: {
+    available: boolean;
+    status: ChatCompactionStatus;
+    progress: Compaction | null;
+    disabled: boolean;
+    onCompact: () => boolean;
+  };
   sideThreadActions?: ConversationSideThreadActions;
   messagePinActions?: MessagePinActions;
   onOpenPinnedMessage?: (target: PinnedMessageTarget) => void;
@@ -1541,6 +1604,7 @@ interface ChatUIProps {
 }
 
 function ChatUI({
+  manualCompaction,
   sideThreadActions,
   messagePinActions,
   onOpenPinnedMessage,
@@ -1644,6 +1708,7 @@ function ChatUI({
   onVisualReport,
   sendDisabled = false,
 }: ChatUIProps) {
+  const manualCompacting = manualCompaction?.status === "running";
   const composerFocusRequest = useConversationStore((state) => state.composerFocusRequest);
   const t = useTranslations("chat");
   const tThread = useTranslations("chat.roomThread");
@@ -1757,6 +1822,7 @@ function ChatUI({
   );
   const onCall = callActive(voice);
   const startCall = () => {
+    if (manualCompacting) return;
     if (dictationState.phase !== "idle") cancelDictation();
     onStartCall(readiness?.transport ?? voice.call.transport ?? "webrtc");
   };
@@ -1768,11 +1834,26 @@ function ChatUI({
   const callRequested = intent === "call" && offerCall && (readiness !== null || readinessFailed);
   const callOnRequest = useEffectEvent(() => {
     clearIntent();
-    if (readiness?.available && !onCall && !isProcessing && !readOnly) startCall();
+    if (readiness?.available && !onCall && !isProcessing && !readOnly && !manualCompacting)
+      startCall();
   });
   useEffect(() => {
     if (callRequested) callOnRequest();
   }, [callRequested]);
+  const conversationActions =
+    messagePinsControl || manualCompaction?.available || manualCompacting ? (
+      <>
+        {messagePinsControl}
+        {manualCompaction && (
+          <ChatCompactionControl
+            available={manualCompaction.available}
+            status={manualCompaction.status}
+            disabled={manualCompaction.disabled || onCall || dictationState.phase !== "idle"}
+            onCompact={manualCompaction.onCompact}
+          />
+        )}
+      </>
+    ) : null;
   const dictateNow = intent === "dictate" && hasAgent && (status !== null || dictationStatusFailed);
   const voiceHint = voiceFailureHint(
     { call: voice.call, onRetry: startCall, onDismiss: voice.dismiss },
@@ -1922,7 +2003,7 @@ function ChatUI({
       <VoiceCallButton
         readiness={readiness}
         failed={readinessFailed}
-        disabled={isProcessing || readOnly}
+        disabled={isProcessing || readOnly || manualCompacting}
         onStart={startCall}
         setUpHref={agentCallsHref}
         prominent={callReady}
@@ -2048,17 +2129,26 @@ function ChatUI({
               key={`${authUser?.id}:${activeOrgId}:${selectedAgentId}`}
               name={callAgent?.name ?? t("rail.agent")}
               agentModel={agentModel}
-              readOnly={readOnly || isArchived === true || isLoadingConversation === true}
-              isProcessing={isProcessing}
+              readOnly={
+                readOnly ||
+                isArchived === true ||
+                isLoadingConversation === true ||
+                manualCompacting
+              }
+              isProcessing={isProcessing || manualCompacting}
               canEditAgent={Boolean(
-                callAgent?.can_edit && !readOnly && isArchived !== true && !isLoadingConversation,
+                callAgent?.can_edit &&
+                !readOnly &&
+                isArchived !== true &&
+                !isLoadingConversation &&
+                !manualCompacting,
               )}
               home={showWorkspaceHome}
               onChange={(profileId) => onModelProfileChange?.(profileId)}
-              actions={messagePinsControl}
+              actions={conversationActions}
             />
           )}
-          {(compact || roomProjectId !== null || !hasAgent) && messagePinsControl && (
+          {(compact || roomProjectId !== null || !hasAgent) && conversationActions && (
             <div
               data-chat-model-header
               className={cn(
@@ -2066,7 +2156,7 @@ function ChatUI({
                 !compact && "max-lg:pt-14",
               )}
             >
-              {messagePinsControl}
+              {conversationActions}
             </div>
           )}
           <MessageJumpNotice jump={messageJump} />
@@ -2403,8 +2493,14 @@ function ChatUI({
                     open and how loud, and a second signal below read as a shadow. */}
                     <div>
                       {/* Every hint on top of the box, beside the pill it belongs to. */}
-                      {!readOnly && !onCall && (
+                      {!readOnly && !onCall && !manualCompacting && (
                         <NextSteps steps={nextSteps} onPick={(step) => sendMessage(step)} />
+                      )}
+                      {manualCompaction && (
+                        <ChatCompactionNotice
+                          status={manualCompaction.status}
+                          messagesBefore={manualCompaction.progress?.messages_before}
+                        />
                       )}
                       <DictationStrip hint={composerStrip} placement="above" />
                       <div
@@ -2458,6 +2554,7 @@ function ChatUI({
                             hints={messages.length === 0}
                             disabled={
                               sendDisabled ||
+                              manualCompacting ||
                               isStopping ||
                               isLoadingConversation ||
                               (!isConnected && !keepsOutbox) ||
@@ -2468,6 +2565,7 @@ function ChatUI({
                             }
                             isProcessing={isProcessing}
                             canStop={
+                              manualCompacting ||
                               isStopping ||
                               canStopParked ||
                               isProcessing ||
@@ -2499,10 +2597,14 @@ function ChatUI({
                             // consequential choice in the composer.
                             controlsSlot={
                               <>
-                                {!agentFixed && <AgentPicker />}
+                                {!agentFixed && (
+                                  <fieldset disabled={manualCompacting} className="contents">
+                                    <AgentPicker />
+                                  </fieldset>
+                                )}
                                 <ChatApprovalSelector
                                   onChange={onApprovalModeChange}
-                                  disabled={isProcessing || readOnly}
+                                  disabled={isProcessing || readOnly || manualCompacting}
                                 />
                                 {!agentFixed && (
                                   <span className="contents max-md:hidden">
@@ -2510,7 +2612,7 @@ function ChatUI({
                                       conversationId={conversationId}
                                       pickerOpen={projectPickerOpen}
                                       onPickerOpenChange={setProjectPickerOpen}
-                                      readOnly={projectReadOnly}
+                                      readOnly={projectReadOnly || manualCompacting}
                                     />
                                   </span>
                                 )}
@@ -2527,7 +2629,9 @@ function ChatUI({
                               <>
                                 {!agentFixed && (
                                   <SheetRow icon={Bot} label={t("rail.agent")}>
-                                    <AgentPicker />
+                                    <fieldset disabled={manualCompacting} className="contents">
+                                      <AgentPicker />
+                                    </fieldset>
                                   </SheetRow>
                                 )}
                                 {offerCall && !onCall && (
@@ -2540,7 +2644,7 @@ function ChatUI({
                                     <VoiceCallButton
                                       readiness={readiness}
                                       failed={readinessFailed}
-                                      disabled={isProcessing || readOnly}
+                                      disabled={isProcessing || readOnly || manualCompacting}
                                       onStart={startCall}
                                       setUpHref={agentCallsHref}
                                       publishedOnly={testingDraft}
@@ -2551,12 +2655,14 @@ function ChatUI({
                                   icon={SlidersHorizontal}
                                   label={t("input.modelAndApprovals")}
                                 >
-                                  <ChatControls
-                                    onModelProfileChange={onModelProfileChange}
-                                    onApprovalModeChange={onApprovalModeChange}
-                                    agentModel={agentModel}
-                                    agentCapabilities={agentCapabilities}
-                                  />
+                                  <fieldset disabled={manualCompacting} className="contents">
+                                    <ChatControls
+                                      onModelProfileChange={onModelProfileChange}
+                                      onApprovalModeChange={onApprovalModeChange}
+                                      agentModel={agentModel}
+                                      agentCapabilities={agentCapabilities}
+                                    />
+                                  </fieldset>
                                 </SheetRow>
                                 <SheetRow icon={Gauge} label={t("input.contextUsed")}>
                                   <UsageMeter
@@ -2577,14 +2683,14 @@ function ChatUI({
                                   total={conversationCost}
                                   contextWindow={contextWindow}
                                 />
-                                <div>
+                                <fieldset disabled={manualCompacting}>
                                   <ChatControls
                                     onModelProfileChange={onModelProfileChange}
                                     onApprovalModeChange={onApprovalModeChange}
                                     agentModel={agentModel}
                                     agentCapabilities={agentCapabilities}
                                   />
-                                </div>
+                                </fieldset>
                                 {/* The call stands in Send's place, as one that can
                                   start or one that says why it cannot - except
                                   during the call, when it waits here, hidden, for

@@ -2236,6 +2236,7 @@ async def get_messages_by_conversation(
     fresh: bool = False,
     top_level_only: bool = False,
     thread_root_message_id: UUID | None = None,
+    through_ordinal: int | None = None,
 ) -> list[Message]:
     """Get messages for a conversation, in the order they were written.
 
@@ -2250,6 +2251,8 @@ async def get_messages_by_conversation(
     planner felt like it. See `Message.ordinal`.
     """
     query = select(Message).where(Message.conversation_id == conversation_id)
+    if through_ordinal is not None:
+        query = query.where(Message.ordinal <= through_ordinal)
     if top_level_only:
         query = query.where(Message.thread_root_message_id.is_(None))
     if thread_root_message_id is not None:
@@ -2282,9 +2285,12 @@ async def count_messages(
     for_model: bool = False,
     top_level_only: bool = False,
     thread_root_message_id: UUID | None = None,
+    through_ordinal: int | None = None,
 ) -> int:
     """Count messages in a conversation."""
     query = select(func.count(Message.id)).where(Message.conversation_id == conversation_id)
+    if through_ordinal is not None:
+        query = query.where(Message.ordinal <= through_ordinal)
     if top_level_only:
         query = query.where(Message.thread_root_message_id.is_(None))
     if thread_root_message_id is not None:
@@ -2430,7 +2436,12 @@ def _refused(run_id: UUID) -> ColumnElement[bool]:
 
 
 async def get_recent_messages(
-    db: AsyncSession, conversation_id: UUID, *, limit: int, top_level_only: bool = False
+    db: AsyncSession,
+    conversation_id: UUID,
+    *,
+    limit: int,
+    top_level_only: bool = False,
+    through_ordinal: int | None = None,
 ) -> list[Message]:
     """The last `limit` messages of a conversation, still oldest first.
 
@@ -2444,7 +2455,12 @@ async def get_recent_messages(
 
     One `COUNT(*)` on an indexed column is what the right offset costs.
     """
-    total = await count_messages(db, conversation_id, top_level_only=top_level_only)
+    total = await count_messages(
+        db,
+        conversation_id,
+        top_level_only=top_level_only,
+        through_ordinal=through_ordinal,
+    )
     return await get_messages_by_conversation(
         db,
         conversation_id,
@@ -2452,6 +2468,7 @@ async def get_recent_messages(
         limit=limit,
         fresh=True,
         top_level_only=top_level_only,
+        through_ordinal=through_ordinal,
     )
 
 
@@ -2543,6 +2560,7 @@ async def get_messages_after(
     ordinal: int,
     limit: int,
     top_level_only: bool = False,
+    through_ordinal: int | None = None,
 ) -> list[Message]:
     """The last `limit` messages written after `ordinal`, still oldest first.
 
@@ -2555,6 +2573,8 @@ async def get_messages_after(
     the same identity-map rows can still be returned by the turn that wrote them.
     """
     conditions = [Message.conversation_id == conversation_id, Message.ordinal > ordinal]
+    if through_ordinal is not None:
+        conditions.append(Message.ordinal <= through_ordinal)
     if top_level_only:
         conditions.append(Message.thread_root_message_id.is_(None))
     total = await db.scalar(select(func.count(Message.id)).where(*conditions))
@@ -2596,6 +2616,36 @@ async def capability_loads_in_messages(
     return list(result.all())
 
 
+async def has_room_submissions(db: AsyncSession, conversation_id: UUID) -> bool:
+    """Whether a room queue means this history is not a shared transcript prefix."""
+    return bool(
+        await db.scalar(
+            select(exists().where(RoomSubmission.conversation_id == conversation_id))
+        )
+    )
+
+
+async def has_unfinished_runs(db: AsyncSession, conversation_id: UUID) -> bool:
+    """Whether a top-level run is active or parked on a resumable human action."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    AgentRun.conversation_id == conversation_id,
+                    AgentRun.parent_run_id.is_(None),
+                    AgentRun.status.in_(
+                        [
+                            RunStatus.RUNNING,
+                            RunStatus.AWAITING_APPROVAL,
+                            RunStatus.AWAITING_ANSWER,
+                        ]
+                    ),
+                )
+            )
+        )
+    )
+
+
 async def set_summary(
     db: AsyncSession,
     *,
@@ -2603,6 +2653,7 @@ async def set_summary(
     messages: list[dict[str, Any]],
     ordinal: int,
     expected_revision: int,
+    expected_ordinal: int | None = None,
 ) -> bool:
     """Record the history a summary reduced this conversation to.
 
@@ -2614,15 +2665,25 @@ async def set_summary(
     Its compaction cannot replace this shared cache or claim to cover later queued
     questions. Check this in the update itself so a concurrent first room message
     cannot slip between a service-level check and the cache write. Resumed runs
-    take the same path and retain the same fence.
+    take the same path and retain the same fence. An idle maintenance summary can
+    also pass `expected_ordinal`; unlike an active run, it writes no transcript
+    rows of its own, so any later row invalidates its snapshot.
     """
+    conditions = [
+        Conversation.id == db_conversation.id,
+        Conversation.guardrail_revision == expected_revision,
+        ~exists().where(RoomSubmission.conversation_id == Conversation.id),
+    ]
+    if expected_ordinal is not None:
+        conditions.append(
+            ~exists().where(
+                Message.conversation_id == Conversation.id,
+                Message.ordinal > expected_ordinal,
+            )
+        )
     updated = await db.scalar(
         sql_update(Conversation)
-        .where(
-            Conversation.id == db_conversation.id,
-            Conversation.guardrail_revision == expected_revision,
-            ~exists().where(RoomSubmission.conversation_id == Conversation.id),
-        )
+        .where(*conditions)
         .values(summary_messages=messages, summary_ordinal=ordinal)
         .returning(Conversation.id)
     )

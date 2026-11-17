@@ -266,6 +266,184 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/chat");
 });
 
+function prepareCompactionChat() {
+  useAuthStore.setState({
+    user: {
+      id: "u-1",
+      email: "person@example.com",
+      is_active: true,
+      created_at: "2026-01-01T00:00:00Z",
+      locale: "en",
+    } as NonNullable<ReturnType<typeof useAuthStore.getState>["user"]>,
+  });
+  useOrgStore.setState({ activeOrgId: "org-1" });
+  useAgentSelectionStore.getState().select("agent-1");
+  useConversationStore.getState().setCurrentConversationId("c-1");
+  useChatStore.getState().rereadMessages(
+    [
+      {
+        id: "m-1",
+        role: "user",
+        content: "Keep this decision in mind.",
+        timestamp: new Date(),
+        conversationId: "c-1",
+      },
+    ],
+    {
+      conversationId: "c-1",
+      selectionVersion: useConversationStore.getState().selectionVersion,
+      accountId: "u-1",
+      tenantId: "org-1",
+    },
+  );
+}
+
+describe("manual conversation compaction", () => {
+  it("checks availability and correlates progress and terminal results", async () => {
+    prepareCompactionChat();
+    get.mockResolvedValue({ available: true });
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.compactionAvailable).toBe(true));
+    act(() => result.current.setModelProfile("profile-1"));
+    await waitFor(() => expect(result.current.compactionAvailable).toBe(true));
+    act(() => expect(result.current.compactConversation()).toBe(true));
+
+    const request = sent.mock.calls
+      .map(([value]) => value as Record<string, unknown>)
+      .find((value) => value.type === "compact_now");
+    expect(request).toMatchObject({
+      type: "compact_now",
+      conversation_id: "c-1",
+      agent_id: "agent-1",
+      model_profile_id: "profile-1",
+    });
+    expect(result.current.compactionReady).toBe(false);
+    const requestId = request?.request_id as string;
+    receive("compaction_started", {
+      kind: "compaction_started",
+      request_id: requestId,
+      messages_before: 48,
+      messages_after: null,
+    });
+    expect(result.current.compactionProgress?.messages_before).toBe(48);
+
+    receive("compact_now_result", {
+      request_id: "another-request",
+      conversation_id: "c-1",
+      status: "failed",
+    });
+    expect(result.current.compactionStatus).toBe("running");
+    receive("compact_now_result", {
+      request_id: requestId,
+      conversation_id: "c-1",
+      status: "compacted",
+    });
+    expect(result.current.compactionStatus).toBe("compacted");
+    expect(result.current.compactionReady).toBe(false);
+    receive("session_ready", { conversation_id: "c-1" });
+    expect(result.current.compactionReady).toBe(true);
+  });
+
+  it("ignores a late result after the selected agent changes", async () => {
+    prepareCompactionChat();
+    get.mockResolvedValueOnce({ available: true }).mockImplementation(() => new Promise(() => {}));
+    const { result, rerender } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await waitFor(() => expect(result.current.compactionAvailable).toBe(true));
+    act(() => expect(result.current.compactConversation()).toBe(true));
+    const request = sent.mock.calls
+      .map(([value]) => value as Record<string, unknown>)
+      .find((value) => value.type === "compact_now");
+    const requestId = request?.request_id as string;
+
+    act(() => {
+      useAgentSelectionStore.getState().select("agent-2");
+      rerender();
+    });
+    expect(result.current.compactionStatus).toBe("idle");
+    act(() => result.current.sendMessage("draft for the new agent"));
+    expect(result.current.queuedMessages).toEqual([
+      expect.objectContaining({ content: "draft for the new agent" }),
+    ]);
+    receive("compact_now_result", {
+      request_id: requestId,
+      conversation_id: "c-1",
+      status: "compacted",
+    });
+    expect(result.current.compactionStatus).toBe("idle");
+    expect(result.current.queuedMessages).toHaveLength(1);
+    expect(
+      sent.mock.calls.filter(
+        ([value]) => (value as Record<string, unknown>).type === "compact_now",
+      ),
+    ).toHaveLength(1);
+
+    // The old maintenance lease still owns the socket until its cleanup frame.
+    // Keep the new scope's draft queued, then let it drain after readiness returns.
+    receive("session_ready", { conversation_id: "c-1" });
+    await waitFor(() =>
+      expect(
+        sent.mock.calls.some(
+          ([value]) =>
+            (value as Record<string, unknown>).message === "draft for the new agent" &&
+            (value as Record<string, unknown>).agent_id === "agent-2",
+        ),
+      ).toBe(true),
+    );
+    expect(result.current.queuedMessages).toHaveLength(0);
+    expect(
+      sent.mock.calls.filter(
+        ([value]) => (value as Record<string, unknown>).type === "compact_now",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("settles as failed on disconnect and never replays the command", async () => {
+    prepareCompactionChat();
+    get.mockResolvedValue({ available: true });
+    const { result, rerender } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await waitFor(() => expect(result.current.compactionAvailable).toBe(true));
+    act(() => expect(result.current.compactConversation()).toBe(true));
+
+    act(() => {
+      socket.isConnected = false;
+      rerender();
+    });
+    expect(result.current.compactionStatus).toBe("failed");
+    act(() => {
+      socket.isConnected = true;
+      rerender();
+    });
+    await waitFor(() => expect(result.current.compactionAvailable).toBe(true));
+    expect(result.current.compactionStatus).toBe("failed");
+    expect(
+      sent.mock.calls.filter(
+        ([value]) => (value as Record<string, unknown>).type === "compact_now",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("keeps queued drafts in place and refuses compaction while one exists", async () => {
+    prepareCompactionChat();
+    get.mockResolvedValue({ available: true });
+    socket.isConnected = false;
+    const { result, rerender } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await waitFor(() => expect(result.current.compactionAvailable).toBe(true));
+    act(() => result.current.sendMessage("keep this draft"));
+    expect(result.current.queuedMessages).toHaveLength(1);
+
+    act(() => {
+      socket.isConnected = true;
+      rerender();
+    });
+    expect(result.current.compactConversation()).toBe(false);
+    expect(result.current.queuedMessages[0]?.content).toBe("keep this draft");
+    expect(
+      sent.mock.calls.some(([value]) => (value as Record<string, unknown>).type === "compact_now"),
+    ).toBe(false);
+  });
+});
+
 describe("useChat - which agent a turn is addressed to", () => {
   it("names the selected agent so the backend runs it", () => {
     useAgentSelectionStore.getState().select("agent-1");
@@ -317,23 +495,6 @@ describe("useChat - which agent a turn is addressed to", () => {
 
 describe("useChat - replying to a message", () => {
   it("sends what the turn answers once, and quotes it on the question", () => {
-    const reply = { messageId: "m-2", role: "assistant" as const, excerpt: "Plan: A" };
-    act(() => useChatStore.getState().setReplyTo(reply));
-    const { result } = renderHook(() => useChat(), { wrapper });
-
-    act(() => result.current.sendMessage("make it bigger"));
-
-    expect(lastFrame()).toMatchObject({ message: "make it bigger", reply_to: "m-2" });
-    const asked = useChatStore.getState().messages.at(-1);
-    expect(asked?.replyTo).toEqual(reply);
-    expect(asked?.isTemporaryId).toBe(true);
-    // Spent: the next turn answers nothing in particular.
-    expect(useChatStore.getState().replyTo).toBeNull();
-  });
-});
-
-describe("useChat - replying to a message", () => {
-  it("sends the selected excerpt with its reply", () => {
     const reply = {
       messageId: "m-2",
       role: "assistant" as const,
@@ -353,6 +514,7 @@ describe("useChat - replying to a message", () => {
     const asked = useChatStore.getState().messages.at(-1);
     expect(asked?.replyTo).toEqual(reply);
     expect(asked?.isTemporaryId).toBe(true);
+    // Spent: the next turn answers nothing in particular.
     expect(useChatStore.getState().replyTo).toBeNull();
   });
 });

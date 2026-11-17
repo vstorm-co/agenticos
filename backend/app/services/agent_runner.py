@@ -65,6 +65,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID, uuid4
 
+import anyio
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -94,9 +95,9 @@ from pydantic_ai.realtime import (
 )
 from pydantic_ai.run import AgentRun as AgentIteration
 from pydantic_ai.run import AgentRunResult as PydanticAgentRunResult
-from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, ToolApproved
+from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, RunContext, ToolApproved
 from pydantic_ai.toolsets import AbstractToolset
-from pydantic_ai.usage import UsageLimits
+from pydantic_ai.usage import RunUsage, UsageLimits
 from pydantic_ai.workspaces import Workspace
 from pydantic_ai_harness.ask_user import DECLINED, ask_user_result
 from pydantic_ai_harness.ask_user import TOOL_NAME as ASK_USER_TOOL
@@ -159,6 +160,7 @@ from app.agents.capabilities.coding_agent import (
     CodingAgentConfig,
     CodingPreferences,
 )
+from app.agents.capabilities.compaction import MeteredCompaction
 from app.agents.capabilities.context import (
     CONTEXT_BODIES_RESOURCE,
     CONTEXT_FILES_RESOURCE,
@@ -2971,6 +2973,31 @@ def _answer_only(spec: AgentSpec) -> AgentSpec:
     )
 
 
+def _compaction_only(spec: AgentSpec) -> AgentSpec:
+    """Keep only the published summary policy and content screening for maintenance."""
+    return spec.model_copy(
+        update={
+            "capabilities": [
+                binding
+                for binding in spec.capabilities
+                if binding.enabled
+                and binding.id in {"compaction", "guardrails", "thinking", "media"}
+            ],
+            "mcp_servers": [],
+            "subagents": [],
+            "external_agents": [],
+            "skill_ids": [],
+            "skill_bindings": [],
+            "context_ids": [],
+            "collection_ids": [],
+            "table_bindings": [],
+            "reviewers": [],
+            "code_mode": spec.code_mode.model_copy(update={"enabled": False}),
+            "output_schema": None,
+        }
+    )
+
+
 def _organization_mcp_only(spec: AgentSpec) -> AgentSpec:
     """An unattended channel turn can use the agent's organization accounts only."""
     return _answer_only(spec).model_copy(
@@ -3910,6 +3937,7 @@ class AgentRunnerService:
         draft: bool = False,
         test: bool = False,
         aside: bool = False,
+        compaction_only: bool = False,
         organization_mcp_only: bool = False,
         decision_model: bool = False,
         source_run: AgentRun | None = None,
@@ -3925,6 +3953,9 @@ class AgentRunnerService:
             aside: A question asked on the side of a run still working (#2087):
                 answered from the conversation alone, with the agent's tools,
                 knowledge, servers and delegates taken away - see `_answer_only`.
+            compaction_only: Build a maintenance run that retains only the
+                published summary capability, its model and budget, and guardrails.
+                It opens no tools, workspace, delegation, or transcript turn.
             approval_mode: How much this session wants to be asked, whatever the
                 spec says (#925). `FOLLOW_AGENT` is every run that does not name
                 one and is exactly the behaviour that existed before. The other
@@ -4078,6 +4109,18 @@ class AgentRunnerService:
             spec = without_voice_unavailable(spec)
         if aside:
             spec = _answer_only(spec)
+        if compaction_only:
+            if aside:
+                raise BadRequestError(message="A maintenance run cannot answer a side question")
+            spec = _compaction_only(spec)
+            binding = next(
+                (item for item in spec.capabilities if item.id == "compaction"), None
+            )
+            strategy = "summarize" if binding is None else binding.config.get("strategy", "summarize")
+            if binding is None or strategy not in {"summarize", "tiered"}:
+                raise BadRequestError(
+                    message="This agent is not configured for summarising compaction"
+                )
         if organization_mcp_only:
             spec = _organization_mcp_only(spec)
         prepared = await self._assemble(
@@ -7216,6 +7259,193 @@ class AgentRunnerService:
         except Exception:
             logger.exception("run_notification_failed", extra={"run_id": str(finished.id)})
         return finished
+
+    async def compact_conversation(
+        self,
+        ctx: AuthContext,
+        conversation_id: UUID,
+        agent_id: UUID,
+        *,
+        model_profile_id: UUID | None = None,
+        on_compaction: CompactionSink | None = None,
+    ) -> bool:
+        """Summarise an idle personal conversation through its normal run ledger.
+
+        This is a maintenance run: it creates no prompt, answer, tool call or
+        synthetic transcript row. Its only conversation mutation is a summary
+        fenced to the exact bounded history and refusal revision it read.
+        """
+        conversations = ConversationService(self.db)
+        _, runnable_spec, _ = await self.registry.get_runnable_spec(ctx, agent_id)
+        compaction = next(
+            (
+                binding
+                for binding in runnable_spec.capabilities
+                if binding.id == "compaction" and binding.enabled
+            ),
+            None,
+        )
+        strategy = "summarize" if compaction is None else compaction.config.get("strategy", "summarize")
+        if compaction is None or strategy not in {"summarize", "tiered"}:
+            raise BadRequestError(message="This agent is not configured for summarising compaction")
+        history = await conversations.model_history(
+            conversation_id,
+            limit=API_HISTORY_MESSAGES,
+            snapshot=True,
+        )
+        if not history:
+            return False
+
+        prepared = await self.prepare(
+            ctx,
+            agent_id,
+            surface=RunSurface.WEB,
+            conversation_id=conversation_id,
+            model_profile_id=model_profile_id,
+            on_compaction=on_compaction,
+            compaction_only=True,
+        )
+        status = RunStatus.FAILED
+        error: str | None = None
+        failure: BaseException | None = None
+        persisted = False
+        published_created = False
+        try:
+            history = screen_history(history, input_screen_for(prepared.spec))
+            if not isinstance(history, ModelHistory) or history.ordinal is None:
+                raise RuntimeError(  # noqa: TRY301
+                    "Manual compaction lost its bounded history snapshot"
+                )
+            prepared.model_context_check = model_context_check(conversation_id, history)
+            await check_history_snapshot(self.db, conversation_id, history)
+
+            compactor = next(
+                (
+                    capability
+                    for capability in prepared.built.capabilities
+                    if isinstance(capability, MeteredCompaction)
+                ),
+                None,
+            )
+            if compactor is None:
+                raise BadRequestError(  # noqa: TRY301
+                    message="This agent has no summarising compaction strategy"
+                )
+            if prepared.workspace is not None:
+                raise RuntimeError(  # noqa: TRY301
+                    "A maintenance compaction unexpectedly opened a workspace"
+                )
+
+            # Make the billable maintenance row visible before asking the model,
+            # then give the pooled connection back while the summary is running.
+            await self.db.commit()
+            await change_feed.publish_run(prepared.run, "created")
+            published_created = True
+            async with run_heartbeat(prepared.run.id):
+                with (
+                    checking_model_context(prepared.model_context_check),
+                    guarded_by(prepared.built.budget),
+                    metered_by(prepared.built.ledger),
+                    acting_for_no_person(prepared.built.deps.run_person is None),
+                    acting_impersonated(prepared.built.deps.impersonated),
+                ):
+                    run_context = RunContext(
+                        deps=prepared.built.deps,
+                        model=prepared.built.agent.model,
+                        usage=RunUsage(),
+                        messages=list(history),
+                        model_settings=prepared.built.agent.model_settings,
+                        usage_limits=prepared.built.usage_limits,
+                    )
+                    compacted = await compactor.compact_now(list(history), run_context)
+
+            if prepared.built.context.summarized and compacted is not None:
+                summary = await offloaded_history(
+                    prepared.built.capabilities,
+                    dump_messages(compacted),
+                )
+                persisted = await conversations.keep_summary_snapshot(
+                    conversation_id,
+                    summary,
+                    expected_revision=history.revision,
+                    expected_ordinal=history.ordinal,
+                )
+                if not persisted:
+                    raise BadRequestError(  # noqa: TRY301
+                        message="Conversation changed while its summary was being written"
+                    )
+            status = RunStatus.COMPLETED
+        except asyncio.CancelledError as exc:
+            status = RunStatus.CANCELLED
+            error = "Manual compaction was cancelled"
+            failure = exc
+        except BudgetExceeded as exc:
+            status = RunStatus.BUDGET_EXCEEDED
+            error = str(exc)
+            failure = exc
+        except GuardrailBlocked as exc:
+            status = RunStatus.GUARDRAIL_BLOCKED
+            error = str(exc)
+            failure = exc
+        except Exception as exc:
+            error = str(exc) or type(exc).__name__
+            failure = exc
+        finally:
+            # This path intentionally avoids the normal turn's proposals,
+            # notifications, memory extraction, approvals, and outbound files.
+            # The maintenance row accounts only for the summary model call.
+            with anyio.CancelScope(shield=True):
+                finished = await self.finish_compaction(prepared, status=status, error=error)
+                await self.db.commit()
+            await change_feed.publish_run(
+                finished, "updated" if published_created else "created"
+            )
+
+        if failure is not None:
+            raise failure
+        return persisted
+
+    async def finish_compaction(
+        self,
+        prepared: PreparedRun,
+        *,
+        status: RunStatus,
+        error: str | None = None,
+    ) -> AgentRun:
+        """Settle a manual compaction's run row without turn-only side effects."""
+        ledger = prepared.built.ledger
+        cache = tally(prepared.built.recorder)
+        fallback_used, serving_model = resolve_fallback_use(
+            prepared.built.recorder.requests,
+            primary_model=prepared.built.primary_model,
+            fallback_models=prepared.built.fallback_models,
+        )
+        if prepared.run.fallback_used:
+            fallback_used = True
+        if serving_model is None:
+            serving_model = prepared.run.serving_model
+        return await agent_run_repo.finish_run(
+            self.db,
+            run=prepared.run,
+            status=status.value,
+            fallback_used=fallback_used,
+            serving_model=serving_model,
+            input_tokens=ledger.input_tokens,
+            output_tokens=ledger.output_tokens,
+            cache_read_tokens=ledger.cache_read_tokens,
+            cache_write_tokens=ledger.cache_write_tokens,
+            cost_usd=ledger.total_usd,
+            cost_is_partial=ledger.has_unpriced_models,
+            ended_at=datetime.now(UTC),
+            error=error,
+            logfire_trace_id=current_trace_id(),
+            paused_state=None,
+            tool_args_repaired=(prepared.run.tool_args_repaired or 0)
+            + prepared.built.repairs.count,
+            cache_busts=cache.busts,
+            cache_expiries=cache.expiries,
+            cache_missed_tokens=cache.missed_tokens,
+        )
 
     async def _queue_memory_extraction(self, run: AgentRun, prepared: PreparedRun) -> None:
         """Queue the read of a finished chat for what is worth remembering (#2090).

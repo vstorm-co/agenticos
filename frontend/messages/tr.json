@@ -8890,6 +8890,10 @@
       "chat-selected-quote": {
         "title": "Seçili metne yanıt verin",
         "body": "Kaydedilmiş bir mesajdan bir bölüm seçin ve bu alıntıyı yanıtınıza eklemek için Yanıtla'yı seçin."
+      },
+      "chat-compact-now": {
+        "title": "Önceki bağlamı özetleyin",
+        "body": "Boştaki bir konuşmanın bağlamını, kayıtlı mesajları ve mevcut taslağınızı koruyarak sıkıştırın."
       }
     }
   },
@@ -8899,6 +8903,18 @@
       "failed": "Seçilen mesaj yüklenemedi. Tekrar deneyin.",
       "unavailable": "Bu mesaj artık bu sohbette kullanılamıyor.",
       "cancel": "Mesaja gitmeyi iptal et"
+    },
+    "manualCompaction": {
+      "action": "Şimdi sıkıştır",
+      "description": "Sonraki tur için önceki bağlamı özetleyin. Kaydedilen mesajlar erişilebilir kalır.",
+      "busyHint": "Bu konuşma boşta olduğunda kullanılabilir.",
+      "running": "Önceki bağlam özetleniyor…",
+      "runningCount": "Önceki {count} mesaj özetleniyor…",
+      "compacted": "Bağlam sıkıştırıldı. Kaydedilen mesajlarınıza hâlâ erişebilirsiniz.",
+      "unchanged": "Daha fazla bağlam sıkıştırılamadı.",
+      "busy": "Bu konuşma meşgul. Etkin çalışma tamamlandıktan sonra tekrar deneyin.",
+      "unavailable": "Bu ajan bu konuşmanın bağlamını sıkıştıramaz.",
+      "failed": "Bağlam sıkıştırılamadı. Tekrar deneyin."
     },
     "messagePins": {
       "emptyPreview": "Önizlemesi olmayan mesaj",

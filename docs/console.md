@@ -915,6 +915,12 @@ On a completed assistant answer in a personal conversation you own, **Side threa
 
 **Back to parent conversation** closes the side panel and opens the exact source answer, loading older history if necessary. Closing the panel keeps the child saved. Switching the source conversation, account or organization removes the old panel. Archived children open read-only. The list can load more branches from this answer, and a failed read or creation offers another attempt without switching the main conversation.
 
+### Compacting conversation context { #chat-compact-now }
+
+In an idle personal conversation you own, **Compact now** in the header asks the published agent to summarize earlier context. The action appears when the agent has a supported summarizing compaction strategy. Saved messages and your composer draft remain available. It is unavailable in room discussions, archived or read-only chats, workflows and draft test panels.
+
+A notice above the composer reports progress and the result: context compacted, no further reduction, busy, unavailable or failed. Sending and starting a voice call pause while compaction runs; **Stop** cancels the request. Switching conversations does not repeat it. The action uses the chat's selected model when applicable and follows the normal usage budgets. The context gauge keeps the last measured turn until a later model request updates it.
+
 ### Replying to selected text { #chat-selected-quote }
 
 Select a passage in a saved message, then choose **Reply**. The composer keeps that excerpt, up to 280 characters, with the source message. Sending the reply preserves the selected passage when the conversation is reopened and when the agent reads the reply. This works in personal chats and writable room discussions. With no text selected, **Reply** keeps its existing whole-message behavior.

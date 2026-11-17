@@ -345,6 +345,7 @@ export type WSEventType =
   | "compaction_started"
   | "compaction_finished"
   | "compaction_impossible"
+  | "compact_now_result"
   | "personal_services_unavailable"
   // The run's sandbox is still being opened - usually its runtime image being built
   // after an update (#2222) - and then that it is open, or failed to open.
@@ -785,6 +786,8 @@ export interface SubagentCompleteFrame extends SubagentFrameBase {
  */
 export interface Compaction {
   kind: "compaction_started" | "compaction_finished" | "compaction_impossible";
+  /** The manual maintenance request that owns this progress event, when present. */
+  request_id?: string;
   /** How many messages the history held when it started. */
   messages_before: number | null;
   /** How many it holds now. Null while it is running, and null if it failed. */
@@ -794,6 +797,10 @@ export interface Compaction {
   /** On `compaction_impossible`: the window the trigger was measured against. */
   window_tokens?: number | null;
 }
+
+/** Outcome of an explicit conversation maintenance command. */
+export type ChatCompactionStatus =
+  "idle" | "running" | "compacted" | "unchanged" | "busy" | "unavailable" | "failed";
 
 /** What a whole conversation has cost, as `GET /conversations/{id}/messages` totals it. */
 export interface ConversationCost {
