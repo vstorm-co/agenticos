@@ -51,6 +51,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Queue conversation sandbox cleanup before deleting the conversation flushes
+  its workspace references through the database cascade. Keep authorization
+  ahead of cleanup and preserve the existing after-commit destruction and
+  durable retry queue. This prevents remote workspaces being left running.
+
 - Let Helm deployments configure the console's SSO button through
   `frontend.extraEnv`, separately from backend OIDC credentials, and report the
   resolved backend and frontend images in Helm's installation notes. Clarify S3
