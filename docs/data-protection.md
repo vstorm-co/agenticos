@@ -408,8 +408,9 @@ ask for, distinct from the technical capability that makes it possible.
 ## Verifying one deployment
 
 Reproducible checks, from the host, against the running deployment. Each prints
-facts the review can attach; none prints a credential or a person's data. Run
-them from `backend/`, or through `docker compose exec app`.
+facts the review can attach; none prints a credential or a person's data. From
+a source checkout, run these commands from `backend/` with the deployment's
+configuration:
 
 ```bash
 # 1. Can it run, and are the store connections encrypted? `postgres` reports
@@ -432,6 +433,17 @@ uv run agenticos cmd audit-verify
 #    store a retention period would reach, and the files under `MEDIA_DIR` no row
 #    points at any more.
 uv run agenticos cmd data-protection-report --older-than 365
+```
+
+For a Compose deployment, use the installed CLI directly; the runtime image
+does not include `uv`. Run from the deployment directory with the same Compose
+files, environment file and project options as the running stack:
+
+```bash
+docker compose exec app agenticos cmd doctor
+docker compose exec app agenticos cmd vault-rotate --dry-run
+docker compose exec app agenticos cmd audit-verify
+docker compose exec app agenticos cmd data-protection-report --older-than 365
 ```
 
 Item 4 is the one to attach. It prints configuration and counts and never

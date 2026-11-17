@@ -1,5 +1,5 @@
 ---
-source_sha: "0fccc0a38427"
+source_sha: "33238295f67f"
 ---
 
 # Protección de datos { #data-protection }
@@ -434,8 +434,8 @@ pedirá la revisión, distinta de la capacidad técnica que la hace posible.
 
 Comprobaciones reproducibles, desde el host, contra el deployment en marcha. Cada
 una imprime hechos que la revisión puede adjuntar; ninguna imprime una credencial
-ni los datos de una persona. Ejecútalas desde `backend/`, o a través de
-`docker compose exec app`.
+ni los datos de una persona. Desde un checkout del código fuente, ejecuta los
+siguientes comandos en `backend/` con la configuración del despliegue:
 
 ```bash
 # 1. ¿Arranca siquiera, y van cifradas las conexiones a los almacenes?
@@ -460,6 +460,18 @@ uv run agenticos cmd audit-verify
 #    de retención, y los archivos bajo `MEDIA_DIR` a los que ya no apunta ninguna
 #    fila.
 uv run agenticos cmd data-protection-report --older-than 365
+```
+
+En un despliegue con Compose, usa directamente la CLI instalada; la imagen de
+ejecución no incluye `uv`. Ejecuta los comandos desde el directorio del despliegue
+con los mismos archivos Compose, archivo de entorno y opciones de proyecto que
+la pila en ejecución:
+
+```bash
+docker compose exec app agenticos cmd doctor
+docker compose exec app agenticos cmd vault-rotate --dry-run
+docker compose exec app agenticos cmd audit-verify
+docker compose exec app agenticos cmd data-protection-report --older-than 365
 ```
 
 El punto 4 es el que hay que adjuntar. Imprime configuración y recuentos, nunca
