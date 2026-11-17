@@ -1,7 +1,7 @@
 """Twilio setup owns only configuration of an existing, verified SMS number."""
 
 import base64
-from uuid import uuid4
+from uuid import UUID
 
 import httpx
 import pytest
@@ -14,7 +14,7 @@ SID = "AC" + "1" * 32
 NUMBER_SID = "PN" + "2" * 32
 PHONE = "+15551234567"
 TOKEN = "3" * 32
-BOT = uuid4()
+BOT = UUID("00000000-0000-0000-0000-000000000123")
 URL = f"https://agents.example/api/v1/sms/{BOT}/webhook"
 CREDENTIALS = f"{SID}:{TOKEN}:{PHONE}"
 
