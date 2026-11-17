@@ -152,7 +152,11 @@ def model_spec(profile_id: UUID, session_id: UUID, service: LocalService) -> Dev
         provider="ollama",
         model=service.model,
         params={},
-        credential=ResolvedCredential(provider="ollama", secret=NoSecret()),
+        credential=ResolvedCredential(
+            provider="ollama",
+            secret=NoSecret(),
+            routing={"device_session": str(session_id), "local_service": service.id},
+        ),
         fallbacks=[],
         context_length=None,
         session_id=session_id,

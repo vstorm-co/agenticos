@@ -17,6 +17,7 @@ from pydantic_ai.messages import (
 from app.db.models.conversation import Message
 from app.repositories import conversation_repo, conversation_share_repo
 from app.services.channels.router import ChannelMessageRouter
+from app.services.conversation import ConversationService
 from tests.test_history_discovery import StoredThread
 from tests.test_history_discovery import thread as thread
 
@@ -122,6 +123,9 @@ async def test_a_room_runner_does_not_checkpoint_private_tool_results() -> None:
         patch.object(service.transcript, "record", AsyncMock()),
         patch("app.services.agent_runner.ConversationService") as conversations,
     ):
+        conversations.return_value.history_for_provenance = ConversationService(
+            service.db
+        ).history_for_provenance
         conversations.return_value.keep_overhead = AsyncMock()
         conversations.return_value.keep_reminder_state = AsyncMock()
         conversations.return_value.keep_plan = AsyncMock()

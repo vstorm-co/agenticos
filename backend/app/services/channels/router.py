@@ -760,7 +760,7 @@ class ChannelMessageRouter:
         history = await self._load_history(
             db, session.conversation_id, chat_type=incoming.chat_type
         )
-        history.extend(thread_history)
+        history.extend_public_context(thread_history)
 
         # The mention path opens its own placeholder lazily, because it may find
         # the handle names a colleague rather than an agent of ours and stay

@@ -2,7 +2,7 @@
 
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,7 +59,11 @@ async def save(
     await db.execute(
         statement.on_conflict_do_update(
             index_elements=["organization_id", "user_id", "provider", "endpoint"],
-            set_={"sealed_secret": sealed_secret, "key_version": key_version},
+            set_={
+                "sealed_secret": sealed_secret,
+                "key_version": key_version,
+                "updated_at": func.clock_timestamp(),
+            },
         )
     )
     await db.flush()

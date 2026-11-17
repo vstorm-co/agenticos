@@ -1,5 +1,5 @@
 ---
-source_sha: "1b2ebcd504d7"
+source_sha: "52615751a50c"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -39,6 +39,8 @@ Der persönliche Modus unterstützt derzeit keine privaten oder Gruppenkanäle, 
 Schlüssel werden im Tresor für ihren Eigentümer verschlüsselt und beim Entfernen der Mitgliedschaft oder des Kontos gelöscht. Ein geänderter Endpunkt benötigt eine neue Verbindung. Die Rotation eines persönlichen Schlüssels ändert weder andere Schlüssel noch das gemeinsame Modellprofil.
 
 Die Identitätsübernahme eines anderen Mitglieds gewährt keinen Zugriff auf dessen persönliche Modellverbindungen: Anfragen zum Lesen, Ändern oder Verwenden des Schlüssels werden vor dem Vault-Zugriff abgelehnt.
+
+Der private Gesprächsverlauf ist an die genehmigten Modellziele einschließlich Fallbacks gebunden; der [Chatverlauf](console.md#chat) beschreibt Verbindungswechsel und die Fortsetzung wartender Läufe.
 
 ## Ein Model Profile { #a-model-profile }
 

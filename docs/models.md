@@ -33,6 +33,8 @@ Credentials are encrypted for their owner in the vault, and are deleted when the
 
 Impersonating another member never grants access to their personal model connections: requests to inspect, change or use their key are refused before vault access.
 
+Private conversation history follows the approved model destinations, including fallbacks; see [chat history](console.md#chat) for switching connections and resuming waiting runs.
+
 ## A model profile
 
 A row in an organization: a label, a provider, a model id, default settings, and

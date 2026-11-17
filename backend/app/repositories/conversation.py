@@ -1326,7 +1326,7 @@ async def retained_fork_volume(
     return ForkVolume(int(row[0]), int(row[1]))
 
 
-async def fork_summary_bytes(db: AsyncSession, summary: list[dict[str, JsonValue]]) -> int:
+async def fork_summary_bytes(db: AsyncSession, summary: dict[str, JsonValue]) -> int:
     """Measure exactly what PostgreSQL will store, including expanded JSONB numbers."""
     return (
         await db.execute(select(func.octet_length(cast(literal(summary, type_=JSONB), Text))))
@@ -1382,7 +1382,7 @@ async def fork_conversation(
     source: Conversation,
     through: Message,
     copy_bytes: int,
-    restored_summary: list[dict[str, JsonValue]] | None = None,
+    restored_summary: dict[str, JsonValue] | None = None,
     copy_summary: bool = True,
 ) -> Conversation:
     """A new conversation holding `source`'s messages up to and including `through`.
@@ -2285,7 +2285,7 @@ async def set_summary(
     db: AsyncSession,
     *,
     db_conversation: Conversation,
-    messages: list[dict[str, Any]],
+    messages: dict[str, Any],
     ordinal: int,
     expected_revision: int,
     expected_frontier: HistoryCheckpointFrontier,

@@ -74,6 +74,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Bind private model-history checkpoints to their agent and resolved model destinations, including fallback connections. Changing a recipient rebuilds visible transcript history instead of sending earlier hidden tool results to another endpoint.
+
 - Preserve concurrent aside and main-turn exchanges when updating private model history; an older snapshot cannot advance past a conversation turn it never saw.
 
 - Refuse personal model-key access while impersonating another member, before reading or changing credentials. Shared rooms, projects and edit-shared chats replay visible transcript turns instead of another author’s hidden tool results; private web and direct-message histories remain structured.
@@ -89,6 +91,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Refuse stale Builder draft saves, including changes made through another tab, MCP or a server-side action. Preserve local edits, pause autosave on conflict and offer an explicit reload. Add-to-agent and platform MCP edits use the same revision check (#2618).
 
 ### Upgrading
+
+- The frontend audit temporarily excepts unpatched picomatch advisory GHSA-fc5q-39xc-vjpf after reviewing the production trace and fixed image patterns. Track #3102 for upstream remediation and removal of the named exception. No audit severity threshold is lowered.
+
+- Older private checkpoints without recipient provenance fall back to visible chat history. Restart waiting runs created before provenance was recorded; newer waiting runs require their original model destinations before resuming. No stored conversation messages are deleted.
 
 - Apply `0339_organization_text_to_speech.py` after `0338_personal_model_keys.py`. Existing agents retain their own TTS settings; inheritance is opt-in and requires an organization-visible provider key.
 

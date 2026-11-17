@@ -15,6 +15,7 @@ from app.db.models.organization import OrganizationMember
 from app.db.models.project import Project
 from app.repositories import conversation_repo
 from app.services.conversation import ConversationService
+from tests.history_fixtures import stored_checkpoint as _checkpoint
 from tests.integration.test_conversation_fork import _messages, _source, _turn, _user
 from tests.test_history_audience_privacy import hidden_exchange
 
@@ -73,7 +74,7 @@ async def test_reads_and_real_forks_do_not_copy_a_shared_sources_hidden_tool_evi
             started_at=datetime.now(UTC),
         )
     )
-    source.summary_messages = dump_messages(hidden_exchange())
+    source.summary_messages = _checkpoint(dump_messages(hidden_exchange()))
     source.summary_ordinal = answer.ordinal
     if scope == "revoked-share":
         assert share is not None
@@ -149,7 +150,7 @@ async def test_a_room_checkpoint_cannot_be_replayed_or_forked_through_the_consol
         await db.flush()
         await db.delete(session)
     answer = await _turn(db, source, "assistant", "You have an appointment.")
-    source.summary_messages = dump_messages(hidden_exchange())
+    source.summary_messages = _checkpoint(dump_messages(hidden_exchange()))
     source.summary_ordinal = answer.ordinal
     await db.flush()
     service = ConversationService(db)
@@ -204,11 +205,11 @@ async def test_account_erasure_fences_foreign_authored_checkpoints_before_author
     else:
         await _turn(db, source, "user", "Check my calendar", author_user_id=removed.id)
     answer = await _turn(db, source, "assistant", "You have an appointment.")
-    source.summary_messages = dump_messages(hidden_exchange())
+    source.summary_messages = _checkpoint(dump_messages(hidden_exchange()))
     source.summary_ordinal = answer.ordinal
     unrelated = await _source(db)
     other_answer = await _turn(db, unrelated, "assistant", "Only its owner spoke.")
-    unrelated.summary_messages = dump_messages(hidden_exchange())
+    unrelated.summary_messages = _checkpoint(dump_messages(hidden_exchange()))
     unrelated.summary_ordinal = other_answer.ordinal
     await db.flush()
     revision = source.guardrail_revision
@@ -270,7 +271,7 @@ async def test_account_deletion_refuses_a_busy_history_before_cleanup_without_lo
         source.user_id = removed.id
     if scope in {"foreign-authored", "assistant-only-owned"}:
         answer = await _turn(db, source, "assistant", "You have an appointment.")
-        source.summary_messages = dump_messages(hidden_exchange())
+        source.summary_messages = _checkpoint(dump_messages(hidden_exchange()))
         source.summary_ordinal = answer.ordinal
     original_summary = source.summary_messages
     source_id, removed_id = source.id, removed.id

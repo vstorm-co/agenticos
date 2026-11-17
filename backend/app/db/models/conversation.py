@@ -127,7 +127,9 @@ class Conversation(Base, TimestampMixin):
     for one an organization key's run opened (#2122). Shown in its owner's chat
     list with that label, and filterable out of it."""
 
-    summary_messages: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
+    summary_messages: Mapped[dict[str, Any] | list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True
+    )
     """The latest bounded model-history checkpoint, including tool discovery.
 
     The historical column name also holds ordinary completed turns. Compaction
