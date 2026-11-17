@@ -920,6 +920,13 @@ drawing's bottom right corner while the pointer is on it: an SVG is drawn
 larger, a page is scaled, and the box scrolls once the drawing outgrows it. An
 error the drawing reports comes with *Fix it*, which asks the agent.
 
+For a finished SVG, **Download** offers the vector source or a PNG 2000 pixels wide
+with the same proportions. The PNG is prepared in your browser and is also available
+from full screen. During preparation, downloading is disabled. If export fails,
+a message explains that you can try again.
+
+**Open side panel** keeps a visual beside the conversation and composer on wide screens. Drag its boundary, use the arrow keys to resize it, and switch between **Preview** and **Code**. Narrow chats use the full window. The same live page stays mounted through code, side-panel and full-screen views and when you close the panel, so form inputs, sliders and 3D camera positions remain intact. Opening another visual selects it without resetting the previous page. Switching conversations ends that workspace.
+
 **Follow-ups.** A control in a drawing can hand the person's choice back to the
 conversation - *Plan this stop*, *Use these numbers* - by calling
 `agenticos.followUp(text)`. The drawing only asks. The console shows the exact

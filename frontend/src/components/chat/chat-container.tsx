@@ -46,6 +46,7 @@ import { FilePreviewDialog } from "./file-preview-dialog";
 import type { Browse } from "@/lib/browse";
 import { BrowserPanelAutoOpen, LiveBrowsesProvider } from "./browser-card";
 import { ConversationVisualsProvider } from "./visual-panel";
+import { VisualWorkspaceProvider, VisualWorkspaceSlot } from "./visual-workspace-context";
 import { BrowserPanel } from "./browser-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList, coalesceActivity } from "./message-list";
@@ -1083,7 +1084,15 @@ interface ChatUIProps {
   onStartCall: (transport: VoiceTransport) => void;
 }
 
-function ChatUI({
+function ChatUI(props: ChatUIProps) {
+  return (
+    <VisualWorkspaceProvider conversationId={props.conversationId}>
+      <ChatUIContent {...props} />
+    </VisualWorkspaceProvider>
+  );
+}
+
+function ChatUIContent({
   hasEarlierMessages,
   isLoadingEarlier,
   loadEarlierMessages,
@@ -1436,7 +1445,10 @@ function ChatUI({
     !compact && messages.length === 0 && voice.call.phase === "idle" && !isLoadingConversation;
   return (
     <div className="chat-surface @container/sources-layout relative flex h-full min-h-0 w-full overflow-hidden">
-      <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
+      <div
+        style={{ containerName: "browser-layout visual-layout" }}
+        className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1"
+      >
         {/* The column no longer carries the width. The scroller does, and the
           content is centred inside it - so the scrollbar sits at the edge of the
           pane where a scrollbar belongs, rather than a hundred pixels to the
@@ -1991,6 +2003,7 @@ function ChatUI({
           onComment={commentOnPage}
           onResume={() => sendMessage(t("browserResumePrompt"))}
         />
+        <VisualWorkspaceSlot />
       </div>
       {/* Beside the transcript rather than under it: what the agent is holding is
           something you glance at while reading, and a list that pushed the input

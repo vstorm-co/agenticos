@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -38,7 +39,18 @@ class VisibleObserver extends observerConstructor {
     );
   };
 }
-beforeEach(() => vi.stubGlobal("IntersectionObserver", VisibleObserver));
+beforeEach(() => {
+  vi.stubGlobal("IntersectionObserver", VisibleObserver);
+  // jsdom has no top-layer methods; iframe retention is verified in the real browser too.
+  Object.defineProperty(HTMLElement.prototype, "showPopover", {
+    configurable: true,
+    value: vi.fn(),
+  });
+  Object.defineProperty(HTMLElement.prototype, "hidePopover", {
+    configurable: true,
+    value: vi.fn(),
+  });
+});
 afterEach(() => vi.unstubAllGlobals());
 vi.mock("./visual-frame", () => ({
   VisualFrame: (props: VisualFrameProps) => {
@@ -51,12 +63,13 @@ vi.mock("./visual-frame", () => ({
   },
 }));
 
-const { copySvgImage, downloadVisual, svgPng } = vi.hoisted(() => ({
+const { copySvgImage, downloadSvgPng, downloadVisual, svgPng } = vi.hoisted(() => ({
   copySvgImage: vi.fn(),
+  downloadSvgPng: vi.fn(),
   downloadVisual: vi.fn(),
   svgPng: vi.fn(),
 }));
-vi.mock("./visual-actions", () => ({ copySvgImage, downloadVisual, svgPng }));
+vi.mock("./visual-actions", () => ({ copySvgImage, downloadSvgPng, downloadVisual, svgPng }));
 
 const { getVisualImage, putVisualThumbnail } = vi.hoisted(() => ({
   getVisualImage: vi.fn(),
@@ -310,20 +323,23 @@ describe("TurnVisuals", () => {
     show([call({ status: "unfinished" })]);
     expect(screen.getByText("Unfinished")).toBeInTheDocument();
     expect(lastFrame().done).toBe(false);
+    expect(screen.queryByRole("button", { name: "Download" })).not.toBeInTheDocument();
   });
 
   it("toggles to the code and back", () => {
     show([call()]);
     fireEvent.click(screen.getByRole("button", { name: "Show code" }));
-    expect(screen.getByText(SVG)).toBeInTheDocument();
+    expect(screen.getByText(SVG, { selector: "pre" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Show visual" }));
     expect(screen.getByTestId("frame")).toBeInTheDocument();
   });
 
   it("downloads and copies an SVG", async () => {
+    const user = userEvent.setup();
     copySvgImage.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("no"));
     show([call()]);
-    fireEvent.click(screen.getByRole("button", { name: "Download" }));
+    await user.click(screen.getByRole("button", { name: "Download" }));
+    await user.click(screen.getByRole("menuitem", { name: "SVG — vector file" }));
     expect(downloadVisual).toHaveBeenCalledWith(
       "Flow",
       "svg",
@@ -337,6 +353,16 @@ describe("TurnVisuals", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 
+  it("downloads a PNG from the full-screen visual", async () => {
+    downloadSvgPng.mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    show([call()]);
+    await user.click(screen.getAllByRole("button", { name: "Full screen" })[0]!);
+    await user.click(screen.getByRole("button", { name: "Download" }));
+    await user.click(screen.getByRole("menuitem", { name: "PNG — image for slides" }));
+    expect(downloadSvgPng).toHaveBeenCalledWith("Flow", SVG);
+  });
+
   it("opens full screen from the button, and closes it", () => {
     show([call()]);
     fireEvent.click(screen.getAllByRole("button", { name: "Full screen" })[0]!);
@@ -347,7 +373,7 @@ describe("TurnVisuals", () => {
 
   it("opens full screen from a tap on the preview, as a phone does", () => {
     show([call()]);
-    fireEvent.click(screen.getAllByRole("button", { name: "Full screen" })[1]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Full screen" }).at(-1)!);
     expect(screen.getByTestId("full-frame")).toBeInTheDocument();
   });
 
@@ -420,6 +446,22 @@ describe("TurnVisuals", () => {
     show([call()]);
     fireEvent.click(screen.getByRole("button", { name: "Save to Apps" }));
     expect(screen.getByTestId("save-dialog")).toHaveTextContent("d1:new");
+  });
+
+  it("opens the side workspace from the toolbar and saves through its header", async () => {
+    const user = userEvent.setup();
+    show([call()]);
+    const frame = screen.getByTestId("frame");
+    await user.click(screen.getByRole("button", { name: "Open side panel" }));
+    expect(screen.getByTestId("full-frame")).toBe(frame);
+    await user.click(screen.getByRole("tab", { name: "Code" }));
+    expect(screen.getByText(SVG, { selector: "pre" })).toBeVisible();
+    await user.click(screen.getByRole("tab", { name: "Preview" }));
+    expect(screen.getByTestId("full-frame")).toBe(frame);
+    await user.click(screen.getByRole("button", { name: "Save to Apps" }));
+    expect(screen.getByTestId("save-dialog")).toHaveTextContent("d1:new");
+    await user.click(screen.getByRole("button", { name: "Close visual" }));
+    expect(screen.getByTestId("frame")).toBe(frame);
   });
 });
 

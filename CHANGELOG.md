@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Open chat visuals in a resizable side panel with Preview and Code views, preserving interactive state through expansion and closing.
+- Download SVG visuals as sharp PNG images from chat or full screen, with local conversion, preparation feedback and a retryable error message.
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed

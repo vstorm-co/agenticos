@@ -1225,6 +1225,10 @@
       "zoomReset": "Przywróć rozmiar",
       "zoomLevel": "{zoom, number, percent}",
       "download": "Pobierz",
+      "downloadSvg": "SVG — plik wektorowy",
+      "downloadPng": "PNG — obraz do prezentacji",
+      "preparingPng": "Przygotowuję PNG…",
+      "pngDownloadFailed": "Nie udało się pobrać PNG. Spróbuj ponownie.",
       "copyImage": "Kopiuj jako obraz",
       "imageCopied": "Skopiowano obraz",
       "copyImageFailed": "Nie udało się skopiować obrazu",
@@ -1253,7 +1257,15 @@
       "followUpAsks": "Wizualizacja prosi o wysłanie tego jako Twojej wiadomości:",
       "followUpSend": "Wyślij",
       "followUpEdit": "Edytuj",
-      "followUpDismiss": "Odrzuć"
+      "followUpDismiss": "Odrzuć",
+      "openWorkspace": "Otwórz panel boczny",
+      "dockWorkspace": "Wróć do panelu bocznego",
+      "closeWorkspace": "Zamknij wizualizację",
+      "workspaceTitle": "Wizualizacja: {title}",
+      "workspaceViews": "Widoki wizualizacji",
+      "resizeWorkspace": "Zmień szerokość panelu wizualizacji",
+      "previewTab": "Podgląd",
+      "codeTab": "Kod"
     },
     "dictation": {
       "cancel": "Anuluj dyktowanie",
@@ -7230,6 +7242,10 @@
       "chat-visual": {
         "title": "Rysunki",
         "body": "Agent z Visuals rysuje tu diagramy, explainery i sceny 3D, na żywo, w trakcie pisania. Otwórz rysunek na pełnym ekranie, pobierz go, zapytaj o niego albo zapisz jako aplikację z linkiem do udostępnienia."
+      },
+      "chat-visual-workspace": {
+        "title": "Strona obok rozmowy",
+        "body": "Otwórz wizualizację w panelu bocznym o regulowanej szerokości i korzystaj z niej podczas rozmowy. Przełączaj Podgląd i Kod, włącz pełny ekran lub zamknij panel bez resetowania kontrolek."
       },
       "chat-voice-call": {
         "title": "Porozmawiaj z agentem",

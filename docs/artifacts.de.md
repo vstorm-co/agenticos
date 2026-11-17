@@ -1,5 +1,5 @@
 ---
-source_sha: "bbe82e47bf65"
+source_sha: "a36968126561"
 ---
 
 # Apps { #artifacts }
@@ -1050,6 +1050,13 @@ rechts in der Zeichnung, solange der Zeiger darauf ist: ein SVG wird größer
 gezeichnet, eine Seite skaliert, und der Rahmen scrollt, sobald die Zeichnung ihm
 entwächst. Ein Fehler, den die Zeichnung meldet, kommt mit *Beheben*, das den
 Agent fragt.
+
+Für ein fertiges SVG bietet **Herunterladen** die Vektorquelle oder ein PNG mit
+2000 Pixeln Breite und denselben Proportionen. Das PNG wird im Browser erstellt und
+ist auch im Vollbild verfügbar. Während der Vorbereitung ist das Herunterladen
+gesperrt. Schlägt der Export fehl, weist eine Meldung auf die erneute Versuchsmöglichkeit hin.
+
+**Seitenbereich öffnen** zeigt eine Visualisierung auf breiten Bildschirmen neben dem Chat und dem Eingabefeld. Ziehen Sie die Begrenzung oder ändern Sie die Breite mit den Pfeiltasten und wechseln Sie zwischen **Vorschau** und **Code**. Schmale Chats nutzen das ganze Fenster. Dieselbe Seite bleibt beim Ansichtswechsel und beim Schließen des Bereichs geladen; Formularwerte, Regler und 3D-Kamerapositionen bleiben erhalten. Eine andere Visualisierung lässt die vorherige Seite unverändert. Ein Gesprächswechsel beendet diesen Workspace.
 
 **Folgenachrichten.** Ein Bedienelement in einer Zeichnung kann die Wahl der
 Person an das Gespräch zurückgeben - *Diesen Stopp planen*, *Diese Zahlen

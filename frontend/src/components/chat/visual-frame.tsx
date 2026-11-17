@@ -286,41 +286,25 @@ export function VisualFrame({
   // it is drawn would otherwise give the box empty space to scroll into.
   return (
     <>
-      {fill ? (
+      {/* The iframe stays under these same two elements when the layout changes.
+          A different branch here would recreate its browsing context. */}
+      <div
+        ref={box}
+        className={cn(
+          "relative w-full transition-[height] duration-200 ease-out motion-reduce:transition-none",
+          fill && "h-full",
+          zoom > 1 ? "scrollbar-thin overflow-auto" : "overflow-hidden",
+        )}
+        style={fill ? undefined : { height: Math.round(boxHeight) }}
+      >
         <div
-          className={cn(
-            "h-full w-full",
-            zoom > 1 ? "scrollbar-thin overflow-auto" : "overflow-hidden",
-          )}
+          className={cn("relative overflow-hidden", fill && "mx-auto")}
+          style={fill ? { width: `${zoom * 100}%`, height: `${zoom * 100}%` } : footprint}
         >
-          <div
-            className="relative mx-auto overflow-hidden"
-            style={{ width: `${zoom * 100}%`, height: `${zoom * 100}%` }}
-          >
-            {iframe}
-            {loading && <PreviewSkeleton />}
-          </div>
+          {iframe}
         </div>
-      ) : (
-        <div
-          ref={box}
-          className={cn(
-            "relative w-full transition-[height] duration-200 ease-out motion-reduce:transition-none",
-            zoom > 1 ? "scrollbar-thin overflow-auto" : "overflow-hidden",
-          )}
-          style={{ height: Math.round(boxHeight) }}
-        >
-          <div
-            className="relative overflow-hidden"
-            // From the left edge, where the message's text starts: the drawing is
-            // part of the answer, not a picture centred in a box of its own.
-            style={footprint}
-          >
-            {iframe}
-          </div>
-          {loading && <PreviewSkeleton />}
-        </div>
-      )}
+        {loading && <PreviewSkeleton />}
+      </div>
       <LinkRequestDialog pending={pending} onDone={closeLink} />
     </>
   );

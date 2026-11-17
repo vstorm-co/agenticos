@@ -2209,6 +2209,10 @@
       "zoomReset": "Reset zoom",
       "zoomLevel": "{zoom, number, percent}",
       "download": "Download",
+      "downloadSvg": "SVG — vector file",
+      "downloadPng": "PNG — image for slides",
+      "preparingPng": "Preparing PNG…",
+      "pngDownloadFailed": "The PNG could not be downloaded. Try again.",
       "copyImage": "Copy as image",
       "imageCopied": "Image copied",
       "copyImageFailed": "The image could not be copied",
@@ -2237,7 +2241,15 @@
       "followUpAsks": "The drawing asks to send this as your message:",
       "followUpSend": "Send",
       "followUpEdit": "Edit",
-      "followUpDismiss": "Dismiss"
+      "followUpDismiss": "Dismiss",
+      "openWorkspace": "Open side panel",
+      "dockWorkspace": "Return to side panel",
+      "closeWorkspace": "Close visual",
+      "workspaceTitle": "Visual: {title}",
+      "workspaceViews": "Visual views",
+      "resizeWorkspace": "Resize visual panel",
+      "previewTab": "Preview",
+      "codeTab": "Code"
     },
     "dictation": {
       "cancel": "Cancel dictation",
@@ -5617,6 +5629,10 @@
       "chat-visual": {
         "title": "Drawings",
         "body": "An agent with Visuals draws diagrams, explainers and 3D scenes here, live while it writes them. Open one full screen, download it, ask about it, or save it as an app with a link you can share."
+      },
+      "chat-visual-workspace": {
+        "title": "A page beside your chat",
+        "body": "Open a visual in the resizable side panel to keep chatting while you use it. Switch between Preview and Code, expand it, or close the panel without resetting its controls."
       },
       "chat-voice-call": {
         "title": "Talk to the agent",

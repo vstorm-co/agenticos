@@ -116,7 +116,7 @@ describe("visual frames in history", () => {
     expect(observer.disconnect).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps a streaming drawing live and suspends the inline copy while fullscreen is open", () => {
+  it("keeps a streaming drawing and an opened workspace on the same live iframe", () => {
     const { container, rerender } = render(<ViewportVisualFrame {...props} done={false} />);
     const box = container.firstElementChild!;
     expect(container.querySelector("iframe")).not.toBeNull();
@@ -127,10 +127,11 @@ describe("visual frames in history", () => {
     expect(container.querySelector("iframe")).toBe(frame);
     act(() => Visibility.instances[0]!.emit(box, true));
     expect(container.querySelector("iframe")).not.toBeNull();
-    rerender(<ViewportVisualFrame {...props} suspended />);
-    expect(container.querySelector("iframe")).toBeNull();
+    rerender(<ViewportVisualFrame {...props} active fill />);
+    expect(container.querySelector("iframe")).toBe(frame);
     rerender(<ViewportVisualFrame {...props} />);
-    expect(container.querySelector("iframe")).not.toBeNull();
+    expect(container.querySelector("iframe")).toBe(frame);
+    expect(lifecycle.mount).toHaveBeenCalledTimes(1);
   });
 
   it("still displays the drawing when the observer API is unavailable", () => {

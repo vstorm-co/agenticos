@@ -1,5 +1,5 @@
 ---
-source_sha: "bbe82e47bf65"
+source_sha: "a36968126561"
 ---
 
 # Aplicaciones { #artifacts }
@@ -956,6 +956,13 @@ toque abre la vista previa a pantalla completa. El zoom está en la esquina
 inferior derecha del dibujo mientras el puntero está encima: un SVG se dibuja más
 grande, una página se escala, y el marco se desplaza cuando el dibujo lo supera.
 Un error que el dibujo informa llega con *Arreglarlo*, que se lo pide al agent.
+
+Para un SVG terminado, **Descargar** ofrece el archivo vectorial o un PNG de
+2000 píxeles de ancho con las mismas proporciones. El PNG se prepara en el navegador
+y también se puede descargar desde la pantalla completa. Durante la preparación,
+la descarga queda desactivada. Si la exportación falla, un mensaje indica que puedes intentarlo de nuevo.
+
+**Abrir panel lateral** muestra la visualización junto a la conversación y el cuadro de mensaje en pantallas anchas. Arrastra el borde o ajusta el ancho con las flechas y cambia entre **Vista previa** y **Código**. Los chats estrechos usan toda la ventana. La misma página permanece montada al cambiar de vista y cerrar el panel; se conservan los formularios, controles deslizantes y posiciones de cámara 3D. Abrir otra visualización no reinicia la anterior. Cambiar de conversación termina ese workspace.
 
 **Mensajes de seguimiento.** Un control de un dibujo puede devolver la elección de
 la persona a la conversación - *Planificar esta parada*, *Usar estas cifras* -

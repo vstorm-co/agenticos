@@ -1,5 +1,5 @@
 ---
-source_sha: "bbe82e47bf65"
+source_sha: "a36968126561"
 ---
 
 # Aplikacje { #artifacts }
@@ -946,6 +946,13 @@ otwiera pełny ekran po stuknięciu. Powiększenie pojawia się w prawym dolnym 
 rysunku, gdy jest na nim kursor: SVG jest rysowane większe, strona skalowana, a
 ramka przewija się, gdy rysunek z niej wyrośnie. Błąd zgłoszony przez rysunek
 przychodzi z *Napraw*, które prosi agenta.
+
+Dla gotowego SVG opcja **Pobierz** oferuje źródło wektorowe albo PNG o szerokości
+2000 pikseli, z zachowaniem proporcji. PNG powstaje w przeglądarce i można je pobrać
+także w pełnym ekranie. Podczas przygotowania pobieranie jest zablokowane. Jeśli
+eksport się nie powiedzie, komunikat informuje o możliwości ponownej próby.
+
+**Otwórz panel boczny** wyświetla wizualizację obok rozmowy i pola wiadomości na szerokim ekranie. Przeciągnij granicę panelu lub zmień szerokość klawiszami strzałek i przełączaj **Podgląd** oraz **Kod**. Wąska rozmowa wykorzystuje całe okno. Ta sama strona pozostaje zamontowana po zmianie widoku i zamknięciu panelu, więc pola formularzy, suwaki i pozycja kamery 3D zachowują stan. Otwarcie innej wizualizacji nie resetuje poprzedniej strony. Zmiana rozmowy kończy ten workspace.
 
 **Dalsze pytania (follow-upy).** Kontrolka w rysunku może oddać wybór osoby do
 rozmowy - *Zaplanuj ten przystanek*, *Użyj tych liczb* - wywołując

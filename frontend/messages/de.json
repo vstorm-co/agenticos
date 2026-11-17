@@ -2209,6 +2209,10 @@
       "zoomReset": "Zoom zurücksetzen",
       "zoomLevel": "{zoom, number, percent}",
       "download": "Herunterladen",
+      "downloadSvg": "SVG — Vektordatei",
+      "downloadPng": "PNG — Bild für Präsentationen",
+      "preparingPng": "PNG wird vorbereitet…",
+      "pngDownloadFailed": "Die PNG-Datei konnte nicht heruntergeladen werden. Versuchen Sie es erneut.",
       "copyImage": "Als Bild kopieren",
       "imageCopied": "Bild kopiert",
       "copyImageFailed": "Das Bild konnte nicht kopiert werden",
@@ -2237,7 +2241,15 @@
       "followUpAsks": "Das Visual möchte dies als Ihre Nachricht senden:",
       "followUpSend": "Senden",
       "followUpEdit": "Bearbeiten",
-      "followUpDismiss": "Verwerfen"
+      "followUpDismiss": "Verwerfen",
+      "openWorkspace": "Seitenbereich öffnen",
+      "dockWorkspace": "Zurück zum Seitenbereich",
+      "closeWorkspace": "Visualisierung schließen",
+      "workspaceTitle": "Visualisierung: {title}",
+      "workspaceViews": "Ansichten der Visualisierung",
+      "resizeWorkspace": "Breite des Visualisierungsbereichs ändern",
+      "previewTab": "Vorschau",
+      "codeTab": "Code"
     },
     "dictation": {
       "cancel": "Diktat abbrechen",
@@ -5496,6 +5508,10 @@
       "chat-visual": {
         "title": "Zeichnungen",
         "body": "Ein Agent mit Visuals zeichnet hier Diagramme, Erklärungen und 3D-Szenen, live während er sie schreibt. Öffnen Sie eine im Vollbild, laden Sie sie herunter, fragen Sie danach oder speichern Sie sie als App mit einem Link zum Teilen."
+      },
+      "chat-visual-workspace": {
+        "title": "Eine Seite neben dem Chat",
+        "body": "Öffnen Sie eine Visualisierung im verstellbaren Seitenbereich und nutzen Sie sie während des Chats. Wechseln Sie zwischen Vorschau und Code, öffnen Sie das Vollbild oder schließen Sie den Bereich, ohne die Steuerelemente zurückzusetzen."
       },
       "chat-voice-call": {
         "title": "Mit dem Agent sprechen",
