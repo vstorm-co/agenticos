@@ -1270,6 +1270,16 @@
     "title": "Billing"
   },
   "chat": {
+    "sendMode": {
+      "label": "Send while running",
+      "queue": "Queue",
+      "steer": "Steer",
+      "queueDescription": "Send after the current turn.",
+      "steerDescription": "Send guidance into the current turn.",
+      "steerUnavailable": "Steering supports plain text. Messages with files, mentions, replies, page context, or workflow inputs stay queued.",
+      "steerDisconnected": "Reconnect to steer the current turn. Your draft is still in the composer.",
+      "steerFailed": "Steering could not be sent. Your draft is still here."
+    },
     "workspaceTasks": {
       "title": "Tasks",
       "open": "Open tasks",
@@ -2769,7 +2779,9 @@
       "unavailable": "Model unavailable",
       "useDefault": "Use agent's model",
       "scope": "Choose a saved model for your next message. This chat preference is remembered for your account in this organization.",
-      "afterTurn": "The running turn keeps its model. Your selection applies to the next message and is remembered as your chat preference.",
+      "afterTurn": "After this turn: the running turn keeps its current model. Your selection applies to the next message and is remembered as your chat preference.",
+      "afterTurnBadge": "After this turn",
+      "editReasoning": "Edit reasoning in agent settings",
       "providers": "Model providers",
       "search": "Search saved models or accounts…",
       "account": "Provider account",
@@ -2783,6 +2795,7 @@
       "notChatModel": "Unavailable for chat"
     },
     "agentSettings": {
+      "reasoning": "Reasoning",
       "close": "Close agent settings",
       "draftHint": "These settings belong to the agent. Save the draft, then publish a version to make it available. Running turns keep their current configuration.",
       "expand": "Expand agent settings",
@@ -5332,6 +5345,14 @@
       "channels-phone": {
         "body": "Choose a Twilio SMS bot, a public voice exposure for inbound calls, limits and authorized transfer contacts. Copy the webhook URLs into Twilio. Member phone consent is separate.",
         "title": "Set up telephone routing"
+      },
+      "chat-send-mode": {
+        "title": "Queue or steer",
+        "body": "While an agent is working, queue your next message or steer the current turn with plain text. Files and other context keep the ordinary queued path."
+      },
+      "chat-agent-reasoning": {
+        "title": "Reasoning settings",
+        "body": "Adjust Thinking in the agent draft. Save the draft, then review and publish when it is ready for future runs."
       },
       "chat-workspace-tasks": {
         "title": "Tasks beside the conversation",

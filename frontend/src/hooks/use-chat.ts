@@ -2202,6 +2202,19 @@ export function useChat(options: UseChatOptions = {}) {
     [isConnected, doSend, setQueue, captureSubmission, readLocalContext],
   );
 
+  /** Send plain text into the active run; a closed socket leaves no pending steer behind. */
+  const sendSteerMessage = useCallback(
+    (content: string): boolean => {
+      const text = content.trim();
+      if (!text || !isProcessing || !processingRef.current || !isConnected) return false;
+      const id = clientId();
+      if (!sendMessage({ type: "steer", text })) return false;
+      setSteers((waiting) => [...waiting, { id, text }]);
+      return true;
+    },
+    [isProcessing, isConnected, sendMessage],
+  );
+
   /**
    * Send one queued message now rather than after the answer: into the running
    * task, where it reaches the model at its next step. A file cannot ride along
@@ -2219,15 +2232,15 @@ export function useChat(options: UseChatOptions = {}) {
         !isProcessing ||
         !isConnected ||
         queued.fileIds?.length ||
+        queued.files?.length ||
         queued.mentions?.length ||
         queued.submission !== undefined
       )
         return;
+      if (!sendSteerMessage(queued.content)) return;
       setQueue(messageQueueRef.current.filter((q) => q.id !== id));
-      setSteers((waiting) => [...waiting, { id: clientId(), text: queued.content }]);
-      sendMessage({ type: "steer", text: queued.content });
     },
-    [isProcessing, isConnected, sendMessage, setQueue],
+    [isProcessing, isConnected, sendSteerMessage, setQueue],
   );
 
   /** Move one queued message to another place in the queue, which is the order it is sent in. */
@@ -4000,6 +4013,7 @@ export function useChat(options: UseChatOptions = {}) {
     connect,
     disconnect,
     sendMessage: sendChatMessage,
+    sendSteerMessage,
     captureSubmission,
     /** Tell the running turn how one of its drawings rendered. */
     reportVisual,

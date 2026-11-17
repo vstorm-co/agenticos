@@ -6,9 +6,12 @@ import { useTranslations } from "next-intl";
 import { Input, Label, Switch, Textarea } from "@/components/ui";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
+import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { useModelProviders } from "@/hooks/use-model-providers";
 import { useCapabilityGuide } from "@/hooks/use-capability-guide";
-import type { AgentSpec } from "@/types/agents";
+import { useCapabilityCatalog } from "@/hooks/use-agents";
+import { THINKING_ID, unboundBinding, withCapability } from "@/lib/agent-spec";
+import type { AgentSpec, CapabilityCatalogEntry } from "@/types/agents";
 
 export function ChatAgentSettingsFields({
   spec,
@@ -21,6 +24,8 @@ export function ChatAgentSettingsFields({
 }) {
   const t = useTranslations("chat.agentSettings");
   const id = useId();
+  const { capabilities: catalog } = useCapabilityCatalog();
+  const thinkingDefinition = catalog.find((capability) => capability.id === THINKING_ID);
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -65,8 +70,64 @@ export function ChatAgentSettingsFields({
         </div>
       </details>
       <ChatAgentModelSettings spec={spec} disabled={disabled} update={update} />
-      <ChatAgentCapabilities spec={spec} disabled={disabled} update={update} />
+      <ChatAgentReasoningSettings
+        spec={spec}
+        disabled={disabled}
+        update={update}
+        definition={thinkingDefinition}
+      />
+      <ChatAgentCapabilities
+        spec={spec}
+        disabled={disabled}
+        update={update}
+        hideThinking={Boolean(thinkingDefinition)}
+      />
     </div>
+  );
+}
+
+function ChatAgentReasoningSettings({
+  spec,
+  disabled,
+  update,
+  definition,
+}: Parameters<typeof ChatAgentSettingsFields>[0] & {
+  definition: CapabilityCatalogEntry | undefined;
+}) {
+  const t = useTranslations("chat.agentSettings");
+  if (!definition) return null;
+
+  const binding = spec.capabilities.find((capability) => capability.id === THINKING_ID);
+  const toggle = () => {
+    if (!binding) {
+      update({ capabilities: withCapability(spec.capabilities, THINKING_ID, true) });
+      return;
+    }
+
+    const enabled = binding.enabled !== false;
+    update({
+      capabilities: spec.capabilities.map((capability) =>
+        capability.id === THINKING_ID ? { ...capability, enabled: !enabled } : capability,
+      ),
+    });
+  };
+
+  return (
+    <section id="chat-agent-reasoning" data-tour="chat-agent-reasoning" aria-label={t("reasoning")}>
+      <ThinkingSetting
+        definition={definition}
+        binding={binding ?? unboundBinding(THINKING_ID)}
+        disabled={disabled}
+        onToggle={toggle}
+        onChange={(next) =>
+          update({
+            capabilities: spec.capabilities.map((capability) =>
+              capability.id === THINKING_ID ? next : capability,
+            ),
+          })
+        }
+      />
+    </section>
   );
 }
 
@@ -103,18 +164,22 @@ function ChatAgentCapabilities({
   spec,
   disabled,
   update,
-}: Parameters<typeof ChatAgentSettingsFields>[0]) {
+  hideThinking,
+}: Parameters<typeof ChatAgentSettingsFields>[0] & { hideThinking: boolean }) {
   const t = useTranslations("chat.agentSettings");
   const guide = useCapabilityGuide();
+  const capabilities = hideThinking
+    ? spec.capabilities.filter((binding) => binding.id !== THINKING_ID)
+    : spec.capabilities;
   return (
     <details className="border-t pt-4">
       <summary className="cursor-pointer text-sm font-medium">{t("capabilities")}</summary>
       <div className="mt-3 space-y-3">
         <p className="text-muted-foreground text-xs">{t("capabilitiesHint")}</p>
-        {spec.capabilities.length === 0 && (
+        {capabilities.length === 0 && (
           <p className="text-muted-foreground text-xs">{t("noCapabilities")}</p>
         )}
-        {spec.capabilities.map((binding) => {
+        {capabilities.map((binding) => {
           const name = guide(binding.id)?.name ?? binding.id;
           return (
             <label

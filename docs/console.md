@@ -909,6 +909,12 @@ An eligible summary's externalized text and media are restored into the copy, so
 
 A conversation with a saved checklist can be forked only at its latest message, which must be an assistant answer. The fork keeps that checklist, including task IDs and dependencies. Earlier checklist snapshots are not stored, so an earlier fork is refused rather than copying later tasks into an older history.
 
+### Controls during a turn { #chat-live-controls }
+
+While an agent is working, **Queue** sends your next message after the current turn. **Steer** sends plain-text guidance to the running turn, which uses it when it next continues. The choice is remembered for your account, organization and selected agent, including the general assistant. Files, mentions, replies, page context and workflow inputs keep the ordinary queued path. If steering cannot be sent, the draft stays in the composer.
+
+Choosing a model while a turn is running shows **After this turn**: the preference applies to a later message. **Edit reasoning in agent settings** opens the agent draft's Thinking control for members who can edit it. Save the draft, then use the existing review and publish flow to apply that agent configuration to future runs.
+
 ### Background topics { #background-topics }
 
 In full desktop chat, **Tasks** on the right opens background work beside the conversation. Choose **This chat** or **All my tasks**, search titles, and open a task from **Needs you**, **Working**, **Waiting** or **Finished**. A new chat starts with your tasks across agents in the active organization. You can resize or expand the panel. Opening it starts no work; read-only chats keep links and hide **Stop**. A failed read offers **Retry**.

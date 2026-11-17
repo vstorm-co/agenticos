@@ -286,6 +286,19 @@
     "title": "Profil"
   },
   "chat": {
+    "sendMode": {
+      "label": "Wysyłanie podczas pracy",
+      "queue": "Do kolejki",
+      "steer": "Pokieruj",
+      "queueDescription": "Wyślij po bieżącej turze.",
+      "steerDescription": "Przekaż wskazówki w bieżącej turze.",
+      "steerUnavailable": "Kierowanie obsługuje zwykły tekst. Wiadomości z plikami, wzmiankami, odpowiedziami, kontekstem strony lub danymi przepływu pracy pozostają w kolejce.",
+      "steerDisconnected": "Połącz się ponownie, aby pokierować bieżącą turą. Twój szkic nadal jest w polu wiadomości.",
+      "steerFailed": "Nie udało się wysłać wskazówek. Twój szkic nadal tu jest."
+    },
+    "agentSettings": {
+      "reasoning": "Rozumowanie"
+    },
     "workspaceTasks": {
       "title": "Zadania",
       "open": "Otwórz zadania",
@@ -1778,7 +1791,9 @@
       "unavailable": "Model niedostępny",
       "useDefault": "Użyj modelu agenta",
       "scope": "Wybierz zapisany model dla następnej wiadomości. Ten wybór jest zapamiętywany dla Twojego konta w tej organizacji.",
-      "afterTurn": "Trwający run zachowuje swój model. Twój wybór dotyczy następnej wiadomości i jest zapamiętywany jako ustawienie czatu.",
+      "afterTurn": "Po tej turze: bieżąca tura zachowuje swój model. Twój wybór dotyczy następnej wiadomości i jest zapamiętywany jako ustawienie czatu.",
+      "afterTurnBadge": "Po tej turze",
+      "editReasoning": "Edytuj rozumowanie w ustawieniach agenta",
       "providers": "Providerzy modeli",
       "search": "Szukaj zapisanych modeli lub kont…",
       "account": "Konto providera",
@@ -6946,6 +6961,14 @@
       "channels-phone": {
         "body": "Wybierz bota SMS Twilio, publiczną rozmowę głosową dla połączeń przychodzących, limity i dozwolone kontakty przekierowań. Skopiuj adresy webhooków do Twilio. Zgody członków są osobne.",
         "title": "Skonfiguruj telefonię"
+      },
+      "chat-send-mode": {
+        "title": "Kolejka lub kierowanie",
+        "body": "Podczas pracy agenta dodaj następną wiadomość do kolejki albo przekaż wskazówki zwykłym tekstem. Pliki i pozostały kontekst pozostają w zwykłej kolejce."
+      },
+      "chat-agent-reasoning": {
+        "title": "Ustawienia rozumowania",
+        "body": "Dostosuj myślenie w szkicu agenta. Zapisz szkic, a następnie sprawdź i opublikuj go dla przyszłych uruchomień."
       },
       "chat-workspace-tasks": {
         "title": "Zadania obok rozmowy",

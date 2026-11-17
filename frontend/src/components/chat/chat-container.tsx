@@ -4,6 +4,7 @@ import { useWorkingStore } from "@/stores/working-store";
 
 import { onRemoteChange } from "@/lib/live-updates";
 import type { Mentionable } from "@/types/mention";
+import { useChatSendModePreference } from "@/stores/chat-send-mode-store";
 import {
   useEffect,
   useEffectEvent,
@@ -534,6 +535,7 @@ export function ChatContainer({
     delegations,
     browses,
     sendMessage: sendChatMessage,
+    sendSteerMessage: sendSteerText,
     captureSubmission,
     stopGeneration,
     clearMessages,
@@ -906,6 +908,40 @@ export function ChatContainer({
       roomProjectId,
     ],
   );
+  const sendSteer = useCallback(
+    (content: string) => {
+      if (
+        !content.trim() ||
+        !isProcessing ||
+        !isConnected ||
+        sendDisabled ||
+        readOnly ||
+        roomProjectId !== null ||
+        pageContext !== undefined ||
+        selectedWorkflow !== null ||
+        holdSending ||
+        isStopping ||
+        pendingApproval != null ||
+        !!pendingQuestions?.length
+      )
+        return false;
+      return sendSteerText(content);
+    },
+    [
+      isProcessing,
+      isConnected,
+      sendDisabled,
+      readOnly,
+      roomProjectId,
+      pageContext,
+      selectedWorkflow,
+      holdSending,
+      isStopping,
+      pendingApproval,
+      pendingQuestions,
+      sendSteerText,
+    ],
+  );
   useEffect(() => {
     if (held.current === null || holdSending || sendDisabled || roomProjectId !== null) return;
     const waiting = held.current;
@@ -1064,6 +1100,11 @@ export function ChatContainer({
         accessState={access.failed ? "error" : !access.known ? "checking" : undefined}
         onRetryAccess={access.retry}
         sendMessage={send}
+        onSteer={sendSteer}
+        showSendMode={selectedWorkflow === null && !holdSending}
+        steerContextAvailable={
+          pageContext === undefined && selectedWorkflow === null && !holdSending
+        }
         sendDisabled={sendDisabled}
         steers={steers}
         // Kept here as well as pushed into the hook, because the context gauge is a
@@ -1220,6 +1261,9 @@ interface ChatUIProps {
     files?: import("@/types").ChatMessageFile[],
     mentions?: Mentionable[],
   ) => void;
+  onSteer?: (content: string) => boolean;
+  showSendMode?: boolean;
+  steerContextAvailable?: boolean;
   onModelProfileChange?: (profileId: string | null) => void;
   onApprovalModeChange?: (mode: import("./chat-controls").ApprovalMode) => void;
   onRegenerate?: (messageId: string) => void;
@@ -1320,6 +1364,9 @@ function ChatUI({
   accessState,
   onRetryAccess,
   sendMessage,
+  onSteer,
+  showSendMode = true,
+  steerContextAvailable = true,
   onModelProfileChange,
   onApprovalModeChange,
   onRegenerate,
@@ -1369,8 +1416,14 @@ function ChatUI({
   const tThread = useTranslations("chat.roomThread");
   const tDictation = useTranslations("chat.dictation");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const accountId = useAuthStore((state) => state.user?.id ?? null);
   const roomRequests = useRoomRequests(roomProjectId === null ? null : conversationId);
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  const { mode: sendMode, setMode: setSendMode } = useChatSendModePreference(
+    accountId,
+    activeOrgId,
+    selectedAgentId,
+  );
   const {
     status,
     failed: dictationStatusFailed,
@@ -1756,6 +1809,9 @@ function ChatUI({
               agentModel={agentModel}
               readOnly={readOnly || isArchived === true || isLoadingConversation === true}
               isProcessing={isProcessing}
+              canEditAgent={Boolean(
+                callAgent?.can_edit && !readOnly && isArchived !== true && !isLoadingConversation,
+              )}
               home={showWorkspaceHome}
               onChange={(profileId) => onModelProfileChange?.(profileId)}
             />
@@ -2118,6 +2174,24 @@ function ChatUI({
                             autoFocus={!compact && !onCall}
                             focusRequest={composerFocusRequest}
                             onSend={sendMessage}
+                            sendMode={
+                              showSendMode &&
+                              isProcessing &&
+                              !readOnly &&
+                              isArchived !== true &&
+                              !isLoadingConversation &&
+                              !sendDisabled &&
+                              !pendingApproval &&
+                              !pendingQuestions?.length &&
+                              !isStopping &&
+                              !onCall &&
+                              roomProjectId === null
+                                ? sendMode
+                                : undefined
+                            }
+                            onSendModeChange={showSendMode ? setSendMode : undefined}
+                            onSteer={onSteer}
+                            steerContextAvailable={steerContextAvailable}
                             // Mentions address the agent the thread is talking to -
                             // in a fixed window (the test panel, the Architect) the
                             // scope's own selection holds it.
