@@ -15372,7 +15372,7 @@
     "group": "{name} · {count, plural, =1 {1 Run} other {# Runs}}",
     "trend": {
       "label": "Bestehensquote je Run",
-      "single": "Bisher ein Run. Starte einen weiteren, um einen Trend zu sehen.",
+      "soFar": "{count, plural, one {Bisher ein Run.} other {Bisher # Runs.}} Ein Trend braucht mindestens drei; starte einen weiteren, um ihn zu sehen.",
       "legend": "Jeder Punkt ist ein Run, der älteste links; zeige auf einen, um zu sehen, was lief, wogegen und wann, und klicke, um den Run zu öffnen.",
       "range": "Gezeigte Runs",
       "last": "Letzte {count}",

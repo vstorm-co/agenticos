@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Evals and Improve on the shared components.** Improve's figure tiles are the dashboard's figure cards, its before-and-after change is the shared delta chip, and its step panels are cards. A dataset case's JSON is edited in the code area. The pass-rate trend lists fewer than three runs, with their pass rates, instead of drawing a line through them. A dataset's grading and an open case show who changed them elsewhere and ask before replacing unsaved edits; with nothing edited they take the new version.
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed
