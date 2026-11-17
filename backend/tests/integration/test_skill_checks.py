@@ -49,6 +49,7 @@ from app.repositories import (
     skill_proposal_repo,
     skill_usage_repo,
 )
+from app.schemas.eval_run import CriterionMoveRead
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
     CandidateText,
@@ -82,6 +83,7 @@ class Outcome:
     broken: int = 0
     unconfirmed_broken: int = 0
     incomplete: int = 0
+    criteria: tuple[CriterionMoveRead, ...] = ()
 
 
 def _flips(outcome: Outcome, held_out: int) -> list[SimpleNamespace]:
@@ -206,6 +208,7 @@ class FakeEvals:
                 changed=0,
                 gradable_holdout=held_out,
                 cases=_flips(outcome, held_out),
+                criteria=list(outcome.criteria),
             )
 
         async def cancel(_self, _ctx, run_id):
@@ -770,6 +773,34 @@ class TestAPersonsVerdict:
         states = {row.agent.name: row.state for row in read.agents}
         assert states == {"A": "better", "B": "no_change", "C": "no_change"}
         assert (read.status, read.verdict) == (CheckStatus.DONE, CheckVerdict.PASSED)
+
+    async def test_an_agent_better_on_a_criterion_alone_says_which(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(lab.ctx, lab.skill.id, _start())
+        validity = CriterionMoveRead(
+            scorer="judge",
+            name="validity",
+            graded=5,
+            baseline_passed=0,
+            candidate_passed=5,
+            fixed_confirmed=5,
+            broken_confirmed=0,
+            fixed_unconfirmed=0,
+            broken_unconfirmed=0,
+        )
+        evals.outcomes = {lab.a.id: Outcome(criteria=(validity,))}
+
+        read = await _run_to_end(service, evals, lab, check.id)
+
+        [row] = [row for row in read.agents if row.agent.id == lab.a.id]
+        assert row.state is AgentState.CRITERIA_BETTER
+        assert [(item.name, item.before, item.after, item.fixed) for item in row.criteria] == [
+            ("validity", 0, 5, 5)
+        ]
+        assert read.verdict is CheckVerdict.NO_BETTER
 
     async def test_a_verdict_on_a_run_no_check_asked_changes_nothing(self, db, monkeypatch):
         lab = await _lab(db)

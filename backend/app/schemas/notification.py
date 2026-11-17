@@ -1,10 +1,10 @@
 """Schemas for the notification inbox (#1598)."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal, TypedDict
 from uuid import UUID
 
-from pydantic import Field, ValidationError
+from pydantic import Field, TypeAdapter, ValidationError
 
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import NotificationDelivery
@@ -42,6 +42,16 @@ def _agent_of(context: dict[str, Any] | None) -> NotificationAgent | None:
         return None
 
 
+class MovedCriterion(TypedDict):
+    """A criterion an improvement's latest attempt moved, when no whole question flipped."""
+
+    name: str
+    graded: int
+    before: int
+    after: int
+    direction: Literal["better", "worse"]
+
+
 class NotificationOutcome(BaseSchema):
     """How a finished session, test or question writing ended, as codes the console words."""
 
@@ -50,8 +60,13 @@ class NotificationOutcome(BaseSchema):
     next_step_blocked: NextStepBlocked | None = Field(
         default=None, description="Why an improvement's next step cannot be taken, when it cannot"
     )
+    criteria: list[MovedCriterion] = Field(
+        default_factory=list,
+        description="The criteria an improvement's latest attempt moved with no question flipped",
+    )
 
 
+_CRITERIA = TypeAdapter(list[MovedCriterion])
 _OUTCOME_EVENTS = {
     NotificationEventType.IMPROVEMENT_FINISHED.value,
     NotificationEventType.EVAL_RUN_FINISHED.value,
@@ -68,10 +83,15 @@ def _outcome_of(notification: Notification) -> NotificationOutcome | None:
         blocked = NextStepBlocked.model_validate(context.get("next_step_blocked"))
     except ValidationError:
         blocked = None
+    try:
+        criteria = _CRITERIA.validate_python(context.get("criteria") or [])
+    except ValidationError:
+        criteria = []
     return NotificationOutcome(
         status=context["status"],
         reason=reason if isinstance(reason, str) else None,
         next_step_blocked=blocked,
+        criteria=criteria,
     )
 
 

@@ -81,6 +81,7 @@ from app.repositories import (
 )
 from app.schemas.dataset import AnswerAs, DatasetCreate, DatasetRead
 from app.schemas.eval_run import EvalComparisonRead, EvalRunRequest, ProposalCheckRecord
+from app.schemas.improvement import VerdictCriterion
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
     AgentRef,
@@ -113,8 +114,10 @@ from app.services.access import AGENT, DATASET, SKILL, accessible_ids
 from app.services.api_key import job_context
 from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
+from app.services.eval_comparison import CriterionMove
 from app.services.eval_run import EvalRunService
 from app.services.improvement_data import MIN_HOLDOUT_CASES
+from app.services.improvement_states import criterion_details
 from app.services.notifications import NotificationService
 from app.services.scoring import ScoringService
 from app.services.skill_agents import LineAgent, SkillAgentService
@@ -1094,6 +1097,7 @@ class SkillCheckService:
                 "regressions_confirmed": result.check.regressions_confirmed,
                 "noisy": rules.noisy(result),
                 "stages": counted,
+                "criteria": criterion_details(result.check.criteria, {}),
             },
         )
 
@@ -1601,6 +1605,7 @@ class SkillCheckService:
                     fixed_confirmed=row.fixed_confirmed or 0,
                     regressions_confirmed=row.regressions_confirmed or 0,
                     noisy=bool(row.noisy),
+                    criteria=[VerdictCriterion.model_validate(item) for item in row.criteria or []],
                     expected_usd=row.expected_usd,
                     at_most_usd=row.at_most_usd,
                 )
@@ -2359,6 +2364,9 @@ class SkillCheckService:
         return created
 
 
+_HELPED = frozenset({AgentState.BETTER.value, AgentState.CRITERIA_BETTER.value})
+
+
 def _chosen_for_fork(
     rows: Sequence[SkillCheckAgent], agent_ids: Sequence[UUID] | None
 ) -> list[SkillCheckAgent]:
@@ -2367,9 +2375,7 @@ def _chosen_for_fork(
     One reading the skill through a specialist is moved in its Builder, never here.
     """
     if agent_ids is None:
-        return [
-            row for row in rows if row.state == AgentState.BETTER.value and not row.via_specialist
-        ]
+        return [row for row in rows if row.state in _HELPED and not row.via_specialist]
     by_agent = {row.agent_id: row for row in rows}
     picked = list(dict.fromkeys(agent_ids))
     if unknown := [agent_id for agent_id in picked if agent_id not in by_agent]:
@@ -2435,6 +2441,7 @@ def _stage_comparison(comparison: EvalComparisonRead) -> rules.StageComparison:
         compared=comparison.compared,
         candidate_pass_rate=mine.pass_rate,
         baseline_pass_rate=None if theirs is None else theirs.pass_rate,
+        criteria=tuple(CriterionMove(**move.model_dump()) for move in comparison.criteria),
     )
 
 

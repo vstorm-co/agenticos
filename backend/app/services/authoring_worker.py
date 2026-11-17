@@ -290,7 +290,8 @@ def _skills_section(spec: AgentSpec, skills: Sequence[Skill], used: Collection[U
         "Each skill is a resource of its own that other agents may read too. Never copy "
         "a skill's text into the instructions, and never propose a new skill that repeats "
         "one. Where the runs show that a skill is wrong or misses a step, report it under "
-        "skill_problems, naming the skill, and change nothing in the agent for it.\n"
+        "skill_problems, naming the skill and the graded criteria it makes fail, and change "
+        "nothing in the agent for it.\n"
         f"{listed}\n\n"
         + (f"# The skills the runs below used, read only\n{bodies}\n" if bodies else "")
     )
@@ -1362,6 +1363,7 @@ class AuthoringRun:
                     "skill_id": str(skill.id),
                     "skill_name": skill.name,
                     "problem": problem.problem,
+                    "criteria": [name.strip()[:80] for name in problem.criteria if name.strip()],
                     "evidence": kept,
                     "evidence_dropped": dropped,
                 }

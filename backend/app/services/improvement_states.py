@@ -12,18 +12,19 @@ filtering what was proposed, so each paid step after those is one somebody took.
 """
 
 import math
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 from app.db.models.authoring import AuthoringStatus
 from app.db.models.background_job import JobStatus
 from app.db.models.eval_run import EvalRunStatus
 from app.db.models.improvement import (
+    CriterionDetail,
     ImprovementStage,
     ImprovementStatus,
     ImprovementVerdict,
@@ -35,6 +36,7 @@ from app.schemas.improvement import (
     NoisyAttempt,
     NoisyQuestion,
 )
+from app.services.eval_comparison import CriterionMove
 
 MIN_GRADABLE_CASES = 5
 """Gradable cases the check needs outside the evidence before a change is measured."""
@@ -339,6 +341,8 @@ class CheckResult:
     suite: SuiteOutcome | None = None
     crashed: int = 0
     held_out: int | None = None
+    criteria: tuple[CriterionMove, ...] = ()
+    """Each criterion graded on both sides of the held-out questions, confirmed as flips are."""
 
 
 def judge(result: CheckResult) -> ImprovementVerdict:
@@ -347,6 +351,11 @@ def judge(result: CheckResult) -> ImprovementVerdict:
     An automatic session needs a complete measurement before choosing its next
     candidate. A failed suite or confirmed regression decides once every case
     was measured. An ordinary suite may fail on partial evidence independently.
+
+    `better` and `regression` are about whole questions. Short of those, the
+    criteria decide: a question that fails on several criteria passes only once
+    all of them do, so a change that fixes one of them is `criteria_better`
+    rather than no change, and one that breaks a criterion is `criteria_worse`.
     """
     if result.incomplete or result.ungraded:
         return ImprovementVerdict.INCONCLUSIVE
@@ -366,12 +375,70 @@ def judge(result: CheckResult) -> ImprovementVerdict:
         return ImprovementVerdict.INCONCLUSIVE
     if result.fixed_confirmed and result.candidate_pass_rate >= result.baseline_pass_rate:
         return ImprovementVerdict.BETTER
+    if any(move.worse for move in result.criteria):
+        return ImprovementVerdict.CRITERIA_WORSE
+    if any(move.better for move in result.criteria):
+        return ImprovementVerdict.CRITERIA_BETTER
     return ImprovementVerdict.NO_CHANGE
 
 
+MAX_CRITERIA = 40
+"""Criteria a verdict keeps: the ones that moved first, then the ones failing most often."""
+
+
+def criterion_owners(reports: Iterable[Mapping[str, Any] | None]) -> dict[str, str]:
+    """Which skill each criterion was put down to by a session's improver, by name.
+
+    The newest report decides a criterion two of them named.
+    """
+    owners: dict[str, str] = {}
+    for report in reports:
+        for problem in (report or {}).get("skill_problems", []):
+            for name in problem.get("criteria", []):
+                owners[str(name).casefold()] = str(problem["skill_name"])
+    return owners
+
+
+def criterion_details(
+    moves: Sequence[CriterionMove], owners: Mapping[str, str]
+) -> list[CriterionDetail]:
+    """What a verdict keeps of its criteria: counts and names, never a question's text.
+
+    A criterion that still fails somewhere is named with the skill the improver put
+    it down to, when it put it down to one.
+    """
+    ranked = sorted(
+        moves,
+        key=lambda move: (
+            not (move.fixed_confirmed or move.broken_confirmed),
+            move.candidate_passed - move.graded,
+            move.scorer,
+            move.name,
+        ),
+    )
+    details: list[CriterionDetail] = []
+    for move in ranked[:MAX_CRITERIA]:
+        detail: CriterionDetail = {
+            "scorer": move.scorer,
+            "name": move.name,
+            "graded": move.graded,
+            "before": move.baseline_passed,
+            "after": move.candidate_passed,
+            "fixed": move.fixed_confirmed,
+            "broken": move.broken_confirmed,
+        }
+        owner = owners.get(move.name.casefold())
+        if owner is not None and move.candidate_passed < move.graded:
+            detail["skill"] = owner
+        details.append(detail)
+    return details
+
+
+_READY = frozenset({ImprovementVerdict.BETTER, ImprovementVerdict.CRITERIA_BETTER})
 _STOPS = {
     ImprovementVerdict.INCONCLUSIVE: StopReason.INCONCLUSIVE,
     ImprovementVerdict.REGRESSION: StopReason.REGRESSION,
+    ImprovementVerdict.CRITERIA_WORSE: StopReason.CRITERIA_WORSE,
     ImprovementVerdict.NO_CHANGE: StopReason.NO_CHANGE,
 }
 
@@ -386,10 +453,12 @@ def after_judging(
 ) -> Transition:
     """Hand a better candidate to a person; check an inconclusive one once more.
 
-    The second check is a paid step like the first, so it starts only when its
-    full estimate fits what is left of the budget.
+    A candidate better on criteria alone is handed over too: it fixed something
+    the check confirmed and broke nothing. The second check is a paid step like
+    the first, so it starts only when its full estimate fits what is left of the
+    budget.
     """
-    if verdict is ImprovementVerdict.BETTER:
+    if verdict in _READY:
         return Transition(ImprovementStatus.READY, ImprovementStage.JUDGING)
     if verdict is ImprovementVerdict.INCONCLUSIVE and reruns_used < INCONCLUSIVE_RERUNS:
         return before_evaluating(spent=spent, step_estimate=rerun_estimate, budget=budget)
@@ -412,15 +481,18 @@ class RoundResult:
 
 
 def best_round(rounds: list[RoundResult]) -> int | None:
-    """Prefer a measured improvement, then the larger change against its own baseline.
+    """Prefer a measured improvement - whole questions, then criteria alone - then the
+    larger change against its own baseline.
 
     Inconclusive rounds are not evidence for selecting a candidate. Earlier
     rounds win exact ties, so a costly repeat cannot displace the same result.
     """
     measured = [item for item in rounds if item.verdict != ImprovementVerdict.INCONCLUSIVE]
     order = {
-        ImprovementVerdict.BETTER: 2,
-        ImprovementVerdict.NO_CHANGE: 1,
+        ImprovementVerdict.BETTER: 4,
+        ImprovementVerdict.CRITERIA_BETTER: 3,
+        ImprovementVerdict.NO_CHANGE: 2,
+        ImprovementVerdict.CRITERIA_WORSE: 1,
         ImprovementVerdict.REGRESSION: 0,
     }
     best = max(

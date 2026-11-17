@@ -27,7 +27,10 @@ from app.db.models.improvement import (
     StopReason,
 )
 
-_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0212_improvement_waiting.py"
+_VERSIONS = Path(__file__).parents[1] / "alembic" / "versions"
+_MIGRATION = _VERSIONS / "0212_improvement_waiting.py"
+_CRITERIA = _VERSIONS / "0342_criterion_verdicts.py"
+"""The revision that last changed the verdicts and stop reasons."""
 
 
 def _migration(path: Path = _MIGRATION) -> ModuleType:
@@ -52,20 +55,20 @@ def _predicate(name: str) -> str:
 
 
 @pytest.mark.parametrize(
-    ("constant", "members"),
+    ("path", "constant", "members"),
     [
-        ("_STATUSES", ImprovementStatus),
-        ("_STAGES", ImprovementStage),
-        ("_VERDICTS", ImprovementVerdict),
-        ("_ACTIVE", ACTIVE_STATUSES),
-        ("_OPEN", OPEN_STATUSES),
-        ("_UNSETTLED", UNSETTLED_STATUSES),
+        (_MIGRATION, "_STATUSES", ImprovementStatus),
+        (_MIGRATION, "_STAGES", ImprovementStage),
+        (_CRITERIA, "_VERDICTS", ImprovementVerdict),
+        (_MIGRATION, "_ACTIVE", ACTIVE_STATUSES),
+        (_MIGRATION, "_OPEN", OPEN_STATUSES),
+        (_MIGRATION, "_UNSETTLED", UNSETTLED_STATUSES),
     ],
 )
 def test_the_migration_lists_every_value_the_model_allows(
-    constant: str, members: tuple[StrEnum, ...] | type[StrEnum]
+    path: Path, constant: str, members: tuple[StrEnum, ...] | type[StrEnum]
 ) -> None:
-    assert getattr(_migration(), constant) == _quoted(members)
+    assert getattr(_migration(path), constant) == _quoted(members)
 
 
 @pytest.mark.parametrize(
@@ -77,10 +80,11 @@ def test_the_partial_indexes_cover_the_same_statuses(index: str, constant: str) 
 
 
 @pytest.mark.parametrize(
-    ("name", "pattern", "members"),
+    ("path", "name", "pattern", "members"),
     [
-        ("ck_improvement_run_status", r"status IN \((.+)\)", ImprovementStatus),
+        (_MIGRATION, "ck_improvement_run_status", r"status IN \((.+)\)", ImprovementStatus),
         (
+            _CRITERIA,
             "ck_improvement_run_stop_reason",
             r"stop_reason IS NULL OR stop_reason IN \((.+)\)",
             StopReason,
@@ -88,9 +92,9 @@ def test_the_partial_indexes_cover_the_same_statuses(index: str, constant: str) 
     ],
 )
 def test_the_latest_constraints_match_the_model(
-    name: str, pattern: str, members: type[StrEnum]
+    path: Path, name: str, pattern: str, members: type[StrEnum]
 ) -> None:
-    migration = _migration()
+    migration = _migration(path)
     with patch.object(migration, "op") as operations:
         migration.upgrade()
     conditions = {

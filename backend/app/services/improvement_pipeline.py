@@ -7,7 +7,7 @@ transition without repeating a model call. Only an explicit human finish accepts
 
 import hashlib
 import json
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -143,6 +143,7 @@ from app.services.background_jobs import enqueue
 from app.services.collection_access import readable_kb, writable_kb
 from app.services.dataset import DatasetService, redact_credentials
 from app.services.embedding_resolution import embeddings_for_collection
+from app.services.eval_comparison import CriterionMove
 from app.services.eval_run import EvalRunService, scoring_hash, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.improvement_data import (
@@ -153,6 +154,7 @@ from app.services.improvement_data import (
     split_seed,
 )
 from app.services.improvement_skills import ImprovementSkillService, SkillSeed
+from app.services.improvement_states import criterion_details, criterion_owners
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.notifications import NotificationService
 from app.worker.jobs import (
@@ -2205,6 +2207,8 @@ class ImprovementPipelineService:
             reason=reason or (run.stage if run.status == Status.WAITING else run.stop_reason),
             end=end,
             next_step_blocked=blocked_next_step(run, current),
+            verdict=None if current is None else current.verdict,
+            criteria=[] if current is None else (current.verdict_detail or {}).get("criteria", []),
         )
 
     async def check_finished(self, check: EvalRun) -> None:
@@ -2922,6 +2926,7 @@ class ImprovementPipelineService:
             held_out=None
             if child.proposal_check is None or child.proposal_check.measurement is None
             else len(child.proposal_check.measurement.holdout_case_ids),
+            criteria=tuple(CriterionMove(**move.model_dump()) for move in comparison.criteria),
         )
 
     @staticmethod
@@ -2937,8 +2942,11 @@ class ImprovementPipelineService:
         )
 
     @staticmethod
-    def _result_detail(result: rules.CheckResult) -> VerdictDetail:
+    def _result_detail(
+        result: rules.CheckResult, owners: Mapping[str, str] | None = None
+    ) -> VerdictDetail:
         return {
+            "criteria": criterion_details(result.criteria, owners or {}),
             "reason": None,
             "broken": result.regressions_confirmed,
             "fixed": result.fixed_confirmed,
@@ -2949,6 +2957,13 @@ class ImprovementPipelineService:
             "baseline_pass_rate": result.baseline_pass_rate,
             "held_out": result.held_out,
         }
+
+    async def _criterion_owners(self, run: ImprovementRun) -> dict[str, str]:
+        """Which skill the session's improver put each criterion down to, by criterion name."""
+        requests = await authoring_repo.requests_of_improvement(
+            self.db, run.id, organization_id=run.organization_id
+        )
+        return criterion_owners(request.report for request in requests)
 
     async def recompute_after_review(self, ctx: AuthContext, check_ids: list[UUID]) -> None:
         """Refresh measured verdicts in the review transaction without new work or publication.
@@ -3006,7 +3021,7 @@ class ImprovementPipelineService:
                         )
                 else:
                     verdict = rules.judge(result)
-                    detail = self._result_detail(result)
+                    detail = self._result_detail(result, await self._criterion_owners(run))
                 await improvement_repo.update_iteration(
                     self.db,
                     iteration=iteration,
@@ -3038,7 +3053,7 @@ class ImprovementPipelineService:
                 "verdict": verdict.value,
                 "verdict_detail": {
                     **(iteration.verdict_detail or {}),
-                    **self._result_detail(result),
+                    **self._result_detail(result, await self._criterion_owners(run)),
                 },
                 "cost_usd": max(Decimal(0), spent - previous_cost),
                 "ended_at": datetime.now(UTC),

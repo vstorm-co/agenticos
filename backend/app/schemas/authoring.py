@@ -206,6 +206,14 @@ class SkillProblem(BaseModel):
     skill: str = Field(description="The skill's name, exactly as listed.")
     problem: str = Field(description="What the skill gets wrong, in terms of the evidence.")
     evidence: list[EvidenceQuote] = Field(default_factory=list)
+    criteria: list[str] = Field(
+        default_factory=list,
+        max_length=10,
+        description=(
+            "The graded criteria this problem makes fail, by the names the grades use; "
+            "empty when no grade names it."
+        ),
+    )
 
 
 class ImprovementProposal(BaseModel):

@@ -155,6 +155,7 @@ class TestReadingSessions:
             "change": 3,
             "held_out": 6,
             "details": {"pass_rate_before": 0.5, "pass_rate_after": 0.8},
+            "criteria": [],
             "cost_usd": "0.02",
             "chosen": True,
             "best": True,
