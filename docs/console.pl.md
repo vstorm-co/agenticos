@@ -1,5 +1,5 @@
 ---
-source_sha: "ee3fd09f0b84"
+source_sha: "c7221d82e5b2"
 ---
 
 # Konsola { #the-console }
@@ -939,6 +939,10 @@ Zachowane rozgałęzienia mają osobny limit 100 MiB na członka w organizacji i
 Tekst i media zapisane poza bazą w kopiowanym podsumowaniu są odtwarzane w rozgałęzieniu, więc usunięcie oryginału nie usuwa tego kontekstu. Odtworzona treść wlicza się do limitu 20 MiB. Odtwarzanie obejmuje najwyżej 100 odwołań i trwa do dziesięciu sekund. Niedostępna treść lub przekroczenie limitu przerywa operację bez tworzenia częściowej kopii.
 
 Rozmowę z zapisaną checklistą można rozgałęzić tylko przy jej najnowszej wiadomości, jeśli jest odpowiedzią agenta. Kopia zachowuje checklistę, w tym identyfikatory zadań i zależności. Wcześniejsze wersje checklisty nie są przechowywane, dlatego wcześniejsze rozgałęzienie jest odrzucane, aby nie kopiować późniejszych zadań do starszej historii.
+
+### Wyszukiwanie aktywności w turze { #chat-trace-search }
+
+Otwórz historię pracy tury i wybierz **Szukaj i filtruj aktywność**. Wyszukuj tekst, argumenty i wyniki narzędzi w tej turze albo wyświetlaj tylko narzędzia, rozumowanie, błędy lub wiadomości. Wpisy zachowują kolejność, a końcowa odpowiedź pozostaje na miejscu. Zgody, pytania bez odpowiedzi i konfiguracja modelu wymagające twojej uwagi pozostają widoczne także bez dopasowania. **Wyczyść filtry** lub Escape przywraca pełną aktywność; zamknięcie filtrów również je czyści.
 
 ### Sterowanie podczas tury { #chat-live-controls }
 

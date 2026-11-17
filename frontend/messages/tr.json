@@ -8159,6 +8159,10 @@
         "title": "Sıraya al veya yönlendir",
         "body": "Ajan çalışırken sonraki mesajını sıraya al veya geçerli turu düz metinle yönlendir. Dosyalar ve diğer bağlam normal sırada kalır."
       },
+      "chat-trace-filter": {
+        "title": "Bu turda bir adım bul",
+        "body": "Açık etkinlik geçmişinde metin, araç argümanları veya sonuçları ara. Araçları, akıl yürütmeyi, hataları veya mesajları filtrele; yanıtını bekleyen adımlar görünür kalır."
+      },
       "chat-agent-reasoning": {
         "title": "Akıl yürütme ayarları",
         "body": "Ajan taslağında Thinking ayarını düzenle. Taslağı kaydet, ardından sonraki çalıştırmalar için gözden geçir ve yayımla."
@@ -8874,6 +8878,21 @@
     }
   },
   "chat": {
+    "trace": {
+      "toggle": "Etkinliği ara ve filtrele",
+      "title": "Bu turun etkinliğinde ara",
+      "search": "Metin, araç girdileri ve sonuçlarda ara",
+      "filter": "Göster",
+      "all": "Tüm etkinlik",
+      "tools": "Araçlar",
+      "thinking": "Akıl yürütme",
+      "errors": "Hatalar",
+      "messages": "Mesajlar",
+      "clear": "Filtreleri temizle",
+      "count": "{total} kaydın {shown} tanesi",
+      "attention": "Seni bekleyen adımlar görünür kalır.",
+      "noMatches": "Bu filtrelerle eşleşen etkinlik yok."
+    },
     "sendMode": {
       "label": "Çalışırken gönder",
       "queue": "Sıraya al",

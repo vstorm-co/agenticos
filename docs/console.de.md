@@ -1,5 +1,5 @@
 ---
-source_sha: "ee3fd09f0b84"
+source_sha: "c7221d82e5b2"
 ---
 
 # Die Konsole { #the-console }
@@ -1018,6 +1018,10 @@ Gespeicherte Abzweigungen haben ein eigenes Kontingent von 100 MiB pro Mitglied 
 Ausgelagerter Text und Medien einer übernommenen Zusammenfassung werden in die Kopie eingebettet. Das Löschen des Originals entfernt diesen Kontext daher nicht. Die wiederhergestellten Inhalte zählen zum Limit von 20 MiB. Die Wiederherstellung ist auf 100 externe Verweise und zehn Sekunden begrenzt. Fehlende Inhalte oder überschrittene Grenzen führen zur Ablehnung ohne unvollständige Kopie.
 
 Eine Unterhaltung mit einer gespeicherten Checkliste kann nur an ihrer neuesten Nachricht abgezweigt werden, wenn diese eine Antwort des Assistenten ist. Die Kopie behält diese Checkliste einschließlich Aufgaben-IDs und Abhängigkeiten. Frühere Checklistenstände werden nicht gespeichert; eine frühere Abzweigung wird daher abgelehnt, statt spätere Aufgaben in einen älteren Verlauf zu kopieren.
+
+### Aktivitäten eines Durchlaufs durchsuchen { #chat-trace-search }
+
+Öffne den Arbeitsverlauf eines Durchlaufs und wähle **Aktivität durchsuchen und filtern**. Suche innerhalb dieses Durchlaufs nach Text, Werkzeugargumenten und Ergebnissen oder zeige nur Werkzeuge, Denkprozesse, Fehler oder Nachrichten. Die Reihenfolge bleibt erhalten und die abschließende Antwort bleibt an ihrem Platz. Freigaben, unbeantwortete Fragen und Modelleinrichtung, die deine Aufmerksamkeit brauchen, bleiben auch ohne Treffer sichtbar. **Filter zurücksetzen** oder Escape zeigt wieder alle Aktivitäten; das Schließen der Filter setzt sie ebenfalls zurück.
 
 ### Steuerung während eines Durchlaufs { #chat-live-controls }
 

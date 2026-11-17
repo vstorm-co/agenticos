@@ -286,6 +286,21 @@
     "title": "Profil"
   },
   "chat": {
+    "trace": {
+      "toggle": "Wyszukaj i filtruj aktywność",
+      "title": "Przeszukaj aktywność tej tury",
+      "search": "Szukaj w tekście, argumentach narzędzi i wynikach",
+      "filter": "Pokaż",
+      "all": "Cała aktywność",
+      "tools": "Narzędzia",
+      "thinking": "Rozumowanie",
+      "errors": "Błędy",
+      "messages": "Wiadomości",
+      "clear": "Wyczyść filtry",
+      "count": "{shown} z {total} wpisów",
+      "attention": "Kroki czekające na Ciebie pozostają widoczne.",
+      "noMatches": "Żadna aktywność nie pasuje do tych filtrów."
+    },
     "sendMode": {
       "label": "Wysyłanie podczas pracy",
       "queue": "Do kolejki",
@@ -6965,6 +6980,10 @@
       "chat-send-mode": {
         "title": "Kolejka lub kierowanie",
         "body": "Podczas pracy agenta dodaj następną wiadomość do kolejki albo przekaż wskazówki zwykłym tekstem. Pliki i pozostały kontekst pozostają w zwykłej kolejce."
+      },
+      "chat-trace-filter": {
+        "title": "Znajdź krok w tej turze",
+        "body": "Przeszukuj otwartą historię aktywności według tekstu, argumentów lub wyników narzędzi. Filtruj narzędzia, rozumowanie, błędy lub wiadomości; kroki czekające na ciebie pozostają widoczne."
       },
       "chat-agent-reasoning": {
         "title": "Ustawienia rozumowania",

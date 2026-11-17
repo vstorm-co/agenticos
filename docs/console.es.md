@@ -1,5 +1,5 @@
 ---
-source_sha: "ee3fd09f0b84"
+source_sha: "c7221d82e5b2"
 ---
 
 # La consola { #the-console }
@@ -965,6 +965,10 @@ Las bifurcaciones conservadas tienen una cuota separada de 100 MiB por miembro d
 El texto y los medios externalizados de un resumen válido se restauran dentro de la copia, por lo que eliminar el original no elimina ese contexto. El contenido restaurado cuenta para el límite de 20 MiB. La restauración admite hasta 100 referencias externas y diez segundos. Si falta contenido o se supera un límite, se rechaza la operación sin crear una copia parcial.
 
 Una conversación con una lista de tareas guardada solo puede bifurcarse en su último mensaje, que debe ser una respuesta del asistente. La copia conserva esa lista, incluidos los identificadores de tareas y las dependencias. No se guardan versiones anteriores de la lista, por lo que se rechaza una bifurcación anterior para evitar copiar tareas posteriores en un historial más antiguo.
+
+### Buscar actividad dentro de un turno { #chat-trace-search }
+
+Abre el historial de trabajo de un turno y elige **Search and filter activity**. Busca texto, argumentos y resultados de herramientas dentro de ese turno, o muestra solo herramientas, razonamiento, errores o mensajes. Las entradas conservan su orden y la respuesta final permanece en su sitio. Las aprobaciones, preguntas sin responder y la configuración del modelo que necesitan tu atención siguen visibles aunque no coincidan. **Clear filters** o Escape restaura toda la actividad; cerrar los filtros también los borra.
 
 ### Controles durante un turno { #chat-live-controls }
 

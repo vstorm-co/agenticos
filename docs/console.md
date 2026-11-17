@@ -909,6 +909,10 @@ An eligible summary's externalized text and media are restored into the copy, so
 
 A conversation with a saved checklist can be forked only at its latest message, which must be an assistant answer. The fork keeps that checklist, including task IDs and dependencies. Earlier checklist snapshots are not stored, so an earlier fork is refused rather than copying later tasks into an older history.
 
+### Finding activity within a turn { #chat-trace-search }
+
+Open a turn's work history, then choose **Search and filter activity**. Search text, tool arguments and results within that turn, or show only **Tools**, **Reasoning**, **Errors** or **Messages**. Entries keep their original order and the final answer remains in place. Approvals, unanswered questions and model setup that need your attention stay visible even when they do not match. **Clear filters** or Escape restores the full activity; closing the filter controls also clears them.
+
 ### Controls during a turn { #chat-live-controls }
 
 While an agent is working, **Queue** sends your next message after the current turn. **Steer** sends plain-text guidance to the running turn, which uses it when it next continues. The choice is remembered for your account, organization and selected agent, including the general assistant. Files, mentions, replies, page context and workflow inputs keep the ordinary queued path. If steering cannot be sent, the draft stays in the composer.
