@@ -47,6 +47,7 @@ from app.services.message_history import (
     bounded_stored_history,
     without_standing_instructions,
 )
+from tests.history_fixtures import CHECKPOINT_PROVENANCE as _PROVENANCE
 
 pytestmark = pytest.mark.anyio
 _JSON = TypeAdapter(dict[str, JsonValue])
@@ -66,6 +67,7 @@ class StoredThread:
                 summary_ordinal=self.conversation.summary_ordinal,
                 message_ordinal=self.conversation.summary_ordinal or 0,
             ),
+            provenance=_PROVENANCE,
         )
         return await self.service.model_history(self.conversation.id, limit=50)
 
@@ -83,7 +85,7 @@ def thread(monkeypatch: pytest.MonkeyPatch) -> StoredThread:
         _db: AsyncSession,
         *,
         db_conversation: Conversation,
-        messages: list[dict[str, JsonValue]],
+        messages: dict[str, JsonValue],
         ordinal: int,
         expected_revision: int,
         expected_frontier: HistoryCheckpointFrontier,
@@ -99,6 +101,7 @@ def thread(monkeypatch: pytest.MonkeyPatch) -> StoredThread:
     )
     monkeypatch.setattr(conversation_repo, "last_ordinal", AsyncMock(return_value=2))
     monkeypatch.setattr(conversation_repo, "set_summary", save)
+    monkeypatch.setattr(conversation_repo, "get_recent_messages", AsyncMock(return_value=[]))
     monkeypatch.setattr(conversation_repo, "get_messages_after", AsyncMock(return_value=[]))
     monkeypatch.setattr(
         conversation_repo, "capability_loads_in_messages", AsyncMock(return_value=[])
@@ -359,6 +362,7 @@ async def test_snapshot_frontier_is_the_saved_answer_not_a_newer_message(
         expected_revision=0,
         expected_frontier=HistoryCheckpointFrontier(summary_ordinal=None, message_ordinal=0),
         through_message_id=str(answer.id),
+        provenance=_PROVENANCE,
     )
     assert thread.conversation.summary_ordinal == 7
 
@@ -438,6 +442,7 @@ async def test_a_checkpoint_cannot_claim_a_message_from_another_conversation(
         expected_revision=0,
         expected_frontier=HistoryCheckpointFrontier(summary_ordinal=None, message_ordinal=0),
         through_message_id=str(answer.id),
+        provenance=_PROVENANCE,
     )
     assert thread.conversation.summary_messages is None
 
@@ -458,7 +463,7 @@ async def test_legacy_checkpoint_does_not_restore_an_old_agents_standing_prompt(
     thread.conversation.summary_ordinal = 2
     history = await thread.service.model_history(thread.conversation.id, limit=50)
     assert "OLD_AGENT_PROMPT" not in ModelMessagesTypeAdapter.dump_json(history).decode()
-    assert "Find the record" in ModelMessagesTypeAdapter.dump_json(history).decode()
+    assert "Find the record" not in ModelMessagesTypeAdapter.dump_json(history).decode()
 
 
 async def test_replaying_a_compact_checkpoint_restores_large_media_without_eviction(
@@ -509,6 +514,7 @@ async def test_replaying_a_compact_checkpoint_restores_large_media_without_evict
         checkpoint,
         expected_revision=0,
         expected_frontier=HistoryCheckpointFrontier(summary_ordinal=None, message_ordinal=0),
+        provenance=_PROVENANCE,
     )
     # Restoring is unconditional even when the next agent does not bind MediaOffload.
     for _ in range(2):

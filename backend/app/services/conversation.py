@@ -63,7 +63,10 @@ from app.schemas.conversation import (
     ConversationCreate,
     ConversationForkOrigin,
     ConversationUpdate,
+    HistoryCheckpoint,
     HistoryCheckpointFrontier,
+    HistoryProvenance,
+    HistorySource,
     MessageCreate,
     MessageRead,
     MessageReplyRef,
@@ -284,6 +287,7 @@ class ConversationService:
         if (
             conversation is None
             or summary is None
+            or isinstance(summary, list)
             or conversation.summary_ordinal is None
             or public_transcript_only
             or await self._has_shared_history(conversation)
@@ -292,7 +296,8 @@ class ConversationService:
                 conversation_id, limit, exclude_message_id, conversation
             )
         try:
-            summary = _STORED_MESSAGES.validate_python(summary)
+            checkpoint = HistoryCheckpoint.model_validate(summary)
+            summary = checkpoint.messages
             since = await conversation_repo.get_messages_after(
                 self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
             )
@@ -330,6 +335,10 @@ class ConversationService:
         return ModelHistory(
             replayed,
             revision=revision,
+            provenance=checkpoint.provenance,
+            source=HistorySource(
+                conversation_id=conversation_id, limit=limit, exclude_message_id=exclude_message_id
+            ),
             frontier=HistoryCheckpointFrontier(
                 summary_ordinal=conversation.summary_ordinal,
                 message_ordinal=max(
@@ -337,6 +346,27 @@ class ConversationService:
                 ),
             ),
         )
+
+    async def history_for_provenance[History: Sequence[ModelMessage] | None](
+        self,
+        history: History,
+        provenance: HistoryProvenance | None,
+    ) -> History | ModelHistory:
+        """Use private tool evidence only with the agent and destinations that produced it."""
+        if (
+            not isinstance(history, ModelHistory)
+            or history.source is None
+            or history.provenance == provenance
+        ):
+            return history
+        visible = await self.model_history(
+            history.source.conversation_id,
+            limit=history.source.limit,
+            exclude_message_id=history.source.exclude_message_id,
+            public_transcript_only=True,
+        )
+        visible.extend_public_context(history.public_context)
+        return visible
 
     async def _has_shared_history(self, conversation: Conversation) -> bool:
         """A shared participant may replay visible turns, never another person's hidden tools."""
@@ -545,6 +575,7 @@ class ConversationService:
         expected_revision: int | None,
         expected_frontier: HistoryCheckpointFrontier | None = None,
         through_message_id: str | None = None,
+        provenance: HistoryProvenance | None = None,
     ) -> None:
         """Checkpoint a completed turn, using the existing summary storage columns.
 
@@ -557,6 +588,8 @@ class ConversationService:
         a concurrent completion leaves its visible rows replayable instead of
         letting a later answer silently cover evidence it never read.
         """
+        if provenance is None:
+            return
         if expected_revision is None:
             logger.info(
                 "conversation_summary_unversioned", extra={"conversation_id": str(conversation_id)}
@@ -580,10 +613,15 @@ class ConversationService:
         else:
             # Older internal callers save compacted histories without a row id.
             ordinal = await conversation_repo.last_ordinal(self.db, conversation_id)
+        checkpoint = HistoryCheckpoint(version=1, provenance=provenance, messages=[])
+        overhead = len(json.dumps(checkpoint.model_dump(mode="json"), ensure_ascii=False).encode())
+        checkpoint.messages = bounded_stored_history(
+            _STORED_MESSAGES.validate_python(messages), overhead_bytes=overhead
+        )
         stored = await conversation_repo.set_summary(
             self.db,
             db_conversation=conversation,
-            messages=messages,
+            messages=checkpoint.model_dump(mode="json"),
             ordinal=ordinal,
             expected_revision=expected_revision,
             expected_frontier=expected_frontier,
@@ -1683,7 +1721,7 @@ class ConversationService:
 
     async def _restore_fork_summary(
         self, source: Conversation, answer: Message, *, payload_bytes: int
-    ) -> tuple[list[dict[str, JsonValue]] | None, int, bool]:
+    ) -> tuple[dict[str, JsonValue] | None, int, bool]:
         """Inline source media before any insert; a failed restore refuses the copy."""
         summary = await conversation_repo.fork_summary(
             self.db, source_id=source.id, ordinal=answer.ordinal
@@ -1695,6 +1733,10 @@ class ConversationService:
             # legacy checkpoint containing another participant's private tool data.
             return None, payload_bytes - summary.stored_bytes, False
         try:
+            checkpoint = HistoryCheckpoint.model_validate(summary.messages)
+        except ValidationError:
+            return None, payload_bytes - summary.stored_bytes, False
+        try:
             store = BoundedOrganizationMediaStore(
                 source.organization_id,
                 source.id,
@@ -1702,7 +1744,7 @@ class ConversationService:
                 max_reads=MAX_FORK_MEDIA_READS,
             )
             async with asyncio.timeout(FORK_MEDIA_TIMEOUT):
-                restored = await restore_media(summary.messages, media_store=store)
+                restored = await restore_media(checkpoint.messages, media_store=store)
                 # Escape literal marker-shaped caller data again: replay walks
                 # this stored snapshot once more. The unreachable threshold
                 # keeps every restored byte inline and never writes a blob.
@@ -1713,10 +1755,12 @@ class ConversationService:
                         threshold_bytes=2**63 - 1,
                     )
                 )
-            size = len(json.dumps(restored, ensure_ascii=False).encode("utf-8"))
+            checkpoint.messages = restored
+            restored_checkpoint = checkpoint.model_dump(mode="json")
+            size = len(json.dumps(restored_checkpoint, ensure_ascii=False).encode("utf-8"))
             if payload_bytes - summary.stored_bytes + size > MAX_FORK_BYTES:
                 raise MediaReadLimitError("Restored summary exceeds the copy budget")
-            stored_size = await conversation_repo.fork_summary_bytes(self.db, restored)
+            stored_size = await conversation_repo.fork_summary_bytes(self.db, restored_checkpoint)
             if payload_bytes - summary.stored_bytes + stored_size > MAX_FORK_BYTES:
                 raise MediaReadLimitError("Stored summary exceeds the copy budget")
         except (ValueError, OSError, TimeoutError) as failed:
@@ -1726,7 +1770,7 @@ class ConversationService:
                 message="This conversation's summary cannot be copied within the fork limits",
                 details={"max_bytes": MAX_FORK_BYTES, "max_media_references": MAX_FORK_MEDIA_READS},
             ) from failed
-        return restored, payload_bytes - summary.stored_bytes + stored_size, True
+        return restored_checkpoint, payload_bytes - summary.stored_bytes + stored_size, True
 
     async def _attach_fork_origins(
         self, conversations: Sequence[Conversation], *, user_id: UUID | None

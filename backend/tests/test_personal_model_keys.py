@@ -443,3 +443,32 @@ async def test_impersonation_cannot_reach_personal_model_keys_at_request_or_run_
     seal.assert_not_called()
     unseal.assert_not_called()
     assert db.mock_calls == []
+
+
+@pytest.mark.security
+async def test_personal_resolution_records_its_connection_identity_without_secret_metadata() -> (
+    None
+):
+    ctx = context()
+    held = profile()
+    row = PersonalModelKey(
+        id=uuid4(),
+        organization_id=ctx.organization_id,
+        user_id=ctx.user_id,
+        provider=held.provider,
+        endpoint=held.base_url,
+        sealed_secret="ciphertext",
+        key_version=1,
+    )
+    with (
+        patch("app.services.personal_model_key.key_repo.get", AsyncMock(return_value=row)),
+        patch(
+            "app.services.personal_model_key.unseal_secret",
+            return_value=ApiKeySecret(api_key=SecretStr("test-secret")),
+        ),
+    ):
+        resolved = await PersonalModelKeyService(AsyncMock()).resolve(ctx, held)
+    assert resolved.credential.credential_id == row.id
+    assert resolved.credential.authorization_generation is None
+    assert resolved.credential.routing == {"credential_updated_at": None}
+    assert resolved.credential.base_url == held.base_url

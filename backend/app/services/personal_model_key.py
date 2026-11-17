@@ -197,6 +197,12 @@ class PersonalModelKeyService:
             credential=ResolvedCredential(
                 provider=profile.provider,
                 secret=secret,
+                credential_id=row.id,
+                routing={
+                    "credential_updated_at": row.updated_at.isoformat()
+                    if row.updated_at is not None
+                    else None
+                },
                 base_url=profile.base_url,
                 api=TypeAdapter[ModelApi | None](ModelApi | None).validate_python(profile.api),
                 region=TypeAdapter[ModelRegion | None](ModelRegion | None).validate_python(

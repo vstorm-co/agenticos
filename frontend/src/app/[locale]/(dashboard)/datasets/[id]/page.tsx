@@ -152,7 +152,7 @@ export default function DatasetPage({ params }: PageProps) {
     setCopies(dataset.can_edit ? readCopies(organization, id) : []);
   }
   const cases = useDatasetCases(id, { version, skip: page * PAGE_SIZE, limit: PAGE_SIZE });
-  const editedCase = useDatasetCase(id, editing?.item?.case_id ?? null);
+  const editedCase = useDatasetCase(id, version === null ? (editing?.item?.case_id ?? null) : null);
   const pageCount = Math.max(1, Math.ceil(cases.total / PAGE_SIZE));
   // Removing the last case of the last page leaves that page empty; step back to
   // the page that still exists, the adjust-state-while-rendering way.
@@ -490,6 +490,10 @@ export default function DatasetPage({ params }: PageProps) {
                   datasetId: id,
                   stored: editedCase.kase && draftOf(editedCase.kase),
                   fetchedAt: editedCase.fetchedAt,
+                  error: editedCase.error,
+                  retry: () => {
+                    void editedCase.refetch();
+                  },
                 }
               : undefined
           }

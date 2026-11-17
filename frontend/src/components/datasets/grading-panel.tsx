@@ -126,7 +126,6 @@ export function GradingPanel({
   });
 
   async function submit(): Promise<boolean> {
-    if (remote.held) return false;
     const read = checksOf(defaults);
     if (read.problems.length > 0) {
       setDefaultsProblem(tDatasets(read.problems[0]!));

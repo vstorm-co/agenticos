@@ -1,5 +1,5 @@
 ---
-source_sha: "923d18e84884"
+source_sha: "ef824da65bb6"
 ---
 
 # Governance { #governance }
@@ -61,9 +61,10 @@ Konfiguration, gilt weiterhin `members`.
 Im Verlauf der Routine sieht ihr angemeldeter Eigentümer das **Zuletzt gefilterte
 GitHub-Ereignis**: Zeitpunkt und Grund der Filterablehnung eines verifizierten
 Webhooks sowie die Autorenrichtlinie beim Empfang. Sowohl Routinen-Webhooks als
-auch GitHub-App-Zustellungen erfassen diese Diagnose. Nur die letzte Ablehnung
-wird gespeichert, ohne Payload, Autorentext oder Secret und ohne einen Run zu
-erstellen. Keine Diagnose bedeutet lediglich, dass keine Ablehnung erfasst wurde;
+auch GitHub-App-Zustellungen erfassen diese Diagnose. Gespeichert wird die letzte
+Stichprobe, höchstens einmal pro Minute je Routine anhand der Datenbankuhr
+aktualisiert. Payload, Autorentext und Secrets werden nicht gespeichert; es wird
+kein Run erstellt und kein Kontingent für Run-Zulassungen verbraucht. Keine Diagnose bedeutet lediglich, dass keine Ablehnung erfasst wurde;
 sie bestätigt keinen Webhook-Eingang. Öffentliche Webhook-Antworten bleiben unverändert.
 
 ## Zustellung von Routinen { #routine-delivery }

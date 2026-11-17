@@ -16,9 +16,14 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.repositories import conversation_repo, conversation_share_repo
 from app.repositories.conversation import RunOutcome
-from app.schemas.conversation import HistoryCheckpointFrontier, ToolCallCreate
+from app.schemas.conversation import (
+    HistoryCheckpointFrontier,
+    ToolCallCreate,
+)
 from app.services.conversation import ConversationService
 from app.services.message_history import REFUSED_TURN
+from tests.history_fixtures import CHECKPOINT_PROVENANCE as _PROVENANCE
+from tests.history_fixtures import stored_checkpoint as _checkpoint
 
 # Every conversation belongs to a tenant; the service refuses reads from another one.
 TEST_ORG_ID = uuid4()
@@ -2489,17 +2494,19 @@ class TestTheThreadAModelIsGivenBack:
         """The whole point: the summarised turns are not read back at all, so the
         next turn has nothing left to summarise a second time."""
         conversation = MockConversation()
-        conversation.summary_messages = ModelMessagesTypeAdapter.dump_python(
-            [
-                ModelRequest(
-                    parts=[
-                        SystemPromptPart(
-                            content="Summary of previous conversation:\n\nThey said hello."
-                        )
-                    ]
-                )
-            ],
-            mode="json",
+        conversation.summary_messages = _checkpoint(
+            ModelMessagesTypeAdapter.dump_python(
+                [
+                    ModelRequest(
+                        parts=[
+                            SystemPromptPart(
+                                content="Summary of previous conversation:\n\nThey said hello."
+                            )
+                        ]
+                    )
+                ],
+                mode="json",
+            )
         )
         conversation.summary_ordinal = 4
         monkeypatch.setattr(
@@ -2651,10 +2658,11 @@ class TestTheThreadAModelIsGivenBack:
             [{"kind": "request"}],
             expected_revision=0,
             expected_frontier=HistoryCheckpointFrontier(summary_ordinal=None, message_ordinal=9),
+            provenance=_PROVENANCE,
         )
 
         assert stored.await_args.kwargs["ordinal"] == 9
-        assert stored.await_args.kwargs["messages"] == [{"kind": "request"}]
+        assert stored.await_args.kwargs["messages"] == _checkpoint([{"kind": "request"}])
 
     async def test_a_summary_for_a_conversation_that_is_gone_is_dropped(self, monkeypatch):
         """A thread deleted while its last turn was still running. The answer has
@@ -2670,6 +2678,7 @@ class TestTheThreadAModelIsGivenBack:
             [{"kind": "request"}],
             expected_revision=0,
             expected_frontier=HistoryCheckpointFrontier(summary_ordinal=None, message_ordinal=0),
+            provenance=_PROVENANCE,
         )
 
         stored.assert_not_awaited()
@@ -2733,15 +2742,19 @@ class TestTheThreadAModelIsGivenBack:
     async def test_nor_is_it_replayed_after_a_summary(self, monkeypatch):
         """The other half of `model_history`: the rows written since a summary."""
         conversation = MockConversation()
-        conversation.summary_messages = ModelMessagesTypeAdapter.dump_python(
-            [
-                ModelRequest(
-                    parts=[
-                        SystemPromptPart(content="Summary of previous conversation:\n\nSummary.")
-                    ]
-                )
-            ],
-            mode="json",
+        conversation.summary_messages = _checkpoint(
+            ModelMessagesTypeAdapter.dump_python(
+                [
+                    ModelRequest(
+                        parts=[
+                            SystemPromptPart(
+                                content="Summary of previous conversation:\n\nSummary."
+                            )
+                        ]
+                    )
+                ],
+                mode="json",
+            )
         )
         conversation.summary_ordinal = 4
         run_id = uuid4()
@@ -3327,7 +3340,9 @@ async def test_a_caller_cannot_supply_a_turn_file_origin() -> None:
 async def test_an_unversioned_summary_cannot_replace_the_guarded_cache(monkeypatch):
     stored = AsyncMock()
     monkeypatch.setattr(conversation_repo, "set_summary", stored)
-    await ConversationService(AsyncMock()).keep_summary(uuid4(), [], expected_revision=None)
+    await ConversationService(AsyncMock()).keep_summary(
+        uuid4(), [], expected_revision=None, provenance=_PROVENANCE
+    )
     stored.assert_not_awaited()
 
 
@@ -3338,6 +3353,8 @@ async def test_a_checkpoint_without_a_proven_input_frontier_does_not_read_or_rep
     db = AsyncMock()
     stored = AsyncMock()
     monkeypatch.setattr(conversation_repo, "set_summary", stored)
-    await ConversationService(db).keep_summary(uuid4(), [], expected_revision=0)
+    await ConversationService(db).keep_summary(
+        uuid4(), [], expected_revision=0, provenance=_PROVENANCE
+    )
     stored.assert_not_awaited()
     assert db.mock_calls == []

@@ -1658,6 +1658,7 @@ class AgentSession:
                     expected_revision=turn.history_revision,
                     expected_frontier=turn.history_frontier,
                     through_message_id=through_message_id,
+                    provenance=turn.history_provenance,
                 )
             if turn.overhead_tokens is not None:
                 await conversations.keep_overhead(conversation_id, turn.overhead_tokens)

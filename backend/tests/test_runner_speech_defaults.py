@@ -21,6 +21,7 @@ from tests.test_agent_runner import (
     _ctx,
     _db,
     _parked_run,
+    _resolved_model,
 )
 from tests.test_agent_runner import (
     _in_no_group as _in_no_group,
@@ -78,7 +79,7 @@ def speech_run() -> Iterator[SpeechRun]:
         )
         stack.enter_context(
             patch.object(
-                service.models, "resolve", AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", AsyncMock(return_value=_resolved_model("gpt-4.1"))
             )
         )
         stack.enter_context(

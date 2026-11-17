@@ -342,7 +342,7 @@ from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.repositories.voice_call import VoiceChain
 from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.schemas.agent_run import ChatAskerRead, RunOriginRead
-from app.schemas.conversation import HistoryCheckpointFrontier
+from app.schemas.conversation import HistoryCheckpointFrontier, HistoryProvenance
 from app.schemas.organization import OrganizationTextToSpeech
 from app.schemas.user import WorkingHours
 from app.services import change_feed
@@ -1120,6 +1120,9 @@ class PausedRunState(BaseModel):
     guardrail_revision: int | None = Field(
         default=None, ge=0, exclude_if=lambda value: value is None
     )
+    history_provenance: HistoryProvenance | None = Field(
+        default=None, exclude_if=lambda v: v is None
+    )
     history_frontier: HistoryCheckpointFrontier | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
@@ -1807,6 +1810,7 @@ class PreparedRun:
 
     channel_destination: ChannelDestination | None = None
     model_context_check: ModelContextCheck | None = None
+    history_provenance: HistoryProvenance | None = None
     shared_history: bool = False
     """Only visible transcript turns may be replayed across a shared audience."""
 
@@ -2117,6 +2121,79 @@ class PreparedRun:
         return None if self.workspace is None else self.workspace.workspace
 
 
+def _mcp_destination_digest(sources: Mapping[UUID, McpSourceIdentity]) -> str:
+    material = [
+        (
+            str(identifier),
+            identity.endpoint_hash,
+            str(identity.authorization_generation),
+            identity.tool_prefix,
+        )
+        for identifier, identity in sorted(sources.items(), key=lambda item: str(item[0]))
+    ]
+    return hashlib.sha256(json.dumps(material, separators=(",", ":")).encode()).hexdigest()
+
+
+def _bind_mcp_provenance(
+    provenance: HistoryProvenance | None, sources: Mapping[UUID, McpSourceIdentity]
+) -> HistoryProvenance | None:
+    """Use the same immutable live connection identities that built this run's toolsets."""
+    return (
+        None
+        if provenance is None
+        else provenance.model_copy(
+            update={"mcp_destination_digest": _mcp_destination_digest(sources)}
+        )
+    )
+
+
+def _history_provenance(
+    agent_id: UUID, spec: AgentSpec, model: ModelRequestSpec, user_id: UUID | None
+) -> HistoryProvenance:
+    """Bind replay to resolved configuration without reading or retaining credential values."""
+    destinations = [
+        {
+            "provider": credential.provider,
+            "endpoint": credential.base_url,
+            "api": credential.api,
+            "region": credential.region,
+            "model": name,
+            "routing": dict(credential.routing),
+            "credential_id": str(credential.credential_id) if credential.credential_id else None,
+            "authorization_generation": str(credential.authorization_generation)
+            if credential.authorization_generation
+            else None,
+        }
+        for credential, name in [(model.credential, model.model), *model.fallbacks]
+    ]
+    configuration = {
+        "spec": spec.model_dump(mode="json"),
+        "profile_id": str(model.profile_id),
+        "secret_id": str(model.secret_id) if model.secret_id is not None else None,
+        "user_id": str(user_id) if user_id is not None else None,
+        "params": model.params,
+        "destinations": destinations,
+    }
+    return HistoryProvenance(
+        agent_id=agent_id,
+        mcp_destination_digest=_mcp_destination_digest({}) if not spec.mcp_servers else None,
+        configuration_digest=hashlib.sha256(
+            json.dumps(configuration, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    )
+
+
+def _require_history_provenance(
+    expected: HistoryProvenance | None, actual: HistoryProvenance | None
+) -> None:
+    """Refuse parked evidence whose rebuilt recipients cannot prove the original boundary."""
+    if expected is not None and actual != expected:
+        raise BadRequestError(
+            message="This run's agent or model destination changed after it paused. Start a new turn.",
+            details={"code": "HISTORY_DESTINATION_CHANGED"},
+        )
+
+
 def _outcome(
     agent_run: AgentIteration[AgentDeps, AgentOutput],
 ) -> AgentRunResult[AgentOutput]:
@@ -2151,6 +2228,7 @@ def _classify_output(
     parked: dict[str, str],
     history_revision: int | None = None,
     history_frontier: HistoryCheckpointFrontier | None = None,
+    history_provenance: HistoryProvenance | None = None,
 ) -> tuple[RunStatus, str, dict[str, Any] | None, PausedRunState | None]:
     """The terminal status a finished run reaches, and what it carries there.
 
@@ -2176,6 +2254,7 @@ def _classify_output(
             questions=questions,
             guardrail_revision=history_revision,
             history_frontier=history_frontier,
+            history_provenance=history_provenance,
         )
         # Waiting on a decision outranks waiting on an answer: the approval queue
         # is where somebody can release it, and a question in the same step is
@@ -4027,6 +4106,7 @@ class AgentRunnerService:
         agent: Agent,
         spec: AgentSpec,
         existing_run: AgentRun | None,
+        expected_history_provenance: HistoryProvenance | None = None,
         surface: RunSurface,
         conversation_id: UUID | None,
         channel_key: str | None = None,
@@ -4207,6 +4287,18 @@ class AgentRunnerService:
                     message=not_chat_refusal(model_spec.label, model_spec.model, outputs),
                     details={"model_profile_id": str(model_spec.profile_id)},
                 )
+
+        history_provenance = (
+            None
+            if model_spec is None
+            else _history_provenance(agent.id, spec, model_spec, models_ctx.user_id)
+        )
+        if model_spec is not None and expected_history_provenance is not None:
+            assert history_provenance is not None
+            _require_history_provenance(
+                expected_history_provenance.model_copy(update={"mcp_destination_digest": None}),
+                history_provenance.model_copy(update={"mcp_destination_digest": None}),
+            )
 
         # The organization's ceiling is read here rather than passed in by the
         # surface, for the reason this module exists: a limit each caller has to
@@ -4473,6 +4565,9 @@ class AgentRunnerService:
                 ),
             ),
         )
+        history_provenance = _bind_mcp_provenance(history_provenance, resolved.sources)
+        if model_spec is not None:
+            _require_history_provenance(expected_history_provenance, history_provenance)
         spec_toolsets: list[AbstractToolset[object]] = resolved.toolsets
         if routine is not None and routine.routine_kind == "trigger":
             spec_toolsets = [
@@ -4813,6 +4908,11 @@ class AgentRunnerService:
                 service_id, profile_id = local_model_choice
                 service = await describe_service(session_id, service_id, "model")
                 model_spec = local_model_spec(profile_id, session_id, service)
+                history_provenance = _bind_mcp_provenance(
+                    _history_provenance(agent.id, spec, model_spec, models_ctx.user_id),
+                    resolved.sources,
+                )
+                _require_history_provenance(expected_history_provenance, history_provenance)
                 run.model_label = model_spec.label
                 run.provider = model_spec.provider
                 run.secret_id = None
@@ -5306,6 +5406,7 @@ class AgentRunnerService:
                 if channel_directory is None
                 else await resolve_prompt_variables(CHANNEL_CONTEXT, channel_directory)
             ),
+            history_provenance=history_provenance,
             shared_history=audience.room_key is not None or audience.shared_transcript,
             channel_authors=dict(restored_channel_authors or {}),
             channel_file_budget=ChannelFileBudget(channel_file_attempts),
@@ -7025,6 +7126,7 @@ class AgentRunnerService:
                 "admitted_as": prepared.admitted_as.model_copy(
                     update={"can_ask_questions": prepared.built.deps.ask_questions is not None}
                 ),
+                "history_provenance": prepared.history_provenance,
                 "output_schema": prepared.output_schema,
                 "run_limit_usd": prepared.run_limit_usd,
                 "delegated_approvals": {
@@ -7652,6 +7754,11 @@ class AgentRunnerService:
                 details={"run_id": str(run_id)},
             )
         state = PausedRunState.model_validate(run.paused_state)
+        if state.history_provenance is None and state.messages:
+            raise BadRequestError(
+                message="This run paused before model destination verification was available. Start a new turn.",
+                details={"run_id": str(run_id), "code": "HISTORY_DESTINATION_UNVERIFIED"},
+            )
         can_ask = state.admitted_as.can_ask_questions or (
             "can_ask_questions" not in state.admitted_as.model_fields_set
             and run.surface == RunSurface.WEB.value
@@ -7741,6 +7848,7 @@ class AgentRunnerService:
             approval_mode=state.admitted_as.approval_mode,
             local=state.admitted_as.local,
             model_profile_id=state.admitted_as.model_profile_id,
+            expected_history_provenance=state.history_provenance,
             acts_for_sender=state.admitted_as.acts_for_sender and run.user_id is not None,
             # Whose run this is, not who is resuming it. An approver is allowed
             # to release somebody else's parked run; they are not the account it
@@ -8601,11 +8709,14 @@ class AgentRunnerService:
         model_content = (
             None if said is None else screened_copy(said, attachment_context, input_edge)
         )
-        message_history = screen_history(message_history, input_edge)
-        prepared.model_context_check = model_context_check(
-            prepared.run.conversation_id, message_history, check_model_request
-        )
         try:
+            message_history = await ConversationService(self.db).history_for_provenance(
+                message_history, prepared.history_provenance
+            )
+            message_history = screen_history(message_history, input_edge)
+            prepared.model_context_check = model_context_check(
+                prepared.run.conversation_id, message_history, check_model_request
+            )
             if isinstance(message_history, ModelHistory):
                 await check_history_snapshot(self.db, prepared.run.conversation_id, message_history)
             if on_run_open is not None:
@@ -8672,6 +8783,7 @@ class AgentRunnerService:
                 history_frontier=message_history.frontier
                 if isinstance(message_history, ModelHistory)
                 else None,
+                history_provenance=prepared.history_provenance,
             )
             if paused is not None:
                 paused.tool_identities = {
@@ -8800,6 +8912,7 @@ class AgentRunnerService:
                                 if isinstance(message_history, ModelHistory)
                                 else None,
                                 through_message_id=str(message_id),
+                                provenance=prepared.history_provenance,
                             )
                         # On every turn, not only a summarising one: it is what the
                         # *next* turn needs before it has a response of its own.

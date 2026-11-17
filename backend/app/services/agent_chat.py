@@ -60,7 +60,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import conversation_repo, member_repo
-from app.schemas.conversation import HistoryCheckpointFrontier
+from app.schemas.conversation import HistoryCheckpointFrontier, HistoryProvenance
 from app.schemas.mention import MentionRef
 from app.services import change_feed
 from app.services.agent_runner import (
@@ -74,7 +74,11 @@ from app.services.agent_runner import (
     input_screen_for,
 )
 from app.services.attachments import AttachmentRouter
-from app.services.conversation import check_history_snapshot, model_context_check
+from app.services.conversation import (
+    ConversationService,
+    check_history_snapshot,
+    model_context_check,
+)
 from app.services.device_hub import LocalTarget
 from app.services.mentions import MentionService, ResolvedMentions
 from app.services.message_history import (
@@ -381,6 +385,7 @@ class ChatTurn:
     """The input snapshot's refusal revision; absent for unversioned caller histories."""
 
     history_frontier: HistoryCheckpointFrontier | None = None
+    history_provenance: HistoryProvenance | None = None
     """The original checkpoint and transcript frontier this turn actually read."""
 
     history_snapshot: list[dict[str, Any]] | None = None
@@ -692,9 +697,12 @@ class ChatAgentRunner:
                 conversation_id=conversation_id,
                 content=model_content,
             )
-        message_history = screen_history(message_history, input_edge)
-        prepared.model_context_check = model_context_check(conversation_id, message_history)
         try:
+            message_history = await ConversationService(self.db).history_for_provenance(
+                message_history, prepared.history_provenance
+            )
+            message_history = screen_history(message_history, input_edge)
+            prepared.model_context_check = model_context_check(conversation_id, message_history)
             if isinstance(message_history, ModelHistory):
                 await check_history_snapshot(self.db, conversation_id, message_history)
             await self.db.commit()
@@ -730,6 +738,7 @@ class ChatAgentRunner:
                 history_frontier=message_history.frontier
                 if isinstance(message_history, ModelHistory)
                 else None,
+                history_provenance=prepared.history_provenance,
             )
             if paused is not None:
                 paused.tool_identities = dict(prepared.built.deps.tool_identities)
@@ -827,6 +836,7 @@ class ChatAgentRunner:
             draft_tools=draft_tool_names(prepared.spec),
             usage=await self._usage(ctx, prepared),
             history_snapshot=history_snapshot,
+            history_provenance=prepared.history_provenance,
             history_revision=message_history.revision
             if isinstance(message_history, ModelHistory)
             else None,

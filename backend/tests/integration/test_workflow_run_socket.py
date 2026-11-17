@@ -34,6 +34,7 @@ from app.services.conversation import ConversationService
 from app.services.workflow_execution import WorkflowExecutionService, events
 from app.services.workflow_run_socket import WorkflowRunSocket
 from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
+from tests.history_fixtures import CHECKPOINT_PROVENANCE as _PROVENANCE
 
 pytestmark = pytest.mark.anyio
 
@@ -376,6 +377,7 @@ class TestTheChatsDoor:
                 summary,
                 expected_revision=snapshot.revision,
                 expected_frontier=snapshot.frontier,
+                provenance=_PROVENANCE,
             )
             cutoff = await conversation_repo.last_ordinal(db, conversation.id)
 
@@ -423,6 +425,7 @@ class TestTheChatsDoor:
                 ModelMessagesTypeAdapter.dump_python(history, mode="json"),
                 expected_revision=history.revision,
                 expected_frontier=history.frontier,
+                provenance=_PROVENANCE,
             )
 
             # An identical redelivery keeps the id and ordinal, so a terminal

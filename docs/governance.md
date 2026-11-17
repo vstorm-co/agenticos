@@ -53,8 +53,9 @@ a configuration with no `authors` still means `members`.
 In the routine's history, its signed-in owner can see the **Latest filtered GitHub
 event**: when a verified webhook failed a filter, why, and the author policy at
 receipt. Both per-routine webhooks and GitHub App deliveries record this diagnostic.
-Only the latest rejection is retained, with no payload, author text or secret, and
-no run is created for it. No diagnostic means no rejection has been recorded; it
+Only the latest retained sample is kept, updated at most once per minute per
+routine using the database clock. There is no payload, author text or secret, and
+no run is created or run-admission quota spent for it. No diagnostic means no rejection has been recorded; it
 does not prove webhook delivery. Public webhook responses remain unchanged.
 
 ## Routine delivery
