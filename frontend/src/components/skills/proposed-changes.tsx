@@ -113,6 +113,9 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             ) : (
               <Badge variant="outline">{t("edit")}</Badge>
             )}
+            {change.browser_teaching_id != null && (
+              <Badge variant="outline">{t("fromBrowserDemonstration")}</Badge>
+            )}
           </div>
           <p className="text-muted-foreground text-xs">
             {change.description || t("noDescriptionWorthAdding")}

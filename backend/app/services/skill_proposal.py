@@ -136,6 +136,48 @@ class SkillProposalService:
             )
         return recorded
 
+    async def record_teaching(
+        self,
+        ctx: AuthContext,
+        *,
+        browser_teaching_id: UUID,
+        agent_id: UUID,
+        name: str,
+        description: str,
+        content: str,
+    ) -> SkillProposal:
+        """Store the one new-skill proposal a reviewed browser demonstration asked for.
+
+        Never overwrites a pending proposal: a demonstration is its own source, and
+        `browser_teaching_id` is unique, so a second build for it fails rather than
+        adding a second proposal. Its apply and discard are the ordinary ones.
+        """
+        proposal = await skill_proposal_repo.create(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=None,
+            agent_id=agent_id,
+            conversation_id=None,
+            name=name,
+            description=description,
+            content=content,
+            resources={},
+            base_version=None,
+            base_version_id=None,
+            fork_id=None,
+            browser_teaching_id=browser_teaching_id,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="skill.change_proposed",
+            target_type="agent",
+            target_id=str(agent_id),
+            details={"skills": [proposal.name], "browser_teaching_id": str(browser_teaching_id)},
+        )
+        return proposal
+
     async def list_proposals(
         self, ctx: AuthContext, *, status: str | None = None
     ) -> list[SkillProposal]:
@@ -531,6 +573,8 @@ def version_source(proposal: SkillProposal) -> SkillVersionSource:
     """What a version made from this proposal says it came from."""
     if proposal.source is not None:
         return SkillVersionSource(proposal.source)
+    if proposal.browser_teaching_id is not None:
+        return SkillVersionSource.CREATED
     if proposal.authoring_request_id is None:
         return SkillVersionSource.WORKSPACE
     return SkillVersionSource.IMPROVE

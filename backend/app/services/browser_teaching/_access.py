@@ -41,6 +41,29 @@ def human_subject(ctx: AuthContext) -> UUID:
     return user_id
 
 
+def _personal(run: AgentRun | None, user_id: UUID) -> bool:
+    """Whether the run is this person's own web run, not a delegated, keyed, triggered or system one."""
+    return not (
+        run is None
+        or run.user_id != user_id
+        or run.surface != RunSurface.WEB.value
+        or run.parent_run_id is not None
+        or run.key_scopes is not None
+        or run.trigger_id is not None
+        or run.system_role is not None
+        or run.initiated_by_publisher_fallback
+    )
+
+
+async def _may_run_agent(db: AsyncSession, member: AuthContext, organization_id: UUID, agent_id: UUID) -> bool:
+    agent = await agent_repo.get(db, agent_id, organization_id=organization_id)
+    return (
+        agent is not None
+        and agent.status != "archived"
+        and await resolve_access(db, member, agent, Perm.AGENTS_RUN, resource_type=AGENT)
+    )
+
+
 async def authority(
     db: AsyncSession, organization_id: UUID, user_id: UUID, run_id: UUID
 ) -> AgentRun:
@@ -56,23 +79,31 @@ async def authority(
     run = await run_repo.get_run(db, run_id, organization_id=organization_id)
     if run is not None:
         await db.refresh(run)
-    if (
-        run is None
-        or run.status != RunStatus.RUNNING.value
-        or run.user_id != user_id
-        or run.surface != RunSurface.WEB.value
-        or run.parent_run_id is not None
-        or run.key_scopes is not None
-        or run.trigger_id is not None
-        or run.system_role is not None
-        or run.initiated_by_publisher_fallback
-    ):
+    if run is None or run.status != RunStatus.RUNNING.value or not _personal(run, user_id):
         raise TeachingRefused(TeachingReason.UNAVAILABLE)
-    agent = await agent_repo.get(db, run.agent_id, organization_id=organization_id)
-    if (
-        agent is None
-        or agent.status == "archived"
-        or not await resolve_access(db, member, agent, Perm.AGENTS_RUN, resource_type=AGENT)
-    ):
+    if not await _may_run_agent(db, member, organization_id, run.agent_id):
         raise TeachingRefused(TeachingReason.AUTHORITY_CHANGED)
     return run
+
+
+async def reviewer(
+    db: AsyncSession, organization_id: UUID, user_id: UUID, run_id: UUID, agent_id: UUID
+) -> AuthContext:
+    """The owner as the member they are now, if they may still review and propose.
+
+    Review happens after capture, so the run need not be running any more. It
+    must still be this person's own web run of the same agent, and they must
+    still be an active member with `skills:edit` who may run that agent. Read
+    fresh on every call: a queued proposal job asks again before it writes.
+    """
+    member = await member_context(db, organization_id=organization_id, user_id=user_id)
+    if member is None or not member.has(Perm.SKILLS_EDIT):
+        raise TeachingRefused(TeachingReason.AUTHORITY_CHANGED)
+    run = await run_repo.get_run(db, run_id, organization_id=organization_id)
+    if run is not None:
+        await db.refresh(run)
+    if run is None or run.agent_id != agent_id or not _personal(run, user_id):
+        raise TeachingRefused(TeachingReason.AUTHORITY_CHANGED)
+    if not await _may_run_agent(db, member, organization_id, agent_id):
+        raise TeachingRefused(TeachingReason.AUTHORITY_CHANGED)
+    return member

@@ -13,6 +13,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.budget import BudgetExceeded
 from app.clients.redis import RedisClient
 from app.core.audit import record_audit
 from app.core.browser_teaching import (
@@ -23,6 +24,7 @@ from app.core.browser_teaching import (
     Action,
     CapturedStep,
     Observation,
+    ReviewedStep,
     TeachingConflict,
     TeachingReason,
     TeachingRefused,
@@ -33,18 +35,26 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.browser_teaching import BrowserTeachingSession
 from app.repositories import browser_teaching as repo
-from app.schemas.browser_teaching import TeachingChange, TeachingRead, TeachingStart
+from app.repositories import skill_proposal_repo, skill_repo
+from app.schemas.browser_teaching import TeachingChange, TeachingPropose, TeachingRead, TeachingReview, TeachingStart
+from app.services.background_jobs import enqueue
+from app.services.skill_proposal import SkillProposalService
+from app.services.spend import assert_organization_within_budget
+from app.worker import jobs
 
-from . import _access, _hold
+from . import _access, _hold, _propose
 from ._hold import Hold
 
 _HARD_LIMITS = frozenset(
     {TeachingReason.EVENT_LIMIT, TeachingReason.BYTE_LIMIT, TeachingReason.TIME_LIMIT}
 )
-_OPEN = frozenset({TeachingState.RECORDING, TeachingState.PAUSED, TeachingState.REVIEW})
+_OPEN = frozenset(
+    {TeachingState.RECORDING, TeachingState.PAUSED, TeachingState.REVIEW, TeachingState.PROPOSING}
+)
 
 
-def read(row: BrowserTeachingSession) -> TeachingRead:
+def read(row: BrowserTeachingSession, proposal_id: UUID | None = None) -> TeachingRead:
+    review = tuple(ReviewedStep.model_validate(item) for item in row.review)
     return TeachingRead(
         id=row.id,
         agent_id=row.agent_id,
@@ -57,10 +67,19 @@ def read(row: BrowserTeachingSession) -> TeachingRead:
         revision=row.revision,
         reason_code=None if row.reason_code is None else TeachingReason(row.reason_code),
         events=tuple(CapturedStep.model_validate(item) for item in row.sanitized_events),
+        review=review,
+        parameters=parameter_names(review),
+        proposal_name=row.proposal_name,
+        proposal_id=proposal_id,
         created_at=row.created_at,
         capture_ends_at=row.capture_ends_at,
         expires_at=row.expires_at,
     )
+
+
+def parameter_names(review: tuple[ReviewedStep, ...]) -> tuple[str, ...]:
+    """Each parameter name once, in the order the steps first use it."""
+    return tuple(dict.fromkeys(step.parameter for step in review if step.parameter))
 
 
 def _digest(value: str) -> str:
@@ -84,6 +103,9 @@ def erase(
     row.allowed_origins = []
     row.title = ""
     row.hold_id = None
+    row.review = []
+    row.proposal_name = None
+    row.source_hash = None
     row.revision += 1
 
 
@@ -123,6 +145,14 @@ async def audit(db: AsyncSession, row: BrowserTeachingSession, action: str) -> N
             "reason_code": row.reason_code,
         },
     )
+
+
+async def _within_budget(db: AsyncSession, organization_id: UUID) -> None:
+    """The organization's monthly cap, as a teaching refusal with a stable reason code."""
+    try:
+        await assert_organization_within_budget(db, organization_id)
+    except BudgetExceeded:
+        raise TeachingRefused(TeachingReason.BUDGET) from None
 
 
 class BrowserTeachingService:
@@ -201,7 +231,144 @@ class BrowserTeachingService:
         return read(row)
 
     async def get(self, ctx: AuthContext, session_id: UUID) -> TeachingRead:
-        return read(await self._owned(ctx, session_id))
+        return await self._read(await self._owned(ctx, session_id))
+
+    async def _read(self, row: BrowserTeachingSession) -> TeachingRead:
+        proposal = None
+        if row.status == TeachingState.PROPOSED:
+            proposal = await skill_proposal_repo.for_browser_teaching(
+                self.db, organization_id=row.organization_id, browser_teaching_id=row.id
+            )
+        return read(row, None if proposal is None else proposal.id)
+
+    async def review(
+        self, ctx: AuthContext, session_id: UUID, body: TeachingReview, revision: int | None
+    ) -> TeachingRead:
+        """Replace the reviewed labels and parameter names of a session in review.
+
+        Labels and parameter names are the reviewer's own words; nothing typed or
+        shown during the demonstration is read back. Sending the stored review again
+        is a no-op, so a retried request neither conflicts nor bumps the revision.
+        """
+        row = await self._owned(ctx, session_id)
+        if row.status != TeachingState.REVIEW:
+            raise TeachingConflict(TeachingReason.WRONG_STATE)
+        steps = [step for step in body.steps if step.label is not None or step.parameter is not None]
+        stored = [step.model_dump(mode="json") for step in steps]
+        if stored == row.review:
+            return read(row)
+        if revision is None or revision != row.revision:
+            raise TeachingConflict(TeachingReason.STALE_REVISION)
+        _access.require_enabled(row.organization_id)
+        await _access.reviewer(self.db, row.organization_id, row.owner_user_id, row.run_id, row.agent_id)
+        events, _ = _propose.steps_of(row)
+        refusal = _propose.review_refusal(events, tuple(steps))
+        if refusal is not None:
+            raise TeachingRefused(refusal)
+        row.review = stored
+        row.reason_code = None
+        row.revision += 1
+        await audit(self.db, row, "browser_teaching.reviewed")
+        return read(row)
+
+    async def propose(
+        self, ctx: AuthContext, session_id: UUID, body: TeachingPropose, revision: int | None
+    ) -> TeachingRead:
+        """Queue the one proposal build for the reviewed steps, after every check.
+
+        Authority, the deployment flag and the organization's budget are checked
+        before anything is queued; the job checks them again before it writes. A
+        repeated request for the same skill name returns the session as it is, so
+        one session queues one build and yields at most one proposal.
+        """
+        row = await self._owned(ctx, session_id)
+        if row.status in (TeachingState.PROPOSING, TeachingState.PROPOSED):
+            if row.proposal_name != body.name:
+                raise TeachingConflict(TeachingReason.WRONG_STATE)
+            return await self._read(row)
+        if row.status != TeachingState.REVIEW:
+            raise TeachingConflict(TeachingReason.WRONG_STATE)
+        if revision is None or revision != row.revision:
+            raise TeachingConflict(TeachingReason.STALE_REVISION)
+        events, reviewed = _propose.steps_of(row)
+        incomplete = _propose.proposal_refusal(events, reviewed)
+        if incomplete is not None:
+            raise TeachingRefused(incomplete)
+        _access.require_enabled(row.organization_id)
+        await _access.reviewer(self.db, row.organization_id, row.owner_user_id, row.run_id, row.agent_id)
+        await _within_budget(self.db, row.organization_id)
+        if await skill_repo.get_by_name(self.db, body.name, organization_id=row.organization_id):
+            raise TeachingRefused(TeachingReason.SKILL_NAME)
+        digest = _propose.source_hash(row, body.name)
+        row.status = TeachingState.PROPOSING.value
+        row.proposal_name = body.name
+        row.source_hash = digest
+        row.reason_code = None
+        row.revision += 1
+        key = _propose.job_key(row.id, digest)
+        await enqueue(
+            self.db,
+            jobs.BUILD_TEACHING_PROPOSAL,
+            jobs.BuildTeachingProposal(organization_id=row.organization_id, session_id=row.id, source_hash=digest),
+            organization_id=row.organization_id,
+            dedupe_key=key,
+            dedupe_active=True,
+            idempotency_key=key,
+        )
+        await audit(self.db, row, "browser_teaching.proposal_requested")
+        return read(row)
+
+    async def build_proposal(self, organization_id: UUID, session_id: UUID, digest: str) -> None:
+        """The queued build: recheck everything, then write one proposal or none.
+
+        A job for a session that moved on, was discarded or expired, or was asked
+        with other content does nothing. Lost authority, a disabled flag or a
+        refused budget returns the session to review with a reason code and writes
+        no proposal. A proposal already linked to the session (an earlier attempt
+        whose outcome was lost) is reconciled rather than written twice.
+        """
+        row = await repo.get(self.db, organization_id, session_id, locked=True)
+        if row is None or row.status != TeachingState.PROPOSING or row.source_hash != digest:
+            return
+        if expire_if_due(row, datetime.now(UTC)):
+            await audit(self.db, row, "browser_teaching.expired")
+            return
+        existing = await skill_proposal_repo.for_browser_teaching(
+            self.db, organization_id=organization_id, browser_teaching_id=row.id
+        )
+        if existing is None:
+            try:
+                member = await self._recheck(row)
+            except TeachingRefused as refused:
+                row.status = TeachingState.REVIEW.value
+                row.reason_code = refused.reason.value
+                row.proposal_name = None
+                row.source_hash = None
+                row.revision += 1
+                await audit(self.db, row, "browser_teaching.proposal_refused")
+                return
+            assert row.proposal_name is not None, "a proposing session names its skill"
+            description, content = _propose.render(row, row.proposal_name)
+            await SkillProposalService(self.db).record_teaching(
+                member,
+                browser_teaching_id=row.id,
+                agent_id=row.agent_id,
+                name=row.proposal_name,
+                description=description,
+                content=content,
+            )
+        row.status = TeachingState.PROPOSED.value
+        row.sanitized_events = []
+        row.review = []
+        row.reason_code = None
+        row.revision += 1
+        await audit(self.db, row, "browser_teaching.proposed")
+
+    async def _recheck(self, row: BrowserTeachingSession) -> AuthContext:
+        _access.require_enabled(row.organization_id)
+        member = await _access.reviewer(self.db, row.organization_id, row.owner_user_id, row.run_id, row.agent_id)
+        await _within_budget(self.db, row.organization_id)
+        return member
 
     async def change(
         self, ctx: AuthContext, session_id: UUID, body: TeachingChange, revision: int | None

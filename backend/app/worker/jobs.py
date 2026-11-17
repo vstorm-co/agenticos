@@ -239,6 +239,18 @@ class AdvanceSkillCheck(Payload):
     organization_id: UUID
 
 
+class BuildTeachingProposal(Payload):
+    """Build the one skill proposal a reviewed browser demonstration asked for (#113).
+
+    Keyed by the session and the hash of the reviewed content; the job rechecks
+    authority, budget and the session's state before it writes anything.
+    """
+
+    organization_id: UUID
+    session_id: UUID
+    source_hash: str = Field(min_length=64, max_length=64)
+
+
 class RunEval(Payload):
     """One eval run, answered, scored and compared case by case."""
 
@@ -781,6 +793,14 @@ ADVANCE_SKILL_CHECK = Task(
 SWEEP_SKILL_CHECKS = _sweep("sweep-skill-checks")
 
 SWEEP_BROWSER_TEACHINGS = _sweep("sweep-browser-teachings", timeout=timedelta(minutes=2))
+BUILD_TEACHING_PROPOSAL = Task(
+    kind="build-teaching-proposal",
+    payload_type=BuildTeachingProposal,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
 CHECK_AGENT_TRIGGERS = _sweep("check-agent-triggers")
 POLL_PORTAL_GRANTS = _sweep("poll-portal-grants")
 DELIVER_NOTIFICATIONS = _sweep("deliver-notifications")
@@ -960,6 +980,7 @@ TASKS: dict[str, TaskKind] = {
         WEEKLY_USAGE_REPORT,
         MONTHLY_USAGE_REPORT,
         SWEEP_BROWSER_TEACHINGS,
+        BUILD_TEACHING_PROPOSAL,
         FAILURE_LEDGER_DIGEST,
     )
 }

@@ -170,5 +170,19 @@ class SkillProposal(Base, TimestampMixin):
         index=True,
     )
 
+    browser_teaching_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("browser_teaching_sessions.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
+    """The reviewed browser demonstration this proposal was built from (#113).
+
+    Unique: one demonstration yields at most one proposal, however often its build
+    job is retried. Its content holds only reviewed steps, parameter names and the
+    demonstration's allowed origins.
+    """
+
     def __repr__(self) -> str:
         return f"<SkillProposal(name={self.name}, status={self.status})>"

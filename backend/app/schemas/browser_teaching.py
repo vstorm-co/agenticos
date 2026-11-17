@@ -1,18 +1,22 @@
 """Browser teaching request and response bodies. Responses hold sanitized metadata only."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.browser_teaching import (
+    MAX_EVENTS,
     MAX_ORIGINS,
+    MAX_PARAMETERS,
     CapturedStep,
+    ReviewedStep,
     TeachingReason,
     TeachingState,
     teaching_origin,
 )
+from app.schemas.skill import skill_name_refusal
 
 
 class _Request(BaseModel):
@@ -53,6 +57,45 @@ class TeachingChange(_Request):
     action: Literal["pause", "resume"]
 
 
+class TeachingReview(_Request):
+    """Replace the reviewed labels and parameter names. The current revision is sent in `If-Match`.
+
+    Each step is named by its sequence. A step with neither a label nor a
+    parameter is simply not reviewed yet. Sending exactly the stored review again
+    changes nothing, whatever the revision.
+    """
+
+    action: Literal["review"]
+    steps: tuple[ReviewedStep, ...] = Field(max_length=MAX_EVENTS)
+
+    @field_validator("steps")
+    @classmethod
+    def _steps(cls, steps: tuple[ReviewedStep, ...]) -> tuple[ReviewedStep, ...]:
+        sequences = [step.sequence for step in steps]
+        if len(set(sequences)) != len(sequences):
+            raise ValueError("Review each step once")
+        if len({step.parameter for step in steps if step.parameter}) > MAX_PARAMETERS:
+            raise ValueError(f"Use at most {MAX_PARAMETERS} parameters")
+        return tuple(sorted(steps, key=lambda step: step.sequence))
+
+
+TeachingEdit = Annotated[TeachingChange | TeachingReview, Field(discriminator="action")]
+
+
+class TeachingPropose(_Request):
+    """Ask for one skill proposal from the reviewed steps. The current revision is sent in `If-Match`."""
+
+    name: str = Field(min_length=1, max_length=64, description="The new skill's name, such as `download-invoice`")
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, value: str) -> str:
+        refusal = skill_name_refusal(value)
+        if refusal is not None:
+            raise ValueError(refusal)
+        return value
+
+
 class TeachingRead(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -67,6 +110,10 @@ class TeachingRead(BaseModel):
     revision: int
     reason_code: TeachingReason | None
     events: tuple[CapturedStep, ...]
+    review: tuple[ReviewedStep, ...]
+    parameters: tuple[str, ...]
+    proposal_name: str | None
+    proposal_id: UUID | None
     created_at: datetime
     capture_ends_at: datetime
     expires_at: datetime

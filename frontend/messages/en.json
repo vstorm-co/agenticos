@@ -10010,7 +10010,8 @@
     "support": "support",
     "whatSoModelCan": "What is in it, so the model can decide without loading it",
     "whoCanUseIt": "Who can use it",
-    "savedCategory": "Saved."
+    "savedCategory": "Saved.",
+    "fromBrowserDemonstration": "From a browser demonstration"
   },
   "states": {
     "loading": "Loading"
@@ -14779,6 +14780,47 @@
     "reference": "API reference: every endpoint",
     "title": "Use the API",
     "why": "Everything an API key can do, over plain HTTP: run agents, read runs and what they cost, fill and search knowledge bases, manage members. Create a key below, then call the base URL."
+  },
+  "browserTeaching": {
+    "title": "Review a taught task",
+    "description": "Label each recorded step and name the values that change from case to case. Typed values and page text were never recorded.",
+    "missingTitle": "Recording not found",
+    "missingBody": "It may have expired, been discarded, or belong to someone else.",
+    "label": "Step label",
+    "parameter": "Parameter name",
+    "onControl": "on a {role}",
+    "skillName": "Skill name",
+    "saveReview": "Save review",
+    "propose": "Create skill proposal",
+    "proposing": "Building the skill proposal…",
+    "proposed": "Skill proposal {name} is waiting for review with the other skill changes.",
+    "openProposals": "Open skill changes",
+    "actions": {
+      "navigate": "Opened a page",
+      "click": "Clicked",
+      "select": "Chose an option",
+      "input_parameter": "Typed a value",
+      "scroll": "Scrolled",
+      "checkpoint": "Checked the page",
+      "human": "Signed in or verified by hand"
+    },
+    "status": {
+      "recording": "Recording",
+      "paused": "Paused",
+      "review": "In review",
+      "proposing": "Building proposal",
+      "proposed": "Proposed",
+      "discarded": "Discarded",
+      "expired": "Expired"
+    },
+    "reasons": {
+      "budget_exceeded": "The organization's monthly budget is used up, so no proposal was made.",
+      "authority_changed": "Your access changed, so no proposal was made.",
+      "teaching_disabled": "Teach a task is turned off for this organization.",
+      "review_incomplete": "Label every clicked, chosen or typed step, and name each typed value as a parameter.",
+      "skill_name_refused": "A skill with this name already exists. Choose another name.",
+      "other": "The last change was refused. Check the steps and try again."
+    }
   },
   "browse": {
     "browserAddress": "Website address",

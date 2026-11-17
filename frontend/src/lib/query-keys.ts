@@ -81,6 +81,14 @@ export const qk = {
   publicApi: {
     openapi: () => ["public-api", "openapi"] as const,
   },
+  browserTeaching: {
+    /**
+     * One Teach a task recording, keyed on the person and organization reading it,
+     * so a switch of either never shows the previous identity's review (#113).
+     */
+    one: (orgId: string, userId: string, id: string) =>
+      ["browser-teaching", orgId, userId, id] as const,
+  },
   browserSignIns: {
     /** The caller's kept browser sign-ins in one organization (#2129). */
     mine: (orgId: string) => ["browser-sign-ins", orgId] as const,

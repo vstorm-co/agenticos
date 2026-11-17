@@ -60,6 +60,13 @@ class BrowserTeachingSession(Base, TimestampMixin):
     sanitized_events: Mapped[list[dict[str, JsonValue]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
     )
+    review: Mapped[list[dict[str, JsonValue]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    """Reviewed steps: a sequence, a reviewer's safe label and an optional parameter name."""
+    proposal_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    """The hash of the reviewed content a proposal was asked for; one proposal per hash."""
     capture_ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -68,7 +75,7 @@ class BrowserTeachingSession(Base, TimestampMixin):
             "organization_id", "owner_user_id", "request_key", name="uq_browser_teaching_request"
         ),
         CheckConstraint(
-            "status IN ('recording', 'paused', 'review', 'discarded', 'expired')",
+            "status IN ('recording', 'paused', 'review', 'discarded', 'expired', 'proposing', 'proposed')",
             name="state",
         ),
         CheckConstraint("revision >= 1", name="revision"),
@@ -83,8 +90,22 @@ class BrowserTeachingSession(Base, TimestampMixin):
         ),
         CheckConstraint(
             "status NOT IN ('discarded', 'expired') OR "
-            "(sanitized_events = '[]'::jsonb AND allowed_origins = '[]'::jsonb AND title = '')",
+            "(sanitized_events = '[]'::jsonb AND allowed_origins = '[]'::jsonb AND title = '' "
+            "AND review = '[]'::jsonb AND proposal_name IS NULL AND source_hash IS NULL)",
             name="erased",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(review) = 'array' AND jsonb_array_length(review) <= 500 "
+            "AND octet_length(review::text) <= 131072",
+            name="review",
+        ),
+        CheckConstraint(
+            "status <> 'proposed' OR (sanitized_events = '[]'::jsonb AND review = '[]'::jsonb)",
+            name="proposed",
+        ),
+        CheckConstraint(
+            "status NOT IN ('proposing', 'proposed') OR (source_hash IS NOT NULL AND proposal_name IS NOT NULL)",
+            name="proposing",
         ),
         Index("ix_browser_teaching_owner", "organization_id", "owner_user_id", "created_at"),
         Index("ix_browser_teaching_expiry", "expires_at"),

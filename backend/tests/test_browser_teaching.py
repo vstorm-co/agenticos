@@ -16,10 +16,10 @@ from pydantic import ValidationError
 
 from app.agents.browser_events import BrowserCommand
 from app.agents.capabilities.browser_use._loop import BrowseSession, held
+from app.core.browser_teaching import CapturedStep, ReviewedStep, revision_from_if_match, safe_label, teaching_origin
 from app.agents.deps import AgentDeps
-from app.core.browser_teaching import CapturedStep, revision_from_if_match, teaching_origin
 from app.core.config import settings
-from app.schemas.browser_teaching import TeachingStart
+from app.schemas.browser_teaching import TeachingReview, TeachingStart
 from app.services.browser_teaching import _capture, _observe
 from tests.test_browser_use import GIVE, _Control, _FakePage, _Frames
 
@@ -279,9 +279,44 @@ async def test_capture_ignores_a_hold_by_anyone_but_its_person(teaching_on) -> N
     assert capture is not None
     await capture.begin("call", str(uuid.uuid4()))
     assert capture.hold is None
-    assert (
-        await capture.before_input(
-            BrowserCommand(type="type", text=SECRET, by_user_id=deps.user_id)
-        )
-        is None
-    )
+    assert await capture.before_input(BrowserCommand(type="type", text=SECRET, by_user_id=deps.user_id)) is None
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "https://portal.example.test/x",
+        "www.example.test",
+        "person@example.test",
+        "code 424242",
+        "tok_" + "A" * 40,
+        "line" + chr(10) + "break",
+        "x" * 81,
+        "   ",
+    ],
+)
+def test_a_review_label_refuses_what_looks_like_a_page_value(value: str) -> None:
+    with pytest.raises(ValueError) as refused:
+        safe_label(value)
+    assert value.strip() not in str(refused.value) or not value.strip()
+
+
+def test_a_review_label_keeps_plain_words() -> None:
+    assert safe_label("  Invoice number 2 ") == "Invoice number 2"
+    assert ReviewedStep(sequence=1, label="  ").label is None
+
+
+def test_a_parameter_name_is_an_identifier() -> None:
+    assert ReviewedStep(sequence=1, parameter="invoice_number").parameter == "invoice_number"
+    with pytest.raises(ValidationError):
+        ReviewedStep(sequence=1, parameter="Invoice Number")
+
+
+def test_a_review_names_each_step_once_and_bounds_its_parameters() -> None:
+    with pytest.raises(ValidationError):
+        TeachingReview(action="review", steps=(ReviewedStep(sequence=1), ReviewedStep(sequence=1)))
+    many = tuple(ReviewedStep(sequence=n, parameter=f"p{n}") for n in range(1, 22))
+    with pytest.raises(ValidationError):
+        TeachingReview(action="review", steps=many)
+    ordered = TeachingReview(action="review", steps=(ReviewedStep(sequence=2), ReviewedStep(sequence=1)))
+    assert [step.sequence for step in ordered.steps] == [1, 2]

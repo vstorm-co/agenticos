@@ -45,7 +45,7 @@ def ingest() -> Handlers:
 
 def production() -> Handlers:
     """Every kind, for a worker that runs the agent and system pools on its own loop."""
-    from app.services.browser_teaching import sweep_browser_teachings
+    from app.services.browser_teaching import build_teaching_proposal, sweep_browser_teachings
     from app.services.sandbox_workspace import retry_pending_destroys
     from app.worker.tasks import (
         approval_tasks,
@@ -103,6 +103,7 @@ def production() -> Handlers:
             Handler(jobs.ADVANCE_SKILL_CHECK, skill_check_tasks.advance_skill_check),
             Handler(jobs.SWEEP_SKILL_CHECKS, _each_tick(skill_check_tasks.sweep_skill_checks)),
             Handler(jobs.SWEEP_BROWSER_TEACHINGS, _each_tick(sweep_browser_teachings)),
+            Handler(jobs.BUILD_TEACHING_PROPOSAL, build_teaching_proposal),
             Handler(jobs.CLASSIFY_GAPS, knowledge_gap_tasks.classify_knowledge_gaps),
             Handler(jobs.DRAFT_TOPIC, knowledge_gap_tasks.draft_knowledge_gap),
             Handler(jobs.GENERATE_CASES, case_generation_tasks.generate_cases),

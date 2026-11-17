@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models.browser_teaching import BrowserTeachingSession
 
 _ACTIVE = ("recording", "paused")
-_OPEN = ("recording", "paused", "review")
+_OPEN = ("recording", "paused", "review", "proposing")
 
 
 async def get(

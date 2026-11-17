@@ -32,6 +32,8 @@ export interface SkillChangeRecord {
   fork_id: string | null;
   /** What wrote it: an agent's workspace, the assistant, or a library update. */
   source?: "workspace" | "improve" | "library" | null;
+  /** The reviewed browser demonstration it was built from (#113); null for any other source. */
+  browser_teaching_id?: string | null;
   /** The authoring assistant's request behind it; null for a change a workspace wrote. */
   authoring_request_id?: string | null;
   rationale?: string;

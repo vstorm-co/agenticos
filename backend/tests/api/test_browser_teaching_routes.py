@@ -70,6 +70,27 @@ async def test_no_route_accepts_recorder_events(as_role) -> None:
         "/api/v1/browser-teachings",
         "/api/v1/browser-teachings/{session_id}",
         "/api/v1/browser-teachings/{session_id}/stop",
+        "/api/v1/browser-teachings/{session_id}/propose",
     }
     status, _ = await _post(f"/{uuid.uuid4()}/events", {"action": "click"})
     assert status in (404, 405)
+
+
+@pytest.mark.security
+async def test_a_review_label_holding_a_page_value_is_refused_without_echoing_it(as_role) -> None:
+    as_role(OrgRoleName.BUILDER)
+    secret = "otp 424242"
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http:
+        response = await http.patch(
+            f"/api/v1/browser-teachings/{uuid.uuid4()}",
+            json={"action": "review", "steps": [{"sequence": 1, "label": secret}]},
+            headers={"If-Match": "1"},
+        )
+    assert response.status_code == 422
+    assert secret not in response.text
+
+
+async def test_a_proposal_needs_a_valid_skill_name(as_role) -> None:
+    as_role(OrgRoleName.BUILDER)
+    status, _ = await _post(f"/{uuid.uuid4()}/propose", {"name": "Download Invoice"})
+    assert status == 422

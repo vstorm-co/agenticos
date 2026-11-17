@@ -8,6 +8,7 @@ input, because the refused input may itself be a secret.
 """
 
 import json
+import re
 from enum import StrEnum
 from typing import Literal
 from urllib.parse import urlsplit
@@ -22,6 +23,9 @@ MAX_EVENT_BYTES = 128 * 1024
 MAX_CAPTURE_SECONDS = 30 * 60
 RETENTION_SECONDS = 24 * 60 * 60
 MAX_ORIGINS = 10
+MAX_LABEL = 80
+MAX_PARAMETERS = 20
+PARAMETER_PATTERN = r"^[a-z][a-z0-9_]{0,39}$"
 
 Action = Literal["navigate", "click", "select", "input_parameter", "scroll", "checkpoint"]
 Role = Literal[
@@ -45,6 +49,8 @@ class TeachingState(StrEnum):
     REVIEW = "review"
     DISCARDED = "discarded"
     EXPIRED = "expired"
+    PROPOSING = "proposing"
+    PROPOSED = "proposed"
 
 
 class TeachingReason(StrEnum):
@@ -68,6 +74,10 @@ class TeachingReason(StrEnum):
     REQUEST_REUSED = "idempotency_key_reused"
     ALREADY_RECORDING = "teaching_already_active"
     WRONG_STATE = "invalid_transition"
+    BUDGET = "budget_exceeded"
+    REVIEW_INCOMPLETE = "review_incomplete"
+    REVIEW_UNKNOWN_STEP = "review_unknown_step"
+    SKILL_NAME = "skill_name_refused"
 
 
 class TeachingRefused(BadRequestError):
@@ -162,6 +172,52 @@ class CapturedStep(_Strict):
         if not valid:
             raise ValueError("Step fields do not match its action")
         return self
+
+
+_DIGIT_RUN = re.compile(r"\d{6,}")
+_LONG_WORD = re.compile(r"\S{33,}")
+
+
+def safe_label(value: str) -> str:
+    """A reviewer's short description of a step, or `ValueError` without repeating it.
+
+    A label is the reviewer's own words about a control, never a value from the
+    page. Refused: control characters, anything shaped like a URL or an e-mail
+    address, a run of six digits or more (an OTP, an account or card number) and
+    a single unbroken token longer than 32 characters (a pasted key or token).
+    This catches a value pasted by mistake; it is not a promise about meaning.
+    """
+    refused = "Describe the step in a few plain words, without values from the page"
+    text = value.strip()
+    if (
+        not text
+        or len(text) > MAX_LABEL
+        or any(ord(char) < 32 or ord(char) == 127 for char in text)
+        or "://" in text
+        or "www." in text.lower()
+        or "@" in text
+        or _DIGIT_RUN.search(text)
+        or _LONG_WORD.search(text)
+    ):
+        raise ValueError(refused)
+    return text
+
+
+class ReviewedStep(_Strict):
+    """The reviewer's safe description of one captured step, and its parameter if it is one.
+
+    `parameter` names a case-specific input, such as `invoice_number`. It is a
+    name only: the value typed during the demonstration was never recorded.
+    """
+
+    sequence: int = Field(ge=1, le=MAX_EVENTS)
+    label: str | None = None
+    parameter: str | None = Field(default=None, pattern=PARAMETER_PATTERN)
+
+    @field_validator("label")
+    @classmethod
+    def _label(cls, value: str | None) -> str | None:
+        return None if value is None or not value.strip() else safe_label(value)
 
 
 def encoded_size(steps: list[dict[str, JsonValue]]) -> int:

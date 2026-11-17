@@ -56,6 +56,10 @@ class SkillProposalRead(BaseSchema, TimestampSchema):
             "agent's workspace wrote"
         ),
     )
+    browser_teaching_id: UUID | None = Field(
+        default=None,
+        description="The reviewed browser demonstration it was built from; null for any other source",
+    )
     rationale: str = ""
     evidence: list[dict[str, str | int | None]] = Field(
         default_factory=list,
