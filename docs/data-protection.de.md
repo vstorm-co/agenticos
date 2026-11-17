@@ -1,5 +1,5 @@
 ---
-source_sha: "de001975fee2"
+source_sha: "0fccc0a38427"
 ---
 
 # Datenschutz { #data-protection }
@@ -449,7 +449,7 @@ macht.
 Wiederholbare Prüfungen, vom Host aus, gegen das laufende Deployment. Jede gibt
 Fakten aus, die die Prüfung anhängen kann; keine gibt ein Zugangsdatum oder die
 Daten einer Person aus. Führe sie aus `backend/` aus, oder über
-`docker compose exec api`.
+`docker compose exec app`.
 
 ```bash
 # 1. Läuft es überhaupt, und sind die Verbindungen zu den Speichern

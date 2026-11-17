@@ -409,7 +409,7 @@ ask for, distinct from the technical capability that makes it possible.
 
 Reproducible checks, from the host, against the running deployment. Each prints
 facts the review can attach; none prints a credential or a person's data. Run
-them from `backend/`, or through `docker compose exec api`.
+them from `backend/`, or through `docker compose exec app`.
 
 ```bash
 # 1. Can it run, and are the store connections encrypted? `postgres` reports
