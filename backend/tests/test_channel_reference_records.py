@@ -405,7 +405,7 @@ async def test_resumed_channel_dispatch_screens_the_last_saved_user_prompt(saved
 async def test_checkpoints_preserve_mixed_authors_after_request_normalization() -> None:
     from pydantic_ai.messages import ModelMessagesTypeAdapter, UserPromptPart
 
-    from app.services.message_history import history_for_storage
+    from app.services.message_history import without_standing_instructions
 
     alice, bob = uuid4(), uuid4()
     first, second = (
@@ -416,7 +416,7 @@ async def test_checkpoints_preserve_mixed_authors_after_request_normalization() 
     unlabelled = ModelRequest(parts=[UserPromptPart("No channel author")])
     expected = {first.timestamp.isoformat(): alice, second.timestamp.isoformat(): bob}
     stored = ModelMessagesTypeAdapter.dump_json(
-        history_for_storage([merged, unlabelled], channel_authors=expected)
+        without_standing_instructions([merged, unlabelled], channel_authors=expected)
     )
     assert channel_author_references(ModelMessagesTypeAdapter.validate_json(stored)) == expected
     assert merged.metadata is None
@@ -425,7 +425,7 @@ async def test_checkpoints_preserve_mixed_authors_after_request_normalization() 
 async def test_a_new_channel_turn_keeps_its_opaque_author_in_the_checkpoint() -> None:
     from pydantic_ai.models.function import AgentInfo
 
-    from app.services.message_history import history_for_storage
+    from app.services.message_history import without_standing_instructions
 
     identity = uuid4()
     reference = ChannelReference(
@@ -436,7 +436,7 @@ async def test_a_new_channel_turn_keeps_its_opaque_author_in_the_checkpoint() ->
         return ModelResponse(parts=[TextPart("Done")])
 
     result = await Agent(FunctionModel(reply), capabilities=[reference]).run("A new question")
-    saved = history_for_storage(
+    saved = without_standing_instructions(
         result.all_messages(), channel_authors=reference.authors_by_timestamp
     )
     assert set(channel_author_references(saved).values()) == {identity}

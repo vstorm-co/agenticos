@@ -172,9 +172,9 @@ def test_an_oversized_final_message_leaves_an_explicit_omission_notice(
 def test_checkpoint_discards_standing_system_prompts_but_keeps_legacy_summaries() -> None:
     from pydantic_ai.messages import SystemPromptPart
 
-    from app.services.message_history import history_for_storage
+    from app.services.message_history import without_standing_instructions
 
-    history = history_for_storage(
+    history = without_standing_instructions(
         [
             *build_message_history(
                 [

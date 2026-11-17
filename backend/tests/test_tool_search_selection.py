@@ -507,7 +507,7 @@ async def test_tool_search_preserves_a_skills_read_skill_disclosure_gate(
 
 
 async def test_a_follow_up_uses_the_current_published_instructions() -> None:
-    from app.services.message_history import history_for_storage
+    from app.services.message_history import without_standing_instructions
 
     def first_reply(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
         return ModelResponse(parts=[TextPart("Ready")])
@@ -515,7 +515,7 @@ async def test_a_follow_up_uses_the_current_published_instructions() -> None:
     first = _build(ToolSearchConfig(), instructions="OLD_PUBLISHED_INSTRUCTIONS")
     with first.agent.override(model=FunctionModel(first_reply)):
         result = await first.agent.run("Hello", deps=first.deps)
-    history = history_for_storage(result.all_messages())
+    history = without_standing_instructions(result.all_messages())
     second = _build(ToolSearchConfig(), instructions="CURRENT_PUBLISHED_INSTRUCTIONS")
 
     def follow_up(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:

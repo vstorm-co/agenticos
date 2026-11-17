@@ -35,23 +35,14 @@ HISTORY_TRIMMED = (
 )
 
 
-def history_for_storage(
+def without_standing_instructions(
     messages: Sequence[ModelMessage], *, channel_authors: Mapping[str, UUID] | None = None
 ) -> list[ModelMessage]:
-    """Keep model evidence, not the previous agent's standing instructions.
+    """Keep turn evidence before offloading media or after restoring stored references.
 
     The next run supplies its current instructions and capabilities. Legacy harness
     summaries used a system part; retain those until a new compaction replaces them.
     """
-    return bounded_model_history(
-        without_standing_instructions(messages, channel_authors=channel_authors)
-    )
-
-
-def without_standing_instructions(
-    messages: Sequence[ModelMessage], *, channel_authors: Mapping[str, UUID] | None = None
-) -> list[ModelMessage]:
-    """Prepare evidence before media offloading or after restoring stored references."""
     history: list[ModelMessage] = []
     for message in messages:
         if isinstance(message, ModelRequest):

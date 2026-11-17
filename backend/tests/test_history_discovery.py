@@ -41,7 +41,11 @@ from app.agents.voice import AnswerUnknownTools
 from app.db.models.conversation import Conversation, Message
 from app.repositories import conversation_repo
 from app.services.conversation import ConversationService
-from app.services.message_history import ModelHistory, history_for_storage
+from app.services.message_history import (
+    ModelHistory,
+    bounded_stored_history,
+    without_standing_instructions,
+)
 
 pytestmark = pytest.mark.anyio
 _JSON = TypeAdapter(dict[str, JsonValue])
@@ -55,7 +59,7 @@ class StoredThread:
     async def save(self, messages: Sequence[ModelMessage]) -> ModelHistory:
         await self.service.keep_summary(
             self.conversation.id,
-            dump_messages(history_for_storage(messages)),
+            bounded_stored_history(dump_messages(without_standing_instructions(messages))),
             expected_revision=0,
         )
         return await self.service.model_history(self.conversation.id, limit=50)
