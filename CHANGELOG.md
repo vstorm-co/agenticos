@@ -23,6 +23,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Judge an Improve attempt criterion by criterion when no whole question flips. A question passes only when every criterion passes, so an attempt that fixed one criterion while others still failed was reported as no change. It is now **Better on criteria** and is offered for accepting like a better attempt: the result names each criterion with its passes before and after on the held-out questions, then the criteria still failing, with the skill the helper attributed each one to. A criterion that got worse with no question broken is **Worse on criteria**. `better` and `regression` keep their whole-question meaning. A criterion counts only when asking again confirmed it, so an eval run now also re-asks a case where only a criterion flipped. The attempt row, the Accept step, notifications, the Architect's Improve tools and a skill check's agents show the same criteria. Eval comparisons expose `criteria`, and `skill_check_agents` gains a `criteria` column.
 
+### Fixed
+
+- **Improve proposals on Anthropic models through OpenRouter.** The Improve helper's **Changes** step failed with HTTP 400, because the answer tool was sent strict and a proposal's free JSON value has no type in its schema. Answers now go through a non-strict tool, still checked against their schema and sent back when they break it (#3146).
+
 ### Upgrading
 
 - Migration `0342_criterion_verdicts` widens the improvement verdict, stop reason and skill-check agent state constraints and adds `skill_check_agents.criteria`. Its downgrade reads the new verdicts and states as `no_change`.
