@@ -22,6 +22,11 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - **The judge and the other system agents answer in their schema.** The eval judge, the Improve helper, the case generator and the knowledge gap drafter and classifier answer through a structured output instead of JSON written in prose. An answer that breaks the schema is sent back to the agent to fix, twice at most, so one misplaced brace no longer leaves a case not graded. The judge's schema names the criteria it must grade and the scale, so a verdict that leaves a criterion out or grades off the scale is sent back like one that breaks the schema - twice at most - instead of leaving the case not graded (#3086).
+- Purge task-board batch-write receipts with their table, including failure details that can hold personal data (#3000).
+
+### Upgrading
+
+- Migration `0337_record_batch_receipt_table.py` adds table IDs to batch receipts. It erases older batch results whose table cannot be recovered, preserving their keys and original expiry to prevent duplicate writes. Retries return `IDEMPOTENCY_RESULT_PURGED` (409); check the table before submitting a fresh operation.
 
 ## [1.80.0] - 2026-11-16
 
