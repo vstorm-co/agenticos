@@ -76,7 +76,11 @@ from app.services.attachments import AttachmentRouter
 from app.services.conversation import check_history_snapshot, model_context_check
 from app.services.device_hub import LocalTarget
 from app.services.mentions import MentionService, ResolvedMentions
-from app.services.message_history import ModelHistory, history_for_storage
+from app.services.message_history import (
+    ModelHistory,
+    bounded_stored_history,
+    without_standing_instructions,
+)
 from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import SandboxWaitSink
 from app.services.screened_replay import screen_history, screened_copy
@@ -703,13 +707,15 @@ class ChatAgentRunner:
             # Parked runs retain their separate resume state. Conversation history
             # is checkpointed only after a completed turn, without replayable actions.
             if not isinstance(result.output, DeferredToolRequests):
-                history_snapshot = await offloaded_history(
-                    prepared.built.capabilities,
-                    dump_messages(
-                        history_for_storage(
-                            result.all_messages(), channel_authors=prepared.channel_authors
-                        )
-                    ),
+                history_snapshot = bounded_stored_history(
+                    await offloaded_history(
+                        prepared.built.capabilities,
+                        dump_messages(
+                            without_standing_instructions(
+                                result.all_messages(), channel_authors=prepared.channel_authors
+                            )
+                        ),
+                    )
                 )
             status, output, _structured, paused = _classify_output(
                 result,

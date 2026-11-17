@@ -51,6 +51,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep large offloaded media in conversation history by bounding compact references before restoring their content, and offloading completed-turn media before applying checkpoint size limits.
+
 - Validate whole Data values at dispatch against their consumer and settle non-object paths as missing values. Resolve saved select option labels in Record exists as List records does. Invalid rating values in pending table writes retain a raw preview without breaking the approvals queue.
 
 - Build Linux AppImages with the updated Tauri bundler to avoid bundled Wayland libraries crashing WebKitGTK on newer Mesa. Verify extracted AppImages in installer CI and before release uploads, rejecting the bundled Wayland client library that conflicts with host Mesa (#3041).

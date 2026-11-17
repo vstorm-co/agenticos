@@ -2509,15 +2509,18 @@ class TestTheThreadAModelIsGivenBack:
         assert after.await_args.kwargs["ordinal"] == 4
         conversation_repo.get_recent_messages.assert_not_awaited()
 
+    @pytest.mark.parametrize(
+        "summary", [[{"kind": "a shape from another version"}], ["legacy row"]]
+    )
     async def test_a_summary_the_library_no_longer_reads_costs_one_turn_not_the_thread(
-        self, monkeypatch
+        self, monkeypatch, summary
     ):
         """The blob is written by `pydantic-ai` and read back turns later, so an
         upgrade is exactly where the two disagree. Raising would make the thread
         unanswerable for ever, on every message anybody sent it - the transcript
         is still whole, and the cost is one summary bought again."""
         conversation = MockConversation()
-        conversation.summary_messages = [{"kind": "a shape from another version"}]
+        conversation.summary_messages = summary
         conversation.summary_ordinal = 4
         monkeypatch.setattr(
             conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
@@ -2526,6 +2529,11 @@ class TestTheThreadAModelIsGivenBack:
             conversation_repo,
             "get_recent_messages",
             AsyncMock(return_value=[self._row("user", "hi")]),
+        )
+
+        monkeypatch.setattr(conversation_repo, "get_messages_after", AsyncMock(return_value=[]))
+        monkeypatch.setattr(
+            conversation_repo, "capability_loads_in_messages", AsyncMock(return_value=[])
         )
 
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)

@@ -6522,8 +6522,8 @@
       "organizationModelKey": "Organisationsschlüssel verwenden",
       "personalModelKey": "Jeder Nutzer verbindet seinen eigenen Schlüssel",
       "personalModelLimits": "Modell und Endpunkt bleiben fest. Nur Web-Chat für angemeldete Nutzer. Deaktiviere vor der Veröffentlichung aktive Kanäle, Widgets, öffentliche Seiten und Routinen. HTTP-API-Läufe, Hintergrundthemen, Sprache, Delegation, Reviewer, separate Schrittmodelle und Ersatzmodelle werden nicht unterstützt.",
-      "draftChanged": "Dieser Draft wurde an anderer Stelle geändert. Deine Eingaben bleiben erhalten, aber das Speichern ist angehalten. Kopiere alles, was du behalten möchtest, und lade dann den neuesten Draft.",
-      "reloadDraft": "Neuesten Draft laden",
+      "draftChanged": "Dieser Entwurf wurde an anderer Stelle geändert. Deine Eingaben bleiben erhalten, aber das Speichern ist angehalten. Kopiere alles, was du behalten möchtest, und lade dann den neuesten Entwurf.",
+      "reloadDraft": "Neuesten Entwurf laden",
       "speechUseOrganizationDefaults": "Organisationsvorgaben verwenden",
       "speechOrganizationDefaultsHint": "Anbieter, Modell, Stimme und Schlüssel der Organisation gemeinsam übernehmen. Ausschalten, um die eigene Stimme dieses Agents zu konfigurieren."
     },

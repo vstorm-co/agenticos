@@ -3,6 +3,7 @@
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -435,3 +436,61 @@ async def test_legacy_checkpoint_does_not_restore_an_old_agents_standing_prompt(
     history = await thread.service.model_history(thread.conversation.id, limit=50)
     assert "OLD_AGENT_PROMPT" not in ModelMessagesTypeAdapter.dump_json(history).decode()
     assert "Find the record" in ModelMessagesTypeAdapter.dump_json(history).decode()
+
+
+async def test_replaying_a_compact_checkpoint_restores_large_media_without_eviction(
+    thread: StoredThread, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pydantic_ai.messages import BinaryContent, SystemPromptPart
+
+    from app.agents.capabilities.media import MediaOffload
+    from app.agents.capabilities.media import _store as stores
+    from app.agents.capabilities.media._capability import offloaded_history
+    from app.services.file_storage import LocalFileStorage
+    from app.services.message_history import (
+        HISTORY_TRIMMED,
+        MODEL_HISTORY_BYTES,
+        bounded_stored_history,
+        without_standing_instructions,
+    )
+
+    storage = LocalFileStorage(base_dir=tmp_path)
+    monkeypatch.setattr(stores, "get_file_storage", lambda: storage)
+    binary = b"pixels" * 500_000
+    messages = [
+        ModelRequest(
+            parts=[
+                SystemPromptPart("OLD_AGENT_PROMPT"),
+                UserPromptPart(
+                    ["Read this chart", BinaryContent(data=binary, media_type="image/png")]
+                ),
+            ]
+        ),
+        ModelResponse(parts=[ToolCallPart("read_evidence", {}, tool_call_id="evidence")]),
+        ModelRequest(
+            parts=[ToolReturnPart("read_evidence", "SOURCE_EVIDENCE_42", tool_call_id="evidence")]
+        ),
+        ModelResponse(parts=[TextPart("The chart and evidence agree.")]),
+    ]
+    offload: MediaOffload[object] = MediaOffload(
+        organization_id=thread.conversation.organization_id,
+        conversation_id=thread.conversation.id,
+    )
+    checkpoint = bounded_stored_history(
+        await offloaded_history([offload], dump_messages(without_standing_instructions(messages)))
+    )
+    assert len(json.dumps(checkpoint).encode()) < MODEL_HISTORY_BYTES
+    assert "media+sha256://" in json.dumps(checkpoint)
+    await thread.service.keep_summary(thread.conversation.id, checkpoint, expected_revision=0)
+    # Restoring is unconditional even when the next agent does not bind MediaOffload.
+    for _ in range(2):
+        history = await thread.service.model_history(thread.conversation.id, limit=50)
+        assert len(history) == 4
+        prompt = history[0].parts[0]
+        assert isinstance(prompt, UserPromptPart) and isinstance(prompt.content, list)
+        restored = prompt.content[1]
+        assert isinstance(restored, BinaryContent) and restored.data == binary
+        encoded = ModelMessagesTypeAdapter.dump_json(history).decode()
+        assert "SOURCE_EVIDENCE_42" in encoded
+        assert HISTORY_TRIMMED not in encoded and "OLD_AGENT_PROMPT" not in encoded
+        assert len(json.dumps(thread.conversation.summary_messages).encode()) < MODEL_HISTORY_BYTES

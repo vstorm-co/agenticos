@@ -176,10 +176,13 @@ def test_checkpoint_discards_standing_system_prompts_but_keeps_legacy_summaries(
 
     history = history_for_storage(
         [
-            ModelRequest(parts=[SystemPromptPart("OLD_INSTRUCTIONS")]),
-            ModelRequest(
-                parts=[
-                    SystemPromptPart("Summary of previous conversation:\n\nThey found a record.")
+            *build_message_history(
+                [
+                    {"role": "system", "content": "OLD_INSTRUCTIONS"},
+                    {
+                        "role": "system",
+                        "content": "Summary of previous conversation:\n\nThey found a record.",
+                    },
                 ]
             ),
             ModelRequest(parts=[SystemPromptPart("Old reminder"), UserPromptPart("Continue")]),
@@ -189,3 +192,17 @@ def test_checkpoint_discards_standing_system_prompts_but_keeps_legacy_summaries(
     assert history[0].parts[0].content.startswith("Summary of previous conversation:")
     assert history[1].parts == [history[1].parts[0]]
     assert isinstance(history[1].parts[0], UserPromptPart)
+
+
+@pytest.mark.parametrize("parts", [None, ["unrecognized-legacy-part"]])
+def test_bounding_a_legacy_checkpoint_does_not_reinterpret_invalid_parts(parts) -> None:
+    from app.services import message_history
+
+    oversized = {
+        "kind": "response",
+        "parts": [{"part_kind": "text", "content": "x" * (3 * 1024 * 1024)}],
+    }
+    legacy = {"kind": "request", "parts": parts}
+    bounded = message_history.bounded_stored_history([oversized, legacy])
+    assert bounded[1:] == [legacy]
+    assert bounded[0]["parts"][0]["content"] == message_history.HISTORY_TRIMMED

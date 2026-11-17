@@ -403,7 +403,11 @@ from app.services.mcp_connection import (
     build_toolsets_for_agent,
     connect_personal_toolset,
 )
-from app.services.message_history import ModelHistory, history_for_storage
+from app.services.message_history import (
+    ModelHistory,
+    bounded_stored_history,
+    without_standing_instructions,
+)
 from app.services.mirage_mounts import MirageMountService
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.model_profile import ModelProfileService, reaches_a_sign_in
@@ -8624,13 +8628,15 @@ class AgentRunnerService:
                 # chat runner does the same with the same helper: hooking one of
                 # the two gave the capability to the WebSocket chat and to
                 # nothing else (#55).
-                history_snapshot = await offloaded_history(
-                    prepared.built.capabilities,
-                    dump_messages(
-                        history_for_storage(
-                            result.all_messages(), channel_authors=prepared.channel_authors
-                        )
-                    ),
+                history_snapshot = bounded_stored_history(
+                    await offloaded_history(
+                        prepared.built.capabilities,
+                        dump_messages(
+                            without_standing_instructions(
+                                result.all_messages(), channel_authors=prepared.channel_authors
+                            )
+                        ),
+                    )
                 )
             new_messages = result.new_messages()
             called = tool_calls_in(

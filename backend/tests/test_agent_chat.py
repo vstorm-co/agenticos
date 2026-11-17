@@ -17,6 +17,7 @@ import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -354,6 +355,45 @@ class TestKeepingASummary:
 
         assert turn.history_snapshot == [{"kind": "request", "parts": []}]
         offload.externalize.assert_awaited_once()
+
+    async def test_media_is_offloaded_before_the_checkpoint_size_limit(
+        self, tmp_path: Path
+    ) -> None:
+        from pydantic_ai.messages import BinaryContent, ModelMessagesTypeAdapter, UserPromptPart
+
+        from app.agents.capabilities.media import OrganizationMediaStore
+        from app.services.file_storage import LocalFileStorage
+        from app.services.message_history import HISTORY_TRIMMED, MODEL_HISTORY_BYTES
+
+        prepared = _prepared()
+        offload: MediaOffload[object] = MediaOffload(
+            organization_id=uuid.uuid4(), conversation_id=uuid.uuid4()
+        )
+        offload._store = OrganizationMediaStore(
+            offload.organization_id, offload.conversation_id, LocalFileStorage(base_dir=tmp_path)
+        )
+        prepared.built.capabilities = [offload]
+        messages = [
+            ModelRequest(
+                parts=[
+                    SystemPromptPart("OLD_AGENT_PROMPT"),
+                    UserPromptPart(
+                        ["Chart", BinaryContent(b"pixels" * 500_000, media_type="image/png")]
+                    ),
+                ]
+            )
+        ]
+        prepared.built.agent.iter = MagicMock(
+            return_value=_Iteration(_agent_run("Read it", messages=messages))
+        )
+        with _runner(prepared):
+            turn = await _run(_db())
+        assert turn.history_snapshot is not None
+        stored = str(turn.history_snapshot)
+        assert "media+sha256://" in stored
+        assert HISTORY_TRIMMED not in stored and "OLD_AGENT_PROMPT" not in stored
+        assert len(stored.encode()) < MODEL_HISTORY_BYTES
+        assert len(ModelMessagesTypeAdapter.dump_json(messages)) > MODEL_HISTORY_BYTES
 
     async def test_the_overhead_the_turn_measured_leaves_with_it(self):
         """A one-request turn never measures one of its own before it decides, so

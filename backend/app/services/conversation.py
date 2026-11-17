@@ -30,6 +30,7 @@ from app.agents.ask_user import parked_status
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import prefix_for, restore_stored_media
 from app.agents.capabilities.media._store import BoundedOrganizationMediaStore, MediaReadLimitError
+from app.agents.ephemeral_media import dump_messages
 from app.agents.failures import stored_failure_summary
 from app.agents.model_context import ModelContextCheck
 from app.agents.steering import STEER_PREFIX
@@ -79,8 +80,9 @@ from app.services.message_history import (
     HistoryMessage,
     ModelHistory,
     bounded_model_history,
+    bounded_stored_history,
     build_message_history,
-    history_for_storage,
+    without_standing_instructions,
 )
 
 logger = logging.getLogger(__name__)
@@ -244,7 +246,7 @@ MAX_MEMBER_FORK_BYTES = 100 * 1024 * 1024
 MAX_ORGANIZATION_FORK_BYTES = 1024 * 1024 * 1024
 MAX_FORK_MEDIA_READS = 100
 FORK_MEDIA_TIMEOUT = 10
-_FORK_SUMMARY = TypeAdapter(list[dict[str, JsonValue]])
+_STORED_MESSAGES = TypeAdapter(list[dict[str, JsonValue]])
 
 
 class ConversationService:
@@ -277,20 +279,29 @@ class ConversationService:
                 ),
                 revision=revision,
             )
-        # Re-inline whatever the stored history references before it is parsed
-        # (#55). Unconditional: offloading is the `media` capability's decision,
-        # but a conversation whose agent was unbound afterwards still has markers
-        # in its history, and a marker nobody re-inlines is a picture the model
-        # is handed in a language it does not read. A history carrying none costs
-        # one tree walk that changes nothing.
-        if conversation.organization_id is not None:
-            summary = await restore_stored_media(
-                summary,
-                organization_id=conversation.organization_id,
-                conversation_id=conversation_id,
-            )
         try:
-            replayed = history_for_storage(ModelMessagesTypeAdapter.validate_python(summary))
+            summary = _STORED_MESSAGES.validate_python(summary)
+            since = await conversation_repo.get_messages_after(
+                self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
+            )
+            spoken = await self._spoken(since, conversation)
+            tail = await self._restore_capability_loads(
+                build_message_history(_as_history(since, exclude_message_id, spoken)),
+                since,
+                exclude_message_id,
+            )
+            # Bound stored references, not their expanded bytes. Restoring a valid
+            # multi-megabyte image before this storage limit would drop its exchange.
+            summary = bounded_stored_history([*summary, *dump_messages(tail)])
+            if conversation.organization_id is not None:
+                summary = await restore_stored_media(
+                    summary,
+                    organization_id=conversation.organization_id,
+                    conversation_id=conversation_id,
+                )
+            replayed = without_standing_instructions(
+                ModelMessagesTypeAdapter.validate_python(summary)
+            )
         except ValidationError:
             # A shape `pydantic-ai` no longer reads. The blob is written by the
             # library and read back turns later, so a version this deployment
@@ -307,20 +318,7 @@ class ConversationService:
                 ),
                 revision=revision,
             )
-        since = await conversation_repo.get_messages_after(
-            self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
-        )
-        spoken = await self._spoken(since, conversation)
-        history = [
-            *replayed,
-            *build_message_history(_as_history(since, exclude_message_id, spoken)),
-        ]
-        return ModelHistory(
-            bounded_model_history(
-                await self._restore_capability_loads(history, since, exclude_message_id)
-            ),
-            revision=revision,
-        )
+        return ModelHistory(replayed, revision=revision)
 
     async def _from_transcript(
         self,
@@ -1645,7 +1643,7 @@ class ConversationService:
                 # Escape literal marker-shaped caller data again: replay walks
                 # this stored snapshot once more. The unreachable threshold
                 # keeps every restored byte inline and never writes a blob.
-                restored = _FORK_SUMMARY.validate_python(
+                restored = _STORED_MESSAGES.validate_python(
                     await externalize_media(
                         restored,
                         media_store=store,

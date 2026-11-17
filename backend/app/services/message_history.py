@@ -13,14 +13,13 @@ from datetime import timedelta
 from typing import NotRequired, TypedDict
 from uuid import UUID
 
+from pydantic import JsonValue
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
     SystemPromptPart,
     TextPart,
-    ToolCallPart,
-    ToolReturnPart,
     UserPromptPart,
 )
 from pydantic_ai.usage import RequestUsage
@@ -44,6 +43,15 @@ def history_for_storage(
     The next run supplies its current instructions and capabilities. Legacy harness
     summaries used a system part; retain those until a new compaction replaces them.
     """
+    return bounded_model_history(
+        without_standing_instructions(messages, channel_authors=channel_authors)
+    )
+
+
+def without_standing_instructions(
+    messages: Sequence[ModelMessage], *, channel_authors: Mapping[str, UUID] | None = None
+) -> list[ModelMessage]:
+    """Prepare evidence before media offloading or after restoring stored references."""
     history: list[ModelMessage] = []
     for message in messages:
         if isinstance(message, ModelRequest):
@@ -68,7 +76,7 @@ def history_for_storage(
                 history.append(replace(message, parts=parts, metadata=metadata or None))
         else:
             history.append(message)
-    return bounded_model_history(history)
+    return history
 
 
 def bounded_model_history(messages: Sequence[ModelMessage]) -> list[ModelMessage]:
@@ -79,14 +87,34 @@ def bounded_model_history(messages: Sequence[ModelMessage]) -> list[ModelMessage
     to restore it. A single oversized exchange is omitted as a whole and the
     model is told that evidence was lost. The visible transcript stays intact.
     """
-    sizes = [
-        len(json.dumps(message, ensure_ascii=False).encode()) + 2
-        for message in dump_messages(messages)
-    ]
+    serialized = dump_messages(messages)
+    start = _bounded_history_start(serialized)
+    if start == 0:
+        return list(messages)
+    notice = ModelRequest(parts=[UserPromptPart(content=HISTORY_TRIMMED)])
+    return [notice, *messages[start:]]
+
+
+def bounded_stored_history(
+    messages: list[dict[str, JsonValue]],
+) -> list[dict[str, JsonValue]]:
+    """Bound the compact checkpoint before restoring potentially large media.
+
+    Media references count at their stored size. Expanding one before applying
+    this storage ceiling would discard valid images and offloaded tool results.
+    """
+    start = _bounded_history_start(messages)
+    if start == 0:
+        return messages
+    notice = ModelRequest(parts=[UserPromptPart(content=HISTORY_TRIMMED)])
+    return [*dump_messages([notice]), *messages[start:]]
+
+
+def _bounded_history_start(messages: Sequence[dict[str, JsonValue]]) -> int:
+    sizes = [len(json.dumps(message, ensure_ascii=False).encode()) + 2 for message in messages]
     total = sum(sizes)
     if len(messages) <= MODEL_HISTORY_MESSAGES and total <= MODEL_HISTORY_BYTES:
-        return list(messages)
-
+        return 0
     notice = ModelRequest(parts=[UserPromptPart(content=HISTORY_TRIMMED)])
     budget = MODEL_HISTORY_BYTES - len(
         json.dumps(dump_messages([notice]), ensure_ascii=False).encode()
@@ -102,16 +130,21 @@ def bounded_model_history(messages: Sequence[ModelMessage]) -> list[ModelMessage
     # whose call would be lost, including a batch containing retained calls too.
     calls: dict[str, int] = {}
     for index, message in enumerate(messages):
-        for part in message.parts:
-            if isinstance(part, ToolCallPart):
-                calls[part.tool_call_id] = index
-            elif (
-                isinstance(part, ToolReturnPart)
-                and index >= start
-                and calls.get(part.tool_call_id, -1) < start
-            ):
+        parts = message.get("parts")
+        if not isinstance(parts, list):
+            continue
+        for part in parts:
+            if not isinstance(part, dict):
+                continue
+            call_id = part.get("tool_call_id")
+            if not isinstance(call_id, str):
+                continue
+            kind = part.get("part_kind")
+            if kind == "tool-call":
+                calls[call_id] = index
+            elif kind == "tool-return" and index >= start and calls.get(call_id, -1) < start:
                 start = index + 1
-    return [notice, *messages[start:]]
+    return start
 
 
 CHANNEL_AUTHOR_ID = "agenticos_channel_author_identity"
