@@ -11,7 +11,7 @@ on:
         default: ""
 
 jobs:
-  arch:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -22,7 +22,7 @@ jobs:
     steps:
       - name: Install native build and display dependencies
         run: |
-          pacman -Syu --noconfirm --needed git rust clang pkgconf python webkit2gtk-4.1 gtk3 libappindicator-gtk3 libxdo libxcb libpipewire dbus hicolor-icon-theme mesa weston xorg-server-xvfb xorg-xauth desktop-file-utils github-cli
+          pacman -Syu --noconfirm --needed git rust clang pkgconf python webkit2gtk-4.1 gtk3 libayatana-appindicator xdotool libxcb libpipewire dbus hicolor-icon-theme
           useradd --create-home builder
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -36,19 +36,56 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           runuser -u builder -- bash scripts/build_arch_package.sh "$RUNNER_TEMP/arch"
           (cd "$RUNNER_TEMP/arch" && sha256sum agenticos-*-1-x86_64.pkg.tar.zst > SHA256SUMS.arch)
+      - name: Prepare a second package revision for upgrade verification
+        run: |
+          sed -i 's/^pkgrel=1$/pkgrel=2/' "$RUNNER_TEMP/arch/PKGBUILD"
+          cd "$RUNNER_TEMP/arch"
+          runuser -u builder -- makepkg --repackage --force --noconfirm
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: arch-native-packages
+          path: |
+            ${{ runner.temp }}/arch/*.pkg.tar.zst
+            ${{ runner.temp }}/arch/SHA256SUMS.arch
+          if-no-files-found: error
+
+  validate:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: archlinux:base@sha256:d4594bb2300cba11f41c2f27923eb56f63d9988909c402f9c95517d1e362c899
+    steps:
+      - name: Prepare a fresh runtime without the build toolchain
+        run: |
+          pacman -Syu --noconfirm --needed git dbus mesa weston xorg-server-xvfb xorg-xauth desktop-file-utils github-cli
+          useradd --create-home builder
+          for PACKAGE in rust clang base-devel; do
+            if pacman -Q "$PACKAGE"; then exit 1; fi
+          done
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: arch-native-packages
+          path: ${{ runner.temp }}/arch
       - name: Verify install, upgrade, X11 and Wayland rendering, and removal
-        run: bash scripts/check_arch_package.sh "$RUNNER_TEMP/arch"
+        run: |
+          chown -R builder:builder "$RUNNER_TEMP/arch"
+          cd "$RUNNER_TEMP/arch"
+          sha256sum -c SHA256SUMS.arch
+          cd "$GITHUB_WORKSPACE"
+          bash scripts/check_arch_package.sh "$RUNNER_TEMP/arch"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: arch-native
           path: |
-            ${{ runner.temp }}/arch/agenticos-*-1-x86_64.pkg.tar.zst
             ${{ runner.temp }}/arch/*.log
             ${{ runner.temp }}/arch/*-libraries.txt
             ${{ runner.temp }}/arch/tested-environment.txt
-            ${{ runner.temp }}/arch/.SRCINFO
-            ${{ runner.temp }}/arch/SHA256SUMS.arch
       - name: Upload the verified pacman package to the release
         if: inputs.release_tag != ''
         env:

@@ -8,6 +8,7 @@ OUTPUT="$(realpath "${1:?Usage: check_arch_package.sh BUILD_DIRECTORY}")"
 PACKAGE="$(find "$OUTPUT" -maxdepth 1 -name 'agenticos-*-1-x86_64.pkg.tar.zst' -print)"
 test -f "$PACKAGE"
 pacman -U --noconfirm "$PACKAGE"
+trap 'pacman -R --noconfirm agenticos' EXIT
 pacman -Q agenticos
 pacman -Qk agenticos
 ldd /usr/bin/agenticos | tee "$OUTPUT/linked-libraries.txt"
@@ -16,11 +17,8 @@ if grep -q 'not found' "$OUTPUT/linked-libraries.txt"; then
 fi
 grep -q '/usr/lib/libwebkit2gtk-4.1.so' "$OUTPUT/linked-libraries.txt"
 desktop-file-validate /usr/share/applications/co.vstorm.agenticos.desktop
-trap 'pacman -R --noconfirm agenticos' EXIT
 
-# Repackage the same built executable as the next package revision to exercise upgrade ownership.
-sed -i 's/^pkgrel=1$/pkgrel=2/' "$OUTPUT/PKGBUILD"
-(cd "$OUTPUT" && runuser -u builder -- makepkg --repackage --force --noconfirm)
+# The independently built next package revision exercises upgrade ownership.
 UPGRADE="$(find "$OUTPUT" -maxdepth 1 -name 'agenticos-*-2-x86_64.pkg.tar.zst' -print)"
 pacman -U --noconfirm "$UPGRADE"
 [[ "$(pacman -Q agenticos)" = *-2 ]]

@@ -111,3 +111,19 @@ def test_arch_build_retains_package_manager_ownership_and_real_render_check() ->
     smoke = (ROOT / "desktop/src-tauri/src/native_browser_smoke.rs").read_text()
     assert '"Runtime.evaluate"' in smoke
     assert "app.exit(if result.is_ok() { 0 } else { 1 })" in smoke
+
+
+def test_runtime_validation_uses_a_fresh_base_without_build_dependencies() -> None:
+    workflow = (ROOT / ".github/workflows/arch-package.yml").read_text()
+    build, runtime = workflow.split("  validate:\n", 1)
+    assert "archlinux:base-devel@sha256:" in build
+    assert "archlinux:base@sha256:" in runtime
+    assert "needs: build" in runtime
+    assert 'pacman -Q "$PACKAGE"' in runtime
+    assert "rust clang base-devel" in runtime
+    assert "actions/download-artifact@" in runtime
+    assert runtime.index("check_arch_package.sh") < runtime.index("gh release upload")
+    check = (ROOT / "scripts/check_arch_package.sh").read_text()
+    assert "makepkg" not in check
+    assert 'pacman -U --noconfirm "$PACKAGE"' in check
+    assert 'pacman -U --noconfirm "$UPGRADE"' in check
