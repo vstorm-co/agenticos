@@ -112,7 +112,15 @@ function row(id: string, root: string, content = id): ChatMessage {
     threadRootMessageId: root,
   };
 }
-function view(rootId = "root-a", extra: { readOnly?: boolean; projectId?: string | null } = {}) {
+function view(
+  rootId = "root-a",
+  extra: {
+    readOnly?: boolean;
+    projectId?: string | null;
+    requestedMessageId?: string | null;
+    messageJumpRevision?: number;
+  } = {},
+) {
   return (
     <RoomThreadPanel
       key={rootId}
@@ -196,6 +204,52 @@ afterEach(() => {
 });
 
 describe("RoomThreadPanel", () => {
+  it("focuses an exact linked reply after authorization without fetching main-chat history", async () => {
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(view("root-a", { requestedMessageId: "reply-a" }), { wrapper });
+    const message = (await screen.findByText("Saved reply A")).closest("article");
+    await waitFor(() => expect(message).toHaveFocus());
+    expect(scroll).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+    expect(
+      vi.mocked(apiClient.get).mock.calls.some(([path]) => String(path).includes("before=")),
+    ).toBe(false);
+  });
+
+  it("loads older thread pages for a linked reply and focuses the root when requested", async () => {
+    page = { ...page, total: 2 };
+    vi.mocked(apiClient.get).mockImplementation(async (path) =>
+      String(path).includes("before=reply-a")
+        ? { ...page, items: [{ ...page.items[0]!, id: "earlier", content: "Linked old reply" }] }
+        : serve(String(path)),
+    );
+    const mounted = render(view("root-a", { requestedMessageId: "earlier" }), { wrapper });
+    const earlier = (await screen.findByText("Linked old reply")).closest("article");
+    await waitFor(() => expect(earlier).toHaveFocus());
+    expect(
+      vi
+        .mocked(apiClient.get)
+        .mock.calls.filter(([path]) => String(path).includes("before=reply-a")),
+    ).toHaveLength(1);
+    expect(
+      vi.mocked(apiClient.get).mock.calls.some(([path]) => String(path).includes("/messages?")),
+    ).toBe(false);
+    mounted.rerender(view("root-a", { requestedMessageId: "root-a", messageJumpRevision: 1 }));
+    await waitFor(() =>
+      expect(screen.getByText("Original topic").closest("article")).toHaveFocus(),
+    );
+  });
+
+  it("reports an unavailable linked message without paging past exhausted history", async () => {
+    render(view("root-a", { requestedMessageId: "removed" }), { wrapper });
+    expect(await screen.findByRole("alert")).toHaveTextContent("no longer available");
+    expect(
+      vi.mocked(apiClient.get).mock.calls.some(([path]) => String(path).includes("before=")),
+    ).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: /^Close$/ }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("Saved reply A")).toBeInTheDocument();
+  });
+
   it("renders the docked surface on the server", () => {
     expect(renderToString(wrapper({ children: view() }))).toContain('role="complementary"');
   });

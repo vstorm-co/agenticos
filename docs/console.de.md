@@ -1,5 +1,5 @@
 ---
-source_sha: "c7221d82e5b2"
+source_sha: "494af57c16d6"
 ---
 
 # Die Konsole { #the-console }
@@ -1018,6 +1018,12 @@ Gespeicherte Abzweigungen haben ein eigenes Kontingent von 100 MiB pro Mitglied 
 Ausgelagerter Text und Medien einer übernommenen Zusammenfassung werden in die Kopie eingebettet. Das Löschen des Originals entfernt diesen Kontext daher nicht. Die wiederhergestellten Inhalte zählen zum Limit von 20 MiB. Die Wiederherstellung ist auf 100 externe Verweise und zehn Sekunden begrenzt. Fehlende Inhalte oder überschrittene Grenzen führen zur Ablehnung ohne unvollständige Kopie.
 
 Eine Unterhaltung mit einer gespeicherten Checkliste kann nur an ihrer neuesten Nachricht abgezweigt werden, wenn diese eine Antwort des Assistenten ist. Die Kopie behält diese Checkliste einschließlich Aufgaben-IDs und Abhängigkeiten. Frühere Checklistenstände werden nicht gespeichert; eine frühere Abzweigung wird daher abgelehnt, statt spätere Aufgaben in einen älteren Verlauf zu kopieren.
+
+### Eine Nachricht finden { #chat-message-search }
+
+Verwende die Gesprächssuche in der Chat-Seitenleiste. **Nachrichtentext** durchsucht Gespräche, die du in der aktiven Organisation lesen darfst, und zeigt pro Ergebnis die passendste Nachricht mit Ausschnitt und Zeitpunkt. Grenze die Suche ein, wenn die ersten zwanzig Gespräche das gesuchte nicht enthalten. Wähle **Gesprächstitel**, um auch die Titel archivierter Gespräche zu durchsuchen.
+
+Die Auswahl öffnet die genaue Nachricht, auch eine Antwort in einem Raum-Thread. Ältere Seiten werden nacheinander geladen; **Sprung abbrechen** beendet die Navigation. Bei Lesefehlern kannst du es erneut versuchen; eine nicht mehr verfügbare Nachricht wird gesondert gemeldet. Der Tastaturfokus bleibt auf der ausgewählten Nachricht und eingeklappte Arbeit wird geöffnet, damit passende gespeicherte Abschnitte sichtbar sind. Auch ein direkter Link erfordert Zugriff auf das Gespräch.
 
 ### Aktivitäten eines Durchlaufs durchsuchen { #chat-trace-search }
 

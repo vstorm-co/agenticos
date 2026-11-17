@@ -165,6 +165,8 @@ export interface ChatMessage {
    * and a remount at the end of a turn cut the reveal off mid-sentence.
    */
   renderKey?: string;
+  /** Saved segments represented by one visible assistant turn, for exact message links. */
+  coalescedMessageIds?: string[];
   /** Current user's rating */
   user_rating?: UserRating;
   /** Aggregate rating counts */

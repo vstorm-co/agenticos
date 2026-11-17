@@ -52,6 +52,9 @@ class FoundConversation:
     snippet: str
     speaker_role: str
     speaker_name: str | None
+    message_id: UUID
+    thread_root_message_id: UUID | None
+    matched_at: datetime
 
 
 @dataclass(frozen=True)
@@ -94,9 +97,13 @@ async def _readable(
 
 
 async def search(
-    *, query: str, organization_id: UUID, user_id: UUID, limit: int
+    *, query: str, organization_id: UUID, user_id: UUID, limit: int, literal: bool = False
 ) -> list[FoundConversation]:
-    """The conversations this person may read that match, best first."""
+    """The conversations this person may read that match, best first.
+
+    `literal=True` treats punctuation and operator-like words as ordinary query
+    text, for the console's search box. Agent tools retain web-search operators.
+    """
     async with get_db_context() as db:
         readable = await _readable(db, user_id=user_id, organization_id=organization_id)
         hits = await search_repo.search(
@@ -105,6 +112,7 @@ async def search(
             organization_id=organization_id,
             readable=readable,
             limit=limit,
+            literal=literal,
         )
         return [
             FoundConversation(
@@ -115,6 +123,9 @@ async def search(
                 snippet=hit.snippet,
                 speaker_role=hit.speaker_role,
                 speaker_name=hit.speaker_name,
+                message_id=hit.message_id,
+                thread_root_message_id=hit.thread_root_message_id,
+                matched_at=hit.matched_at,
             )
             for hit in hits
         ]

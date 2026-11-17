@@ -137,6 +137,8 @@ const ACCEPTED =
 interface ChatInputProps {
   /** Focus once the composer becomes writable on entry to the main chat. */
   autoFocus?: boolean;
+  /** A transcript link owns focus until the reader explicitly returns to the composer. */
+  preserveReadingFocus?: boolean;
   /** Re-arm entry focus for an explicit New chat without remounting the editor. */
   focusRequest?: number;
   onSend: (
@@ -269,6 +271,7 @@ function touchKeyboard(): boolean {
 
 export function ChatInput({
   autoFocus = false,
+  preserveReadingFocus = false,
   focusRequest = 0,
   onSend,
   sendMode,
@@ -355,7 +358,13 @@ export function ChatInput({
     };
   }, [disabled, focusRequest]);
   useEffect(() => {
-    if (!entryFocusRequested.current || disabled || initialFocusAttempted.current) return;
+    if (
+      preserveReadingFocus ||
+      !entryFocusRequested.current ||
+      disabled ||
+      initialFocusAttempted.current
+    )
+      return;
     initialFocusAttempted.current = true;
     // A phone must not open its keyboard or switch the composer's layout while
     // the person is reaching for an action after navigation.
@@ -371,7 +380,7 @@ export function ChatInput({
     )
       return;
     editorRef.current?.focus();
-  }, [disabled, focusRequest]);
+  }, [disabled, focusRequest, preserveReadingFocus]);
   // Reply was just chosen on a message: the person goes on to type the answer.
   useEffect(() => {
     if (replyTo) editorRef.current?.focus();
@@ -517,8 +526,9 @@ export function ChatInput({
   useEffect(() => {
     // Phones enter writing deliberately, rather than reopening the keyboard
     // on arrival or when a reply finishes while the person is reading.
-    if (!isProcessing && !isUploading && !touchKeyboard()) editorRef.current?.focus();
-  }, [isProcessing, isUploading]);
+    if (!preserveReadingFocus && !isProcessing && !isUploading && !touchKeyboard())
+      editorRef.current?.focus();
+  }, [isProcessing, isUploading, preserveReadingFocus]);
 
   const runSlashCommand = useCallback(
     (cmd: SlashCommand) => {

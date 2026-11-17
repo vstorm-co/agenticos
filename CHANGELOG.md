@@ -39,6 +39,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Chat message search across accessible conversations, with readable excerpts, a title-search mode, and exact links that load older messages or room-thread replies without losing the reader's place.
+
 - Chat activity search and filters: find text in a turn's reasoning, messages, tool arguments and results; show tools, reasoning, errors or messages while steps awaiting your input remain visible.
 - Chat offers Queue or Steer while an agent is working, with a preference scoped to the member, organization and agent. Plain-text guidance can reach the current turn; rich messages keep their context in the existing queue and refused steering retains the draft. The model picker marks choices for after the turn and links editors to the agent draft's Thinking settings.
 

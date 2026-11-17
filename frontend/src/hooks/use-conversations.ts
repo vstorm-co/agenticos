@@ -356,6 +356,8 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
             // The rejected address must not keep the page in its opening state.
             const address = new URL(window.location.href);
             address.searchParams.delete("id");
+            address.searchParams.delete("thread");
+            address.searchParams.delete("message");
             window.history.replaceState(window.history.state, "", address);
             // Not accessible (deleted, no permission) - clear the stale id
             clearMessages();
@@ -460,8 +462,10 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       if (!scoped) {
         // A root belongs to the room in the URL. Keep a direct link on initial
         // load, but do not carry it into a different conversation selection.
-        if (new URL(window.location.href).searchParams.get("id") !== id)
+        if (new URL(window.location.href).searchParams.get("id") !== id) {
           setUrlParam("thread", null);
+          setUrlParam("message", null);
+        }
         setUrlParam("id", id);
       }
       setLoading(true);
@@ -894,6 +898,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
           setCurrentConversationId(null);
           if (!scoped) {
             setUrlParam("thread", null);
+            setUrlParam("message", null);
             setUrlParam("id", null);
           }
         }
@@ -952,6 +957,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       // by the WS conversation_created event on first message.
       if (!scoped) {
         setUrlParam("thread", null);
+        setUrlParam("message", null);
         setUrlParam("id", null);
       }
     },

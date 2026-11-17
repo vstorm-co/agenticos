@@ -5,6 +5,8 @@ import { useWorkingStore } from "@/stores/working-store";
 import { onRemoteChange } from "@/lib/live-updates";
 import type { Mentionable } from "@/types/mention";
 import { useChatSendModePreference } from "@/stores/chat-send-mode-store";
+import { useMessageJump, type MessageJumpState } from "@/hooks/use-message-jump";
+import { MessageJumpNotice } from "./message-jump-notice";
 import {
   useEffect,
   useEffectEvent,
@@ -179,6 +181,9 @@ interface ChatContainerProps {
   /** Keep the welcome screen out of a saved conversation's initial load. */
   requestedConversationId?: string | null;
   requestedThreadRootId?: string | null;
+  requestedMessageId?: string | null;
+  messageJumpRevision?: number;
+  onOpenParent?: (target: { conversationId: string; messageId: string | null }) => void;
   onOpenThread?: (rootId: string) => void;
   onCloseThread?: () => void;
   /** Sent as soon as the socket is up, once per `id` (#2063). */
@@ -213,6 +218,9 @@ export interface PinnedPrompts {
 export function ChatContainer({
   requestedConversationId = null,
   requestedThreadRootId = null,
+  requestedMessageId = null,
+  messageJumpRevision = 0,
+  onOpenParent,
   onOpenThread,
   onCloseThread,
   prompt = null,
@@ -273,6 +281,7 @@ export function ChatContainer({
     hasEarlierMessages,
     isLoadingEarlier,
     loadEarlierMessages,
+    error: conversationError,
     markRead,
     forkConversation,
   } = useConversations();
@@ -744,6 +753,39 @@ export function ChatContainer({
   const userScrolledUpRef = useRef(false);
   const sentTurnAnchoredRef = useRef(false);
   const sentTurnSpacerRef = useRef<HTMLDivElement>(null);
+  const holdMessageJump = useCallback(() => {
+    userScrolledUpRef.current = true;
+    sentTurnAnchoredRef.current = false;
+  }, []);
+  const jumpReady =
+    meId !== undefined &&
+    tenantId !== null &&
+    access.known &&
+    !isConversationLoading &&
+    committedTranscript?.conversationId === currentConversationId &&
+    committedTranscript?.selectionVersion === selectionVersion &&
+    committedTranscript?.accountId === meId &&
+    committedTranscript?.tenantId === tenantId;
+  const messageJump = useMessageJump({
+    messageId:
+      currentConversationId !== null &&
+      requestedConversationId === currentConversationId &&
+      threadRootId === null
+        ? requestedMessageId
+        : null,
+    scope: JSON.stringify([meId, tenantId, currentConversationId, selectionVersion]),
+    revision: messageJumpRevision,
+    ready: jumpReady,
+    messageIds: messages
+      .filter((message) => !message.threadRootMessageId)
+      .flatMap((message) => [message.id, ...(message.persistedId ? [message.persistedId] : [])]),
+    firstMessageId: currentMessages[0]?.id ?? null,
+    hasEarlier: hasEarlierMessages,
+    loadingEarlier: isLoadingEarlier,
+    loadEarlier: loadEarlierMessages,
+    container: scrollContainerRef,
+    beforeJump: holdMessageJump,
+  });
   useSentTurnAnchor(
     messages,
     scrollContainerRef,
@@ -1031,6 +1073,23 @@ export function ChatContainer({
         roomProjectId={roomProjectId}
         roomReadOnly={isArchived || !access.known}
         threadRootId={threadRootId}
+        requestedMessageId={
+          requestedConversationId === currentConversationId ? requestedMessageId : null
+        }
+        messageJumpRevision={messageJumpRevision}
+        messageJump={
+          messageJump.status !== "idle" && !jumpReady && (conversationError || access.failed)
+            ? {
+                ...messageJump,
+                status: "failed",
+                retry: () => {
+                  messageJump.retry();
+                  if (currentConversationId !== null)
+                    void rereadConversation(currentConversationId);
+                },
+              }
+            : messageJump
+        }
         onOpenThread={onOpenThread}
         onCloseThread={onCloseThread}
         canStartThread={canStartThread}
@@ -1121,7 +1180,14 @@ export function ChatContainer({
         onFork={ownsOpenConversation && access.known ? handleFork : undefined}
         forkingMessageId={forkingMessageId}
         forkedFrom={forkableConversation?.forked_from ?? null}
-        onOpenForkSource={(id) => void selectConversation(id)}
+        onOpenForkSource={(id) => {
+          if (onOpenParent)
+            onOpenParent({
+              conversationId: id,
+              messageId: forkableConversation?.forked_from?.message_id ?? null,
+            });
+          else void selectConversation(id);
+        }}
         pins={pins}
         slashContext={slashContext}
         slashCommands={slashCommands}
@@ -1165,6 +1231,9 @@ interface ChatUIProps {
   roomProjectId: string | null;
   roomReadOnly: boolean;
   threadRootId: string | null;
+  requestedMessageId: string | null;
+  messageJumpRevision: number;
+  messageJump: MessageJumpState;
   onOpenThread?: (rootId: string) => void;
   onCloseThread?: () => void;
   canStartThread: boolean;
@@ -1317,6 +1386,9 @@ function ChatUI({
   roomProjectId,
   roomReadOnly,
   threadRootId,
+  requestedMessageId,
+  messageJumpRevision,
+  messageJump,
   onOpenThread,
   onCloseThread,
   canStartThread,
@@ -1816,6 +1888,7 @@ function ChatUI({
               onChange={(profileId) => onModelProfileChange?.(profileId)}
             />
           )}
+          <MessageJumpNotice jump={messageJump} />
           <div
             ref={scrollContainerRef}
             data-chat-scroller
@@ -2171,7 +2244,8 @@ function ChatUI({
                           limit near its end changes an icon's colour and never
                           costs the row a button. */}
                           <ChatInput
-                            autoFocus={!compact && !onCall}
+                            autoFocus={!compact && !onCall && requestedMessageId === null}
+                            preserveReadingFocus={requestedMessageId !== null}
                             focusRequest={composerFocusRequest}
                             onSend={sendMessage}
                             sendMode={
@@ -2401,6 +2475,8 @@ function ChatUI({
           conversationId={conversationId}
           projectId={roomProjectId}
           rootId={threadRootId}
+          requestedMessageId={requestedMessageId}
+          messageJumpRevision={messageJumpRevision}
           readOnly={roomProjectId === null || roomReadOnly}
           onClose={onCloseThread}
           onTyping={onTyping}

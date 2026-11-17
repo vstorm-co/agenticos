@@ -720,6 +720,8 @@ export const qk = {
      */
     list: (params?: string) =>
       params ? (["conversations", "list", params] as const) : (["conversations", "list"] as const),
+    messageSearch: (tenant: string | null, user: string | null, query: string) =>
+      ["conversations", "message-search", tenant, user, query] as const,
     /**
      * The newest few, for the dashboard. Its own key because `list()` is owned
      * by the chat sidebar, which caches a different page under a different

@@ -1269,6 +1269,12 @@
     "title": "Abrechnung"
   },
   "chat": {
+    "messageJump": {
+      "loading": "Ausgewählte Nachricht wird geladen…",
+      "failed": "Die ausgewählte Nachricht konnte nicht geladen werden. Versuche es erneut.",
+      "unavailable": "Diese Nachricht ist in diesem Gespräch nicht mehr verfügbar.",
+      "cancel": "Sprung abbrechen"
+    },
     "trace": {
       "toggle": "Aktivität durchsuchen und filtern",
       "title": "Aktivität dieses Durchlaufs durchsuchen",
@@ -1741,7 +1747,14 @@
       "noSearchResults": "Keine Unterhaltung passt.",
       "otherAgents": "Sonstige",
       "retryShared": "Geteilte Unterhaltungen erneut laden",
-      "searchHint": "Tippen, um Unterhaltungen nach Titel zu suchen.",
+      "searchHint": "Durchsuche den Nachrichtentext deiner Unterhaltungen oder wähle die Titelsuche.",
+      "searchTitleHint": "Durchsuche Unterhaltungstitel, einschließlich archivierter Unterhaltungen.",
+      "searchModeLabel": "Suchen nach",
+      "searchModeMessages": "Nachrichtentext",
+      "searchModeTitles": "Unterhaltungstitel",
+      "noMessageSearchResults": "Keine passenden Nachrichten.",
+      "searchFailed": "Suche fehlgeschlagen. Versuche es erneut.",
+      "retrySearch": "Erneut versuchen",
       "searchLabel": "Unterhaltungen durchsuchen",
       "searchPlaceholder": "Unterhaltungen durchsuchen",
       "searching": "Suche…",
@@ -5188,6 +5201,10 @@
       "chat-send-mode": {
         "title": "Einreihen oder lenken",
         "body": "Während ein Agent arbeitet, kannst du die nächste Nachricht einreihen oder den laufenden Durchlauf mit einfachem Text lenken. Dateien und weiterer Kontext bleiben in der normalen Warteschlange."
+      },
+      "chat-message-search": {
+        "title": "Nachrichten in Gesprächen finden",
+        "body": "Suche Nachrichtentext in lesbaren Gesprächen oder wähle die Titelsuche. Ein Ergebnis öffnet die genaue Nachricht, auch in älterem Verlauf und Raum-Threads."
       },
       "chat-trace-filter": {
         "title": "Einen Schritt in diesem Durchlauf finden",

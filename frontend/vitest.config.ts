@@ -291,6 +291,8 @@ export default defineConfig({
         "src/components/chat/you-face.tsx",
         "src/components/chat/message-item.tsx",
         "src/components/chat/message-list.tsx",
+        "src/components/chat/message-jump-notice.tsx",
+        "src/components/chat/conversation-search-dialog.tsx",
         "src/components/chat/pending-messages.tsx",
         "src/components/chat/plan-checklist.tsx",
         "src/components/chat/plan-strip.tsx",

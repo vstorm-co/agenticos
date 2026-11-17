@@ -250,6 +250,13 @@ export const MessageItem = memo(function MessageItem({
       // of its own, so the rail lands on the top of the turn and not on a box
       // drawn around it.
       data-message-id={threadRootPreview ? undefined : message.id}
+      data-message-ids={
+        threadRootPreview
+          ? undefined
+          : [message.persistedId, ...(message.coalescedMessageIds ?? [])]
+              .filter(Boolean)
+              .join(" ") || undefined
+      }
       data-thread-root={threadRootPreview ? message.id : undefined}
       className={cn(
         // The face and the name on one line over the message, as in the

@@ -1270,6 +1270,12 @@
     "title": "Billing"
   },
   "chat": {
+    "messageJump": {
+      "loading": "Loading the selected message…",
+      "failed": "The selected message could not be loaded. Try again.",
+      "unavailable": "This message is no longer available in this conversation.",
+      "cancel": "Cancel jump"
+    },
     "trace": {
       "toggle": "Search and filter activity",
       "title": "Search this turn's activity",
@@ -1739,7 +1745,14 @@
       "noSearchResults": "No conversation matches.",
       "otherAgents": "Other",
       "retryShared": "Retry shared conversations",
-      "searchHint": "Type to search your conversations by title.",
+      "searchHint": "Search message text across your conversations, or choose conversation title.",
+      "searchTitleHint": "Search conversation titles, including archived conversations.",
+      "searchModeLabel": "Search by",
+      "searchModeMessages": "Message text",
+      "searchModeTitles": "Conversation title",
+      "noMessageSearchResults": "No messages match.",
+      "searchFailed": "Search failed. Try again.",
+      "retrySearch": "Try again",
       "searchLabel": "Search conversations",
       "searchPlaceholder": "Search conversations",
       "searching": "Searching…",
@@ -5364,6 +5377,10 @@
       "chat-send-mode": {
         "title": "Queue or steer",
         "body": "While an agent is working, queue your next message or steer the current turn with plain text. Files and other context keep the ordinary queued path."
+      },
+      "chat-message-search": {
+        "title": "Find a message across conversations",
+        "body": "Search message text in conversations you can read, or choose title search. Pick a result to open the exact message, including older history and room-thread replies."
       },
       "chat-trace-filter": {
         "title": "Find a step in this turn",

@@ -75,6 +75,7 @@ async def _say(
     at: datetime = _START,
     identity: ChannelIdentity | None = None,
     author: User | None = None,
+    thread_root_message_id: uuid.UUID | None = None,
 ) -> Message:
     message = Message(
         id=uuid.uuid4(),
@@ -84,6 +85,7 @@ async def _say(
         created_at=at,
         channel_identity_id=None if identity is None else identity.id,
         author_user_id=None if author is None else author.id,
+        thread_root_message_id=thread_root_message_id,
     )
     db.add(message)
     await db.flush()
@@ -103,7 +105,15 @@ async def _identity(db, name: str) -> ChannelIdentity:
 
 
 async def _search(
-    db, organization, user, query: str, *, participants=(), projects=(), limit: int = 10
+    db,
+    organization,
+    user,
+    query: str,
+    *,
+    participants=(),
+    projects=(),
+    limit: int = 10,
+    literal: bool = False,
 ):
     return await search_repo.search(
         db,
@@ -111,6 +121,7 @@ async def _search(
         organization_id=organization.id,
         readable=search_repo.readable_by(user.id, participants, projects),
         limit=limit,
+        literal=literal,
     )
 
 
@@ -175,6 +186,18 @@ class TestWhatTheIndexMatches:
 
         assert [hit.conversation_id for hit in found] == [wanted.id]
 
+    async def test_literal_search_treats_operator_punctuation_as_text(self, db):
+        organization = await _org(db)
+        owner = await _user(db)
+        both_terms = await _thread(db, organization, owner, title="both")
+        one_term = await _thread(db, organization, owner, title="one")
+        await _say(db, both_terms, "pricing for the hobby tier")
+        await _say(db, one_term, "pricing for the enterprise tier")
+
+        found = await _search(db, organization, owner, "pricing -hobby", literal=True)
+
+        assert [hit.conversation_id for hit in found] == [both_terms.id]
+
     async def test_a_query_of_nothing_matches_nothing_rather_than_everything(self, db):
         organization = await _org(db)
         owner = await _user(db)
@@ -209,6 +232,27 @@ class TestWhatComesBack:
         found = await _search(db, organization, owner, "pricing")
 
         assert "**pricing**" in found[0].snippet
+
+    async def test_a_hit_identifies_the_matching_room_reply(self, db):
+        organization = await _org(db)
+        owner = await _user(db)
+        thread = await _thread(db, organization, owner, title="#general")
+        parent = await _say(db, thread, "starting the thread")
+        matched_at = _START + timedelta(minutes=1)
+        reply = await _say(
+            db,
+            thread,
+            "transcriptneedle resolved",
+            at=matched_at,
+            thread_root_message_id=parent.id,
+        )
+
+        found = await _search(db, organization, owner, "transcriptneedle")
+
+        assert len(found) == 1
+        assert found[0].message_id == reply.id
+        assert found[0].thread_root_message_id == parent.id
+        assert found[0].matched_at == matched_at
 
     async def test_a_channel_hit_names_the_person_who_said_it(self, db):
         """A room has several people in it, so a snippet with no name is a quote
