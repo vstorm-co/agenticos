@@ -1,5 +1,5 @@
 ---
-source_sha: "5b1e8870d320"
+source_sha: "a19472d7e356"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1575,6 +1575,31 @@ umgewandelt aus dem Markdown des Agents, damit Codeblöcke und Links erhalten
 bleiben, und antwortet im Thema einer Forengruppe in diesem Thema.
 
 ## Mattermost { #mattermost }
+
+### Das Einrichtungsplugin installieren { #install-the-setup-plugin }
+
+Das [Mattermost-Serverplugin](https://github.com/vstorm-co/agenticos/tree/main/plugins/mattermost)
+erstellt den lokalen Bot und verbindet ihn mit einem Agenten Ihrer eigenen
+AgenticOS-Instanz. Erstellen Sie das Linux-amd64/arm64-Paket, laden Sie es in der
+Plugin-Verwaltung von Mattermost hoch und setzen Sie die HTTPS-Adresse von
+AgenticOS, die Organisations-ID und die ID des veröffentlichten Agenten.
+Führen Sie als Mattermost-Systemadministrator `/agenticos connect` im gewünschten
+Teamkanal aus. Der private Dialog verwendet einmalig ein kurzlebiges
+AgenticOS-Zugriffstoken; das Plugin speichert es nicht. Die Einrichtung benötigt
+`channels:manage` und die Berechtigung zur Veröffentlichung des Agenten.
+Das Bot-Token gelangt direkt in den Vault Ihrer Instanz.
+
+`/agenticos invite` fügt den Bot einem weiteren ausgewählten Teamkanal hinzu.
+`/agenticos disconnect` widerruft sein Token und entfernt den AgenticOS-Kanal;
+das Deaktivieren des Plugins allein widerruft keinen Zugriff. `/agenticos status`
+zeigt den Registrierungszustand, keinen Live-Verbindungsstatus. Jede Person muss
+weiterhin ihre eigene AgenticOS-Identität verknüpfen. AgenticOS Bridge und eine
+Anbieter-App-Registrierung sind nicht erforderlich. Das erste Paket hat lokale
+automatisierte Tests; die Abnahme auf einem laufenden Mattermost steht noch aus.
+Die Plugin-README beschreibt Installation, Bereinigung und Wiederherstellung.
+
+### Manuelle Einrichtung { #manual-setup }
+
 
 Mattermost ist selbst gehostet, also trägt ein Bot **die URL Ihres Servers**
 ebenso wie sein Token — es gibt kein api.mattermost.com, auf das man zurückfallen

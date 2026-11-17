@@ -79,6 +79,16 @@ These are the ones worth testing and the ones easiest to break:
 
 `tests/test_channel_mentions.py` and `tests/test_channel_bot_org_scope.py` pin these.
 
+## Mattermost setup plugin
+
+`plugins/mattermost/` contains the installable Go server plugin. It provisions a
+local bot through Mattermost's API and calls the existing channel/exposure APIs;
+it does not relay messages or add another runner. Read its README before changes.
+Keep setup administrator credentials ephemeral, retain cleanup metadata on uncertain
+registration and keep chat sender authorization in the existing channel router.
+Run `make -C plugins/mattermost check bundle`; its separate workflow tests and
+packages both Linux architectures. Do not claim live installation from fake API tests.
+
 ## CLI
 
 ```bash

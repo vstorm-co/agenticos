@@ -1,5 +1,5 @@
 ---
-source_sha: "5b1e8870d320"
+source_sha: "a19472d7e356"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1506,6 +1506,30 @@ enlaces sobrevivan, y responde en el tema de un grupo con temas dentro de ese
 tema.
 
 ## Mattermost { #mattermost }
+
+### Instalar el plugin de configuración { #install-the-setup-plugin }
+
+El [plugin de servidor de Mattermost](https://github.com/vstorm-co/agenticos/tree/main/plugins/mattermost)
+crea el bot local y lo conecta con un agente de tu propia instancia de AgenticOS.
+Compila el paquete para Linux amd64/arm64, súbelo en la administración de plugins
+de Mattermost y configura la URL HTTPS de AgenticOS, el ID de la organización y
+el ID del agente publicado. Como administrador del sistema de Mattermost,
+ejecuta `/agenticos connect` en el canal de equipo elegido. El diálogo privado
+utiliza una sola vez un token de acceso de AgenticOS de corta duración; el plugin
+no lo guarda. La configuración requiere `channels:manage` y permiso para publicar
+el agente. El token del bot va directamente al Vault de tu instancia.
+
+`/agenticos invite` añade el bot a otro equipo y canal seleccionados.
+`/agenticos disconnect` revoca el token del bot y elimina el canal de AgenticOS;
+desactivar el plugin no revoca el acceso. `/agenticos status` muestra el estado
+del registro, no la conexión en tiempo real. Cada persona sigue teniendo que
+vincular su propia identidad de AgenticOS. No se requiere AgenticOS Bridge ni
+registrar una aplicación del proveedor. El primer paquete tiene pruebas locales
+automatizadas; queda pendiente la validación en un Mattermost en ejecución.
+El README del plugin describe instalación, limpieza y recuperación.
+
+### Configuración manual { #manual-setup }
+
 
 Mattermost es autoalojado, así que un bot lleva **la URL de tu servidor** además de
 su token — no hay ningún api.mattermost.com al que recurrir. Registrar uno sin ella

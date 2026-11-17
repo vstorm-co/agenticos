@@ -1,0 +1,24 @@
+{
+  "id": "co.vstorm.agenticos",
+  "name": "AgenticOS",
+  "description": "Connect this Mattermost server to your own AgenticOS instance.",
+  "homepage_url": "https://github.com/vstorm-co/agenticos/tree/main/plugins/mattermost",
+  "support_url": "https://github.com/vstorm-co/agenticos/issues",
+  "icon_path": "assets/logo.svg",
+  "version": "0.1.0",
+  "min_server_version": "10.11.0",
+  "server": {
+    "executables": {
+      "linux-amd64": "server/dist/plugin-linux-amd64",
+      "linux-arm64": "server/dist/plugin-linux-arm64"
+    }
+  },
+  "settings_schema": {
+    "header": "Connect directly to your own AgenticOS instance. No AgenticOS Bridge account is required. After saving, run /agenticos connect in the target team channel.",
+    "settings": [
+      {"key": "AgenticOSURL", "display_name": "AgenticOS URL", "type": "text", "help_text": "HTTPS origin, for example https://agents.example.com. No path, query or credentials.", "default": ""},
+      {"key": "OrganizationID", "display_name": "Organization ID", "type": "text", "help_text": "Organization UUID from AgenticOS. Setup credentials must belong to a member with channels:manage.", "default": ""},
+      {"key": "AgentID", "display_name": "Agent ID", "type": "text", "help_text": "UUID of the agent to expose. Publish the agent first; setup also requires permission to publish it. Disconnect before changing the target.", "default": ""}
+    ]
+  }
+}

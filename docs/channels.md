@@ -1439,6 +1439,27 @@ topic in that topic.
 
 ## Mattermost
 
+### Install the setup plugin
+
+The [Mattermost server plugin](https://github.com/vstorm-co/agenticos/tree/main/plugins/mattermost)
+creates the local bot and pairs it with an agent in your own AgenticOS instance.
+Build its Linux amd64/arm64 bundle, upload it in Mattermost's Plugin Management,
+and set the AgenticOS HTTPS URL, organization ID and published agent ID.
+Run `/agenticos connect` as a Mattermost system administrator in the target team
+channel. Its private dialog uses a short-lived AgenticOS access token once; the
+plugin does not save that token. Setup requires `channels:manage` and permission
+to publish the agent. Bot credentials go directly to your instance's Vault.
+
+`/agenticos invite` adds the bot to another selected team/channel.
+`/agenticos disconnect` revokes its bot token and removes the AgenticOS channel;
+disabling the plugin alone does not revoke access. `/agenticos status` reports
+registration state, not live agent health. Every person must still link their own
+AgenticOS identity. No AgenticOS Bridge or provider app registration is required.
+The first bundle has local automated tests; live Mattermost acceptance testing
+is still pending. The plugin README describes installation, cleanup and recovery.
+
+### Manual setup
+
 Mattermost is self-hosted, so a bot carries **your server's URL** as well as its
 token — there is no api.mattermost.com to fall back to. Registering one without
 it is refused rather than accepted and discovered later: a bot that does not know
