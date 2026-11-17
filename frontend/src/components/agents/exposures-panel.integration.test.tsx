@@ -171,6 +171,18 @@ describe("ExposuresPanel", () => {
     );
   });
 
+  it("refreshes a plugin-created agent binding without registering or binding it again", async () => {
+    serve([], []);
+    await mount();
+    await userEvent.click(await screen.findByRole("button", { name: "Connect a Mattermost bot" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("radio", { name: /Use plugin/ }));
+    serve([exposure({ surface: "mattermost", channel_bot_name: "Mattermost plugin bot" })], []);
+    await userEvent.click(within(dialog).getByRole("button", { name: "Refresh channels" }));
+    expect(await screen.findByText("Mattermost plugin bot")).toBeVisible();
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
   it("does not offer to register a bot to somebody who may not", async () => {
     mayRegister = false;
     serve([], []);
