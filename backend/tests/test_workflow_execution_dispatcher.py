@@ -1991,7 +1991,7 @@ class TestSettleWaiting:
         # The wake is scheduled: a row due once the backoff has passed, not a
         # parked node nothing ever looks at again.
         repo.create_outbox.assert_awaited_once()
-        assert repo.create_outbox.await_args.kwargs["available_at"] > datetime.now(UTC)
+        assert repo.create_outbox.await_args.kwargs["delay"] > timedelta(0)
 
     async def test_an_external_event_wait_escalates_because_nothing_can_deliver_one(
         self, repo, event_log, test_node

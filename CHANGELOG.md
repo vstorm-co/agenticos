@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Workflow retry timing.** A step's retry backoff, a retry after an interrupted attempt and a spender's wait for the run's budget are measured on the database's clock, the one a claim compares against. An application host whose clock runs ahead no longer makes a retry wait longer than its backoff, and one that runs behind no longer lets it run early. A Wait step's absolute time is kept as set.
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed
