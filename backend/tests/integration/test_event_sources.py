@@ -1,0 +1,408 @@
+"""Durable source admission and tenant ownership against PostgreSQL."""
+
+import asyncio
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
+
+import pytest
+from pydantic import SecretStr
+from sqlalchemy import func, select, text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from app.core.exceptions import BadRequestError, NotFoundError
+from app.db.models.background_job import BackgroundJob
+from app.db.models.event_source import (
+    EventDelivery,
+    EventDispatch,
+    EventSource,
+    EventSourceCredential,
+    EventSubscription,
+)
+from app.db.models.resource_grant import ResourceGrant
+from app.db.models.workflow_run import WorkflowRun
+from app.schemas.event_source import EventSourceCreate, SourceAuth, SourceCredentials
+from app.services import event_sources as module
+from app.services import rate_limit
+from app.services.event_sources import EventSourceService
+from app.worker.jobs import DispatchSourceEvent
+from app.worker.tasks import event_source_tasks
+from app.workflows.graph.model import WorkflowGraph
+from tests.integration.test_workflow_exposures import (
+    _ctx,
+    _graph,
+    _member,
+    _org,
+    _publish,
+    _user,
+    _workflow,
+)
+
+pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture
+async def source_world(db, monkeypatch):
+    user = await _user(db)
+    org = await _org(db, owner=user)
+    ctx = _ctx(user, org)
+    source = await EventSourceService(db).create(
+        ctx,
+        EventSourceCreate(
+            name="Events",
+            auth=SourceAuth(method="api_key", header_name="x-api-key", signature_prefix=""),
+            credentials=SourceCredentials(secret=SecretStr("source-test-key")),
+        ),
+    )
+    monkeypatch.setattr(
+        rate_limit,
+        "workflow_webhook_allowed",
+        AsyncMock(return_value=rate_limit.Decision(allowed=True, retry_after_seconds=0)),
+    )
+    return ctx, org, user, source
+
+
+async def _subscribed(db, world):
+    ctx, org, user, source = world
+    workflow = await _workflow(db, org=org, owner=user)
+    published = await _publish(
+        db, ctx, workflow, _graph("trigger.webhook", {"source_id": str(source.id)})
+    )
+    return workflow, published
+
+
+async def _receive(db, source_id, event_id="event-1"):
+    headers = {"x-api-key": "source-test-key"}
+    if event_id is not None:
+        headers["x-delivery-id"] = event_id
+    return await EventSourceService(db).receive(
+        source_id, body=b'{"issue":{"title":"Help"},"values":[false,0,null]}', headers=headers
+    )
+
+
+async def _count(db, model):
+    return await db.scalar(select(func.count()).select_from(model))
+
+
+async def test_delivery_and_each_subscriber_survive_dispatch_restart_without_duplicate_runs(
+    db, engine, source_world, monkeypatch
+):
+    ctx, _, _, source = source_world
+    first_workflow, first = await _subscribed(db, source_world)
+    second_workflow, second = await _subscribed(db, source_world)
+    _, receipt, accepted = await _receive(db, source.id)
+    _, _, duplicate = await _receive(db, source.id)
+    assert accepted and not duplicate
+    assert await _count(db, EventDelivery) == 1
+    assert await _count(db, EventDispatch) == 2
+    assert (
+        await db.scalar(
+            select(func.count())
+            .select_from(BackgroundJob)
+            .where(BackgroundJob.kind == "dispatch-source-event")
+        )
+        == 2
+    )
+    dispatches = list(await db.scalars(select(EventDispatch)))
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    @asynccontextmanager
+    async def restarted_context():
+        async with factory() as restarted, restarted.begin():
+            yield restarted
+
+    monkeypatch.setattr(event_source_tasks, "get_worker_db_context", restarted_context)
+    for dispatch in dispatches:
+        for _attempt in range(2):
+            await event_source_tasks.dispatch_source_event(
+                DispatchSourceEvent(
+                    organization_id=ctx.organization_id,
+                    dispatch_id=dispatch.id,
+                )
+            )
+        await db.refresh(dispatch)
+    runs = list(await db.scalars(select(WorkflowRun)))
+    assert len(runs) == 2
+    assert {run.workflow_id for run in runs} == {first_workflow.id, second_workflow.id}
+    assert {run.workflow_version_id for run in runs} == {
+        first.exposure.workflow_version_id,
+        second.exposure.workflow_version_id,
+    }
+    assert all(run.input == {"body": receipt.body, "delivery_id": "event-1"} for run in runs)
+    assert all(row.status == "admitted" for row in dispatches)
+
+
+async def test_concurrent_duplicate_admission_persists_one_receipt_and_dispatch(
+    db, engine, source_world
+):
+    _, _, _, source = source_world
+    await _subscribed(db, source_world)
+    source_id = source.id
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def deliver():
+        async with factory() as session, session.begin():
+            _, _, accepted = await _receive(session, source_id)
+            return accepted
+
+    admitted = await asyncio.gather(deliver(), deliver())
+    assert sorted(admitted) == [False, True]
+    assert await _count(db, EventDelivery) == 1
+    assert await _count(db, EventDispatch) == 1
+
+
+async def test_queue_failure_rolls_back_receipt_and_partial_dispatch(db, source_world, monkeypatch):
+    _, _, _, source = source_world
+    await _subscribed(db, source_world)
+    monkeypatch.setattr(module, "enqueue", AsyncMock(side_effect=RuntimeError("Queue unavailable")))
+    with pytest.raises(RuntimeError, match="Queue unavailable"):
+        async with db.begin_nested():
+            await _receive(db, source.id)
+    assert await _count(db, EventDelivery) == 0
+    assert await _count(db, EventDispatch) == 0
+
+
+@pytest.mark.security
+async def test_one_subscriber_losing_authority_does_not_block_another(db, source_world):
+    ctx, _, _, source = source_world
+    denied, _ = await _subscribed(db, source_world)
+    allowed, _ = await _subscribed(db, source_world)
+    await _receive(db, source.id)
+    denied.status = "archived"
+    await db.flush()
+    dispatches = list(await db.scalars(select(EventDispatch)))
+    for row in dispatches:
+        await EventSourceService(db).dispatch(ctx.organization_id, row.id)
+    runs = list(await db.scalars(select(WorkflowRun)))
+    assert [run.workflow_id for run in runs] == [allowed.id]
+    assert sorted(row.status for row in dispatches) == ["admitted", "failed"]
+
+
+async def test_republish_preserves_queued_subscription_version_and_principal(db, source_world):
+    ctx, org, _, source = source_world
+    workflow, published = await _subscribed(db, source_world)
+    await _receive(db, source.id)
+    dispatch = await db.scalar(select(EventDispatch))
+    snapshot = dispatch.workflow_version_id
+    new_publisher = await _user(db)
+    await _member(db, org=org, user=new_publisher, role="owner")
+    graph = WorkflowGraph.model_validate(workflow.draft_graph)
+    second = await _publish(db, _ctx(new_publisher, org), workflow, graph)
+    assert second.exposure.id == published.exposure.id
+    assert second.exposure.workflow_version_id != snapshot
+    await EventSourceService(db).dispatch(ctx.organization_id, dispatch.id)
+    assert dispatch.status == "admitted"
+    run = await db.scalar(select(WorkflowRun))
+    assert run.workflow_version_id == snapshot
+    assert run.execution_principal_user_id == ctx.user_id
+    assert snapshot == published.exposure.workflow_version_id
+
+
+@pytest.mark.security
+async def test_source_visibility_and_tenant_are_independent_from_target_access(db, source_world):
+    ctx, _, user, source = source_world
+    other_org = await _org(db, owner=user)
+    other = _ctx(user, other_org)
+    with pytest.raises(NotFoundError):
+        await EventSourceService(db).require_use(other, source.id)
+    assert (await EventSourceService(db).require_use(ctx, source.id)).id == source.id
+
+
+@pytest.mark.security
+async def test_database_refuses_cross_tenant_source_credentials_deliveries_and_targets(
+    db, source_world
+):
+    ctx, _, user, source = source_world
+    _, published = await _subscribed(db, source_world)
+    other_org = await _org(db, owner=user)
+    other_source = await EventSourceService(db).create(
+        _ctx(user, other_org), EventSourceCreate(name="Other source")
+    )
+    await EventSourceService(db).unbind_workflow(published.exposure.id)
+    unused_credential = EventSourceCredential(
+        organization_id=ctx.organization_id,
+        sealed_secret="opaque",
+        secret_key_version=1,
+    )
+    db.add(unused_credential)
+    await db.flush()
+    wrong_rows = [
+        (
+            EventSource(
+                organization_id=other_org.id,
+                owner_user_id=user.id,
+                name="Wrong",
+                provider="webhook",
+                auth={},
+                visibility="private",
+                is_active=True,
+                secret_id=unused_credential.id,
+            ),
+            "fk_event_source_credential_tenant",
+        ),
+        (
+            EventDelivery(organization_id=other_org.id, source_id=source.id, body={}),
+            "fk_event_delivery_source_tenant",
+        ),
+        (
+            EventSubscription(
+                organization_id=other_org.id,
+                source_id=other_source.id,
+                exposure_id=published.exposure.id,
+            ),
+            "fk_event_subscription_exposure_tenant",
+        ),
+        (
+            EventSubscription(
+                organization_id=ctx.organization_id,
+                source_id=other_source.id,
+                exposure_id=published.exposure.id,
+            ),
+            "fk_event_subscription_source_tenant",
+        ),
+    ]
+    for row, constraint in wrong_rows:
+        with pytest.raises(IntegrityError, match=constraint):
+            async with db.begin_nested():
+                db.add(row)
+                await db.flush()
+    assert await _count(db, EventSource) == 2
+    assert await _count(db, EventDelivery) == 0
+    assert await _count(db, EventSubscription) == 0
+
+
+@pytest.mark.security
+async def test_private_source_grants_allow_use_without_promoting_source_edit(db, source_world):
+    ctx, org, owner, source = source_world
+    viewer = await _user(db)
+    await _member(db, org=org, user=viewer, role="viewer")
+    viewer_ctx = _ctx(viewer, org, "viewer")
+    service = EventSourceService(db)
+    assert (await service.list(viewer_ctx)).items == []
+    with pytest.raises(NotFoundError):
+        await service.require_use(viewer_ctx, source.id)
+    db.add(
+        ResourceGrant(
+            organization_id=ctx.organization_id,
+            subject_user_id=viewer.id,
+            resource_type="event_source",
+            resource_id=source.id,
+            level="use",
+            created_by_user_id=owner.id,
+        )
+    )
+    await db.flush()
+    assert (await service.require_use(viewer_ctx, source.id)).id == source.id
+    read = (await service.list(viewer_ctx)).items[0]
+    assert read.can_use and not read.can_edit
+    with pytest.raises(NotFoundError):
+        await service.delete(viewer_ctx, source.id)
+    assert (await service.list(ctx)).total == 1
+
+
+async def test_deleting_an_unused_source_also_removes_its_credential(db, source_world):
+    ctx, _, _, source = source_world
+    await _receive(db, source.id)
+    await EventSourceService(db).delete(ctx, source.id)
+    assert await _count(db, EventSource) == 0
+    assert await _count(db, EventSourceCredential) == 0
+    assert await _count(db, EventDelivery) == 0
+
+
+async def test_subscription_deletion_preserves_dispatch_history_and_source_deletion_is_blocked(
+    db, source_world
+):
+    ctx, _, _, source = source_world
+    _, published = await _subscribed(db, source_world)
+    await _receive(db, source.id)
+    with pytest.raises(BadRequestError, match="Detach"):
+        await EventSourceService(db).delete(ctx, source.id)
+    dispatch = await db.scalar(select(EventDispatch))
+    await EventSourceService(db).unbind_workflow(published.exposure.id)
+    await db.refresh(dispatch)
+    await db.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+    assert dispatch.subscription_id is None
+    assert dispatch.organization_id == ctx.organization_id
+
+
+async def test_static_credentials_without_delivery_id_do_not_deduplicate_distinct_requests(
+    db, source_world
+):
+    _, _, _, source = source_world
+    assert (await _receive(db, source.id, None))[2]
+    assert (await _receive(db, source.id, None))[2]
+    assert await _count(db, EventDelivery) == 2
+
+
+async def test_cleanup_keeps_pending_payloads_and_clears_terminal_payloads_only(db, source_world):
+    ctx, _, _, source = source_world
+    await _subscribed(db, source_world)
+    await _receive(db, source.id)
+    receipt = await db.scalar(select(EventDelivery))
+    receipt.created_at = datetime.now(UTC) - timedelta(days=400)
+    await db.flush()
+    await EventSourceService(db).cleanup()
+    await db.refresh(receipt)
+    assert receipt.body is not None
+    dispatch = await db.scalar(select(EventDispatch))
+    await EventSourceService(db).dispatch(ctx.organization_id, dispatch.id)
+    await EventSourceService(db).cleanup()
+    await db.refresh(receipt)
+    assert receipt.body is None and receipt.headers == {}
+
+
+async def test_organization_deletion_removes_its_sources_and_accepted_work(db, source_world):
+    _, org, _, source = source_world
+    await _subscribed(db, source_world)
+    await _receive(db, source.id)
+    await db.delete(org)
+    await db.flush()
+    await db.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+    assert await _count(db, EventSource) == 0
+    assert await _count(db, EventDelivery) == 0
+    assert await _count(db, EventDispatch) == 0
+
+
+@pytest.mark.parametrize(
+    "job_state", ["queued", "running", "dead", "cancelled", "succeeded", "missing"]
+)
+async def test_retention_keeps_live_work_and_releases_only_abandoned_pending_payloads(
+    db, source_world, job_state, monkeypatch
+):
+    _, _, _, source = source_world
+    await _subscribed(db, source_world)
+    await _receive(db, source.id)
+    receipt = await db.scalar(select(EventDelivery))
+    dispatch = await db.scalar(select(EventDispatch))
+    job = await db.scalar(
+        select(BackgroundJob).where(BackgroundJob.kind == "dispatch-source-event")
+    )
+    old = datetime.now(UTC) - timedelta(days=400)
+    receipt.created_at = old
+    dispatch.created_at = old
+    if job_state == "missing":
+        await db.delete(job)
+    else:
+        job.status = job_state
+    await db.flush()
+
+    @asynccontextmanager
+    async def cleanup_context():
+        yield db
+
+    monkeypatch.setattr(event_source_tasks, "get_worker_db_context", cleanup_context)
+    await event_source_tasks.cleanup_source_deliveries()
+    await db.refresh(receipt)
+    await db.refresh(dispatch)
+    if job_state in {"queued", "running"}:
+        assert receipt.body is not None
+        assert dispatch.status == "pending"
+        assert dispatch.completed_at is None
+    else:
+        assert receipt.body is None
+        assert dispatch.status == "failed"
+        assert dispatch.error_code == "DISPATCH_JOB_TERMINAL"
+        assert dispatch.completed_at is not None

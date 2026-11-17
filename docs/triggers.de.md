@@ -1,5 +1,5 @@
 ---
-source_sha: "6aec4865a6f4"
+source_sha: "906fd3ede6cf"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -9,8 +9,8 @@ Ein **Event-Trigger** löst einen Agent aus, wenn woanders etwas passiert.
 Es gibt zwei Wege, auf denen das bei uns ankommt, und welchen eine Quelle nutzt,
 ist die Sache der Quelle und nicht Ihre:
 
-- **Geschoben.** Ein Provider schickt per POST eine signierte Payload: **GitHub**,
-  **HubSpot**, **Zendesk**, oder alles, was signiertes JSON senden kann (die
+- **Geschoben.** Ein Provider schickt per POST eine authentifizierte Payload: **GitHub**,
+  **HubSpot**, **Zendesk**, **Linear** oder alles, was authentifiziertes JSON senden kann (die
   Quelle **API**).
 - **Abgefragt.** Die Plattform liest ein verbundenes Konto nach einem Zeitplan: die
   Postfächer (**Gmail**, **Outlook**), die Dateien (**Google Drive**, **OneDrive &
@@ -121,9 +121,51 @@ Standardanordnung unter **Needs attention**. Sie liest dieselbe organisationswei
 Liste, wer also die Agents sehen darf, sieht ihre Routinen; Ausgang und Kosten in
 jeder Zeile brauchen `runs:view` und fehlen ohne es schlicht.
 
+## Wiederverwendbare Ereignisquellen { #reusable-event-sources }
+
+Öffnen Sie **Ereignisquellen**, oder wählen Sie **Vorhandene auswählen / Neu erstellen** im Webhook-Editor einer Routine oder eines Workflows. Eine Quelle besitzt ihre Live-URL, Zugangsdaten und Provider-Konfiguration. Mehrere Routinen und veröffentlichte Workflow-Einstiege können dieselbe URL abonnieren; Filter, Ausführungsidentität, Berechtigungen, Einwilligungen und Budgets bleiben pro Ziel erhalten.
+
+Quellen sind standardmäßig **Privat**. **Organisation** stellt sie gemäß den Organisationsberechtigungen bereit. Anzeigen, Verwenden und Bearbeiten sind getrennte Berechtigungen. Das Verknüpfen eines Ziels oder das Empfangen eines Beispiels benötigt Quellen-Nutzungsrechte und die Verwaltungsrechte des Ziels. Zugriff auf eine Routine oder einen Workflow erlaubt keinen Zugriff auf andere Ereignisse der Quelle. Worker prüfen Rechte vor der Ausführung erneut.
+
+Wählen Sie GitHub, Linear, HubSpot oder Zendesk für die jeweilige Provider-Prüfung, oder **Benutzerdefinierter Webhook** für eine der folgenden Methoden. Die Registrierung bleibt manuell: Kopieren Sie die Quellen-URL in die Provider-Konfiguration.
+
+| Benutzerdefinierte Authentifizierung | Konfiguration |
+| --- | --- |
+| Benutzerdefinierter HMAC | SHA-256, Headername, optionales Signaturpräfix und Hex-, Base64- oder Base64url-Kodierung; die bisherige Zeitstempelsignatur ist ebenfalls verfügbar |
+| Basic Auth | Benutzername und Passwort |
+| API-Schlüssel | Headername, geheimer Schlüssel und optionales Präfix |
+| Standard Webhooks | Symmetrische `v1`-Signaturen über ID, Zeitstempel und Body; Signaturlisten und fünf Minuten Zeitstempeltoleranz |
+
+Senden Sie per POST ein JSON-Objekt; die bisherige Anpassung für HubSpot-Stapel bleibt erhalten. Zugangsdaten werden nur geschrieben und im Organisations-Vault gespeichert. Ersetzen Sie sie an der Quelle, niemals in einer Workflow-Definition oder einem Beispiel. Provider-Zustellungs-IDs oder ein konfigurierter Zustellungs-ID-Header erkennen Wiederholungen. Basic-Auth- und API-Schlüssel-Zugangsdaten sind keine Ereignis-IDs. Ohne Ereignis-ID können Wiederholungen zusätzliche Läufe starten.
+
+Eine authentifizierte Zustellung und ihre Versandaufträge werden gemeinsam gespeichert, bevor die Quelle den Empfang bestätigt. Fehler eines Abonnenten beeinflussen andere nicht. Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron und liefert keine benutzerdefinierte Workflow-Antwort. Ein Workflow mit gemeinsamer Quelle darf **Auf Webhook antworten** nicht erreichen. Dedizierte Workflow-Endpunkte behalten synchrone Antworten.
+
+**Quelle pausieren** verhindert den Start von Abonnenten für neue Zustellungen; das Pausieren einer Routine oder eines Workflows betrifft nur dieses Ziel. Solange Abonnements bestehen, ist Löschen gesperrt; die Nutzungsliste zeigt die zuvor zu trennenden Ziele. Strukturierte Ereignisse bleiben für eingereihte oder wartende Arbeit erhalten. Abgeschlossene Zustellungen folgen der Aufbewahrungsregel für Hintergrundjobs.
+
+### Auf der Live-URL auf ein Ereignis warten { #listen-on-the-live-url }
+
+Wählen Sie **Auf Ereignis warten** und senden Sie innerhalb von zwei Minuten ein authentifiziertes Ereignis an die angezeigte Live-URL. Das nächste Ereignis wird in den Editor kopiert, ohne den Versand zu unterbrechen: **aktive Abonnenten werden weiter ausgeführt**. Die Erfassung startet keinen zusätzlichen Lauf. Das Beispiel bleibt zehn Minuten erhalten und unterliegt dem bisherigen 64-KB-Pin-Limit. Fehler, Übergröße oder Ablauf beeinflussen die Live-Verarbeitung nicht.
+
+Alternativ können Sie Beispiel-JSON einfügen. Beispiele sind weder zum Speichern einer Routine noch zum Veröffentlichen eines Workflows erforderlich. Workflow-Beispiele verwenden weiterhin `{body, delivery_id}`, Pins, Bindings und Schritttests. Wählen Sie bei mehreren Triggern den gewünschten Webhook-Einstieg; es gibt keine zusätzliche Payload-Transformation. Siehe [Workflows](workflows.md#reusable-webhook-sources).
+
+### Ereignisfelder in den Routine-Prompt einsetzen { #routine-prompt-fields }
+
+Aktivieren Sie den Vorlagenmodus. Suchen Sie im Feldbaum des Beispiels und fügen Sie ein Feld an der Cursorposition ein, oder schreiben Sie die Referenz selbst:
+
+```text
+Fasse {{issue.title}} und das erste Element {{items[0].name}} zusammen.
+Lies die ungewöhnliche Eigenschaft {{["request.id"]}}.
+```
+
+Pfade beginnen an der Wurzel des JSON-Bodys. Punktnotation, Array-Indizes und Schlüssel in Anführungszeichen innerhalb von Klammern sind erlaubt; Ausdrücke, Funktionen, Schleifen und Standardwerte nicht. Einzelne geschweifte Klammern bleiben Text. Schreiben Sie `\{{example\}}`, um doppelte Klammern wörtlich auszugeben. Die Ersetzung erfolgt einmal; Klammern in empfangenen Werten werden nicht erneut ausgewertet.
+
+**Aufgelösten Prompt anzeigen** verwendet denselben Backend-Resolver wie die Live-Ausführung und ruft keinen Agenten auf. Strings werden direkt eingesetzt, andere JSON-Werte als kompaktes JSON. `false`, `0` und `null` gelten als vorhanden. Ein fehlender Pfad führt vor dem Agentenaufruf zu einem sichtbaren Fehler mit seinem Namen, auch in Aktivierungsdiagnose und Routine-Verlauf, wenn noch kein Lauf existiert.
+
+Speichern prüft die Syntax, ohne passende Felder im Beispiel zu verlangen. Die Auflösung verwendet das strukturierte Ereignis vor einer bisherigen Kontextkürzung. Vorlagen senden den verfassten Prompt mit ausgewählten, als externe Daten markierten Werten, ohne die gesamte Payload anzuhängen. Zu große Nachrichten schlagen fehl, statt gekürzt zu werden. Bestehende Prompts bleiben bis zur ausdrücklichen Umstellung wörtlich; dedizierte URLs und Signatureinstellungen bleiben gültig.
+
 ## Die Mechanik, einmal { #the-mechanism-once }
 
-Ein Event-Trigger verwendet zwei Dinge: eine **Webhook-URL** und ein
+Ein dedizierter Event-Trigger verwendet zwei Dinge: eine **Webhook-URL** und ein
 **Signatur-Secret**. Ein Provider schickt seine Payload per POST an die URL und
 signiert die Anfrage; die Plattform berechnet die Signatur neu und löst den Agent
 nur aus, wenn beide übereinstimmen.

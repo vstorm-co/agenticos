@@ -82,6 +82,11 @@ class Perm(StrEnum):
     DATASETS_VIEW = "datasets:view"
     DATASETS_EDIT = "datasets:edit"
     DATASETS_RUN = "datasets:run"
+    # Live ingress and captured events need their own sharing boundary.
+    EVENT_SOURCES_VIEW = "event_sources:view"
+    EVENT_SOURCES_USE = "event_sources:use"
+    EVENT_SOURCES_EDIT = "event_sources:edit"
+
     # A project: shared files in one container, standing instructions, and the
     # chats people have in it. Three levels because they are three acts - seeing
     # a project and reading its files, working in it (chatting, adding files), and
@@ -157,6 +162,9 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         Perm.DATASETS_VIEW,
         Perm.DATASETS_EDIT,
         Perm.DATASETS_RUN,
+        Perm.EVENT_SOURCES_VIEW,
+        Perm.EVENT_SOURCES_USE,
+        Perm.EVENT_SOURCES_EDIT,
         Perm.PROJECTS_VIEW,
         Perm.PROJECTS_USE,
         Perm.PROJECTS_EDIT,
@@ -277,6 +285,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.PROJECTS_USE: Scope.ALL,
         Perm.PROJECTS_EDIT: Scope.ALL,
         Perm.MCP_MANAGE: Scope.ALL,
+        Perm.EVENT_SOURCES_VIEW: Scope.ALL,
+        Perm.EVENT_SOURCES_USE: Scope.ALL,
+        Perm.EVENT_SOURCES_EDIT: Scope.ALL,
     },
     # Admin runs the org day to day but cannot delete it.
     OrgRoleName.ADMIN: {
@@ -307,6 +318,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.PROJECTS_USE: Scope.ALL,
         Perm.PROJECTS_EDIT: Scope.ALL,
         Perm.MCP_MANAGE: Scope.ALL,
+        Perm.EVENT_SOURCES_VIEW: Scope.ALL,
+        Perm.EVENT_SOURCES_USE: Scope.ALL,
+        Perm.EVENT_SOURCES_EDIT: Scope.ALL,
     },
     # Builder sees the whole org to learn from it, but edits only what is theirs
     # or was shared with them - so one builder cannot rewrite another's agent.
@@ -354,6 +368,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.API_KEYS_CREATE: Scope.ALL,
         Perm.PERSONAL_CONSENT: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
+        Perm.EVENT_SOURCES_VIEW: Scope.SHARED,
+        Perm.EVENT_SOURCES_USE: Scope.SHARED,
+        Perm.EVENT_SOURCES_EDIT: Scope.OWN,
     },
     # Operator keeps the running system healthy: approves, watches, reruns -
     # but does not build. `connections:view` without `connections:manage` is
@@ -383,6 +400,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.API_KEYS_CREATE: Scope.ALL,
         Perm.PERSONAL_CONSENT: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
+        Perm.EVENT_SOURCES_VIEW: Scope.SHARED,
+        Perm.EVENT_SOURCES_USE: Scope.SHARED,
     },
     # Member is the everyday user: builds their own agents, sees nobody else's
     # unless it was shared.
@@ -417,6 +436,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.API_KEYS_CREATE: Scope.ALL,
         Perm.PERSONAL_CONSENT: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
+        Perm.EVENT_SOURCES_VIEW: Scope.SHARED,
+        Perm.EVENT_SOURCES_USE: Scope.SHARED,
+        Perm.EVENT_SOURCES_EDIT: Scope.OWN,
     },
     OrgRoleName.VIEWER: {
         Perm.AGENTS_VIEW: Scope.SHARED,
@@ -429,6 +451,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.DATASETS_VIEW: Scope.SHARED,
         Perm.PROJECTS_VIEW: Scope.SHARED,
         Perm.MEMBERS_VIEW: Scope.ALL,
+        Perm.EVENT_SOURCES_VIEW: Scope.SHARED,
     },
 }
 

@@ -4660,7 +4660,8 @@
     "monitoring": "Überwachung",
     "backgroundWork": "Arbeit im Hintergrund",
     "desktopApp": "Desktop-App",
-    "developerAccess": "API & MCP"
+    "developerAccess": "API & MCP",
+    "eventSources": "Ereignisquellen"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4745,6 +4746,10 @@
       "skill-improvement-session": {
         "title": "Durch diese Sitzung gehen",
         "body": "Sieh die Schritte, das Ergebnis jedes Agents und was du mit der Änderung tun kannst."
+      },
+      "create-event-source": {
+        "title": "Neue Quelle erstellen",
+        "body": "Authentifizierte Ereignisse einmal empfangen und mit Routinen und Workflows teilen."
       }
     },
     "steps": {
@@ -6004,6 +6009,18 @@
       "channels-diagnostics": {
         "title": "Bereitschaft prüfen",
         "body": "Prüfen Sie Bot-Verbindung, Agent-Veröffentlichung und Ihre verknüpften Konten, ohne eine Aufgabe zu starten."
+      },
+      "event-sources-header": {
+        "title": "Ereignisquellen",
+        "body": "Authentifizierte Ereignisse einmal empfangen und mit Routinen und Workflows teilen."
+      },
+      "event-sources-create": {
+        "title": "Neue Quelle erstellen",
+        "body": "Konfiguriere den Absender manuell, damit er JSON per POST an die Quell-URL sendet."
+      },
+      "flow-event-source-create": {
+        "title": "Neue Quelle erstellen",
+        "body": "Konfiguriere den Absender manuell, damit er JSON per POST an die Quell-URL sendet."
       }
     },
     "chooseLanguage": "Sprache",
@@ -9935,7 +9952,8 @@
       "source_review_required": "Prüfen Sie die Quellen der Routine und nicht verfügbare Verbindungen vor einem erneuten Versuch.",
       "agent_unavailable": "Prüfen Sie die veröffentlichte Version, Konfiguration und Zugriffsrechte des Agenten, bevor Sie die Routine wieder aktivieren.",
       "preparation_failed": "Die Vorbereitung ist vor dem Erstellen eines Agentenlaufs fehlgeschlagen. Bitten Sie einen Betreiber, die Worker-Protokolle zu diesem Zeitpunkt zu prüfen.",
-      "previous_run_active": "Übersprungen, weil eine vorherige Ausführung noch läuft oder auf eine Antwort wartet. Öffnen Sie diese zum Fortsetzen oder stoppen Sie die wartende Ausführung hier."
+      "previous_run_active": "Übersprungen, weil eine vorherige Ausführung noch läuft oder auf eine Antwort wartet. Öffnen Sie diese zum Fortsetzen oder stoppen Sie die wartende Ausführung hier.",
+      "prompt_template_failed": "Der Prompt konnte nicht aufgelöst werden. Es wurde kein Agent aufgerufen."
     },
     "runAsMe": "Als ich ausführen",
     "runAsCreator": "Läuft als die Person, die ihn angelegt hat",
@@ -20439,5 +20457,93 @@
         }
       }
     }
+  },
+  "eventSources": {
+    "title": "Ereignisquellen",
+    "description": "Authentifizierte Ereignisse einmal empfangen und mit Routinen und Workflows teilen.",
+    "name": "Name",
+    "provider": "Provider",
+    "providers": {
+      "webhook": "Eigener Webhook",
+      "github": "GitHub",
+      "linear": "Linear",
+      "hubspot": "HubSpot",
+      "zendesk": "Zendesk"
+    },
+    "authentication": "Authentifizierung",
+    "auth": {
+      "hmac": "Eigener HMAC (SHA-256)",
+      "basic": "Basic Auth",
+      "api_key": "API Key",
+      "standard_webhooks": "Standard Webhooks"
+    },
+    "username": "Benutzername",
+    "password": "Passwort",
+    "secret": "Geheimnis",
+    "secretHelp": "Leer lassen, um ein Geheimnis zu erzeugen, oder das vorhandene Geheimnis des Absenders eingeben. Zugangsdaten werden im Vault gespeichert und bei Lesezugriffen nie zurückgegeben.",
+    "manualSetup": "Konfiguriere den Absender manuell, damit er JSON per POST an die Quell-URL sendet.",
+    "visibility": "Sichtbarkeit",
+    "private": "Privat",
+    "organization": "Organisation",
+    "deliveryHeader": "Header für Zustellungs-ID (optional)",
+    "deliveryHelp": "Ereignis-IDs des Providers werden automatisch erkannt. Ohne Ereignis-ID können Wiederholungen weitere Runs erzeugen.",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "create": "Quelle erstellen",
+    "header": "Header-Name",
+    "prefix": "Signatur- oder Schlüsselpräfix (optional)",
+    "encoding": "Signaturkodierung",
+    "legacy": "Älteres Signaturformat mit Zeitstempel verwenden",
+    "standardHelp": "Symmetrische v1-Signaturen über ID, Zeitstempel und Inhalt mit fünf Minuten Zeitstempeltoleranz.",
+    "selectSource": "Ereignisquelle",
+    "dedicated": "Eigener Endpoint (bisheriges Verhalten)",
+    "chooseSource": "Vorhandene Quelle auswählen",
+    "paused": "Pausiert",
+    "active": "Aktiv",
+    "liveUrl": "Live-Endpoint-URL",
+    "revealOnce": "Kopiere dieses Geheimnis jetzt. Es wird nicht erneut angezeigt.",
+    "createNew": "Neue Quelle erstellen",
+    "loadError": "Ereignisquellen konnten nicht geladen werden.",
+    "retry": "Erneut versuchen",
+    "liveWarning": "Zwei Minuten auf dieser Live-URL auf ein Ereignis warten. Aktive Abonnenten laufen normal weiter. Beispiele sind temporär und verfallen nach zehn Minuten. Ein Beispiel ist optional.",
+    "noUse": "Zum Erfassen von Ereignissen ist die Berechtigung zur Quellennutzung erforderlich.",
+    "captureError": "Das Ereignisbeispiel konnte nicht erfasst werden. Die Verarbeitung laufender Zustellungen bleibt unverändert.",
+    "expired": "Die Wartezeit ist abgelaufen. Starte erneut, wenn der Absender bereit ist.",
+    "caught": "Ereignis erfasst. Das Beispiel kann verwendet werden.",
+    "listen": "Auf Ereignis warten",
+    "listening": "Warten auf ein authentifiziertes Ereignis…",
+    "pasteExample": "Oder JSON-Beispiel einfügen",
+    "exampleJson": "JSON-Beispielobjekt",
+    "invalidJson": "Gib ein gültiges JSON-Objekt ein.",
+    "sampleTooLarge": "Dieses Beispiel überschreitet das Editorlimit von {limit} Bytes.",
+    "useExample": "Beispiel verwenden",
+    "promptMode": "Prompt-Modus",
+    "literal": "Wörtlicher Prompt",
+    "template": "Prompt mit Payload-Feldern",
+    "templateHelp": "Füge Felder wie {field} oder {arrayField} ein. Fehlende Felder führen vor dem Agent-Run zu einem Fehler. Nur ausgewählte Werte werden eingefügt, nicht die gesamte Payload.",
+    "fields": "Payload-Felder",
+    "searchFields": "Feldpfade suchen",
+    "preview": "Aufgelösten Prompt ansehen",
+    "resolvedPrompt": "Aufgelöster Prompt (ohne Agent-Run)",
+    "noView": "Du hast keine Berechtigung, Ereignisquellen anzusehen.",
+    "empty": "Noch keine Ereignisquellen. Erstelle eine Quelle für Routinen und Workflows.",
+    "edit": "Bearbeiten",
+    "done": "Fertig",
+    "pause": "Quelle pausieren",
+    "resume": "Quelle fortsetzen",
+    "pauseHelp": "Eine pausierte Quelle nimmt keine neuen Zustellungen an. Jeder Abonnent kann auch unabhängig pausiert werden.",
+    "replaceCredentials": "Zugangsdaten ersetzen",
+    "usageError": "Abonnenten konnten nicht geladen werden.",
+    "usage": "{count, plural, =0 {Keine Abonnenten} =1 {1 Abonnent} other {# Abonnenten}}",
+    "routine": "Routine",
+    "workflow": "Workflow",
+    "delete": "Quelle löschen",
+    "confirmDelete": "Löschen bestätigen",
+    "deleteBlocked": "Entferne die oben aufgeführten Abonnements, bevor du diese Quelle löschst.",
+    "sourceRoutine": "Routine aus einer Ereignisquelle erstellen",
+    "credentialHelp": "Gib das Geheimnis des Absenders ein. Vorhandene Zugangsdaten werden nie angezeigt.",
+    "eventPreset": "Ereignisse für diese Routine",
+    "currentFilters": "Aktuelle oder Standardfilter",
+    "presetError": "Ereignisvorlagen konnten nicht geladen werden."
   }
 }

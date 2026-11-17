@@ -113,6 +113,7 @@ _CONSOLE_PATHS = {
     "project": "/projects/{id}",
     "table": "/tables/{id}",
     "workflow": "/workflows/{id}",
+    "event_source": "/event-sources",
 }
 """Where the console opens a shared resource of each kind."""
 
@@ -481,6 +482,8 @@ class SharingService:
         answer.
         """
         await self._require_edit(ctx, resource, resource_type)
+        if visibility not in resource_type.visibilities:
+            raise BadRequestError(message="This visibility is not supported for this resource")
         guard = _GUARDS.get(resource_type.key)
         if guard is not None:
             await guard.before_visibility(self.db, ctx, resource, visibility)

@@ -27,6 +27,7 @@ export type GrantLevel = "read" | "use" | "edit" | "edit_data";
 
 /** The resource kinds that carry an owner, a visibility and a grant list. */
 export type SharingResourceType =
+  | "event_source"
   | "agent"
   | "skill"
   | "collection"

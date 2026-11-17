@@ -25,6 +25,7 @@ import type {
  * only thing that differs between sharing an agent and sharing a collection.
  */
 const SHARING_ROOT = {
+  event_source: "/event-sources",
   agent: "/agents",
   skill: "/skills",
   // `/kb`, which is where the template mounts knowledge bases and therefore
@@ -51,6 +52,7 @@ const SHARING_ROOT = {
  * "only people with access" over a page the whole organization could open.
  */
 const RESOURCE_KEYS = {
+  event_source: qk.eventSources.all,
   agent: qk.agents.all,
   skill: qk.skills.all,
   collection: qk.kb.all,

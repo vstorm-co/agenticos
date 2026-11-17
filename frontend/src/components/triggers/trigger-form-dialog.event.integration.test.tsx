@@ -140,6 +140,71 @@ beforeEach(() => {
  * grid is), so it is exercised here directly rather than through a panel button.
  */
 describe("TriggerFormDialog custom-webhook event form", () => {
+  it("renders a shared source subscription filter exactly once on edit", async () => {
+    render(
+      <TriggerFormDialog
+        agentId={AGENT_ID}
+        open
+        onOpenChange={vi.fn()}
+        trigger={trigger({
+          source_id: "shared-source",
+          event_config: { event: "issue_comment", mention: "@review" },
+        })}
+      />,
+      { wrapper },
+    );
+    expect(await screen.findAllByLabelText("Mention phrase")).toHaveLength(1);
+  });
+
+  it("creates a source-backed template routine without a sample or copied credentials", async () => {
+    const get = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
+      path === "/event-sources"
+        ? {
+            items: [
+              {
+                id: "shared-source",
+                name: "Shared incoming",
+                provider: "webhook",
+                auth: { method: "hmac" },
+                is_active: true,
+                visibility: "private",
+                can_use: true,
+                can_edit: false,
+                webhook_url: "https://example.test/api/v1/webhooks/sources/shared-source",
+              },
+            ],
+            total: 1,
+          }
+        : get(path, options),
+    );
+    vi.mocked(apiClient.post).mockResolvedValue(
+      trigger({ event_source: "webhook", source_id: "shared-source", prompt_mode: "template" }),
+    );
+    const dialog = await openEvent();
+    await userEvent.click(dialog.getByRole("combobox", { name: "Event source" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Shared incoming" }));
+    expect(dialog.queryByLabelText("Signing secret")).toBeNull();
+    await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
+    await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
+    fireEvent.change(dialog.getByLabelText("Message"), {
+      target: { value: "Triage {{issue.title}}" },
+    });
+    await userEvent.click(dialog.getByRole("button", { name: "Create" }));
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/agents/${AGENT_ID}/triggers`,
+      expect.objectContaining({
+        source_id: "shared-source",
+        prompt_mode: "template",
+        prompt: "Triage {{issue.title}}",
+      }),
+    );
+    const request = vi
+      .mocked(apiClient.post)
+      .mock.calls.find(([path]) => path === `/agents/${AGENT_ID}/triggers`)?.[1];
+    expect(request).not.toHaveProperty("event_secret");
+  });
+
   it("creates a raw-body HMAC trigger and refuses an invalid header", async () => {
     const user = userEvent.setup();
     vi.mocked(apiClient.post).mockResolvedValue(trigger({ event_source: "webhook" }));

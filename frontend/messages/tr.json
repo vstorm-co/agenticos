@@ -304,7 +304,8 @@
     "whatsNewTitle": "{version} sürümündeki yenilikler",
     "whatsNewDescription": "Kullandığınız sürümdeki son değişiklikler.",
     "whatsNewDone": "Anladım",
-    "developerAccess": "API ve MCP"
+    "developerAccess": "API ve MCP",
+    "eventSources": "Olay kaynakları"
   },
   "layout": {
     "breadcrumb": "Gezinme yolu",
@@ -7940,6 +7941,10 @@
       "explore-chat": {
         "title": "Sohbeti kısaca tanıyalım mı?",
         "body": "Nasıl sohbet başlatacağınızı, yanıt veren agent’ı nasıl değiştireceğinizi ve tek bir sohbet için modeli veya düşünme düzeyini nasıl ayarlayacağınızı görün. Hızlı bir rehberli tur ister misiniz?"
+      },
+      "create-event-source": {
+        "title": "Yeni kaynak oluştur",
+        "body": "Kimliği doğrulanmış olayları bir kez alın ve rutinler ile workflow'lar arasında paylaşın."
       }
     },
     "chooseLanguage": "Dil",
@@ -8758,6 +8763,18 @@
       "channels-diagnostics": {
         "title": "Hazırlığı denetle",
         "body": "Görev başlatmadan bot bağlantısını, ajan yayımını ve kendi bağlı hesaplarınızı denetleyin."
+      },
+      "event-sources-header": {
+        "title": "Olay kaynakları",
+        "body": "Kimliği doğrulanmış olayları bir kez alın ve rutinler ile workflow'lar arasında paylaşın."
+      },
+      "event-sources-create": {
+        "title": "Yeni kaynak oluştur",
+        "body": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın."
+      },
+      "flow-event-source-create": {
+        "title": "Yeni kaynak oluştur",
+        "body": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın."
       }
     }
   },
@@ -10681,7 +10698,8 @@
       "source_review_required": "Yeniden denemeden önce rutinin kaynaklarını ve kullanılamayan bağlantıları inceleyin.",
       "agent_unavailable": "Rutini yeniden etkinleştirmeden önce aracının yayımlanmış sürümünü, yapılandırmasını ve erişimini kontrol edin.",
       "preparation_failed": "Bir aracı çalıştırması oluşturulmadan önce hazırlık başarısız oldu. Operatörden bu zamana ait çalışan günlüklerini incelemesini isteyin.",
-      "previous_run_active": "Önceki çalıştırma devam ettiği veya yanıt beklediği için atlandı. Devam etmek için açın veya bekleyen çalıştırmayı burada durdurun."
+      "previous_run_active": "Önceki çalıştırma devam ettiği veya yanıt beklediği için atlandı. Devam etmek için açın veya bekleyen çalıştırmayı burada durdurun.",
+      "prompt_template_failed": "Prompt çözümlenemedi. Hiçbir agent çağrılmadı."
     },
     "runAsMe": "Run’ı benim adıma çalıştır",
     "runAsCreator": "Run’ı oluşturan kişi adına çalıştır",
@@ -16466,5 +16484,93 @@
         }
       }
     }
+  },
+  "eventSources": {
+    "title": "Olay kaynakları",
+    "description": "Kimliği doğrulanmış olayları bir kez alın ve rutinler ile workflow'lar arasında paylaşın.",
+    "name": "Ad",
+    "provider": "Provider",
+    "providers": {
+      "webhook": "Özel webhook",
+      "github": "GitHub",
+      "linear": "Linear",
+      "hubspot": "HubSpot",
+      "zendesk": "Zendesk"
+    },
+    "authentication": "Kimlik doğrulama",
+    "auth": {
+      "hmac": "Özel HMAC (SHA-256)",
+      "basic": "Basic Auth",
+      "api_key": "API Key",
+      "standard_webhooks": "Standard Webhooks"
+    },
+    "username": "Kullanıcı adı",
+    "password": "Parola",
+    "secret": "Gizli anahtar",
+    "secretHelp": "Bir gizli anahtar oluşturmak için boş bırakın veya gönderenin mevcut anahtarını girin. Kimlik bilgileri vault'ta saklanır ve okumalarda hiçbir zaman döndürülmez.",
+    "manualSetup": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın.",
+    "visibility": "Görünürlük",
+    "private": "Özel",
+    "organization": "Organizasyon",
+    "deliveryHeader": "Teslimat kimliği başlığı (isteğe bağlı)",
+    "deliveryHelp": "Provider olay kimlikleri otomatik olarak algılanır. Olay kimliği yoksa yeniden denemeler ek run'lar oluşturabilir.",
+    "cancel": "İptal",
+    "save": "Kaydet",
+    "create": "Kaynak oluştur",
+    "header": "Başlık adı",
+    "prefix": "İmza veya anahtar öneki (isteğe bağlı)",
+    "encoding": "İmza kodlaması",
+    "legacy": "Eski zaman damgalı imza biçimini kullan",
+    "standardHelp": "Kimlik, zaman damgası ve gövde üzerinde beş dakikalık zaman toleransı ile simetrik v1 imzaları.",
+    "selectSource": "Olay kaynağı",
+    "dedicated": "Ayrı endpoint (mevcut davranış)",
+    "chooseSource": "Mevcut bir kaynak seçin",
+    "paused": "Duraklatıldı",
+    "active": "Etkin",
+    "liveUrl": "Canlı endpoint URL'si",
+    "revealOnce": "Bu gizli anahtarı şimdi kopyalayın. Tekrar gösterilmeyecek.",
+    "createNew": "Yeni kaynak oluştur",
+    "loadError": "Olay kaynakları yüklenemedi.",
+    "retry": "Yeniden dene",
+    "liveWarning": "Bu canlı URL'de iki dakika dinleyin. Etkin aboneler normal çalışmaya devam eder. Örnekler geçicidir ve on dakika sonra sona erer. Örnek isteğe bağlıdır.",
+    "noUse": "Olayları yakalamak için kaynak kullanım izni gereklidir.",
+    "captureError": "Olay örneği yakalanamadı. Canlı teslimat işleme etkilenmez.",
+    "expired": "Dinleme süresi doldu. Gönderen hazır olduğunda tekrar başlatın.",
+    "caught": "Olay yakalandı. Örnek kullanıma hazır.",
+    "listen": "Olayı dinle",
+    "listening": "Kimliği doğrulanmış bir olay bekleniyor…",
+    "pasteExample": "Veya örnek JSON yapıştırın",
+    "exampleJson": "Örnek JSON nesnesi",
+    "invalidJson": "Geçerli bir JSON nesnesi girin.",
+    "sampleTooLarge": "Bu örnek {limit} baytlık düzenleyici sınırını aşıyor.",
+    "useExample": "Örneği kullan",
+    "promptMode": "Prompt modu",
+    "literal": "Değişmez prompt",
+    "template": "Payload alanları içeren prompt",
+    "templateHelp": "{field} veya {arrayField} gibi alanlar ekleyin. Eksik alanlar agent çalışmadan önce hata verir. Yalnızca seçilen değerler eklenir; tüm payload eklenmez.",
+    "fields": "Payload alanları",
+    "searchFields": "Alan yollarını ara",
+    "preview": "Çözümlenmiş prompt önizlemesi",
+    "resolvedPrompt": "Çözümlenmiş prompt (agent run'ı olmadan)",
+    "noView": "Olay kaynaklarını görüntüleme izniniz yok.",
+    "empty": "Henüz olay kaynağı yok. Rutinler ve workflow'lar için bir kaynak oluşturun.",
+    "edit": "Düzenle",
+    "done": "Tamam",
+    "pause": "Kaynağı duraklat",
+    "resume": "Kaynağı sürdür",
+    "pauseHelp": "Bu kaynağı duraklatmak yeni teslimatları durdurur. Her abone de bağımsız olarak duraklatılabilir.",
+    "replaceCredentials": "Kimlik bilgilerini değiştir",
+    "usageError": "Aboneler yüklenemedi.",
+    "usage": "{count, plural, =0 {Abone yok} =1 {1 abone} other {# abone}}",
+    "routine": "Rutin",
+    "workflow": "Workflow",
+    "delete": "Kaynağı sil",
+    "confirmDelete": "Silmeyi onayla",
+    "deleteBlocked": "Bu kaynağı silmeden önce yukarıda listelenen abonelikleri kaldırın.",
+    "sourceRoutine": "Olay kaynağından rutin oluştur",
+    "credentialHelp": "Gönderenin gizli anahtarını girin. Mevcut kimlik bilgileri hiçbir zaman gösterilmez.",
+    "eventPreset": "Bu rutin için olaylar",
+    "currentFilters": "Mevcut veya varsayılan filtreler",
+    "presetError": "Olay önayarları yüklenemedi."
   }
 }

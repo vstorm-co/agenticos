@@ -40,6 +40,7 @@ from app.db.models.channel_bot import ChannelBot
 from app.db.models.coding_account import CodingAccount
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.diagnostics import DiagnosticsIdentity
+from app.db.models.event_source import EventSourceCredential
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.workflow_exposure import WorkflowExposure
@@ -49,7 +50,12 @@ from app.worker.jobs import ChannelMessage
 
 
 def _org_scope(
-    row: OrganizationSecret | ChannelBot | AgentEmbed | AgentTrigger | WorkflowExposure,
+    row: OrganizationSecret
+    | ChannelBot
+    | AgentEmbed
+    | AgentTrigger
+    | WorkflowExposure
+    | EventSourceCredential,
 ) -> VaultScope:
     return VaultScope.organization(row.organization_id)
 
@@ -85,6 +91,7 @@ class SealedTable:
         | AgentEmbed
         | AgentTrigger
         | WorkflowExposure
+        | EventSourceCredential
         | BrowserSignIn
         | CodingAccount
         | DeploymentSettings
@@ -101,6 +108,13 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         model=OrganizationSecret,
         columns=("sealed_secret",),
         version_attr="key_version",
+        scope=_org_scope,
+    ),
+    SealedTable(
+        label="event_source_credentials",
+        model=EventSourceCredential,
+        columns=("sealed_secret",),
+        version_attr="secret_key_version",
         scope=_org_scope,
     ),
     SealedTable(

@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
+from pydantic import JsonValue
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +33,8 @@ async def park(
     device_id: UUID,
     intent_hash: str,
     event_context: str | None,
+    event_body: dict[str, JsonValue] | None = None,
+    event_source_id: UUID | None = None,
 ) -> bool:
     """Keep the first scheduled activation and every distinct incoming event.
 
@@ -47,8 +50,11 @@ async def park(
             trigger_id=trigger.id,
             device_id=device_id,
             intent_hash=intent_hash,
-            is_event=trigger.trigger_type == "event" and event_context is not None,
+            is_event=trigger.trigger_type == "event"
+            and (event_context is not None or event_body is not None),
             event_context=event_context,
+            event_body=event_body,
+            event_source_id=event_source_id,
         )
         .on_conflict_do_nothing()
         .returning(RoutineDeviceWait.id)
@@ -95,7 +101,13 @@ async def settle(
     result = await db.execute(
         update(RoutineDeviceWait)
         .where(RoutineDeviceWait.id == activation_id, RoutineDeviceWait.status == "waiting")
-        .values(status=status, reason=reason, event_context=None, finished_at=datetime.now(UTC))
+        .values(
+            status=status,
+            reason=reason,
+            event_context=None,
+            event_body=None,
+            finished_at=datetime.now(UTC),
+        )
         .returning(RoutineDeviceWait.id)
     )
     return result.scalar_one_or_none() is not None
@@ -106,7 +118,11 @@ async def cancel_for_trigger(db: AsyncSession, *, trigger_id: UUID, reason: str)
         update(RoutineDeviceWait)
         .where(RoutineDeviceWait.trigger_id == trigger_id, RoutineDeviceWait.status == "waiting")
         .values(
-            status="cancelled", reason=reason, event_context=None, finished_at=datetime.now(UTC)
+            status="cancelled",
+            reason=reason,
+            event_context=None,
+            event_body=None,
+            finished_at=datetime.now(UTC),
         )
     )
     await db.flush()

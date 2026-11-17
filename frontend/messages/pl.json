@@ -151,7 +151,8 @@
     "whatsNewDone": "Rozumiem",
     "monitoring": "Monitorowanie",
     "backgroundWork": "Praca w tle",
-    "developerAccess": "API i MCP"
+    "developerAccess": "API i MCP",
+    "eventSources": "Źródła zdarzeń"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -6479,6 +6480,10 @@
       "skill-improvement-session": {
         "title": "Przejdź przez tę sesję",
         "body": "Zobacz kroki, wynik każdego agenta i co możesz zrobić ze zmianą."
+      },
+      "create-event-source": {
+        "title": "Utwórz nowe źródło",
+        "body": "Odbieraj uwierzytelnione zdarzenia raz i udostępniaj je rutynom i workflowom."
       }
     },
     "steps": {
@@ -7738,6 +7743,18 @@
       "channels-diagnostics": {
         "title": "Sprawdź gotowość",
         "body": "Sprawdź połączenie bota, publikację agenta i własne powiązane konta bez uruchamiania zadania."
+      },
+      "event-sources-header": {
+        "title": "Źródła zdarzeń",
+        "body": "Odbieraj uwierzytelnione zdarzenia raz i udostępniaj je rutynom i workflowom."
+      },
+      "event-sources-create": {
+        "title": "Utwórz nowe źródło",
+        "body": "Skonfiguruj nadawcę ręcznie, aby wysyłał JSON metodą POST na URL źródła."
+      },
+      "flow-event-source-create": {
+        "title": "Utwórz nowe źródło",
+        "body": "Skonfiguruj nadawcę ręcznie, aby wysyłał JSON metodą POST na URL źródła."
       }
     },
     "chooseLanguage": "Język",
@@ -8752,7 +8769,8 @@
       "source_review_required": "Przejrzyj źródła procedury i sprawdź niedostępne połączenia przed kolejną próbą.",
       "agent_unavailable": "Sprawdź opublikowaną wersję, konfigurację i uprawnienia agenta, zanim ponownie włączysz procedurę.",
       "preparation_failed": "Przygotowanie nie powiodło się przed utworzeniem runu agenta. Poproś operatora o sprawdzenie logów workera z tego czasu.",
-      "previous_run_active": "Pominięto, bo poprzednie uruchomienie nadal trwa lub czeka na odpowiedź. Otwórz je, aby kontynuować, albo zatrzymaj oczekujące uruchomienie tutaj."
+      "previous_run_active": "Pominięto, bo poprzednie uruchomienie nadal trwa lub czeka na odpowiedź. Otwórz je, aby kontynuować, albo zatrzymaj oczekujące uruchomienie tutaj.",
+      "prompt_template_failed": "Nie udało się uzupełnić promptu. Agent nie został wywołany."
     },
     "runAsMe": "Uruchamiaj jako ja",
     "runAsCreator": "Działa jako osoba, która go utworzyła",
@@ -20526,5 +20544,93 @@
         }
       }
     }
+  },
+  "eventSources": {
+    "title": "Źródła zdarzeń",
+    "description": "Odbieraj uwierzytelnione zdarzenia raz i udostępniaj je rutynom i workflowom.",
+    "name": "Nazwa",
+    "provider": "Provider",
+    "providers": {
+      "webhook": "Własny webhook",
+      "github": "GitHub",
+      "linear": "Linear",
+      "hubspot": "HubSpot",
+      "zendesk": "Zendesk"
+    },
+    "authentication": "Uwierzytelnianie",
+    "auth": {
+      "hmac": "Własny HMAC (SHA-256)",
+      "basic": "Basic Auth",
+      "api_key": "API Key",
+      "standard_webhooks": "Standard Webhooks"
+    },
+    "username": "Nazwa użytkownika",
+    "password": "Hasło",
+    "secret": "Sekret",
+    "secretHelp": "Pozostaw puste, aby wygenerować sekret, lub wpisz istniejący sekret nadawcy. Dane uwierzytelniające są przechowywane w vault i nigdy nie są zwracane podczas odczytu.",
+    "manualSetup": "Skonfiguruj nadawcę ręcznie, aby wysyłał JSON metodą POST na URL źródła.",
+    "visibility": "Widoczność",
+    "private": "Prywatne",
+    "organization": "Organizacja",
+    "deliveryHeader": "Nagłówek ID dostarczenia (opcjonalnie)",
+    "deliveryHelp": "ID zdarzeń providera są wykrywane automatycznie. Bez ID zdarzenia ponowienia mogą tworzyć dodatkowe runy.",
+    "cancel": "Anuluj",
+    "save": "Zapisz",
+    "create": "Utwórz źródło",
+    "header": "Nazwa nagłówka",
+    "prefix": "Prefiks podpisu lub klucza (opcjonalnie)",
+    "encoding": "Kodowanie podpisu",
+    "legacy": "Użyj starszego formatu podpisu ze znacznikiem czasu",
+    "standardHelp": "Symetryczne podpisy v1 obejmujące ID, znacznik czasu i treść, z pięciominutową tolerancją czasu.",
+    "selectSource": "Źródło zdarzeń",
+    "dedicated": "Dedykowany endpoint (dotychczasowe działanie)",
+    "chooseSource": "Wybierz istniejące źródło",
+    "paused": "Wstrzymane",
+    "active": "Aktywne",
+    "liveUrl": "URL aktywnego endpointu",
+    "revealOnce": "Skopiuj sekret teraz. Nie zostanie wyświetlony ponownie.",
+    "createNew": "Utwórz nowe źródło",
+    "loadError": "Nie udało się wczytać źródeł zdarzeń.",
+    "retry": "Ponów",
+    "liveWarning": "Nasłuchuj na tym aktywnym URL przez dwie minuty. Aktywni subskrybenci nadal działają normalnie. Próbki są tymczasowe i wygasają po dziesięciu minutach. Próbka jest opcjonalna.",
+    "noUse": "Przechwytywanie zdarzeń wymaga uprawnienia do używania źródła.",
+    "captureError": "Nie udało się przechwycić próbki zdarzenia. Przetwarzanie dostarczeń działa bez zmian.",
+    "expired": "Nasłuchiwanie wygasło. Rozpocznij je ponownie, gdy nadawca będzie gotowy.",
+    "caught": "Przechwycono zdarzenie. Próbka jest gotowa do użycia.",
+    "listen": "Nasłuchuj zdarzenia",
+    "listening": "Oczekiwanie na uwierzytelnione zdarzenie…",
+    "pasteExample": "Lub wklej przykładowy JSON",
+    "exampleJson": "Przykładowy obiekt JSON",
+    "invalidJson": "Wpisz poprawny obiekt JSON.",
+    "sampleTooLarge": "Próbka przekracza limit edytora wynoszący {limit} bajtów.",
+    "useExample": "Użyj przykładu",
+    "promptMode": "Tryb promptu",
+    "literal": "Dosłowny prompt",
+    "template": "Prompt z polami danych",
+    "templateHelp": "Wstaw pola, np. {field} lub {arrayField}. Brakujące pola powodują błąd przed uruchomieniem agenta. Dołączane są tylko wybrane wartości, bez pełnych danych zdarzenia.",
+    "fields": "Pola danych zdarzenia",
+    "searchFields": "Szukaj ścieżek pól",
+    "preview": "Podgląd uzupełnionego promptu",
+    "resolvedPrompt": "Uzupełniony prompt (bez runu agenta)",
+    "noView": "Nie masz uprawnienia do przeglądania źródeł zdarzeń.",
+    "empty": "Nie ma jeszcze źródeł zdarzeń. Utwórz źródło dla rutyn i workflowów.",
+    "edit": "Edytuj",
+    "done": "Gotowe",
+    "pause": "Wstrzymaj źródło",
+    "resume": "Wznów źródło",
+    "pauseHelp": "Wstrzymanie źródła zatrzymuje nowe dostarczenia. Każdego subskrybenta można też wstrzymać niezależnie.",
+    "replaceCredentials": "Zastąp dane uwierzytelniające",
+    "usageError": "Nie udało się wczytać subskrybentów.",
+    "usage": "{count, plural, =0 {Brak subskrybentów} one {# subskrybent} few {# subskrybentów} many {# subskrybentów} other {# subskrybenta}}",
+    "routine": "Rutyna",
+    "workflow": "Workflow",
+    "delete": "Usuń źródło",
+    "confirmDelete": "Potwierdź usunięcie",
+    "deleteBlocked": "Przed usunięciem źródła usuń subskrypcje wymienione powyżej.",
+    "sourceRoutine": "Utwórz rutynę ze źródła zdarzeń",
+    "credentialHelp": "Wpisz sekret nadawcy. Istniejące dane uwierzytelniające nigdy nie są wyświetlane.",
+    "eventPreset": "Zdarzenia dla tej rutyny",
+    "currentFilters": "Obecne lub domyślne filtry",
+    "presetError": "Nie udało się wczytać gotowych ustawień zdarzeń."
   }
 }

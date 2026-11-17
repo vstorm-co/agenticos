@@ -46,6 +46,7 @@ export type FlowId =
   | "create-routine"
   | "create-dataset"
   | "create-table"
+  | "create-event-source"
   | "create-workflow"
   | "explore-chat"
   | "test-change"
@@ -1003,6 +1004,19 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
   // either lands them in the editor, which is the visual editor leaf's to teach,
   // not this list's. An `opened` signal keeps the flow to the one thing this page
   // owns and needs no new creatable-resource count in the coach's snapshot.
+  "create-event-source": {
+    id: "create-event-source",
+    permission: Perm.eventSourcesEdit,
+    steps: [
+      {
+        id: "flow-event-source-create",
+        page: ROUTES.EVENT_SOURCES,
+        target: "event-sources-create",
+        permission: Perm.eventSourcesEdit,
+        signal: { kind: "opened" },
+      },
+    ],
+  },
   "create-workflow": {
     id: "create-workflow",
     permission: Perm.workflowsCreate,
@@ -1343,6 +1357,8 @@ export function flowForPage(pageId: string, systemAgent = false): FlowId | null 
       return "create-mcp";
     case PROJECT_DETAIL:
       return "create-project-tracker";
+    case ROUTES.EVENT_SOURCES:
+      return "create-event-source";
     case ROUTES.ROUTINES:
       return "create-routine";
     case ROUTES.DATASETS:

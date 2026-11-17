@@ -1,5 +1,7 @@
 "use client";
 
+import { SourceSelector } from "@/components/event-sources/source-selector";
+
 import { useState } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -1230,6 +1232,18 @@ function NodeFields({
     removeBinding,
   };
 
+  if (definition.id === "trigger.webhook") {
+    return (
+      <SourceSelector
+        value={typeof node.config.source_id === "string" ? node.config.source_id : null}
+        allowDedicated
+        disabled={disabled}
+        onChange={(source) =>
+          updateNodeConfig(node.id, { ...node.config, source_id: source?.id ?? null })
+        }
+      />
+    );
+  }
   if (definition.id === SCHEDULE_TRIGGER) {
     return (
       <ScheduleTriggerForm node={node} disabled={disabled} updateNodeConfig={updateNodeConfig} />

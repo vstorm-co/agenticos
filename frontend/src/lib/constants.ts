@@ -59,6 +59,7 @@ export const ROUTES = {
   WORKFLOW_RUN_DETAIL: (id: string, runId: string) => `/workflows/${id}/runs/${runId}`,
   RUNS: "/runs",
   ROUTINES: "/routines",
+  EVENT_SOURCES: "/event-sources",
   VAULT: "/vault",
   SANDBOXES: "/sandboxes",
   REMOTE_AGENTS: "/remote-agents",

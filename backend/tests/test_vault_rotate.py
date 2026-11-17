@@ -555,3 +555,30 @@ async def test_channel_file_rotation_preserves_current_and_reports_invalid_rows(
     assert report.current == int(state in {"current", "legacy", "no_interaction"})
     assert "signature" not in str(report.failures)
     assert row.payload == ({} if state == "malformed" else payload)
+
+
+@pytest.mark.security
+async def test_source_credentials_rotate_with_the_organization_vault(monkeypatch):
+    from app.db.models.event_source import EventSourceCredential
+
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A})
+    organization_id = uuid.uuid4()
+    scope = VaultScope.organization(organization_id)
+    row = EventSourceCredential(
+        id=uuid.uuid4(),
+        organization_id=organization_id,
+        sealed_secret=seal('{"secret":"source-key"}', scope=scope).ciphertext,
+        secret_key_version=1,
+    )
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A, 2: KEY_B})
+    report = Report()
+    await _rotate_table(
+        _db_returning([row]),
+        _spec("event_source_credentials"),
+        target=2,
+        dry_run=False,
+        report=report,
+    )
+    assert report.rotated == 1 and not report.failures
+    assert row.secret_key_version == 2
+    assert unseal(row.sealed_secret, scope=scope, key_version=2) == '{"secret":"source-key"}'

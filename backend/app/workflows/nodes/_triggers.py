@@ -37,6 +37,16 @@ class ChatTriggerOutput(_Frozen):
     user_id: UUID | None = None
 
 
+class WebhookTriggerConfig(_Frozen):
+    """An optional reusable source; absent, keep this workflow's dedicated webhook."""
+
+    source_id: UUID | None = Field(
+        default=None,
+        description="A reusable event source to subscribe to when this workflow is published",
+        json_schema_extra={"x-resource": "event-source"},
+    )
+
+
 class WebhookTriggerOutput(_Frozen):
     """One signed delivery: its JSON body and the id the sender gave it."""
 

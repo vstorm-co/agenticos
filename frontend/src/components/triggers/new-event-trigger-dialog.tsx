@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { TriggerFormDialog } from "./trigger-form-dialog";
+import { Button } from "@/components/ui";
 import { useTranslations } from "next-intl";
 
 import { PortalCatalog } from "@/components/triggers/portal-catalog";
@@ -32,12 +35,30 @@ interface NewEventTriggerDialogProps {
  */
 export function NewEventTriggerDialog({ open, onOpenChange }: NewEventTriggerDialogProps) {
   const t = useTranslations("triggers");
+  const ts = useTranslations("eventSources");
+  const [sourceRoutine, setSourceRoutine] = useState(false);
   const { can } = usePermissions();
   const canCreate = useCanCreateTrigger();
+
+  if (sourceRoutine)
+    return (
+      <TriggerFormDialog
+        agentId={null}
+        open={open}
+        initialType="event"
+        reusableSourceOnly
+        onOpenChange={onOpenChange}
+      />
+    );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <RoutineDialogFrame title={t("newEventTitle")} description={t("newEventDescription")}>
+        {canCreate && (
+          <Button variant="outline" onClick={() => setSourceRoutine(true)}>
+            {ts("sourceRoutine")}
+          </Button>
+        )}
         <PortalCatalog compact canRun={canCreate} canManageConnections={can(Perm.mcpManage)} />
       </RoutineDialogFrame>
     </Dialog>

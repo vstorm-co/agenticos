@@ -20,6 +20,7 @@ from app.db.models.user import User
 from app.repositories import agent_trigger_repo, personal_data_repo, retention_repo
 from app.repositories import routine_device_wait as repo
 from app.schemas.local_target import LocalTarget
+from app.schemas.personal_data import RoutineDeviceWaitExport
 from app.services.routine_actions import activation_intent
 from app.services.routine_devices import (
     RoutineActivationObsolete,
@@ -819,3 +820,37 @@ async def test_an_event_on_an_ended_session_can_reach_the_rebinding_worker(
     assert saved is not None
     assert saved.status == "waiting" and saved.event_context == "event waiting for the new session"
     assert w.trigger.is_active
+
+
+@pytest.mark.parametrize("completion", ["started", "cancelled", "routine_changed"])
+async def test_structured_event_survives_device_wait_and_is_cleared_when_terminal(
+    db: AsyncSession, completion: str
+) -> None:
+    w = await world(db, event=True)
+    activation_id, source_id = uuid4(), uuid4()
+    body = {"padding": "x" * 4000, "issue": {"title": "beyond old cutoff"}}
+    assert await repo.park(
+        db,
+        activation_id=activation_id,
+        trigger=w.trigger,
+        user_id=w.user.id,
+        device_id=w.device.id,
+        intent_hash=activation_intent(w.trigger),
+        event_context=None,
+        event_body=body,
+        event_source_id=source_id,
+    )
+    wait = await repo.get(db, activation_id)
+    assert wait is not None and wait.is_event
+    assert wait.event_body == body and wait.event_source_id == source_id
+    exported = RoutineDeviceWaitExport.model_validate(wait)
+    assert exported.event_body == body and exported.event_source_id == source_id
+    assert await personal_data_repo.routine_device_wait_export_size(db, w.user.id) > 5024
+    if completion == "routine_changed":
+        await repo.cancel_for_trigger(db, trigger_id=w.trigger.id, reason=completion)
+    elif completion == "started":
+        await repo.settle(db, activation_id=activation_id, status="started")
+    else:
+        await repo.settle(db, activation_id=activation_id, status="cancelled")
+    wait = await repo.get(db, activation_id)
+    assert wait is not None and wait.event_body is None and wait.event_context is None

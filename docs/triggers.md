@@ -5,8 +5,8 @@ An **event trigger** fires an agent when something happens somewhere else.
 There are two ways that reaches us, and which one a source uses is the source's own
 business rather than yours:
 
-- **Pushed.** A provider POSTs a signed payload: **GitHub**, **HubSpot**,
-  **Zendesk**, **Linear**, or anything that can send signed JSON (the **API** source).
+- **Pushed.** A provider POSTs an authenticated payload: **GitHub**, **HubSpot**,
+  **Zendesk**, **Linear**, or anything that can send authenticated JSON (the **API** source).
 - **Polled.** The platform reads a connected account on a schedule: the mailboxes
   (**Gmail**, **Outlook**), the files (**Google Drive**, **OneDrive & SharePoint**)
   and the calendars (**Google Calendar**, **Outlook Calendar**). Nothing is posted
@@ -107,9 +107,51 @@ under **Needs attention**. It reads the same org-wide list, so a reader who may
 see the agents sees their routines; the outcome and cost on each row need
 `runs:view` and are simply absent without it.
 
+## Reusable event sources { #reusable-event-sources }
+
+Open **Event sources** to create a source, or choose **Select existing / Create new** in a routine or workflow's webhook editor. A source owns its live URL, credentials and provider configuration. Several routines and published workflow entries can subscribe to that URL, each retaining its own filters, execution identity, permissions, consent and budgets.
+
+Sources default to **Private**. Choose **Organization** to make one available according to organization permissions. Source view, use and edit are separate permissions: attaching a target or listening for an event requires source-use access as well as the target's management permissions. Seeing a routine or workflow does not grant access to unrelated events from its source. Workers recheck access before executing queued work.
+
+Choose GitHub, Linear, HubSpot or Zendesk for provider verification, or **Custom webhook** for one of these methods. Provider registration remains manual: copy the source URL into the provider's configuration.
+
+| Custom authentication | Configuration |
+| --- | --- |
+| Custom HMAC | SHA-256, a header name, an optional signature prefix and hex, base64 or base64url encoding; legacy timestamp signing is also available |
+| Basic Auth | Username and password |
+| API Key | Header name, secret key and optional prefix |
+| Standard Webhooks | Symmetric `v1` signatures over ID, timestamp and body; signature lists and a five-minute timestamp tolerance |
+
+Send a POST containing a JSON object; HubSpot batches retain their existing adaptation. Credentials are write-only and stored in the organization's vault. Replace them on the source, never in a workflow definition or sample. Provider delivery IDs, or a configured delivery-ID header, identify retries. Basic Auth and API-key credentials are not event IDs. If the sender supplies no event ID, retries may start additional runs.
+
+An authenticated delivery and its dispatch work commit together before the source acknowledges receipt. Subscriber failures are independent. A shared URL acknowledges durable receipt asynchronously; it cannot return a workflow's custom response. A shared-source workflow must not reach **Respond to webhook**. Dedicated workflow endpoints retain their synchronous response behavior.
+
+**Pause source** stops starting subscribers for new deliveries; pausing one routine or workflow stops that subscriber. Deleting a source is refused while subscriptions remain; its usage list shows the targets to detach first. Structured events remain available to queued or waiting work. Terminal delivery payloads follow the background-job retention policy.
+
+### Listen on the live URL { #listen-on-the-live-url }
+
+Choose **Listen for event**, then send an authenticated event to the displayed live source URL within two minutes. The next event is copied into the editor without interrupting dispatch: **active subscribers still execute**. Capture does not start an additional run. A sample is retained for ten minutes and bounded by the existing 64 KB pin limit; capture failure, oversize or expiry does not change live processing.
+
+You can paste example JSON instead. Neither a live nor a pasted sample is required to save a routine or publish a workflow. A workflow sample uses its existing `{body, delivery_id}` output shape, pinning, bindings and step tests. Choose the intended Webhook entry when a workflow has several triggers; no payload transformation is added. See [Workflows](workflows.md#reusable-webhook-sources).
+
+### Insert event fields in a routine prompt { #routine-prompt-fields }
+
+Switch the prompt to template mode, then search the sample field tree and insert a field at the prompt cursor, or type a reference yourself:
+
+```text
+Summarize {{issue.title}} and the first item {{items[0].name}}.
+Read the unusual property {{["request.id"]}}.
+```
+
+Paths start at the JSON body root. Dotted properties, array indices and quoted bracket keys are supported; expressions, functions, loops and defaults are not. Single braces are literal. Escape double braces as `\{{example\}}` when you want to show them as text. Substitution runs once: braces inside a received value never become another reference.
+
+**Preview resolved prompt** uses the same backend resolver as live execution and never invokes an agent. Strings are inserted directly; other JSON values use compact JSON. `false`, `0` and `null` are present values. A missing path fails visibly with its name before an agent call, including in activation diagnostics and routine history when no run exists yet.
+
+Saving validates syntax without requiring fields to appear in a sample. Resolution uses the structured event before any legacy context clipping. Template mode sends the authored prompt with selected values marked as external data; it does not append the entire payload. An oversized resolved message fails instead of being truncated. Existing prompts remain literal until you explicitly select template mode; existing dedicated URLs and signature settings continue to work.
+
 ## The mechanism, once
 
-An event trigger uses a **webhook URL** and a **signing secret**. A
+A dedicated event trigger uses a **webhook URL** and a **signing secret**. A
 provider POSTs its payload to the URL and signs the request; the platform recomputes
 the signature and fires the agent only if the two match.
 
