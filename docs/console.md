@@ -915,6 +915,12 @@ On a completed assistant answer in a personal conversation you own, **Side threa
 
 **Back to parent conversation** closes the side panel and opens the exact source answer, loading older history if necessary. Closing the panel keeps the child saved. Switching the source conversation, account or organization removes the old panel. Archived children open read-only. The list can load more branches from this answer, and a failed read or creation offers another attempt without switching the main conversation.
 
+### Replying to selected text { #chat-selected-quote }
+
+Select a passage in a saved message, then choose **Reply**. The composer keeps that excerpt, up to 280 characters, with the source message. Sending the reply preserves the selected passage when the conversation is reopened and when the agent reads the reply. This works in personal chats and writable room discussions. With no text selected, **Reply** keeps its existing whole-message behavior.
+
+Selections spanning separate messages or interactive controls are not used as excerpts. A passage in a combined assistant turn remains linked to the saved segment it came from; a segment that has not been saved cannot become a quoted reply.
+
 ### Pinned messages { #chat-message-pins }
 
 Choose **Pin message** on a saved message to keep a personal bookmark. **Pinned messages** in the conversation header opens your list; choose an excerpt to return to its exact message, including an older page or a room reply. You can remove a pin from either the message or the list, load more pins, and retry a failed read.

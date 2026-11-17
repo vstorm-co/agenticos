@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
+from markdown_it import MarkdownIt
 from pydantic import JsonValue, TypeAdapter, ValidationError
 from pydantic_ai.messages import (
     CapabilityLoadDeltaPart,
@@ -546,8 +547,13 @@ class ConversationService:
                 quoted.get(row.reply_to_message_id) if row.reply_to_message_id is not None else None
             )
             if answered is not None:
+                excerpt = (
+                    getattr(row, "reply_to_excerpt", None)
+                    if getattr(row, "reply_to_excerpt", None) and not answered.guardrail_refused
+                    else _excerpt(_said(answered))
+                )
                 text = (
-                    f'(In reply to {_whose(answered, people)}: "{_excerpt(_said(answered))}")'
+                    f'(In reply to {_whose(answered, people)}: "{excerpt}")'
                     f"\n\n{text}"
                 )
             author = people.get(row.author_user_id) if in_project and row.author_user_id else None
@@ -1126,10 +1132,15 @@ class ConversationService:
             if answered is None:
                 continue
             author = people.get(answered.author_user_id) if answered.author_user_id else None
+            excerpt = (
+                _excerpt(_said(answered))
+                if answered.guardrail_refused
+                else getattr(msg, "reply_to_excerpt", None) or _excerpt(answered.content)
+            )
             msg.reply_to = MessageReplyRef(  # ty: ignore[unresolved-attribute]
                 message_id=answered.id,
                 role=answered.role,
-                excerpt=_excerpt(answered.content),
+                excerpt=excerpt,
                 sender=ChatPerson.of(author) if author is not None else None,
                 agent_id=answered.agent_id,
             )
@@ -2244,12 +2255,25 @@ class ConversationService:
                 raise refused_field(
                     "thread_root_message_id", "Choose a top-level message in this project room"
                 )
+        reply_to_excerpt: str | None = None
         if data.reply_to_message_id is not None:
             answered = await conversation_repo.get_message_by_id(self.db, data.reply_to_message_id)
             if answered is None or answered.conversation_id != conversation.id:
                 raise refused_field(
                     "reply_to_message_id", "Reply to a message in this conversation"
                 )
+            if data.reply_to_excerpt is not None:
+                normalized_excerpt = _normalize_quote(data.reply_to_excerpt)
+                if (
+                    answered.guardrail_refused
+                    or not normalized_excerpt
+                    or normalized_excerpt not in _rendered_quote_text(answered.content)
+                ):
+                    raise refused_field(
+                        "reply_to_excerpt",
+                        "reply_to_excerpt must select visible text from the linked message",
+                    )
+                reply_to_excerpt = normalized_excerpt
             if thread_root_message_id is not None and (
                 answered.id != thread_root_message_id
                 and answered.thread_root_message_id != thread_root_message_id
@@ -2295,6 +2319,7 @@ class ConversationService:
             # Whose words these are: in a project's chat, not always the owner's.
             author_user_id=user_id if data.role == "user" else None,
             reply_to_message_id=data.reply_to_message_id,
+            reply_to_excerpt=reply_to_excerpt,
             thread_root_message_id=thread_root_message_id,
         )
 
@@ -2492,9 +2517,34 @@ _EXCERPT_CHARS = 280
 """How much of a replied-to message is quoted to the model and above the reply."""
 
 
+_QUOTE_MARKDOWN = MarkdownIt("commonmark")
+
+
+def _normalize_quote(text: str) -> str:
+    """Fold the whitespace the browser folds when it reads a rendered selection."""
+    return " ".join(text.replace("\u00a0", " ").split())
+
+
+def _rendered_quote_text(markdown: str) -> str:
+    """Markdown's visible text, without formatting tokens, for validating a selection."""
+    chunks: list[str] = []
+    for token in _QUOTE_MARKDOWN.parse(markdown):
+        if token.type == "inline":
+            for child in token.children or []:
+                if child.type in {"text", "code_inline"}:
+                    chunks.append(child.content)
+                elif child.type in {"softbreak", "hardbreak"}:
+                    chunks.append(" ")
+        elif token.type in {"fence", "code_block"}:
+            chunks.extend((" ", token.content, " "))
+        elif token.type != "html_block":
+            chunks.append(" ")
+    return _normalize_quote("".join(chunks))
+
+
 def _excerpt(text: str) -> str:
     """A message as one short line: its whitespace folded, its tail cut."""
-    flat = " ".join(text.split())
+    flat = _normalize_quote(text)
     return flat if len(flat) <= _EXCERPT_CHARS else f"{flat[:_EXCERPT_CHARS]}…"
 
 

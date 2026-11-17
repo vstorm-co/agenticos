@@ -332,6 +332,31 @@ describe("useChat - replying to a message", () => {
   });
 });
 
+describe("useChat - replying to a message", () => {
+  it("sends the selected excerpt with its reply", () => {
+    const reply = {
+      messageId: "m-2",
+      role: "assistant" as const,
+      excerpt: "A is the first step",
+      selectedText: "A is the first step",
+    };
+    act(() => useChatStore.getState().setReplyTo(reply));
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    act(() => result.current.sendMessage("make it bigger"));
+
+    expect(lastFrame()).toMatchObject({
+      message: "make it bigger",
+      reply_to: "m-2",
+      reply_to_excerpt: "A is the first step",
+    });
+    const asked = useChatStore.getState().messages.at(-1);
+    expect(asked?.replyTo).toEqual(reply);
+    expect(asked?.isTemporaryId).toBe(true);
+    expect(useChatStore.getState().replyTo).toBeNull();
+  });
+});
+
 describe("useChat - attributing the answer", () => {
   it("keeps creation, answer persistence and completion ordered inside one delivery batch", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
@@ -1329,6 +1354,23 @@ describe("useChat - the conversation a turn belongs to", () => {
       id: "m-real",
       isTemporaryId: false,
       renderKey: temporary,
+    });
+  });
+
+  it("carries a live guardrail refusal status onto the saved answer", () => {
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "That request is not allowed." });
+
+    receive("message_saved", {
+      message_id: "refused-answer",
+      run_id: "r-refused",
+      run_status: "guardrail_blocked",
+    });
+
+    expect(streaming()).toMatchObject({
+      id: "refused-answer",
+      guardrailRefused: true,
     });
   });
 

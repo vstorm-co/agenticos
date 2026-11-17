@@ -65,6 +65,8 @@ export interface MessageReply {
   agentId?: string;
   /** Its name, where the reply was chosen on screen and the name was at hand. */
   agentName?: string;
+  /** The exact words selected on its message, sent with the linked source id. */
+  selectedText?: string;
 }
 
 /** The workspace selected for a turn, retained after Work on changes. */
@@ -91,6 +93,8 @@ export interface ChatMessage {
   runWaitingFor?: "approval" | "answer";
   runStartedAt?: Date;
   runFailed?: boolean;
+  /** The run refused this turn; its displayed text must not be quoted onward. */
+  guardrailRefused?: boolean;
   /** Safe run failure explanation, shown separately from the assistant's words. */
   runError?: string;
   /** Group ID for related messages in a multi-agent chain. */
@@ -249,6 +253,8 @@ export interface MessagePart {
   type: MessagePartType;
   /** Text for "thinking"/"text" parts, and what the person added for a "steer" (#2087). */
   content?: string;
+  /** Saved message the words came from when a visible turn coalesces several rows. */
+  sourceMessageId?: string | null;
   /** Tool invocation for "tool" parts. */
   toolCall?: ToolCall;
   /** What the agent asked, for an "ask_user" part. */

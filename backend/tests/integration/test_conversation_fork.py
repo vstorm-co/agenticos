@@ -139,6 +139,66 @@ class TestTheCopy:
         copied_question, copied_answer = await _messages(db, fork.id)
         assert copied_answer.reply_to_message_id == copied_question.id
 
+    async def test_a_selected_excerpt_is_copied_and_charged_when_its_target_is_copied(
+        self, db: AsyncSession
+    ) -> None:
+        source = await _source(db)
+        question = await _turn(db, source, "user", "Which plan?")
+        answer = await _turn(
+            db,
+            source,
+            "assistant",
+            "Pro.",
+            reply_to_message_id=question.id,
+            reply_to_excerpt="the selected phrase",
+        )
+
+        with_excerpt = await conversation_repo.fork_payload_bytes(
+            db, source_id=source.id, ordinal=answer.ordinal
+        )
+        answer.reply_to_excerpt = None
+        await db.flush()
+        without_excerpt = await conversation_repo.fork_payload_bytes(
+            db, source_id=source.id, ordinal=answer.ordinal
+        )
+        answer.reply_to_excerpt = "the selected phrase"
+        await db.flush()
+
+        assert with_excerpt - without_excerpt == len(b"the selected phrase")
+
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=with_excerpt
+        )
+
+        copied_question, copied_answer = await _messages(db, fork.id)
+        assert copied_answer.reply_to_message_id == copied_question.id
+        assert copied_answer.reply_to_excerpt == "the selected phrase"
+
+    async def test_a_selected_excerpt_is_dropped_when_its_target_is_outside_the_copy(
+        self, db: AsyncSession
+    ) -> None:
+        source = await _source(db)
+        answer = await _turn(db, source, "assistant", "Earlier answer")
+        later_target = await _turn(db, source, "assistant", "Later answer")
+        before_excerpt = await conversation_repo.fork_payload_bytes(
+            db, source_id=source.id, ordinal=answer.ordinal
+        )
+        answer.reply_to_message_id = later_target.id
+        answer.reply_to_excerpt = "Later answer"
+        await db.flush()
+
+        after_excerpt = await conversation_repo.fork_payload_bytes(
+            db, source_id=source.id, ordinal=answer.ordinal
+        )
+        fork = await conversation_repo.fork_conversation(
+            db, source=source, through=answer, copy_bytes=after_excerpt
+        )
+
+        (copied_answer,) = await _messages(db, fork.id)
+        assert after_excerpt == before_excerpt
+        assert copied_answer.reply_to_message_id is None
+        assert copied_answer.reply_to_excerpt is None
+
     async def test_the_fork_carries_no_cost_and_no_run(self, db: AsyncSession) -> None:
         """The source's spend stays the source's: the fork's total starts empty."""
         source = await _source(db)

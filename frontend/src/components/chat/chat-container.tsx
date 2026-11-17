@@ -2163,7 +2163,7 @@ function ChatUI({
                       pins={pins}
                       onOpenThread={onOpenThread}
                       canStartThread={canStartThread}
-                      allowReply={roomProjectId === null || canStartThread}
+                      allowReply={!readOnly && (roomProjectId === null || canStartThread)}
                     />
                   </ConversationVisualsProvider>
                 </LiveBrowsesProvider>
@@ -2205,6 +2205,7 @@ function ChatUI({
                     }}
                     agent={turn.role === "user" ? undefined : callAgent}
                     agents={knownAgents}
+                    allowReply={false}
                   />
                 )}
                 // The agent's message, thinking - where its spoken answer will be.

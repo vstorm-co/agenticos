@@ -945,6 +945,7 @@ class AgentSession:
                 project_id=_wire_text(data.get("project_id")),
                 # The message this turn answers, where the person replied to one.
                 reply_to=_wire_text(data.get("reply_to")),
+                reply_to_excerpt=_wire_text(data.get("reply_to_excerpt")),
                 mentions=mentioned,
             )
         except AppException as e:

@@ -6581,6 +6581,10 @@
       "chat-message-pins": {
         "title": "Keep important messages",
         "body": "Pin a message for yourself, then reopen it from this conversation's pinned-message list."
+      },
+      "chat-selected-quote": {
+        "title": "Reply to selected text",
+        "body": "Select a passage in a saved message, then choose Reply to keep that excerpt with your response."
       }
     }
   },

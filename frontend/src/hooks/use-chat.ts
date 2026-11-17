@@ -1100,6 +1100,7 @@ export function useChat(options: UseChatOptions = {}) {
               ...msg,
               id: message_id,
               isTemporaryId: false,
+              guardrailRefused: run_status === "guardrail_blocked" || msg.guardrailRefused,
               renderKey: msg.renderKey ?? msg.id,
               threadRootMessageId: turnThreadRootRef.current ?? undefined,
             }));
@@ -1126,6 +1127,7 @@ export function useChat(options: UseChatOptions = {}) {
                 ...msg,
                 id: message_id,
                 isTemporaryId: false,
+                guardrailRefused: run_status === "guardrail_blocked" || msg.guardrailRefused,
                 renderKey: msg.renderKey ?? msg.id,
                 threadRootMessageId: turnThreadRootRef.current ?? undefined,
               }));
@@ -2102,7 +2104,10 @@ export function useChat(options: UseChatOptions = {}) {
       };
       if (submission?.pageContext) payload.page_context = submission.pageContext;
       if (fileIds?.length) payload.file_ids = fileIds;
-      if (replyTo) payload.reply_to = replyTo.messageId;
+      if (replyTo) {
+        payload.reply_to = replyTo.messageId;
+        if (replyTo.selectedText) payload.reply_to_excerpt = replyTo.selectedText;
+      }
       // Only on the turn that starts the conversation: the server files a new
       // chat into the project and ignores the field on every turn after.
       const localContext = submission?.local ?? readLocalContext();

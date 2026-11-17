@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Migration `0338_message_reply_excerpt`, after `0337_conversation_message_pins`, adds an optional bounded excerpt to quoted replies. Existing replies continue to use their source message.
+
 - Migration `0337_conversation_message_pins`, after `0336_merge_core_v1761`, adds reader-private message bookmarks with message and user foreign keys. Existing transcripts are unchanged.
 
 - Tables tenant isolation adds migration `0328_tables_tenant_rls`, after `0327_virtual_table_relations`. It installs policies with enforcement disabled and adds a membership foreign key for user-specific Tables grants. Existing grants without membership, and cross-organization trigger or admission parents, must be reviewed before the migration can proceed; it refuses those rows without repairing data. Enabling enforcement is a separate operator cutover with distinct migration, runtime and maintenance credentials and drained API/worker services. Follow the [Tables cutover procedure](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md) before activation.
@@ -40,6 +42,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Separate MCP connection use from administration on existing paths. Use grants continue to authorize agent/workflow binding, while editing, deleting, probing, reading call logs and changing sharing require management authority or an edit grant within the existing route gates. Existing role scopes and published-agent delegation remain in place; no grants are promoted and no new discovery endpoint is added.
 
 ### Added
+
+- Reply to selected message text in personal chats and writable room discussions. Bounded excerpts survive reload and model-history reconstruction, retain the original saved segment in combined assistant turns, and are checked against their authorized source.
 
 - Personal message pins in chat: bookmark saved messages, browse a paged private list, and reopen an exact message or room reply. Read-only recipients can keep their own pins without changing the shared transcript.
 

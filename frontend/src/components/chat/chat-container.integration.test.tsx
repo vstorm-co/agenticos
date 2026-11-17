@@ -2350,6 +2350,7 @@ describe("personal message pins in chat", () => {
     openPins("view");
     mount("c-pins", undefined, undefined, vi.fn());
     await screen.findByText("Shared with you as read-only");
+    expect(screen.queryByRole("button", { name: "Reply" })).not.toBeInTheDocument();
     await userEvent.click(await screen.findByRole("button", { name: "Pin message" }));
     expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-pins/messages/current-pin/pin");
   });

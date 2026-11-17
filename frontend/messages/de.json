@@ -6393,6 +6393,10 @@
       "chat-message-pins": {
         "title": "Wichtige Nachrichten merken",
         "body": "Hefte eine Nachricht für dich an und öffne sie später über die Liste dieses Gesprächs."
+      },
+      "chat-selected-quote": {
+        "title": "Auf markierten Text antworten",
+        "body": "Markiere eine Passage in einer gespeicherten Nachricht und wähle Antworten, um diesen Auszug mit deiner Antwort zu behalten."
       }
     }
   },

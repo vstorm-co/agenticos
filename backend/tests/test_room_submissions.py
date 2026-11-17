@@ -201,6 +201,7 @@ async def test_explicit_agent_is_pinned_and_retries_return_the_original_request(
     [
         {"content": "Different"},
         {"reply_to_message_id": uuid4()},
+        {"reply_to_message_id": uuid4(), "reply_to_excerpt": "A different selected excerpt"},
         {"agent_id": uuid4()},
         {"thread_root_message_id": uuid4()},
     ],
@@ -227,6 +228,20 @@ def test_main_room_fingerprint_keeps_the_deployed_digest_shape() -> None:
     assert module.fingerprint(data.model_copy(update={"thread_root_message_id": uuid4()})) != (
         module.fingerprint(data)
     )
+
+
+def test_room_quote_is_normalized_and_part_of_the_idempotency_fingerprint() -> None:
+    quote = uuid4()
+    plain = request(reply_to_message_id=quote)
+    selected = request(reply_to_message_id=quote, reply_to_excerpt="  one\u00a0 selected\n line ")
+
+    assert selected.reply_to_excerpt == "one selected line"
+    assert module.fingerprint(selected) != module.fingerprint(plain)
+
+
+def test_room_excerpt_requires_a_linked_message() -> None:
+    with pytest.raises(ValidationError, match="requires reply_to_message_id"):
+        request(reply_to_excerpt="quote")
 
 
 @pytest.mark.parametrize(

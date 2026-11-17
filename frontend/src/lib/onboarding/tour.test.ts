@@ -304,6 +304,7 @@ describe("stepsForPage", () => {
       "chat-message-search",
       "chat-side-threads",
       "chat-message-pins",
+      "chat-selected-quote",
       "chat-agent-picker",
       "chat-composer",
       "chat-send-mode",

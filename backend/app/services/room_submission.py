@@ -64,6 +64,7 @@ def fingerprint(request: RoomMessageCreate) -> str:
         if request.thread_root_message_id is not None
         else {}
     )
+    quote = {"reply_to_excerpt": request.reply_to_excerpt} if request.reply_to_excerpt else {}
     encoded = json.dumps(
         {
             "content": request.content,
@@ -72,6 +73,7 @@ def fingerprint(request: RoomMessageCreate) -> str:
             else None,
             "agent_id": str(request.agent_id) if request.agent_id else None,
             **scope,
+            **quote,
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -183,6 +185,7 @@ class RoomSubmissionService:
                 content=request.content,
                 client_message_id=request.client_message_id,
                 reply_to_message_id=request.reply_to_message_id,
+                reply_to_excerpt=request.reply_to_excerpt,
             ),
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
@@ -262,6 +265,7 @@ class RoomSubmissionService:
             client_message_id=submission.client_message_id,
             content=message.content,
             reply_to_message_id=message.reply_to_message_id,
+            reply_to_excerpt=message.reply_to_excerpt,
             thread_root_message_id=message.thread_root_message_id,
             agent_id=submission.agent_id,
         )
