@@ -94,6 +94,7 @@ from app.repositories import routine_delivery as routine_delivery_repo
 from app.repositories import routine_device_wait as device_wait_repo
 from app.schemas.agent_trigger import (
     _EVENT_CONFIG_MODELS,
+    GithubFilteredEvent,
     GithubTriggerConfig,
     TriggerActivationRead,
     TriggerAttemptList,
@@ -102,6 +103,7 @@ from app.schemas.agent_trigger import (
     TriggerAttemptStage,
     TriggerAttemptStatus,
     TriggerCreate,
+    TriggerFilteredEventRead,
     TriggerFireResult,
     TriggerRead,
     TriggerUpdate,
@@ -130,6 +132,7 @@ from app.services.conversation import ConversationService
 from app.services.mcp_connection import McpConnectionService
 from app.services.notifications import NotificationService
 from app.services.outcome import OutcomeService
+from app.services.personal_model_surfaces import require_organization_agent
 from app.services.portal_catalog import DeliveryMode
 from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.services.primary_conversation import PrimaryConversationService
@@ -549,6 +552,46 @@ class AgentTriggerService:
         await self._mark_spend(list(zip(reads, rows, strict=True)))
         return reads
 
+    async def filtered_event(
+        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID
+    ) -> TriggerFilteredEventRead:
+        """A routine owner's latest GitHub filter diagnostic, scoped to their agent."""
+        agent = await self.agents.get(ctx, agent_id)
+        trigger = await agent_trigger_repo.get(
+            self.db, trigger_id, organization_id=ctx.organization_id
+        )
+        if (
+            trigger is None
+            or trigger.agent_id != agent.id
+            or ctx.user_id is None
+            or trigger.created_by_user_id != ctx.subject_id
+        ):
+            raise NotFoundError(
+                message="Trigger not found", details={"trigger_id": str(trigger_id)}
+            )
+        return TriggerFilteredEventRead(
+            last_event=GithubFilteredEvent.model_validate(trigger.last_filtered_event)
+            if trigger.last_filtered_event is not None
+            else None
+        )
+
+    async def _record_filtered_event(
+        self, trigger: AgentTrigger, headers: Mapping[str, str], payload: Mapping[str, Any]
+    ) -> None:
+        if trigger.event_source != EventSource.GITHUB.value:
+            return
+        reason = trigger_events.github_filter_reason(headers, payload, trigger.event_config)
+        if reason is None:
+            return
+        diagnostic = GithubFilteredEvent(
+            received_at=datetime.now(UTC),
+            reason=reason,
+            authors=GithubTriggerConfig.model_validate(trigger.event_config).authors,
+        )
+        await agent_trigger_repo.record_filtered_event(
+            self.db, trigger=trigger, diagnostic=diagnostic
+        )
+
     async def attempts(
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, *, skip: int, limit: int
     ) -> TriggerAttemptList:
@@ -843,6 +886,14 @@ class AgentTriggerService:
                 }
             )
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        await require_organization_agent(
+            self.db,
+            ctx,
+            agent_id,
+            perm=Perm.AGENTS_RUN,
+            environment_id=data.environment_id,
+            version_id=data.pinned_version_id,
+        )
         refuse_system_agent(agent, action="a schedule or a trigger")
         # A trigger on a never-published agent is guaranteed to disable itself:
         # its first fire reaches for the runnable spec, finds no version, and
@@ -1281,6 +1332,15 @@ class AgentTriggerService:
         """
         trigger = await self._owned(ctx, agent_id, trigger_id, for_update=True)
         changes = writable(data, over=AgentTrigger)
+        if changes.get("is_active", trigger.is_active):
+            await require_organization_agent(
+                self.db,
+                ctx,
+                agent_id,
+                perm=Perm.AGENTS_RUN,
+                environment_id=changes.get("environment_id", trigger.environment_id),
+                version_id=changes.get("pinned_version_id", trigger.pinned_version_id),
+            )
         if "max_failures" in changes or changes.get("is_active") is True:
             changes["health_reset_at"] = datetime.now(UTC)
             changes["consecutive_failures"] = 0
@@ -1909,9 +1969,12 @@ class AgentTriggerService:
                 details={"trigger_id": str(trigger_id)},
             )
         payload = _parse_json(body, source=source)
+        if not await self._polled_source_current(trigger):
+            return None
         if not trigger_events.event_matches(
             source, headers=headers, payload=payload, config=trigger.event_config
         ):
+            await self._record_filtered_event(trigger, headers, payload)
             return None
         # At-least-once delivery: a redelivery of an event already dispatched must
         # not fire a second run and a second spend. Claim the provider's delivery
@@ -1919,8 +1982,6 @@ class AgentTriggerService:
         # open and fires, and a duplicate answers the same nothing-to-do `None` an
         # unmatched delivery does, so it stays unprobeable. A transaction that
         # then rolls back queued nothing and gives the claim back (`_claim`).
-        if not await self._polled_source_current(trigger):
-            return None
         delivery = trigger_events.delivery_id(source, headers, payload)
         if delivery is not None and not await self._claim(trigger.id, delivery):
             return None
@@ -2018,6 +2079,7 @@ class AgentTriggerService:
                 payload=payload,
                 config=trigger.event_config,
             ):
+                await self._record_filtered_event(trigger, headers, payload)
                 continue
             delivery = trigger_events.delivery_id(EventSource.GITHUB.value, headers, payload)
             if delivery is not None and not await self._claim(trigger.id, delivery):

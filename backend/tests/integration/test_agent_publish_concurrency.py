@@ -270,3 +270,82 @@ async def test_assistant_installation_does_not_republish_a_version_committed_whi
     result = await AssistantService(db)._publish_when_possible(ctx.organization_id, stale)
     assert result.current_version_id == agent.current_version_id
     assert len(list(await db.scalars(select(AgentVersion.id)))) == 1
+
+
+async def test_a_stale_builder_cannot_erase_a_server_side_draft_change(db: AsyncSession) -> None:
+    from app.core.exceptions import ConflictError
+    from app.schemas.agent import agent_draft_revision
+
+    ctx, agent = await _setup(db)
+    agent_id = agent.id
+    original = AgentSpec.model_validate(agent.draft_spec)
+    revision = agent_draft_revision(original)
+    newer = original.model_copy(update={"description": "Changed outside the Builder"})
+    service = AgentRegistryService(db)
+    await service.save_draft(ctx, agent_id, newer)
+    await db.commit()
+    with pytest.raises(ConflictError) as conflict:
+        await service.save_draft(
+            ctx,
+            agent_id,
+            original.model_copy(update={"name": "Old tab's edit"}),
+            expected_revision=revision,
+        )
+    assert conflict.value.details == {"reason": "draft_changed"}
+    await db.rollback()
+    kept = await db.scalar(select(Agent.draft_spec).where(Agent.id == agent_id))
+    assert kept == newer.model_dump(mode="json")
+
+
+async def test_two_editors_of_one_base_draft_cannot_both_save(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    from app.core.exceptions import ConflictError
+    from app.schemas.agent import agent_draft_revision
+
+    ctx, agent = await _setup(db)
+    agent_id = agent.id
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    ready = asyncio.Barrier(2)
+
+    async def edit(name: str) -> tuple[str, bool]:
+        async with factory() as session:
+            service = AgentRegistryService(session)
+            snapshot = await service.get(ctx, agent_id)
+            base = AgentSpec.model_validate(snapshot.draft_spec)
+            revision = agent_draft_revision(base)
+            await ready.wait()
+            try:
+                await service.save_draft(
+                    ctx,
+                    agent_id,
+                    base.model_copy(update={"name": name}),
+                    expected_revision=revision,
+                )
+                await session.commit()
+                return name, True
+            except ConflictError:
+                await session.rollback()
+                return name, False
+
+    async with asyncio.timeout(15), asyncio.TaskGroup() as tasks:
+        first = tasks.create_task(edit("First editor"))
+        second = tasks.create_task(edit("Second editor"))
+    outcomes = [first.result(), second.result()]
+    assert sorted(saved for _, saved in outcomes) == [False, True]
+    winner = next(name for name, saved in outcomes if saved)
+    assert await db.scalar(select(Agent.name).where(Agent.id == agent_id)) == winner
+
+
+@pytest.mark.security
+async def test_a_revision_does_not_allow_saving_another_tenants_draft(db: AsyncSession) -> None:
+    from app.core.exceptions import NotFoundError
+    from app.schemas.agent import agent_draft_revision
+
+    ctx, agent = await _setup(db)
+    spec = AgentSpec.model_validate(agent.draft_spec)
+    other = AuthContext(user_id=ctx.user_id, organization_id=uuid4(), role="owner")
+    with pytest.raises(NotFoundError):
+        await AgentRegistryService(db).save_draft(
+            other, agent.id, spec, expected_revision=agent_draft_revision(spec)
+        )

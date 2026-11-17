@@ -587,3 +587,57 @@ it("locks edited trigger fields and dismissal until a refused save restores the 
   expect(dialog.getByRole("textbox", { name: "Message" })).toHaveValue("Triage it");
   expect(onOpenChange).not.toHaveBeenCalled();
 });
+
+it.each([undefined, "members", "contributors", "anyone"])(
+  "shows and preserves the stored author policy %s",
+  async (authors) => {
+    serve();
+    const user = userEvent.setup();
+    const config = {
+      ...(authors ? { authors } : {}),
+      mention: "@agent",
+      event: "issue_comment",
+      ignore_login: "connected-user",
+    };
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger());
+    render(
+      <TriggerFormDialog
+        agentId={AGENT_ID}
+        open
+        onOpenChange={vi.fn()}
+        trigger={trigger({ event_config: config })}
+      />,
+      { wrapper },
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(
+      dialog.getByRole("combobox", { name: "Whose events can start this routine" }),
+    ).toHaveValue(authors ?? "members");
+    fireEvent.change(dialog.getByLabelText("Mention phrase"), { target: { value: "@reviewer" } });
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    expect(vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1]).toHaveProperty("event_config", {
+      ...config,
+      mention: "@reviewer",
+    });
+  },
+);
+
+it("saves an explicitly widened author policy", async () => {
+  serve();
+  const user = userEvent.setup();
+  vi.mocked(apiClient.patch).mockResolvedValue(trigger());
+  render(<TriggerFormDialog agentId={AGENT_ID} open onOpenChange={vi.fn()} trigger={trigger()} />, {
+    wrapper,
+  });
+  const dialog = within(await screen.findByRole("dialog"));
+  await user.selectOptions(
+    dialog.getByRole("combobox", { name: "Whose events can start this routine" }),
+    "contributors",
+  );
+  await user.click(dialog.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+  expect(vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1]).toHaveProperty("event_config", {
+    authors: "contributors",
+  });
+});

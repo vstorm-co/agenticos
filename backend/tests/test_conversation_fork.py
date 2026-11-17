@@ -10,8 +10,9 @@ import pytest
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.repositories import conversation_repo
+from app.repositories import conversation_repo, conversation_share_repo
 from app.repositories.conversation import RunOutcome
+from app.schemas.conversation import HistoryCheckpoint, HistoryProvenance
 from app.services import project as project_service
 from app.services.conversation import ConversationService
 
@@ -59,6 +60,11 @@ def service(monkeypatch: pytest.MonkeyPatch) -> ConversationService:
 
     monkeypatch.setattr("app.services.conversation.lock_wait_within", no_lock_wait)
     service = ConversationService(AsyncMock())
+    monkeypatch.setattr(conversation_share_repo, "has_edit_share", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        conversation_repo, "has_shared_channel_history", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(conversation_repo, "has_non_owner_author", AsyncMock(return_value=False))
     monkeypatch.setattr(conversation_repo, "owned_titles", AsyncMock(return_value={}))
     monkeypatch.setattr(conversation_repo, "run_ids_through", AsyncMock(return_value=set()))
     monkeypatch.setattr(conversation_repo, "run_outcomes", AsyncMock(return_value={}))
@@ -127,6 +133,7 @@ class TestTheOwnerForks:
             "source": source,
             "through": answer,
             "restored_summary": None,
+            "copy_summary": False,
             "copy_bytes": 5120,
         }
         assert fork.forked_from.conversation_id == source.id
@@ -362,7 +369,8 @@ async def test_metadata_attaches_recovered_agents_without_loading_history(servic
 
 
 @pytest.mark.parametrize(
-    "failure", ["missing", "size", "serialized_size", "count", "timeout", "shape"]
+    "failure",
+    ["missing", "size", "serialized_size", "count", "timeout", "malformed_media_reference"],
 )
 async def test_externalized_summary_failure_refuses_before_creating_rows(
     service, monkeypatch, tmp_path, failure
@@ -380,20 +388,27 @@ async def test_externalized_summary_failure_refuses_before_creating_rows(
     source = _conversation()
     answer = _message(source)
     copy = _forkable(monkeypatch, service, source, answer)
+    monkeypatch.setattr(conversation_repo, "fork_payload_bytes", AsyncMock(return_value=50))
     store = OrganizationMediaStore(ORG_ID, source.id)
     original = [{"part_kind": "text", "content": "x" * 200}]
     summary = await externalize_media(original, media_store=store, threshold_bytes=100)
+    checkpoint = HistoryCheckpoint(
+        version=1,
+        provenance=HistoryProvenance(agent_id=uuid4(), configuration_digest="a" * 64),
+        messages=summary,
+    ).model_dump(mode="json")
     monkeypatch.setattr(
         conversation_repo,
         "fork_summary",
-        AsyncMock(return_value=conversation_repo.ForkSummary(summary, 50)),
+        AsyncMock(return_value=conversation_repo.ForkSummary(checkpoint, 50)),
     )
     if failure == "missing":
         await LocalFileStorage(base_dir=tmp_path).delete_prefix(f"media/{ORG_ID}/{source.id}")
     elif failure == "size":
         monkeypatch.setattr(conversation_service, "MAX_FORK_BYTES", 100)
     elif failure == "serialized_size":
-        monkeypatch.setattr(conversation_service, "MAX_FORK_BYTES", 155)
+        monkeypatch.setattr(conversation_service, "MAX_FORK_BYTES", 10_000)
+        monkeypatch.setattr(conversation_repo, "fork_summary_bytes", AsyncMock(return_value=10_001))
     elif failure == "count":
         monkeypatch.setattr(conversation_service, "MAX_FORK_MEDIA_READS", 0)
     elif failure == "timeout":
@@ -404,10 +419,15 @@ async def test_externalized_summary_failure_refuses_before_creating_rows(
         monkeypatch.setattr(LocalFileStorage, "size", slow)
         monkeypatch.setattr(conversation_service, "FORK_MEDIA_TIMEOUT", 0.001)
     else:
+        # A valid envelope must still refuse an unreadable media reference.
+        malformed = {
+            **checkpoint,
+            "messages": [{"__harness_external_media__": True, "uri": 123}],
+        }
         monkeypatch.setattr(
             conversation_repo,
             "fork_summary",
-            AsyncMock(return_value=conversation_repo.ForkSummary({"invalid": "shape"}, 50)),
+            AsyncMock(return_value=conversation_repo.ForkSummary(malformed, 50)),
         )
     with pytest.raises(BadRequestError, match="summary cannot be copied"):
         await _fork(service, source, answer.id)
@@ -529,3 +549,29 @@ async def test_notification_visibility_does_not_trust_a_former_channel_or_trigge
     assert await service.visible_conversation_ids(_ctx(), {channel.id}) == set()
     monkeypatch.setattr(conversation_repo, "read_candidates", AsyncMock(return_value=[]))
     assert await service.visible_conversation_ids(_ctx(), {uuid4()}) == set()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("invalid_envelope", [False, True], ids=["legacy_bare", "invalid_envelope"])
+async def test_unverified_summary_forks_without_private_checkpoint(
+    service: ConversationService, monkeypatch: pytest.MonkeyPatch, invalid_envelope: bool
+) -> None:
+    monkeypatch.setattr(conversation_repo, "fork_payload_bytes", AsyncMock(return_value=50))
+    source = _conversation()
+    answer = _message(source)
+    copy = _forkable(monkeypatch, service, source, answer)
+    monkeypatch.setattr(
+        conversation_repo,
+        "fork_summary",
+        AsyncMock(
+            return_value=conversation_repo.ForkSummary(
+                {"version": 999, "private": "old tool result"}
+                if invalid_envelope
+                else [{"private": "old tool result"}],
+                50,
+            )
+        ),
+    )
+    await _fork(service, source, answer.id)
+    assert copy.await_args.kwargs["copy_summary"] is False
+    assert copy.await_args.kwargs["restored_summary"] is None

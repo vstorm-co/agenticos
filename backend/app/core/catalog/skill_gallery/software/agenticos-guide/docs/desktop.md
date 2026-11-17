@@ -616,6 +616,8 @@ one-way notification that the person took control. A binding with
 
 The Apps workflow also builds development installers and tests installation without UI automation: copying the Mac app from its DMG, silent installation and removal on Windows, Debian installation and removal, and portable AppImage extraction. It verifies the embedded macOS widget and signatures, persistent session isolation, and rejection of tampered updater downloads. These checks use ad-hoc or unsigned builds and do not establish public notarization or store approval.
 
+Installer CI and Linux release builds also inspect the extracted AppImage and reject a bundled Wayland client library (`libwayland-client.so*`), which can conflict with the host Mesa driver and crash WebKitGTK. Release validation runs before installers and updater signatures are uploaded. This library check does not establish rendering compatibility on every Wayland compositor or GPU.
+
 The **Apps** GitHub Actions workflow checks native crates on macOS, Windows and
 Linux and builds Android debug APKs and an iOS simulator app. Full native checks
 run in CI. Local `make desktop-check` remains available for a focused change.

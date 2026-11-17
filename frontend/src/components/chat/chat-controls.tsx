@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ApprovalMode } from "@/stores/chat-controls-store";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
-import { useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useId, useMemo, useRef, useState, useEffect, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Check, Cpu, HelpCircle, Settings2, SlidersHorizontal, Wrench, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -14,6 +14,7 @@ import { RememberedApprovals } from "./remembered-approvals";
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn, ConversationNotifications } from "./work-on";
 import { YourConnections } from "./your-connections";
+import { PersonalModelConnection } from "./personal-model-connection";
 import { ContextHelp } from "@/components/ui/context-help";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useModelProviders, useOrganizationList, usePermissions } from "@/hooks";
@@ -98,6 +99,7 @@ export function ChatControls({
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const { agents } = useAgents();
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
+  const personalModel = selectedAgent?.personal_model_key === true;
   const personalHarness = selectedAgent?.personal_coding_harness ?? null;
   // What the agent reaches, kept apart from the model it runs on: the folder,
   // browser, screen and coding agent on the desktop, and the coding account an
@@ -130,6 +132,12 @@ export function ChatControls({
   } = useSavedChatControls(mayWaive);
   const setProfileId = (modelProfileId: string | null) => savePreferences({ modelProfileId });
   const setApprovalMode = (approvalMode: ApprovalMode) => savePreferences({ approvalMode });
+  useEffect(() => {
+    if (personalModel && profileId !== null) {
+      savePreferences({ modelProfileId: null });
+      onModelProfileChange?.(null);
+    }
+  }, [personalModel, profileId, savePreferences, onModelProfileChange]);
 
   const selectedProfile = profiles.find((profile) => profile.id === profileId) ?? null;
   // The model that answers, whichever it is: an override when there is one,
@@ -236,17 +244,21 @@ export function ChatControls({
               <p className="text-muted-foreground mb-4 text-[13px] leading-5">
                 {t("whichModelRunsHere")}
               </p>
-              <ChatModelPicker
-                value={profileId}
-                agentModel={agentModel}
-                onChange={(next) => {
-                  setProfileId(next);
-                  onModelProfileChange?.(next);
-                }}
-                // "No override" is not "the organization default": an agent names its
-                // own model, and leaving that alone is the default here - so there is
-                // no row for one.
-              />
+              {personalModel ? (
+                <PersonalModelConnection key={selectedAgentId} agentId={selectedAgentId} manage />
+              ) : (
+                <ChatModelPicker
+                  value={profileId}
+                  agentModel={agentModel}
+                  onChange={(next) => {
+                    setProfileId(next);
+                    onModelProfileChange?.(next);
+                  }}
+                  // "No override" is not "the organization default": an agent names its
+                  // own model, and leaving that alone is the default here - so there is
+                  // no row for one.
+                />
+              )}
               {profileId !== null && (
                 <button
                   type="button"

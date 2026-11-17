@@ -5,7 +5,13 @@ import { Suspense, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
-import type { AgentDetail, AgentKind, AgentSpec, CapabilityCatalogEntry } from "@/types/agents";
+import type {
+  AgentDetail,
+  AgentDraftUpdate,
+  AgentKind,
+  AgentSpec,
+  CapabilityCatalogEntry,
+} from "@/types/agents";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 import { useOnboardingStore } from "@/stores/onboarding-store";
@@ -94,7 +100,9 @@ function file(id: string, name: string, visibility: string) {
   };
 }
 
-const saveDraft = vi.hoisted(() => vi.fn(async (spec: AgentSpec) => ({ draft_spec: spec })));
+const saveDraft = vi.hoisted(() =>
+  vi.fn(async ({ spec }: AgentDraftUpdate) => ({ draft_spec: spec, draft_revision: "saved" })),
+);
 
 const page = vi.hoisted(() => ({
   kind: "judge" as AgentKind,
@@ -138,6 +146,7 @@ vi.mock("@/hooks", async () => {
         kind: page.kind,
         system_key: page.systemKey,
         ...page.access,
+        draft_revision: "base",
         draft_spec: page.draft,
       } as AgentDetail,
       isLoading: false,
@@ -415,7 +424,10 @@ describe("saving a regular agent's draft", () => {
       vi.advanceTimersByTime(1500);
     });
 
-    expect(saveDraft).toHaveBeenCalledWith({ ...LEGACY_DRAFT, name: "Support" });
+    expect(saveDraft).toHaveBeenCalledWith({
+      spec: { ...LEGACY_DRAFT, name: "Support" },
+      expected_revision: "base",
+    });
   });
 });
 

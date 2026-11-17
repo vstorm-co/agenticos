@@ -60,6 +60,7 @@ from app.schemas.agent import (
     AgentClone,
     AgentCreate,
     AgentDetail,
+    AgentDraftRevision,
     AgentDraftUpdate,
     AgentKnowledgeReach,
     AgentList,
@@ -479,6 +480,12 @@ async def get_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any
     )
 
 
+@router.get("/{agent_id}/draft-revision", response_model=AgentDraftRevision)
+async def draft_revision(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any:
+    """Read the draft token with agents:edit, including edit-only API keys."""
+    return await service.draft_revision(ctx, agent_id)
+
+
 @router.put(
     "/{agent_id}/draft",
     response_model=AgentDetail,
@@ -488,11 +495,17 @@ async def save_draft(
 ) -> Any:
     """Save an edit and return its normalized draft without making it live.
 
+    Send expected_revision from the base draft's draft_revision. A stale token
+    returns 409 without writes; reload and reconcile before submitting again.
+    Missing tokens return 422, including older console tabs without this guard.
+
     Half-finished specs are allowed; reference validation waits for publish.
     The returned draft is the canonical saved value an editor may adopt when
     no newer local edits have been made.
     """
-    return await service.save_draft(ctx, agent_id, data.spec)
+    return await service.save_draft(
+        ctx, agent_id, data.spec, expected_revision=data.expected_revision
+    )
 
 
 @router.post(
@@ -645,7 +658,9 @@ async def import_spec(
     agent_id: UUID, data: AgentSpecImport, service: AgentRegistrySvc, ctx: Auth
 ) -> Any:
     """Replace the draft with a hand-written or externally-managed spec."""
-    return await service.import_spec(ctx, agent_id, data.yaml)
+    return await service.import_spec(
+        ctx, agent_id, data.yaml, expected_revision=data.expected_revision
+    )
 
 
 @router.post(

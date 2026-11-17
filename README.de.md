@@ -1,4 +1,4 @@
-<!-- source_sha: 8dc02e0ed861 -->
+<!-- source_sha: 445dada428b6 -->
 
 <div align="center">
 
@@ -627,3 +627,13 @@ Mit Sorgfalt gebaut von [**Vstorm**](https://vstorm.co) · [Vstorm on GitHub](ht
 Alle, die AgenticOS mit aufgebaut haben:
 
 <a href="https://github.com/vstorm-co/agenticos/graphs/contributors"><img src="https://contrib.rocks/image?repo=vstorm-co/agenticos" alt="Avatare aller, die zu AgenticOS beigetragen haben"></a>
+
+## Sternverlauf
+
+<a href="https://www.star-history.com/?repos=vstorm-co%2Fagenticos&type=date&legend=bottom-right">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&theme=dark&legend=bottom-right" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&legend=bottom-right" />
+   <img alt="Diagramm des Sternverlaufs" src="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&legend=bottom-right" />
+ </picture>
+</a>

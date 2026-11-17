@@ -13,6 +13,7 @@ and a real agent here measured 9 tokens where the provider had charged for 3,859
 A trigger reading that never fires, however full the window actually is.
 """
 
+import pytest
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai_harness.compaction import estimate_context_tokens
 
@@ -98,3 +99,110 @@ def test_an_answer_nobody_measured_is_replayed_without_a_size() -> None:
     answer = history[0]
     assert isinstance(answer, ModelResponse)
     assert answer.usage.input_tokens == 0
+
+
+def test_checkpoint_keeps_a_bounded_suffix_and_expires_evicted_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pydantic_ai.messages import ToolSearchCallPart, ToolSearchReturnPart
+
+    from app.services import message_history
+
+    messages = [
+        ModelResponse(
+            parts=[ToolSearchCallPart(args={"queries": ["lookup"]}, tool_call_id="search")]
+        ),
+        ModelRequest(
+            parts=[
+                ToolSearchReturnPart(
+                    content={"discovered_tools": [{"name": "lookup"}]}, tool_call_id="search"
+                )
+            ]
+        ),
+        ModelResponse(parts=[TextPart("Found it")]),
+        ModelRequest(parts=[UserPromptPart("Hello")]),
+        ModelResponse(parts=[TextPart("Hi")]),
+    ]
+    monkeypatch.setattr(message_history, "MODEL_HISTORY_MESSAGES", 3)
+    bounded = message_history.bounded_model_history(messages)
+    assert len(bounded) == 3
+    assert bounded[0].parts[0].content == message_history.HISTORY_TRIMMED
+    assert bounded[1:] == messages[-2:]
+    assert not any(
+        isinstance(part, ToolSearchReturnPart) for message in bounded for part in message.parts
+    )
+
+
+def test_a_byte_limit_does_not_leave_orphaned_parallel_tool_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pydantic_ai.messages import ModelMessagesTypeAdapter, ToolCallPart, ToolReturnPart
+
+    from app.services import message_history
+
+    messages = [
+        ModelResponse(
+            parts=[
+                ToolCallPart("large", {"x": "漢" * 2000}, tool_call_id="a"),
+                ToolCallPart("small", {}, tool_call_id="b"),
+            ]
+        ),
+        ModelRequest(parts=[ToolReturnPart("large", "one", tool_call_id="a")]),
+        ModelRequest(parts=[ToolReturnPart("small", "two", tool_call_id="b")]),
+        ModelResponse(parts=[TextPart("Done")]),
+    ]
+    monkeypatch.setattr(message_history, "MODEL_HISTORY_BYTES", 2000)
+    bounded = message_history.bounded_model_history(messages)
+    assert bounded[1:] == messages[-1:]
+    assert len(ModelMessagesTypeAdapter.dump_json(bounded)) <= 2000
+    assert len(messages) == 4
+
+
+def test_an_oversized_final_message_leaves_an_explicit_omission_notice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services import message_history
+
+    monkeypatch.setattr(message_history, "MODEL_HISTORY_BYTES", 1500)
+    bounded = message_history.bounded_model_history([ModelResponse(parts=[TextPart("x" * 5000)])])
+    assert len(bounded) == 1
+    assert bounded[0].parts[0].content == message_history.HISTORY_TRIMMED
+
+
+def test_checkpoint_discards_standing_system_prompts_but_keeps_legacy_summaries() -> None:
+    from pydantic_ai.messages import SystemPromptPart
+
+    from app.services.message_history import without_standing_instructions
+
+    history = without_standing_instructions(
+        [
+            *build_message_history(
+                [
+                    {"role": "system", "content": "OLD_INSTRUCTIONS"},
+                    {
+                        "role": "system",
+                        "content": "Summary of previous conversation:\n\nThey found a record.",
+                    },
+                ]
+            ),
+            ModelRequest(parts=[SystemPromptPart("Old reminder"), UserPromptPart("Continue")]),
+        ]
+    )
+    assert len(history) == 2
+    assert history[0].parts[0].content.startswith("Summary of previous conversation:")
+    assert history[1].parts == [history[1].parts[0]]
+    assert isinstance(history[1].parts[0], UserPromptPart)
+
+
+@pytest.mark.parametrize("parts", [None, ["unrecognized-legacy-part"]])
+def test_bounding_a_legacy_checkpoint_does_not_reinterpret_invalid_parts(parts) -> None:
+    from app.services import message_history
+
+    oversized = {
+        "kind": "response",
+        "parts": [{"part_kind": "text", "content": "x" * (3 * 1024 * 1024)}],
+    }
+    legacy = {"kind": "request", "parts": parts}
+    bounded = message_history.bounded_stored_history([oversized, legacy])
+    assert bounded[1:] == [legacy]
+    assert bounded[0]["parts"][0]["content"] == message_history.HISTORY_TRIMMED

@@ -19,6 +19,36 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Configure organization text-to-speech defaults as a provider, model, voice and shared vault key. Agents explicitly opt in or retain their own override; waiting runs keep their chosen destination while key revocation and disabling the service still apply.
+
+- Offer current recorded-audio transcription models and Eleven v4, Eleven v3 and Flash v2 speech generation. Eleven v4 uses its dialogue endpoint with bounded text chunks; existing model selections are preserved.
+
+- **Table calls read in the table's own names.** When an agent queries, reads,
+  adds, updates, upserts or deletes Virtual Table records through the platform
+  tools, the chat step shows the table, the record it targets, its conditions,
+  sort order, page size and written cells by column and option label, and the
+  records it found as a short table. Approval cards for table writes, in chat and under Runs, and each table
+  step of a run's timeline show the same summary above the raw arguments, and a
+  pending table write no longer leads with its table's id. When the reader cannot
+  open the table, and on hosted pages, the call is shown as sent.
+
+- Hold an object, a list or a single value in a workflow with the new **Data**
+  step (`data.value`): type it in as JSON or bind it from an earlier output, and
+  read it or a path into it from later steps. The value is set once per run and
+  is never overwritten, and the step's panel says so.
+
+- Expose GitHub routine author filters, including a members-and-contributors option, while preserving existing defaults. Routine owners can inspect the latest retained sample of verified filter rejections without storing webhook content or creating a run. Diagnostic writes are limited to once per minute per routine using the database clock and do not spend run-admission quota (#3072).
+
+- Let shared agents require each signed-in web-chat user's own API key while keeping the model and endpoint fixed. Store keys privately in the vault, reuse them for the same provider and endpoint, and manage them without organization connection permissions. Refuse unsupported public surfaces, channels, automated runs and model overrides at configuration and run time; never fall back to an organization key. Refuse private-key saves when the model destination changed after the form opened (#2921).
+
+### Changed
+
+- Flatten organization AI settings into individual function cards. Daily briefing and suggestions share one model, budget and schedule card; memory maintenance and monitoring retain their own switches. Keep the AI Architect switch and Builder link visible without a greeting editor.
+
+- Workflow record filters choose their column by name from the step's table instead of asking for a column id, and a single or multi select column's value from its options, so Record exists? no longer refuses an option typed by its label. The Record exists? and List records steps no longer offer a column list they never read; a stored narrowing stays visible so it can be cleared.
+
 ### Fixed
 
 - Let Helm deployments configure the console's SSO button through
@@ -27,9 +57,44 @@ Two things are versioned separately from this file and worth knowing about:
   credentials, OpenShift restrictions, Argo CD migration ordering and the
   separate validation required for OIDC and sandbox services (discussion #2853).
 
+- Bind private model-history checkpoints to their agent and resolved model destinations, including fallback connections, and to the live MCP account, endpoint and authorization generation. Changing a recipient rebuilds visible transcript history instead of sending earlier hidden tool results to another endpoint.
+
+- Preserve concurrent aside and main-turn exchanges when updating private model history; an older snapshot cannot advance past a conversation turn it never saw.
+
+- Refuse personal model-key access while impersonating another member, before reading or changing credentials. Shared rooms, projects and edit-shared chats replay visible transcript turns instead of another author’s hidden tool results; private web and direct-message histories remain structured.
+
+- Keep large offloaded media in conversation history by bounding compact references before restoring their content, and offloading completed-turn media before applying checkpoint size limits.
+
+- Validate whole Data values at dispatch against their consumer and settle non-object paths as missing values. Resolve saved select option labels in Record exists as List records does. Invalid rating values in pending table writes retain a raw preview without breaking the approvals queue.
+
+- Build Linux AppImages with the updated Tauri bundler to avoid bundled Wayland libraries crashing WebKitGTK on newer Mesa. Verify extracted AppImages in installer CI and before release uploads, rejecting the bundled Wayland client library that conflicts with host Mesa (#3041).
+
+- Capitalize role names in the organization member filter, matching the membership role controls.
+
+- Refuse stale Builder draft saves, including changes made through another tab, MCP or a server-side action. Preserve local edits, pause autosave on conflict and offer an explicit reload. Add-to-agent and platform MCP edits use the same revision check (#2618).
+
+### Upgrading
+
+- The frontend audit temporarily excepts unpatched picomatch advisory GHSA-fc5q-39xc-vjpf after reviewing the production trace and fixed image patterns. Track #3102 for upstream remediation and removal of the named exception. No audit severity threshold is lowered.
+
+- Older private checkpoints without recipient provenance fall back to visible chat history. Restart waiting runs created before provenance was recorded; newer waiting runs require their original model destinations before resuming. No stored conversation messages are deleted.
+
+- Apply `0339_organization_text_to_speech.py` after `0338_personal_model_keys.py`. Existing agents retain their own TTS settings; inheritance is opt-in and requires an organization-visible provider key.
+
+- Apply `0338_personal_model_keys.py` after `0337_github_filter_diagnostic.py`; both changes now form one migration chain. Existing agents continue using organization model keys unless explicitly changed.
+
+- Apply migration `0337_github_filter_diagnostic.py` for the routine's bounded filter diagnostic. Existing author policies are unchanged; old configurations without `authors` remain member-only.
+
+- Draft API clients must read `draft_revision` from `GET /agents/{id}` or the edit-authorized `GET /agents/{id}/draft-revision` and send it as `expected_revision` with `PUT /agents/{id}/draft` and YAML replacements at `POST /agents/{id}/spec.yaml`. Missing tokens return 422; stale tokens return 409 without changes. Reload older Builder tabs after upgrading. No database migration or spec-version change is required (#2618).
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed
+
+- Preserve tool results and local or native tool-search discovery between completed
+  chat turns, with bounded model-history checkpoints and persistent compaction.
+  Current tool configuration, availability, permissions and approvals still apply
+  (#2927).
 
 - Keep a run alive when an MCP server fails during initialization, discovery or a tool request. Retry initialization once, report unavailable services and uncertain tool outcomes explicitly, and never replay tool writes. Give the built-in platform MCP its own bounded initialization deadline so cold worker startup does not abort Mattermost turns before the model runs (#3077).
 

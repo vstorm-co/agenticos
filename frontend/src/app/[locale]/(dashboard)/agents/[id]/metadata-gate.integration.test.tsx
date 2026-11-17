@@ -31,6 +31,7 @@ const AGENT: AgentDetail = {
   has_avatar: false,
   categories: [],
   tags: [],
+  draft_revision: "base",
   draft_spec: {
     name: "Support",
     description: null,

@@ -190,7 +190,11 @@ describe("useAgent draft", () => {
     vi.mocked(apiClient.get).mockRejectedValueOnce(refusal);
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
     await waitFor(() => expect(result.current.error).toBe(refusal));
-    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: SPEC });
+    vi.mocked(apiClient.get).mockResolvedValue({
+      id: "a1",
+      draft_spec: SPEC,
+      draft_revision: "base",
+    });
     await result.current.refetch();
     await waitFor(() => expect(result.current.agent?.id).toBe("a1"));
     expect(result.current.error).toBeNull();
@@ -201,28 +205,36 @@ describe("useAgent draft", () => {
     // why a field added to the spec can go missing without anything failing.
     // A tool held for approval that arrives at the server unheld is the whole
     // feature quietly not existing.
-    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: SPEC });
+    vi.mocked(apiClient.get).mockResolvedValue({
+      id: "a1",
+      draft_spec: SPEC,
+      draft_revision: "base",
+    });
     vi.mocked(apiClient.put).mockResolvedValue({ id: "a1", name: "Support" });
 
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     await result.current.saveDraft.mutateAsync({
-      ...SPEC,
-      capabilities: [
-        {
-          id: "email",
-          config: {},
-          approval: "never",
-          tool_approval: { send_email: "required" },
-          tool_overrides: { send_email: { name: "send_invoice_email" } },
-          secret_id: "sec-1",
-          enabled: true,
-        },
-      ],
+      spec: {
+        ...SPEC,
+        capabilities: [
+          {
+            id: "email",
+            config: {},
+            approval: "never",
+            tool_approval: { send_email: "required" },
+            tool_overrides: { send_email: { name: "send_invoice_email" } },
+            secret_id: "sec-1",
+            enabled: true,
+          },
+        ],
+      },
+      expected_revision: "base",
     });
 
     expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/draft", {
+      expected_revision: "base",
       spec: expect.objectContaining({
         capabilities: [
           expect.objectContaining({
@@ -891,7 +903,7 @@ describe("useAgent mutations", () => {
     vi.mocked(apiClient.put).mockResolvedValue({ id: "a1" });
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
 
-    await result.current.saveDraft.mutateAsync(SPEC);
+    await result.current.saveDraft.mutateAsync({ spec: SPEC, expected_revision: "base" });
 
     expect(toast.success).not.toHaveBeenCalled();
   });
@@ -901,9 +913,24 @@ describe("useAgent mutations", () => {
     vi.mocked(apiClient.put).mockRejectedValue(new Error("conflict"));
     const { result } = renderHook(() => useAgent("a1"), { wrapper });
 
-    await expect(result.current.saveDraft.mutateAsync(SPEC)).rejects.toThrow();
+    await expect(
+      result.current.saveDraft.mutateAsync({ spec: SPEC, expected_revision: "base" }),
+    ).rejects.toThrow();
 
     expect(toast.error).toHaveBeenCalledWith("conflict");
+  });
+
+  it("explains a draft conflict in the reader's language", async () => {
+    const conflict = new ApiError(409, "Stale", {
+      error: { code: "CONFLICT", message: "Stale", details: { reason: "draft_changed" } },
+    });
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1" });
+    vi.mocked(apiClient.put).mockRejectedValue(conflict);
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await expect(
+      result.current.saveDraft.mutateAsync({ spec: SPEC, expected_revision: "base" }),
+    ).rejects.toBe(conflict);
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("saving is paused"));
   });
 
   it("names the version it published", async () => {
@@ -1257,7 +1284,11 @@ describe("useAddToAgent", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("writes the draft with the resource bound", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: SPEC });
+    vi.mocked(apiClient.get).mockResolvedValue({
+      id: "a1",
+      draft_spec: SPEC,
+      draft_revision: "base",
+    });
     vi.mocked(apiClient.put).mockResolvedValue({ id: "a1" });
     const { result } = renderHook(() => useAddToAgent(), { wrapper });
 
@@ -1269,6 +1300,7 @@ describe("useAddToAgent", () => {
     expect(answer).toEqual({ already: false });
     const [path, body] = vi.mocked(apiClient.put).mock.calls[0]!;
     expect(path).toBe("/agents/a1/draft");
+    expect(body).toEqual(expect.objectContaining({ expected_revision: "base" }));
     expect((body as { spec: AgentSpec }).spec.skill_ids).toEqual(["s1"]);
   });
 

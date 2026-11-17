@@ -1,5 +1,12 @@
 import { expect, test } from "./fixtures";
-import { AUTH_STATE, FAKE_KEY_LABEL, STUB_MODEL_ENDPOINT, nowMatching, rowsAt } from "./helpers";
+import {
+  AUTH_STATE,
+  FAKE_KEY_LABEL,
+  STUB_MODEL_ENDPOINT,
+  json,
+  nowMatching,
+  rowsAt,
+} from "./helpers";
 import type { APIResponse } from "@playwright/test";
 
 test.use({
@@ -69,9 +76,18 @@ test("context overrides persist and compact app sharing preserves optional setti
     };
     const agentId = await createdId(await page.request.post("/api/agents", { data: { spec } }));
     cleanup.push(`/api/agents/${agentId}`);
-    expect((await page.request.put(`/api/agents/${agentId}/draft`, { data: { spec } })).ok()).toBe(
-      true,
-    );
+    expect(
+      (
+        await page.request.put(`/api/agents/${agentId}/draft`, {
+          data: {
+            spec,
+            expected_revision: (
+              await json<{ draft_revision: string }>(page.request, `/api/agents/${agentId}`)
+            ).draft_revision,
+          },
+        })
+      ).ok(),
+    ).toBe(true);
     expect((await page.request.post(`/api/agents/${agentId}/publish`, { data: {} })).ok()).toBe(
       true,
     );

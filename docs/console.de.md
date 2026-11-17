@@ -1,5 +1,5 @@
 ---
-source_sha: "2225d063f6ba"
+source_sha: "cbc3104b095a"
 ---
 
 # Die Konsole { #the-console }
@@ -232,7 +232,7 @@ Ergebnisse in den privaten Posteingang. Jeder Tab hat eigene Erstellungsaktionen
 30 Modellanfragen, lange Ergebnisse werden gekürzt; so bleibt eine Beobachtung
 eines großen Workspace günstig.
 
-Organisation → KI & Dienste → Vorschläge und Monitoring trennt Vorschläge, Überwachung, gemeinsame Limits, Zustellungszeiten und Begrüßungen. Ungespeicherte Änderungen lassen sich verwerfen. Hintergrunddienste zeigen Status und Verbrauch; Modell- und Budgeteinstellungen werden pro Dienst aufgeklappt.
+Organisation → KI & Dienste zeigt einzelne Funktionskarten mit Schaltern und aufklappbaren Einstellungen. Tägliches Briefing und Vorschläge teilen ein Modell, Budget und einen Zustellungsplan; Monitoring und Begrüßungsnachrichten haben eigene Karten. Ungespeicherte Änderungen lassen sich verwerfen.
 
 Zeitgesteuerte, ereignisgesteuerte und überwachende Routinen verwenden denselben Dialograhmen mit festem Kopfbereich und Navigation sowie einem scrollbaren Formular. Das Erstellen einer Überwachung führt durch Konfiguration, Nachricht und Zeitplan; Zurück erhält den Entwurf. Die Agentenauswahl zeigt dieselben Avatare wie der Chat. Ausführungs- und Zustelloptionen einer Überwachung stehen gemeinsam in einem Bereich für erweiterte Optionen.
 
@@ -415,7 +415,7 @@ Der Architect ist ein Agent wie jeder andere, also werden Name, Modell, Wissen
 und der Rest seiner Spec im Agent Builder bearbeitet - von jemandem, der die
 Einstellungen der Organisation ändern darf, weil ihn alle in der Organisation
 ausführen. Auf der Seite der Organisation schaltet eine Karte ihn für alle ab und
-legt seine Begrüßung fest. **Einstellungen → Assistent** enthält nur noch Ihre
+verlinkt zum Agent Builder. **Einstellungen → Assistent** enthält nur noch Ihre
 eigenen Tipps.
 
 ## Mitgelieferte Agenten { #shipped-agent-defaults }
@@ -492,6 +492,12 @@ Rollen, die sie verwalten, und Ihre Benachrichtigungen nur Sie. Bricht die Verbi
 bisher und verbindet sich selbst wieder.
 
 ## Chat { #chat }
+
+Gemeinsame Räume, Projektchats und zur Bearbeitung freigegebene Gespräche verwenden sichtbare Chatbeiträge statt verborgener Modell-Checkpoints. Ein anderer Teilnehmer übernimmt keine privaten Toolergebnisse oder Denkprozesse eines früheren Autors; bei Bedarf fragt der Agent mit den Verbindungen der aktuellen Person erneut ab. Auch ein Fork einer geteilten Quelle lässt verborgene Checkpoints zurück. Private Webchats und Direktnachrichten behalten den strukturierten Modellverlauf.
+
+Private Checkpoints sind an den Agenten, die tatsächlich aufgelösten Modellziele einschließlich Fallback-Verbindungen sowie die in diesem Turn verwendeten MCP-Konten, Endpunkte und Autorisierungsgenerationen gebunden. Ein anderer Agent, Endpunkt oder Anschluss baut den Verlauf aus sichtbaren Chatnachrichten neu auf, statt frühere verborgene Werkzeugergebnisse an einen anderen Empfänger zu senden.
+
+Ältere Checkpoints ohne diese Herkunft verwenden ebenfalls den sichtbaren Verlauf. Ein wartender Lauf kann nach einem Zielwechsel nicht fortgesetzt werden: Stellen Sie seine ursprüngliche Konfiguration wieder her oder beginnen Sie einen neuen Turn. Vor der Erfassung des Empfängers angehaltene Läufe müssen neu gestartet werden.
 
 Hier sprechen Sie mit einem veröffentlichten Agent. Die Auswahl entscheidet,
 welcher Agent antwortet, und der Run verhält sich genau so, wie er es in Slack
@@ -1041,9 +1047,9 @@ entschieden wurde und was sie gekostet hat. Eine abgeschlossene Sitzung öffnet
 ihren Assistenten nur zum Lesen, mit der Entscheidung im letzten Schritt; siehe
 [Verbesserungsverlauf](authoring.md#improvement-history).
 
-Organisationsdetails haben drei Registerkarten: **Mitglieder**, **Budget und Freigaben** und **KI & Dienste**. Mitglieder bietet Namens-/E-Mail-Suche, Rollenfilter und die letzte erfasste Aktion in diesem Arbeitsbereich. Dies ist eine Audit-Aktion, kein Besuch oder Login; Aktionen durch Identitätsübernahme werden ausgeschlossen und fehlende Historie erscheint als Strich. **Arbeitsbereich bearbeiten** öffnet einen Dialog für Name, Avatar und Farbe mit Schutz ungespeicherter Änderungen. KI & Dienste beginnt mit Hintergrunddiensten, danach folgen KI-Architekt, Vorschläge und Monitoring sowie Sprache. Aufklappen erhält Entwürfe. Alle Steuerelemente behalten ihre Berechtigungsprüfungen. Alte Links mit `?tab=profile` öffnen den Arbeitsbereich-Dialog; `?tab=voice` und `?tab=proactivity` öffnen die passenden Einstellungen in KI & Dienste.
+Organisationsdetails haben drei Registerkarten: **Mitglieder**, **Budget und Freigaben** und **KI & Dienste**. Mitglieder bietet Namens-/E-Mail-Suche, Rollenfilter und die letzte erfasste Aktion in diesem Arbeitsbereich. Dies ist eine Audit-Aktion, kein Besuch oder Login; Aktionen durch Identitätsübernahme werden ausgeschlossen und fehlende Historie erscheint als Strich. **Arbeitsbereich bearbeiten** öffnet einen Dialog für Name, Avatar und Farbe mit Schutz ungespeicherter Änderungen. KI & Dienste zeigt einzelne Funktionskarten ohne übergeordnete Gruppen. Aufklappen erhält Entwürfe. Alle Steuerelemente behalten ihre Berechtigungsprüfungen. Alte Links mit `?tab=profile` öffnen den Arbeitsbereich-Dialog; `?tab=voice` und `?tab=proactivity` öffnen die passenden Einstellungen in KI & Dienste.
 
-Das tägliche Briefing lässt sich direkt in Hintergrunddienste konfigurieren; es aktualisiert dasselbe Organisationsmodell und personenbezogene Limit wie die Vorschläge. Die Speicherpflege startet ausgeschaltet; auch alte Profile ohne Modell werden als ausgeschaltet angezeigt. Wählen Sie vor dem Einschalten ein Modell. Ausgeschaltete Dienste zeigen keine Einrichtungswarnung. Namen der Sprachanbieter enthalten keine Hinweise zum Schlüsselstatus; Schlüssel behalten ihre separate Auswahl und Validierung.
+Tägliches Briefing und Vorschläge sind ein Dienst mit gemeinsamen Einstellungen. Seine Karte zeigt auch Ausgaben und letzte Ausführungen. Die Speicherpflege hat ein eigenes Modell und Budget und beginnt ausgeschaltet. Wählen Sie vor dem Einschalten ein Modell. Beim KI-Architekten bleiben Schalter und Agent-Builder-Link sichtbar, ohne Begrüßungseditor.
 
 Nach der Anmeldung erscheinen an die Konto-E-Mail adressierte Einladungen auch in Konsole und Onboarding, ohne den E-Mail-Link zu öffnen. Der Empfänger wählt eine Organisation und nimmt ausdrücklich an; Später lässt die Verknüpfung Einladungen verfügbar. Angezeigt werden nur gültige Einladungen an die aktuelle Konto-Adresse, ohne geteilte Links und bereits beigetretene Organisationen. Die Annahme wechselt zur gewählten Organisation und öffnet deren Begrüßung. Der Server gibt in diesem Posteingang keine Einladungstokens zurück.
 

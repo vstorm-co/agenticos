@@ -196,7 +196,7 @@ def _finished_turn(
     parked: tuple[ParkedApproval, ...] = (),
     questions: tuple[str, ...] = (),
     usage: UsageReport | None = None,
-    summarized_history: list[dict[str, Any]] | None = None,
+    history_snapshot: list[dict[str, Any]] | None = None,
     overhead_tokens: int | None = None,
 ) -> ChatTurn:
     return ChatTurn(
@@ -208,7 +208,7 @@ def _finished_turn(
         parked=parked,
         questions=questions,
         usage=usage,
-        summarized_history=summarized_history,
+        history_snapshot=history_snapshot,
         overhead_tokens=overhead_tokens,
     )
 
@@ -857,7 +857,7 @@ class TestATurnThatFinished:
         turn = _finished_turn(
             usage=UsageReport(input_tokens=1200, output_tokens=300, cost_usd=Decimal("0.0125")),
             parked=_parked_call() if parked else (),
-            summarized_history=[{"kind": "request"}],
+            history_snapshot=[{"kind": "request"}],
             overhead_tokens=1200,
         )
 
@@ -912,7 +912,7 @@ class TestATurnThatFinished:
         session = _session()
         summary = [{"kind": "request", "parts": []}]
 
-        with _chat(AsyncMock(return_value=_finished_turn(summarized_history=summary))) as stubs:
+        with _chat(AsyncMock(return_value=_finished_turn(history_snapshot=summary))) as stubs:
             await session.process_message(_message())
 
         assert stubs.conversations.keep_summary.await_args.args[1] == summary
@@ -944,7 +944,7 @@ class TestATurnThatFinished:
         order: list[str] = []
 
         with _chat(
-            AsyncMock(return_value=_finished_turn(summarized_history=[{"kind": "request"}]))
+            AsyncMock(return_value=_finished_turn(history_snapshot=[{"kind": "request"}]))
         ) as stubs:
             stubs.answer.side_effect = lambda *args, **kwargs: order.append("answer") or "saved-1"
             stubs.conversations.keep_summary.side_effect = lambda *args, **kwargs: order.append(

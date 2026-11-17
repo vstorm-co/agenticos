@@ -1,5 +1,5 @@
 ---
-source_sha: "34fa5b94abdb"
+source_sha: "2bc3e7bad49a"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1554,8 +1554,13 @@ Odczytuje tekst na głos przez providera mowy wybranego przez autora i zachowuje
 się jak generowanie obrazów: nagranie jest zapisywane, pokazywane w rozmowie jako
 odtwarzacz i zapisywane w `output/`, gdy workspace jest otwarty (#2259).
 
+Domyślne TTS organizacji jest opcjonalne. W **Organizacja → AI & services → Text to speech** administrator zapisuje providera, model, głos i klucz z vault widoczny dla organizacji jako jedną grupę. Agent dziedziczy ją dopiero po włączeniu **Use organization defaults** przez autora; istniejący agenci zachowują własne ustawienia. Oczekujący run zachowuje rozstrzygniętą grupę po zmianie ustawień, ale wyłączenie TTS organizacji lub cofnięcie dostępu do klucza blokuje mowę. Własna konfiguracja agenta łączy jego providera z jego kluczem.
+
+Katalog HTTP obejmuje Eleven v4 przez endpoint text-to-dialogue, z fragmentami do 2000 znaków, oraz Eleven v3 i Flash v2. Modele konwersacyjne dostępne wyłącznie przez WebSocket wymagają innego transportu i nie są oferowane do generowania klipów.
+
 | Konfiguracja | Domyślnie | Wartości |
 | --- | --- | --- |
+| `use_organization_defaults` | `false` | Dziedzicz razem providera, model, głos i klucz organizacji; w przeciwnym razie użyj tego bindingu |
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | Modele tego providera z `app/core/catalog/text_to_speech_models.json` |
 | `voice` | pierwszy głos modelu | Domyślny głos agenta; może przełączyć się dla każdego klipu w obrębie `voices`. Głos z katalogu dla OpenAI i Gemini; id z własnej biblioteki głosów dla ElevenLabs |
@@ -2687,12 +2692,17 @@ Streszczanie zamienia tokeny wejściowe w wyjściowe, które są rozliczane z pr
 generowane szeregowo, więc agent, którego runom przewodzą duże wyniki narzędzi,
 zwykle wychodzi lepiej na `tiered`.
 
-**Sięga do jednego runa, a nie do jednej rozmowy.** Między turami historia jest
-odbudowywana z zapisu rozmowy jako tekst użytkownika i asystenta, więc nie ma tam
-wywołań narzędzi ani ich wyników do kompaktowania i żadna zrobiona tu edycja nie
-przeżywa granicy tury. Historią wartą kompaktowania jest długa pętla narzędzi
-wewnątrz jednego runa, gdzie jedno wylistowanie katalogu albo jedno wyszukanie w
-wiedzy to dziesiątki tysięcy tokenów.
+**Historia przechodzi między turami.** Każda zakończona tura zapisuje wiadomości
+modelowe, w tym wywołania narzędzi, wyniki i odkrycia lokalnego lub natywnego
+tool search. Kompakcja działa na tej samej historii; jej streszczenie przechodzi
+do następnej tury.
+
+Zapis obejmuje najwyżej 200 wiadomości modelowych i 2 MiB zserializowanej historii.
+Starsze wiadomości wypadają bez rozdzielania wywołań i wyników. Komunikat o
+pominięciu każe ponownie odkryć brakujące narzędzia lub odczytać dane. Odkrycia
+wygasają wraz z ich zapisem. Każdy run nadal stosuje aktualne definicje narzędzi,
+dostępność, uprawnienia i zgody na wykonanie. Oczekujące zgody mają osobny stan
+wznowienia; zapis historii nie wykonuje ponownie operacji.
 
 **Wyzwalaczem jest ułamek, bo liczba bezwzględna jest właściwa tylko dla jednego
 modelu**, a ten sam agent chodzi na dowolnym profilu, na który wskazuje jego spec.
@@ -2757,14 +2767,10 @@ i walkery pochodzą z
 | --- | --- | --- |
 | `threshold_bytes` | 32768 | 1 KiB–10 MiB; części co najmniej tej wielkości trafiają poza historię |
 
-**Jest jedno miejsce, w którym media naprawdę się kumulują, i to właśnie ono.**
-Załącznik trafia do modelu raz, w turze, w której został dołączony: zwykła
-historia jest odtwarzana z _tekstu_ transkryptu, więc obrazek nie jest wysyłany
-ponownie. Wyjątkiem jest rozmowa [skompaktowana](#context-management) — wtedy
-zrzut wiadomości runa robiony przez bibliotekę jest zapisywany w całości
-i odtwarzany dokładnie tak, jak widział go model, razem z base64, aż do kolejnego
-podsumowania. Ten blob to wiersze w Postgresie i bajty na łączu, w każdej turze
-pomiędzy.
+**Załączniki mogą przechodzić do następnych tur.** Zakończone tury zachowują
+wiadomości modelowe w granicach limitów historii, również zachowane obrazy.
+Odciążanie mediów działa przy zwykłym zapisie i po kompakcji. Efemeryczne zrzuty
+ekranu pulpitu zastępuje komunikat przed zapisem.
 
 **Gdzie trafiają bajty i jak długo żyją.** Do własnego magazynu plików wdrożenia,
 pod `media/<organizacja>/<rozmowa>/<digest>`. Organizacja to izolacja: URI mediów

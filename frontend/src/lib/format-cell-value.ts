@@ -58,8 +58,11 @@ export function formatCellValue(
       // Ids name nothing to a reader; `recordCellText` names them from the record.
       return Array.isArray(value) ? String(value.length) : "";
     case "rating":
-      return typeof value === "number"
-        ? "★".repeat(value) + "☆".repeat(Math.max(0, MAX_RATING - value))
+      return typeof value === "number" &&
+        Number.isInteger(value) &&
+        value >= 0 &&
+        value <= MAX_RATING
+        ? "★".repeat(value) + "☆".repeat(MAX_RATING - value)
         : "";
     case "date":
     case "datetime": {

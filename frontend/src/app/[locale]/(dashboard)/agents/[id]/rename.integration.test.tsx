@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
-import type { AgentSpec } from "@/types/agents";
+import type { AgentSpec, AgentDraftUpdate } from "@/types/agents";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
@@ -28,7 +28,9 @@ const MODEL_PROFILE = {
 };
 
 const refetchProfiles = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-const saveDraft = vi.hoisted(() => vi.fn(async (spec: AgentSpec) => ({ draft_spec: spec })));
+const saveDraft = vi.hoisted(() =>
+  vi.fn(async ({ spec }: AgentDraftUpdate) => ({ draft_spec: spec, draft_revision: "saved" })),
+);
 
 const state = {
   permissions: [] as Permission[],
@@ -58,6 +60,7 @@ vi.mock("@/hooks", async () => {
         status: "draft",
         has_avatar: false,
         ...state.access,
+        draft_revision: "base",
         draft_spec: {
           name: "Support (copy)",
           description: null,
@@ -224,8 +227,11 @@ describe("renaming an agent in the Builder", () => {
     expect(saveDraft).toHaveBeenCalledTimes(1);
     expect(saveDraft).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: "Support - Norway",
-        description: "Answers Norwegian customers",
+        spec: expect.objectContaining({
+          name: "Support - Norway",
+          description: "Answers Norwegian customers",
+        }),
+        expected_revision: "base",
       }),
     );
   });
@@ -244,7 +250,9 @@ describe("renaming an agent in the Builder", () => {
     await settleAutosave();
 
     expect(saveDraft).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "Renamed", description: null }),
+      expect.objectContaining({
+        spec: expect.objectContaining({ name: "Renamed", description: null }),
+      }),
     );
   });
 

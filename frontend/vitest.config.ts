@@ -351,6 +351,7 @@ export default defineConfig({
         // The organization's Voice card (#1797). The rest of `teams/` predates
         // the gate; this file is new, so it starts inside.
         "src/components/teams/org-voice-settings.tsx",
+        "src/components/teams/org-text-to-speech-settings.tsx",
         // Its voice-call section (#54), new and so inside the gate too.
         "src/components/teams/org-voice-conversations.tsx",
         // The link that lands on the AI assistance switch, new and so inside the gate.

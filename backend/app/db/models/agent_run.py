@@ -332,6 +332,9 @@ class AgentRun(Base, TimestampMixin):
     # a test of the draft has no version, and a run parked on an approval has to
     # continue on exactly what it was running.
     test_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    text_to_speech_defaults: Mapped[dict[str, str | bool | None] | None] = mapped_column(
+        JSONB, nullable=True
+    )
 
     # The skill versions this run served, its inline specialists' included; null for
     # a run from before skills were versioned.

@@ -1,5 +1,5 @@
 ---
-source_sha: "580be673475a"
+source_sha: "ef824da65bb6"
 ---
 
 # Governance { #governance }
@@ -45,6 +45,27 @@ alerta, que no para nunca.
 
 Un trigger de evento añade un rechazo más en su borde: un webhook cuya firma no se
 verifica contra el secreto propio del trigger es un 403 que nunca llega al runner.
+
+Las rutinas de GitHub muestran un filtro de autores al crear o editar triggers
+de issues, pull requests y comentarios. **Repository members (default)** admite
+`OWNER`, `MEMBER` y `COLLABORATOR`; **Members and contributors** añade
+`CONTRIBUTOR`. **Anyone** incluye a quienes contribuyen por primera vez y a otros
+usuarios que reportan problemas. Son asociaciones de autores de GitHub, no roles
+de organización de AgenticOS. Los bots y el login conectado excluido explícitamente
+siguen bloqueados con cualquier opción. El filtro no se aplica a pushes, runs de
+workflow ni releases. Las rutinas existentes conservan su política; una
+configuración sin `authors` sigue significando `members`.
+
+En el historial de la rutina, su propietario autenticado puede ver **Latest filtered
+GitHub event**: cuándo un webhook verificado fue rechazado por un filtro, el motivo
+y la política de autores al recibirlo. Tanto los webhooks individuales como las
+entregas de GitHub App registran este diagnóstico. Solo se conserva la última
+muestra, actualizada como máximo una vez por minuto por rutina según el reloj de
+la base de datos. No se guardan el payload, el texto del autor ni secretos, ni se
+crea un run o se consume la cuota de admisión de runs.
+
+La ausencia de diagnóstico indica que no se ha registrado un rechazo; no confirma la
+entrega de un webhook. Las respuestas públicas de los webhooks no cambian.
 
 ## Entrega de rutinas { #routine-delivery }
 
@@ -914,7 +935,7 @@ Parte del trabajo es de la propia plataforma y aun así necesita un modelo. Un
 **rol de sistema** le da un responsable que un operador puede ver: una
 configuración por organización y rol, nunca una fila de agent, nunca una por tarea
 y nunca atribuida al agent inicial ni a ningún agent cuyas instrucciones no se
-ejecutaron (#2575). **Organizaciones → AI & services → Background services**
+ejecutaron (#2575). **Organizaciones → AI & services**
 (`budgets:manage`) lista cada rol con el modelo en que corre, el gasto de este mes
 y sus últimas ejecuciones.
 

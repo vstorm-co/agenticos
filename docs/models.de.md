@@ -1,5 +1,5 @@
 ---
-source_sha: "3ce26481a019"
+source_sha: "52615751a50c"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -25,6 +25,22 @@ model profile → credential → unsealed secret → provider client → Model
 ```
 
 Nichts davon, welches Modell ein Agent verwendet, steht in `.env`.
+
+## Persönliche Modellschlüssel { #personal-model-keys }
+
+Behalte im Builder unter **Modellzugriff** die Voreinstellung **Organisationsschlüssel verwenden** oder wähle **Jeder Nutzer verbindet seinen eigenen Schlüssel**. Im persönlichen Modus bleiben Modell und Endpunkt des Administrators fest. Unterstützt werden Chat-Anbieter mit API-Schlüssel, ohne Ersatzmodelle oder Modellwechsel pro Gespräch.
+
+Ein angemeldetes Mitglied verbindet seinen Schlüssel über das private Formular über dem Nachrichteneingabefeld oder in den Chat-Einstellungen. Schlüssel gelangen nie in Nachrichten, Prompts oder Agentenanweisungen. Dieselbe Verbindung gilt für Agenten dieser Organisation mit gleichem Anbieter und Endpunkt. Ohne Schlüssel wird der Lauf vor der Modellanfrage blockiert; Authentifizierungsfehler wechseln nie zum Organisationsschlüssel. Ersetze den Schlüssel in den Chat-Einstellungen oder entferne die Verbindung unter **Vault → Deine Modellverbindung**. Das Speichern prüft den Schlüssel nicht beim Anbieter.
+
+Das private Schlüsselformular übermittelt das erwartete Profil, den Anbieter, Endpunkt und das angezeigte Modell. Ändert sich das Ziel vor dem Speichern, lehnt der Server den Schlüssel mit einem Konflikt ab; das Formular lädt das Ziel neu und löscht den eingegebenen Schlüssel vor einem erneuten Versuch.
+
+Der persönliche Modus unterstützt derzeit keine privaten oder Gruppenkanäle, Widgets, öffentlichen Seiten, HTTP-API-Läufe, Zeitpläne, Trigger, Hintergrundthemen, Sprache, Reviewer, Delegation oder separate Modelle für Fähigkeiten. Pausiere oder entferne aktive Kanäle, öffentliche Freigaben und Routinen vor der Veröffentlichung. Das Erstellen oder erneute Aktivieren einer unvereinbaren Freigabe wird abgelehnt; dieselbe Regel gilt zur Laufzeit. Öffentliche Seiten und Widget-JWTs identifizieren kein angemeldetes Mitglied der Instanz.
+
+Schlüssel werden im Tresor für ihren Eigentümer verschlüsselt und beim Entfernen der Mitgliedschaft oder des Kontos gelöscht. Ein geänderter Endpunkt benötigt eine neue Verbindung. Die Rotation eines persönlichen Schlüssels ändert weder andere Schlüssel noch das gemeinsame Modellprofil.
+
+Die Identitätsübernahme eines anderen Mitglieds gewährt keinen Zugriff auf dessen persönliche Modellverbindungen: Anfragen zum Lesen, Ändern oder Verwenden des Schlüssels werden vor dem Vault-Zugriff abgelehnt.
+
+Der private Gesprächsverlauf ist an die genehmigten Modellziele einschließlich Fallbacks gebunden; der [Chatverlauf](console.md#chat) beschreibt Verbindungswechsel und die Fortsetzung wartender Läufe.
 
 ## Ein Model Profile { #a-model-profile }
 
