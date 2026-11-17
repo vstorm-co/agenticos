@@ -892,14 +892,14 @@ class ScoringService:
             )
             return Evaluation(failed, await self._failed_pin(ctx, exc.run_id, criteria, scoring))
         except SystemAgentOutputError as exc:
-            said = " ".join(exc.answer.split())
+            said = " ".join(exc.answer.split()) or None
             failed = not_graded(
                 criteria,
                 skipped=False,
                 code="judge_output_invalid",
                 reason=exc.message,
                 run_id=exc.run_id,
-                said=said if len(said) <= _SAID else f"{said[:_SAID]}…",
+                said=said if said is None or len(said) <= _SAID else f"{said[:_SAID]}…",
             )
             return Evaluation(failed, await self._failed_pin(ctx, exc.run_id, criteria, scoring))
         grades = graded(
