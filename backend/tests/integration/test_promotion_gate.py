@@ -1244,18 +1244,18 @@ async def test_republishing_a_judge_cannot_relax_a_guard_without_an_audited_pin_
             candidate = kwargs["candidate"]
             assert isinstance(candidate, PublishedCandidate)
             asked.append(candidate.version_id)
-            return json.dumps(
-                {
-                    "grades": [
-                        {
-                            "id": "r1",
-                            "score": 1 if candidate.version_id == strict.id else 5,
-                            "reason": "The answer says 30 days.",
-                            "quotes": ["30 days"],
-                        }
-                    ]
-                }
-            ), run
+            verdict = {
+                "grades": [
+                    {
+                        "id": "r1",
+                        "score": 1 if candidate.version_id == strict.id else 5,
+                        "reason": "The answer says 30 days.",
+                        "quotes": ["30 days"],
+                    }
+                ]
+            }
+            kwargs["structured"].append(verdict)
+            return json.dumps(verdict), run
 
     model = JudgedModel(db)
     await _run_guards(db, ctx, agent, env_id, second, model)

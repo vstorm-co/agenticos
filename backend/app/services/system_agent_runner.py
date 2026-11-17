@@ -12,22 +12,22 @@ nobody here vetted - a candidate's answer, a document, a conversation - and an
 instruction planted in it must not reach a production connection through a tool
 an editor added to the agent's spec.
 
-The runner answers in text, so the shape is asked for in the prompt: the JSON
-schema of the result type is appended to every call, and the answer is validated
-against it. In the prompt rather than the agent's instructions, because those are
-the organization's to edit, and an edit may change how the agent judges but must
-not change whether its answer can be read.
+The answer comes back as a structured output: the result type's JSON schema is
+the run's `output_schema`, so the model answers through a tool call whose
+arguments are checked against it and is sent back to fix one that does not fit.
+It is set on the run rather than in the agent's spec, because the spec is the
+organization's to edit, and an edit may change how the agent judges but must not
+change whether its answer can be read.
 """
 
-import json
-import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Any
 from uuid import UUID
 
 from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
-from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.knowledge import FoundPassage
@@ -51,8 +51,6 @@ from app.services.agent_runner import AgentRunnerService
 from app.services.model_profile import ModelProfileService
 from app.services.system_agents import SystemAgentService
 
-_FENCE = re.compile(r"^```[a-zA-Z]*\s*\n?|\n?```\s*$")
-
 
 @dataclass(frozen=True)
 class SystemAgentResult[T]:
@@ -69,13 +67,9 @@ class SystemAgentResult[T]:
     found: list[FoundPassage] = field(default_factory=list)
 
 
-def output_contract(output_type: type[object]) -> str:
-    """The instruction appended to a prompt that fixes the answer's shape."""
-    schema = json.dumps(TypeAdapter(output_type).json_schema(), separators=(",", ":"))
-    return (
-        "Answer with one JSON object and nothing else - no prose before or after it. "
-        f"It must validate against this JSON schema:\n{schema}"
-    )
+def output_schema(output_type: type[object]) -> dict[str, Any]:
+    """The JSON schema a run's answer is given in, for `output_type`."""
+    return TypeAdapter(output_type).json_schema()
 
 
 def _unreadable(exc: PydanticValidationError) -> str:
@@ -91,14 +85,17 @@ def _unreadable(exc: PydanticValidationError) -> str:
     return f"The answer did not match the shape asked for - {problems}"
 
 
-def parse_output[T](text: str, output_type: type[T]) -> T:
-    """Read a JSON answer, tolerating a code fence around it.
+def read_output[T](answer: object, output_type: type[T]) -> T:
+    """Read a structured answer as `output_type`.
+
+    The schema check before it covers the JSON shape; this applies the result
+    type's own rules, which a schema cannot state.
 
     Raises:
-        pydantic.ValidationError: When the text is not JSON of that shape.
+        pydantic.ValidationError: When the answer is not of that shape - or is
+            missing, `None`, for a run that answered no object.
     """
-    body = _FENCE.sub("", text.strip()).strip()
-    return TypeAdapter(output_type).validate_json(body)
+    return TypeAdapter(output_type).validate_python(answer)
 
 
 class SystemAgentRunner:
@@ -121,6 +118,7 @@ class SystemAgentRunner:
         version_id: UUID | None = None,
         improvement_run_id: UUID | None = None,
         knowledge_base_ids: Sequence[UUID] = (),
+        schema: dict[str, Any] | None = None,
     ) -> SystemAgentResult[T]:
         """Run system agent `key` on `prompt` as the caller, and validate its answer.
 
@@ -131,8 +129,9 @@ class SystemAgentRunner:
         Args:
             ctx: Who is asking; the run is theirs.
             key: The system agent, as registered in `app.agents.system_agents`.
-            prompt: The task. The result type's JSON schema is appended to it.
-            output_type: What the answer is validated as.
+            prompt: The task.
+            output_type: What the answer is validated as; its JSON schema is the
+                shape the run must answer in.
             agent_id: Run this agent of the definition's kind - a dataset's own
                 judge - rather than the seeded one.
             model_profile_id: Run on this model rather than the one the agent
@@ -140,6 +139,9 @@ class SystemAgentRunner:
             knowledge_base_ids: What the run is about - the graded agent's
                 knowledge bases, a gap's, a generation's sources. An agent that
                 searches searches these alone, as far as the caller may read them.
+            schema: The shape the run answers in, when this call narrows the
+                result type's own - the ids a verdict must grade. Whatever it
+                allows must still validate as `output_type`.
 
         Raises:
             NotFoundError: The chosen agent is missing or the caller may not view it.
@@ -150,8 +152,8 @@ class SystemAgentRunner:
             SystemAgentRunError: The run was recorded but ended without an answer:
                 a budget refusal, a guardrail block, a failure, a parked approval,
                 or a search that used up its steps.
-            SystemAgentOutputError: The agent answered in a shape that does not
-                validate. Not retried.
+            SystemAgentOutputError: The agent's answer still did not validate
+                once the run's own retries were spent. The run is not repeated.
         """
         agent = await self.require_runnable(
             ctx,
@@ -164,12 +166,15 @@ class SystemAgentRunner:
         selected_version = version_id or agent.current_version_id
         assert selected_version is not None
         knowledge = RunKnowledge(tuple(knowledge_base_ids))
+        structured: list[dict[str, Any]] = []
         try:
             text, run = await AgentRunnerService(self.db).execute(
                 ctx,
                 agent.id,
-                f"{prompt}\n\n{output_contract(output_type)}",
+                prompt,
                 surface=RunSurface.EVAL,
+                output_schema=schema or output_schema(output_type),
+                structured=structured,
                 model_profile_id=model_profile_id,
                 isolation=RunIsolation(improvement_run_id=improvement_run_id, knowledge=knowledge),
                 candidate=(
@@ -184,9 +189,19 @@ class SystemAgentRunner:
             )
         except RunFailedError as failure:
             cause = failure.__cause__
+            recorded = failure.details or {}
+            if isinstance(cause, UnexpectedModelBehavior):
+                # The run spent its output retries without an answer that fits the schema.
+                raise SystemAgentOutputError(
+                    message=(
+                        f"'{agent.name}' answered in a form that could not be read. Its run "
+                        "is in Activity."
+                    ),
+                    run_id=UUID(str(recorded["run_id"])),
+                    answer="",
+                ) from failure
             if not isinstance(cause, UsageLimitExceeded):
                 raise cause or failure from None
-            recorded = failure.details or {}
             raise SystemAgentRunError(
                 message=(
                     f"'{agent.name}' searched until it ran out of steps and gave no answer. "
@@ -202,7 +217,7 @@ class SystemAgentRunner:
                 status=run.status,
             )
         try:
-            output = parse_output(text, output_type)
+            output = read_output(structured[0] if structured else None, output_type)
         except PydanticValidationError as exc:
             await agent_run_repo.set_error(self.db, run=run, error=_unreadable(exc))
             raise SystemAgentOutputError(

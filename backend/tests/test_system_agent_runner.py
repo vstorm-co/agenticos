@@ -12,11 +12,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import BaseModel, ValidationError
+from pydantic_ai.exceptions import UnexpectedModelBehavior
 
 from app.agents.isolation import RunIsolation
 from app.agents.system_agents import IMPROVER, JUDGE
 from app.core.exceptions import (
     NotFoundError,
+    RunFailedError,
     SystemAgentOutputError,
     SystemAgentRunError,
     SystemAgentUnavailableError,
@@ -30,8 +32,8 @@ from app.services import access, system_agent_runner
 from app.services.system_agent_runner import (
     SystemAgentRunner,
     _unreadable,
-    output_contract,
-    parse_output,
+    output_schema,
+    read_output,
 )
 
 pytestmark = pytest.mark.anyio
@@ -60,14 +62,18 @@ def _run(status: RunStatus = RunStatus.COMPLETED) -> MagicMock:
     return MagicMock(id=uuid.uuid4(), status=status.value)
 
 
+_PASSED: dict[str, object] = {"passed": True, "reason": "cites the policy"}
+
+
 def _runner(
     monkeypatch,
     *,
     agent: MagicMock | None = None,
     may_run: bool = True,
-    answer: str = '{"passed": true, "reason": "cites the policy"}',
+    answer: dict[str, object] | None = _PASSED,
     run: MagicMock | None = None,
 ) -> tuple[SystemAgentRunner, AsyncMock]:
+    """A runner whose run answers `answer` as its structured output - none when `None`."""
     runner = SystemAgentRunner(AsyncMock())
     runner.agents.ensure = AsyncMock(return_value=agent or _agent())
     monkeypatch.setattr(system_agent_runner, "resolve_access", AsyncMock(return_value=may_run))
@@ -77,26 +83,34 @@ def _runner(
         AsyncMock(return_value=SimpleNamespace(spec={"model_profile_id": str(uuid.uuid4())})),
     )
     monkeypatch.setattr(system_agent_runner.ModelProfileService, "resolve", AsyncMock())
-    execute = AsyncMock(return_value=(answer, run or _run()))
+    finished = run or _run()
+
+    async def answered(*args: object, structured: list[dict[str, object]], **kwargs: object):
+        if answer is not None:
+            structured.append(answer)
+        return "", finished
+
+    execute = AsyncMock(side_effect=answered)
     monkeypatch.setattr(system_agent_runner.AgentRunnerService, "execute", execute)
     return runner, execute
 
 
 class TestOutput:
-    def test_the_contract_carries_the_result_schema(self) -> None:
-        contract = output_contract(Verdict)
+    def test_the_schema_is_the_result_type_s(self) -> None:
+        schema = output_schema(Verdict)
 
-        assert '"passed"' in contract
-        assert '"reason"' in contract
+        assert set(schema["properties"]) == {"passed", "reason"}
+        assert set(schema["required"]) == {"passed", "reason"}
 
-    def test_a_fenced_answer_is_read(self) -> None:
-        answer = '```json\n{"passed": false, "reason": "wrong date"}\n```'
+    def test_a_structured_answer_is_read_as_the_result_type(self) -> None:
+        answer = {"passed": False, "reason": "wrong date"}
 
-        assert parse_output(answer, Verdict) == Verdict(passed=False, reason="wrong date")
+        assert read_output(answer, Verdict) == Verdict(passed=False, reason="wrong date")
 
-    def test_prose_is_not_an_answer(self) -> None:
+    @pytest.mark.parametrize("answer", [None, {"passed": "maybe"}, "It passes."])
+    def test_a_missing_or_misshapen_answer_is_not_one(self, answer: object) -> None:
         with pytest.raises(ValidationError):
-            parse_output("It passes.", Verdict)
+            read_output(answer, Verdict)
 
 
 class TestRun:
@@ -127,10 +141,13 @@ class TestRun:
         )
 
         args, kwargs = execute.call_args
-        assert args == (ctx, agent.id, f"Grade it\n\n{output_contract(Verdict)}")
+        # The shape is the run's structured output, never a request in the prompt.
+        assert args == (ctx, agent.id, "Grade it")
         isolation = kwargs.pop("isolation")
+        kwargs.pop("structured")
         assert kwargs == {
             "surface": RunSurface.EVAL,
+            "output_schema": output_schema(Verdict),
             "model_profile_id": profile_id,
             "candidate": None,
             "reports_failure": True,
@@ -141,6 +158,16 @@ class TestRun:
         assert (isolation.recording, isolation.intercepted) == (None, [])
         assert isolation.knowledge is not None
         assert isolation.knowledge.knowledge_base_ids == tuple(bases)
+
+    async def test_a_narrowed_schema_is_the_shape_the_run_answers_in(self, monkeypatch) -> None:
+        runner, execute = _runner(monkeypatch)
+        narrowed = {**output_schema(Verdict), "maxProperties": 2}
+
+        await runner.run(
+            _ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict, schema=narrowed
+        )
+
+        assert execute.call_args.kwargs["output_schema"] == narrowed
 
     async def test_dataset_instructions_and_model_are_passed_without_changing_the_published_agent(
         self, monkeypatch
@@ -210,7 +237,7 @@ class TestRun:
         self, monkeypatch, status
     ) -> None:
         run = _run(status)
-        runner, _ = _runner(monkeypatch, answer="", run=run)
+        runner, _ = _runner(monkeypatch, run=run)
 
         with pytest.raises(SystemAgentRunError) as raised:
             await runner.run(_ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict)
@@ -218,14 +245,35 @@ class TestRun:
         assert raised.value.run_id == run.id
         assert raised.value.status == status.value
 
-    async def test_an_unreadable_answer_names_its_run_and_is_not_retried(self, monkeypatch) -> None:
+    @pytest.mark.parametrize("answer", [{"passed": "maybe"}, None])
+    async def test_an_unreadable_answer_names_its_run_and_is_not_run_again(
+        self, monkeypatch, answer: dict[str, object] | None
+    ) -> None:
         run = _run()
-        runner, execute = _runner(monkeypatch, answer="Looks fine to me.", run=run)
+        runner, execute = _runner(monkeypatch, answer=answer, run=run)
 
         with pytest.raises(SystemAgentOutputError) as raised:
             await runner.run(_ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict)
 
         assert raised.value.run_id == run.id
+        execute.assert_awaited_once()
+
+    async def test_an_answer_that_never_fits_its_schema_is_unreadable_not_a_crash(
+        self, monkeypatch
+    ) -> None:
+        """Retries spent on a misshapen answer are graded as unreadable, like a bad answer."""
+        run_id = uuid.uuid4()
+        failure = RunFailedError(
+            message="The run failed", details={"run_id": str(run_id), "status": "failed"}
+        )
+        failure.__cause__ = UnexpectedModelBehavior("Exceeded maximum output retries (2)")
+        runner, execute = _runner(monkeypatch)
+        execute.side_effect = failure
+
+        with pytest.raises(SystemAgentOutputError) as raised:
+            await runner.run(_ctx(), key=JUDGE.key, prompt="Grade it", output_type=Verdict)
+
+        assert raised.value.run_id == run_id
         execute.assert_awaited_once()
 
 

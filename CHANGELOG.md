@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **The judge and the other system agents answer in their schema.** The eval judge, the Improve helper, the case generator and the knowledge gap drafter and classifier answer through a structured output instead of JSON written in prose. An answer that breaks the schema is sent back to the agent to fix, twice at most, so one misplaced brace no longer leaves a case not graded. The judge's schema names the criteria it must grade and the scale, so a verdict that leaves a criterion out or grades off the scale is sent back like one that breaks the schema - twice at most - instead of leaving the case not graded (#3086).
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed
