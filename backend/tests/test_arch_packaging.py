@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import tarfile
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -138,3 +139,48 @@ def test_runtime_validation_uses_a_fresh_base_without_build_dependencies() -> No
     assert "makepkg" not in check
     assert 'pacman -U --noconfirm "$PACKAGE"' in check
     assert 'pacman -U --noconfirm "$UPGRADE"' in check
+
+
+def test_release_asset_upload_replaces_existing_assets_on_a_rerun(tmp_path: Path) -> None:
+    workflow = (ROOT / ".github/workflows/arch-package.yml").read_text()
+    step = workflow.split("      - name: Upload the verified pacman package to the release\n", 1)[1]
+    script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+    source, published, fake_bin = (tmp_path / name for name in ("packages", "published", "bin"))
+    for folder in (source, published, fake_bin):
+        folder.mkdir()
+    package = source / "agenticos-1.82.1-1-x86_64.pkg.tar.zst"
+    manifest = source / "SHA256SUMS.arch"
+    package.write_bytes(b"first package")
+    manifest.write_text("first checksum")
+    gh = fake_bin / "gh"
+    gh.write_text(
+        f"#!{sys.executable}\n"
+        "import os,sys,shutil\nfrom pathlib import Path\n"
+        "assets=[Path(a) for a in sys.argv[1:] if Path(a).is_file()]\n"
+        "destination=Path(os.environ['TEST_RELEASE_ASSETS'])\n"
+        "if '--clobber' not in sys.argv and any((destination / a.name).exists() for a in assets): sys.exit(1)\n"
+        "for asset in assets: shutil.copyfile(asset, destination / asset.name)\n"
+    )
+    gh.chmod(0o755)
+    env = {
+        **os.environ,
+        "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+        "ARCH_OUTPUT": str(source),
+        "RELEASE_TAG": "v1.82.1",
+        "GITHUB_REPOSITORY": "vstorm-co/agenticos",
+        "TEST_RELEASE_ASSETS": str(published),
+    }
+    for revision in ("first", "second"):
+        package.write_bytes(f"{revision} package".encode())
+        manifest.write_text(f"{revision} checksum")
+        result = subprocess.run(
+            ["/bin/bash", "-c", script],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        assert (published / package.name).read_bytes() == package.read_bytes()
+        assert (published / manifest.name).read_text() == manifest.read_text()

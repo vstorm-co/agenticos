@@ -95,4 +95,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          gh release upload "$RELEASE_TAG" "$ARCH_OUTPUT"/agenticos-*-1-x86_64.pkg.tar.zst "$ARCH_OUTPUT/SHA256SUMS.arch" --repo "$GITHUB_REPOSITORY"
+          gh release upload "$RELEASE_TAG" --clobber "$ARCH_OUTPUT"/agenticos-*-1-x86_64.pkg.tar.zst "$ARCH_OUTPUT/SHA256SUMS.arch" --repo "$GITHUB_REPOSITORY"
