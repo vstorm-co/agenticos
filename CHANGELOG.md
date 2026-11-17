@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Repair the developer-section links in all four READMEs and name the existing `app` service in the data-protection Compose checks.
+
+- Check browser health through its resolved IP address so Chromium accepts Compose service hosts in `agenticos cmd doctor`; bound DNS resolution and the HTTP probe together.
+
 ## [1.82.0] - 2026-11-17
 
 ### Added

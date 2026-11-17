@@ -1,5 +1,5 @@
 ---
-source_sha: "de001975fee2"
+source_sha: "33238295f67f"
 ---
 
 # Ochrona danych { #data-protection }
@@ -422,7 +422,8 @@ umożliwia.
 
 Powtarzalne sprawdzenia, z hosta, na działającym wdrożeniu. Każde wypisuje
 fakty, które przegląd może załączyć; żadne nie wypisuje poświadczenia ani
-danych osoby. Uruchamiaj je z `backend/` albo przez `docker compose exec api`.
+danych osoby. W checkoutcie źródeł uruchamiaj poniższe polecenia z `backend/`,
+z konfiguracją danego wdrożenia:
 
 ```bash
 # 1. Czy to w ogóle ruszy i czy połączenia do magazynów są szyfrowane?
@@ -446,6 +447,18 @@ uv run agenticos cmd audit-verify
 #    span, ile w każdym magazynie objąłby okres retencji oraz pliki pod
 #    `MEDIA_DIR`, na które nie wskazuje już żaden wiersz.
 uv run agenticos cmd data-protection-report --older-than 365
+```
+
+Przy wdrożeniu przez Compose wywołuj bezpośrednio zainstalowane CLI; obraz
+uruchomieniowy nie zawiera `uv`. Uruchamiaj polecenia z katalogu wdrożenia,
+z tymi samymi plikami Compose, plikiem środowiska i opcjami projektu co działający
+stos:
+
+```bash
+docker compose exec app agenticos cmd doctor
+docker compose exec app agenticos cmd vault-rotate --dry-run
+docker compose exec app agenticos cmd audit-verify
+docker compose exec app agenticos cmd data-protection-report --older-than 365
 ```
 
 Punkt 4 to ten do załączenia. Wypisuje konfigurację i liczby, nigdy treść:

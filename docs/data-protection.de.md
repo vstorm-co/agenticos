@@ -1,5 +1,5 @@
 ---
-source_sha: "de001975fee2"
+source_sha: "33238295f67f"
 ---
 
 # Datenschutz { #data-protection }
@@ -448,8 +448,8 @@ macht.
 
 Wiederholbare Prüfungen, vom Host aus, gegen das laufende Deployment. Jede gibt
 Fakten aus, die die Prüfung anhängen kann; keine gibt ein Zugangsdatum oder die
-Daten einer Person aus. Führe sie aus `backend/` aus, oder über
-`docker compose exec api`.
+Daten einer Person aus. Führe die folgenden Befehle in einem Quellcode-Checkout
+aus `backend/` mit der Konfiguration des Deployments aus:
 
 ```bash
 # 1. Läuft es überhaupt, und sind die Verbindungen zu den Speichern
@@ -475,6 +475,18 @@ uv run agenticos cmd audit-verify
 #    Aufbewahrungsfrist erfassen würde, und die Dateien unter `MEDIA_DIR`, auf
 #    die keine Zeile mehr zeigt.
 uv run agenticos cmd data-protection-report --older-than 365
+```
+
+Rufe bei einem Compose-Deployment die installierte CLI direkt auf; das
+Laufzeit-Image enthält kein `uv`. Führe die Befehle im Deployment-Verzeichnis
+mit denselben Compose-Dateien, derselben Umgebungsdatei und denselben
+Projektoptionen wie der laufende Stack aus:
+
+```bash
+docker compose exec app agenticos cmd doctor
+docker compose exec app agenticos cmd vault-rotate --dry-run
+docker compose exec app agenticos cmd audit-verify
+docker compose exec app agenticos cmd data-protection-report --older-than 365
 ```
 
 Punkt 4 ist der, den man anhängt. Er gibt Konfiguration und Zählungen aus und
