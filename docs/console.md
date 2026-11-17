@@ -446,6 +446,8 @@ drops the console works as before and reconnects on its own.
 
 ## Chat
 
+Shared rooms, project chats and conversations shared for editing replay visible chat turns instead of hidden model checkpoints. Another participant does not inherit private tool results or reasoning from a previous author; the agent queries again using the current person’s connections when needed. Forking a shared source also leaves hidden checkpoints behind. Private web chats and direct messages keep structured model history.
+
 Where you talk to a published agent. The picker chooses which agent answers, and
 the run behaves exactly as it would in Slack or behind the API — same budget,
 same approval gate, same audit trail, because

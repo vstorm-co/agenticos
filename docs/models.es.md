@@ -1,5 +1,5 @@
 ---
-source_sha: "d096e601b2da"
+source_sha: "1b2ebcd504d7"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -36,6 +36,8 @@ Un miembro con sesión iniciada conecta su clave en el formulario privado sobre 
 El modo personal no admite canales privados ni grupales, widgets, páginas públicas, ejecuciones por HTTP API, horarios, triggers, temas en segundo plano, voz, revisores, delegación ni modelos separados para capacidades. Pausa o elimina canales, superficies públicas y rutinas activos antes de publicar. Se rechaza crear o reactivar una superficie incompatible; la misma regla se aplica al ejecutar. Las páginas públicas y los JWT de widgets no identifican a un miembro con sesión iniciada en la instancia.
 
 Las claves se cifran para su propietario en el almacén y se eliminan al borrar su membresía o cuenta. Cambiar el destino aprobado requiere una nueva conexión. Rotar la clave de un miembro no cambia las claves de otros ni el perfil de modelo compartido.
+
+Suplantar la identidad de otro miembro no concede acceso a sus conexiones personales de modelos: las solicitudes de lectura, modificación o uso de la clave se rechazan antes de acceder al vault.
 
 ## Un perfil de modelo { #a-model-profile }
 

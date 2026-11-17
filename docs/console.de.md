@@ -1,5 +1,5 @@
 ---
-source_sha: "99fbe6811e3c"
+source_sha: "acebff609542"
 ---
 
 # Die Konsole { #the-console }
@@ -492,6 +492,8 @@ Rollen, die sie verwalten, und Ihre Benachrichtigungen nur Sie. Bricht die Verbi
 bisher und verbindet sich selbst wieder.
 
 ## Chat { #chat }
+
+Gemeinsame Räume, Projektchats und zur Bearbeitung freigegebene Gespräche verwenden sichtbare Chatbeiträge statt verborgener Modell-Checkpoints. Ein anderer Teilnehmer übernimmt keine privaten Toolergebnisse oder Denkprozesse eines früheren Autors; bei Bedarf fragt der Agent mit den Verbindungen der aktuellen Person erneut ab. Auch ein Fork einer geteilten Quelle lässt verborgene Checkpoints zurück. Private Webchats und Direktnachrichten behalten den strukturierten Modellverlauf.
 
 Hier sprechen Sie mit einem veröffentlichten Agent. Die Auswahl entscheidet,
 welcher Agent antwortet, und der Run verhält sich genau so, wie er es in Slack

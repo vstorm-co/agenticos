@@ -1,5 +1,5 @@
 ---
-source_sha: "99fbe6811e3c"
+source_sha: "acebff609542"
 ---
 
 # Konsola { #the-console }
@@ -462,6 +462,8 @@ powiadomienia tylko do ciebie.
 Gdy połączenie zostanie zerwane, konsola działa jak dotąd i sama się ponownie łączy.
 
 ## Chat { #chat }
+
+Wspólne pokoje, czaty projektowe i rozmowy udostępnione do edycji odtwarzają widoczne tury czatu zamiast ukrytych checkpointów modelu. Kolejny uczestnik nie dziedziczy prywatnych wyników narzędzi ani rozumowania poprzedniego autora; w razie potrzeby agent ponawia odczyt przez połączenia bieżącej osoby. Fork wspólnej rozmowy także pomija ukryty checkpoint. Prywatne czaty webowe i wiadomości bezpośrednie zachowują ustrukturyzowaną historię modelu.
 
 Miejsce, w którym rozmawiasz z opublikowanym agentem. Selektor wybiera, który
 agent odpowiada, a run zachowuje się dokładnie tak, jak zachowałby się w Slacku

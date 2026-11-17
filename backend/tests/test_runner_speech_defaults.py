@@ -248,3 +248,20 @@ async def test_a_voice_only_on_a_delegate_pins_the_parent_run_before_the_delegat
         resolved.build()
     assert_voice(state.factory.call_args.args[0], key=state.defaults.secret_id)
     assert prepared.spec.capabilities[0].id == "subagents"
+
+
+@pytest.mark.parametrize("scope", ["private", "room", "edit-share"])
+async def test_preparation_records_the_current_shared_history_boundary(
+    speech_run: SpeechRun, scope: str
+) -> None:
+    state = speech_run
+    with patch.object(
+        state.service, "_shared_for_editing", AsyncMock(return_value=scope == "edit-share")
+    ):
+        prepared = await state.service.prepare(
+            state.ctx,
+            state.agent.id,
+            conversation_id=uuid4(),
+            memory_room_key="room:mattermost:team" if scope == "room" else None,
+        )
+    assert prepared.shared_history is (scope != "private")

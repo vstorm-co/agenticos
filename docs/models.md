@@ -31,6 +31,8 @@ Personal mode currently excludes channels (private and group), widgets, hosted p
 
 Credentials are encrypted for their owner in the vault, and are deleted when their membership or user account is removed. Changing the approved endpoint requires a new connection. Rotating one member's key does not change another member's key or the shared model profile.
 
+Impersonating another member never grants access to their personal model connections: requests to inspect, change or use their key are refused before vault access.
+
 ## A model profile
 
 A row in an organization: a label, a provider, a model id, default settings, and

@@ -309,11 +309,16 @@ class TestKeepingASummary:
             )
         )
 
+        from app.schemas.conversation import HistoryCheckpointFrontier
+
+        frontier = HistoryCheckpointFrontier(summary_ordinal=2, message_ordinal=4)
         db = _db()
         db.scalar = AsyncMock(return_value=7)
         with _runner(prepared):
             turn = await _run(
-                db, conversation_id=uuid.uuid4(), history=ModelHistory([], revision=7)
+                db,
+                conversation_id=uuid.uuid4(),
+                history=ModelHistory([], revision=7, frontier=frontier),
             )
 
         assert turn.history_snapshot is not None
@@ -323,6 +328,7 @@ class TestKeepingASummary:
         )
 
         assert turn.history_revision == 7
+        assert turn.history_frontier is frontier
 
     async def test_an_agent_bound_to_media_offload_stores_the_offloaded_history(self):
         """The one place media piles up is this blob, so the capability that
@@ -355,6 +361,21 @@ class TestKeepingASummary:
 
         assert turn.history_snapshot == [{"kind": "request", "parts": []}]
         offload.externalize.assert_awaited_once()
+
+    @pytest.mark.security
+    async def test_a_shared_chat_never_checkpoints_hidden_personal_tool_results(self) -> None:
+        from tests.test_history_audience_privacy import hidden_exchange
+
+        prepared = _prepared()
+        prepared.shared_history = True
+        prepared.built.agent.iter = MagicMock(
+            return_value=_Iteration(
+                _agent_run("You have an appointment.", messages=hidden_exchange())
+            )
+        )
+        with _runner(prepared):
+            turn = await _run(_db())
+        assert turn.history_snapshot is None
 
     async def test_media_is_offloaded_before_the_checkpoint_size_limit(
         self, tmp_path: Path

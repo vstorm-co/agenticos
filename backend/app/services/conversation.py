@@ -63,6 +63,7 @@ from app.schemas.conversation import (
     ConversationCreate,
     ConversationForkOrigin,
     ConversationUpdate,
+    HistoryCheckpointFrontier,
     MessageCreate,
     MessageRead,
     MessageReplyRef,
@@ -254,14 +255,22 @@ class ConversationService:
         self.db = db
 
     async def model_history(
-        self, conversation_id: UUID, *, limit: int, exclude_message_id: UUID | None = None
+        self,
+        conversation_id: UUID,
+        *,
+        limit: int,
+        exclude_message_id: UUID | None = None,
+        public_transcript_only: bool = False,
     ) -> ModelHistory:
         """The thread as the model should read it, summary included.
 
         A completed turn's structured checkpoint is followed by transcript rows
         written since its frontier. Older conversations without a checkpoint
-        still use the recent transcript window. Both paths retain the existing
-        refusal fence, and the checkpoint has a hard message and byte ceiling.
+        still use the recent transcript window. Rooms, project chats and current
+        or former edit-shared chats replay only visible transcript turns: a
+        checkpoint may contain a previous author's private tool responses.
+        Both paths retain the refusal fence; private checkpoints have a hard
+        message and byte ceiling.
 
         `exclude_message_id` is the turn being answered. The prompt is written
         before the run so a refusal cannot lose it, so it is a row by the time
@@ -272,12 +281,15 @@ class ConversationService:
         )
         revision = None if conversation is None else conversation.guardrail_revision
         summary = None if conversation is None else conversation.summary_messages
-        if conversation is None or summary is None or conversation.summary_ordinal is None:
-            return ModelHistory(
-                await self._from_transcript(
-                    conversation_id, limit, exclude_message_id, conversation
-                ),
-                revision=revision,
+        if (
+            conversation is None
+            or summary is None
+            or conversation.summary_ordinal is None
+            or public_transcript_only
+            or await self._has_shared_history(conversation)
+        ):
+            return await self._from_transcript(
+                conversation_id, limit, exclude_message_id, conversation
             )
         try:
             summary = _STORED_MESSAGES.validate_python(summary)
@@ -312,13 +324,33 @@ class ConversationService:
             logger.exception(
                 "conversation_summary_unreadable", extra={"conversation_id": str(conversation_id)}
             )
-            return ModelHistory(
-                await self._from_transcript(
-                    conversation_id, limit, exclude_message_id, conversation
-                ),
-                revision=revision,
+            return await self._from_transcript(
+                conversation_id, limit, exclude_message_id, conversation
             )
-        return ModelHistory(replayed, revision=revision)
+        return ModelHistory(
+            replayed,
+            revision=revision,
+            frontier=HistoryCheckpointFrontier(
+                summary_ordinal=conversation.summary_ordinal,
+                message_ordinal=max(
+                    (row.ordinal for row in since), default=conversation.summary_ordinal
+                ),
+            ),
+        )
+
+    async def _has_shared_history(self, conversation: Conversation) -> bool:
+        """A shared participant may replay visible turns, never another person's hidden tools."""
+        if conversation.project_id is not None or await conversation_share_repo.has_edit_share(
+            self.db, conversation.id, organization_id=conversation.organization_id
+        ):
+            return True
+        if await conversation_repo.has_shared_channel_history(
+            self.db, conversation_id=conversation.id
+        ):
+            return True
+        return conversation.user_id is not None and await conversation_repo.has_non_owner_author(
+            self.db, conversation_id=conversation.id, owner_user_id=conversation.user_id
+        )
 
     async def _from_transcript(
         self,
@@ -326,13 +358,22 @@ class ConversationService:
         limit: int,
         exclude_message_id: UUID | None,
         conversation: Conversation | None,
-    ) -> list[ModelMessage]:
+    ) -> ModelHistory:
         """The recent window, which is what every surface read before #49."""
         rows = await conversation_repo.get_recent_messages(self.db, conversation_id, limit=limit)
         spoken = await self._spoken(rows, conversation)
         history = build_message_history(_as_history(rows, exclude_message_id, spoken))
-        return bounded_model_history(
-            await self._restore_capability_loads(history, rows, exclude_message_id)
+        return ModelHistory(
+            bounded_model_history(
+                await self._restore_capability_loads(history, rows, exclude_message_id)
+            ),
+            revision=None if conversation is None else conversation.guardrail_revision,
+            frontier=None
+            if conversation is None
+            else HistoryCheckpointFrontier(
+                summary_ordinal=conversation.summary_ordinal,
+                message_ordinal=max((row.ordinal for row in rows), default=0),
+            ),
         )
 
     async def _restore_capability_loads(
@@ -502,6 +543,7 @@ class ConversationService:
         messages: list[dict[str, Any]],
         *,
         expected_revision: int | None,
+        expected_frontier: HistoryCheckpointFrontier | None = None,
         through_message_id: str | None = None,
     ) -> None:
         """Checkpoint a completed turn, using the existing summary storage columns.
@@ -511,15 +553,25 @@ class ConversationService:
         replaying the summary *and* the turn already inside it. `expected_revision`
         comes from the history read before the model call; absent or superseded
         provenance cannot replace the cache with potentially refused text.
+        The original checkpoint and transcript frontier travel with that snapshot;
+        a concurrent completion leaves its visible rows replayable instead of
+        letting a later answer silently cover evidence it never read.
         """
         if expected_revision is None:
             logger.info(
                 "conversation_summary_unversioned", extra={"conversation_id": str(conversation_id)}
             )
             return
+        if expected_frontier is None:
+            logger.info(
+                "conversation_summary_without_frontier",
+                extra={"conversation_id": str(conversation_id)},
+            )
+            return
         conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
         if conversation is None:
             return
+        through = None
         if through_message_id is not None:
             through = await conversation_repo.get_fork_point(self.db, UUID(through_message_id))
             if through is None or through.conversation_id != conversation_id:
@@ -534,6 +586,8 @@ class ConversationService:
             messages=messages,
             ordinal=ordinal,
             expected_revision=expected_revision,
+            expected_frontier=expected_frontier,
+            through_message=through,
         )
 
         if not stored:
@@ -1594,7 +1648,7 @@ class ConversationService:
                 message="This conversation is too large to fork",
                 details={"max_bytes": MAX_FORK_BYTES},
             )
-        summary, copy_bytes = await self._restore_fork_summary(
+        summary, copy_bytes, copy_summary = await self._restore_fork_summary(
             source, answer, payload_bytes=payload_bytes
         )
         copy_bytes += FORK_CONVERSATION_RESERVATION_BYTES + FORK_ROW_RESERVATION_BYTES * (
@@ -1615,7 +1669,12 @@ class ConversationService:
                 },
             )
         fork = await conversation_repo.fork_conversation(
-            self.db, source=source, through=answer, restored_summary=summary, copy_bytes=copy_bytes
+            self.db,
+            source=source,
+            through=answer,
+            restored_summary=summary,
+            copy_bytes=copy_bytes,
+            copy_summary=copy_summary,
         )
         # Its owner made it a moment ago: it holds nothing they have not seen.
         await conversation_repo.mark_read(self.db, user_id=user_id, conversation_id=fork.id)
@@ -1624,13 +1683,17 @@ class ConversationService:
 
     async def _restore_fork_summary(
         self, source: Conversation, answer: Message, *, payload_bytes: int
-    ) -> tuple[list[dict[str, JsonValue]] | None, int]:
+    ) -> tuple[list[dict[str, JsonValue]] | None, int, bool]:
         """Inline source media before any insert; a failed restore refuses the copy."""
         summary = await conversation_repo.fork_summary(
             self.db, source_id=source.id, ordinal=answer.ordinal
         )
         if summary is None:
-            return None, payload_bytes
+            return None, payload_bytes, False
+        if await self._has_shared_history(source):
+            # A fork can become private, so it must not preserve a shared source's
+            # legacy checkpoint containing another participant's private tool data.
+            return None, payload_bytes - summary.stored_bytes, False
         try:
             store = BoundedOrganizationMediaStore(
                 source.organization_id,
@@ -1663,7 +1726,7 @@ class ConversationService:
                 message="This conversation's summary cannot be copied within the fork limits",
                 details={"max_bytes": MAX_FORK_BYTES, "max_media_references": MAX_FORK_MEDIA_READS},
             ) from failed
-        return restored, payload_bytes - summary.stored_bytes + stored_size
+        return restored, payload_bytes - summary.stored_bytes + stored_size, True
 
     async def _attach_fork_origins(
         self, conversations: Sequence[Conversation], *, user_id: UUID | None

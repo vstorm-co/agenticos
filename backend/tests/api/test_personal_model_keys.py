@@ -1,7 +1,7 @@
 """Personal LLM routes retain member authority and return only connection metadata."""
 
 from collections.abc import AsyncGenerator
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -98,3 +98,61 @@ async def test_a_key_without_the_destination_the_person_reviewed_is_refused(
     assert response.status_code == 422
     service.save.assert_not_awaited()
     assert "private-key" not in response.text
+
+
+@pytest.mark.parametrize("operation", ["list", "status", "save", "delete"])
+async def test_impersonated_requests_cannot_manage_the_subjects_personal_model_keys(
+    operation: str,
+) -> None:
+    from app.agents.audience import acting_impersonated, run_impersonated
+    from app.core.audit import current_impersonator, set_impersonator
+
+    admin_id, agent_id = uuid4(), uuid4()
+    db = AsyncMock()
+    service = PersonalModelKeyService(db)
+    previous = current_impersonator()
+
+    async def impersonated_auth() -> AuthContext:
+        # Authentication records request impersonation before an agent run exists.
+        set_impersonator(admin_id)
+        assert not run_impersonated()
+        return CTX
+
+    app.dependency_overrides[deps.get_auth_context] = impersonated_auth
+    app.dependency_overrides[deps.get_personal_model_key_service] = lambda: service
+    method = {"list": "GET", "status": "GET", "save": "PUT", "delete": "DELETE"}[operation]
+    suffix = "" if operation == "list" else f"/agents/{agent_id}"
+    if operation == "delete":
+        suffix = f"/{uuid4()}"
+    body = {
+        "api_key": "private-key",
+        "expected_destination": {
+            "profile_id": str(uuid4()),
+            "provider": "openai",
+            "endpoint": None,
+            "model": "approved",
+        },
+    }
+    try:
+        with (
+            acting_impersonated(False),
+            patch("app.services.personal_model_key.seal_secret") as seal,
+            patch("app.services.personal_model_key.unseal_secret") as unseal,
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.request(
+                    method,
+                    f"/api/v1/personal-model-keys{suffix}",
+                    json=body if operation == "save" else None,
+                )
+            assert response.status_code == 403
+            assert "signed-in web session" in response.text
+            assert "private-key" not in response.text
+            seal.assert_not_called()
+            unseal.assert_not_called()
+            assert db.mock_calls == []
+    finally:
+        app.dependency_overrides.clear()
+        set_impersonator(previous)

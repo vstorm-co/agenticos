@@ -1,5 +1,5 @@
 ---
-source_sha: "99fbe6811e3c"
+source_sha: "acebff609542"
 ---
 
 # La consola { #the-console }
@@ -475,6 +475,8 @@ todos los runs, los bots de canal a los roles que los gestionan, y
 tus notificaciones solo a ti. Si la conexión se corta, la consola funciona como antes y se reconecta sola.
 
 ## Chat { #chat }
+
+Las salas compartidas, los chats de proyecto y las conversaciones compartidas para edición usan los turnos visibles en vez de checkpoints internos del modelo. Otro participante no hereda resultados privados de herramientas ni razonamiento de un autor anterior; si hace falta, el agente consulta de nuevo con las conexiones de la persona actual. La bifurcación de una fuente compartida también omite sus checkpoints internos. Los chats web privados y los mensajes directos conservan el historial estructurado del modelo.
 
 Donde hablas con un agent publicado. El selector elige qué agent responde, y el
 run se comporta exactamente igual que en Slack o detrás de la API — mismo budget,

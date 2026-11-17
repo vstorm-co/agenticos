@@ -397,3 +397,49 @@ async def test_connection_refuses_a_destination_changed_after_the_form_was_opene
     seal.assert_not_called()
     save.assert_not_awaited()
     assert "key-for-original" not in str(refused.value)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("operation", ["list", "status", "save", "delete", "resolve"])
+@pytest.mark.parametrize("stage", ["request", "run"])
+async def test_impersonation_cannot_reach_personal_model_keys_at_request_or_run_time(
+    operation: str,
+    stage: str,
+) -> None:
+    from app.agents.audience import acting_impersonated, run_impersonated
+    from app.core.audit import current_impersonator, set_impersonator
+
+    ctx, held, agent_id = context(), profile(), uuid4()
+    db = AsyncMock()
+    service = PersonalModelKeyService(db)
+    previous = current_impersonator()
+    with (
+        acting_impersonated(stage == "run"),
+        patch("app.services.personal_model_key.key_repo.list_for", AsyncMock()) as listed,
+        patch("app.services.personal_model_key.key_repo.get", AsyncMock()) as read,
+        patch("app.services.personal_model_key.key_repo.save", AsyncMock()) as saved,
+        patch("app.services.personal_model_key.key_repo.delete", AsyncMock()) as deleted,
+        patch("app.services.personal_model_key.seal_secret") as seal,
+        patch("app.services.personal_model_key.unseal_secret") as unseal,
+    ):
+        set_impersonator(uuid4() if stage == "request" else None)
+        try:
+            assert run_impersonated() == (stage == "run")
+            with pytest.raises(AuthorizationError, match="signed-in web session"):
+                if operation == "list":
+                    await service.mine(ctx)
+                elif operation == "status":
+                    await service.status(ctx, agent_id)
+                elif operation == "save":
+                    await service.save(ctx, agent_id, key_request(held, "private-key"))
+                elif operation == "delete":
+                    await service.delete(ctx, uuid4())
+                else:
+                    await service.resolve(ctx, held)
+        finally:
+            set_impersonator(previous)
+    for repository in [listed, read, saved, deleted]:
+        repository.assert_not_awaited()
+    seal.assert_not_called()
+    unseal.assert_not_called()
+    assert db.mock_calls == []

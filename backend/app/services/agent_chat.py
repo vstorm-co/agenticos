@@ -60,6 +60,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import conversation_repo, member_repo
+from app.schemas.conversation import HistoryCheckpointFrontier
 from app.schemas.mention import MentionRef
 from app.services import change_feed
 from app.services.agent_runner import (
@@ -378,6 +379,9 @@ class ChatTurn:
 
     history_revision: int | None = None
     """The input snapshot's refusal revision; absent for unversioned caller histories."""
+
+    history_frontier: HistoryCheckpointFrontier | None = None
+    """The original checkpoint and transcript frontier this turn actually read."""
 
     history_snapshot: list[dict[str, Any]] | None = None
     """The bounded model history after a completed turn; absent while parked.
@@ -706,7 +710,7 @@ class ChatAgentRunner:
             result = _outcome(agent_run)
             # Parked runs retain their separate resume state. Conversation history
             # is checkpointed only after a completed turn, without replayable actions.
-            if not isinstance(result.output, DeferredToolRequests):
+            if not isinstance(result.output, DeferredToolRequests) and not prepared.shared_history:
                 history_snapshot = bounded_stored_history(
                     await offloaded_history(
                         prepared.built.capabilities,
@@ -721,6 +725,9 @@ class ChatAgentRunner:
                 result,
                 parked=prepared.checkpointed_approvals(),
                 history_revision=message_history.revision
+                if isinstance(message_history, ModelHistory)
+                else None,
+                history_frontier=message_history.frontier
                 if isinstance(message_history, ModelHistory)
                 else None,
             )
@@ -821,6 +828,9 @@ class ChatAgentRunner:
             usage=await self._usage(ctx, prepared),
             history_snapshot=history_snapshot,
             history_revision=message_history.revision
+            if isinstance(message_history, ModelHistory)
+            else None,
+            history_frontier=message_history.frontier
             if isinstance(message_history, ModelHistory)
             else None,
             overhead_tokens=prepared.built.context.overhead,

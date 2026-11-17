@@ -1,5 +1,5 @@
 ---
-source_sha: "d096e601b2da"
+source_sha: "1b2ebcd504d7"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -37,6 +37,8 @@ Das private Schlüsselformular übermittelt das erwartete Profil, den Anbieter, 
 Der persönliche Modus unterstützt derzeit keine privaten oder Gruppenkanäle, Widgets, öffentlichen Seiten, HTTP-API-Läufe, Zeitpläne, Trigger, Hintergrundthemen, Sprache, Reviewer, Delegation oder separate Modelle für Fähigkeiten. Pausiere oder entferne aktive Kanäle, öffentliche Freigaben und Routinen vor der Veröffentlichung. Das Erstellen oder erneute Aktivieren einer unvereinbaren Freigabe wird abgelehnt; dieselbe Regel gilt zur Laufzeit. Öffentliche Seiten und Widget-JWTs identifizieren kein angemeldetes Mitglied der Instanz.
 
 Schlüssel werden im Tresor für ihren Eigentümer verschlüsselt und beim Entfernen der Mitgliedschaft oder des Kontos gelöscht. Ein geänderter Endpunkt benötigt eine neue Verbindung. Die Rotation eines persönlichen Schlüssels ändert weder andere Schlüssel noch das gemeinsame Modellprofil.
+
+Die Identitätsübernahme eines anderen Mitglieds gewährt keinen Zugriff auf dessen persönliche Modellverbindungen: Anfragen zum Lesen, Ändern oder Verwenden des Schlüssels werden vor dem Vault-Zugriff abgelehnt.
 
 ## Ein Model Profile { #a-model-profile }
 

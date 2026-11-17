@@ -51,6 +51,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Preserve concurrent aside and main-turn exchanges when updating private model history; an older snapshot cannot advance past a conversation turn it never saw.
+
+- Refuse personal model-key access while impersonating another member, before reading or changing credentials. Shared rooms, projects and edit-shared chats replay visible transcript turns instead of another author’s hidden tool results; private web and direct-message histories remain structured.
+
 - Keep large offloaded media in conversation history by bounding compact references before restoring their content, and offloading completed-turn media before applying checkpoint size limits.
 
 - Validate whole Data values at dispatch against their consumer and settle non-object paths as missing values. Resolve saved select option labels in Record exists as List records does. Invalid rating values in pending table writes retain a raw preview without breaking the approvals queue.

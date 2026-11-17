@@ -25,6 +25,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.usage import RequestUsage
 
 from app.agents.ephemeral_media import dump_messages
+from app.schemas.conversation import HistoryCheckpointFrontier
 
 MODEL_HISTORY_MESSAGES = 200
 MODEL_HISTORY_BYTES = 2 * 1024 * 1024
@@ -157,9 +158,16 @@ again - where a refused one kept would undo the refusal."""
 class ModelHistory(list[ModelMessage]):
     """A transcript snapshot with the refusal revision its summary may replace."""
 
-    def __init__(self, messages: Sequence[ModelMessage], *, revision: int | None) -> None:
+    def __init__(
+        self,
+        messages: Sequence[ModelMessage],
+        *,
+        revision: int | None,
+        frontier: HistoryCheckpointFrontier | None = None,
+    ) -> None:
         super().__init__(messages)
         self.revision = revision
+        self.frontier = frontier
 
 
 class HistoryMessage(TypedDict):

@@ -1656,6 +1656,7 @@ class AgentSession:
                     conversation_id,
                     turn.history_snapshot,
                     expected_revision=turn.history_revision,
+                    expected_frontier=turn.history_frontier,
                     through_message_id=through_message_id,
                 )
             if turn.overhead_tokens is not None:

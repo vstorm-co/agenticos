@@ -10900,6 +10900,7 @@ class TestLiveQuestionContinuation:
 
 @pytest.mark.security
 def test_the_parked_payload_carries_the_history_revision():
+    from app.schemas.conversation import HistoryCheckpointFrontier
     from app.services.agent_runner import _classify_output
 
     result = MagicMock(
@@ -10908,9 +10909,17 @@ def test_the_parked_payload_carries_the_history_revision():
         )
     )
     result.all_messages.return_value = []
-    _, _, _, state = _classify_output(result, parked={"approval-1": "send-1"}, history_revision=7)
+    frontier = HistoryCheckpointFrontier(summary_ordinal=2, message_ordinal=4)
+    _, _, _, state = _classify_output(
+        result, parked={"approval-1": "send-1"}, history_revision=7, history_frontier=frontier
+    )
     assert state is not None
     assert state.model_dump(mode="json")["guardrail_revision"] == 7
+    assert PausedRunState.model_validate_json(state.model_dump_json()).history_frontier == frontier
+    assert (
+        PausedRunState.model_validate({"messages": [], "tool_call_ids": {}}).history_frontier
+        is None
+    )
 
 
 @pytest.mark.parametrize("project_id", [None, uuid.uuid4()])

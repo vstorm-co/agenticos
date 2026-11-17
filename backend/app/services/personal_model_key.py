@@ -14,7 +14,7 @@ from app.agents.model_resolver import (
     get_provider,
     is_decision_api,
 )
-from app.core.audit import record_audit
+from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret, unseal_secret
@@ -32,7 +32,8 @@ from app.services.model_outputs import model_outputs
 
 def _owner(ctx: AuthContext) -> UUID:
     if (
-        run_impersonated()
+        current_impersonator() is not None
+        or run_impersonated()
         or ctx.user_id is None
         or ctx.api_key_id is not None
         or ctx.key_scopes is not None

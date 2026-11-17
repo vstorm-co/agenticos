@@ -342,6 +342,7 @@ from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.repositories.voice_call import VoiceChain
 from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.schemas.agent_run import ChatAskerRead, RunOriginRead
+from app.schemas.conversation import HistoryCheckpointFrontier
 from app.schemas.organization import OrganizationTextToSpeech
 from app.schemas.user import WorkingHours
 from app.services import change_feed
@@ -1119,6 +1120,9 @@ class PausedRunState(BaseModel):
     guardrail_revision: int | None = Field(
         default=None, ge=0, exclude_if=lambda value: value is None
     )
+    history_frontier: HistoryCheckpointFrontier | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     tool_identities: dict[str, ToolIdentity] = Field(default_factory=dict)
     code_checkpoints: dict[str, CodeCheckpoint] = Field(
         default_factory=dict, exclude_if=lambda value: not value
@@ -1803,6 +1807,9 @@ class PreparedRun:
 
     channel_destination: ChannelDestination | None = None
     model_context_check: ModelContextCheck | None = None
+    shared_history: bool = False
+    """Only visible transcript turns may be replayed across a shared audience."""
+
     channel_context: str = ""
     channel_author_context: str = ""
     channel_authors: dict[str, UUID] = field(default_factory=dict)
@@ -2143,6 +2150,7 @@ def _classify_output(
     *,
     parked: dict[str, str],
     history_revision: int | None = None,
+    history_frontier: HistoryCheckpointFrontier | None = None,
 ) -> tuple[RunStatus, str, dict[str, Any] | None, PausedRunState | None]:
     """The terminal status a finished run reaches, and what it carries there.
 
@@ -2167,6 +2175,7 @@ def _classify_output(
             tool_call_ids=parked,
             questions=questions,
             guardrail_revision=history_revision,
+            history_frontier=history_frontier,
         )
         # Waiting on a decision outranks waiting on an answer: the approval queue
         # is where somebody can release it, and a question in the same step is
@@ -5297,6 +5306,7 @@ class AgentRunnerService:
                 if channel_directory is None
                 else await resolve_prompt_variables(CHANNEL_CONTEXT, channel_directory)
             ),
+            shared_history=audience.room_key is not None or audience.shared_transcript,
             channel_authors=dict(restored_channel_authors or {}),
             channel_file_budget=ChannelFileBudget(channel_file_attempts),
             channel_destination=None
@@ -7861,6 +7871,7 @@ class AgentRunnerService:
                     message_history=ModelHistory(
                         ModelMessagesTypeAdapter.validate_python(state.messages),
                         revision=state.guardrail_revision,
+                        frontier=state.history_frontier,
                     ),
                     deferred_tool_results=plan.results,
                     on_segment=on_segment,
@@ -8623,7 +8634,9 @@ class AgentRunnerService:
             # `new_messages`, not `all_messages`: a resumed run is handed
             # everything up to the park as history, and the wider list would
             # write the first attempt's calls again under the same run.
-            if not isinstance(result.output, DeferredToolRequests):
+            if not isinstance(result.output, DeferredToolRequests) and not prepared.shared_history:
+                # A room or edit-shared chat may expose the visible answer, but
+                # its next author must not inherit this person's private tool data.
                 # Offloaded before it is stored, if the agent asked for it. The
                 # chat runner does the same with the same helper: hooking one of
                 # the two gave the capability to the WebSocket chat and to
@@ -8654,6 +8667,9 @@ class AgentRunnerService:
                 result,
                 parked=prepared.checkpointed_approvals(),
                 history_revision=message_history.revision
+                if isinstance(message_history, ModelHistory)
+                else None,
+                history_frontier=message_history.frontier
                 if isinstance(message_history, ModelHistory)
                 else None,
             )
@@ -8778,6 +8794,9 @@ class AgentRunnerService:
                                 prepared.run.conversation_id,
                                 history_snapshot,
                                 expected_revision=message_history.revision
+                                if isinstance(message_history, ModelHistory)
+                                else None,
+                                expected_frontier=message_history.frontier
                                 if isinstance(message_history, ModelHistory)
                                 else None,
                                 through_message_id=str(message_id),

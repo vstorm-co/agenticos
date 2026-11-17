@@ -39,7 +39,8 @@ from app.agents.deps import AgentDeps
 from app.agents.ephemeral_media import dump_messages
 from app.agents.voice import AnswerUnknownTools
 from app.db.models.conversation import Conversation, Message
-from app.repositories import conversation_repo
+from app.repositories import conversation_repo, conversation_share_repo
+from app.schemas.conversation import HistoryCheckpointFrontier
 from app.services.conversation import ConversationService
 from app.services.message_history import (
     ModelHistory,
@@ -61,6 +62,10 @@ class StoredThread:
             self.conversation.id,
             bounded_stored_history(dump_messages(without_standing_instructions(messages))),
             expected_revision=0,
+            expected_frontier=HistoryCheckpointFrontier(
+                summary_ordinal=self.conversation.summary_ordinal,
+                message_ordinal=self.conversation.summary_ordinal or 0,
+            ),
         )
         return await self.service.model_history(self.conversation.id, limit=50)
 
@@ -69,6 +74,10 @@ class StoredThread:
 def thread(monkeypatch: pytest.MonkeyPatch) -> StoredThread:
     conversation = Conversation(id=uuid4(), organization_id=uuid4(), guardrail_revision=0)
     service = ConversationService(AsyncMock(spec=AsyncSession))
+    monkeypatch.setattr(conversation_share_repo, "has_edit_share", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        conversation_repo, "has_shared_channel_history", AsyncMock(return_value=False)
+    )
 
     async def save(
         _db: AsyncSession,
@@ -77,6 +86,8 @@ def thread(monkeypatch: pytest.MonkeyPatch) -> StoredThread:
         messages: list[dict[str, JsonValue]],
         ordinal: int,
         expected_revision: int,
+        expected_frontier: HistoryCheckpointFrontier,
+        through_message: Message | None,
     ) -> bool:
         assert expected_revision == db_conversation.guardrail_revision
         db_conversation.summary_messages = messages
@@ -343,7 +354,11 @@ async def test_snapshot_frontier_is_the_saved_answer_not_a_newer_message(
     monkeypatch.setattr(conversation_repo, "get_fork_point", AsyncMock(return_value=answer))
     monkeypatch.setattr(conversation_repo, "last_ordinal", AsyncMock(return_value=99))
     await thread.service.keep_summary(
-        thread.conversation.id, [], expected_revision=0, through_message_id=str(answer.id)
+        thread.conversation.id,
+        [],
+        expected_revision=0,
+        expected_frontier=HistoryCheckpointFrontier(summary_ordinal=None, message_ordinal=0),
+        through_message_id=str(answer.id),
     )
     assert thread.conversation.summary_ordinal == 7
 
@@ -418,7 +433,11 @@ async def test_a_checkpoint_cannot_claim_a_message_from_another_conversation(
         conversation_repo, "get_fork_point", AsyncMock(return_value=None if missing else answer)
     )
     await thread.service.keep_summary(
-        thread.conversation.id, [], expected_revision=0, through_message_id=str(answer.id)
+        thread.conversation.id,
+        [],
+        expected_revision=0,
+        expected_frontier=HistoryCheckpointFrontier(summary_ordinal=None, message_ordinal=0),
+        through_message_id=str(answer.id),
     )
     assert thread.conversation.summary_messages is None
 
@@ -485,7 +504,12 @@ async def test_replaying_a_compact_checkpoint_restores_large_media_without_evict
     )
     assert len(json.dumps(checkpoint).encode()) < MODEL_HISTORY_BYTES
     assert "media+sha256://" in json.dumps(checkpoint)
-    await thread.service.keep_summary(thread.conversation.id, checkpoint, expected_revision=0)
+    await thread.service.keep_summary(
+        thread.conversation.id,
+        checkpoint,
+        expected_revision=0,
+        expected_frontier=HistoryCheckpointFrontier(summary_ordinal=None, message_ordinal=0),
+    )
     # Restoring is unconditional even when the next agent does not bind MediaOffload.
     for _ in range(2):
         history = await thread.service.model_history(thread.conversation.id, limit=50)
