@@ -267,7 +267,14 @@ test.describe("artifact actions", () => {
     await ok(agent, "creating the agent");
     fixture.agentId = ((await agent.json()) as { id: string }).id;
     await ok(
-      await request.put(`/api/agents/${fixture.agentId}/draft`, { data: { spec } }),
+      await request.put(`/api/agents/${fixture.agentId}/draft`, {
+        data: {
+          spec,
+          expected_revision: (
+            await json<{ draft_revision: string }>(request, `/api/agents/${fixture.agentId}`)
+          ).draft_revision,
+        },
+      }),
       "the agent's draft",
     );
     await ok(

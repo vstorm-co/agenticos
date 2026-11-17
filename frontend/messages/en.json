@@ -79,6 +79,8 @@
     "sessionsCouldNotBeRead": "The sessions could not be read."
   },
   "agents": {
+    "draftChanged": "This draft changed elsewhere. Your edits are still here, but saving is paused. Copy anything you want to keep, then reload the latest draft.",
+    "reloadDraft": "Reload latest draft",
     "voiceUnreportedTokenUsage": "This provider does not report token charges. Calls cannot start with a spending budget; recorded audio cost is a lower bound.",
     "accentColour": "Accent colour",
     "actsOutsideWorld": "acts on the outside world",

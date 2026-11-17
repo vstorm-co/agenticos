@@ -85,6 +85,7 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConflictError,
     NotFoundError,
 )
 from app.core.field_errors import field_problems, refused_field
@@ -137,6 +138,7 @@ from app.schemas.agent import (
     PublishedModel,
     TemplateIndustryRead,
     TemplateInstallResult,
+    agent_draft_revision,
     normalize_labels_query,
 )
 from app.schemas.context import ContextFileCreate
@@ -2138,7 +2140,14 @@ class AgentRegistryService:
                 return candidate
         return _copy_name(base, _MAX_COPIES)
 
-    async def save_draft(self, ctx: AuthContext, agent_id: UUID, spec: AgentSpec) -> Agent:
+    async def save_draft(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        spec: AgentSpec,
+        *,
+        expected_revision: str | None = None,
+    ) -> Agent:
         """Store an edited spec without making it live.
 
         Deliberately does not validate references: half-finished configuration
@@ -2150,8 +2159,19 @@ class AgentRegistryService:
 
         Raises:
             BadRequestError: A system agent's spec holds what it may never use.
+            ConflictError: The client's base draft changed. Nothing is written.
+
+        External draft replacements require expected_revision at the route.
+        Server-side commands already owning the current draft may omit it.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
+        if expected_revision is not None and expected_revision != agent_draft_revision(
+            AgentSpec.model_validate(agent.draft_spec)
+        ):
+            raise ConflictError(
+                message="The draft changed elsewhere. Reload the latest draft before saving.",
+                details={"reason": "draft_changed"},
+            )
         spec = _without_unselectable(spec)
         await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
         if agent.kind != AgentKind.AGENT.value:

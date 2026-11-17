@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+- Draft API clients must read `draft_revision` from `GET /agents/{id}` and send it as `expected_revision` with `PUT /agents/{id}/draft`. Missing tokens return 422; stale tokens return 409 without changes. Reload older Builder tabs after upgrading. No database migration or spec-version change is required (#2618).
+
+### Fixed
+
+- Refuse stale Builder draft saves, including changes made through another tab, MCP or a server-side action. Preserve local edits, pause autosave on conflict and offer an explicit reload. Add-to-agent and platform MCP edits use the same revision check (#2618).
+
 ## [1.80.0] - 2026-11-16
 
 ### Fixed

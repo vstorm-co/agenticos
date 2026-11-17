@@ -488,11 +488,17 @@ async def save_draft(
 ) -> Any:
     """Save an edit and return its normalized draft without making it live.
 
+    Send expected_revision from the base draft's draft_revision. A stale token
+    returns 409 without writes; reload and reconcile before submitting again.
+    Missing tokens return 422, including older console tabs without this guard.
+
     Half-finished specs are allowed; reference validation waits for publish.
     The returned draft is the canonical saved value an editor may adopt when
     no newer local edits have been made.
     """
-    return await service.save_draft(ctx, agent_id, data.spec)
+    return await service.save_draft(
+        ctx, agent_id, data.spec, expected_revision=data.expected_revision
+    )
 
 
 @router.post(

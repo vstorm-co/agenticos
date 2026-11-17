@@ -162,7 +162,10 @@ async def test_saving_a_draft_answers_the_canonical_spec(owner_client: OpenClien
         async with owner_client() as http:
             response = await http.put(
                 f"{settings.API_V1_STR}/agents/{saved.id}/draft",
-                json={"spec": {"name": "Canonical", "variables": [{"name": "customer"}]}},
+                json={
+                    "spec": {"name": "Canonical", "variables": [{"name": "customer"}]},
+                    "expected_revision": "0" * 64,
+                },
             )
     assert response.status_code == 200
     body = response.json()
@@ -170,3 +173,40 @@ async def test_saving_a_draft_answers_the_canonical_spec(owner_client: OpenClien
     assert body["draft_spec"] == spec.model_dump(mode="json")
     assert body["draft_spec"]["variables"][0]["description"] is None
     save.assert_awaited_once()
+    assert save.await_args.kwargs["expected_revision"] == "0" * 64
+    assert len(body["draft_revision"]) == 64
+
+
+@pytest.mark.parametrize("revision", [None, "invalid", 7])
+async def test_draft_replacement_requires_a_valid_base_revision(
+    owner_client: OpenClient, revision: object
+) -> None:
+    payload: dict[str, object] = {"spec": {"name": "Support"}}
+    if revision is not None:
+        payload["expected_revision"] = revision
+    with patch.object(AgentRegistryService, "save_draft", new=AsyncMock()) as save:
+        async with owner_client() as http:
+            response = await http.put(
+                f"{settings.API_V1_STR}/agents/{uuid.uuid4()}/draft", json=payload
+            )
+    assert response.status_code == 422
+    save.assert_not_awaited()
+
+
+async def test_a_stale_draft_is_a_write_free_conflict(owner_client: OpenClient) -> None:
+    from app.agents.spec import AgentSpec
+
+    agent = _agent()
+    agent.draft_spec = AgentSpec(name="Updated elsewhere").model_dump(mode="json")
+    with (
+        patch.object(AgentRegistryService, "get", new=AsyncMock(return_value=agent)),
+        patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as write,
+    ):
+        async with owner_client() as http:
+            response = await http.put(
+                f"{settings.API_V1_STR}/agents/{agent.id}/draft",
+                json={"spec": {"name": "Stale"}, "expected_revision": "0" * 64},
+            )
+    assert response.status_code == 409
+    assert response.json()["error"]["details"] == {"reason": "draft_changed"}
+    write.assert_not_awaited()
