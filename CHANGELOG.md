@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Prepare native change-trigger routines from the terminal, inspect accessible
+  accounts and explicitly create paused routines with source review required.
+
 - Set up an email bot and protected HMAC relay configuration from the terminal,
   validate incoming receiver JSON without sending, and opt in to signed delivery.
 - Register an existing Twilio SMS number with hidden credentials; prepare its

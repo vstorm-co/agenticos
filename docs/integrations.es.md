@@ -1,5 +1,5 @@
 ---
-source_sha: "6898de96508a"
+source_sha: "ce72ae8886cc"
 ---
 
 # Integraciones incorporadas { #built-in-integrations }
@@ -102,6 +102,23 @@ curl --fail-with-body --config auth.conf --json @account.json \
 ```
 
 Para Odoo, cambie el final de la ruta a `/odoo`; la plantilla mantiene desactivada la escritura. Las cuentas de organización usan `/api/v1/connected-accounts/imap` u `/odoo`; el usuario necesita `mcp:manage`. Una respuesta correcta devuelve el ID de conexión, no las credenciales. Para reconectar, añada `connection_id`. Corrija cualquier host rechazado o credencial inválida antes de usar la cuenta. Las plantillas y pruebas locales no acreditan una conexión real con el proveedor.
+
+### Configurar rutinas desde el terminal { #configure-polled-routines-from-the-terminal }
+
+Para una cuenta ya conectada, `integration-trigger-setup --list` muestra las plantillas nativas de sondeo del catálogo sin acceder a la red. `--accounts` lee los identificadores de cuentas accesibles, su propietario y el estado de reconexión o de errores de sondeo desde la propia instancia; no contacta con Google, Microsoft ni otro proveedor. La lista corresponde al origen seleccionado; puede omitir cuentas no disponibles o sin los permisos necesarios. Introduzca el token personal de acceso de AgenticOS en el campo oculto o mediante `--access-token-file`. La lista requiere `agents:view`; la API existente comprueba el acceso al agente y a la cuenta al crear la rutina.
+
+```bash
+uv run agenticos cmd integration-trigger-setup --list
+uv run agenticos cmd integration-trigger-setup --accounts --portal google \
+  --base-url https://agenticos.example.com --org ORGANIZATION_UUID
+uv run agenticos cmd integration-trigger-setup \
+  --portal google --preset inbox_only --agent AGENT_UUID \
+  --connection CONNECTION_UUID --prompt-file prompt.txt
+```
+
+El último comando solo muestra localmente una solicitud JSON con las instrucciones; no crea ni ejecuta una rutina. Sustituya los UUID y proporcione un archivo de instrucciones UTF-8. La opción `--filter-file filters.json` admite un objeto JSON con filtros que sustituyen valores de la plantilla. Sin conexión se valida la estructura, no la disponibilidad de la cuenta ni la semántica de filtros del origen. Sheets requiere indicar la hoja; Slack y Teams necesitan seleccionar conversaciones cuando corresponda. El servidor valida esos campos al crear la rutina.
+
+Añada `--apply --base-url https://agenticos.example.com --org ORGANIZATION_UUID` para crearla **pausada**, con revisión de fuentes obligatoria antes de activarla. Se realiza una sola solicitud autenticada, sin reintentos automáticos ni ejecución del agente. Si el resultado es incierto, revise las rutinas existentes antes de repetirla. El sondeo usa los workers y cursores persistentes existentes. El comando no crea temas Pub/Sub, webhooks del proveedor ni suscripciones push que caduquen, y no cambia la frecuencia de sondeo. Una conexión OAuth pendiente sigue necesitando el consentimiento del titular.
 
 ## Odoo { #odoo }
 

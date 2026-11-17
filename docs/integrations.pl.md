@@ -1,5 +1,5 @@
 ---
-source_sha: "6898de96508a"
+source_sha: "ce72ae8886cc"
 ---
 
 # Wbudowane integracje { #built-in-integrations }
@@ -102,6 +102,23 @@ curl --fail-with-body --config auth.conf --json @account.json \
 ```
 
 Dla Odoo zmień końcówkę ścieżki na `/odoo`; szablon pozostawia zapis wyłączony. Konto organizacji korzysta z `/api/v1/connected-accounts/imap` albo `/odoo`; wywołujący potrzebuje `mcp:manage`. Sukces zwraca identyfikator połączenia, nie credentials. Aby odnowić istniejące połączenie, dodaj `connection_id` do żądania. Odrzucony host lub niepoprawne credentials trzeba poprawić przed użyciem konta. Szablony i testy lokalne nie potwierdzają połączenia z prawdziwą usługą.
+
+### Konfiguracja rutyn z terminala { #configure-polled-routines-from-the-terminal }
+
+Dla już podłączonego konta `integration-trigger-setup --list` wypisuje dostępne presety odczytu zmian z katalogu platformy, bez połączeń sieciowych. `--accounts` pobiera identyfikatory kont dopuszczonych dla źródła, właściciela oraz status ponownego połączenia i błędów odczytu z własnej instancji. Nie kontaktuje się z Google, Microsoft ani innym dostawcą. Lista dotyczy danego źródła; konta niedostępne lub bez wymaganych uprawnień mogą być pominięte. Osobisty token dostępu AgenticOS podaj w ukrytym polu terminala lub przez `--access-token-file`. Lista kont wymaga `agents:view`; zapis korzysta z istniejących kontroli dostępu do agenta i konta w API.
+
+```bash
+uv run agenticos cmd integration-trigger-setup --list
+uv run agenticos cmd integration-trigger-setup --accounts --portal google \
+  --base-url https://agenticos.example.com --org ORGANIZATION_UUID
+uv run agenticos cmd integration-trigger-setup \
+  --portal google --preset inbox_only --agent AGENT_UUID \
+  --connection CONNECTION_UUID --prompt-file prompt.txt
+```
+
+Ostatnia komenda jedynie wypisuje lokalnie żądanie JSON wraz z instrukcjami; nie tworzy ani nie uruchamia rutyny. Zastąp przykładowe UUID i przygotuj plik instrukcji UTF-8. Opcjonalne `--filter-file filters.json` przyjmuje obiekt JSON nadpisujący filtry presetu. Przygotowanie offline sprawdza strukturę żądania, ale nie dostępność konta ani poprawność filtrów danego źródła. Sheets wymaga wskazania arkusza, a Slack i Teams wyboru rozmów tam, gdzie jest to wymagane. Serwer sprawdza te pola przy tworzeniu.
+
+Dodaj `--apply --base-url https://agenticos.example.com --org ORGANIZATION_UUID`, aby zapisać rutynę **zatrzymaną**, z wymaganym przeglądem źródeł przed aktywacją. Zapis to jedno uwierzytelnione żądanie, bez automatycznego ponawiania i bez uruchamiania agenta. Przy niepewnym wyniku sprawdź istniejące rutyny przed ponowną próbą. Odczyt zmian korzysta z istniejących workerów i trwałych kursorów; komenda nie tworzy Pub/Sub, webhooków dostawcy ani wygasających subskrypcji push i nie zmienia częstotliwości odczytu. Brakujące połączenie OAuth nadal wymaga zgody właściciela konta.
 
 ## Odoo { #odoo }
 

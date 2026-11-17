@@ -99,6 +99,23 @@ curl --fail-with-body --config auth.conf --json @account.json \
 
 For Odoo, change the final path to `/odoo`; the template keeps write access off. For an organization account, use `/api/v1/connected-accounts/imap` or `/odoo` instead; the caller needs `mcp:manage`. Success returns the connection ID, not its credentials. Reconnect in place by adding `connection_id` to the payload. A refused hostname or invalid credential must be repaired before the account is usable. Templates and local tests do not establish a live connection.
 
+### Configure polled routines from the terminal
+
+For an already connected account, `integration-trigger-setup --list` lists the native polling presets from the platform catalog without network access. `--accounts` reads accessible account IDs, ownership and reconnect/polling status from your own instance; it does not contact Google, Microsoft or another provider. Use your personal AgenticOS access token, entered at the hidden prompt or read with `--access-token-file`. The account listing requires `agents:view`; creation checks access to the selected agent and account through the existing API.
+
+```bash
+uv run agenticos cmd integration-trigger-setup --list
+uv run agenticos cmd integration-trigger-setup --accounts --portal google \
+  --base-url https://agenticos.example.com --org ORGANIZATION_UUID
+uv run agenticos cmd integration-trigger-setup \
+  --portal google --preset inbox_only --agent AGENT_UUID \
+  --connection CONNECTION_UUID --prompt-file prompt.txt
+```
+
+The last command only prints a JSON request locally, including the prompt; it does not create or run a routine. Replace the UUID placeholders and provide a UTF-8 instructions file. Optional `--filter-file filters.json` supplies a JSON object of preset overrides. Offline preparation validates the request shape, not account availability or source-specific filter semantics. For example, Sheets requires its spreadsheet filter; Slack and Teams require conversation selection where applicable. The server validates those fields on creation.
+
+Add `--apply --base-url https://agenticos.example.com --org ORGANIZATION_UUID` to create the routine **paused**, with source review required before activation. Creation uses a single authenticated request with no automatic retry or agent run. If the outcome is uncertain, inspect existing routines before repeating it. Polling uses existing workers and durable cursors; this command creates no Pub/Sub topic, provider webhook or expiring push subscription, and does not change polling frequency. A missing OAuth connection still requires consent; the terminal command does not bypass it.
+
 ## Odoo
 
 Connect Odoo 19+ through JSON-2 with the HTTPS origin, database name and a business user's API key. The operator must list the exact host in `ODOO_ALLOWED_HOSTS`; paths, redirects and custom ports are refused. Odoo Online requires a Custom plan for external API access. Install the business modules you intend to use and restrict the user's Odoo ACLs and record rules. Keys expire: rotate them and reconnect the account. Write access is opt-in and every agent write still needs approval.

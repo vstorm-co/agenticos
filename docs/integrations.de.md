@@ -1,5 +1,5 @@
 ---
-source_sha: "6898de96508a"
+source_sha: "ce72ae8886cc"
 ---
 
 # Integrierte Integrationen { #built-in-integrations }
@@ -102,6 +102,23 @@ curl --fail-with-body --config auth.conf --json @account.json \
 ```
 
 Für Odoo endet der Pfad auf `/odoo`; Schreibzugriff bleibt in der Vorlage ausgeschaltet. Organisationskonten verwenden `/api/v1/connected-accounts/imap` oder `/odoo`; der Aufrufer benötigt `mcp:manage`. Eine erfolgreiche Antwort enthält die Verbindungs-ID, keine Zugangsdaten. Für eine erneute Verbindung ergänzen Sie `connection_id`. Abgelehnte Hosts oder ungültige Zugangsdaten müssen vor der Nutzung korrigiert werden. Vorlagen und lokale Tests belegen keine Verbindung zu einem echten Dienst.
+
+### Routinen im Terminal konfigurieren { #configure-polled-routines-from-the-terminal }
+
+Für ein bereits verbundenes Konto zeigt `integration-trigger-setup --list` die nativen Polling-Vorlagen aus dem Plattformkatalog ohne Netzwerkzugriff. `--accounts` liest verfügbare Konto-IDs, Eigentümer sowie Wiederverbindungs- und Polling-Status von der eigenen Instanz. Google, Microsoft und andere Anbieter werden dabei nicht kontaktiert. Es ist keine vollständige Kontoliste: nicht verfügbare Konten oder Konten ohne erforderliche Berechtigungen können fehlen. Das persönliche AgenticOS-Zugriffstoken wird verdeckt eingegeben oder mit `--access-token-file` gelesen. Die Kontoliste erfordert `agents:view`; beim Erstellen prüft die bestehende API den Zugriff auf Agent und Konto.
+
+```bash
+uv run agenticos cmd integration-trigger-setup --list
+uv run agenticos cmd integration-trigger-setup --accounts --portal google \
+  --base-url https://agenticos.example.com --org ORGANIZATION_UUID
+uv run agenticos cmd integration-trigger-setup \
+  --portal google --preset inbox_only --agent AGENT_UUID \
+  --connection CONNECTION_UUID --prompt-file prompt.txt
+```
+
+Der letzte Befehl gibt nur lokal eine JSON-Anfrage einschließlich Anweisungen aus; er erstellt oder startet keine Routine. Ersetzen Sie die UUID-Platzhalter und geben Sie eine UTF-8-Anweisungsdatei an. Optional übergibt `--filter-file filters.json` ein JSON-Objekt mit Filterüberschreibungen. Offline wird die Anfragestruktur geprüft, jedoch weder die Kontoverfügbarkeit noch die quellenspezifische Filtersemantik. Sheets benötigt einen Tabellenfilter; Slack und Teams benötigen gegebenenfalls eine Gesprächsauswahl. Der Server prüft diese Felder beim Erstellen.
+
+Mit `--apply --base-url https://agenticos.example.com --org ORGANIZATION_UUID` wird die Routine **pausiert** erstellt; vor der Aktivierung ist eine Quellenprüfung erforderlich. Eine einzelne authentifizierte Anfrage erstellt sie ohne automatische Wiederholung oder Agentenlauf. Bei unklarem Ergebnis zuerst vorhandene Routinen prüfen. Polling verwendet bestehende Worker und dauerhafte Cursor. Der Befehl erstellt weder Pub/Sub-Themen noch Anbieter-Webhooks oder ablaufende Push-Abonnements und ändert kein Abfrageintervall. Eine fehlende OAuth-Verbindung erfordert weiterhin die Zustimmung des Kontoinhabers.
 
 ## Odoo { #odoo }
 

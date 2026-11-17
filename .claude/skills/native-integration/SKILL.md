@@ -80,3 +80,14 @@ read-only selected-event permissions, state validation, credential-free errors,
 redirect refusal and the existing app preflight. Do not log the conversion code:
 GitHub's conversion endpoint puts it in the URL path. Installation/portal binding
 is a subsequent explicit step, not inferred from credential storage.
+
+
+## Terminal setup for existing change feeds
+
+`integration-trigger-setup` reads native polling presets from `portal_catalog`.
+Use `--list` offline, `--accounts` for an authenticated read of the destination's
+accessible accounts, and the default mode to print a local request. Only `--apply`
+creates a routine; preserve paused creation and required source review. Never infer
+an account, activate a routine or register a provider push subscription as part of
+setup. This reuses existing cursors/workers; it is not a Google Pub/Sub or Graph
+subscription manager. Filters receive semantic validation through the existing API.
