@@ -107,7 +107,7 @@ test("phone channel registration clears cancelled credentials and survives a ref
     expect(stored.webhook_mode).toBe(true);
     await page.reload();
     await page.getByRole("button", { name: `Edit ${name}`, exact: true }).click();
-    await expect(dialog.getByLabel(/^Bot token/i)).toHaveValue("");
+    await expect(dialog.getByLabel("Replace bot token", { exact: true })).toHaveValue("");
     await dialog.getByLabel(/^Name/).fill(`${name} updated`);
     const editHeld = await pausedRefusal(page, `/api/channels/bots/${id}`, "PATCH");
     release = editHeld.release;
@@ -133,7 +133,7 @@ test("phone channel registration clears cancelled credentials and survives a ref
     await page.reload();
     await page.getByRole("button", { name: `Edit ${name} updated`, exact: true }).click();
     await expect(dialog.getByLabel(/^Name/)).toHaveValue(`${name} updated`);
-    await expect(dialog.getByLabel(/^Bot token/i)).toHaveValue("");
+    await expect(dialog.getByLabel("Replace bot token", { exact: true })).toHaveValue("");
   } finally {
     release?.();
     if (id) expect((await page.request.delete(`/api/channels/bots/${id}`)).ok()).toBe(true);
