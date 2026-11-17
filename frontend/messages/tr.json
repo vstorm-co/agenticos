@@ -5811,6 +5811,14 @@
       "timeout_minutes": {
         "title": "Süre sınırı (dakika)",
         "description": "Durdurulmadan önce tek bir görevin ne kadar çalışabileceği."
+      },
+      "auth_method": {
+        "title": "Kimlik doğrulama modu",
+        "description": "Programın yapılandırılmış hesabını kullanın veya Antigravity kişisel Google oturumunu açıkça seçin. Yöntem yoksa başka hesaba ya da API anahtarına geçmeden hata verir."
+      },
+      "model_id": {
+        "title": "Harici model kimliği",
+        "description": "Bu hesap için inspect_acp_agent tarafından verilen isteğe bağlı tam kimlik. Boş değer programın modelini korur. Gemini API profili yerine çalışma zamanı modelini seçer."
       }
     }
   },
@@ -9674,7 +9682,9 @@
         "recordLabel": "Kayıt"
       },
       "runAcpAgent": "Harici ACP ajanı",
-      "runningAcpAgent": "Harici ACP ajanı"
+      "runningAcpAgent": "Harici ACP ajanı",
+      "inspectAcpAgent": "ACP model seçeneklerini oku",
+      "readingAcpModels": "ACP model seçenekleri okunuyor"
     },
     "turnWasStopped": "durduruldu",
     "unfavourite": "Favorilerden çıkar",
@@ -11958,7 +11968,10 @@
         "remove": "Kaldır",
         "removeNamed": "{name} ajanını kaldır",
         "help": "Bu kimliği Harici ACP ajanı yeteneğinde kullanın. Argümanlar ayrı metinlerdir, örneğin acp. Parola veya belirteç eklemeyin. Görevlerden önce programın kendi komutuyla oturum açın. Hesap değiştirdikten sonra kayıtlı oturumları temizlemek için yeniden kaydedin.",
-        "invalidArgs": "Yalnızca metin içeren bir JSON dizisi girin."
+        "invalidArgs": "Yalnızca metin içeren bir JSON dizisi girin.",
+        "provider": "Kurulum şablonu",
+        "custom": "Özel ACP programı",
+        "antigravityHelp": "Mutlak agy yolunu ve acp argümanını kullanın. Kişisel Google oturumu zorunludur; uygulama ortamından gelen Gemini API anahtarları kaldırılır. Önce agy acp --login çalıştırın. Builder içinde bu kimliği Harici ACP ajanında kullanın; inspect_acp_agent hesabın modellerini okur. Bu, görev devretmedir. Gerçek hesap uygunluğu ve plan limitleri henüz doğrulanmalıdır."
       }
     },
     "quickAsk": {
@@ -13202,6 +13215,18 @@
           "label": "Bu bilgisayar (masaüstü uygulaması)",
           "summary": "Eşleştirilmiş bilgisayarınızdaki özel browser.",
           "description": "Eşleştirilmiş masaüstü uygulaması ve bu sohbette Local browser seçili olmalıdır. Kişisel browser oturumunuz paylaşılmaz."
+        }
+      }
+    },
+    "external_acp": {
+      "auth_method": {
+        "configured": {
+          "label": "Program ayarı",
+          "description": "Programın yapılandırılmış hesabını kullanın veya Antigravity kişisel Google oturumunu açıkça seçin. Yöntem yoksa başka hesaba ya da API anahtarına geçmeden hata verir."
+        },
+        "oauth-personal": {
+          "label": "Antigravity kişisel Google oturumu",
+          "description": "Programın yapılandırılmış hesabını kullanın veya Antigravity kişisel Google oturumunu açıkça seçin. Yöntem yoksa başka hesaba ya da API anahtarına geçmeden hata verir."
         }
       }
     }

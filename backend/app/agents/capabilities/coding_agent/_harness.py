@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_ai.exceptions import UserError
 from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 from pydantic_ai.usage import RequestUsage
@@ -106,6 +106,7 @@ class CodingReport(BaseModel):
 
     kind: Literal["coding_agent"] = "coding_agent"
     harness: AcpHarness
+    runtime_name: str | None = Field(default=None, min_length=1, max_length=120)
     access: Access
     outcome: Literal["completed", "failed", "timed_out"]
     answer: str

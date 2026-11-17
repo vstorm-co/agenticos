@@ -722,3 +722,33 @@ While local coding sessions run, `[session:api] Use the EU numbers` redirects th
  Sandbox coding tasks in the same toolset queue so their workspace snapshots do not overlap; independent local sessions still run in parallel.
 
 Custom installed ACP programs can be registered under **External ACP agents**. See [External ACP agent](reference/capabilities.md#external-acp) for registration, permissions, session identity and billing limits.
+
+## Antigravity through ACP { #antigravity-acp }
+
+Install Google's Antigravity CLI and run `agy acp --login` in a terminal. Under
+**External ACP agents**, choose the **Antigravity** setup template and enter the
+absolute path reported by `which agy`. Native registration permits the `acp`
+argument and requires Google personal sign-in. The child process drops inherited
+Gemini API keys and API/Vertex authentication selectors; no token files are copied.
+
+Enable **External ACP agent** in the Builder with the registered ID. The Desktop
+registration requires ACP `oauth-personal` authentication before a session starts,
+even when the binding uses the program-setting mode. Refused or unsupported
+personal login fails without trying another account or API billing mode.
+
+Ask the agent to use `inspect_acp_agent` to read the current session's model and
+thinking choices. The catalog sends no inference prompt and is not cached across
+accounts. An absent picker differs from an empty list. Set **External model ID**
+to an exact returned ID to choose a runtime model; leaving it empty keeps the CLI
+setting. An unsupported model setting fails explicitly.
+
+This runs delegated tasks using Antigravity's native tools. It is separate from
+Gemini API model profiles and does not yet forward AgenticOS platform tools or
+replace the main conversation runtime. Subscription spend is unpriced. Google
+restricts some third-party models to named clients; AgenticOS identifies itself
+as AgenticOS and promises no access beyond its own advertised catalog.
+
+Real-account login, entitlement, quota, revocation and resume-after-restart still
+require acceptance testing. See the [official ACP guide](https://antigravity.google/docs/ide/extensions/acp)
+for supported authentication methods and client restrictions. API-key use belongs
+to a separate Gemini API profile or an explicitly configured custom registration.

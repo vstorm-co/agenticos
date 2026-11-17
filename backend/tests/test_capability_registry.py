@@ -617,6 +617,7 @@ class TestReadOnlyDeclarations:
             ("browser_use", "browser_close_tab"),
             ("coding_agent", "run_coding_agent"),
             ("external_acp", "run_acp_agent"),
+            ("external_acp", "inspect_acp_agent"),
             ("monitor", "start_monitor"),
             ("monitor", "list_monitors"),
             ("monitor", "stop_monitor"),

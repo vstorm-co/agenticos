@@ -1090,7 +1090,9 @@
         "recordLabel": "Rekord"
       },
       "runAcpAgent": "Zewnętrzny agent ACP",
-      "runningAcpAgent": "Zewnętrzny agent ACP"
+      "runningAcpAgent": "Zewnętrzny agent ACP",
+      "inspectAcpAgent": "Odczytaj modele ACP",
+      "readingAcpModels": "Odczytywanie modeli ACP"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -10953,6 +10955,14 @@
       "timeout_minutes": {
         "title": "Limit czasu (minuty)",
         "description": "Jak długo jedno zadanie może trwać, zanim zostanie przerwane."
+      },
+      "auth_method": {
+        "title": "Tryb uwierzytelniania",
+        "description": "Użyj konta skonfigurowanego w programie lub jawnie wybierz osobiste logowanie Google w Antigravity. Brak metody kończy się błędem bez przełączenia na klucz API ani inne konto."
+      },
+      "model_id": {
+        "title": "ID modelu zewnętrznego",
+        "description": "Opcjonalne dokładne ID z inspect_acp_agent dla tego konta. Puste pole zachowuje model programu. Wybiera model środowiska wykonawczego, a nie profil Gemini API."
       }
     }
   },
@@ -14361,7 +14371,10 @@
         "remove": "Usuń",
         "removeNamed": "Usuń {name}",
         "help": "Użyj tego ID w capability Zewnętrzny agent ACP. Argumenty to osobne ciągi, np. acp. Nie podawaj haseł ani tokenów. Przed zadaniem zaloguj się poleceniem programu. Po zmianie konta zarejestruj go ponownie, aby usunąć zapisane sesje.",
-        "invalidArgs": "Podaj tablicę JSON zawierającą wyłącznie ciągi znaków."
+        "invalidArgs": "Podaj tablicę JSON zawierającą wyłącznie ciągi znaków.",
+        "provider": "Szablon konfiguracji",
+        "custom": "Własny program ACP",
+        "antigravityHelp": "Użyj bezwzględnej ścieżki agy i argumentu acp. Wymuszamy osobiste logowanie Google; klucze Gemini API odziedziczone ze środowiska aplikacji są usuwane. Najpierw uruchom agy acp --login. W Builderze użyj tego ID w Zewnętrznym agencie ACP; inspect_acp_agent odczytuje modele tego konta. To delegowanie zadań. Uprawnienia rzeczywistego konta i limity planu wymagają jeszcze weryfikacji."
       }
     },
     "quickAsk": {
@@ -14688,6 +14701,18 @@
           "label": "Prywatne zadanie chmurowe z moim kontem",
           "description": "Użyj konta z profilu w odizolowanym kontenerze. Zwraca diff i archiwum do przeglądu, bez zmieniania wspólnych plików.",
           "summary": "Użyj konta z profilu w odizolowanym kontenerze. Zwraca diff i archiwum do przeglądu, bez zmieniania wspólnych plików."
+        }
+      }
+    },
+    "external_acp": {
+      "auth_method": {
+        "configured": {
+          "label": "Ustawienie programu",
+          "description": "Użyj konta skonfigurowanego w programie lub jawnie wybierz osobiste logowanie Google w Antigravity. Brak metody kończy się błędem bez przełączenia na klucz API ani inne konto."
+        },
+        "oauth-personal": {
+          "label": "Osobiste logowanie Google w Antigravity",
+          "description": "Użyj konta skonfigurowanego w programie lub jawnie wybierz osobiste logowanie Google w Antigravity. Brak metody kończy się błędem bez przełączenia na klucz API ani inne konto."
         }
       }
     }

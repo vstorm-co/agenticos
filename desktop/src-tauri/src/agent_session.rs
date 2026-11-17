@@ -191,6 +191,16 @@ impl Sessions {
 
 /// Start `program` in `cwd` and begin collecting what it writes.
 fn spawn(program: &Path, args: &[String], cwd: &Path, path_env: Option<String>) -> Result<Session, Refusal> {
+    spawn_authenticated(program, args, cwd, path_env, false)
+}
+
+fn spawn_authenticated(
+    program: &Path,
+    args: &[String],
+    cwd: &Path,
+    path_env: Option<String>,
+    google_personal: bool,
+) -> Result<Session, Refusal> {
     let mut command = tokio::process::Command::new(program);
     command
         .args(args)
@@ -202,6 +212,13 @@ fn spawn(program: &Path, args: &[String], cwd: &Path, path_env: Option<String>) 
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    if google_personal {
+        command
+            .env_remove("GEMINI_API_KEY")
+            .env_remove("GOOGLE_API_KEY")
+            .env_remove("GOOGLE_GENAI_USE_VERTEXAI")
+            .env_remove("GOOGLE_GENAI_USE_GCA");
+    }
     if let Some(path_env) = path_env {
         command.env("PATH", path_env);
     }
@@ -294,7 +311,10 @@ struct OpenArgs {
     agent: AgentId,
     #[serde(default)]
     custom_agent_id: Option<String>,
+    #[serde(default)]
+    supports_auth_modes: bool,
     root: String,
+    mode: Mode,
     #[serde(default)]
     resume_key: Option<String>,
     #[serde(default)]
@@ -432,10 +452,18 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     let OpenArgs {
         agent,
         custom_agent_id,
+        supports_auth_modes,
         root,
+        mode,
         resume_key,
         fresh_session,
     } = serde_json::from_value(Value::Object(args.clone())).map_err(bad)?;
+    if mode != Mode::FullAccess {
+        return Err(Refusal::new(
+            "denied",
+            "Native ACP agents require an explicitly selected full-access folder mode.",
+        ));
+    }
     // The adapter runs as the person, so only a folder granted full access, or
     // whole-computer consent, may host it.
     let root = authorized_root(app, args, &root)?;
@@ -461,6 +489,16 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         }
         (_, None) => None,
     };
+    if external
+        .as_ref()
+        .is_some_and(|item| item.provider == crate::external_agents::Provider::Antigravity)
+        && !supports_auth_modes
+    {
+        return Err(Refusal::new(
+            "denied",
+            "Update the AgenticOS server to use Antigravity personal-account mode.",
+        ));
+    }
     let mut consent = Consent::new(&root, &before.connection_revision, agent);
     consent.external = external.as_ref().map(ExternalIdentity::from);
     if !before.coding_consents.contains(&consent) {
@@ -523,11 +561,12 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         if !crate::settings::current(app).external_agents.contains(external) {
             return Err(Refusal::new("denied", "The ACP registration changed. Start again."));
         }
-        spawn(
+        spawn_authenticated(
             Path::new(&external.program),
             &external.args,
             &root,
             path_with(Path::new(&external.program)),
+            external.provider == crate::external_agents::Provider::Antigravity,
         )?
     } else if let (Some(runtime), Some(builtin)) = (&runtime, agent.builtin()) {
         spawn(
@@ -546,7 +585,14 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     let id = uuid::Uuid::new_v4().simple().to_string();
     sessions.map.lock().await.insert(id.clone(), session);
     drop(slot);
-    Ok(object(serde_json::json!({ "id": id, "session_id": resumed })))
+    let auth_method = external
+        .as_ref()
+        .filter(|item| item.provider == crate::external_agents::Provider::Antigravity)
+        .map(|_| "oauth-personal");
+    let runtime_name = external.as_ref().map(|item| item.name.as_str());
+    Ok(object(
+        serde_json::json!({ "id": id, "session_id": resumed, "auth_method": auth_method, "runtime_name": runtime_name }),
+    ))
 }
 
 async fn remember_running(app: &AppHandle, args: &Map<String, Value>) -> Result<Map<String, Value>, Refusal> {

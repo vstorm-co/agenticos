@@ -343,6 +343,7 @@ mod tests {
             "coding_sessions": [{"key": {"scope": "old", "root": "/private/work", "connection": "previous", "agent": "claude_code"}, "session_id": "old-session"}]
         })).unwrap();
         settings.external_agents.push(crate::external_agents::Registration {
+            provider: crate::external_agents::Provider::Custom,
             id: "agent".into(),
             name: "Agent".into(),
             program: "/bin/agent".into(),

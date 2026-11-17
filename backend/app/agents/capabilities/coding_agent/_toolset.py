@@ -663,6 +663,7 @@ async def run_local_task(
     model: str | None = None,
     effort: str | None = None,
     custom_agent_id: str | None = None,
+    auth_method: str | None = None,
 ) -> str:
     """The task on the person's computer, in the folder they chose, over ACP.
 
@@ -679,6 +680,8 @@ async def run_local_task(
             f"{name} is set to run on the person's computer, and this chat is not working "
             "on one. Say that Work on needs to be set to This computer."
         )
+    if not workspace.local_coding_allowed:
+        return "A native ACP agent requires this chat to use an approved full-access folder. Choose full access explicitly before starting it."
     try:
         chat_root = await workspace.working_dir()
         root = workspace.subfolder(folder) if folder else chat_root
@@ -697,6 +700,7 @@ async def run_local_task(
         chosen,
         access,
         *(() if custom_agent_id is None else (custom_agent_id,)),
+        *(() if auth_method is None else (auth_method,)),
         # The unnamed session keeps the key every conversation used before names.
         *(() if session == MAIN_SESSION and workspace.is_root(root) else (session, root)),
     )
@@ -734,6 +738,7 @@ async def run_local_task(
                     model=model,
                     effort=effort,
                     previous_session=pipe.session_id,
+                    auth_method=pipe.auth_method or auth_method,
                     remember=pipe.remember,
                     steering=steering,
                 )
@@ -754,7 +759,9 @@ async def run_local_task(
         "completed" if report.outcome == "completed" else "failed",
         error=None if report.outcome == "completed" else report.answer[:500],
     )
-    report = _relative_files(report, chat_root)
+    report = _relative_files(report, chat_root).model_copy(
+        update={"runtime_name": pipe.runtime_name}
+    )
     return json.dumps(
         {"kind": report.kind, **report.model_dump(mode="json", exclude_defaults=True)}
     )

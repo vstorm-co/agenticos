@@ -2074,7 +2074,9 @@
         "recordLabel": "Record"
       },
       "runAcpAgent": "External ACP agent",
-      "runningAcpAgent": "External ACP agent"
+      "runningAcpAgent": "External ACP agent",
+      "inspectAcpAgent": "Read ACP model choices",
+      "readingAcpModels": "Reading ACP model choices"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -10807,7 +10809,10 @@
         "remove": "Remove",
         "removeNamed": "Remove {name}",
         "help": "Use this ID in the External ACP agent capability. Arguments are separate strings, for example acp. Never include passwords or tokens. Log in using the program’s own command before starting tasks. Register it again after changing accounts to clear saved sessions.",
-        "invalidArgs": "Enter a JSON array containing only strings."
+        "invalidArgs": "Enter a JSON array containing only strings.",
+        "provider": "Setup template",
+        "custom": "Custom ACP program",
+        "antigravityHelp": "Use the absolute agy path and the acp argument. Google personal sign-in is enforced; Gemini API keys inherited from the app environment are removed. Run agy acp --login first. In the Builder, use this ID in External ACP agent; inspect_acp_agent reads this account’s model choices. This is delegated execution. Real-account eligibility and plan limits still need verification."
       }
     },
     "quickAsk": {
@@ -11134,6 +11139,18 @@
           "label": "Private cloud task with my account",
           "description": "Use my profile account in an isolated container. Returns a diff and result archive for review; shared files remain unchanged.",
           "summary": "Use my profile account in an isolated container. Returns a diff and result archive for review; shared files remain unchanged."
+        }
+      }
+    },
+    "external_acp": {
+      "auth_method": {
+        "configured": {
+          "label": "Program setting",
+          "description": "Use the program's configured account, or explicitly select Antigravity Google personal sign-in. A missing method fails without switching to an API key or another account."
+        },
+        "oauth-personal": {
+          "label": "Antigravity Google personal sign-in",
+          "description": "Use the program's configured account, or explicitly select Antigravity Google personal sign-in. A missing method fails without switching to an API key or another account."
         }
       }
     }
@@ -14302,6 +14319,14 @@
       "timeout_minutes": {
         "title": "Time limit (minutes)",
         "description": "How long one task may run before it is stopped."
+      },
+      "auth_method": {
+        "title": "Authentication mode",
+        "description": "Use the program's configured account, or explicitly select Antigravity Google personal sign-in. A missing method fails without switching to an API key or another account."
+      },
+      "model_id": {
+        "title": "External model ID",
+        "description": "Optional exact ID from inspect_acp_agent on this account. Empty keeps the program's own model. This selects a runtime model, not a Gemini API profile."
       }
     }
   },

@@ -43,7 +43,7 @@ def test_builder_has_no_implicit_program_or_credential() -> None:
         )
     )
     assert built.agent_id == "my-agent" and built.timeout_seconds == 120
-    assert set(built.get_toolset().tools) == {"run_acp_agent"}
+    assert set(built.get_toolset().tools) == {"run_acp_agent", "inspect_acp_agent"}
     assert "does not promise read-only" in built.get_instructions()
     with pytest.raises(ValidationError):
         _build(
@@ -74,6 +74,7 @@ async def test_custom_task_uses_shared_acp_lifecycle_with_only_registration_id(
         assert set(launch) == {
             "agent",
             "custom_agent_id",
+            "supports_auth_modes",
             "resume_key",
             "fresh_session",
             "root",
@@ -130,3 +131,14 @@ async def test_invalid_session_steers_while_a_retry_remains() -> None:
     tool = ExternalAcp("agent").get_toolset().tools["run_acp_agent"]
     with pytest.raises(ModelRetry, match="session name"):
         await tool.function(_ctx(None, []), "Do work", session="bad name")
+
+
+@pytest.mark.parametrize("method", ["unrecognized", "gemini-api-key"])
+async def test_a_desktop_authentication_requirement_is_never_silently_ignored(method: str) -> None:
+    from app.agents.capabilities.coding_agent import _acp as acp
+    from tests.test_coding_agent_acp import FakeDevice
+
+    device = FakeDevice([], opened={"id": "process", "auth_method": method})
+    with pytest.raises(acp.AcpError, match="unsupported authentication"):
+        await acp.DevicePipe(device, "custom", custom_agent_id="agent").open()
+    assert device.calls[-1] == ("agent.close", {"id": "process"})

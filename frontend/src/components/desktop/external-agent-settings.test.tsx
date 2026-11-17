@@ -11,6 +11,7 @@ vi.mock("@/lib/desktop/shell", async (original) => ({
   invokeShell: invoke,
 }));
 const registration = {
+  provider: "custom",
   id: "my-agent",
   name: "My agent",
   program: "/opt/bin/agent",
@@ -60,6 +61,7 @@ it("registers exact argv over native IPC and refreshes after confirmation", asyn
   await waitFor(() =>
     expect(invoke).toHaveBeenCalledWith("external_save_agent", {
       registration: {
+        provider: "custom",
         id: "my-agent",
         name: "My agent",
         program: "/opt/bin/agent",
@@ -98,4 +100,24 @@ it("rejects malformed native replies", () => {
   expect(() => parseExternalAgents({})).toThrow("malformed");
   expect(() => parseExternalAgents([{ ...registration, args: [1] }])).toThrow("malformed");
   expect(() => parseExternalAgents([{ ...registration, revision: null }])).toThrow("malformed");
+});
+
+it("registers the Antigravity personal-account template without an API key", async () => {
+  mount();
+  await userEvent.selectOptions(screen.getByLabelText("Setup template"), "antigravity");
+  expect(screen.getByLabelText("Agent ID")).toHaveValue("antigravity");
+  expect(screen.getByLabelText("Arguments (JSON array)")).toHaveValue('["acp"]');
+  await userEvent.type(screen.getByLabelText("Absolute executable path"), "/opt/bin/agy");
+  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+      registration: {
+        provider: "antigravity",
+        id: "antigravity",
+        name: "Antigravity",
+        program: "/opt/bin/agy",
+        args: ["acp"],
+      },
+    }),
+  );
 });

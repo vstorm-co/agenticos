@@ -1,5 +1,5 @@
 ---
-source_sha: "26e6c8e99eb7"
+source_sha: "c619b5b062f3"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -733,3 +733,33 @@ Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej akt
  Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno, aby ich migawki plików się nie nakładały; niezależne sesje lokalne nadal działają równolegle.
 
 Własne zainstalowane programy ACP można zarejestrować w sekcji **Zewnętrzni agenci ACP**. [Zewnętrzny agent ACP](reference/capabilities.md#external-acp) opisuje rejestrację, uprawnienia, tożsamość sesji i ograniczenia rozliczania.
+
+## Antigravity przez ACP { #antigravity-acp }
+
+Zainstaluj CLI Antigravity firmy Google i uruchom w terminalu `agy acp --login`.
+W **Zewnętrzni agenci ACP** wybierz szablon **Antigravity** i podaj bezwzględną
+ścieżkę z `which agy`. Natywna rejestracja dopuszcza argument `acp` i wymaga
+osobistego logowania Google. Proces usuwa odziedziczone klucze Gemini API oraz
+przełączniki uwierzytelniania API/Vertex; pliki tokenów nie są kopiowane.
+
+W Builderze włącz **Zewnętrzny agent ACP** z zarejestrowanym ID. Rejestracja Desktop
+wymaga uwierzytelnienia ACP `oauth-personal` przed rozpoczęciem sesji, również gdy
+binding korzysta z trybu ustawień programu. Odmowa lub brak osobistego logowania
+kończy się błędem bez próby użycia innego konta lub rozliczenia API.
+
+Poproś agenta o użycie `inspect_acp_agent`, aby odczytać modele i poziomy reasoning
+bieżącej sesji. Katalog nie wysyła promptu do inferencji i nie jest przechowywany
+między kontami. Brak pola wyboru różni się od pustej listy. W **ID modelu
+zewnętrznego** podaj dokładne ID z wyniku; puste pole zachowuje ustawienie CLI.
+Brak obsługi wyboru modelu kończy się jawnym błędem.
+
+To delegowane zadania korzystające z narzędzi Antigravity. Integracja jest oddzielna
+od profili Gemini API; nie przekazuje jeszcze narzędzi platformy AgenticOS ani
+nie zastępuje głównej rozmowy. Użycie subskrypcji pozostaje niewycenione. Google
+ogranicza część modeli innych dostawców do nazwanych klientów; AgenticOS przedstawia
+się własną nazwą i nie obiecuje dostępu poza katalogiem swojej sesji.
+
+Logowanie na rzeczywistym koncie, uprawnienia, limity, cofnięcie dostępu i wznowienie
+po restarcie wymagają jeszcze testu odbiorowego. [Oficjalny przewodnik ACP](https://antigravity.google/docs/ide/extensions/acp)
+opisuje metody logowania i ograniczenia klientów. Klucz API należy do osobnego
+profilu Gemini API albo jawnie skonfigurowanej własnej rejestracji.

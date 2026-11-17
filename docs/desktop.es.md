@@ -1,5 +1,5 @@
 ---
-source_sha: "26e6c8e99eb7"
+source_sha: "c619b5b062f3"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -760,3 +760,33 @@ La corrección `[session:api] Usa las cifras de la UE` llega a la sesión `api`.
  Las tareas de programación en sandbox del mismo conjunto de herramientas se ejecutan en secuencia para evitar que se superpongan sus instantáneas de archivos; las sesiones locales independientes siguen en paralelo.
 
 Los programas ACP instalados se pueden registrar en **Agentes ACP externos**. [Agente ACP externo](reference/capabilities.md#external-acp) explica el registro, los permisos, la identidad de sesión y los límites de facturación.
+
+## Antigravity mediante ACP { #antigravity-acp }
+
+Instala Antigravity CLI de Google y ejecuta `agy acp --login` en un terminal.
+En **Agentes ACP externos**, elige la plantilla **Antigravity** e introduce la
+ruta absoluta de `which agy`. El registro nativo permite el argumento `acp` y
+requiere la cuenta personal de Google. El proceso elimina las claves Gemini API
+y los selectores API/Vertex heredados; no se copian archivos de tokens.
+
+Activa **Agente ACP externo** en el Builder con el ID registrado. El registro
+Desktop exige ACP `oauth-personal` antes de iniciar la sesión, incluso si la
+vinculación usa la configuración del programa. Si la cuenta personal falta o
+rechaza el acceso, falla sin cambiar de cuenta ni de modo de facturación API.
+
+Pide al agente que use `inspect_acp_agent` para leer las opciones de modelo y
+razonamiento de la sesión actual. El catálogo no envía prompts de inferencia ni
+se guarda entre cuentas. Un selector ausente se distingue de una lista vacía.
+Introduce un ID devuelto en **ID del modelo externo**; vacío conserva el ajuste
+CLI. Una selección no admitida produce un error explícito.
+
+Son tareas delegadas con las herramientas nativas de Antigravity, separadas de
+los perfiles Gemini API. Todavía no se transfieren herramientas de AgenticOS ni
+se reemplaza el entorno de la conversación principal. El uso de la suscripción
+no tiene precio registrado. Google limita algunos modelos de terceros a clientes
+específicos; AgenticOS se identifica con su nombre y solo ofrece su propio catálogo.
+
+El inicio de sesión, los derechos, las cuotas, la revocación y la continuación
+tras reiniciar aún requieren pruebas con una cuenta real. La [guía ACP oficial](https://antigravity.google/docs/ide/extensions/acp)
+describe los métodos y restricciones. Las claves API pertenecen a un perfil Gemini
+API separado o a un registro personalizado configurado expresamente.

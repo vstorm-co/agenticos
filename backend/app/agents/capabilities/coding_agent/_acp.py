@@ -141,6 +141,8 @@ class DevicePipe:
         self._root = root
         self._fresh_session = fresh_session
         self.session_id: str | None = None
+        self.auth_method: str | None = None
+        self.runtime_name: str | None = None
         self._device = device
         self._harness = harness
         self._id: str | None = None
@@ -149,6 +151,8 @@ class DevicePipe:
 
     async def open(self) -> None:
         args: dict[str, Any] = {"agent": self._harness}
+        if self._harness == "custom":
+            args["supports_auth_modes"] = True
         if self._custom_agent_id is not None:
             args["custom_agent_id"] = self._custom_agent_id
         if self._resume_key is not None:
@@ -164,6 +168,15 @@ class DevicePipe:
         if not isinstance(identifier, str):
             raise AcpError("The computer's app did not start the agent.")
         self._id = identifier
+        label = opened.get("runtime_name")
+        if isinstance(label, str) and 0 < len(label) <= 120:
+            self.runtime_name = label
+        method = opened.get("auth_method")
+        if method is not None:
+            if method != "oauth-personal":
+                await self.close()
+                raise AcpError("The Desktop app requires an unsupported authentication mode.")
+            self.auth_method = method
 
     async def remember(self, session_id: str) -> None:
         if self._resume_key is not None:
@@ -529,6 +542,36 @@ async def _configure_session(
         options = (configured or {}).get("configOptions", options)
 
 
+async def initialize_session(
+    conversation: Conversation, *, require_version: bool = True, auth_method: str | None = None
+) -> Mapping[str, object]:
+    """Negotiate ACP and select an advertised login method without a billing fallback."""
+    result = await conversation.request(
+        "initialize",
+        {
+            "protocolVersion": PROTOCOL_VERSION,
+            "clientCapabilities": {},
+            "clientInfo": {"name": "agenticos", "title": "AgenticOS"},
+        },
+    )
+    initialized = result if isinstance(result, dict) else {}
+    if require_version and (
+        type(initialized.get("protocolVersion")) is not int
+        or initialized["protocolVersion"] != PROTOCOL_VERSION
+    ):
+        raise AcpError("This program did not negotiate supported ACP protocol version 1.")
+    if auth_method is not None:
+        methods = initialized.get("authMethods")
+        if not isinstance(methods, list) or not any(
+            isinstance(method, dict) and method.get("id") == auth_method for method in methods
+        ):
+            raise AcpError(
+                "This agent does not advertise the configured login method. Check its version and sign-in settings; no other account or billing mode was selected."
+            )
+        await conversation.request("authenticate", {"methodId": auth_method})
+    return initialized
+
+
 async def run_task(
     pipe: Pipe,
     *,
@@ -541,6 +584,7 @@ async def run_task(
     model: str | None = None,
     effort: str | None = None,
     previous_session: str | None = None,
+    auth_method: str | None = None,
     remember: Callable[[str], Awaitable[None]] | None = None,
     steering: SteeringInbox | None = None,
 ) -> CodingReport:
@@ -557,20 +601,9 @@ async def run_task(
         # One deadline from the first request: an adapter that never answers `initialize`
         # or `session/new` ends the task like one that never finishes the prompt.
         with anyio.move_on_after(timeout_seconds):
-            initialized = await conversation.request(
-                "initialize",
-                {
-                    "protocolVersion": PROTOCOL_VERSION,
-                    "clientCapabilities": {},
-                    "clientInfo": {"name": "agenticos", "title": "AgenticOS"},
-                },
+            initialized = await initialize_session(
+                conversation, require_version=harness == "custom", auth_method=auth_method
             )
-            if harness == "custom" and (
-                not isinstance(initialized, dict)
-                or type(initialized.get("protocolVersion")) is not int
-                or initialized["protocolVersion"] != PROTOCOL_VERSION
-            ):
-                raise AcpError("This program did not negotiate supported ACP protocol version 1.")
             session_params: dict[str, Any] = {"cwd": root, "mcpServers": []}
             if harness == "claude_code" and access == "read_only":
                 session_params["_meta"] = {
@@ -581,7 +614,8 @@ async def run_task(
                         }
                     }
                 }
-            capabilities = (initialized or {}).get("agentCapabilities") or {}
+            raw_capabilities = initialized.get("agentCapabilities")
+            capabilities = raw_capabilities if isinstance(raw_capabilities, dict) else {}
             if previous_session is not None:
                 if not capabilities.get("loadSession"):
                     raise AcpError(

@@ -2,16 +2,37 @@
 
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
+from pydantic_ai.usage import RequestUsage
+from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities._failures import steer
+from app.agents.capabilities.budget import assert_ambient_budget, record_ambient_usage
+from app.agents.capabilities.coding_agent._acp import AcpError, DevicePipe
 from app.agents.capabilities.coding_agent._task import MAIN_SESSION, SESSION_NAME
 from app.agents.capabilities.coding_agent._toolset import run_local_task
+from app.agents.capabilities.external_acp._catalog import inspect_session
 from app.agents.deps import AgentDeps
+from app.services.device_hub import (
+    DeviceCallFailed,
+    DeviceCallTimedOut,
+    DeviceUnavailable,
+    DeviceWorkspace,
+)
+
+INSPECT_DESCRIPTION = (
+    "Read model and reasoning choices from the registered ACP agent on this account."
+)
 
 RUN_DESCRIPTION = "Hand a task to the external ACP agent registered on this computer."
 
 
-def build_acp_toolset(agent_id: str, timeout_seconds: int) -> FunctionToolset[AgentDeps]:
+def build_acp_toolset(
+    agent_id: str,
+    timeout_seconds: int,
+    *,
+    auth_method: str | None = None,
+    model_id: str | None = None,
+) -> FunctionToolset[AgentDeps]:
     async def run_acp_agent(
         ctx: RunContext[AgentDeps],
         task: str,
@@ -50,6 +71,50 @@ def build_acp_toolset(agent_id: str, timeout_seconds: int) -> FunctionToolset[Ag
             access="edit",
             timeout_seconds=timeout_seconds,
             custom_agent_id=agent_id,
+            auth_method=auth_method,
+            model=model_id,
         )
 
-    return FunctionToolset([run_acp_agent])
+    async def inspect_acp_agent(ctx: RunContext[AgentDeps]) -> str:
+        """Read model and reasoning choices from the registered ACP agent on this account.
+
+        Opens a native-approved session without submitting an inference prompt.
+        Use its exact IDs to configure External model ID. Availability in this
+        catalog does not prove subscription entitlement or remaining quota.
+
+        Returns:
+            JSON with models_exposed, models, current_model, efforts and
+            current_effort, or an explicit connection, login or protocol refusal.
+        """
+        workspace = ctx.workspace.backend if ctx.workspace.attached else None
+        if not isinstance(workspace, DeviceWorkspace):
+            return "Model discovery needs Work on set to This computer with an approved full-access folder."
+        if not workspace.local_coding_allowed:
+            return "Model discovery starts a native ACP program and requires an approved full-access folder. Choose full access explicitly first."
+        await assert_ambient_budget()
+        pipe = DevicePipe(workspace, "custom", custom_agent_id=agent_id)
+        try:
+            root = await workspace.working_dir()
+            await pipe.open()
+            catalog = await inspect_session(
+                pipe,
+                root=root,
+                auth_method=pipe.auth_method or auth_method,
+                timeout_seconds=min(timeout_seconds, 60),
+            )
+            return catalog.model_dump_json()
+        except AcpError as error:
+            return f"ACP model discovery failed: {error.message} Check the program's own login and model access. For Antigravity, run agy acp --login. No alternate billing mode was selected."
+        except (
+            WorkspaceError,
+            DeviceCallFailed,
+            DeviceUnavailable,
+            DeviceCallTimedOut,
+            TimeoutError,
+            OSError,
+        ):
+            return "ACP model discovery failed. Check the Desktop connection, registered command and login. For Antigravity, run agy acp --login in a terminal. No alternate billing mode was selected."
+        finally:
+            record_ambient_usage("external-acp:discovery", RequestUsage())
+
+    return FunctionToolset([run_acp_agent, inspect_acp_agent])

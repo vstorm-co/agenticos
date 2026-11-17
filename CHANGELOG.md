@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Add an Antigravity Desktop setup template with enforced Google personal ACP login, account-specific model discovery and explicit runtime model selection (#3109).
+
 - Register installed ACP agents in Desktop settings and delegate tasks through the External ACP agent capability, with native consent, isolated session identity and revocation (#3130).
 
 - MiniMax models accept vault API or M Plan keys through a separate OpenAI-compatible provider identity, with explicit regional endpoints and tool calling.

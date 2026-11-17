@@ -1,5 +1,5 @@
 ---
-source_sha: "4a21c769afc8"
+source_sha: "585c7355ba27"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3761,3 +3761,5 @@ Die Nutzung wird ohne Preis erfasst. Abonnementberechtigung, Kontingente und
 API-Kosten hängen vom Programmkonto ab. Fehlende Programme, erforderliche Anmeldung,
 nicht unterstützte Protokolle und fehlende Fortsetzungsunterstützung ergeben klare
 Fehler. Die Registrierung bestätigt keine Abonnementberechtigung beim Anbieter.
+
+`inspect_acp_agent` liest Modell- und Denkoptionen des Kontos beziehungsweise der Sitzung ohne Inferenz-Prompt. `auth_method` ist standardmäßig `configured`; `oauth-personal` fordert die persönliche Google-Anmeldung von Antigravity an. Eine Desktop-Antigravity-Registrierung erzwingt diesen Modus. Optionales `model_id` wählt eine genaue Laufzeit-ID. [Antigravity einrichten](../desktop.md#antigravity-acp) beschreibt Abrechnung und ausstehende Kontoprüfung.

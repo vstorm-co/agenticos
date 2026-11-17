@@ -683,6 +683,7 @@ export async function setQuickAskPickerOpen(open: boolean): Promise<void> {
 
 /** An executable registered and confirmed by the owner of this Desktop connection. */
 export interface ExternalAgent {
+  provider: "custom" | "antigravity";
   id: string;
   name: string;
   program: string;
@@ -697,7 +698,11 @@ export function parseExternalAgents(value: unknown): ExternalAgent[] {
   if (!Array.isArray(value)) throw new ShellError("malformed", "external agents");
   return value.map((item: unknown) => {
     const fields = record(item, "an external agent");
+    const provider = fields.provider ?? "custom";
+    if (provider !== "custom" && provider !== "antigravity")
+      throw new ShellError("malformed", "an ACP provider");
     return {
+      provider,
       id: field(fields, "id", isString),
       name: field(fields, "name", isString),
       program: field(fields, "program", isString),

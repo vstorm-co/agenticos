@@ -3381,3 +3381,5 @@ The integration records usage as unpriced; subscription eligibility, quota and
 API charges depend on the program's account. Missing programs, required login,
 unsupported protocol versions and unsupported resume fail explicitly. This
 registration does not certify a vendor's subscription entitlement.
+
+`inspect_acp_agent` reads account/session model and thinking choices without an inference prompt. `auth_method` defaults to `configured`; `oauth-personal` explicitly requests Antigravity Google personal login. A Desktop Antigravity registration enforces that mode. Optional `model_id` selects an exact advertised runtime ID. See [Antigravity setup](../desktop.md#antigravity-acp) for billing boundaries and pending account verification.

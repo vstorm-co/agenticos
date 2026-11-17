@@ -8,9 +8,19 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
 use crate::settings;
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Provider {
+    #[default]
+    Custom,
+    Antigravity,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Registration {
+    #[serde(default)]
+    pub provider: Provider,
     pub id: String,
     pub name: String,
     pub program: String,
@@ -22,6 +32,8 @@ pub struct Registration {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RegistrationInput {
+    #[serde(default)]
+    pub provider: Provider,
     pub id: String,
     pub name: String,
     pub program: String,
@@ -56,7 +68,11 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
     {
         return Err("Use at most 32 arguments of up to 4096 bytes, without control characters. Never put tokens or passwords in arguments.".into());
     }
+    if input.provider == Provider::Antigravity && input.args != ["acp"] {
+        return Err("Antigravity uses the acp command with Google personal sign-in. Register other billing modes as a separate custom agent.".into());
+    }
     Ok(Registration {
+        provider: input.provider,
         id: input.id,
         name: input.name.trim().to_owned(),
         program: input.program,
@@ -79,8 +95,12 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
     let registration = checked(registration)?;
     let before = settings::current(&app).connection_revision;
     let (send, receive) = tokio::sync::oneshot::channel();
+    let billing = match registration.provider {
+        Provider::Antigravity => "Google personal OAuth is required; inherited Gemini API key variables are removed.",
+        Provider::Custom => "The program's own configuration decides subscription or API billing.",
+    };
     app.dialog().message(format!(
-        "Register {} ({})?\n\nProgram: {}\nArguments: {:?}\n\nThis program runs as your account without an OS sandbox. It owns its login, tools, model and charges. Read-only confinement is not guaranteed. Do not include credentials in arguments. Register it again after changing its account to clear saved sessions.",
+        "Register {} ({})?\n\nProgram: {}\nArguments: {:?}\n\n{billing}\n\nThis program runs as your account without an OS sandbox. It owns its login, tools, model and charges. Read-only confinement is not guaranteed. Do not include credentials in arguments. Register it again after changing its account to clear saved sessions.",
         registration.name, registration.id, registration.program, registration.args,
     ))
         .title("Register an external ACP agent?").kind(MessageDialogKind::Warning)
@@ -132,11 +152,34 @@ mod tests {
 
     fn input() -> RegistrationInput {
         RegistrationInput {
+            provider: Provider::Custom,
             id: "my-agent".into(),
             name: "My agent".into(),
             program: std::env::current_exe().unwrap().to_string_lossy().into_owned(),
             args: vec!["acp".into()],
         }
+    }
+
+    #[test]
+    fn antigravity_registration_keeps_personal_login_separate_from_api_modes() {
+        let registered = checked(RegistrationInput {
+            provider: Provider::Antigravity,
+            ..input()
+        })
+        .unwrap();
+        assert_eq!(registered.provider, Provider::Antigravity);
+        assert!(checked(RegistrationInput {
+            provider: Provider::Antigravity,
+            args: vec!["acp".into(), "--dangerously-skip-permissions".into()],
+            ..input()
+        })
+        .is_err());
+        assert!(checked(RegistrationInput {
+            provider: Provider::Antigravity,
+            args: vec!["--api-key".into()],
+            ..input()
+        })
+        .is_err());
     }
 
     #[test]

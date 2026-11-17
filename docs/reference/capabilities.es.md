@@ -1,5 +1,5 @@
 ---
-source_sha: "4a21c769afc8"
+source_sha: "585c7355ba27"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3607,3 +3607,5 @@ El uso se registra sin precio. La elegibilidad de la suscripción, las cuotas y 
 cargos de API dependen de la cuenta del programa. Un ejecutable ausente, un inicio
 de sesión requerido, un protocolo incompatible o una continuación no admitida
 producen errores explícitos. El registro no certifica derechos de suscripción.
+
+`inspect_acp_agent` lee las opciones de modelo y razonamiento de la cuenta/sesión sin prompt de inferencia. `auth_method` usa `configured` por defecto; `oauth-personal` solicita la cuenta personal de Google en Antigravity. El registro Desktop de Antigravity exige ese modo. `model_id` opcional selecciona un ID exacto del entorno. [Configurar Antigravity](../desktop.md#antigravity-acp) describe la facturación y las pruebas de cuenta pendientes.

@@ -1,10 +1,12 @@
 "use client";
 
+import { NativeSelect } from "@/components/ui/native-select";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { SectionCard } from "@/components/settings/settings-section";
 import { Button, Input, Label } from "@/components/ui";
 import { useExternalAgents } from "@/hooks/use-desktop";
+import type { ExternalAgent } from "@/lib/desktop/commands";
 import { getErrorMessage } from "@/lib/api-error";
 
 /** A native confirmation reviews the actual argv before registration is saved. */
@@ -12,6 +14,7 @@ export function ExternalAgentSettings() {
   const t = useTranslations("desktop.settings.externalAgents");
   const tErrors = useTranslations("errors");
   const { state, save, remove } = useExternalAgents();
+  const [provider, setProvider] = useState<ExternalAgent["provider"]>("custom");
   const [id, setId] = useState("");
   const [name, setName] = useState("");
   const [program, setProgram] = useState("");
@@ -59,9 +62,10 @@ export function ExternalAgentSettings() {
           }
           setInvalidArgs(false);
           save.mutate(
-            { id, name, program, args: argv },
+            { provider, id, name, program, args: argv },
             {
               onSuccess: () => {
+                setProvider("custom");
                 setId("");
                 setName("");
                 setProgram("");
@@ -71,6 +75,30 @@ export function ExternalAgentSettings() {
           );
         }}
       >
+        <div>
+          <Label htmlFor="external-agent-provider">{t("provider")}</Label>
+          <NativeSelect
+            id="external-agent-provider"
+            value={provider}
+            onChange={(event) => {
+              const selected = event.target.value === "antigravity" ? "antigravity" : "custom";
+              setProvider(selected);
+              if (selected === "antigravity") {
+                setId("antigravity");
+                // i18n-exempt: product name
+                setName("Antigravity");
+                setArgs('["acp"]');
+              }
+            }}
+          >
+            <option value="custom">{t("custom")}</option>
+            {/* i18n-exempt: product name */}
+            <option value="antigravity">Antigravity</option>
+          </NativeSelect>
+        </div>
+        {provider === "antigravity" && (
+          <p className="text-muted-foreground text-xs">{t("antigravityHelp")}</p>
+        )}
         <div>
           <Label htmlFor="external-agent-id">{t("id")}</Label>
           <Input

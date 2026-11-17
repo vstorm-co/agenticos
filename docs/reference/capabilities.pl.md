@@ -1,5 +1,5 @@
 ---
-source_sha: "4a21c769afc8"
+source_sha: "585c7355ba27"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3505,3 +3505,5 @@ Użycie jest zapisywane jako niewycenione; dostępność subskrypcji, limity i o
 API zależą od konta programu. Brak programu, konieczność logowania, nieobsługiwana
 wersja protokołu i brak obsługi wznowienia kończą się jawnym błędem. Rejestracja
 nie potwierdza uprawnienia do korzystania z subskrypcji dostawcy.
+
+`inspect_acp_agent` odczytuje modele i poziomy reasoning konta/sesji bez promptu do inferencji. `auth_method` domyślnie ma wartość `configured`; `oauth-personal` jawnie wybiera osobiste logowanie Google w Antigravity. Rejestracja Antigravity w Desktop wymusza ten tryb. Opcjonalne `model_id` wybiera dokładne ID modelu środowiska. [Konfiguracja Antigravity](../desktop.md#antigravity-acp) opisuje rozliczenia i oczekujący test konta.

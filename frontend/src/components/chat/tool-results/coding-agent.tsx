@@ -41,6 +41,7 @@ interface CodingReport {
   refused?: string[];
   /** The change set the task left in the sandbox, read by `TaskChanges` (#2480). */
   changes_id?: string;
+  runtime_name?: string;
   account_label?: string;
   base_revision?: string;
   result_archive?: string;
@@ -135,7 +136,11 @@ function Report({ report, fileSource }: { report: CodingReport; fileSource?: Tur
   return (
     <>
       <div className="flex items-center gap-2 text-xs">
-        <span className="text-foreground font-medium">{HARNESS_NAME[report.harness]}</span>
+        <span className="text-foreground font-medium">
+          {typeof report.runtime_name === "string"
+            ? report.runtime_name
+            : HARNESS_NAME[report.harness]}
+        </span>
         <span
           className={cn(
             "rounded-full px-2 py-0.5 font-medium",

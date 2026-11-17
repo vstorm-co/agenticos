@@ -1,5 +1,5 @@
 ---
-source_sha: "26e6c8e99eb7"
+source_sha: "c619b5b062f3"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -771,3 +771,35 @@ Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`.
  Sandbox-Coding-Aufgaben desselben Toolsets laufen nacheinander, damit sich ihre Dateischnappschüsse nicht überschneiden; unabhängige lokale Sitzungen laufen weiterhin parallel.
 
 Eigene installierte ACP-Programme lassen sich unter **Externe ACP-Agenten** registrieren. [Externer ACP-Agent](reference/capabilities.md#external-acp) beschreibt Registrierung, Berechtigungen, Sitzungsidentität und Abrechnungsgrenzen.
+
+## Antigravity über ACP { #antigravity-acp }
+
+Installiere Googles Antigravity CLI und führe `agy acp --login` im Terminal aus.
+Wähle unter **Externe ACP-Agenten** die Vorlage **Antigravity** und trage den
+absoluten Pfad aus `which agy` ein. Die native Registrierung erlaubt das Argument
+`acp` und verlangt die persönliche Google-Anmeldung. Der Kindprozess entfernt
+geerbte Gemini-API-Schlüssel und API-/Vertex-Anmeldeschalter; Tokendateien werden
+nicht kopiert.
+
+Aktiviere im Builder **Externer ACP-Agent** mit der registrierten ID. Die Desktop-
+Registrierung verlangt vor Sitzungsbeginn ACP `oauth-personal`, auch wenn die
+Bindung die Programmeinstellung verwendet. Eine fehlende oder verweigerte
+persönliche Anmeldung führt zum Fehler ohne Wechsel zu einem anderen Konto oder
+zur API-Abrechnung.
+
+Lass den Agenten mit `inspect_acp_agent` die Modell- und Denkauswahl der aktuellen
+Sitzung lesen. Der Katalog sendet keinen Inferenz-Prompt und wird nicht zwischen
+Konten zwischengespeichert. Ein fehlendes Auswahlfeld unterscheidet sich von einer
+leeren Liste. Trage eine zurückgegebene ID unter **Externe Modell-ID** ein; leer
+behält die CLI-Einstellung bei. Eine nicht unterstützte Modellauswahl schlägt fehl.
+
+Dies sind delegierte Aufgaben mit Antigravity-Werkzeugen, getrennt von Gemini-API-
+Modellprofilen. Plattformwerkzeuge werden noch nicht weitergeleitet und die
+primäre Gesprächslaufzeit wird nicht ersetzt. Abonnementnutzung bleibt ohne Preis.
+Google beschränkt einige Fremdmodelle auf bestimmte Clients. AgenticOS identifiziert
+sich mit eigenem Namen und verspricht nur den eigenen Sitzungskatalog.
+
+Anmeldung, Berechtigung, Kontingente, Widerruf und Fortsetzung nach Neustart müssen
+noch mit einem echten Konto abgenommen werden. Der [offizielle ACP-Leitfaden](https://antigravity.google/docs/ide/extensions/acp)
+beschreibt Anmeldung und Clientgrenzen. API-Schlüssel gehören in ein separates
+Gemini-API-Profil oder eine ausdrücklich konfigurierte eigene Registrierung.

@@ -165,3 +165,20 @@ it("names custom ACP reports without claiming a built-in provider", () => {
   expect(screen.getByText("ACP")).toBeInTheDocument();
   expect(screen.getByText("Investigated the module")).toBeInTheDocument();
 });
+
+it("shows the registered external runtime name in its result", () => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({
+        kind: "coding_agent",
+        harness: "custom",
+        runtime_name: "Antigravity",
+        access: "edit",
+        outcome: "completed",
+        answer: "Done",
+      })}
+    />,
+  );
+  expect(screen.getByText("Antigravity")).toBeInTheDocument();
+});
