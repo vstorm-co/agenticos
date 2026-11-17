@@ -301,6 +301,89 @@ class TestTheOriginIsTheOwnersAlone:
         assert titles.await_count == 0
 
 
+class TestTheOwnerListsPersonalSideThreads:
+    async def test_an_archived_source_lists_its_archived_children(self, service, monkeypatch):
+        source = _conversation()
+        source.is_archived = True
+        fork = _conversation(forked_from=source.id)
+        fork.is_archived = True
+        forks = AsyncMock(return_value=([fork], 1))
+        monkeypatch.setattr(service, "get_conversation", AsyncMock(return_value=source))
+        monkeypatch.setattr(conversation_repo, "list_conversation_forks", forks)
+        answer_id = fork.forked_from_message_id
+
+        items, total = await service.list_forks(
+            source.id,
+            organization_id=ORG_ID,
+            user_id=OWNER_ID,
+            ctx=_ctx(),
+            message_id=answer_id,
+            skip=10,
+            limit=25,
+        )
+
+        assert (items, total) == ([fork], 1)
+        assert service.get_conversation.await_args.args == (source.id,)
+        assert service.get_conversation.await_args.kwargs == {
+            "organization_id": ORG_ID,
+            "user_id": OWNER_ID,
+            "include_messages": False,
+            "include_favourite": False,
+            "ctx": _ctx(),
+        }
+        assert forks.await_args.kwargs == {
+            "organization_id": ORG_ID,
+            "owner_id": OWNER_ID,
+            "source_id": source.id,
+            "message_id": answer_id,
+            "skip": 10,
+            "limit": 25,
+        }
+        assert fork.forked_from.conversation_id == source.id
+        assert fork.forked_from.message_id == answer_id
+        assert fork.forked_from.title == source.title
+
+    @pytest.mark.parametrize(
+        ("source_user", "project_id"),
+        [(uuid4(), None), (OWNER_ID, uuid4())],
+        ids=["not-owner", "project-source"],
+    )
+    async def test_another_owners_or_project_source_is_missing(
+        self, service, monkeypatch, source_user, project_id
+    ):
+        source = _conversation(user_id=source_user, project_id=project_id)
+        monkeypatch.setattr(service, "get_conversation", AsyncMock(return_value=source))
+        forks = AsyncMock(return_value=([], 0))
+        monkeypatch.setattr(conversation_repo, "list_conversation_forks", forks)
+
+        with pytest.raises(NotFoundError):
+            await service.list_forks(
+                source.id,
+                organization_id=ORG_ID,
+                user_id=OWNER_ID,
+                ctx=_ctx(),
+            )
+
+        forks.assert_not_awaited()
+
+    async def test_cross_tenant_or_unreadable_source_never_lists_children(self, service, monkeypatch):
+        source_id = uuid4()
+        missing = AsyncMock(side_effect=NotFoundError(message="Conversation not found"))
+        monkeypatch.setattr(service, "get_conversation", missing)
+        forks = AsyncMock(return_value=([], 0))
+        monkeypatch.setattr(conversation_repo, "list_conversation_forks", forks)
+
+        with pytest.raises(NotFoundError):
+            await service.list_forks(
+                source_id,
+                organization_id=ORG_ID,
+                user_id=OWNER_ID,
+                ctx=_ctx(),
+            )
+
+        forks.assert_not_awaited()
+
+
 async def test_a_disappearing_source_does_not_leave_a_partial_copy(service, monkeypatch):
     source = _conversation()
     answer = _message(source)

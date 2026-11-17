@@ -909,6 +909,12 @@ An eligible summary's externalized text and media are restored into the copy, so
 
 A conversation with a saved checklist can be forked only at its latest message, which must be an assistant answer. The fork keeps that checklist, including task IDs and dependencies. Earlier checklist snapshots are not stored, so an earlier fork is refused rather than copying later tasks into an older history.
 
+### Side threads { #chat-side-threads }
+
+On a completed assistant answer in a personal conversation you own, **Side threads** lets you start a separate conversation from that point or reopen an existing branch from the same answer. The child opens beside the parent with its own composer and subsequent messages. The parent's transcript, draft and queued messages stay in place; messages sent in the child belong to the child.
+
+**Back to parent conversation** closes the side panel and opens the exact source answer, loading older history if necessary. Closing the panel keeps the child saved. Switching the source conversation, account or organization removes the old panel. Archived children open read-only. The list can load more branches from this answer, and a failed read or creation offers another attempt without switching the main conversation.
+
 ### Finding a message { #chat-message-search }
 
 Use **Search conversations** in the chat sidebar. **Message text** searches conversations you can read in the active organization and shows the best matching message in each result, with an excerpt and its time. Narrow the query if the first twenty conversations do not include the one you need. Choose **Conversation title** to search titles, including archived conversations.

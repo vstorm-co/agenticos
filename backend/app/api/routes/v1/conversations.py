@@ -32,6 +32,8 @@ from app.schemas.coding_task_change import CodingTaskChangeRead
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationForkCreate,
+    ConversationForkList,
+    ConversationForkRead,
     ConversationList,
     ConversationRead,
     ConversationReadWithMessages,
@@ -377,6 +379,32 @@ async def get_conversation(
     )
 
     return conversation if include_messages else ConversationRead.model_validate(conversation)
+
+
+@router.get("/{conversation_id}/forks", response_model=ConversationForkList)
+async def list_conversation_forks(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+    message_id: UUID | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+) -> Any:
+    """List the caller's personal child conversations, including archived ones."""
+    items, total = await conversation_service.list_forks(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        ctx=ctx,
+        message_id=message_id,
+        skip=skip,
+        limit=limit,
+    )
+    return ConversationForkList(
+        items=[ConversationForkRead.model_validate(item) for item in items], total=total
+    )
 
 
 @router.post(

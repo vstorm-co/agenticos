@@ -65,6 +65,8 @@ import { LocalAccessDialog } from "./local-access-dialog";
 import { useComputerAccessOnUse, useLocalAccessGate } from "@/hooks/use-local-access-gate";
 import { CompactionNotice } from "./compaction-notice";
 import { ForkedFrom } from "./forked-from";
+import type { ConversationSideThreadActions } from "./conversation-side-threads";
+import { PersonalSideThreadPanel } from "./personal-side-thread-panel";
 import { ConversationAccessNotice } from "./conversation-access-notice";
 import { useConversationAccess, useSharedConversation } from "@/hooks/use-conversation-shares";
 import { SandboxPreparingNotice } from "./sandbox-preparing-notice";
@@ -92,6 +94,10 @@ import type {
 } from "@/types";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { latestUsage } from "@/lib/message-usage";
+import {
+  createConversationSideThread,
+  type ConversationForkRead,
+} from "@/lib/conversation-forks-api";
 import { dockedPlan } from "@/lib/plan-state";
 import {
   useAgentSelectionStore,
@@ -1016,6 +1022,49 @@ export function ChatContainer({
   const openId = forkableConversation?.id;
   const forking = useRef(false);
   const [forkingMessageId, setForkingMessageId] = useState<string | null>(null);
+  const [activeSideThread, setActiveSideThread] = useState<{
+    scopeKey: string;
+    sourceConversationId: string;
+    fork: ConversationForkRead;
+  } | null>(null);
+  const [creatingSideThread, setCreatingSideThread] = useState<{
+    scopeKey: string;
+    messageId: string;
+  } | null>(null);
+  const sideThreadScopeKey = JSON.stringify([tenantId, meId ?? null, openId ?? null]);
+  const sideThreadScopeRef = useRef(sideThreadScopeKey);
+  const sideThreadRequestRef = useRef<object | null>(null);
+  const [sideThreadScopeState, setSideThreadScopeState] = useState(sideThreadScopeKey);
+  if (sideThreadScopeState !== sideThreadScopeKey) {
+    setSideThreadScopeState(sideThreadScopeKey);
+    setCreatingSideThread(null);
+    setActiveSideThread(null);
+  }
+  useLayoutEffect(() => {
+    sideThreadScopeRef.current = sideThreadScopeKey;
+    sideThreadRequestRef.current = null;
+    return () => {
+      sideThreadScopeRef.current = "";
+      sideThreadRequestRef.current = null;
+    };
+  }, [sideThreadScopeKey]);
+  const creatingSideThreadMessageId =
+    creatingSideThread?.scopeKey === sideThreadScopeKey ? creatingSideThread.messageId : null;
+  const canUsePersonalSideThreads = Boolean(
+    openId &&
+    tenantId &&
+    meId &&
+    ownsOpenConversation &&
+    access.known &&
+    !isArchived &&
+    roomProjectId === null &&
+    forkableConversation?.project_id == null,
+  );
+  const visibleSideThread =
+    canUsePersonalSideThreads && activeSideThread?.scopeKey === sideThreadScopeKey
+      ? activeSideThread
+      : null;
+
   const handleFork = useCallback(
     async (messageId: string) => {
       if (openId === undefined || forking.current) return;
@@ -1030,6 +1079,65 @@ export function ChatContainer({
     },
     [forkConversation, openId],
   );
+
+  const handleCreateSideThread = useCallback(
+    async (messageId: string) => {
+      if (
+        !canUsePersonalSideThreads ||
+        openId === undefined ||
+        sideThreadRequestRef.current !== null
+      ) {
+        throw new Error("Side thread cannot be created in this conversation");
+      }
+      const request = {};
+      const scopeKey = sideThreadScopeKey;
+      sideThreadRequestRef.current = request;
+      setCreatingSideThread({ scopeKey, messageId });
+      try {
+        const fork = await createConversationSideThread(openId, messageId);
+        if (sideThreadRequestRef.current !== request || sideThreadScopeRef.current !== scopeKey) {
+          return;
+        }
+        if (
+          fork.forked_from.conversation_id !== openId ||
+          fork.forked_from.message_id !== messageId
+        ) {
+          throw new Error("Side thread response does not match its source answer");
+        }
+        setActiveSideThread({ scopeKey, sourceConversationId: openId, fork });
+      } finally {
+        if (sideThreadRequestRef.current === request) {
+          sideThreadRequestRef.current = null;
+          setCreatingSideThread((previous) => (previous?.scopeKey === scopeKey ? null : previous));
+        }
+      }
+    },
+    [canUsePersonalSideThreads, openId, sideThreadScopeKey],
+  );
+  const handleOpenSideThread = useCallback(
+    (messageId: string, fork: ConversationForkRead) => {
+      if (
+        !canUsePersonalSideThreads ||
+        openId === undefined ||
+        sideThreadScopeRef.current !== sideThreadScopeKey ||
+        fork.forked_from.conversation_id !== openId ||
+        fork.forked_from.message_id !== messageId
+      ) {
+        return;
+      }
+      setActiveSideThread({ scopeKey: sideThreadScopeKey, sourceConversationId: openId, fork });
+    },
+    [canUsePersonalSideThreads, openId, sideThreadScopeKey],
+  );
+  const sideThreadActions: ConversationSideThreadActions | undefined =
+    canUsePersonalSideThreads && openId
+      ? {
+          sourceConversationId: openId,
+          creatingMessageId: creatingSideThreadMessageId,
+          onCreate: handleCreateSideThread,
+          onOpen: handleOpenSideThread,
+        }
+      : undefined;
 
   // A prompt handed in from outside - a bubble the reader clicked in the
   // widget - goes out once the socket can carry it, and only once.
@@ -1070,6 +1178,7 @@ export function ChatContainer({
     <>
       <LocalAccessDialog />
       <ChatUI
+        sideThreadActions={sideThreadActions}
         roomProjectId={roomProjectId}
         roomReadOnly={isArchived || !access.known}
         threadRootId={threadRootId}
@@ -1223,11 +1332,26 @@ export function ChatContainer({
         incomingFiles={incomingFiles ?? sharedHere}
         onVisualReport={reportVisual}
       />
+      {visibleSideThread && (
+        <PersonalSideThreadPanel
+          key={`${visibleSideThread.scopeKey}:${visibleSideThread.fork.id}`}
+          sourceConversationId={visibleSideThread.sourceConversationId}
+          fork={visibleSideThread.fork}
+          onClose={() => setActiveSideThread(null)}
+          onOpenParent={(target) => {
+            setActiveSideThread(null);
+            if (onOpenParent) onOpenParent(target);
+            else if (target.conversationId !== currentConversationId)
+              void selectConversation(target.conversationId);
+          }}
+        />
+      )}
     </>
   );
 }
 
 interface ChatUIProps {
+  sideThreadActions?: ConversationSideThreadActions;
   roomProjectId: string | null;
   roomReadOnly: boolean;
   threadRootId: string | null;
@@ -1383,6 +1507,7 @@ interface ChatUIProps {
 }
 
 function ChatUI({
+  sideThreadActions,
   roomProjectId,
   roomReadOnly,
   threadRootId,
@@ -1974,6 +2099,7 @@ function ChatUI({
                     <MessageList
                       messages={messages}
                       delegations={delegations}
+                      sideThreadActions={sideThreadActions}
                       onRegenerate={onRegenerate}
                       onFork={onFork}
                       forkingMessageId={forkingMessageId}

@@ -293,6 +293,8 @@ export default defineConfig({
         "src/components/chat/message-list.tsx",
         "src/components/chat/message-jump-notice.tsx",
         "src/components/chat/conversation-search-dialog.tsx",
+        "src/components/chat/conversation-side-threads.tsx",
+        "src/components/chat/personal-side-thread-panel.tsx",
         "src/components/chat/pending-messages.tsx",
         "src/components/chat/plan-checklist.tsx",
         "src/components/chat/plan-strip.tsx",

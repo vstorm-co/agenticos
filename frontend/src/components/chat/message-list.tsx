@@ -12,11 +12,13 @@ import { dayLabel, startsADay } from "@/lib/day-separator";
 import type { AskedBefore } from "@/components/datasets/follows-on";
 import type { ChatMessage, TurnUsage, Delegation, MessageReply } from "@/types";
 import type { PinnedPrompts } from "./chat-container";
+import type { ConversationSideThreadActions } from "./conversation-side-threads";
 import { MessageItem } from "./message-item";
 
 interface MessageListProps {
   messages: ChatMessage[];
   delegations?: Delegation[];
+  sideThreadActions?: ConversationSideThreadActions;
   onRegenerate?: (messageId: string) => void;
   /** Fork the conversation at this answer; absent where the reader may not (#2762). */
   onFork?: (messageId: string) => void;
@@ -241,6 +243,7 @@ export function layoutMessages(messages: ChatMessage[]): MessageLayout[] {
 export function MessageList({
   messages: sourceMessages,
   delegations,
+  sideThreadActions,
   onRegenerate,
   onFork,
   forkingMessageId = null,
@@ -322,6 +325,7 @@ export function MessageList({
             agents={agents}
             asked={askedBefore(messages, index)}
             request={pins ? undefined : row.request}
+            sideThreadActions={sideThreadActions}
             onFork={onFork}
             onOpenThread={onOpenThread}
             canStartThread={canStartThread}

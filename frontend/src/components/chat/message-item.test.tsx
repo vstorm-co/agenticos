@@ -12,11 +12,31 @@ import { useWorkingStore } from "@/stores/working-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { Agent } from "@/types/agents";
 import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall, TurnUsage } from "@/types";
+import type { ConversationForkRead } from "@/lib/conversation-forks-api";
+import type { ConversationSideThreadActions } from "./conversation-side-threads";
+
+type SideThreadComponentProps = {
+  sourceConversationId: string;
+  messageId: string;
+  creatingMessageId?: string | null;
+  onCreate: ConversationSideThreadActions["onCreate"];
+  onOpen: (fork: ConversationForkRead) => void;
+};
+
+const sideThreadRender = vi.hoisted(() => ({
+  render: vi.fn<(props: SideThreadComponentProps) => void>(),
+}));
 
 // The MCP connections a step is named from. `MessageItem` reads them once per turn
 // and hands them to each step, so a public surface can render the same step without
 // a session - the fetch would need one, and a query client to run it in.
 vi.mock("@/hooks", () => ({ useMcpToolServers: () => [] }));
+vi.mock("./conversation-side-threads", () => ({
+  ConversationSideThreads: (props: SideThreadComponentProps) => {
+    sideThreadRender.render(props);
+    return null;
+  },
+}));
 vi.mock("@/components/artifacts/artifact-thumbnail", () => ({
   ArtifactThumbnail: ({ title }: { title: string }) => <span>thumbnail of {title}</span>,
 }));
@@ -125,6 +145,7 @@ function item(
     endsTurn?: boolean;
     turnUsage?: TurnUsage;
     pins?: { pinned: readonly string[]; toggle: (prompt: string) => void };
+    sideThreadActions?: ConversationSideThreadActions;
   } = {},
 ) {
   return render(<MessageItem message={message(overrides)} {...props} />);
@@ -1043,6 +1064,55 @@ describe("the footer", () => {
     // Not the owner's thread: the container passes no handler.
     item();
     expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
+  });
+
+  it("anchors a side thread to the persisted row after a streamed id alias", async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const onOpen = vi.fn();
+    const actions: ConversationSideThreadActions = {
+      sourceConversationId: "source-1",
+      creatingMessageId: null,
+      onCreate,
+      onOpen,
+    };
+    const child: ConversationForkRead = {
+      id: "side-1",
+      title: "Alternate path",
+      created_at: "2026-11-17T12:00:00Z",
+      updated_at: null,
+      is_archived: false,
+      forked_from: {
+        conversation_id: "source-1",
+        message_id: "saved-answer",
+        title: "Main",
+      },
+    };
+
+    const { unmount } = item(
+      {
+        id: "local-stream-id",
+        persistedId: "saved-answer",
+        isTemporaryId: true,
+        isStreaming: false,
+      },
+      { sideThreadActions: actions },
+    );
+
+    expect(sideThreadRender.render).toHaveBeenCalledOnce();
+    const sideThreadProps = sideThreadRender.render.mock.calls[0]![0];
+    expect(sideThreadProps.messageId).toBe("saved-answer");
+    await sideThreadProps.onCreate(sideThreadProps.messageId);
+    sideThreadProps.onOpen(child);
+    expect(onCreate).toHaveBeenCalledWith("saved-answer");
+    expect(onOpen).toHaveBeenCalledWith("saved-answer", child);
+    unmount();
+
+    sideThreadRender.render.mockClear();
+    item(
+      { id: "unsaved-stream-id", isTemporaryId: true, isStreaming: false },
+      { sideThreadActions: actions },
+    );
+    expect(sideThreadRender.render).not.toHaveBeenCalled();
   });
 
   it("never offers a fork of a person's message, a system note or an answer not yet saved", () => {

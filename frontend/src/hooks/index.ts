@@ -22,6 +22,7 @@ export {
   useRevertCodingChanges,
 } from "./use-coding-changes";
 export { useConversationWorkspace } from "./use-conversation-workspace";
+export { useConversationForks } from "./use-conversation-forks";
 export { useConversationMessageSearch } from "./use-conversation-message-search";
 export { useConversationSearch, useConversations } from "./use-conversations";
 export { useConversationShares } from "./use-conversation-shares";

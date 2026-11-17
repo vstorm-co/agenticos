@@ -302,6 +302,7 @@ describe("stepsForPage", () => {
     expect(stepsForPage(ROUTES.CHAT, () => true).map((step) => step.id)).toEqual([
       "chat-start",
       "chat-message-search",
+      "chat-side-threads",
       "chat-agent-picker",
       "chat-composer",
       "chat-send-mode",

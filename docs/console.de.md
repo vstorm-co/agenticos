@@ -1,5 +1,5 @@
 ---
-source_sha: "494af57c16d6"
+source_sha: "4e14aeb9974b"
 ---
 
 # Die Konsole { #the-console }
@@ -1018,6 +1018,12 @@ Gespeicherte Abzweigungen haben ein eigenes Kontingent von 100 MiB pro Mitglied 
 Ausgelagerter Text und Medien einer übernommenen Zusammenfassung werden in die Kopie eingebettet. Das Löschen des Originals entfernt diesen Kontext daher nicht. Die wiederhergestellten Inhalte zählen zum Limit von 20 MiB. Die Wiederherstellung ist auf 100 externe Verweise und zehn Sekunden begrenzt. Fehlende Inhalte oder überschrittene Grenzen führen zur Ablehnung ohne unvollständige Kopie.
 
 Eine Unterhaltung mit einer gespeicherten Checkliste kann nur an ihrer neuesten Nachricht abgezweigt werden, wenn diese eine Antwort des Assistenten ist. Die Kopie behält diese Checkliste einschließlich Aufgaben-IDs und Abhängigkeiten. Frühere Checklistenstände werden nicht gespeichert; eine frühere Abzweigung wird daher abgelehnt, statt spätere Aufgaben in einen älteren Verlauf zu kopieren.
+
+### Nebenstränge { #chat-side-threads }
+
+Bei einer abgeschlossenen Assistentenantwort in einer eigenen persönlichen Unterhaltung können Sie über **Nebenstränge** eine separate Unterhaltung ab diesem Punkt beginnen oder einen vorhandenen Zweig derselben Antwort öffnen. Der Zweig erscheint neben dem Ursprung mit einem eigenen Eingabefeld und weiteren Nachrichten. Verlauf, Entwurf und Warteschlange der ursprünglichen Unterhaltung bleiben erhalten; im Zweig gesendete Nachrichten gehören zum Zweig.
+
+**Zurück zur ursprünglichen Unterhaltung** schließt das Seitenpanel und öffnet die genaue Ausgangsantwort. Ältere Nachrichten werden bei Bedarf nachgeladen. Das Schließen löscht den Zweig nicht. Ein Wechsel der Ausgangsunterhaltung, des Kontos oder der Organisation entfernt das alte Panel. Archivierte Zweige öffnen sich schreibgeschützt. Die Liste kann weitere Zweige dieser Antwort laden; fehlgeschlagene Lese- oder Erstellungsvorgänge lassen sich ohne Wechsel der Hauptunterhaltung wiederholen.
 
 ### Eine Nachricht finden { #chat-message-search }
 

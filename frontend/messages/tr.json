@@ -8159,6 +8159,10 @@
         "title": "Sıraya al veya yönlendir",
         "body": "Ajan çalışırken sonraki mesajını sıraya al veya geçerli turu düz metinle yönlendir. Dosyalar ve diğer bağlam normal sırada kalır."
       },
+      "chat-side-threads": {
+        "title": "Bir yan konuşma açın",
+        "body": "Bu yanıttan ayrı bir konuşma başlatın veya mevcut bir dalı ana konuşmanın yanında açın. Ana konuşmaya dön seçeneği tam kaynak mesaja götürür."
+      },
       "chat-message-search": {
         "title": "Sohbetler arasında mesaj bul",
         "body": "Okuyabildiğin sohbetlerde mesaj metni ara veya başlık aramasını seç. Eski geçmiş ve oda yanıtları dahil, sonucu seçerek ilgili mesajı aç."
@@ -8887,6 +8891,21 @@
       "failed": "Seçilen mesaj yüklenemedi. Tekrar deneyin.",
       "unavailable": "Bu mesaj artık bu sohbette kullanılamıyor.",
       "cancel": "Mesaja gitmeyi iptal et"
+    },
+    "sideThreads": {
+      "loadMore": "Daha fazla yükle",
+      "untitledFork": "Başlıksız yan sohbet",
+      "title": "Yan sohbetler",
+      "start": "Yan sohbet başlat",
+      "open": "Yan sohbeti aç",
+      "backToParent": "Ana sohbete dön",
+      "loading": "Yan sohbet yükleniyor…",
+      "empty": "Bu mesaj için henüz yan sohbet yok.",
+      "error": "Yan sohbetler yüklenemedi.",
+      "retry": "Tekrar dene",
+      "archived": "Arşivlendi",
+      "close": "Yan sohbeti kapat",
+      "createFailed": "Yan sohbet başlatılamadı."
     },
     "trace": {
       "toggle": "Etkinliği ara ve filtrele",

@@ -1545,6 +1545,45 @@ async def owned_titles(
     return dict(result.tuples().all())
 
 
+async def list_conversation_forks(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    owner_id: UUID,
+    source_id: UUID,
+    message_id: UUID | None = None,
+    skip: int = 0,
+    limit: int = 100,
+) -> tuple[list[Conversation], int]:
+    """Personal, same-tenant child conversations of one owned source.
+
+    Archived children stay in the result so their owner can reopen them read-only.
+    Owner, tenant, source and personal scope all remain in SQL; a caller-supplied
+    source id cannot widen the set beyond the parent the service authorized.
+    """
+    filters = (
+        Conversation.organization_id == organization_id,
+        Conversation.user_id == owner_id,
+        Conversation.forked_from_conversation_id == source_id,
+        Conversation.project_id.is_(None),
+        *([Conversation.forked_from_message_id == message_id] if message_id is not None else []),
+    )
+    total = await db.scalar(select(func.count()).select_from(Conversation).where(*filters)) or 0
+    rows = (
+        await db.scalars(
+            select(Conversation)
+            .where(*filters)
+            .order_by(
+                func.coalesce(Conversation.updated_at, Conversation.created_at).desc(),
+                Conversation.id.desc(),
+            )
+            .offset(skip)
+            .limit(limit)
+        )
+    ).all()
+    return list(rows), total
+
+
 async def ensure_workflow_conversation(
     db: AsyncSession,
     *,

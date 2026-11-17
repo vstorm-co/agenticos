@@ -39,6 +39,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Chat side threads open a separate saved conversation from a completed answer beside its parent. Existing branches can be reopened, archived children remain read-only, and Back to parent returns to the source message without replacing the parent's draft or queue.
+
 - Chat message search across accessible conversations, with readable excerpts, a title-search mode, and exact links that load older messages or room-thread replies without losing the reader's place.
 
 - Chat activity search and filters: find text in a turn's reasoning, messages, tool arguments and results; show tools, reasoning, errors or messages while steps awaiting your input remain visible.

@@ -1275,6 +1275,21 @@
       "unavailable": "Diese Nachricht ist in diesem Gespräch nicht mehr verfügbar.",
       "cancel": "Sprung abbrechen"
     },
+    "sideThreads": {
+      "loadMore": "Mehr laden",
+      "untitledFork": "Nebenstrang ohne Titel",
+      "title": "Nebenstränge",
+      "start": "Nebenstrang starten",
+      "open": "Nebenstrang öffnen",
+      "backToParent": "Zurück zum ursprünglichen Gespräch",
+      "loading": "Nebenstrang wird geladen…",
+      "empty": "Für diese Nachricht gibt es noch keine Nebenstränge.",
+      "error": "Nebenstränge konnten nicht geladen werden.",
+      "retry": "Erneut versuchen",
+      "archived": "Archiviert",
+      "close": "Nebenstrang schließen",
+      "createFailed": "Nebenstrang konnte nicht gestartet werden."
+    },
     "trace": {
       "toggle": "Aktivität durchsuchen und filtern",
       "title": "Aktivität dieses Durchlaufs durchsuchen",
@@ -5201,6 +5216,10 @@
       "chat-send-mode": {
         "title": "Einreihen oder lenken",
         "body": "Während ein Agent arbeitet, kannst du die nächste Nachricht einreihen oder den laufenden Durchlauf mit einfachem Text lenken. Dateien und weiterer Kontext bleiben in der normalen Warteschlange."
+      },
+      "chat-side-threads": {
+        "title": "Einen Nebenstrang erkunden",
+        "body": "Starten Sie aus dieser Antwort eine eigene Unterhaltung oder öffnen Sie einen vorhandenen Zweig neben dem Ursprung. Zurück führt zur genauen Ausgangsnachricht."
       },
       "chat-message-search": {
         "title": "Nachrichten in Gesprächen finden",
