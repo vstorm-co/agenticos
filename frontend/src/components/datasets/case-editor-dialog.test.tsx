@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UnsavedChangesGuard } from "@/components/layout/unsaved-changes-guard";
 import { ApiError } from "@/lib/api-error";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
+import { copyKey, readCopies } from "@/lib/unsaved-copies";
 import { announceChange } from "@/lib/live-updates";
 import { CaseEditorDialog } from "./case-editor-dialog";
 import { DEFAULT_SCORING } from "@/lib/scoring";
@@ -812,4 +813,76 @@ it("adopts remote case details visibly and keeps the adopted edit clean", async 
   expect(useUnsavedChangesStore.getState().sources).toEqual({});
   await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
   expect(close).toHaveBeenCalledWith(false);
+});
+
+it("explains a remotely deleted case, keeps the local copy, and reconciles after retry", async () => {
+  const save = vi.fn();
+  const retry = vi.fn();
+  const missing = new ApiError(404, "Case no longer exists");
+  const view = (input: string, fetchedAt: number, error: Error | null = null) => (
+    <CaseEditorDialog
+      open
+      onOpenChange={vi.fn()}
+      initial={draftOf(STORED)}
+      onSave={save}
+      title="Case"
+      localCopy={{ key: copyKey("deletion-org", "d1", "case:c1"), base: 1 }}
+      remote={{ datasetId: "d1", stored: { ...draftOf(STORED), input }, fetchedAt, error, retry }}
+    />
+  );
+  const { rerender } = render(view(STORED.input, 1));
+  await userEvent.type(screen.getByRole("textbox", { name: "User message" }), " Local change");
+  act(() =>
+    announceChange({
+      organization_id: "org-1",
+      resource: "dataset",
+      id: "d1",
+      action: "updated",
+      surface: "console",
+      actor_user_id: "other",
+      actor_name: "Ada",
+      origin_tab: "another-tab",
+    }),
+  );
+  // TanStack retains both cached data and its old success timestamp on a 404.
+  rerender(view(STORED.input, 1, missing));
+  expect(screen.getByRole("alert")).toHaveTextContent("Case no longer exists");
+  expect(screen.getByRole("textbox", { name: "User message" })).toHaveValue(
+    `${STORED.input} Local change`,
+  );
+  expect(screen.getByRole("button", { name: "Save case" })).toBeDisabled();
+  const sources = Object.values(useUnsavedChangesStore.getState().sources);
+  expect(sources).toHaveLength(1);
+  expect(sources[0]?.save).toBeUndefined();
+  expect(readCopies("deletion-org", "d1")).toHaveLength(1);
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(retry).toHaveBeenCalledOnce();
+  rerender(view("Restored remote question", 2));
+  expect(screen.queryByText("Case no longer exists")).toBeNull();
+  expect(screen.getByText(/Ada changed this/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Reload" }));
+  expect(screen.getByRole("textbox", { name: "User message" })).toHaveValue(
+    "Restored remote question",
+  );
+  expect(screen.getByRole("button", { name: "Save case" })).toBeEnabled();
+  expect(save).not.toHaveBeenCalled();
+});
+
+it("shows a missing case in the details sheet even without a retry callback", () => {
+  render(
+    <CaseEditorDialog
+      open
+      onOpenChange={vi.fn()}
+      initial={draftOf(STORED)}
+      viewing={STORED}
+      title="Case"
+      remote={{
+        datasetId: "d1",
+        stored: draftOf(STORED),
+        fetchedAt: 1,
+        error: new ApiError(404, "Case no longer exists"),
+      }}
+    />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("Case no longer exists");
 });

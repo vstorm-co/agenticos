@@ -41,11 +41,12 @@ import {
   SheetClose,
   Textarea,
 } from "@/components/ui";
+import { ErrorState } from "@/components/states";
 import { RemoteChangeBanner } from "@/components/live-updates/remote-change-banner";
 import { CodeArea } from "@/components/ui/code-area";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
-import { submitFailure } from "@/lib/api-error";
+import { getErrorMessage, submitFailure } from "@/lib/api-error";
 import { DIALOG_BODY, DIALOG_BROAD, DIALOG_COLUMN } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
@@ -104,7 +105,13 @@ interface CaseEditorDialogProps {
    * The stored case as its dataset is read now, for an edit to notice a change saved
    * elsewhere: adopted when nothing is edited here, asked about when something is.
    */
-  remote?: { datasetId: string; stored: CaseDraft | undefined; fetchedAt: number };
+  remote?: {
+    datasetId: string;
+    stored: CaseDraft | undefined;
+    fetchedAt: number;
+    error?: Error | null;
+    retry?: () => void;
+  };
 }
 
 /** What a kept copy of an unsaved case edit holds. */
@@ -236,6 +243,7 @@ export function CaseEditorDialog({
 }: CaseEditorDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
+  const tc = useTranslations("common");
   const [draft, setDraft] = useState(startFrom?.draft ?? initial);
   const [baseline, setBaseline] = useState(initial);
   const [errors, setErrors] = useState<Partial<Record<CaseField, string>>>({});
@@ -263,6 +271,14 @@ export function CaseEditorDialog({
       setJson(null);
     },
   });
+  const remoteError = remote?.error;
+  const held = elsewhere.held || remoteError != null;
+  const remoteFailure = remoteError ? (
+    <ErrorState
+      description={getErrorMessage(remoteError, tErrors)}
+      cta={remote?.retry ? { label: tc("retry"), onClick: remote.retry } : undefined}
+    />
+  ) : null;
   const readOnly = onSave === undefined || !editing;
   const changed =
     !readOnly && (json !== null || JSON.stringify(draft) !== JSON.stringify(baseline));
@@ -278,8 +294,7 @@ export function CaseEditorDialog({
   const { forget } = useUnsavedChanges(source, {
     dirty: changed,
     // Only a case that would save as it stands can be saved on the way out.
-    save:
-      onSave === undefined || missing !== null || elsewhere.held ? undefined : () => save(onSave),
+    save: onSave === undefined || missing !== null || held ? undefined : () => save(onSave),
     discard: () => onOpenChange(false),
     copy: localCopy && { ...localCopy, value: { draft, json } satisfies CaseCopy },
   });
@@ -331,7 +346,7 @@ export function CaseEditorDialog({
     onSave: (content: DatasetCaseContent) => Promise<unknown>,
     anyway: boolean = repeat,
   ): Promise<boolean> {
-    if (saving || elsewhere.held) return false;
+    if (saving || held) return false;
     let content: DatasetCaseContent | null;
     if (json !== null) {
       content = parsed();
@@ -407,6 +422,7 @@ export function CaseEditorDialog({
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-8 sm:py-8">
+              {remoteFailure}
               <CaseView content={{ ...viewing, ...(contentOf(draft).content ?? {}) }} />
             </div>
           </div>
@@ -432,7 +448,8 @@ export function CaseEditorDialog({
           </DialogDescription>
         </DialogHeader>
         <div className={DIALOG_BODY}>
-          {elsewhere.conflict && (
+          {remoteFailure}
+          {!remoteError && elsewhere.conflict && (
             <RemoteChangeBanner
               change={elsewhere.conflict}
               onReload={elsewhere.reload}
@@ -709,7 +726,7 @@ export function CaseEditorDialog({
               data-tour="case-save"
               loading={saving}
               onClick={() => void save(onSave)}
-              disabled={saving || missing !== null || elsewhere.held}
+              disabled={saving || missing !== null || held}
             >
               <Save className="size-4" aria-hidden />
               {saveLabel ?? t("saveCase")}
