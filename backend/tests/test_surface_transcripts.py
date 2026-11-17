@@ -641,7 +641,7 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
 
         assert kept.await_args.kwargs["expected_revision"] == 7
 
-    async def test_a_turn_that_summarised_nothing_writes_nothing(self) -> None:
+    async def test_an_ordinary_turn_also_checkpoints_its_model_history(self) -> None:
         session = _widget_session(_db())
         run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
 
@@ -655,7 +655,7 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             service.return_value.keep_plan = AsyncMock()
             await session._answer("What's your refund window?")
 
-        service.return_value.keep_summary.assert_not_awaited()
+        service.return_value.keep_summary.assert_awaited_once()
 
     async def test_what_a_request_carries_is_recorded_on_every_turn(self) -> None:
         """Not only a summarising one: it is what the next turn needs before it

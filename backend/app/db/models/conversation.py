@@ -128,15 +128,11 @@ class Conversation(Base, TimestampMixin):
     list with that label, and filterable out of it."""
 
     summary_messages: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
-    """The history as the model last saw it, after a summary replaced part of it.
+    """The latest bounded model-history checkpoint, including tool discovery.
 
-    Compaction reaches the messages of one run. Rebuilt from the transcript next
-    turn, the summary is thrown away and bought again over a history one turn
-    longer - which is what two consecutive turns of a real conversation did here
-    (#49). Serialised the way a parked run's messages are, so tool calls, their
-    returns and the provider usage each answer carried all survive the boundary.
-
-    Null until a summary has run, which for most conversations is for ever.
+    The historical column name also holds ordinary completed turns. Compaction
+    reduces the same history; parked runs keep their separate resume state.
+    Null for conversations predating checkpoints until a turn completes.
     """
 
     guardrail_revision: Mapped[int] = mapped_column(

@@ -78,7 +78,9 @@ from app.services.message_history import (
     REFUSED_TURN,
     HistoryMessage,
     ModelHistory,
+    bounded_model_history,
     build_message_history,
+    history_for_storage,
 )
 
 logger = logging.getLogger(__name__)
@@ -254,15 +256,10 @@ class ConversationService:
     ) -> ModelHistory:
         """The thread as the model should read it, summary included.
 
-        Two halves where a summary has run: the history it reduced the older
-        turns to, replayed exactly as the model last saw it - tool calls, their
-        returns and the provider usage each answer carried - followed by the
-        transcript rows written since. One half where none has, which is the
-        recent window and what every surface did before (#49).
-
-        Rebuilding from the transcript alone is what made a summary a per-turn
-        purchase: the next turn saw the whole thread again, compacted it again,
-        and paid again over a history one turn longer.
+        A completed turn's structured checkpoint is followed by transcript rows
+        written since its frontier. Older conversations without a checkpoint
+        still use the recent transcript window. Both paths retain the existing
+        refusal fence, and the checkpoint has a hard message and byte ceiling.
 
         `exclude_message_id` is the turn being answered. The prompt is written
         before the run so a refusal cannot lose it, so it is a row by the time
@@ -293,7 +290,7 @@ class ConversationService:
                 conversation_id=conversation_id,
             )
         try:
-            replayed = ModelMessagesTypeAdapter.validate_python(summary)
+            replayed = history_for_storage(ModelMessagesTypeAdapter.validate_python(summary))
         except ValidationError:
             # A shape `pydantic-ai` no longer reads. The blob is written by the
             # library and read back turns later, so a version this deployment
@@ -319,7 +316,9 @@ class ConversationService:
             *build_message_history(_as_history(since, exclude_message_id, spoken)),
         ]
         return ModelHistory(
-            await self._restore_capability_loads(history, since, exclude_message_id),
+            bounded_model_history(
+                await self._restore_capability_loads(history, since, exclude_message_id)
+            ),
             revision=revision,
         )
 
@@ -334,7 +333,9 @@ class ConversationService:
         rows = await conversation_repo.get_recent_messages(self.db, conversation_id, limit=limit)
         spoken = await self._spoken(rows, conversation)
         history = build_message_history(_as_history(rows, exclude_message_id, spoken))
-        return await self._restore_capability_loads(history, rows, exclude_message_id)
+        return bounded_model_history(
+            await self._restore_capability_loads(history, rows, exclude_message_id)
+        )
 
     async def _restore_capability_loads(
         self, history: list[ModelMessage], rows: Sequence[Message], exclude_message_id: UUID | None
@@ -503,8 +504,9 @@ class ConversationService:
         messages: list[dict[str, Any]],
         *,
         expected_revision: int | None,
+        through_message_id: str | None = None,
     ) -> None:
-        """Write down the history a summary reduced this conversation to.
+        """Checkpoint a completed turn, using the existing summary storage columns.
 
         Called once a turn's rows are written, so the ordinal it records covers
         the answer as well as the question - which is what stops the next turn
@@ -520,11 +522,19 @@ class ConversationService:
         conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
         if conversation is None:
             return
+        if through_message_id is not None:
+            through = await conversation_repo.get_fork_point(self.db, UUID(through_message_id))
+            if through is None or through.conversation_id != conversation_id:
+                return
+            ordinal = through.ordinal
+        else:
+            # Older internal callers save compacted histories without a row id.
+            ordinal = await conversation_repo.last_ordinal(self.db, conversation_id)
         stored = await conversation_repo.set_summary(
             self.db,
             db_conversation=conversation,
             messages=messages,
-            ordinal=await conversation_repo.last_ordinal(self.db, conversation_id),
+            ordinal=ordinal,
             expected_revision=expected_revision,
         )
 

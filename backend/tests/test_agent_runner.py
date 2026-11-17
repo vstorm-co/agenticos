@@ -4014,6 +4014,7 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
             await service.execute(_ctx(), uuid.uuid4(), "fix the bug")
 
         kept = conversations.return_value.keep_plan
@@ -4044,6 +4045,7 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
             await service.execute(_ctx(), uuid.uuid4(), "fix the bug")
 
         kept = conversations.return_value.keep_plan.await_args.args[1]
@@ -4075,6 +4077,7 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
             await service.execute(_ctx(), uuid.uuid4(), "fix the bug")
 
         kept = conversations.return_value.keep_plan.await_args.args[1]
@@ -4102,6 +4105,7 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
             await service.execute(_ctx(), uuid.uuid4(), "something else entirely")
 
         conversations.return_value.keep_plan.assert_not_awaited()
@@ -4128,6 +4132,7 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
             await service.execute(_ctx(), uuid.uuid4(), "start the next thing")
 
         kept = conversations.return_value.keep_plan
@@ -4154,6 +4159,7 @@ class TestParking:
 
         with patch("app.services.agent_runner.ConversationService") as conversations:
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
             await AgentRunnerService(_db()).keep_plan(prepared, status=RunStatus.CANCELLED)
 
         kept = conversations.return_value.keep_plan.await_args.args

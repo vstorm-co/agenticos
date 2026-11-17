@@ -2481,7 +2481,15 @@ class TestTheThreadAModelIsGivenBack:
         next turn has nothing left to summarise a second time."""
         conversation = MockConversation()
         conversation.summary_messages = ModelMessagesTypeAdapter.dump_python(
-            [ModelRequest(parts=[SystemPromptPart(content="Summary: they said hello.")])],
+            [
+                ModelRequest(
+                    parts=[
+                        SystemPromptPart(
+                            content="Summary of previous conversation:\n\nThey said hello."
+                        )
+                    ]
+                )
+            ],
             mode="json",
         )
         conversation.summary_ordinal = 4
@@ -2495,7 +2503,7 @@ class TestTheThreadAModelIsGivenBack:
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
 
         assert [part.content for message in history for part in message.parts] == [
-            "Summary: they said hello.",
+            "Summary of previous conversation:\n\nThey said hello.",
             "and now?",
         ]
         assert after.await_args.kwargs["ordinal"] == 4
@@ -2703,7 +2711,14 @@ class TestTheThreadAModelIsGivenBack:
         """The other half of `model_history`: the rows written since a summary."""
         conversation = MockConversation()
         conversation.summary_messages = ModelMessagesTypeAdapter.dump_python(
-            [ModelRequest(parts=[SystemPromptPart(content="Summary.")])], mode="json"
+            [
+                ModelRequest(
+                    parts=[
+                        SystemPromptPart(content="Summary of previous conversation:\n\nSummary.")
+                    ]
+                )
+            ],
+            mode="json",
         )
         conversation.summary_ordinal = 4
         run_id = uuid4()
@@ -2721,7 +2736,7 @@ class TestTheThreadAModelIsGivenBack:
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
 
         assert [part.content for message in history for part in message.parts] == [
-            "Summary.",
+            "Summary of previous conversation:\n\nSummary.",
             REFUSED_TURN,
         ]
 

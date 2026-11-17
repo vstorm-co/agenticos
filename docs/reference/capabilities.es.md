@@ -1,5 +1,5 @@
 ---
-source_sha: "34fa5b94abdb"
+source_sha: "260df66e53b4"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2758,12 +2758,18 @@ Resumir convierte tokens de entrada en tokens de salida, que se facturan más ca
 se generan en serie, así que a un agent cuyos runs están dominados por resultados de
 herramienta grandes le suele ir mejor con `tiered`.
 
-**Alcanza un run, no una conversación.** Entre turnos el historial se reconstruye
-desde la transcripción como texto de usuario y de asistente, así que las llamadas de
-herramienta y sus resultados no están ahí para compactarse y ninguna edición hecha
-aquí sobrevive a la frontera de un turno. El historial que merece la pena compactar
-es el largo bucle de herramientas dentro de un solo run, donde un listado de
-directorio o una búsqueda de conocimiento son decenas de miles de tokens.
+**El historial se conserva entre turnos.** Cada turno completado guarda mensajes
+del modelo, incluidas llamadas, resultados y descubrimientos de búsqueda de
+herramientas local o nativa. La compactación trabaja sobre ese mismo historial;
+su resumen permanece en el turno siguiente.
+
+Se conservan como máximo 200 mensajes del modelo y 2 MiB de historial serializado.
+Los mensajes antiguos se eliminan sin separar llamadas de sus resultados. Un aviso
+indica al modelo que vuelva a descubrir herramientas o a leer las pruebas que
+falten. Los descubrimientos caducan al eliminarse su registro. Las definiciones,
+la disponibilidad, los permisos y las aprobaciones actuales siguen aplicándose
+en cada run. Las aprobaciones pendientes usan un estado de reanudación separado;
+el historial no vuelve a ejecutar acciones.
 
 **El disparador es una fracción porque un número absoluto solo es correcto para un
 modelo**, y el mismo agent se ejecuta con el perfil al que apunte su spec. La ventana
@@ -2832,14 +2838,11 @@ vienen de
 | --- | --- | --- |
 | `threshold_bytes` | 32768 | 1 KiB–10 MiB; las partes de ese tamaño o mayores se guardan fuera del historial |
 
-**Hay un sitio donde los medios se acumulan de verdad, y es este.** Un adjunto
-llega al modelo una vez, en el turno en que se adjuntó: el historial ordinario se
-reconstruye a partir del _texto_ de la transcripción, así que una imagen no se
-reenvía. La excepción es una conversación [compactada](#context-management) —
-entonces el volcado que hace la propia biblioteca de los mensajes del run se
-guarda entero y se reproduce exactamente como el modelo lo vio por última vez,
-base64 incluido, hasta que el siguiente resumen lo sustituye. Ese blob son filas
-en Postgres y bytes en el cable, en cada turno intermedio.
+**Los adjuntos pueden conservarse en turnos posteriores.** Los turnos completados
+retienen mensajes del modelo, incluidas imágenes, dentro de los límites del
+historial. La descarga de medios se aplica tanto al guardado ordinario como a
+los historiales compactados. Las capturas efímeras del escritorio se sustituyen
+por un aviso antes del guardado.
 
 **Dónde van los bytes, y cuánto viven.** Al propio almacenamiento de ficheros del
 despliegue, en `media/<organización>/<conversación>/<digest>`. La organización es

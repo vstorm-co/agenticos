@@ -6,7 +6,9 @@ and the service that builds a thread's history - and `agent.py` reaches for
 `app.api.deps`, which reaches back for `ConversationService`.
 """
 
-from collections.abc import Sequence
+import json
+from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from datetime import timedelta
 from typing import NotRequired, TypedDict
 from uuid import UUID
@@ -17,9 +19,100 @@ from pydantic_ai.messages import (
     ModelResponse,
     SystemPromptPart,
     TextPart,
+    ToolCallPart,
+    ToolReturnPart,
     UserPromptPart,
 )
 from pydantic_ai.usage import RequestUsage
+
+from app.agents.ephemeral_media import dump_messages
+
+MODEL_HISTORY_MESSAGES = 200
+MODEL_HISTORY_BYTES = 2 * 1024 * 1024
+CHANNEL_AUTHORS = "agenticos_channel_authors"
+HISTORY_TRIMMED = (
+    "Earlier conversation messages and tool results were omitted to keep history within its limits. "
+    "Rediscover tools whose discovery is no longer present, and read missing evidence again when needed."
+)
+
+
+def history_for_storage(
+    messages: Sequence[ModelMessage], *, channel_authors: Mapping[str, UUID] | None = None
+) -> list[ModelMessage]:
+    """Keep model evidence, not the previous agent's standing instructions.
+
+    The next run supplies its current instructions and capabilities. Legacy harness
+    summaries used a system part; retain those until a new compaction replaces them.
+    """
+    history: list[ModelMessage] = []
+    for message in messages:
+        if isinstance(message, ModelRequest):
+            parts = [
+                part
+                for part in message.parts
+                if not isinstance(part, SystemPromptPart)
+                or part.content.startswith("Summary of previous conversation:\n\n")
+            ]
+            if parts:
+                metadata = dict(message.metadata or {})
+                if channel_authors:
+                    references = {
+                        part.timestamp.isoformat(): str(identity)
+                        for part in parts
+                        if isinstance(part, UserPromptPart)
+                        and (identity := channel_authors.get(part.timestamp.isoformat()))
+                        is not None
+                    }
+                    if references:
+                        metadata[CHANNEL_AUTHORS] = references
+                history.append(replace(message, parts=parts, metadata=metadata or None))
+        else:
+            history.append(message)
+    return bounded_model_history(history)
+
+
+def bounded_model_history(messages: Sequence[ModelMessage]) -> list[ModelMessage]:
+    """Keep a bounded suffix without separating calls from their results.
+
+    This is a storage ceiling, independent of the agent's token-based compaction.
+    Evicted discovery expires with its evidence. Never invent a successful search
+    to restore it. A single oversized exchange is omitted as a whole and the
+    model is told that evidence was lost. The visible transcript stays intact.
+    """
+    sizes = [
+        len(json.dumps(message, ensure_ascii=False).encode()) + 2
+        for message in dump_messages(messages)
+    ]
+    total = sum(sizes)
+    if len(messages) <= MODEL_HISTORY_MESSAGES and total <= MODEL_HISTORY_BYTES:
+        return list(messages)
+
+    notice = ModelRequest(parts=[UserPromptPart(content=HISTORY_TRIMMED)])
+    budget = MODEL_HISTORY_BYTES - len(
+        json.dumps(dump_messages([notice]), ensure_ascii=False).encode()
+    )
+    start = 0
+    while start < len(messages) and (
+        len(messages) - start >= MODEL_HISTORY_MESSAGES or total > budget
+    ):
+        total -= sizes[start]
+        start += 1
+
+    # Parallel calls may span several messages. Move the cut past every result
+    # whose call would be lost, including a batch containing retained calls too.
+    calls: dict[str, int] = {}
+    for index, message in enumerate(messages):
+        for part in message.parts:
+            if isinstance(part, ToolCallPart):
+                calls[part.tool_call_id] = index
+            elif (
+                isinstance(part, ToolReturnPart)
+                and index >= start
+                and calls.get(part.tool_call_id, -1) < start
+            ):
+                start = index + 1
+    return [notice, *messages[start:]]
+
 
 CHANNEL_AUTHOR_ID = "agenticos_channel_author_identity"
 

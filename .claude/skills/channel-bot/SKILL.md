@@ -45,7 +45,8 @@ Channel messages persist raw text and `channel_identity_id`; history author labe
 are resolved just before dispatch by `ChannelReference`, so erasure removes the
 labels as well. `build_message_history` carries opaque identity references;
 `PreparedRun.channel_authors` preserves per-user-part attribution across provider
-normalization and approval resumption. `ChannelReferencePart` marks reference-only
+normalization and approval resumption. Completed-turn checkpoints also retain
+opaque per-user-part references, keyed by timestamp, without storing display labels. `ChannelReferencePart` marks reference-only
 parts omitted from run manifests. Screen editable reference values with the input
 policy, keeping fixed transport metadata out of question checks. Keep JSON envelopes out of `Message.content`.
 A decision made outside the chat (console, web chat, session API) continues the run through `app/services/channels/continuation.py`, and the endings made outside it (expiry, stop, a stranded run) post through `handback.post_notice`.

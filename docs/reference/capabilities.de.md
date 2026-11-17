@@ -1,5 +1,5 @@
 ---
-source_sha: "34fa5b94abdb"
+source_sha: "260df66e53b4"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2886,13 +2886,18 @@ Zusammenfassen macht aus Eingabe-Tokens Ausgabe-Tokens, die mit einem Aufschlag
 abgerechnet und seriell erzeugt werden, deshalb ist ein Agent, dessen Runs von
 großen Tool-Ergebnissen dominiert werden, meist mit `tiered` besser bedient.
 
-**Sie reicht über einen Run, nicht über eine Unterhaltung.** Zwischen den Zügen
-wird die Historie aus dem Transkript als Nutzer- und Assistententext neu aufgebaut,
-deshalb sind Tool-Aufrufe und ihre Ergebnisse nicht mehr da, um komprimiert zu
-werden, und keine hier vorgenommene Änderung überdauert eine Zuggrenze. Die
-Historie, deren Compaction sich lohnt, ist die lange Tool-Schleife innerhalb eines
-einzelnen Runs, wo eine Verzeichnisauflistung oder eine Wissenssuche
-Zehntausende Tokens groß ist.
+**Der Verlauf bleibt über Runden hinweg erhalten.** Jede abgeschlossene Runde
+speichert Modellnachrichten einschließlich Tool-Aufrufen, Ergebnissen und lokaler
+oder nativer Tool-Suche. Die Komprimierung bearbeitet denselben Verlauf; ihre
+Zusammenfassung bleibt für die nächste Runde erhalten.
+
+Der gespeicherte Verlauf umfasst höchstens 200 Modellnachrichten und 2 MiB
+serialisierte Daten. Ältere Nachrichten werden entfernt, ohne Aufrufe von ihren
+Ergebnissen zu trennen. Ein Hinweis fordert das Modell auf, fehlende Tools erneut
+zu suchen oder Belege erneut zu lesen. Entdeckungen verfallen mit ihrem Nachweis.
+Aktuelle Tool-Definitionen, Verfügbarkeit, Berechtigungen und Freigaben gelten
+weiterhin bei jedem Run. Ausstehende Freigaben haben einen eigenen Fortsetzungszustand;
+der Verlauf führt keine Aktionen erneut aus.
 
 **Der Auslöser ist ein Bruchteil, weil eine absolute Zahl nur für ein Modell
 stimmt**, und derselbe Agent läuft auf dem Profil, auf das sein Spec gerade zeigt.
@@ -2966,15 +2971,11 @@ stammen aus
 | --- | --- | --- |
 | `threshold_bytes` | 32768 | 1 KiB–10 MiB; Teile ab dieser Größe werden ausgelagert |
 
-**Es gibt eine Stelle, an der sich Medien wirklich anhäufen, und das ist diese.**
-Ein Anhang erreicht das Modell einmal, in der Runde, in der er angehängt wurde:
-die gewöhnliche Historie wird aus dem _Text_ des Transkripts aufgebaut, ein Bild
-wird also nicht erneut gesendet. Die Ausnahme ist eine
-[verdichtete](#context-management) Konversation — dann wird der bibliothekseigene
-Dump der Run-Nachrichten vollständig gespeichert und exakt so wiedergegeben, wie
-das Modell ihn zuletzt gesehen hat, Base64 inklusive, bis die nächste
-Zusammenfassung ihn ersetzt. Dieser Blob sind Zeilen in Postgres und Bytes auf der
-Leitung, in jeder Runde dazwischen.
+**Anhänge können in späteren Runden erhalten bleiben.** Abgeschlossene Runden
+behalten Modellnachrichten einschließlich gespeicherter Bilder innerhalb der
+Verlaufsgrenzen. Medien werden sowohl bei gewöhnlichen Speicherungen als auch
+nach Komprimierung ausgelagert. Flüchtige Desktop-Screenshots werden vor dem
+Speichern durch einen Hinweis ersetzt.
 
 **Wohin die Bytes gehen, und wie lange sie leben.** In den eigenen Dateispeicher
 des Deployments, nach `media/<Organisation>/<Konversation>/<Digest>`. Die

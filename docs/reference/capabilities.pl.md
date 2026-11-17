@@ -1,5 +1,5 @@
 ---
-source_sha: "34fa5b94abdb"
+source_sha: "260df66e53b4"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2687,12 +2687,17 @@ Streszczanie zamienia tokeny wejściowe w wyjściowe, które są rozliczane z pr
 generowane szeregowo, więc agent, którego runom przewodzą duże wyniki narzędzi,
 zwykle wychodzi lepiej na `tiered`.
 
-**Sięga do jednego runa, a nie do jednej rozmowy.** Między turami historia jest
-odbudowywana z zapisu rozmowy jako tekst użytkownika i asystenta, więc nie ma tam
-wywołań narzędzi ani ich wyników do kompaktowania i żadna zrobiona tu edycja nie
-przeżywa granicy tury. Historią wartą kompaktowania jest długa pętla narzędzi
-wewnątrz jednego runa, gdzie jedno wylistowanie katalogu albo jedno wyszukanie w
-wiedzy to dziesiątki tysięcy tokenów.
+**Historia przechodzi między turami.** Każda zakończona tura zapisuje wiadomości
+modelowe, w tym wywołania narzędzi, wyniki i odkrycia lokalnego lub natywnego
+tool search. Kompakcja działa na tej samej historii; jej streszczenie przechodzi
+do następnej tury.
+
+Zapis obejmuje najwyżej 200 wiadomości modelowych i 2 MiB zserializowanej historii.
+Starsze wiadomości wypadają bez rozdzielania wywołań i wyników. Komunikat o
+pominięciu każe ponownie odkryć brakujące narzędzia lub odczytać dane. Odkrycia
+wygasają wraz z ich zapisem. Każdy run nadal stosuje aktualne definicje narzędzi,
+dostępność, uprawnienia i zgody na wykonanie. Oczekujące zgody mają osobny stan
+wznowienia; zapis historii nie wykonuje ponownie operacji.
 
 **Wyzwalaczem jest ułamek, bo liczba bezwzględna jest właściwa tylko dla jednego
 modelu**, a ten sam agent chodzi na dowolnym profilu, na który wskazuje jego spec.
@@ -2757,14 +2762,10 @@ i walkery pochodzą z
 | --- | --- | --- |
 | `threshold_bytes` | 32768 | 1 KiB–10 MiB; części co najmniej tej wielkości trafiają poza historię |
 
-**Jest jedno miejsce, w którym media naprawdę się kumulują, i to właśnie ono.**
-Załącznik trafia do modelu raz, w turze, w której został dołączony: zwykła
-historia jest odtwarzana z _tekstu_ transkryptu, więc obrazek nie jest wysyłany
-ponownie. Wyjątkiem jest rozmowa [skompaktowana](#context-management) — wtedy
-zrzut wiadomości runa robiony przez bibliotekę jest zapisywany w całości
-i odtwarzany dokładnie tak, jak widział go model, razem z base64, aż do kolejnego
-podsumowania. Ten blob to wiersze w Postgresie i bajty na łączu, w każdej turze
-pomiędzy.
+**Załączniki mogą przechodzić do następnych tur.** Zakończone tury zachowują
+wiadomości modelowe w granicach limitów historii, również zachowane obrazy.
+Odciążanie mediów działa przy zwykłym zapisie i po kompakcji. Efemeryczne zrzuty
+ekranu pulpitu zastępuje komunikat przed zapisem.
 
 **Gdzie trafiają bajty i jak długo żyją.** Do własnego magazynu plików wdrożenia,
 pod `media/<organizacja>/<rozmowa>/<digest>`. Organizacja to izolacja: URI mediów

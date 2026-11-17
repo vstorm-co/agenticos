@@ -2586,11 +2586,16 @@ tokens into output tokens, which are billed at a premium and generated serially,
 so an agent whose runs are dominated by large tool results is usually better on
 `tiered`.
 
-**It reaches one run, not one conversation.** Between turns the history is rebuilt
-from the transcript as user and assistant text, so tool calls and their results
-are not there to compact and no edit made here survives a turn boundary. The
-history worth compacting is the long tool loop inside a single run, where one
-directory listing or knowledge search is tens of thousands of tokens.
+**History survives turn boundaries.** Each completed turn checkpoints its model
+messages, including tool calls, results and local or native tool-search discovery.
+Compaction works on that same history; its summaries survive into the next turn.
+
+The checkpoint keeps at most 200 model messages and 2 MiB of serialized history.
+Older messages are evicted without separating calls from their results, and an
+omission notice tells the model to rediscover missing tools or reread evidence.
+Discovery expires when its evidence is evicted. Current tool definitions,
+availability, permissions and execution approvals still apply on every run.
+Parked approvals use their separate resume state; a checkpoint does not replay actions.
 
 **The trigger is a fraction because an absolute number is only right for one
 model**, and the same agent runs on whatever profile its spec points at. The
@@ -2656,13 +2661,10 @@ stores and the walkers come from
 |---|---|---|
 | `threshold_bytes` | 32768 | 1 KiB–10 MiB; parts at least this large are stored out of line |
 
-**There is one place media actually piles up, and this is it.** An attachment
-reaches the model once, on the turn it was attached: the ordinary history is
-rebuilt from the transcript's *text*, so a picture is not re-sent on later turns.
-A conversation that has been [compacted](#context-management) is the exception —
-the library's own dump of the run's messages is stored whole and replayed exactly
-as the model last saw it, base64 and all, until the next summary replaces it.
-That blob is rows in Postgres and bytes on the wire, every turn in between.
+**Attachments can survive into later turns.** Completed turns retain model
+messages within the history limits, including retained images. Media offload runs
+on ordinary checkpoints as well as compacted histories. Ephemeral desktop
+screenshots are replaced with a notice before storage.
 
 **Where the bytes go, and how long they live.** Into the deployment's own file
 storage, at `media/<organization>/<conversation>/<digest>`. The organization is
