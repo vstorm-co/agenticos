@@ -37,6 +37,11 @@ Two things are versioned separately from this file and worth knowing about:
 ### Changed
 
 - **Evals and Improve on the shared components.** Improve's figure tiles are the dashboard's figure cards, its before-and-after change is the shared delta chip, and its step panels are cards. A dataset case's JSON is edited in the code area. The pass-rate trend lists fewer than three runs, with their pass rates, instead of drawing a line through them. A dataset's grading and an open case show who changed them elsewhere and ask before replacing unsaved edits; with nothing edited they take the new version.
+- **The sign-in page sends somebody already signed in on into the app.** It
+  showed the form even when the session check had found an account, so a second
+  tab opened on `/login` (or `/`) asked for the password again. It now goes where
+  a sign-in would, honouring `returnTo`, and a tab left on the form moves on by
+  itself once another tab signs in.
 
 ## [1.80.0] - 2026-11-16
 
