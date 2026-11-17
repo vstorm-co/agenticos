@@ -22,7 +22,7 @@ from uuid import UUID
 
 from jsonschema import validators
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai import ModelRetry, StructuredDict
+from pydantic_ai import ModelRetry, StructuredDict, ToolOutput
 from pydantic_ai.capabilities import (
     AbstractCapability,
     HandleDeferredToolCalls,
@@ -837,11 +837,20 @@ def _spend_limits(
 
 
 def _output_type(schema: dict[str, Any] | None) -> OutputSpec[AgentOutput]:
-    """Text, or an object of `schema` handed back as one tool call's arguments."""
+    """Text, or an object of `schema` handed back as one tool call's arguments.
+
+    The tool is sent non-strict. A strict tool is compiled by the provider into a
+    grammar that refuses valid schemas - a free JSON value (`{}`), numeric bounds,
+    `minItems` above one - and Anthropic rejects the whole request for it. The
+    schema is still enforced: `_fits_schema` sends a misshapen answer back.
+    """
     if schema is None:
         return [str, DeferredToolRequests]
     return [
-        StructuredDict(schema, name="answer", description="The answer, in the shape asked for"),
+        ToolOutput(
+            StructuredDict(schema, name="answer", description="The answer, in the shape asked for"),
+            strict=False,
+        ),
         DeferredToolRequests,
     ]
 

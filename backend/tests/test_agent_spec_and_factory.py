@@ -1383,6 +1383,35 @@ class TestAStructuredAnswer:
         assert result.usage.requests == 2
         assert any("score" in text for text in seen), seen
 
+    @pytest.mark.anyio
+    async def test_the_answer_tool_is_not_strict_so_a_free_json_value_is_offered(self):
+        """A strict tool's grammar refuses a schema node with no type, and the provider the request."""
+        schema = {
+            "type": "object",
+            "properties": {"path": {"type": "string"}, "value": {}},
+            "required": ["path", "value"],
+        }
+        offered = []
+
+        def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            offered.extend(info.output_tools)
+            answer = {"path": "capabilities", "value": {"id": "clock", "config": {}}}
+            return ModelResponse(
+                parts=[ToolCallPart(tool_name=info.output_tools[0].name, args=answer)]
+            )
+
+        built = build_agent(
+            AgentSpec(name="Proposer", output_schema=schema),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+        with built.agent.override(model=FunctionModel(respond)):
+            result = await built.agent.run("Propose a change", deps=built.deps)
+
+        assert [tool.strict for tool in offered] == [False]
+        assert offered[0].parameters_json_schema["properties"]["value"] == {}
+        assert result.output == {"path": "capabilities", "value": {"id": "clock", "config": {}}}
+
     def test_a_parked_run_passes_the_schema_check_untouched(self):
         """What a parked run ends with is not an answer, and is handed on untouched."""
         parked = DeferredToolRequests()

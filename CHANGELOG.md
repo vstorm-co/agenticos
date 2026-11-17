@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Improve proposals on Anthropic models through OpenRouter.** The Improve helper's **Changes** step failed with HTTP 400, because the answer tool was sent strict and a proposal's free JSON value has no type in its schema. Answers now go through a non-strict tool, still checked against their schema and sent back when they break it (#3146).
+
 ## [1.82.1] - 2026-11-17
 
 ### Fixed
