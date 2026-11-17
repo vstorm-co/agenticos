@@ -10443,7 +10443,7 @@
     "setupRequiredHint": "Saved and paused. Repair the sources, review access, then enable this routine.",
     "setupOwnerRequired": "Saved and paused. Its creator must repair and review the sources.",
     "filteredEventTitle": "Latest filtered GitHub event",
-    "filteredEventHint": "Only the latest verified event rejected by a filter is kept. It did not start a run. Payload content is not stored.",
+    "filteredEventHint": "The latest retained sample of verified filter rejections is shown, updated at most once a minute. It did not start a run. Payload content is not stored.",
     "filteredEventEmpty": "No filtered event has been recorded yet. This does not confirm that a webhook has arrived.",
     "filteredEventError": "Could not read filtered event diagnostics",
     "filteredEventPolicy": "Author filter at receipt: {policy}",

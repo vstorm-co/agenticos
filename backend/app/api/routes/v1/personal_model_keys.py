@@ -32,6 +32,6 @@ async def connect(
     return await service.save(ctx, agent_id, data)
 
 
-@router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def disconnect(key_id: UUID, ctx: Auth, service: PersonalModelKeySvc) -> None:
+@router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def disconnect(key_id: UUID, ctx: Auth, service: PersonalModelKeySvc) -> Any:
     await service.delete(ctx, key_id)

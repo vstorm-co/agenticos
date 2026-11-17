@@ -5631,6 +5631,9 @@ class TestGithubFilteredEventDiagnostics:
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch(
+                "app.services.agent_trigger.rate_limit.trigger_delivery_allowed", AsyncMock()
+            ) as allowance,
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)
             repo.record_filtered_event = AsyncMock()
@@ -5638,6 +5641,7 @@ class TestGithubFilteredEventDiagnostics:
                 await service.prepare_event_fire("github", trigger.id, body=body, headers=headers)
                 is None
             )
+        allowance.assert_not_awaited()
         diagnostic = repo.record_filtered_event.await_args.kwargs["diagnostic"].model_dump(
             mode="json"
         )

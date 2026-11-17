@@ -10323,7 +10323,7 @@
     "setupRequiredHint": "Gespeichert und pausiert. Quellen reparieren, Zugriff prüfen und die Routine anschließend aktivieren.",
     "setupOwnerRequired": "Gespeichert und pausiert. Der Ersteller muss die Quellen reparieren und prüfen.",
     "filteredEventTitle": "Zuletzt gefiltertes GitHub-Ereignis",
-    "filteredEventHint": "Nur das letzte verifizierte, durch einen Filter abgelehnte Ereignis wird gespeichert. Es hat keinen Run gestartet. Payload-Inhalte werden nicht gespeichert.",
+    "filteredEventHint": "Angezeigt wird die zuletzt gespeicherte Stichprobe verifizierter Filterablehnungen, höchstens einmal pro Minute aktualisiert. Sie hat keinen Run gestartet. Payload-Inhalte werden nicht gespeichert.",
     "filteredEventEmpty": "Noch kein gefiltertes Ereignis erfasst. Dies bestätigt keinen Webhook-Eingang.",
     "filteredEventError": "Filterdiagnose konnte nicht geladen werden",
     "filteredEventPolicy": "Autorenfilter beim Empfang: {policy}",

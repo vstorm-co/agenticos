@@ -819,9 +819,10 @@ GithubFilterReason = Literal[
 
 
 class GithubFilteredEvent(BaseSchema):
-    """The latest verified delivery a GitHub routine filtered, without its content."""
+    """The latest retained sample of verified GitHub rejections, without event content."""
 
     received_at: datetime
+    recorded_at: datetime | None = Field(default=None, exclude=True)
     reason: GithubFilterReason
     authors: GithubAuthors
 

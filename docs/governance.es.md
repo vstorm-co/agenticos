@@ -1,5 +1,5 @@
 ---
-source_sha: "923d18e84884"
+source_sha: "ef824da65bb6"
 ---
 
 # Governance { #governance }
@@ -59,9 +59,12 @@ configuración sin `authors` sigue significando `members`.
 En el historial de la rutina, su propietario autenticado puede ver **Latest filtered
 GitHub event**: cuándo un webhook verificado fue rechazado por un filtro, el motivo
 y la política de autores al recibirlo. Tanto los webhooks individuales como las
-entregas de GitHub App registran este diagnóstico. Solo se conserva el último
-rechazo, sin payload, texto del autor ni secretos, y no se crea ningún run. La
-ausencia de diagnóstico indica que no se ha registrado un rechazo; no confirma la
+entregas de GitHub App registran este diagnóstico. Solo se conserva la última
+muestra, actualizada como máximo una vez por minuto por rutina según el reloj de
+la base de datos. No se guardan el payload, el texto del autor ni secretos, ni se
+crea un run o se consume la cuota de admisión de runs.
+
+La ausencia de diagnóstico indica que no se ha registrado un rechazo; no confirma la
 entrega de un webhook. Las respuestas públicas de los webhooks no cambian.
 
 ## Entrega de rutinas { #routine-delivery }

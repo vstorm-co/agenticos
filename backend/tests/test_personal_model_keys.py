@@ -445,6 +445,7 @@ async def test_impersonation_cannot_reach_personal_model_keys_at_request_or_run_
     assert db.mock_calls == []
 
 
+@pytest.mark.security
 async def test_personal_resolution_records_its_connection_identity_without_secret_metadata() -> (
     None
 ):
