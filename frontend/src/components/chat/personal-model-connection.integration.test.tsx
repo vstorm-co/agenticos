@@ -68,7 +68,7 @@ it("keeps a reconnect action and shows an explicit failure without claiming a sa
   const user = userEvent.setup();
   vi.mocked(api.agentModelConnection).mockResolvedValue({ ...connection, connected: true });
   vi.mocked(api.savePersonalModelKey).mockRejectedValue(new Error("Connection refused"));
-  mount();
+  mount(<PersonalModelConnection agentId="agent" manage />);
   await user.type(await screen.findByLabelText("Your API key"), "replacement");
   await user.click(screen.getByRole("button", { name: "Replace key" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Connection refused");
@@ -102,4 +102,11 @@ it("reports a Vault lookup failure", async () => {
   vi.mocked(api.listPersonalModelKeys).mockRejectedValue(new Error("Vault lookup failed"));
   mount(<PersonalModelKeys />);
   expect(await screen.findByRole("alert")).toHaveTextContent("Vault lookup failed");
+});
+
+it("keeps a connected key out of the conversation composer", async () => {
+  vi.mocked(api.agentModelConnection).mockResolvedValue({ ...connection, connected: true });
+  mount();
+  await waitFor(() => expect(api.agentModelConnection).toHaveBeenCalled());
+  expect(screen.queryByRole("form")).not.toBeInTheDocument();
 });

@@ -186,7 +186,11 @@ from app.services.model_profile import (
 )
 from app.services.notifications import NotificationService
 from app.services.personal_model_key import personal_profile_problem
-from app.services.personal_model_policy import PERSONAL_MODEL_LIMITS, personal_model_problems
+from app.services.personal_model_policy import (
+    PERSONAL_MODEL_LIMITS,
+    personal_model_problems,
+    require_organization_model,
+)
 from app.services.resource_usage import groups_sharing
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_runtimes import DESKTOP_RUNTIME
@@ -2334,6 +2338,12 @@ class AgentRegistryService:
             if agent_id is None
             else await agent_repo.get(self.db, agent_id, organization_id=ctx.organization_id)
         )
+        if (
+            owner is not None
+            and spec.model_credential_mode == "personal"
+            and (owner.kind != AgentKind.AGENT.value or owner.a2a_enabled)
+        ):
+            problems.merge(_SpecProblems.at("model_credential_mode", PERSONAL_MODEL_LIMITS))
         if owner is not None and owner.kind != AgentKind.AGENT.value:
             for part in [
                 *unusable_parts(spec),
@@ -4063,9 +4073,16 @@ class AgentRegistryService:
         it. So it takes `AGENTS_PUBLISH`, grant-aware through `self.get`, and an
         agent with no published version cannot be served - it has nothing to run.
         """
-        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
         if enabled:
             refuse_system_agent(agent, action="serving over A2A")
+            require_organization_model(AgentSpec.model_validate(agent.draft_spec))
+            if agent.current_version_id is not None:
+                version = await agent_repo.get_version(
+                    self.db, agent.current_version_id, organization_id=ctx.organization_id
+                )
+                if version is not None:
+                    require_organization_model(AgentSpec.model_validate(version.spec))
         if enabled and agent.current_version_id is None:
             raise BadRequestError(
                 message="Publish the agent before serving it over A2A",
