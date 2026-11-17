@@ -112,12 +112,12 @@ describe("TableColumnPicker", () => {
     );
   });
 
-  it("rebinding with no chosen column left falls back to all columns", async () => {
+  it("rebinding with no chosen column left keeps the choice empty, never all", async () => {
     const onChange = mount(ref({ schema_version: 1, column_ids: ["gone"] }));
 
     await userEvent.click(screen.getByRole("button", { name: "Update to the current schema" }));
     expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({ column_ids: null, schema_version: 2 }),
+      expect.objectContaining({ column_ids: [], schema_version: 2 }),
     );
   });
 

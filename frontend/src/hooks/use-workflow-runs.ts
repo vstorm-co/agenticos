@@ -57,12 +57,14 @@ export function useWorkflowRuns(workflowId: string, inputErrorsInForm = false) {
       const all = fieldProblems(error);
       // A table changed since the editor last read it: read it again, and the
       // editor updates the steps it safely can - said once, not as a path per step.
-      const tables = all.some(({ field }) => isTableRefusalField(field));
+      const graph = useWorkflowEditorStore.getState().graph;
+      const isTable = (field: string) => isTableRefusalField(field, graph);
+      const tables = all.some(({ field }) => isTable(field));
       if (tables) {
         useWorkflowEditorStore.getState().refreshTables();
         toast.error(t("runTablesChanged"));
       }
-      const fields = all.filter(({ field }) => !isTableRefusalField(field));
+      const fields = all.filter(({ field }) => !isTable(field));
       const toastFields = inputErrorsInForm
         ? fields.filter(({ field }) => field !== "input" && !field.startsWith("input."))
         : fields;

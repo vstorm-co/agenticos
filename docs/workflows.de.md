@@ -1,5 +1,5 @@
 ---
-source_sha: "f719aa86f471"
+source_sha: "92206b1b99b8"
 ---
 
 # Workflows { #workflows }
@@ -470,7 +470,9 @@ hat:
 Jedes Auswahlfeld unterscheidet gleichnamige Zeilen durch Kontext und markiert
 eine Referenz, deren Ziel verschwunden ist. Die Auswahlfelder **Agent** und
 **Secret** bieten zusätzlich einen Link zum Neuanlegen — immer, nicht nur wenn die
-Liste leer ist — während das **Table**-Auswahlfeld keinen hat. Ändert sich das Schema einer Tabelle, nachdem ein Schritt an sie gebunden wurde,
+Liste leer ist — während das **Table**-Auswahlfeld keinen hat.
+
+Ändert sich das Schema einer Tabelle, nachdem ein Schritt an sie gebunden wurde,
 verschiebt der Editor den Schritt selbst auf das neue Schema, solange jede Spalte,
 die der Schritt liest, noch mit demselben Typ existiert - eine hinzugefügte Spalte
 oder eine Änderung an einer, die der Schritt nicht liest, verlangt nichts von dir.

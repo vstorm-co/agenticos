@@ -1,5 +1,5 @@
 ---
-source_sha: "f719aa86f471"
+source_sha: "92206b1b99b8"
 ---
 
 # Workflows { #workflows }
@@ -452,7 +452,9 @@ que un paso nombre algo real que tu organización tiene:
 Cada selector desambigua filas con el mismo nombre mediante contexto y marca una
 referencia cuyo destino ha desaparecido. Los selectores **Agent** y **Secret**
 ofrecen además un enlace para crear uno nuevo — siempre, no solo cuando la lista
-está vacía — mientras que el selector **Table** no tiene ninguno. Cuando el esquema de una tabla cambia después de vincular un paso a ella, el editor
+está vacía — mientras que el selector **Table** no tiene ninguno.
+
+Cuando el esquema de una tabla cambia después de vincular un paso a ella, el editor
 mueve el paso al nuevo esquema por sí solo siempre que cada columna que el paso lee
 siga existiendo con el mismo tipo - una columna añadida, o un cambio en una que el
 paso no lee, no te pide nada. Cuando una columna que lee se eliminó o cambió de

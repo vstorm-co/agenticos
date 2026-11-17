@@ -156,6 +156,11 @@ export interface ColumnDef {
   id: string;
   label: string;
   type: ColumnTypeName;
+  /**
+   * Counts changes to what the column's values mean - its type, a formula, what a
+   * link, lookup or rollup reads, its options. Read-only; absent on older payloads.
+   */
+  revision?: number;
   nullable: boolean;
   default: CellValue;
   options: OptionDef[];

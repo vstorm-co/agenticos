@@ -431,7 +431,9 @@ step names a real thing your organization has:
 Each picker disambiguates same-named rows with context and marks a reference
 whose target has gone away. The **Agent** and **Secret** pickers also carry a
 create-new link — always, not only when the list is empty — while the **Table**
-picker has none. When a table's schema changes after a step was bound to it, the editor moves the
+picker has none.
+
+When a table's schema changes after a step was bound to it, the editor moves the
 step onto the new schema by itself as long as every column the step reads still
 exists with the same type - an added column, or a change to one the step does not
 read, needs nothing from you. When a column it reads was removed or changed type,

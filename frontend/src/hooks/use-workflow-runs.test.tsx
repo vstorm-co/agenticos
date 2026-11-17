@@ -128,6 +128,20 @@ describe("useWorkflowRuns", () => {
         },
       }),
     );
+    // Binding 2 reads a table; the editor's graph is what says so.
+    const table = { kind: "table", table_id: "t", column_ids: null, schema_version: 1 };
+    const literal = { kind: "literal", value: 1 };
+    useWorkflowEditorStore.getState().seedGraph({
+      entry_node_id: "a",
+      nodes: [],
+      edges: [],
+      bindings: [
+        { target_node_id: "a", target_field: "x", source: literal },
+        { target_node_id: "a", target_field: "y", source: literal },
+        { target_node_id: "a", target_field: "rows", source: table },
+      ],
+      scopes: [],
+    } as never);
     const before = useWorkflowEditorStore.getState().tablesStale;
     const { result } = renderHook(() => useWorkflowRuns("wf"), { wrapper });
     await act(async () => {
@@ -138,6 +152,27 @@ describe("useWorkflowRuns", () => {
       expect.stringMatching(/has changed or is no longer available/),
     );
     expect(useWorkflowEditorStore.getState().tablesStale).toBe(before + 1);
+    useWorkflowEditorStore.getState().teardown();
+  });
+
+  it("toasts a binding problem as it is when that binding does not read a table", async () => {
+    vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(api.startWorkflowRun).mockRejectedValue(
+      new ApiError(422, "Graph invalid", {
+        error: {
+          code: "GRAPH_INVALID",
+          message: "Graph invalid",
+          details: { fields: [{ field: "bindings.0", message: "Not a number" }] },
+        },
+      }),
+    );
+    const before = useWorkflowEditorStore.getState().tablesStale;
+    const { result } = renderHook(() => useWorkflowRuns("wf"), { wrapper });
+    await act(async () => {
+      await result.current.start.mutateAsync({ workflow_id: "wf" }).catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledWith("bindings.0: Not a number");
+    expect(useWorkflowEditorStore.getState().tablesStale).toBe(before);
   });
 
   it("lists a workflow's runs and starts one", async () => {

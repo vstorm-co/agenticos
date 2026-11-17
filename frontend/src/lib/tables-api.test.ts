@@ -14,6 +14,7 @@ import {
   exportRecords,
   getRecord,
   getTable,
+  listSchemaVersions,
   listTables,
   listAllTables,
   queryRecords,
@@ -76,6 +77,12 @@ it("getTable reads one table", async () => {
   vi.mocked(apiClient.get).mockResolvedValue({ id: "t1" });
   await getTable("t1");
   expect(apiClient.get).toHaveBeenCalledWith("/tables/t1");
+});
+
+it("listSchemaVersions reads a table's schema history", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
+  await listSchemaVersions("t1");
+  expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/schema-versions");
 });
 
 it("updateTable patches one table", async () => {

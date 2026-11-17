@@ -1,5 +1,5 @@
 ---
-source_sha: "f719aa86f471"
+source_sha: "92206b1b99b8"
 ---
 
 # Workflows { #workflows }
@@ -440,7 +440,9 @@ krok nazywa realną rzecz, którą ma Twoja organizacja:
 Każde pole wyboru rozróżnia jednakowo nazwane wiersze przez kontekst i oznacza
 referencję, której cel zniknął. Pola wyboru **Agent** i **Secret** mają też link do
 utworzenia nowego — zawsze, nie tylko gdy lista jest pusta — natomiast pole wyboru
-**Table** nie ma żadnego. Gdy schemat tabeli zmieni się po powiązaniu z nią kroku, edytor sam przenosi krok
+**Table** nie ma żadnego.
+
+Gdy schemat tabeli zmieni się po powiązaniu z nią kroku, edytor sam przenosi krok
 na nowy schemat, o ile każda kolumna, którą krok czyta, nadal istnieje i ma ten sam
 typ - dodana kolumna albo zmiana kolumny, której krok nie czyta, nie wymaga od
 ciebie niczego. Gdy czytana kolumna została usunięta albo zmieniła typ, krok

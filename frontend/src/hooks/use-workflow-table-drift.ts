@@ -131,7 +131,13 @@ export function useWorkflowTableDrift(enabled: boolean): void {
       }
     }
     const live = new Map(
-      writerIds.map((id) => [id, new Set(liveColumns(detail(id)!).map((column) => column.id))]),
+      writerIds.map((id) => [
+        id,
+        {
+          version: detail(id)!.schema_version,
+          columns: new Set(liveColumns(detail(id)!).map((column) => column.id)),
+        },
+      ]),
     );
     result.orphans = orphanValueBindings(graph, live);
     // A string, so the effect below runs when the outcome changes, not every render.

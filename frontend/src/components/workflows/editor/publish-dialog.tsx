@@ -195,7 +195,7 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
       const problems = fieldProblems(error);
       // A table changed or went away since the editor last read it: read it
       // again, so the steps it safely can are updated and the rest show why.
-      const tables = problems.some(({ field }) => isTableRefusalField(field));
+      const tables = problems.some(({ field }) => isTableRefusalField(field, graph));
       if (tables) refreshTables();
       setServerProblems(
         problems.map((problem) => toValidationProblem(problem.field, problem.message)),

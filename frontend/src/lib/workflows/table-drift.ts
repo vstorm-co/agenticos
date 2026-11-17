@@ -61,20 +61,24 @@ export function liveColumns(table: TableRead): ColumnDef[] {
 
 /**
  * The same reference moved onto the table's current schema, keeping its column
- * choice: every chosen column the schema still offers stays chosen. None left
- * falls back to all columns, as a fresh bind does.
+ * choice: every chosen column the schema still offers stays chosen, and an
+ * all-columns reference stays one.
  */
 export function rebindRef(ref: TableIORef, version: number, live: ColumnDef[]): TableIORef {
   const liveIds = new Set(live.map((column) => column.id));
-  const kept = ref.column_ids?.filter((id) => liveIds.has(id)) ?? [];
-  return { ...ref, schema_version: version, column_ids: kept.length > 0 ? kept : null };
+  // An explicit choice stays explicit, even emptied: `null` would widen it to
+  // every live column.
+  const column_ids =
+    ref.column_ids === null ? null : ref.column_ids.filter((id) => liveIds.has(id));
+  return { ...ref, schema_version: version, column_ids };
 }
 
 /**
  * Whether a stale reference can be moved onto the current schema unasked: every
  * column it read at its bound version - the chosen ones, or all live ones for an
- * all-columns reference - is still live now, with the same type. A column added
- * since is fine; one removed or retyped could break what reads the step.
+ * all-columns reference - is still live now, with the same type and `revision`.
+ * A column added since is fine; one removed, retyped or redefined (a formula, a
+ * lookup, its options) changes what the step reads, so the author decides.
  */
 export function safeToRebind(
   ref: TableIORef,
@@ -87,7 +91,14 @@ export function safeToRebind(
   const read = bound.columns.filter(
     (column) => !column.archived && (ref.column_ids === null || ref.column_ids.includes(column.id)),
   );
-  return read.every((column) => now.get(column.id)?.type === column.type);
+  return read.every((column) => {
+    const current = now.get(column.id);
+    return (
+      current !== undefined &&
+      current.type === column.type &&
+      (current.revision ?? 0) === (column.revision ?? 0)
+    );
+  });
 }
 
 /** The graph with each listed site's reference replaced. */
@@ -116,11 +127,14 @@ export function withRebound(
 
 /**
  * Whether a refusal's field is a table reference: a step's own `table`, or a
- * binding (`table_ref_problems` scopes a table-sourced one to `bindings.<index>`).
- * Seeing one means the editor's copy of the tables is older than the server's.
+ * binding whose source is a table - `table_ref_problems` scopes that one to
+ * `bindings.<index>`, which other binding problems share. Seeing one means the
+ * editor's copy of the tables is older than the server's.
  */
-export function isTableRefusalField(field: string): boolean {
-  return /^nodes\.[^.]+\.config\.table$/.test(field) || /^bindings\.\d+$/.test(field);
+export function isTableRefusalField(field: string, graph: WorkflowGraph | null): boolean {
+  if (/^nodes\.[^.]+\.config\.table$/.test(field)) return true;
+  const binding = /^bindings\.(\d+)$/.exec(field);
+  return binding !== null && graph?.bindings[Number(binding[1])]?.source.kind === "table";
 }
 
 /** Steps that write a record's values, one binding per column (`values/<column id>`). */
@@ -140,22 +154,24 @@ export interface BindingAt {
  * Record values bound to a column the step's table no longer has live - one
  * archived or deleted since. The step's form stops showing such a field, so it
  * cannot be removed by hand, yet every run sends it and fails with
- * `UNKNOWN_COLUMN`. `live` maps a table id to its live column ids, for the
- * tables whose reference is on the current schema; other steps are skipped.
+ * `UNKNOWN_COLUMN`. `live` maps a table id to its current schema version and
+ * live column ids; a step whose reference names another version is skipped.
  */
 export function orphanValueBindings(
   graph: WorkflowGraph,
-  live: ReadonlyMap<string, ReadonlySet<string>>,
+  live: ReadonlyMap<string, { version: number; columns: ReadonlySet<string> }>,
 ): BindingAt[] {
-  const tables = new Map<Uuid, string>();
+  // Per step, and only one already on the version the live columns belong to: a
+  // stale writer of the same table is the author's to update, bindings and all.
+  const columnsOf = new Map<Uuid, ReadonlySet<string>>();
   for (const node of graph.nodes) {
     const table = (node.config as Record<string, unknown>).table;
-    if (RECORD_WRITERS.has(node.definition_id) && isTableRef(table))
-      tables.set(node.id, table.table_id);
+    if (!RECORD_WRITERS.has(node.definition_id) || !isTableRef(table)) continue;
+    const current = live.get(table.table_id);
+    if (current?.version === table.schema_version) columnsOf.set(node.id, current.columns);
   }
   return graph.bindings.flatMap((binding) => {
-    const tableId = tables.get(binding.target_node_id);
-    const columns = tableId === undefined ? undefined : live.get(tableId);
+    const columns = columnsOf.get(binding.target_node_id);
     const match = /^values\/([^/]+)$/.exec(binding.target_field);
     if (!columns || !match || columns.has(match[1]!)) return [];
     return [{ nodeId: binding.target_node_id, field: binding.target_field }];

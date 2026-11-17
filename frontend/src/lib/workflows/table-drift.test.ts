@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   graphTableRefs,
+  isTableRefusalField,
   orphanValueBindings,
   rebindRef,
   recordWriterTables,
@@ -82,6 +83,14 @@ describe("safeToRebind", () => {
     );
   });
 
+  it("refuses a read column whose meaning changed under the same type", () => {
+    // A formula, a lookup or an option changed: `revision` moved, the type did not.
+    const bound = [{ ...column("c1"), revision: 1 }];
+    const now = [{ ...column("c1"), revision: 2 }];
+    expect(safeToRebind(ref(["c1"]), table(now), versions(bound))).toBe(false);
+    expect(safeToRebind(ref(["c1"]), table(bound), versions(bound))).toBe(true);
+  });
+
   it("refuses when the bound version is not in the history", () => {
     expect(safeToRebind(ref(["c1"], 7), table([column("c1")]), versions([column("c1")]))).toBe(
       false,
@@ -94,8 +103,11 @@ describe("rebindRef", () => {
     expect(rebindRef(ref(["c1", "gone"]), 2, [column("c1")])).toEqual(ref(["c1"], 2));
   });
 
-  it("falls back to all columns when none of the chosen ones survived", () => {
-    expect(rebindRef(ref(["gone"]), 2, [column("c1")])).toEqual(ref(null, 2));
+  it("keeps an emptied choice empty, rather than widening it to every column", () => {
+    expect(rebindRef(ref(["gone"]), 2, [column("c1")])).toEqual(ref([], 2));
+  });
+
+  it("keeps an all-columns reference all columns", () => {
     expect(rebindRef(ref(null), 2, [column("c1")])).toEqual(ref(null, 2));
   });
 });
@@ -140,9 +152,14 @@ describe("orphanValueBindings", () => {
   } as unknown as WorkflowGraph;
 
   it("names a writer's value bound to a column no longer live, and nothing else", () => {
-    expect(orphanValueBindings(writer, new Map([["t1", new Set(["c1"])]]))).toEqual([
-      { nodeId: "w", field: "values/gone" },
-    ]);
+    const live = new Map([["t1", { version: 2, columns: new Set(["c1"]) }]]);
+    expect(orphanValueBindings(writer, live)).toEqual([{ nodeId: "w", field: "values/gone" }]);
+  });
+
+  it("leaves a writer still on an older schema to its author", () => {
+    // The same table, but this step was bound at version 1: its drift is pending.
+    const live = new Map([["t1", { version: 3, columns: new Set(["c1"]) }]]);
+    expect(orphanValueBindings(writer, live)).toEqual([]);
   });
 
   it("leaves a writer whose table's columns are not known", () => {
@@ -152,5 +169,19 @@ describe("orphanValueBindings", () => {
   it("lists only writers that bind per-column values", () => {
     expect(recordWriterTables(writer)).toEqual([{ tableId: "t1", version: 2 }]);
     expect(recordWriterTables(GRAPH)).toEqual([]);
+  });
+});
+
+describe("isTableRefusalField", () => {
+  it("names a step's own table, and a binding whose source is a table", () => {
+    expect(isTableRefusalField("nodes.a.config.table", null)).toBe(true);
+    expect(isTableRefusalField("bindings.0", GRAPH)).toBe(true);
+  });
+
+  it("leaves every other binding problem, and other fields, alone", () => {
+    // `bindings.1` is a literal: a bad value there is not a table change.
+    expect(isTableRefusalField("bindings.1", GRAPH)).toBe(false);
+    expect(isTableRefusalField("bindings.0", null)).toBe(false);
+    expect(isTableRefusalField("nodes.a.config.input_schema", GRAPH)).toBe(false);
   });
 });
