@@ -1,15 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import {
-  CalendarClock,
-  ChevronDown,
-  MessageCircle,
-  Moon,
-  Radar,
-  Wallet,
-  type LucideIcon,
-} from "lucide-react";
+import { CalendarClock, MessageCircle, Moon, Radar, Wallet, type LucideIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -17,6 +9,7 @@ import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { SetupIndicator } from "@/components/settings/setup-indicator";
 import { proactivitySetupHints } from "@/lib/setup-hints";
 import { SettingsSection } from "@/components/settings/settings-section";
+import { ServiceCard } from "@/components/settings/service-card";
 import {
   Button,
   Input,
@@ -150,38 +143,17 @@ function FeaturePanel({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   if (useChanged(defaultOpen) && defaultOpen) setOpen(true);
-  const panelId = `${id}-settings`;
   return (
-    <section aria-label={title} className="bg-card overflow-hidden rounded-xl border">
-      <header className="flex items-start gap-3 p-4 sm:p-5">
-        <span className="bg-muted text-foreground/80 grid size-9 shrink-0 place-items-center rounded-lg">
-          <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="flex items-center gap-1.5">
-            <h2 className="text-sm font-semibold">
-              {children && collapsible ? (
-                <button
-                  type="button"
-                  aria-expanded={open}
-                  aria-controls={panelId}
-                  onClick={() => setOpen(!open)}
-                  className="focus-visible:ring-ring flex min-h-9 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2"
-                >
-                  <ChevronDown
-                    aria-hidden
-                    className={cn("size-4 shrink-0", !open && "-rotate-90")}
-                  />
-                  {title}
-                </button>
-              ) : (
-                title
-              )}
-            </h2>
-            {status}
-          </div>
-          <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
-        </div>
+    <ServiceCard
+      title={title}
+      description={description}
+      icon={Icon}
+      status={status}
+      id={`${id}-settings`}
+      collapsible={collapsible}
+      open={open}
+      onOpenChange={setOpen}
+      action={
         <Switch
           id={id}
           aria-label={title}
@@ -192,17 +164,10 @@ function FeaturePanel({
             setOpen(true);
           }}
         />
-      </header>
-      {children && (
-        <div
-          id={panelId}
-          hidden={collapsible && !open}
-          className="space-y-4 border-t px-4 py-4 sm:px-5"
-        >
-          {children}
-        </div>
-      )}
-    </section>
+      }
+    >
+      {children}
+    </ServiceCard>
   );
 }
 

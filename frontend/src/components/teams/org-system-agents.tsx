@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Brain, ChevronDown, Loader2, Newspaper, Wallet } from "lucide-react";
+import { Brain, Loader2, Newspaper, Wallet } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { ServiceCard } from "@/components/settings/service-card";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ErrorState } from "@/components/states";
 import { Badge, Button, Input, Skeleton, Switch } from "@/components/ui";
@@ -160,41 +161,22 @@ function Profile({ agent, org }: { agent: SystemAgent; org: Organization }) {
   };
 
   return (
-    <section
-      aria-label={t(`roles.${agent.role}.name`)}
-      className="bg-card min-w-0 overflow-hidden rounded-xl border"
-      data-testid={`system-agent-${agent.role}`}
-    >
-      <header className="flex items-center gap-3 p-4">
-        <span className="bg-muted text-muted-foreground grid size-9 shrink-0 place-items-center rounded-lg">
-          {briefing ? (
-            <Newspaper className="size-4" aria-hidden />
-          ) : (
-            <Brain className="size-4" aria-hidden />
-          )}
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-medium">
-            <button
-              type="button"
-              aria-expanded={open}
-              aria-controls={`system-agent-${agent.role}-settings`}
-              onClick={() => setOpen(!open)}
-              className="focus-visible:ring-ring flex min-h-9 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2"
-            >
-              <ChevronDown aria-hidden className={open ? "size-4" : "size-4 -rotate-90"} />
-              <span>
-                {t(`roles.${agent.role}.name`)}
-                <span className="text-muted-foreground block text-xs font-normal">
-                  {t("configure")}
-                </span>
-              </span>
-            </button>
-          </h2>
-        </div>
+    <ServiceCard
+      title={t(`roles.${agent.role}.name`)}
+      description={t("configure")}
+      icon={briefing ? Newspaper : Brain}
+      collapsible
+      open={open}
+      onOpenChange={setOpen}
+      id={`system-agent-${agent.role}-settings`}
+      testId={`system-agent-${agent.role}`}
+      footer={<SystemAgentActivity agent={agent} />}
+      status={
         <Badge variant={form.enabled ? "success" : "secondary"}>
           {form.enabled ? t("on") : t("off")}
         </Badge>
+      }
+      action={
         <Switch
           id={`system-agent-${agent.role}-enabled`}
           aria-label={t("enabled")}
@@ -205,64 +187,54 @@ function Profile({ agent, org }: { agent: SystemAgent; org: Organization }) {
             setOpen(true);
           }}
         />
-      </header>
-      <div
-        id={`system-agent-${agent.role}-settings`}
-        hidden={!open}
-        className="space-y-4 border-t p-4 sm:p-5"
-      >
-        <p className="text-muted-foreground max-w-3xl text-sm leading-relaxed">
-          {t(`roles.${agent.role}.what`)}
+      }
+    >
+      <p className="text-muted-foreground max-w-3xl text-sm leading-relaxed">
+        {t(`roles.${agent.role}.what`)}
+      </p>
+      {agent.unavailable && (
+        <p role="status" className="text-destructive text-sm">
+          {t("starterAgentMissing")}
         </p>
-        {agent.unavailable && (
-          <p role="status" className="text-destructive text-sm">
-            {t("starterAgentMissing")}
-          </p>
+      )}
+      <fieldset className="min-w-0 space-y-2" disabled={busy}>
+        <legend className="text-sm font-medium">{t("model")}</legend>
+        <ModelProfilePicker
+          profiles={profiles}
+          profilesStatus={profilesStatus}
+          value={form.modelId}
+          onChange={(modelId) => edit({ modelId, ...(modelId === null ? { enabled: false } : {}) })}
+          onCreationPendingChange={(creating) => setPending((count) => count + (creating ? 1 : -1))}
+          allowAdd={can(Perm.connectionsManage)}
+          disabled={busy}
+        />
+        {errors[MODEL_FIELD] ? (
+          <p className="text-destructive text-xs">{errors[MODEL_FIELD]}</p>
+        ) : (
+          <p className="text-muted-foreground text-xs">{t("modelHint")}</p>
         )}
-        <fieldset className="min-w-0 space-y-2" disabled={busy}>
-          <legend className="text-sm font-medium">{t("model")}</legend>
-          <ModelProfilePicker
-            profiles={profiles}
-            profilesStatus={profilesStatus}
-            value={form.modelId}
-            onChange={(modelId) =>
-              edit({ modelId, ...(modelId === null ? { enabled: false } : {}) })
-            }
-            onCreationPendingChange={(creating) =>
-              setPending((count) => count + (creating ? 1 : -1))
-            }
-            allowAdd={can(Perm.connectionsManage)}
-            disabled={busy}
-          />
-          {errors[MODEL_FIELD] ? (
-            <p className="text-destructive text-xs">{errors[MODEL_FIELD]}</p>
-          ) : (
-            <p className="text-muted-foreground text-xs">{t("modelHint")}</p>
-          )}
-        </fieldset>
-        <FormField
-          label={briefing ? proactive("label") : t("budget")}
-          htmlFor={`system-agent-${agent.role}-budget`}
-          error={errors[BUDGET_FIELD] ?? null}
-        >
-          <Input
-            id={`system-agent-${agent.role}-budget`}
-            type="number"
-            min="0"
-            step="0.5"
-            placeholder={t("noBudget")}
-            value={form.budget}
-            disabled={busy}
-            onChange={(event) => edit({ budget: event.target.value })}
-          />
-        </FormField>
-        <Button onClick={save} disabled={!changed || busy || pending > 0}>
-          {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-          {t("save")}
-        </Button>
-        <SystemAgentActivity agent={agent} />
-      </div>
-    </section>
+      </fieldset>
+      <FormField
+        label={briefing ? proactive("label") : t("budget")}
+        htmlFor={`system-agent-${agent.role}-budget`}
+        error={errors[BUDGET_FIELD] ?? null}
+      >
+        <Input
+          id={`system-agent-${agent.role}-budget`}
+          type="number"
+          min="0"
+          step="0.5"
+          placeholder={t("noBudget")}
+          value={form.budget}
+          disabled={busy}
+          onChange={(event) => edit({ budget: event.target.value })}
+        />
+      </FormField>
+      <Button onClick={save} disabled={!changed || busy || pending > 0}>
+        {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+        {t("save")}
+      </Button>
+    </ServiceCard>
   );
 }
 

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { Volume2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { SettingsSection } from "@/components/settings/settings-section";
+import { ServiceCard } from "@/components/settings/service-card";
 import { SpeechKeyField } from "@/components/vault/speech-key-field";
 import {
   Button,
@@ -108,13 +109,13 @@ export function OrgTextToSpeechSettings({
   useUnsavedChanges(`org-tts:${org.id}`, { dirty, save, discard: reset });
 
   return (
-    <SettingsSection
+    <ServiceCard
+      icon={Volume2}
       title={t("tts.title")}
       description={t("tts.description")}
       collapsible
       open={forceOpen}
       onOpenChange={setForceOpen}
-      className="bg-card rounded-xl border p-4 sm:p-5"
       action={
         <Switch
           aria-label={t("tts.title")}
@@ -254,6 +255,6 @@ export function OrgTextToSpeechSettings({
           </Button>
         </div>
       </fieldset>
-    </SettingsSection>
+    </ServiceCard>
   );
 }
