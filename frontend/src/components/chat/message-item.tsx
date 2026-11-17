@@ -126,6 +126,9 @@ interface MessageItemProps {
   canStartThread?: boolean;
   onReply?: (reply: MessageReply) => void;
   allowReply?: boolean;
+  /** Personal message pin action; only supplied on authenticated transcript surfaces. */
+  onTogglePin?: (messageId: string, pinned: boolean) => void;
+  pinPending?: boolean;
   threadRootPreview?: boolean;
   forkingMessageId?: string | null;
   /** In the test panel: a question can be pinned to ask again after each change (#2075). */
@@ -154,6 +157,8 @@ export const MessageItem = memo(function MessageItem({
   canStartThread = false,
   onReply,
   allowReply = true,
+  onTogglePin,
+  pinPending = false,
   threadRootPreview = false,
   forkingMessageId = null,
   pins,
@@ -176,6 +181,7 @@ export const MessageItem = memo(function MessageItem({
   const updateMessage = useChatStore((state) => state.updateMessage);
   const setReplyTo = useChatStore((state) => state.setReplyTo);
   const tReply = useTranslations("chat.reply");
+  const tPins = useTranslations("chat.messagePins");
   const openPreview = useFilePreviewStore((s) => s.open);
   const openSources = useSourcesPanelStore((s) => s.open);
   const { user: authUser } = useAuthStore();
@@ -564,6 +570,30 @@ export const MessageItem = memo(function MessageItem({
                 text={copyText}
                 className={cn(TURN_ACTION, "p-0 sm:opacity-0 sm:group-hover:opacity-100")}
               />
+            )}
+            {onTogglePin && savedMessageId !== null && (
+              <button
+                type="button"
+                onClick={() => onTogglePin(savedMessageId, !message.isPinned)}
+                title={tPins(message.isPinned ? "unpin" : "pin")}
+                aria-label={tPins(message.isPinned ? "unpin" : "pin")}
+                aria-pressed={message.isPinned === true}
+                aria-busy={pinPending}
+                disabled={pinPending}
+                className={cn(
+                  TURN_ACTION,
+                  "focus-visible:opacity-100 disabled:cursor-wait sm:opacity-0 sm:group-hover:opacity-100",
+                  (message.isPinned || pinPending) && "sm:opacity-100",
+                )}
+              >
+                {pinPending ? (
+                  <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden />
+                ) : message.isPinned ? (
+                  <PinOff aria-hidden />
+                ) : (
+                  <Pin aria-hidden />
+                )}
+              </button>
             )}
             {isUser && pins && message.content && (
               <PinButton pins={pins} prompt={message.content} />

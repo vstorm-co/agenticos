@@ -1,5 +1,5 @@
 ---
-source_sha: "4e14aeb9974b"
+source_sha: "4deab8cd6da5"
 ---
 
 # Konsola { #the-console }
@@ -945,6 +945,12 @@ Rozmowę z zapisaną checklistą można rozgałęzić tylko przy jej najnowszej 
 Przy zakończonej odpowiedzi asystenta w należącej do Ciebie prywatnej rozmowie opcja **Wątki poboczne** pozwala rozpocząć osobną rozmowę od tego miejsca lub ponownie otworzyć odgałęzienie tej samej odpowiedzi. Nowa rozmowa otwiera się obok głównej, z własnym polem wpisywania i kolejnymi wiadomościami. Historia, szkic i kolejka rozmowy głównej pozostają na miejscu; wiadomości wysłane w odgałęzieniu należą do niego.
 
 **Powrót do rozmowy nadrzędnej** zamyka panel i otwiera dokładną odpowiedź źródłową, wczytując starszą historię w razie potrzeby. Zamknięcie panelu nie usuwa rozmowy. Zmiana rozmowy źródłowej, konta lub organizacji usuwa stary panel. Zarchiwizowane odgałęzienia są tylko do odczytu. Lista pozwala wczytać więcej odgałęzień tej odpowiedzi, a błąd odczytu lub tworzenia umożliwia ponowienie bez przełączania głównej rozmowy.
+
+### Przypięte wiadomości { #chat-message-pins }
+
+Wybierz **Przypnij wiadomość** przy zapisanej wiadomości, aby zachować prywatną zakładkę. **Przypięte wiadomości** w nagłówku rozmowy otwierają Twoją listę. Wybierz fragment, aby wrócić dokładnie do tej wiadomości, także na starszej stronie lub w wątku pokoju. Przypięcie można usunąć przy wiadomości albo na liście, wczytać kolejne pozycje i ponowić nieudany odczyt.
+
+Przypięcia należą do Ciebie. Inni czytelnicy udostępnionej rozmowy ich nie widzą, a odbiorca z dostępem tylko do odczytu może zachowywać własne zakładki. Otwarcie przypięcia nadal wymaga dostępu do rozmowy. Lista pokazuje bieżący fragment wiadomości i nie tworzy dodatkowej kopii treści.
 
 ### Znajdowanie wiadomości { #chat-message-search }
 

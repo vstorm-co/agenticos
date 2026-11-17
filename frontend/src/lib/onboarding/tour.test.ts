@@ -303,6 +303,7 @@ describe("stepsForPage", () => {
       "chat-start",
       "chat-message-search",
       "chat-side-threads",
+      "chat-message-pins",
       "chat-agent-picker",
       "chat-composer",
       "chat-send-mode",

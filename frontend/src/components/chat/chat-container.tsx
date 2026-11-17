@@ -58,14 +58,15 @@ import { ConversationVisualsProvider } from "./visual-panel";
 import { WorkspacePanels } from "./workspace-panels";
 import { browseSurfaces } from "@/lib/workspace-panels";
 import { SourcesPanel } from "./sources-panel";
-import { MessageList, coalesceActivity } from "./message-list";
+import { MessageList, coalesceActivity, type MessagePinActions } from "./message-list";
+import { PinnedMessages, type PinnedMessageTarget } from "./pinned-messages";
 import { TurnRail } from "./turn-rail";
 import { DelegationPanels } from "./delegation-panel";
 import { LocalAccessDialog } from "./local-access-dialog";
 import { useComputerAccessOnUse, useLocalAccessGate } from "@/hooks/use-local-access-gate";
 import { CompactionNotice } from "./compaction-notice";
 import { ForkedFrom } from "./forked-from";
-import type { ConversationSideThreadActions } from "./conversation-side-threads";
+import { type ConversationSideThreadActions } from "./conversation-side-threads";
 import { PersonalSideThreadPanel } from "./personal-side-thread-panel";
 import { ConversationAccessNotice } from "./conversation-access-notice";
 import { useConversationAccess, useSharedConversation } from "@/hooks/use-conversation-shares";
@@ -113,6 +114,8 @@ import { useComposerIntentStore } from "@/stores/composer-intent-store";
 import { cn } from "@/lib/utils";
 import { useConversations } from "@/hooks";
 import { useTenantId } from "@/hooks/use-organizations";
+import { useMessagePins } from "@/hooks/use-message-pins";
+import type { ConversationMessageSearchTarget } from "@/lib/conversation-message-search-api";
 import { useMounted } from "@/hooks/use-mounted";
 import { useOnline } from "@/hooks/use-online";
 import { offlineAvailable } from "@/lib/offline/device-cache";
@@ -190,6 +193,7 @@ interface ChatContainerProps {
   requestedMessageId?: string | null;
   messageJumpRevision?: number;
   onOpenParent?: (target: { conversationId: string; messageId: string | null }) => void;
+  onOpenMessage?: (target: ConversationMessageSearchTarget) => void;
   onOpenThread?: (rootId: string) => void;
   onCloseThread?: () => void;
   /** Sent as soon as the socket is up, once per `id` (#2063). */
@@ -227,6 +231,7 @@ export function ChatContainer({
   requestedMessageId = null,
   messageJumpRevision = 0,
   onOpenParent,
+  onOpenMessage,
   onOpenThread,
   onCloseThread,
   prompt = null,
@@ -792,6 +797,14 @@ export function ChatContainer({
     container: scrollContainerRef,
     beforeJump: holdMessageJump,
   });
+  const canUseMessagePins =
+    jumpReady &&
+    currentConversationId !== null &&
+    !testing &&
+    onOpenMessage !== undefined &&
+    (requestedConversationId === null || requestedConversationId === currentConversationId);
+  // Transcript rows already carry pin state; fetch the paged list only when opened.
+  const messagePins = useMessagePins(canUseMessagePins ? currentConversationId : null, false);
   useSentTurnAnchor(
     messages,
     scrollContainerRef,
@@ -1079,7 +1092,6 @@ export function ChatContainer({
     },
     [forkConversation, openId],
   );
-
   const handleCreateSideThread = useCallback(
     async (messageId: string) => {
       if (
@@ -1179,6 +1191,26 @@ export function ChatContainer({
       <LocalAccessDialog />
       <ChatUI
         sideThreadActions={sideThreadActions}
+        messagePinActions={
+          canUseMessagePins
+            ? {
+                pendingMessageId: messagePins.pendingMessageId,
+                togglePin: messagePins.togglePin,
+              }
+            : undefined
+        }
+        onOpenPinnedMessage={
+          canUseMessagePins
+            ? (target) => {
+                if (currentConversationId !== null)
+                  onOpenMessage?.({
+                    ...target,
+                    conversationId: currentConversationId,
+                    threadRootMessageId: target.threadRootMessageId ?? undefined,
+                  });
+              }
+            : undefined
+        }
         roomProjectId={roomProjectId}
         roomReadOnly={isArchived || !access.known}
         threadRootId={threadRootId}
@@ -1352,6 +1384,8 @@ export function ChatContainer({
 
 interface ChatUIProps {
   sideThreadActions?: ConversationSideThreadActions;
+  messagePinActions?: MessagePinActions;
+  onOpenPinnedMessage?: (target: PinnedMessageTarget) => void;
   roomProjectId: string | null;
   roomReadOnly: boolean;
   threadRootId: string | null;
@@ -1508,6 +1542,8 @@ interface ChatUIProps {
 
 function ChatUI({
   sideThreadActions,
+  messagePinActions,
+  onOpenPinnedMessage,
   roomProjectId,
   roomReadOnly,
   threadRootId,
@@ -1701,6 +1737,14 @@ function ChatUI({
   // The Architect's window and the Builder's test panel: a narrow column beside
   // a page, with no room for the rail and no use for the full chat's spacing.
   const compact = useInChatScope();
+  const messagePinsControl =
+    conversationId !== null && messagePinActions && onOpenPinnedMessage ? (
+      <PinnedMessages
+        key={`${accountId}:${activeOrgId}:${conversationId}`}
+        conversationId={conversationId}
+        onJumpToMessage={onOpenPinnedMessage}
+      />
+    ) : null;
 
   // A voice call (#54): offered in Send's place when the selected agent can take
   // one, crossed out with the reason when it cannot - in the narrow windows too.
@@ -2011,7 +2055,19 @@ function ChatUI({
               )}
               home={showWorkspaceHome}
               onChange={(profileId) => onModelProfileChange?.(profileId)}
+              actions={messagePinsControl}
             />
+          )}
+          {(compact || roomProjectId !== null || !hasAgent) && messagePinsControl && (
+            <div
+              data-chat-model-header
+              className={cn(
+                "flex shrink-0 items-center justify-end border-b px-3 py-1",
+                !compact && "max-lg:pt-14",
+              )}
+            >
+              {messagePinsControl}
+            </div>
           )}
           <MessageJumpNotice jump={messageJump} />
           <div
@@ -2100,6 +2156,7 @@ function ChatUI({
                       messages={messages}
                       delegations={delegations}
                       sideThreadActions={sideThreadActions}
+                      messagePinActions={messagePinActions}
                       onRegenerate={onRegenerate}
                       onFork={onFork}
                       forkingMessageId={forkingMessageId}
@@ -2603,6 +2660,8 @@ function ChatUI({
           rootId={threadRootId}
           requestedMessageId={requestedMessageId}
           messageJumpRevision={messageJumpRevision}
+          messagePinActions={messagePinActions}
+          onOpenPinnedMessage={onOpenPinnedMessage}
           readOnly={roomProjectId === null || roomReadOnly}
           onClose={onCloseThread}
           onTyping={onTyping}

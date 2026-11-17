@@ -23,7 +23,15 @@ vi.mock("./chat-container", async () => {
   return {
     ChatContainer: (props: {
       requestedConversationId?: string;
+      requestedMessageId?: string | null;
+      requestedThreadRootId?: string | null;
+      messageJumpRevision?: number;
       onOpenParent?: (target: { conversationId: string; messageId: string | null }) => void;
+      onOpenMessage?: (target: {
+        conversationId: string;
+        messageId: string;
+        threadRootMessageId?: string | null;
+      }) => void;
       onOpenThread?: (rootId: string) => void;
       onCloseThread?: () => void;
     }) => {
@@ -37,6 +45,9 @@ vi.mock("./chat-container", async () => {
           "data-testid": "child-chat",
           "data-instance": String(instance),
           "data-conversation": props.requestedConversationId,
+          "data-message": props.requestedMessageId ?? "",
+          "data-thread-root": props.requestedThreadRootId ?? "",
+          "data-jump-revision": String(props.messageJumpRevision),
         },
         React.createElement(
           "button",
@@ -49,6 +60,27 @@ vi.mock("./chat-container", async () => {
               }),
           },
           "Child parent link",
+        ),
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            onClick: () =>
+              props.onOpenMessage?.({
+                conversationId: props.requestedConversationId ?? "",
+                messageId: "local-message",
+              }),
+          },
+          "Open local result",
+        ),
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            onClick: () =>
+              props.onOpenMessage?.({ conversationId: "another-chat", messageId: "bad" }),
+          },
+          "Open unrelated result",
         ),
         React.createElement(
           "button",
@@ -280,5 +312,41 @@ describe("PersonalSideThreadPanel", () => {
       }),
     );
     expect(document.activeElement).toBe(document.getElementById("parent-answer"));
+  });
+
+  it("keeps local message and thread jumps in the child scope", async () => {
+    render(
+      <PersonalSideThreadPanel
+        sourceConversationId="source-a"
+        fork={fork}
+        onClose={vi.fn()}
+        onOpenParent={vi.fn()}
+      />,
+    );
+    let child = await screen.findByTestId("child-chat");
+
+    await userEvent.click(screen.getByRole("button", { name: "Open unrelated result" }));
+    expect(child).toHaveAttribute("data-message", "");
+    expect(child).toHaveAttribute("data-jump-revision", "0");
+
+    await userEvent.click(screen.getByRole("button", { name: "Open local result" }));
+    child = screen.getByTestId("child-chat");
+    expect(child).toHaveAttribute("data-message", "local-message");
+    expect(child).toHaveAttribute("data-jump-revision", "1");
+
+    await userEvent.click(screen.getByRole("button", { name: "Open local thread" }));
+    child = screen.getByTestId("child-chat");
+    expect(child).toHaveAttribute("data-message", "local-thread");
+    expect(child).toHaveAttribute("data-thread-root", "local-thread");
+    expect(child).toHaveAttribute("data-jump-revision", "2");
+
+    await userEvent.click(screen.getByRole("button", { name: "Close local thread" }));
+    child = screen.getByTestId("child-chat");
+    expect(child).toHaveAttribute("data-message", "");
+    expect(child).toHaveAttribute("data-thread-root", "");
+    expect(child).toHaveAttribute("data-jump-revision", "2");
+
+    await userEvent.click(screen.getByRole("button", { name: "Mark child selected" }));
+    expect(state.selectConversation).toHaveBeenCalledExactlyOnceWith("child-a");
   });
 });

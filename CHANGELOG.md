@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Migration `0337_conversation_message_pins`, after `0336_merge_core_v1761`, adds reader-private message bookmarks with message and user foreign keys. Existing transcripts are unchanged.
+
 - Tables tenant isolation adds migration `0328_tables_tenant_rls`, after `0327_virtual_table_relations`. It installs policies with enforcement disabled and adds a membership foreign key for user-specific Tables grants. Existing grants without membership, and cross-organization trigger or admission parents, must be reviewed before the migration can proceed; it refuses those rows without repairing data. Enabling enforcement is a separate operator cutover with distinct migration, runtime and maintenance credentials and drained API/worker services. Follow the [Tables cutover procedure](https://github.com/t3grp/agenticos/blob/t3/docs/plans/table-tenant-cutover.md) before activation.
 - Thread storage uses published migration `0333_room_threads.py` after `0332_merge_t3_pools_v1761.py`. It builds the composite unique index and the thread lookup index concurrently, then attaches the unique index as a constraint. These builds allow ordinary reads and writes. Adding the nullable root column and attaching the unique constraint need brief `ACCESS EXCLUSIVE` locks, which can wait behind long transactions. The foreign-key and check constraints are added `NOT VALID` and validated without blocking ordinary writes. Rehearse on a production-sized copy and review any lock waits during upgrade; prebuilding the composite index is unnecessary.
 - If an index build fails, the revision stays pending and the nullable root column may remain. Retry the upgrade after any active build has finished. The migration reuses exact valid indexes and drops an exact invalid index with `DROP INDEX CONCURRENTLY` before rebuilding it. It stops and leaves a conflicting object untouched. Inspect any unexpected object before resolving it. Once thread replies exist, retain a thread-aware application version or restore the matching pre-upgrade backup: an older reader or dropping the root column would mix those replies into the main transcript. Downgrading refuses while replies exist; an empty downgrade returns to `0332_merge_t3_pools_v1761`.
@@ -38,6 +40,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Separate MCP connection use from administration on existing paths. Use grants continue to authorize agent/workflow binding, while editing, deleting, probing, reading call logs and changing sharing require management authority or an edit grant within the existing route gates. Existing role scopes and published-agent delegation remain in place; no grants are promoted and no new discovery endpoint is added.
 
 ### Added
+
+- Personal message pins in chat: bookmark saved messages, browse a paged private list, and reopen an exact message or room reply. Read-only recipients can keep their own pins without changing the shared transcript.
 
 - Chat side threads open a separate saved conversation from a completed answer beside its parent. Existing branches can be reopened, archived children remain read-only, and Back to parent returns to the source message without replacing the parent's draft or queue.
 

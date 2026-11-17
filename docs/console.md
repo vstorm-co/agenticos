@@ -915,6 +915,12 @@ On a completed assistant answer in a personal conversation you own, **Side threa
 
 **Back to parent conversation** closes the side panel and opens the exact source answer, loading older history if necessary. Closing the panel keeps the child saved. Switching the source conversation, account or organization removes the old panel. Archived children open read-only. The list can load more branches from this answer, and a failed read or creation offers another attempt without switching the main conversation.
 
+### Pinned messages { #chat-message-pins }
+
+Choose **Pin message** on a saved message to keep a personal bookmark. **Pinned messages** in the conversation header opens your list; choose an excerpt to return to its exact message, including an older page or a room reply. You can remove a pin from either the message or the list, load more pins, and retry a failed read.
+
+Pins belong to you. Other readers of a shared conversation do not see your pins, and a read-only recipient can keep their own bookmarks. Opening a pin still requires access to its conversation. A pin uses the current message excerpt and does not create another copy of its content.
+
 ### Finding a message { #chat-message-search }
 
 Use **Search conversations** in the chat sidebar. **Message text** searches conversations you can read in the active organization and shows the best matching message in each result, with an excerpt and its time. Narrow the query if the first twenty conversations do not include the one you need. Choose **Conversation title** to search titles, including archived conversations.

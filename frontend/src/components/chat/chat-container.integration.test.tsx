@@ -24,6 +24,7 @@ import type { ConversationWorkspace } from "@/lib/conversation-workspace-api";
 import type { Project } from "@/types/projects";
 import type { ConversationCost, ConversationMessage } from "@/types";
 import type { ConversationForkRead } from "@/lib/conversation-forks-api";
+import type { ConversationMessageSearchTarget } from "@/lib/conversation-message-search-api";
 import { qk } from "@/lib/query-keys";
 import { initialCall } from "@/lib/voice/call-reducer";
 import { useChatControlsStore, currentChatControlScope } from "@/stores/chat-controls-store";
@@ -203,12 +204,14 @@ function mount(
   requestedConversationId?: string,
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
   requestedMessageId?: string,
+  onOpenMessage?: (target: ConversationMessageSearchTarget) => void,
 ) {
   return render(
     <QueryClientProvider client={client}>
       <ChatContainer
         requestedConversationId={requestedConversationId}
         requestedMessageId={requestedMessageId}
+        onOpenMessage={onOpenMessage}
       />
     </QueryClientProvider>,
   );
@@ -2277,6 +2280,93 @@ describe("the chat container - late transcript reconciliation", () => {
       runError: "Could not persist this answer",
     });
     expect(await screen.findByText(/Could not persist this answer/)).toBeVisible();
+  });
+});
+
+describe("personal message pins in chat", () => {
+  function openPins(sharePermission?: "view") {
+    const conversation = {
+      id: "c-pins",
+      title: "Saved discussion",
+      user_id: sharePermission ? "another-reader" : SIGNED_IN.id,
+      share_permission: sharePermission,
+      is_archived: false,
+    };
+    const pin = {
+      message_id: "older-pin",
+      thread_root_message_id: "older-root",
+      role: "assistant",
+      message_created_at: "2026-10-01T12:00:00Z",
+      pinned_at: "2026-11-17T00:00:00Z",
+      preview: "An older bookmarked answer",
+    };
+    const fallback = get.getMockImplementation()!;
+    get.mockImplementation((path: string) =>
+      path === "/conversations/c-pins/metadata"
+        ? Promise.resolve(conversation)
+        : path.startsWith("/conversations?")
+          ? Promise.resolve({ items: sharePermission ? [] : [conversation], total: 1 })
+          : path === "/conversations/c-pins/message-pins"
+            ? Promise.resolve({ items: [pin], total: 1 })
+            : fallback(path),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-pins");
+    loadTranscript([
+      {
+        id: "current-pin",
+        conversation_id: "c-pins",
+        role: "user",
+        content: "A message worth keeping",
+        created_at: "2026-11-17T00:00:00Z",
+        is_pinned: false,
+      },
+    ]);
+    vi.mocked(apiClient.post).mockResolvedValue(pin);
+  }
+
+  it("pins the saved message and lazily opens an exact room-reply bookmark", async () => {
+    openPins();
+    const onOpen = vi.fn();
+    mount("c-pins", undefined, undefined, onOpen);
+    await userEvent.click(await screen.findByRole("button", { name: "Pin message" }));
+    expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-pins/messages/current-pin/pin");
+    expect(await screen.findByRole("button", { name: "Unpin message" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(get.mock.calls.some(([path]) => String(path).endsWith("/message-pins"))).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Pinned messages" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "An older bookmarked answer" }),
+    );
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith({
+      conversationId: "c-pins",
+      messageId: "older-pin",
+      threadRootMessageId: "older-root",
+    });
+  });
+
+  it("lets a read-only recipient keep a private pin", async () => {
+    openPins("view");
+    mount("c-pins", undefined, undefined, vi.fn());
+    await screen.findByText("Shared with you as read-only");
+    await userEvent.click(await screen.findByRole("button", { name: "Pin message" }));
+    expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-pins/messages/current-pin/pin");
+  });
+
+  it("hides pin actions when a fresh access read refuses cached history", async () => {
+    openPins("view");
+    const fallback = get.getMockImplementation()!;
+    get.mockImplementation((path: string) =>
+      path === "/conversations/c-pins/metadata"
+        ? Promise.reject(new Error("Access changed"))
+        : fallback(path),
+    );
+    mount("c-pins", undefined, "current-pin", vi.fn());
+    await screen.findByText("The selected message could not be loaded. Try again.");
+    expect(screen.queryByRole("button", { name: "Pin message" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Pinned messages/ })).not.toBeInTheDocument();
+    expect(get.mock.calls.some(([path]) => String(path).endsWith("/message-pins"))).toBe(false);
   });
 });
 

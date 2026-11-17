@@ -8882,6 +8882,10 @@
       "chat-room-thread-panel": {
         "title": "Kendi bağlamında yanıtlar",
         "body": "İlk mesaj yanıtların üstünde kalır. Odadaki herkes konuyu okuyabilir. Yardım istediğinizde bir ajan seçin veya odaya dönmek için konuyu kapatın."
+      },
+      "chat-message-pins": {
+        "title": "Önemli mesajları saklayın",
+        "body": "Bir mesajı kendiniz için sabitleyin, ardından bu konuşmanın sabitlenmiş mesajlar listesinden yeniden açın."
       }
     }
   },
@@ -8891,6 +8895,18 @@
       "failed": "Seçilen mesaj yüklenemedi. Tekrar deneyin.",
       "unavailable": "Bu mesaj artık bu sohbette kullanılamıyor.",
       "cancel": "Mesaja gitmeyi iptal et"
+    },
+    "messagePins": {
+      "emptyPreview": "Önizlemesi olmayan mesaj",
+      "open": "Sabitlenen mesajlar",
+      "title": "Sabitlenen mesajlar",
+      "empty": "Bu sohbette sabitlenmiş mesajınız yok.",
+      "loading": "Sabitlenen mesajlar yükleniyor…",
+      "loadMore": "Daha fazla yükle",
+      "retry": "Tekrar dene",
+      "listFailed": "Sabitlenen mesajlar yüklenemedi.",
+      "pin": "Mesajı sabitle",
+      "unpin": "Mesajın sabitlemesini kaldır"
     },
     "sideThreads": {
       "loadMore": "Daha fazla yükle",

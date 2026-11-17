@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { PublishedModel } from "@/types/agents";
 import { ChatModelSelector } from "./chat-model-selector";
@@ -12,6 +13,7 @@ export function ChatModelHeader({
   canEditAgent,
   home,
   onChange,
+  actions,
 }: {
   name: string;
   agentModel: PublishedModel | null;
@@ -20,6 +22,7 @@ export function ChatModelHeader({
   canEditAgent: boolean;
   home: boolean;
   onChange: (profileId: string | null) => void;
+  actions?: ReactNode;
 }) {
   return (
     <header
@@ -30,14 +33,17 @@ export function ChatModelHeader({
       )}
     >
       <span className="min-w-0 truncate text-sm font-medium">{name}</span>
-      <ChatModelSelector
-        key={isProcessing ? "processing" : "idle"}
-        agentModel={agentModel}
-        readOnly={readOnly}
-        isProcessing={isProcessing}
-        canEditAgent={canEditAgent}
-        onChange={onChange}
-      />
+      <div className="flex shrink-0 items-center gap-1">
+        {actions}
+        <ChatModelSelector
+          key={isProcessing ? "processing" : "idle"}
+          agentModel={agentModel}
+          readOnly={readOnly}
+          isProcessing={isProcessing}
+          canEditAgent={canEditAgent}
+          onChange={onChange}
+        />
+      </div>
     </header>
   );
 }

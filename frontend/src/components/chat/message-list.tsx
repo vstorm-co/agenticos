@@ -15,10 +15,16 @@ import type { PinnedPrompts } from "./chat-container";
 import type { ConversationSideThreadActions } from "./conversation-side-threads";
 import { MessageItem } from "./message-item";
 
+export interface MessagePinActions {
+  pendingMessageId: string | null;
+  togglePin: (messageId: string, pinned: boolean) => void;
+}
+
 interface MessageListProps {
   messages: ChatMessage[];
   delegations?: Delegation[];
   sideThreadActions?: ConversationSideThreadActions;
+  messagePinActions?: MessagePinActions;
   onRegenerate?: (messageId: string) => void;
   /** Fork the conversation at this answer; absent where the reader may not (#2762). */
   onFork?: (messageId: string) => void;
@@ -244,6 +250,7 @@ export function MessageList({
   messages: sourceMessages,
   delegations,
   sideThreadActions,
+  messagePinActions,
   onRegenerate,
   onFork,
   forkingMessageId = null,
@@ -326,6 +333,8 @@ export function MessageList({
             asked={askedBefore(messages, index)}
             request={pins ? undefined : row.request}
             sideThreadActions={sideThreadActions}
+            onTogglePin={messagePinActions?.togglePin}
+            pinPending={messagePinActions?.pendingMessageId === (message.persistedId ?? message.id)}
             onFork={onFork}
             onOpenThread={onOpenThread}
             canStartThread={canStartThread}

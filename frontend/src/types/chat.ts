@@ -167,6 +167,8 @@ export interface ChatMessage {
   renderKey?: string;
   /** Saved segments represented by one visible assistant turn, for exact message links. */
   coalescedMessageIds?: string[];
+  /** Whether the signed-in reader pinned this message; absent on unpersonalized reads. */
+  isPinned?: boolean;
   /** Current user's rating */
   user_rating?: UserRating;
   /** Aggregate rating counts */

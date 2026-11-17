@@ -2288,6 +2288,10 @@ class TestSayingATurnWasStopped:
         with (
             patch("app.services.conversation.message_rating_repo") as ratings,
             patch(
+                "app.services.conversation.conversation_message_pin_repo.message_pin_ids",
+                AsyncMock(return_value=set()),
+            ),
+            patch(
                 "app.services.conversation.conversation_share_repo.get_share",
                 AsyncMock(return_value=SimpleNamespace(permission="view")),
             ),
