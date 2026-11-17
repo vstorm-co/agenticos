@@ -27,10 +27,12 @@ name: CI
 # merging; `t3` requires no status checks. Every push to `t3` (each merge) and
 # every `v*` tag runs the full suite. A failed `t3` run is reverted or fixed
 # before the next merge, and a production deploy needs it green.
+# No CI unless the user asks (user decision, 2026-11-17). This workflow runs
+# only on manual dispatch, when the user requests a run. Each run is a full
+# run of every suite. The T3 session's quick check before each push is the
+# per-change evidence.
 on:
-  push:
-    branches: [t3]
-    tags: ['v*']
+  workflow_dispatch:
 
 # One run per ref, and a newer run cancels an older one on every ref, `t3`
 # included (user decision, 2026-11-16). A cancelled `t3` run never becomes a
@@ -98,7 +100,7 @@ jobs:
       pull-requests: read
       actions: read
     outputs:
-      full: ${{ github.event_name == 'push' }}
+      full: ${{ github.event_name != 'pull_request' }}
       backend: ${{ steps.reused.outputs.backend || steps.scope.outputs.backend || steps.pushed.outputs.backend }}
       frontend: ${{ steps.reused.outputs.frontend || steps.scope.outputs.frontend || steps.pushed.outputs.frontend }}
       e2e: ${{ steps.reused.outputs.e2e || steps.scope.outputs.e2e || steps.pushed.outputs.e2e }}

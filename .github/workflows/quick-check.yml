@@ -1,32 +1,33 @@
 name: Quick check
 
-# Fallback for when T3 is down (user decision, 2026-11-16). Normally the T3
+# No CI unless the user asks (user decision, 2026-11-17). Normally the T3
 # session runs the quick check before it pushes and pastes the output into the
-# pull request, so no CI runs on pull requests. When T3 is unavailable, the
-# lead adds the `quick-check` label to the pull request; this workflow then
-# runs the same quick check (lint, type checks, related frontend tests) once,
-# and the pull request merges when it passes. Re-add the label to rerun it.
-# The full suite still runs after the merge, from ci.yml.
+# pull request. This workflow runs the same check (lint, type checks, related
+# frontend tests) only on manual dispatch, when the user requests it: dispatch
+# it on the pull request's branch and give the base branch to diff against.
 
 on:
-  pull_request:
-    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Branch to diff against for related frontend tests
+        required: true
+        default: t3
 
 permissions:
   contents: read
 
 concurrency:
-  group: quick-check-${{ github.event.pull_request.number }}
+  group: quick-check-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   quick-check:
-    if: ${{ github.event.label.name == 'quick-check' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       TY_OUTPUT_FORMAT: github
-      BASE_REF: ${{ github.event.pull_request.base.ref }}
+      BASE_REF: ${{ inputs.base_ref }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
