@@ -2072,7 +2072,9 @@
         "column": "Column",
         "value": "Value",
         "recordLabel": "Record"
-      }
+      },
+      "runAcpAgent": "External ACP agent",
+      "runningAcpAgent": "External ACP agent"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -10793,6 +10795,19 @@
         "prepareNamed": "Set up {name}",
         "preparing": "Preparing…",
         "refresh": "Refresh status"
+      },
+      "externalAgents": {
+        "title": "External ACP agents",
+        "description": "Register an installed ACP program for tasks on this computer. It uses its own login and model, can change files and run commands, and may incur charges outside AgenticOS.",
+        "id": "Agent ID",
+        "name": "Display name",
+        "program": "Absolute executable path",
+        "args": "Arguments (JSON array)",
+        "save": "Register agent",
+        "remove": "Remove",
+        "removeNamed": "Remove {name}",
+        "help": "Use this ID in the External ACP agent capability. Arguments are separate strings, for example acp. Never include passwords or tokens. Log in using the program’s own command before starting tasks. Register it again after changing accounts to clear saved sessions.",
+        "invalidArgs": "Enter a JSON array containing only strings."
       }
     },
     "quickAsk": {
@@ -13626,6 +13641,14 @@
       "example2": "Schedule a weekly update to an agreed thread",
       "needs": "An active bot binding, selected actions and membership in each destination. Routines require source and action review.",
       "never": "Never joins a channel, borrows another agent’s bot or silently retries an uncertain send."
+    },
+    "external_acp": {
+      "name": "External ACP agent",
+      "does": "Hand a complete task to an installed ACP program on your computer.",
+      "example1": "Use a locally installed assistant to investigate a repository",
+      "example2": "Continue a named session with another task",
+      "needs": "Desktop app, a registered and signed-in ACP program, and an approved full-access folder.",
+      "never": "Runs with your local account’s access. No read-only confinement or platform tool forwarding. Set Human approval to Always ask to approve each task."
     }
   },
   "capabilityCategories": {
@@ -14269,6 +14292,16 @@
       "tools": {
         "title": "Allowed messaging actions",
         "description": "Actions explicitly granted on the agent's connected bots."
+      }
+    },
+    "external_acp": {
+      "agent_id": {
+        "title": "Desktop agent ID",
+        "description": "The ID registered under Desktop app settings on the initiating person's computer. Login and model settings belong to that program."
+      },
+      "timeout_minutes": {
+        "title": "Time limit (minutes)",
+        "description": "How long one task may run before it is stopped."
       }
     }
   },

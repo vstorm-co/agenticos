@@ -1,5 +1,5 @@
 ---
-source_sha: "e958989d6bcc"
+source_sha: "26e6c8e99eb7"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -769,3 +769,5 @@ Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer 
 Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`. Bei einer aktiven Sitzung erreichen sie auch Korrekturen ohne Adresse; bei mehreren bleiben diese beim übergeordneten Agenten, damit keine andere Aufgabe geändert wird. Der übergeordnete Agent protokolliert die Korrektur einmal, wenn er fortfährt.
 
  Sandbox-Coding-Aufgaben desselben Toolsets laufen nacheinander, damit sich ihre Dateischnappschüsse nicht überschneiden; unabhängige lokale Sitzungen laufen weiterhin parallel.
+
+Eigene installierte ACP-Programme lassen sich unter **Externe ACP-Agenten** registrieren. [Externer ACP-Agent](reference/capabilities.md#external-acp) beschreibt Registrierung, Berechtigungen, Sitzungsidentität und Abrechnungsgrenzen.

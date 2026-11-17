@@ -1,5 +1,5 @@
 ---
-source_sha: "2bc3e7bad49a"
+source_sha: "4a21c769afc8"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3727,3 +3727,37 @@ Ausdrückliche Bot-Freigaben zum Finden von Kanälen, Durchsuchen von Nachrichte
 | `send_chat_message` | Angeforderte Nachricht oder Bericht als Beitrag oder Thread-Antwort |
 
 Jede Operation prüft erneut Organisationsmitgliedschaft, Agentenzugriff, aktive Bindung und Bot sowie anschließend Kanalmitgliedschaft und Thread-Zugehörigkeit. Sie tritt keinen Kanälen bei und verwendet keine Bots anderer Agenten. Suche und Verlauf liefern begrenzte Seiten mit Cursorn; eine leere Trefferseite ist nicht das Ende, solange ein Cursor besteht. Anbieterfehler sind Ablehnungen, keine leeren Ergebnisse. Senden folgt den Freigaberegeln; unbestätigte Sendungen müssen vor einem erneuten Versuch am Ziel geprüft werden. Andere Plattformen behalten ihre Gesprächswerkzeuge; kanalübergreifende Aktionen werden nur bei überprüfbarer Mitgliedschaft angeboten.
+
+## Externer ACP-Agent { #external-acp }
+
+`external_acp` bietet `run_acp_agent`, um vollständige Aufgaben an ein installiertes
+ACP-v1-Programm auf dem Computer der auftraggebenden Person zu übergeben. Es nutzt
+den vorhandenen Desktop-Aufgabenzyklus und erstellt weder einen A2A-Endpunkt noch
+einen Hintergrundauftrag oder eine primäre Gesprächslaufzeit.
+
+Registriere unter **Einstellungen → Desktop-App → Externe ACP-Agenten** (auch bei
+den Programmierkonten im Profil) eine feste ID, einen Namen, den absoluten
+Programmpfad und ein JSON-Array mit Argumenten, etwa `["acp"]`. Melde dich zuerst
+über den Befehl des Programms an. Keine Zugangsdaten in Argumente eintragen. Die
+native Bestätigung zeigt den Befehl. Aktiviere im Builder **Externer ACP-Agent**
+mit derselben ID. Die veröffentlichte Spezifikation enthält nur diese ID und ein
+Zeitlimit von 1–60 Minuten (Standard 15).
+
+Wähle im Chat diesen Computer und einen Ordner mit genehmigtem Vollzugriff.
+Der Start benötigt eine native Zustimmung für Verbindung, Ordner und Registrierung.
+Das Programm läuft mit deinem lokalen Konto ohne Betriebssystem-Sandbox und
+verwaltet Werkzeuge, Modell und Anmeldung selbst. Nur-Lese-Isolierung wird nicht
+zugesichert. Menschliche Genehmigung kann jede Aufgabe separat bestätigen lassen.
+Plattformwerkzeuge werden nicht weitergeleitet.
+
+Schritte und Antwort erscheinen im vorhandenen Delegationsbereich. Benannte
+Sitzungen werden nur bei angekündigtem `loadSession` fortgesetzt; andernfalls
+starte ausdrücklich eine neue Sitzung. Stopp, Zeitlimit und Ordnerentzug beenden
+den Prozess. Entfernen oder erneutes Registrieren der ID stoppt ihre Aufgaben und
+löscht gespeicherte Zustimmungen und Sitzungs-IDs. Registriere das Programm nach
+einem Kontowechsel erneut. Ein Wechsel der Desktop-Verbindung löscht Registrierungen.
+
+Die Nutzung wird ohne Preis erfasst. Abonnementberechtigung, Kontingente und
+API-Kosten hängen vom Programmkonto ab. Fehlende Programme, erforderliche Anmeldung,
+nicht unterstützte Protokolle und fehlende Fortsetzungsunterstützung ergeben klare
+Fehler. Die Registrierung bestätigt keine Abonnementberechtigung beim Anbieter.

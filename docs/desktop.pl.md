@@ -1,5 +1,5 @@
 ---
-source_sha: "e958989d6bcc"
+source_sha: "26e6c8e99eb7"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -731,3 +731,5 @@ Wybór lokalnego dostępu należy do wybranego agenta, a nie do globalnego ustaw
 Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej aktywnej sesji trafiają do niej także korekty bez adresu; przy wielu pozostają u agenta nadrzędnego, aby nie zmieniać innego zadania. Agent nadrzędny zapisuje korektę raz po wznowieniu pracy.
 
  Zadania coding w sandboxie w tym samym zestawie narzędzi wykonują się kolejno, aby ich migawki plików się nie nakładały; niezależne sesje lokalne nadal działają równolegle.
+
+Własne zainstalowane programy ACP można zarejestrować w sekcji **Zewnętrzni agenci ACP**. [Zewnętrzny agent ACP](reference/capabilities.md#external-acp) opisuje rejestrację, uprawnienia, tożsamość sesji i ograniczenia rozliczania.

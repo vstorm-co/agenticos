@@ -1,5 +1,5 @@
 ---
-source_sha: "2bc3e7bad49a"
+source_sha: "4a21c769afc8"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3573,3 +3573,37 @@ Permisos explícitos del bot para encontrar canales, buscar mensajes y entregar 
 | `send_chat_message` | Mensaje o informe solicitado en una publicación nueva o un hilo existente |
 
 Cada operación vuelve a comprobar la pertenencia a la organización, acceso al agente, vinculación y bot activos, además de pertenencia al canal y correspondencia del hilo. No se une a canales ni utiliza bots de otros agentes. La búsqueda y el historial devuelven páginas limitadas con cursores; una página sin coincidencias no es el final si hay cursor. Los fallos del proveedor son rechazos, no resultados vacíos. Los envíos siguen la política de aprobación; una entrega no confirmada debe comprobarse antes de reintentarse. Las demás plataformas conservan sus herramientas de conversación; las acciones entre canales solo se ofrecen donde el adaptador verifica la pertenencia.
+
+## Agente ACP externo { #external-acp }
+
+`external_acp` ofrece `run_acp_agent` para delegar tareas completas a un programa
+ACP v1 instalado en el equipo de quien inicia la tarea. Utiliza el ciclo de tareas
+Desktop existente; no crea un endpoint A2A, una tarea en segundo plano ni un
+entorno que dirija la conversación principal.
+
+En **Ajustes → Aplicación Desktop → Agentes ACP externos** (también en las cuentas
+de programación del perfil), registra un ID estable, nombre, ruta absoluta del
+ejecutable y matriz JSON de argumentos, como `["acp"]`. Inicia sesión primero con
+el comando del programa. No incluyas credenciales en los argumentos. La confirmación
+nativa muestra el comando. Activa **Agente ACP externo** en el Builder con ese ID.
+La especificación publicada solo contiene el ID y un límite de 1–60 minutos
+(15 por defecto).
+
+En el chat, elige trabajar en este equipo con una carpeta de acceso completo
+aprobado. El inicio requiere consentimiento nativo para la conexión, carpeta y
+registro. El programa se ejecuta con tu cuenta local sin aislamiento del sistema
+y gestiona sus herramientas, modelo y sesión. No se garantiza el aislamiento de
+solo lectura. La aprobación humana puede solicitar confirmación para cada tarea.
+Las herramientas de la plataforma no se transfieren.
+
+Los pasos y la respuesta aparecen en el panel de delegación existente. Las sesiones
+con nombre solo continúan si el programa anuncia `loadSession`; de lo contrario,
+inicia una sesión nueva expresamente. Detener, agotar el tiempo o revocar la carpeta
+termina el proceso. Eliminar o volver a registrar el ID detiene sus tareas y borra
+los permisos e IDs de sesión guardados. Regístralo de nuevo tras cambiar de cuenta.
+Cambiar la conexión Desktop también borra los registros.
+
+El uso se registra sin precio. La elegibilidad de la suscripción, las cuotas y los
+cargos de API dependen de la cuenta del programa. Un ejecutable ausente, un inicio
+de sesión requerido, un protocolo incompatible o una continuación no admitida
+producen errores explícitos. El registro no certifica derechos de suscripción.

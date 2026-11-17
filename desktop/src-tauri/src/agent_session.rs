@@ -27,8 +27,40 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{oneshot, Mutex, Notify};
 
-use crate::local_agents::AgentId;
 use crate::local_work::{self, Mode, Refusal};
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum AgentId {
+    ClaudeCode,
+    Codex,
+    Custom,
+}
+
+impl AgentId {
+    fn builtin(self) -> Option<crate::local_agents::AgentId> {
+        match self {
+            Self::ClaudeCode => Some(crate::local_agents::AgentId::ClaudeCode),
+            Self::Codex => Some(crate::local_agents::AgentId::Codex),
+            Self::Custom => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+struct ExternalIdentity {
+    id: String,
+    revision: String,
+}
+
+impl From<&crate::external_agents::Registration> for ExternalIdentity {
+    fn from(agent: &crate::external_agents::Registration) -> Self {
+        Self {
+            id: agent.id.clone(),
+            revision: agent.revision.clone(),
+        }
+    }
+}
 
 /// The adapters, pinned: a program fetched at start must not be whatever is
 /// newest. Bump a version here after trying it.
@@ -36,6 +68,7 @@ fn package(agent: AgentId) -> &'static str {
     match agent {
         AgentId::ClaudeCode => "@agentclientprotocol/claude-agent-acp@0.99.1",
         AgentId::Codex => "@agentclientprotocol/codex-acp@2.5.0",
+        AgentId::Custom => "custom",
     }
 }
 
@@ -122,6 +155,7 @@ struct Session {
     resume_key: Option<ResumeKey>,
     opening_call: Option<String>,
     workspace_root: Option<std::path::PathBuf>,
+    external_id: Option<String>,
 }
 
 /// Every running agent, by the id the server uses.
@@ -239,6 +273,7 @@ fn spawn(program: &Path, args: &[String], cwd: &Path, path_env: Option<String>) 
         resume_key: None,
         opening_call: None,
         workspace_root: None,
+        external_id: None,
     })
 }
 
@@ -257,6 +292,8 @@ fn one_message(message: &Value) -> Result<String, Refusal> {
 #[derive(Deserialize)]
 struct OpenArgs {
     agent: AgentId,
+    #[serde(default)]
+    custom_agent_id: Option<String>,
     root: String,
     #[serde(default)]
     resume_key: Option<String>,
@@ -273,12 +310,20 @@ pub struct ResumeKey {
     root: String,
     connection: String,
     agent: AgentId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    external: Option<ExternalIdentity>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Remembered {
     key: ResumeKey,
     session_id: String,
+}
+
+impl Remembered {
+    pub fn is_for_external(&self, id: &str) -> bool {
+        self.key.external.as_ref().is_some_and(|agent| agent.id == id)
+    }
 }
 
 pub fn remember(history: &mut Vec<Remembered>, key: ResumeKey, session_id: String) {
@@ -301,6 +346,8 @@ pub struct Consent {
     connection: String,
     agent: AgentId,
     adapter: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    external: Option<ExternalIdentity>,
 }
 
 impl Consent {
@@ -310,21 +357,36 @@ impl Consent {
             connection: connection.to_owned(),
             agent,
             adapter: package(agent).to_owned(),
+            external: None,
         }
+    }
+    pub fn is_for_external(&self, id: &str) -> bool {
+        self.external.as_ref().is_some_and(|agent| agent.id == id)
     }
     pub fn is_for_folder(&self, root: &str) -> bool {
         Path::new(&self.root).starts_with(Path::new(root))
     }
 }
 
-async fn confirm(app: &AppHandle, agent: AgentId, root: &Path) -> bool {
-    let name = crate::local_agents::name(agent);
+async fn confirm(
+    app: &AppHandle,
+    agent: AgentId,
+    root: &Path,
+    external: Option<&crate::external_agents::Registration>,
+) -> bool {
+    let name = external
+        .map(|item| item.name.as_str())
+        .unwrap_or_else(|| agent.builtin().map(crate::local_agents::name).unwrap_or("ACP"));
+    let policy = if external.is_some() {
+        "This custom program owns its login, tools, model and charges. Read-only confinement is not guaranteed. Remove its registration to revoke access."
+    } else {
+        "AgenticOS applies the task's read-only or editing policy to the agent's tools."
+    };
     let (answered, answer) = oneshot::channel();
     app.dialog()
         .message(format!(
             "{name} starts in {} and runs as your account, without an operating-system sandbox. \
-             It can reach other files and the network as your account can. AgenticOS applies \
-             the task's read-only or editing policy to the agent's tools. \
+             It can reach other files and the network as your account can. {policy} \
              Remember this permission for this agent and folder on the current connection. \
              Remove the folder in Settings to revoke it. Tool approvals and macOS permissions still apply.",
             root.display()
@@ -369,6 +431,7 @@ fn authorized_root(app: &AppHandle, args: &Map<String, Value>, root: &str) -> Re
 async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Result<Map<String, Value>, Refusal> {
     let OpenArgs {
         agent,
+        custom_agent_id,
         root,
         resume_key,
         fresh_session,
@@ -380,9 +443,28 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     let slot = sessions.reserve().await?;
     let confirmation = CONFIRMING.lock().await;
     let before = crate::settings::current(app);
-    let consent = Consent::new(&root, &before.connection_revision, agent);
+    let external = match (agent, custom_agent_id.as_deref()) {
+        (AgentId::Custom, Some(id)) => Some(
+            before
+                .external_agents
+                .iter()
+                .find(|item| item.id == id)
+                .cloned()
+                .ok_or_else(|| Refusal::new("denied", "Register this ACP agent in Desktop app settings first."))?,
+        ),
+        (AgentId::Custom, None) => return Err(Refusal::new("denied", "Name a registered ACP agent.")),
+        (_, Some(_)) => {
+            return Err(Refusal::new(
+                "denied",
+                "A built-in agent cannot select a custom registration.",
+            ))
+        }
+        (_, None) => None,
+    };
+    let mut consent = Consent::new(&root, &before.connection_revision, agent);
+    consent.external = external.as_ref().map(ExternalIdentity::from);
     if !before.coding_consents.contains(&consent) {
-        if !confirm(app, agent, &root).await {
+        if !confirm(app, agent, &root, external.as_ref()).await {
             return Err(Refusal::new("denied", "You did not allow the agent to start."));
         }
         authorized_root(app, args, &root.to_string_lossy())?;
@@ -401,9 +483,16 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         .ok_or_else(|| Refusal::new("denied", "The connection changed. Start the agent again."))?;
     }
     drop(confirmation);
-    let runtime = crate::coding_runtime::prepare(app)
-        .await
-        .map_err(|error| Refusal::new("io", error))?;
+    let runtime = if agent.builtin().is_some() {
+        Some(
+            crate::coding_runtime::prepare(app)
+                .await
+                .map_err(|error| Refusal::new("io", error))?,
+        )
+    } else {
+        None
+    };
+    let _changing = crate::external_agents::CHANGING.lock().await;
     let settings = crate::settings::current(app);
     let key = resume_key
         .filter(|key| key.len() == 64 && key.bytes().all(|b| b.is_ascii_hexdigit()))
@@ -412,6 +501,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
             root: root.to_string_lossy().into_owned(),
             connection: settings.connection_revision.clone(),
             agent,
+            external: external.as_ref().map(ExternalIdentity::from),
         });
     let resumed = if fresh_session {
         None
@@ -429,12 +519,27 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     }
     // The person can revoke or narrow the grant while the launch dialog is open.
     authorized_root(app, args, &root.to_string_lossy())?;
-    let mut session = spawn(
-        &runtime.node,
-        &[runtime.adapter(agent).to_string_lossy().into_owned()],
-        &runtime.directory,
-        path_with(&runtime.node),
-    )?;
+    let mut session = if let Some(external) = &external {
+        if !crate::settings::current(app).external_agents.contains(external) {
+            return Err(Refusal::new("denied", "The ACP registration changed. Start again."));
+        }
+        spawn(
+            Path::new(&external.program),
+            &external.args,
+            &root,
+            path_with(Path::new(&external.program)),
+        )?
+    } else if let (Some(runtime), Some(builtin)) = (&runtime, agent.builtin()) {
+        spawn(
+            &runtime.node,
+            &[runtime.adapter(builtin).to_string_lossy().into_owned()],
+            &runtime.directory,
+            path_with(&runtime.node),
+        )?
+    } else {
+        return Err(Refusal::new("denied", "The agent has no launch configuration."));
+    };
+    session.external_id = external.as_ref().map(|item| item.id.clone());
     session.workspace_root = Some(root);
     session.resume_key = key;
     session.opening_call = Some(call_id.to_owned());
@@ -588,6 +693,24 @@ fn remove_for_folder(map: &mut HashMap<String, Session>, root: &Path) {
     });
 }
 
+/// Revocation or replacement discards every process using this local registration.
+pub async fn close_external(app: &AppHandle, id: &str) {
+    let sessions = app.state::<Sessions>();
+    remove_external(&mut *sessions.map.lock().await, id);
+}
+
+fn remove_external(map: &mut HashMap<String, Session>, id: &str) {
+    map.retain(|_, session| {
+        let matches = session.external_id.as_deref() == Some(id);
+        if matches {
+            if let Some(kill) = session.kill.take() {
+                let _ = kill.send(());
+            }
+        }
+        !matches
+    });
+}
+
 /// Stop every agent: the server is gone, so nothing is listening to them.
 pub async fn close_all(app: &AppHandle) {
     let sessions = app.state::<Sessions>();
@@ -708,6 +831,74 @@ mod tests {
         session.kill.take().unwrap().send(()).unwrap();
         let (_, _, exit) = drain(&session.output, 0).await;
         assert!(exit.is_some());
+    }
+
+    #[tokio::test]
+    async fn revocation_stops_external_tasks_even_without_a_resume_key() {
+        let mut revoked = shell("sleep 60");
+        revoked.external_id = Some("first".into());
+        let output = Arc::clone(&revoked.output);
+        let mut retained = shell("sleep 60");
+        retained.external_id = Some("second".into());
+        let mut sessions = HashMap::from([("revoked".into(), revoked), ("retained".into(), retained)]);
+        remove_external(&mut sessions, "first");
+        assert!(!sessions.contains_key("revoked"));
+        assert!(sessions.contains_key("retained"));
+        assert!(drain(&output, 0).await.2.is_some());
+        remove_external(&mut sessions, "second");
+    }
+
+    #[test]
+    fn external_continuations_are_bound_to_registration_revision() {
+        let key = ResumeKey {
+            scope: "a".repeat(64),
+            root: "/work".into(),
+            connection: "connection".into(),
+            agent: AgentId::Custom,
+            external: Some(ExternalIdentity {
+                id: "agent".into(),
+                revision: "old".into(),
+            }),
+        };
+        let changed = ResumeKey {
+            external: Some(ExternalIdentity {
+                id: "agent".into(),
+                revision: "new".into(),
+            }),
+            ..key.clone()
+        };
+        assert_ne!(key, changed);
+        let remembered = Remembered {
+            key: key.clone(),
+            session_id: "session".into(),
+        };
+        assert!(remembered.is_for_external("agent"));
+        assert!(!remembered.is_for_external("other"));
+        let consent = Consent {
+            external: key.external.clone(),
+            ..Consent::new(Path::new("/work"), "connection", AgentId::Custom)
+        };
+        assert!(consent.is_for_external("agent"));
+        assert!(!consent.is_for_external("other"));
+        let old: ResumeKey = serde_json::from_value(
+            serde_json::json!({"scope":"old", "root":"/work", "connection":"connection", "agent":"codex"}),
+        )
+        .unwrap();
+        assert!(old.external.is_none());
+    }
+
+    #[tokio::test]
+    async fn argument_values_are_passed_without_shell_expansion() {
+        let mut session = spawn(
+            Path::new("/usr/bin/printf"),
+            &["%s\n".into(), "$HOME; touch /never-execute".into()],
+            &std::env::temp_dir(),
+            None,
+        )
+        .unwrap();
+        let (lines, _, _) = drain(&session.output, 0).await;
+        assert_eq!(lines, vec!["$HOME; touch /never-execute"]);
+        session.kill.take();
     }
 
     #[test]
@@ -836,6 +1027,7 @@ mod tests {
             root: "/work".into(),
             connection: "account-1".into(),
             agent: AgentId::ClaudeCode,
+            external: None,
         };
         let mut history = Vec::new();
         remember(&mut history, key.clone(), "first".into());

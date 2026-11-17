@@ -1088,7 +1088,9 @@
         "column": "Kolumna",
         "value": "Wartość",
         "recordLabel": "Rekord"
-      }
+      },
+      "runAcpAgent": "Zewnętrzny agent ACP",
+      "runningAcpAgent": "Zewnętrzny agent ACP"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -10942,6 +10944,16 @@
         "title": "Dozwolone działania w komunikatorach",
         "description": "Akcje jawnie przyznane na botach podłączonych do agenta."
       }
+    },
+    "external_acp": {
+      "agent_id": {
+        "title": "ID agenta Desktop",
+        "description": "ID zarejestrowane w ustawieniach aplikacji Desktop na komputerze osoby rozpoczynającej zadanie. Logowanie i model konfiguruje się w tym programie."
+      },
+      "timeout_minutes": {
+        "title": "Limit czasu (minuty)",
+        "description": "Jak długo jedno zadanie może trwać, zanim zostanie przerwane."
+      }
     }
   },
   "apiReference": {
@@ -13825,6 +13837,14 @@
       "example2": "Zaplanuj cotygodniową aktualizację w ustalonym wątku",
       "needs": "Aktywne powiązanie bota, wybrane akcje i członkostwo w miejscu docelowym. Rutyny wymagają przeglądu źródeł i akcji.",
       "never": "Nie dołącza do kanałów, nie pożycza botów innych agentów i nie ponawia niepewnych wysyłek."
+    },
+    "external_acp": {
+      "name": "Zewnętrzny agent ACP",
+      "does": "Przekazuje całe zadanie zainstalowanemu programowi ACP na Twoim komputerze.",
+      "example1": "Zleć lokalnemu asystentowi zbadanie repozytorium",
+      "example2": "Kontynuuj nazwaną sesję kolejnym zadaniem",
+      "needs": "Aplikacja Desktop, zarejestrowany i zalogowany program ACP oraz folder z zatwierdzonym pełnym dostępem.",
+      "never": "Działa z dostępem Twojego konta lokalnego. Bez gwarancji trybu tylko do odczytu i bez przekazywania narzędzi platformy. Włącz zatwierdzanie każdego zadania przez człowieka."
     }
   },
   "capabilityCategories": {
@@ -14329,6 +14349,19 @@
         "prepareNamed": "Przygotuj {name}",
         "preparing": "Przygotowywanie…",
         "refresh": "Odśwież status"
+      },
+      "externalAgents": {
+        "title": "Zewnętrzni agenci ACP",
+        "description": "Zarejestruj zainstalowany program ACP do zadań na tym komputerze. Używa własnego logowania i modelu, może zmieniać pliki i wykonywać polecenia oraz generować koszty poza AgenticOS.",
+        "id": "ID agenta",
+        "name": "Wyświetlana nazwa",
+        "program": "Bezwzględna ścieżka programu",
+        "args": "Argumenty (tablica JSON)",
+        "save": "Zarejestruj agenta",
+        "remove": "Usuń",
+        "removeNamed": "Usuń {name}",
+        "help": "Użyj tego ID w capability Zewnętrzny agent ACP. Argumenty to osobne ciągi, np. acp. Nie podawaj haseł ani tokenów. Przed zadaniem zaloguj się poleceniem programu. Po zmianie konta zarejestruj go ponownie, aby usunąć zapisane sesje.",
+        "invalidArgs": "Podaj tablicę JSON zawierającą wyłącznie ciągi znaków."
       }
     },
     "quickAsk": {

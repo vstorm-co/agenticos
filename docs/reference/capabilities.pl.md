@@ -1,5 +1,5 @@
 ---
-source_sha: "2bc3e7bad49a"
+source_sha: "4a21c769afc8"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3472,3 +3472,36 @@ Jawne uprawnienia bota do znajdowania kanałów, wyszukiwania wiadomości i dost
 | `send_chat_message` | Wiadomość lub raport w nowym wpisie albo istniejącym wątku |
 
 Przy każdej operacji usługa ponownie sprawdza członkostwo w organizacji, dostęp do agenta, aktywne powiązanie i bota, a następnie członkostwo bota w kanale i przynależność wątku. Nie dołącza do kanałów ani nie pożycza botów innych agentów. Wyszukiwanie i historia zwracają ograniczone strony; puste dopasowanie nie kończy przeglądania, jeśli istnieje kursor. Błąd dostawcy jest odmową, nie pustym wynikiem. Wysyłanie podlega zasadom akceptacji; niepotwierdzoną wysyłkę trzeba sprawdzić przed ponowieniem. Pozostałe platformy zachowują dotychczasowe narzędzia rozmowy; akcje między kanałami są dostępne tylko tam, gdzie adapter weryfikuje członkostwo.
+
+## Zewnętrzny agent ACP { #external-acp }
+
+`external_acp` udostępnia `run_acp_agent` do przekazywania całych zadań programowi
+ACP v1 zainstalowanemu na komputerze osoby rozpoczynającej zadanie. Korzysta z
+istniejącego cyklu zadań Desktop; nie tworzy endpointu A2A, zadania w tle ani
+środowiska prowadzącego główną rozmowę.
+
+W **Ustawienia → Aplikacja Desktop → Zewnętrzni agenci ACP** (również przy kontach
+programistycznych w profilu) zarejestruj stałe ID, nazwę, bezwzględną ścieżkę
+programu i tablicę JSON argumentów, np. `["acp"]`. Najpierw zaloguj się poleceniem
+programu. Nie umieszczaj danych logowania w argumentach. Natywne potwierdzenie
+pokazuje polecenie. W Builderze włącz **Zewnętrzny agent ACP** i podaj to samo ID.
+Opublikowana specyfikacja zawiera tylko ID i limit 1–60 minut (domyślnie 15).
+
+W czacie wybierz pracę na tym komputerze z folderem o zatwierdzonym pełnym
+dostępie. Start wymaga natywnej zgody dla połączenia, folderu i rejestracji.
+Program działa na Twoim koncie lokalnym bez izolacji systemowej i sam zarządza
+narzędziami, modelem i logowaniem; nie gwarantujemy trybu tylko do odczytu.
+Zatwierdzanie przez człowieka może wymagać zgody przed każdym zadaniem.
+Narzędzia platformy nie są przekazywane.
+
+Kroki i odpowiedź trafiają do istniejącego panelu delegacji. Nazwane sesje są
+wznawiane tylko przy zadeklarowanym `loadSession`; w przeciwnym razie jawnie
+rozpocznij nową sesję. Stop, przekroczenie czasu i cofnięcie dostępu do folderu
+kończą proces. Usunięcie lub ponowna rejestracja ID zatrzymuje jego zadania i
+usuwa zapisane zgody oraz ID sesji. Po zmianie konta programu zarejestruj go
+ponownie. Zmiana połączenia Desktop usuwa także rejestracje.
+
+Użycie jest zapisywane jako niewycenione; dostępność subskrypcji, limity i opłaty
+API zależą od konta programu. Brak programu, konieczność logowania, nieobsługiwana
+wersja protokołu i brak obsługi wznowienia kończą się jawnym błędem. Rejestracja
+nie potwierdza uprawnienia do korzystania z subskrypcji dostawcy.

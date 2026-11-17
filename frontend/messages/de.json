@@ -2072,7 +2072,9 @@
         "column": "Spalte",
         "value": "Wert",
         "recordLabel": "Datensatz"
-      }
+      },
+      "runAcpAgent": "Externer ACP-Agent",
+      "runningAcpAgent": "Externer ACP-Agent"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -10606,6 +10608,19 @@
         "prepareNamed": "{name} einrichten",
         "preparing": "Wird vorbereitet…",
         "refresh": "Status aktualisieren"
+      },
+      "externalAgents": {
+        "title": "Externe ACP-Agenten",
+        "description": "Registriere ein installiertes ACP-Programm für Aufgaben auf diesem Computer. Es nutzt seine eigene Anmeldung und sein Modell, kann Dateien ändern und Befehle ausführen und Kosten außerhalb von AgenticOS verursachen.",
+        "id": "Agenten-ID",
+        "name": "Anzeigename",
+        "program": "Absoluter Programmpfad",
+        "args": "Argumente (JSON-Array)",
+        "save": "Agent registrieren",
+        "remove": "Entfernen",
+        "removeNamed": "{name} entfernen",
+        "help": "Verwende diese ID in der Fähigkeit Externer ACP-Agent. Argumente sind einzelne Zeichenfolgen, etwa acp. Keine Passwörter oder Tokens eingeben. Melde dich vor Aufgaben über den Befehl des Programms an. Registriere es nach einem Kontowechsel erneut, um gespeicherte Sitzungen zu löschen.",
+        "invalidArgs": "Gib ein JSON-Array ein, das nur Zeichenfolgen enthält."
       }
     },
     "welcome": {
@@ -13312,6 +13327,14 @@
       "example2": "Ein wöchentliches Update in einem vereinbarten Thread planen",
       "needs": "Eine aktive Bot-Bindung, ausgewählte Aktionen und Mitgliedschaft im Zielkanal. Routinen erfordern eine Quellen- und Aktionsprüfung.",
       "never": "Tritt keinem Kanal bei, verwendet keine Bots anderer Agenten und wiederholt keine unbestätigten Sendungen."
+    },
+    "external_acp": {
+      "name": "Externer ACP-Agent",
+      "does": "Übergibt eine vollständige Aufgabe an ein installiertes ACP-Programm auf deinem Computer.",
+      "example1": "Lass einen lokalen Assistenten ein Repository untersuchen",
+      "example2": "Setze eine benannte Sitzung mit einer weiteren Aufgabe fort",
+      "needs": "Desktop-App, ein registriertes und angemeldetes ACP-Programm sowie ein Ordner mit genehmigtem Vollzugriff.",
+      "never": "Läuft mit den Rechten deines lokalen Kontos. Keine Nur-Lese-Isolierung und keine Weiterleitung von Plattformwerkzeugen. Aktiviere die menschliche Genehmigung für jede Aufgabe."
     }
   },
   "capabilityCategories": {
@@ -13955,6 +13978,16 @@
       "tools": {
         "title": "Erlaubte Chat-Aktionen",
         "description": "Ausdrücklich auf den verbundenen Bots dieses Agenten freigegebene Aktionen."
+      }
+    },
+    "external_acp": {
+      "agent_id": {
+        "title": "Desktop-Agenten-ID",
+        "description": "Die in den Desktop-App-Einstellungen auf dem Computer der auftraggebenden Person registrierte ID. Anmeldung und Modell werden im Programm konfiguriert."
+      },
+      "timeout_minutes": {
+        "title": "Zeitlimit (Minuten)",
+        "description": "Wie lange eine Aufgabe laufen darf, bevor sie gestoppt wird."
       }
     }
   },

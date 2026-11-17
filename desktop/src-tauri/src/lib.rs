@@ -27,6 +27,7 @@ mod diagnostics;
 mod docker_install;
 mod docker_runtime;
 mod dropped;
+mod external_agents;
 #[cfg(all(test, target_os = "linux"))]
 mod glib_soundness;
 mod local_agents;
@@ -1617,6 +1618,9 @@ pub fn run() {
             routine_access::routine_revoke,
             local_work::local_files,
             local_work::local_file,
+            external_agents::external_agents,
+            external_agents::external_save_agent,
+            external_agents::external_remove_agent,
             local_agents::local_agents,
             local_agents::local_agent_prepare,
             coding_options::local_agent_options,

@@ -31,7 +31,7 @@ interface CodingStep {
 /** What `run_coding_agent` returns - `CodingReport` in the backend. */
 interface CodingReport {
   kind: "coding_agent";
-  harness: "claude_code" | "codex";
+  harness: "claude_code" | "codex" | "custom";
   access: "edit" | "read_only";
   outcome: "completed" | "failed" | "timed_out";
   answer: string;
@@ -61,6 +61,8 @@ export const HARNESS_NAME: Record<CodingReport["harness"], string> = {
   claude_code: "Claude Code",
   // i18n-exempt: a product's own name
   codex: "Codex",
+  // i18n-exempt: protocol name
+  custom: "ACP",
 };
 
 export function parseCodingReport(text: string): CodingReport | null {

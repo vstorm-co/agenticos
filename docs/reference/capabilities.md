@@ -3349,3 +3349,35 @@ Explicit bot grants for finding channels, searching messages and delivering requ
 | `send_chat_message` | Requested message or report, new post or existing thread |
 
 The service rechecks organization membership, agent access, the active binding and bot, then destination membership and thread ownership on each operation. It never joins channels or borrows another agent’s bot. Search and history are bounded pages; follow their cursors and treat empty matches as one scanned page. Provider failures are refusals, not empty results. Sending follows the approval policy; an unconfirmed submission must be checked at the destination before retrying. Other platforms retain their existing conversation tools; cross-channel actions are offered only where the adapter verifies membership.
+
+## External ACP agent { #external-acp }
+
+`external_acp` exposes `run_acp_agent` for delegating complete tasks to an installed
+ACP v1 program on the initiating person's computer. This uses the existing
+Desktop task lifecycle; it does not create an A2A endpoint, a background job or a
+primary conversation runtime.
+
+In **Settings → Desktop app → External ACP agents** (also available under profile
+coding accounts), register a stable ID, display name, absolute executable path
+and JSON array of arguments, such as `["acp"]`. Log in with the program's own
+command first. Do not put credentials in arguments. Native confirmation reviews
+the command. In the Builder, enable **External ACP agent** and enter the same ID.
+The published spec carries only that ID and a 1–60 minute timeout (default 15).
+
+Start chat work on this computer with an approved full-access folder. Launch needs
+native consent for this connection, folder and registration. The program runs as
+your local account without an OS sandbox and owns its tools, model and login;
+read-only confinement is not promised. Human approval can require a separate
+confirmation before each delegated task. Platform tools are not forwarded.
+
+Tasks stream their steps and answer through the existing delegation panel. Named
+sessions resume only if the program advertises `loadSession`; otherwise start a
+fresh session explicitly. Stop, timeout and folder revocation terminate the
+process. Removing or re-registering the ID stops its running tasks and discards
+saved permissions and session IDs. Register again after changing the program's
+account. Switching the Desktop connection clears registrations as well.
+
+The integration records usage as unpriced; subscription eligibility, quota and
+API charges depend on the program's account. Missing programs, required login,
+unsupported protocol versions and unsupported resume fail explicitly. This
+registration does not certify a vendor's subscription entitlement.

@@ -720,3 +720,5 @@ Local access choices belong to the selected agent, not to a global default inher
 While local coding sessions run, `[session:api] Use the EU numbers` redirects the session named `api`. With one active session, an unaddressed correction reaches it; with several, it stays with the parent agent to avoid changing an unrelated task. The parent records the correction once when it continues.
 
  Sandbox coding tasks in the same toolset queue so their workspace snapshots do not overlap; independent local sessions still run in parallel.
+
+Custom installed ACP programs can be registered under **External ACP agents**. See [External ACP agent](https://vstorm-co.github.io/agenticos/reference/capabilities/#external-acp) for registration, permissions, session identity and billing limits.

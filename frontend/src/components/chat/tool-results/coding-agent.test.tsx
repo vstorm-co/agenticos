@@ -148,3 +148,20 @@ describe("parseCodingReport", () => {
     });
   });
 });
+
+it("names custom ACP reports without claiming a built-in provider", () => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({
+        kind: "coding_agent",
+        harness: "custom",
+        access: "edit",
+        outcome: "completed",
+        answer: "Investigated the module",
+      })}
+    />,
+  );
+  expect(screen.getByText("ACP")).toBeInTheDocument();
+  expect(screen.getByText("Investigated the module")).toBeInTheDocument();
+});

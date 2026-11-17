@@ -6,6 +6,9 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
+  getExternalAgents,
+  saveExternalAgent,
+  removeExternalAgent,
   changeServer,
   getLocalAgents,
   getLocalCodingOptions,
@@ -361,4 +364,20 @@ export function useLocalSkills() {
     enabled: isDesktopShell(shell),
     refetchOnWindowFocus: "always",
   });
+}
+
+/** Native registration and consent own the executable; HTTP never receives it. */
+export function useExternalAgents() {
+  const shell = useShell();
+  const client = useQueryClient();
+  const state = useQuery({
+    queryKey: qk.desktop.externalAgents(),
+    queryFn: getExternalAgents,
+    enabled: isDesktopShell(shell),
+    refetchOnWindowFocus: false,
+  });
+  const refresh = () => client.invalidateQueries({ queryKey: qk.desktop.externalAgents() });
+  const save = useMutation({ mutationFn: saveExternalAgent, onSuccess: refresh });
+  const remove = useMutation({ mutationFn: removeExternalAgent, onSuccess: refresh });
+  return { state, save, remove };
 }

@@ -25,9 +25,9 @@ import anyio
 
 from app.agents.capabilities.coding_agent._harness import (
     Access,
+    AcpHarness,
     CodingReport,
     CodingStep,
-    Harness,
     LiveItem,
     Said,
     StepEnded,
@@ -129,12 +129,14 @@ class DevicePipe:
     def __init__(
         self,
         device: AgentCalls,
-        harness: Harness,
+        harness: AcpHarness,
         *,
         resume_key: str | None = None,
         fresh_session: bool = False,
         root: str | None = None,
+        custom_agent_id: str | None = None,
     ) -> None:
+        self._custom_agent_id = custom_agent_id
         self._resume_key = resume_key
         self._root = root
         self._fresh_session = fresh_session
@@ -147,6 +149,8 @@ class DevicePipe:
 
     async def open(self) -> None:
         args: dict[str, Any] = {"agent": self._harness}
+        if self._custom_agent_id is not None:
+            args["custom_agent_id"] = self._custom_agent_id
         if self._resume_key is not None:
             args.update(resume_key=self._resume_key, fresh_session=self._fresh_session)
         opened = await self._device.agent_call(
@@ -291,7 +295,13 @@ class _Collector:
         return []
 
     def report(
-        self, *, harness: Harness, access: Access, outcome: str, answer: str, session_id: str | None
+        self,
+        *,
+        harness: AcpHarness,
+        access: Access,
+        outcome: str,
+        answer: str,
+        session_id: str | None,
     ) -> CodingReport:
         steps = [self.tools[key].step for key in self.order]
         changed = list(dict.fromkeys(path for key in self.order for path in self.tools[key].edits))
@@ -522,7 +532,7 @@ async def _configure_session(
 async def run_task(
     pipe: Pipe,
     *,
-    harness: Harness,
+    harness: AcpHarness,
     access: Access,
     root: str,
     task: str,
@@ -555,6 +565,12 @@ async def run_task(
                     "clientInfo": {"name": "agenticos", "title": "AgenticOS"},
                 },
             )
+            if harness == "custom" and (
+                not isinstance(initialized, dict)
+                or type(initialized.get("protocolVersion")) is not int
+                or initialized["protocolVersion"] != PROTOCOL_VERSION
+            ):
+                raise AcpError("This program did not negotiate supported ACP protocol version 1.")
             session_params: dict[str, Any] = {"cwd": root, "mcpServers": []}
             if harness == "claude_code" and access == "read_only":
                 session_params["_meta"] = {

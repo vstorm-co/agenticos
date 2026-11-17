@@ -680,3 +680,40 @@ export async function setQuickAskPinned(pinned: boolean): Promise<void> {
 export async function setQuickAskPickerOpen(open: boolean): Promise<void> {
   await invokeShell("set_quick_ask_picker_open", { open });
 }
+
+/** An executable registered and confirmed by the owner of this Desktop connection. */
+export interface ExternalAgent {
+  id: string;
+  name: string;
+  program: string;
+  args: string[];
+  revision: string;
+}
+export type ExternalAgentInput = Omit<ExternalAgent, "revision">;
+const isStrings = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every(isString);
+
+export function parseExternalAgents(value: unknown): ExternalAgent[] {
+  if (!Array.isArray(value)) throw new ShellError("malformed", "external agents");
+  return value.map((item: unknown) => {
+    const fields = record(item, "an external agent");
+    return {
+      id: field(fields, "id", isString),
+      name: field(fields, "name", isString),
+      program: field(fields, "program", isString),
+      args: field(fields, "args", isStrings),
+      revision: field(fields, "revision", isString),
+    };
+  });
+}
+export async function getExternalAgents(): Promise<ExternalAgent[]> {
+  return parseExternalAgents(await invokeShell("external_agents"));
+}
+export async function saveExternalAgent(
+  registration: ExternalAgentInput,
+): Promise<ExternalAgent[]> {
+  return parseExternalAgents(await invokeShell("external_save_agent", { registration }));
+}
+export async function removeExternalAgent(id: string): Promise<ExternalAgent[]> {
+  return parseExternalAgents(await invokeShell("external_remove_agent", { id }));
+}

@@ -1,5 +1,5 @@
 ---
-source_sha: "e958989d6bcc"
+source_sha: "26e6c8e99eb7"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -758,3 +758,5 @@ La elección de acceso local pertenece al agente seleccionado, no a un valor glo
 La corrección `[session:api] Usa las cifras de la UE` llega a la sesión `api`. Con una sola sesión activa, también recibe las correcciones sin destinatario; con varias, estas quedan para el agente principal para no modificar otra tarea. El agente principal registra la corrección una vez cuando continúa.
 
  Las tareas de programación en sandbox del mismo conjunto de herramientas se ejecutan en secuencia para evitar que se superpongan sus instantáneas de archivos; las sesiones locales independientes siguen en paralelo.
+
+Los programas ACP instalados se pueden registrar en **Agentes ACP externos**. [Agente ACP externo](reference/capabilities.md#external-acp) explica el registro, los permisos, la identidad de sesión y los límites de facturación.

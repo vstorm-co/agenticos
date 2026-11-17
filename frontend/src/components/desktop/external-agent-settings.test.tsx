@@ -1,0 +1,101 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { ExternalAgentSettings } from "./external-agent-settings";
+import { parseExternalAgents } from "@/lib/desktop/commands";
+
+const invoke = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/desktop/shell", async (original) => ({
+  ...(await original<typeof import("@/lib/desktop/shell")>()),
+  invokeShell: invoke,
+}));
+const registration = {
+  id: "my-agent",
+  name: "My agent",
+  program: "/opt/bin/agent",
+  args: ["acp"],
+  revision: "v1",
+};
+beforeEach(() => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    version: "0.2.0",
+    window: "main",
+    vibrancy: true,
+  };
+  invoke.mockReset();
+  invoke.mockResolvedValue([]);
+});
+afterEach(() => {
+  delete window.__AGENTICOS_SHELL__;
+});
+function mount() {
+  return render(
+    <QueryClientProvider
+      client={
+        new QueryClient({
+          defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+        })
+      }
+    >
+      <ExternalAgentSettings />
+    </QueryClientProvider>,
+  );
+}
+async function fill() {
+  await userEvent.type(screen.getByLabelText("Agent ID"), registration.id);
+  await userEvent.type(screen.getByLabelText("Display name"), registration.name);
+  await userEvent.type(screen.getByLabelText("Absolute executable path"), registration.program);
+}
+it("registers exact argv over native IPC and refreshes after confirmation", async () => {
+  invoke.mockImplementation(async (command: string) =>
+    command === "external_agents" ? [] : [registration],
+  );
+  mount();
+  await fill();
+  await userEvent.clear(screen.getByLabelText("Arguments (JSON array)"));
+  await userEvent.paste('["acp","literal;$HOME"]');
+  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+      registration: {
+        id: "my-agent",
+        name: "My agent",
+        program: "/opt/bin/agent",
+        args: ["acp", "literal;$HOME"],
+      },
+    }),
+  );
+  await waitFor(() => expect(screen.getByLabelText("Agent ID")).toHaveValue(""));
+});
+it.each(['{"command":"sh"}', "[1]", "invalid"])(
+  "refuses non-string argv %s before native registration",
+  async (args) => {
+    mount();
+    await fill();
+    await userEvent.clear(screen.getByLabelText("Arguments (JSON array)"));
+    await userEvent.paste(args);
+    await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Enter a JSON array containing only strings.",
+    );
+    expect(invoke.mock.calls.some(([command]) => command === "external_save_agent")).toBe(false);
+  },
+);
+it("revokes the named local registration", async () => {
+  invoke.mockImplementation(async (command: string) =>
+    command === "external_agents" ? [registration] : [],
+  );
+  mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Remove My agent" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("external_remove_agent", { id: "my-agent" }),
+  );
+});
+it("rejects malformed native replies", () => {
+  expect(parseExternalAgents([registration])).toEqual([registration]);
+  expect(() => parseExternalAgents({})).toThrow("malformed");
+  expect(() => parseExternalAgents([{ ...registration, args: [1] }])).toThrow("malformed");
+  expect(() => parseExternalAgents([{ ...registration, revision: null }])).toThrow("malformed");
+});

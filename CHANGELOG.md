@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Register installed ACP agents in Desktop settings and delegate tasks through the External ACP agent capability, with native consent, isolated session identity and revocation (#3130).
+
 - MiniMax models accept vault API or M Plan keys through a separate OpenAI-compatible provider identity, with explicit regional endpoints and tool calling.
 - Z.AI model profiles accept explicit GLM Coding Plan endpoints, with authenticated model catalogs isolated from the ordinary API and other accounts.
 

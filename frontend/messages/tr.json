@@ -5802,6 +5802,16 @@
         "title": "Canlı önizleme",
         "description": "Agent masaüstünde çalışırken görüntüyü chat'te canlı göster."
       }
+    },
+    "external_acp": {
+      "agent_id": {
+        "title": "Desktop ajan kimliği",
+        "description": "Görevi başlatan kişinin bilgisayarındaki Desktop uygulaması ayarlarında kayıtlı kimlik. Oturum ve model ayarları o programa aittir."
+      },
+      "timeout_minutes": {
+        "title": "Süre sınırı (dakika)",
+        "description": "Durdurulmadan önce tek bir görevin ne kadar çalışabileceği."
+      }
     }
   },
   "capabilityGuide": {
@@ -6084,6 +6094,14 @@
       "name": "Arka plan konuları",
       "needs": "Yayınlanmış bir konsol agent’ı, etkin bir üye ve yerel çalışma için onaylanmış bir klasör.",
       "never": "Konuşmanın tamamını kopyalamaz, onayları atlamaz, kesilen işlemleri yeniden başlatmaz; watch veya routine başlatmaz."
+    },
+    "external_acp": {
+      "name": "Harici ACP ajanı",
+      "does": "Bilgisayarınızda kurulu bir ACP programına eksiksiz bir görev devreder.",
+      "example1": "Yerel bir asistandan depoyu incelemesini isteyin",
+      "example2": "Adlandırılmış bir oturuma başka bir görevle devam edin",
+      "needs": "Desktop uygulaması, kayıtlı ve oturum açılmış bir ACP programı ve tam erişimi onaylanmış bir klasör.",
+      "never": "Yerel hesabınızın erişimiyle çalışır. Salt okunur yalıtım veya platform araçlarının iletimi yoktur. Her görev için insan onayını etkinleştirin."
     }
   },
   "agents": {
@@ -9654,7 +9672,9 @@
         "column": "Sütun",
         "value": "Değer",
         "recordLabel": "Kayıt"
-      }
+      },
+      "runAcpAgent": "Harici ACP ajanı",
+      "runningAcpAgent": "Harici ACP ajanı"
     },
     "turnWasStopped": "durduruldu",
     "unfavourite": "Favorilerden çıkar",
@@ -11926,6 +11946,19 @@
         "prepareNamed": "{name} kurulumunu yap",
         "preparing": "Hazırlanıyor…",
         "refresh": "Durumu yenile"
+      },
+      "externalAgents": {
+        "title": "Harici ACP ajanları",
+        "description": "Bu bilgisayarda görevler için kurulu bir ACP programı kaydedin. Kendi oturumunu ve modelini kullanır, dosyaları değiştirebilir ve komut çalıştırabilir; AgenticOS dışında ücret oluşturabilir.",
+        "id": "Ajan kimliği",
+        "name": "Görünen ad",
+        "program": "Çalıştırılabilir dosyanın mutlak yolu",
+        "args": "Argümanlar (JSON dizisi)",
+        "save": "Ajanı kaydet",
+        "remove": "Kaldır",
+        "removeNamed": "{name} ajanını kaldır",
+        "help": "Bu kimliği Harici ACP ajanı yeteneğinde kullanın. Argümanlar ayrı metinlerdir, örneğin acp. Parola veya belirteç eklemeyin. Görevlerden önce programın kendi komutuyla oturum açın. Hesap değiştirdikten sonra kayıtlı oturumları temizlemek için yeniden kaydedin.",
+        "invalidArgs": "Yalnızca metin içeren bir JSON dizisi girin."
       }
     },
     "quickAsk": {

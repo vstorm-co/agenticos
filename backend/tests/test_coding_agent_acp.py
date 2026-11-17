@@ -441,7 +441,7 @@ class Computer:
             raise DeviceUnavailable(message="Your computer is not connected")
         if op == "agent.open":
             # Either harness, in the chat's folder or a project inside it.
-            assert args["agent"] in {"claude_code", "codex"}
+            assert args["agent"] in {"claude_code", "codex", "custom"}
             assert args["root"] == "/w" or args["root"].startswith("/w/")
             return {"id": "p1"}
         if op == "agent.send":

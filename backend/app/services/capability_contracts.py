@@ -129,6 +129,7 @@ _DOCUMENTATION_STUB: dict[str, Any] = {
 # so the widest setting is the one worth documenting: a tool nobody can describe
 # is exactly the one somebody reaching for this page needs described.
 _DOCUMENTATION_CONFIGS: dict[str, dict[str, Any]] = {
+    "external_acp": {"agent_id": "documentation-probe"},
     "phone_calls": {"endpoint_id": str(UUID(int=0))},
     "mirage": {"mounts": [{"path": "/scratch/", "backend": "ram"}]},
     "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
