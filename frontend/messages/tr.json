@@ -8886,6 +8886,10 @@
       "chat-message-pins": {
         "title": "Önemli mesajları saklayın",
         "body": "Bir mesajı kendiniz için sabitleyin, ardından bu konuşmanın sabitlenmiş mesajlar listesinden yeniden açın."
+      },
+      "chat-selected-quote": {
+        "title": "Seçili metne yanıt verin",
+        "body": "Kaydedilmiş bir mesajdan bir bölüm seçin ve bu alıntıyı yanıtınıza eklemek için Yanıtla'yı seçin."
       }
     }
   },

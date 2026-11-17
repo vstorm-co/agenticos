@@ -1155,6 +1155,18 @@ async def fork_payload_bytes(db: AsyncSession, *, source_id: UUID, ordinal: int)
                     + func.octet_length(func.coalesce(Message.attachment_context, ""))
                     + func.octet_length(func.coalesce(Message.model_content, ""))
                     + func.octet_length(func.coalesce(cast(Message.parts, Text), ""))
+                    + func.octet_length(
+                        func.coalesce(
+                            case(
+                                (
+                                    Message.reply_to_message_id.in_(message_ids),
+                                    Message.reply_to_excerpt,
+                                ),
+                                else_="",
+                            ),
+                            "",
+                        )
+                    )
                 ),
                 0,
             )
@@ -1432,6 +1444,11 @@ async def fork_conversation(
         agent_id, version_id = attribution.get(
             original.id, (original.agent_id, original.agent_version_id)
         )
+        copied_reply_id = (
+            copied.get(original.reply_to_message_id)
+            if original.reply_to_message_id is not None
+            else None
+        )
         copy = Message(
             conversation_id=fork.id,
             role=original.role,
@@ -1445,9 +1462,10 @@ async def fork_conversation(
             agent_version_id=version_id,
             channel_identity_id=original.channel_identity_id,
             author_user_id=original.author_user_id,
-            reply_to_message_id=copied.get(original.reply_to_message_id)
-            if original.reply_to_message_id is not None
-            else None,
+            reply_to_message_id=copied_reply_id,
+            reply_to_excerpt=(
+                original.reply_to_excerpt if copied_reply_id is not None else None
+            ),
             thread_root_message_id=copied[original.thread_root_message_id]
             if original.thread_root_message_id is not None
             else None,
@@ -2771,6 +2789,7 @@ async def create_message(
     channel_identity_id: UUID | None = None,
     author_user_id: UUID | None = None,
     reply_to_message_id: UUID | None = None,
+    reply_to_excerpt: str | None = None,
     thread_root_message_id: UUID | None = None,
     attachment_context: str | None = None,
 ) -> Message:
@@ -2785,6 +2804,7 @@ async def create_message(
         channel_identity_id=channel_identity_id,
         author_user_id=author_user_id,
         reply_to_message_id=reply_to_message_id,
+        reply_to_excerpt=reply_to_excerpt,
         thread_root_message_id=thread_root_message_id,
         thinking=thinking,
         parts=parts,

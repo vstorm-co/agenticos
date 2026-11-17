@@ -1,5 +1,5 @@
 ---
-source_sha: "4deab8cd6da5"
+source_sha: "48df7f75a5c9"
 ---
 
 # Die Konsole { #the-console }
@@ -1024,6 +1024,12 @@ Eine Unterhaltung mit einer gespeicherten Checkliste kann nur an ihrer neuesten 
 Bei einer abgeschlossenen Assistentenantwort in einer eigenen persönlichen Unterhaltung können Sie über **Nebenstränge** eine separate Unterhaltung ab diesem Punkt beginnen oder einen vorhandenen Zweig derselben Antwort öffnen. Der Zweig erscheint neben dem Ursprung mit einem eigenen Eingabefeld und weiteren Nachrichten. Verlauf, Entwurf und Warteschlange der ursprünglichen Unterhaltung bleiben erhalten; im Zweig gesendete Nachrichten gehören zum Zweig.
 
 **Zurück zur ursprünglichen Unterhaltung** schließt das Seitenpanel und öffnet die genaue Ausgangsantwort. Ältere Nachrichten werden bei Bedarf nachgeladen. Das Schließen löscht den Zweig nicht. Ein Wechsel der Ausgangsunterhaltung, des Kontos oder der Organisation entfernt das alte Panel. Archivierte Zweige öffnen sich schreibgeschützt. Die Liste kann weitere Zweige dieser Antwort laden; fehlgeschlagene Lese- oder Erstellungsvorgänge lassen sich ohne Wechsel der Hauptunterhaltung wiederholen.
+
+### Auf ausgewählten Text antworten { #chat-selected-quote }
+
+Markiere eine Passage in einer gespeicherten Nachricht und wähle **Antworten**. Der Editor behält den Auszug mit bis zu 280 Zeichen samt Quellnachricht. Nach dem Senden bleibt die ausgewählte Passage beim erneuten Öffnen und im Kontext des Agenten erhalten. Das funktioniert in persönlichen Chats und Raumdiskussionen mit Schreibzugriff. Ohne Textauswahl bezieht sich **Antworten** weiterhin auf die ganze Nachricht.
+
+Eine Auswahl über verschiedene Nachrichten oder interaktive Bedienelemente hinweg wird nicht als Auszug verwendet. Text in einer zusammengefassten Assistentenantwort bleibt mit dem gespeicherten Abschnitt verknüpft, aus dem er stammt. Ein noch nicht gespeicherter Abschnitt kann nicht als zitierte Antwort verwendet werden.
 
 ### Angeheftete Nachrichten { #chat-message-pins }
 

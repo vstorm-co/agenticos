@@ -1,5 +1,5 @@
 ---
-source_sha: "4deab8cd6da5"
+source_sha: "48df7f75a5c9"
 ---
 
 # La consola { #the-console }
@@ -971,6 +971,12 @@ Una conversación con una lista de tareas guardada solo puede bifurcarse en su �
 En una respuesta completada del asistente dentro de una conversación personal de tu propiedad, **Conversaciones paralelas** permite iniciar otra conversación desde ese punto o reabrir una rama de la misma respuesta. La rama se abre junto a la original con su propio cuadro de escritura y sus mensajes posteriores. El historial, el borrador y la cola de la conversación original se conservan; los mensajes enviados en la rama pertenecen a ella.
 
 **Volver a la conversación original** cierra el panel lateral y abre la respuesta de origen exacta, cargando mensajes anteriores cuando hace falta. Cerrar el panel no elimina la rama. Cambiar la conversación de origen, la cuenta o la organización retira el panel anterior. Las ramas archivadas se abren en modo de solo lectura. La lista permite cargar más ramas de esta respuesta; los errores de lectura o creación se pueden reintentar sin cambiar la conversación principal.
+
+### Responder a texto seleccionado { #chat-selected-quote }
+
+Selecciona un pasaje de un mensaje guardado y elige **Responder**. El editor conserva el fragmento, de hasta 280 caracteres, junto con el mensaje de origen. Al enviarlo, el texto seleccionado se mantiene al volver a abrir la conversación y en el contexto que lee el agente. Funciona en chats personales y discusiones de sala donde puedes escribir. Sin texto seleccionado, **Responder** mantiene su comportamiento para el mensaje completo.
+
+Las selecciones que abarcan distintos mensajes o controles interactivos no se usan como citas. Un pasaje de una respuesta combinada del asistente conserva el vínculo con el segmento guardado del que procede. Un segmento que todavía no se ha guardado no puede convertirse en una respuesta citada.
 
 ### Mensajes fijados { #chat-message-pins }
 

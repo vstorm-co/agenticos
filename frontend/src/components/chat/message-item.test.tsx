@@ -10,8 +10,16 @@ import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { ChatScope } from "@/stores/chat-scope";
 import { useWorkingStore } from "@/stores/working-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
+import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import type { Agent } from "@/types/agents";
-import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall, TurnUsage } from "@/types";
+import type {
+  ChatMessage,
+  ChatMessageFile,
+  MessagePart,
+  MessageReply,
+  ToolCall,
+  TurnUsage,
+} from "@/types";
 import type { ConversationForkRead } from "@/lib/conversation-forks-api";
 import type { ConversationSideThreadActions } from "./conversation-side-threads";
 
@@ -144,6 +152,7 @@ function item(
     continuesTurn?: boolean;
     endsTurn?: boolean;
     turnUsage?: TurnUsage;
+    onReply?: (reply: MessageReply) => void;
     pins?: { pinned: readonly string[]; toggle: (prompt: string) => void };
     onTogglePin?: (messageId: string, pinned: boolean) => void;
     pinPending?: boolean;
@@ -1009,6 +1018,151 @@ describe("what a person attached", () => {
     expect(screen.getByText("Plan: step one")).toBeInTheDocument();
     // Its own id is this tab's: nothing can be addressed to it yet.
     expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+  });
+
+  it("uses the selected rendered excerpt when replying to a message", async () => {
+    const view = item({
+      id: "local-source",
+      persistedId: "selected-source",
+      isTemporaryId: true,
+      role: "assistant",
+      content: "Plan:\n step one",
+      conversationId: "c-1",
+    });
+    const text = view.container.querySelector("[data-testid=markdown]")!.firstChild!;
+    const range = document.createRange();
+    range.setStart(text, 7);
+    range.setEnd(text, 15);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    const reply = screen.getByRole("button", { name: "Reply" });
+    expect(reply).toHaveAttribute("data-tour", "chat-selected-quote");
+    await userEvent.click(reply);
+
+    expect(useChatStore.getState().replyTo).toEqual({
+      messageId: "selected-source",
+      role: "assistant",
+      excerpt: "step one",
+      selectedText: "step one",
+      sender: undefined,
+      agentId: undefined,
+      agentName: undefined,
+    });
+  });
+
+  it("replies to the saved segment that supplied a selected coalesced excerpt", async () => {
+    const view = item({
+      id: "latest-local",
+      persistedId: "latest-saved",
+      isTemporaryId: true,
+      role: "assistant",
+      content: "Earlier words. Latest words.",
+      conversationId: "c-1",
+      parts: [
+        {
+          id: "earlier",
+          sourceMessageId: "earlier-saved",
+          type: "text",
+          content: "Earlier words.",
+        },
+        { id: "latest", sourceMessageId: "latest-saved", type: "text", content: "Latest words." },
+      ],
+    });
+    const earlierBlock = view.container.querySelectorAll<HTMLElement>(
+      "[data-quoteable-content]",
+    )[0]!;
+    const text = earlierBlock.querySelector("[data-testid=markdown]")!.firstChild!;
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, 13);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    await userEvent.click(screen.getByRole("button", { name: "Reply" }));
+
+    expect(useChatStore.getState().replyTo).toMatchObject({
+      messageId: "earlier-saved",
+      excerpt: "Earlier words",
+      selectedText: "Earlier words",
+    });
+  });
+
+  it("does not reply to the combined row when selection came from an unsaved segment", async () => {
+    const onReply = vi.fn();
+    const view = item(
+      {
+        id: "latest-local",
+        persistedId: "latest-saved",
+        isTemporaryId: true,
+        role: "assistant",
+        content: "Unsaved words. Latest words.",
+        conversationId: "c-1",
+        parts: [
+          { id: "unsaved", sourceMessageId: null, type: "text", content: "Unsaved words." },
+          { id: "latest", sourceMessageId: "latest-saved", type: "text", content: "Latest words." },
+        ],
+      },
+      { onReply },
+    );
+    const unsavedBlock = view.container.querySelectorAll<HTMLElement>(
+      "[data-quoteable-content]",
+    )[0]!;
+    expect(unsavedBlock).toHaveAttribute("data-quote-source-message-id", "");
+    const text = unsavedBlock.querySelector("[data-testid=markdown]")!.firstChild!;
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, 13);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    await userEvent.click(screen.getByRole("button", { name: "Reply" }));
+
+    expect(onReply).not.toHaveBeenCalled();
+  });
+
+  it("marks only settled prose blocks as quote sources", () => {
+    const settled = item({
+      parts: [
+        { id: "thought", type: "thinking", content: "Private reasoning." },
+        { id: "words", type: "text", content: "The answer." },
+      ],
+    });
+    const blocks = settled.container.querySelectorAll("[data-quoteable-content]");
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toHaveTextContent("The answer.");
+
+    settled.unmount();
+    const live = item({
+      parts: [{ id: "live-words", type: "text", content: "Still streaming." }],
+      isStreaming: true,
+    });
+    expect(live.container.querySelector("[data-quoteable-content]")).toBeNull();
+  });
+
+  it("keeps ordinary Reply for a wire-loaded refusal but exposes no quoteable text", async () => {
+    const refused = conversationMessageToChatMessage({
+      id: "refused-answer",
+      conversation_id: "c-1",
+      role: "assistant",
+      content: "That request is not allowed.",
+      created_at: "2026-11-17T00:00:00Z",
+      run_status: "guardrail_blocked",
+    });
+    const view = item(refused);
+
+    expect(refused.guardrailRefused).toBe(true);
+    expect(view.container.querySelector("[data-quoteable-content]")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Reply" }));
+
+    expect(useChatStore.getState().replyTo).toMatchObject({
+      messageId: "refused-answer",
+      excerpt: "That request is not allowed.",
+    });
+    expect(useChatStore.getState().replyTo?.selectedText).toBeUndefined();
   });
 
   it("keeps the quote on a file-only reply with no message text", () => {

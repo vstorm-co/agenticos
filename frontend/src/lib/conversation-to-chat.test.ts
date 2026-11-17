@@ -597,3 +597,11 @@ for (const status of ["budget_exceeded", "guardrail_blocked", "loop_stopped"]) {
     expect(message.wasStopped).toBe(false);
   });
 }
+
+it("marks a wire-loaded guardrail refusal so its text cannot become a selected quote", () => {
+  const refused = conversationMessageToChatMessage(raw({ run_status: "guardrail_blocked" }));
+  const completed = conversationMessageToChatMessage(raw({ run_status: "completed" }));
+
+  expect(refused.guardrailRefused).toBe(true);
+  expect(completed.guardrailRefused).toBeUndefined();
+});

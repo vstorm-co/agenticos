@@ -36,6 +36,7 @@ export interface RoomMessageCreate {
   client_message_id: string;
   content: string;
   reply_to_message_id?: string | null;
+  reply_to_excerpt?: string | null;
   thread_root_message_id?: string | null;
   /** Omitted for a human-only message; resource mentions never select a responder. */
   agent_id?: string | null;

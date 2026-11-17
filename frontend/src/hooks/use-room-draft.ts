@@ -42,6 +42,9 @@ export function useRoomDraft(
         content: held.content.trim(),
         ...(held.agentId === null ? {} : { agent_id: held.agentId }),
         ...(selectedReply === null ? {} : { reply_to_message_id: selectedReply.messageId }),
+        ...(selectedReply?.selectedText === undefined
+          ? {}
+          : { reply_to_excerpt: selectedReply.selectedText }),
         ...(threadRootMessageId === null ? {} : { thread_root_message_id: threadRootMessageId }),
       },
       reply: selectedReply,

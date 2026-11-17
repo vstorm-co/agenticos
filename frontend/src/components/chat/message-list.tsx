@@ -120,6 +120,13 @@ export function endsTurn(messages: ChatMessage[], index: number): boolean {
  */
 export function coalesceActivity(messages: ChatMessage[]): ChatMessage[] {
   const result: ChatMessage[] = [];
+  const sourcedParts = (message: ChatMessage) => {
+    const sourceMessageId = message.persistedId ?? (message.isTemporaryId ? null : message.id);
+    return (
+      message.parts ??
+      buildAssistantParts(message.toolCalls ?? [], message.content, message.id, message.thinking)
+    ).map((part) => (part.sourceMessageId !== undefined ? part : { ...part, sourceMessageId }));
+  };
   for (const message of messages) {
     const previous = result.at(-1);
     const sameRun =
@@ -146,22 +153,7 @@ export function coalesceActivity(messages: ChatMessage[]): ChatMessage[] {
       [...(previous.toolCalls ?? []), ...(message.toolCalls ?? [])].map((call) => [call.id, call]),
     );
     const parts = new Map(
-      [
-        ...(previous.parts ??
-          buildAssistantParts(
-            previous.toolCalls ?? [],
-            previous.content,
-            previous.id,
-            previous.thinking,
-          )),
-        ...(message.parts ??
-          buildAssistantParts(
-            message.toolCalls ?? [],
-            message.content,
-            message.id,
-            message.thinking,
-          )),
-      ].map((part) => [part.id, part]),
+      [...sourcedParts(previous), ...sourcedParts(message)].map((part) => [part.id, part]),
     );
     result[result.length - 1] = {
       ...message,

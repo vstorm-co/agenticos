@@ -1,5 +1,5 @@
 ---
-source_sha: "4deab8cd6da5"
+source_sha: "48df7f75a5c9"
 ---
 
 # Konsola { #the-console }
@@ -945,6 +945,12 @@ Rozmowę z zapisaną checklistą można rozgałęzić tylko przy jej najnowszej 
 Przy zakończonej odpowiedzi asystenta w należącej do Ciebie prywatnej rozmowie opcja **Wątki poboczne** pozwala rozpocząć osobną rozmowę od tego miejsca lub ponownie otworzyć odgałęzienie tej samej odpowiedzi. Nowa rozmowa otwiera się obok głównej, z własnym polem wpisywania i kolejnymi wiadomościami. Historia, szkic i kolejka rozmowy głównej pozostają na miejscu; wiadomości wysłane w odgałęzieniu należą do niego.
 
 **Powrót do rozmowy nadrzędnej** zamyka panel i otwiera dokładną odpowiedź źródłową, wczytując starszą historię w razie potrzeby. Zamknięcie panelu nie usuwa rozmowy. Zmiana rozmowy źródłowej, konta lub organizacji usuwa stary panel. Zarchiwizowane odgałęzienia są tylko do odczytu. Lista pozwala wczytać więcej odgałęzień tej odpowiedzi, a błąd odczytu lub tworzenia umożliwia ponowienie bez przełączania głównej rozmowy.
+
+### Odpowiadanie na zaznaczony tekst { #chat-selected-quote }
+
+Zaznacz fragment zapisanej wiadomości i wybierz **Odpowiedz**. Edytor zachowuje cytat o długości do 280 znaków wraz z wiadomością źródłową. Po wysłaniu zaznaczony fragment pozostaje dostępny po ponownym otwarciu rozmowy i w kontekście czytanym przez agenta. Działa to w czatach osobistych oraz w dyskusjach pokojów, w których możesz pisać. Bez zaznaczenia **Odpowiedz** zachowuje dotychczasowe działanie dla całej wiadomości.
+
+Zaznaczenia obejmujące różne wiadomości lub interaktywne elementy nie są używane jako cytaty. Fragment połączonej wypowiedzi asystenta pozostaje powiązany z zapisaną częścią, z której pochodzi. Niezapisana część nie może stać się cytowaną odpowiedzią.
 
 ### Przypięte wiadomości { #chat-message-pins }
 

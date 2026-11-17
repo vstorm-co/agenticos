@@ -102,6 +102,34 @@ it("keeps local and saved identities for every merged segment without duplicate 
   ]);
 });
 
+it("keeps each quoted part tied to its saved source across repeated coalescing", () => {
+  const merged = coalesceActivity([
+    message({
+      id: "local-a",
+      persistedId: "saved-a",
+      isTemporaryId: true,
+      content: "First saved part",
+      runId: "run",
+    }),
+    message({ id: "unsaved", isTemporaryId: true, content: "Still unsaved", runId: "run" }),
+    message({ id: "saved-b", content: "Second saved part", runId: "run" }),
+  ]);
+
+  expect(merged).toHaveLength(1);
+  expect(
+    merged[0]?.parts
+      ?.filter((part) => part.type === "text")
+      .map((part) => ({
+        content: part.content,
+        sourceMessageId: part.sourceMessageId,
+      })),
+  ).toEqual([
+    { content: "First saved part", sourceMessageId: "saved-a" },
+    { content: "Still unsaved", sourceMessageId: null },
+    { content: "Second saved part", sourceMessageId: "saved-b" },
+  ]);
+});
+
 const TOOL = {
   id: "tc-1",
   name: "write_file",

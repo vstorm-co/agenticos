@@ -283,6 +283,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     // Only the one worth drawing. A completed run needs no marker, and a run
     // still going has no answer on screen to mark.
     wasStopped: msg.run_status === "cancelled",
+    guardrailRefused: msg.run_status === "guardrail_blocked" || undefined,
     runFailed: ["failed", "budget_exceeded", "guardrail_blocked", "loop_stopped"].includes(
       msg.run_status ?? "",
     ),
