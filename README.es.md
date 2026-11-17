@@ -423,7 +423,7 @@ Usa las cuentas existentes de la empresa mediante **inicio de sesión único con
 
 ## 🧭 Encuentra tu camino
 
-¿Vas a construir sobre él? Ve a [Para desarrolladores y operadores](#-para-desarrolladores-y-operadores).
+¿Vas a construir sobre él? Ve a [Para desarrolladores y operadores](#para-desarrolladores-y-operadores).
 
 <details>
 <summary><b>Si estás decidiendo si adoptarlo</b>: el problema que resuelve, qué requiere, cómo empezar</summary>
@@ -542,7 +542,7 @@ Los permisos del sistema de origen no se reflejan automáticamente; un agente pu
 
 Hay dos configuraciones habituales. **Autoalojado, con modelos alojados:** AgenticOS, los documentos, los vectores y los registros se ejecutan en tus servidores, y los modelos llegan de un provider con tu propio contrato y tus claves. **Totalmente local:** la misma capa con modelos abiertos mediante Ollama o vLLM en tu hardware, además de parsers y herramientas locales. Autoalojar la consola no hace que todos los modelos, parsers o herramientas sean locales, así que revisa cada destino que configures. [Configura los modelos](https://vstorm-co.github.io/agenticos/es/models/) · [Seguridad y flujos de datos](https://vstorm-co.github.io/agenticos/es/security/)
 
-## 🛠️ Para desarrolladores y operadores
+## Para desarrolladores y operadores
 
 AgenticOS está construido con FastAPI, Pydantic AI, PostgreSQL con pgvector, Redis y Next.js. Los ingenieros añaden capabilities, conectores de sincronización y entradas del catálogo MCP en Python tipado; los equipos componen agentes con las capabilities registradas en la consola.
 

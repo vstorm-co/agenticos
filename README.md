@@ -421,7 +421,7 @@ Bring existing company accounts through **OIDC single sign-on** (Entra ID, Okta,
 
 ## 🧭 Find your path
 
-Building on it? Go to [For developers and operators](#-for-developers-and-operators).
+Building on it? Go to [For developers and operators](#for-developers-and-operators).
 
 <details>
 <summary><b>Deciding whether to adopt it</b>: the problem it solves, what it takes, how to start</summary>
@@ -540,7 +540,7 @@ Source-system permissions are not mirrored automatically; an agent can lend its 
 
 There are two common setups. **Self-hosted, with hosted models:** AgenticOS, documents, vectors and logs run on your servers, and models come from a provider under your own contract and keys. **Fully local:** the same layer with open models through Ollama or vLLM on your hardware, plus local parsers and tools. Self-hosting the console does not make every model, parser or tool local, so review each destination you configure. [Configure models](https://vstorm-co.github.io/agenticos/models/) · [Security and data flows](https://vstorm-co.github.io/agenticos/security/)
 
-## 🛠️ For developers and operators
+## For developers and operators
 
 AgenticOS is built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis and Next.js. Engineers add capabilities, sync connectors and MCP catalog entries in typed Python; teams compose agents from the registered capabilities in the console.
 
