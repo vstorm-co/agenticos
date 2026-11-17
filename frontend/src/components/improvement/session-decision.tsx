@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
 import { LoadingState } from "@/components/states";
-import { Badge } from "@/components/ui";
+import { Badge, Card } from "@/components/ui";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { useImprovementChanges, useImprovementEvidence } from "@/hooks/use-improvements";
 import { subjectOf } from "@/lib/improvement-subject";
@@ -109,8 +109,9 @@ export function SessionDecision({ session }: { session: Improvement }) {
   const when = new Date(at).toLocaleString(locale);
   const version = session.published_version;
   return (
-    <section
-      className="space-y-4 rounded-xl border p-6"
+    <Card
+      role="region"
+      className="space-y-4 p-6"
       data-tour="improvement-decision"
       aria-label={t("title")}
     >
@@ -138,6 +139,6 @@ export function SessionDecision({ session }: { session: Improvement }) {
       <Changes session={session} />
       <Knowledge session={session} />
       <AutomaticCheck session={session} at={at} />
-    </section>
+    </Card>
   );
 }

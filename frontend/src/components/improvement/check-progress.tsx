@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui";
+import { Button, Card } from "@/components/ui";
 import { useEvalRun } from "@/hooks/use-eval-runs";
 import type { EvalRun } from "@/types/eval-runs";
 import type { CheckAnswers, Improvement } from "@/types/improvement";
@@ -39,7 +39,7 @@ export function CheckProgress({
   const checking = session.stage === "evaluating" || session.stage === "judging";
   const measured = session.iterations.some((item) => item.verdict !== null);
   return (
-    <section className="space-y-4 rounded-xl border p-4 sm:p-6" data-tour="improvement-check">
+    <Card className="space-y-4 p-4 sm:p-6" data-tour="improvement-check">
       <h2 className="font-medium">{t("checkTitle")}</h2>
       {session.stop_reason === "budget" && (
         <p role="alert" className="text-warning-ink text-sm">
@@ -101,7 +101,7 @@ export function CheckProgress({
           {t("openCheck")}
         </Link>
       )}
-    </section>
+    </Card>
   );
 }
 
