@@ -1276,6 +1276,18 @@
       "unavailable": "This message is no longer available in this conversation.",
       "cancel": "Cancel jump"
     },
+    "manualCompaction": {
+      "action": "Compact now",
+      "description": "Summarize earlier context for the next turn. Saved messages remain available.",
+      "busyHint": "Available when this conversation is idle.",
+      "running": "Summarizing earlier context…",
+      "runningCount": "Summarizing {count} earlier messages…",
+      "compacted": "Context compacted. Your saved messages are still available.",
+      "unchanged": "No additional context could be compacted.",
+      "busy": "This conversation is busy. Try again after its active work finishes.",
+      "unavailable": "This agent cannot compact this conversation.",
+      "failed": "Context could not be compacted. Try again."
+    },
     "messagePins": {
       "emptyPreview": "Message without a preview",
       "open": "Pinned messages",
@@ -6585,6 +6597,10 @@
       "chat-selected-quote": {
         "title": "Reply to selected text",
         "body": "Select a passage in a saved message, then choose Reply to keep that excerpt with your response."
+      },
+      "chat-compact-now": {
+        "title": "Summarize earlier context",
+        "body": "Compact an idle conversation's context while keeping its saved messages and your current draft."
       }
     }
   },

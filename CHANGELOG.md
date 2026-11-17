@@ -43,6 +43,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Manual context compaction for an idle owned personal conversation using the published agent's supported summarizing strategy. It preserves the transcript and draft, reports progress and results, supports cancellation, and uses the existing run ledger, usage budgets and guarded history snapshot.
+
 - Reply to selected message text in personal chats and writable room discussions. Bounded excerpts survive reload and model-history reconstruction, retain the original saved segment in combined assistant turns, and are checked against their authorized source.
 
 - Personal message pins in chat: bookmark saved messages, browse a paged private list, and reopen an exact message or room reply. Read-only recipients can keep their own pins without changing the shared transcript.

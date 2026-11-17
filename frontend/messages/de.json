@@ -1275,6 +1275,18 @@
       "unavailable": "Diese Nachricht ist in diesem Gespräch nicht mehr verfügbar.",
       "cancel": "Sprung abbrechen"
     },
+    "manualCompaction": {
+      "action": "Jetzt komprimieren",
+      "description": "Früheren Kontext für die nächste Runde zusammenfassen. Gespeicherte Nachrichten bleiben verfügbar.",
+      "busyHint": "Verfügbar, wenn diese Unterhaltung inaktiv ist.",
+      "running": "Früherer Kontext wird zusammengefasst…",
+      "runningCount": "{count} frühere Nachrichten werden zusammengefasst…",
+      "compacted": "Kontext komprimiert. Ihre gespeicherten Nachrichten bleiben verfügbar.",
+      "unchanged": "Es konnte kein weiterer Kontext komprimiert werden.",
+      "busy": "Diese Unterhaltung ist beschäftigt. Versuchen Sie es nach Abschluss der laufenden Arbeit erneut.",
+      "unavailable": "Dieser Agent kann diese Unterhaltung nicht komprimieren.",
+      "failed": "Der Kontext konnte nicht komprimiert werden. Versuchen Sie es erneut."
+    },
     "messagePins": {
       "emptyPreview": "Nachricht ohne Vorschau",
       "open": "Angeheftete Nachrichten",
@@ -6397,6 +6409,10 @@
       "chat-selected-quote": {
         "title": "Auf markierten Text antworten",
         "body": "Markiere eine Passage in einer gespeicherten Nachricht und wähle Antworten, um diesen Auszug mit deiner Antwort zu behalten."
+      },
+      "chat-compact-now": {
+        "title": "Früheren Kontext zusammenfassen",
+        "body": "Verdichte den Kontext eines ruhenden Gesprächs. Gespeicherte Nachrichten und dein aktueller Entwurf bleiben erhalten."
       }
     }
   },

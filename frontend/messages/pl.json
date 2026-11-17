@@ -292,6 +292,18 @@
       "unavailable": "Ta wiadomość nie jest już dostępna w tej rozmowie.",
       "cancel": "Anuluj przejście"
     },
+    "manualCompaction": {
+      "action": "Skróć kontekst teraz",
+      "description": "Podsumuj wcześniejszy kontekst przed kolejną turą. Zapisane wiadomości pozostaną dostępne.",
+      "busyHint": "Dostępne, gdy rozmowa jest bezczynna.",
+      "running": "Podsumowywanie wcześniejszego kontekstu…",
+      "runningCount": "Podsumowywanie wcześniejszych wiadomości: {count}…",
+      "compacted": "Kontekst został skrócony. Zapisane wiadomości są nadal dostępne.",
+      "unchanged": "Nie można było skrócić kontekstu bardziej.",
+      "busy": "Rozmowa jest zajęta. Spróbuj ponownie po zakończeniu aktywnej pracy.",
+      "unavailable": "Ten agent nie może skrócić kontekstu tej rozmowy.",
+      "failed": "Nie udało się skrócić kontekstu. Spróbuj ponownie."
+    },
     "messagePins": {
       "emptyPreview": "Wiadomość bez podglądu",
       "open": "Przypięte wiadomości",
@@ -8189,6 +8201,10 @@
       "chat-selected-quote": {
         "title": "Odpowiedz na zaznaczony tekst",
         "body": "Zaznacz fragment zapisanej wiadomości i wybierz Odpowiedz, aby zachować ten cytat przy swojej odpowiedzi."
+      },
+      "chat-compact-now": {
+        "title": "Podsumuj wcześniejszy kontekst",
+        "body": "Skróć kontekst bezczynnej rozmowy, zachowując zapisane wiadomości i bieżący szkic."
       }
     }
   },

@@ -1,5 +1,5 @@
 ---
-source_sha: "48df7f75a5c9"
+source_sha: "da2b712157b6"
 ---
 
 # Die Konsole { #the-console }
@@ -1024,6 +1024,12 @@ Eine Unterhaltung mit einer gespeicherten Checkliste kann nur an ihrer neuesten 
 Bei einer abgeschlossenen Assistentenantwort in einer eigenen persönlichen Unterhaltung können Sie über **Nebenstränge** eine separate Unterhaltung ab diesem Punkt beginnen oder einen vorhandenen Zweig derselben Antwort öffnen. Der Zweig erscheint neben dem Ursprung mit einem eigenen Eingabefeld und weiteren Nachrichten. Verlauf, Entwurf und Warteschlange der ursprünglichen Unterhaltung bleiben erhalten; im Zweig gesendete Nachrichten gehören zum Zweig.
 
 **Zurück zur ursprünglichen Unterhaltung** schließt das Seitenpanel und öffnet die genaue Ausgangsantwort. Ältere Nachrichten werden bei Bedarf nachgeladen. Das Schließen löscht den Zweig nicht. Ein Wechsel der Ausgangsunterhaltung, des Kontos oder der Organisation entfernt das alte Panel. Archivierte Zweige öffnen sich schreibgeschützt. Die Liste kann weitere Zweige dieser Antwort laden; fehlgeschlagene Lese- oder Erstellungsvorgänge lassen sich ohne Wechsel der Hauptunterhaltung wiederholen.
+
+### Gesprächskontext verdichten { #chat-compact-now }
+
+In einem ruhenden persönlichen Gespräch, das dir gehört, lässt **Jetzt komprimieren** im Kopfbereich den veröffentlichten Agenten früheren Kontext zusammenfassen. Die Aktion erscheint bei einer unterstützten zusammenfassenden Kompaktierungsstrategie. Gespeicherte Nachrichten und dein Entwurf bleiben verfügbar. Die Funktion wird in Raumdiskussionen, archivierten oder schreibgeschützten Chats, Workflows und Testfenstern für Entwürfe nicht angeboten.
+
+Ein Hinweis über dem Editor zeigt Fortschritt und Ergebnis: Kontext verdichtet, keine weitere Kürzung, beschäftigt, nicht verfügbar oder fehlgeschlagen. Senden und das Starten eines Sprachanrufs pausieren währenddessen; **Stopp** bricht die Anfrage ab. Ein Gesprächswechsel wiederholt sie nicht. Die Aktion verwendet gegebenenfalls das ausgewählte Chatmodell und unterliegt den üblichen Nutzungsbudgets. Die Kontextanzeige behält den letzten gemessenen Stand bis zu einer späteren Modellanfrage.
 
 ### Auf ausgewählten Text antworten { #chat-selected-quote }
 

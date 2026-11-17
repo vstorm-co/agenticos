@@ -2371,6 +2371,146 @@ describe("personal message pins in chat", () => {
   });
 });
 
+describe("manual compaction in the chat surface", () => {
+  function openCompactableChat(shared = false) {
+    const conversation = {
+      id: "c-compact",
+      title: "Long discussion",
+      user_id: shared ? "another-reader" : SIGNED_IN.id,
+      share_permission: shared ? "view" : undefined,
+      is_archived: false,
+      project_id: null,
+    };
+    const fallback = get.getMockImplementation()!;
+    get.mockImplementation((path: string) => {
+      if (path.startsWith("/conversations/c-compact/compaction-availability"))
+        return Promise.resolve({ available: true });
+      if (path === "/conversations/c-compact/metadata") return Promise.resolve(conversation);
+      if (path.startsWith("/conversations?"))
+        return Promise.resolve({ items: shared ? [] : [conversation], total: 1 });
+      if (path.startsWith("/agents") && !path.includes("/dictation") && !path.includes("/voice"))
+        return Promise.resolve({
+          items: [
+            {
+              id: "compact-agent",
+              slug: "compact-agent",
+              name: "Compaction agent",
+              status: "published",
+              can_run: true,
+            },
+          ],
+          total: 1,
+        });
+      if (path === "/agents/compact-agent/voice")
+        return Promise.resolve({ available: true, transport: "webrtc" });
+      return fallback(path);
+    });
+    useAgentSelectionStore.setState({ selectedAgentId: "compact-agent" });
+    useConversationStore.getState().setCurrentConversationId("c-compact");
+    loadTranscript([
+      {
+        id: "saved-question",
+        conversation_id: "c-compact",
+        role: "user",
+        content: "Earlier question",
+        created_at: "2026-11-17T00:00:00Z",
+      },
+      {
+        id: "saved-answer",
+        conversation_id: "c-compact",
+        role: "assistant",
+        content: "Earlier answer",
+        created_at: "2026-11-17T00:00:01Z",
+      },
+    ]);
+    socket.send.mockReturnValue(true);
+    mount("c-compact");
+  }
+
+  afterEach(() => socket.send.mockReset());
+
+  it("compacts without submitting or clearing the draft and reports correlated progress", async () => {
+    openCompactableChat();
+    const compact = await screen.findByRole("button", { name: "Compact now" });
+    receive("session_ready", {});
+    await waitFor(() => expect(compact).toBeEnabled());
+    const editor = screen.getByRole("textbox");
+    await userEvent.type(editor, "Keep this draft");
+    await userEvent.click(compact);
+
+    const request = socket.send.mock.calls
+      .map(([frame]) => frame as Record<string, unknown>)
+      .find((frame) => frame.type === "compact_now");
+    expect(request).toMatchObject({ conversation_id: "c-compact", agent_id: "compact-agent" });
+    expect(typeof request?.request_id).toBe("string");
+    expect(compact).toBeDisabled();
+    expect(messageOf(editor)).toBe("Keep this draft");
+    expect(socket.send.mock.calls.some(([frame]) => frame.message)).toBe(false);
+    expect(useChatStore.getState().messages).toHaveLength(2);
+    act(() => useComposerIntentStore.setState({ intent: "call" }));
+    expect(voiceCall.start).not.toHaveBeenCalled();
+
+    receive("compaction_started", { request_id: request!.request_id, messages_before: 12 });
+    expect(await screen.findByText(/Summarizing 12 earlier messages/)).toBeVisible();
+    receive("compact_now_result", {
+      request_id: request!.request_id,
+      conversation_id: "c-compact",
+      status: "compacted",
+    });
+    receive("session_ready", {});
+    expect(await screen.findByText(/Context compacted/)).toBeVisible();
+    expect(compact).toBeEnabled();
+    expect(messageOf(editor)).toBe("Keep this draft");
+    expect(useChatStore.getState().messages).toHaveLength(2);
+  });
+
+  it("disables manual compaction while the conversation is answering", async () => {
+    openCompactableChat();
+    const compact = await screen.findByRole("button", { name: "Compact now" });
+    receive("session_ready", {});
+    await waitFor(() => expect(compact).toBeEnabled());
+    await userEvent.type(screen.getByRole("textbox"), "A follow-up{Enter}");
+    await waitFor(() =>
+      expect(socket.send.mock.calls.some(([frame]) => frame.message === "A follow-up")).toBe(true),
+    );
+    await waitFor(() => expect(compact).toBeDisabled());
+    await userEvent.click(compact);
+    expect(socket.send.mock.calls.some(([frame]) => frame.type === "compact_now")).toBe(false);
+  });
+
+  it("keeps Stop available during manual compaction and waits for cleanup", async () => {
+    openCompactableChat();
+    const compact = await screen.findByRole("button", { name: "Compact now" });
+    receive("session_ready", {});
+    await waitFor(() => expect(compact).toBeEnabled());
+    await userEvent.click(compact);
+    const request = socket.send.mock.calls
+      .map(([frame]) => frame as Record<string, unknown>)
+      .find((frame) => frame.type === "compact_now");
+    const stop = await screen.findByRole("button", { name: /^Stop/ });
+    expect(stop).toBeEnabled();
+    await userEvent.click(stop);
+    expect(socket.send).toHaveBeenCalledWith({ type: "stop" });
+    receive("compact_now_result", {
+      request_id: request!.request_id,
+      conversation_id: "c-compact",
+      status: "failed",
+    });
+    expect(compact).toBeDisabled();
+    receive("session_ready", {});
+    await waitFor(() => expect(compact).toBeEnabled());
+    expect(useChatStore.getState().messages).toHaveLength(2);
+    expect(socket.send.mock.calls.some(([frame]) => frame.message)).toBe(false);
+  });
+
+  it("hides manual compaction for a read-only shared conversation", async () => {
+    openCompactableChat(true);
+    await screen.findByText("Shared with you as read-only");
+    expect(screen.queryByRole("button", { name: "Compact now" })).not.toBeInTheDocument();
+    expect(socket.send.mock.calls.some(([frame]) => frame.type === "compact_now")).toBe(false);
+  });
+});
+
 it("follows an exact main-chat link through older history and preserves the current page", async () => {
   const current = {
     id: "m-2",

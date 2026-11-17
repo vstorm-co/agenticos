@@ -564,6 +564,44 @@ class MeteredCompaction(WrapperCapability[AgentDepsT]):
             await assert_ambient_budget()
         return compacted
 
+    async def compact_now(
+        self, messages: list[ModelMessage], ctx: RunContext[AgentDepsT]
+    ) -> list[ModelMessage] | None:
+        """Force the configured summarising tier for an idle chat maintenance run.
+
+        Automatic compaction enters through `before_model_request`, where the
+        strategy chooses whether its trigger fired. Manual compaction deliberately
+        bypasses that trigger, but still uses the same summarizer, progress events,
+        affordability check and run ledger as an automatic summary.
+        """
+        if isinstance(self.wrapped, SummarizingCompaction):
+            summarizer = self.wrapped
+        elif isinstance(self.wrapped, TieredCompaction):
+            summarizer = next(
+                (
+                    tier
+                    for tier in self.wrapped.tiers
+                    if isinstance(tier, NotifyingSummarizingCompaction)
+                ),
+                None,
+            )
+        else:
+            return None
+        if not isinstance(summarizer, NotifyingSummarizingCompaction):
+            return None
+
+        before = usage_counts(ctx.usage)
+        try:
+            compacted = await summarizer.compact(messages, ctx)
+        finally:
+            spent = usage_delta(before, ctx.usage)
+            if spent is not None:
+                model_name = getattr(ctx.model, "model_name", None) or "unknown"
+                record_ambient_usage(model_name, spent)
+        if spent is not None:
+            await assert_ambient_budget()
+        return compacted
+
     async def _has_no_room(self, ctx: RunContext[AgentDepsT]) -> bool:
         """Whether this window is too small for a summary to ever get under it.
 

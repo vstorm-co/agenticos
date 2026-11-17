@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import (
     ActiveOrg,
+    AgentRegistrySvc,
     Auth,
     CodingTaskChangeSvc,
     ConversationShareSvc,
@@ -26,10 +27,11 @@ from app.api.public_api import PUBLIC
 from app.api.responses import content_disposition
 from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import Perm
 from app.schemas.coding_task_change import CodingTaskChangeRead
 from app.schemas.conversation import (
+    ConversationCompactionAvailability,
     ConversationCreate,
     ConversationForkCreate,
     ConversationForkList,
@@ -75,6 +77,50 @@ from app.services import conversation_search
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
+
+
+@router.get(
+    "/{conversation_id}/compaction-availability",
+    response_model=ConversationCompactionAvailability,
+)
+async def compaction_availability(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    registry: AgentRegistrySvc,
+    ctx: Auth,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    agent_id: UUID = Query(...),
+) -> ConversationCompactionAvailability:
+    """Read whether this owned personal chat can run a summarising maintenance pass."""
+    conversation = await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        for_write=True,
+        turn=True,
+        include_favourite=False,
+        ctx=ctx,
+    )
+    if (
+        conversation.user_id != current_user.id
+        or conversation.project_id is not None
+        or conversation.workflow_id is not None
+        or conversation.origin is not None
+        or conversation.is_archived
+    ):
+        return ConversationCompactionAvailability(available=False)
+    try:
+        _, spec, _ = await registry.get_runnable_spec(ctx, agent_id)
+    except (AuthorizationError, BadRequestError, NotFoundError):
+        return ConversationCompactionAvailability(available=False)
+    available = any(
+        binding.id == "compaction"
+        and binding.enabled
+        and binding.config.get("strategy", "summarize") in {"summarize", "tiered"}
+        for binding in spec.capabilities
+    )
+    return ConversationCompactionAvailability(available=available)
 
 
 @router.post("/{conversation_id}/room-messages", response_model=RoomMessageRead)

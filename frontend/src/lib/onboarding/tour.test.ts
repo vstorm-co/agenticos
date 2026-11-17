@@ -305,6 +305,7 @@ describe("stepsForPage", () => {
       "chat-side-threads",
       "chat-message-pins",
       "chat-selected-quote",
+      "chat-compact-now",
       "chat-agent-picker",
       "chat-composer",
       "chat-send-mode",

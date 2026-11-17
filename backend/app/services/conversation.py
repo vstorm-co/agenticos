@@ -215,6 +215,11 @@ async def check_history_snapshot(
         revision = await conversation_repo.get_guardrail_revision(db, conversation_id)
         expected = history.revision if history.revision is not None else 0
         current_history = revision is not None and revision == expected
+        if current_history and history.ordinal is not None:
+            current_history = (
+                await conversation_repo.last_ordinal(db, conversation_id) == history.ordinal
+                and not await conversation_repo.has_room_submissions(db, conversation_id)
+            )
     if not current_history:
         raise GuardrailBlocked(
             edge="input",
@@ -267,6 +272,7 @@ class ConversationService:
         before_message_id: UUID | None = None,
         room_request_message_id: UUID | None = None,
         thread_root_message_id: UUID | None = None,
+        snapshot: bool = False,
     ) -> ModelHistory:
         """The thread as the model should read it, summary included.
 
@@ -298,6 +304,10 @@ class ConversationService:
         question. Later questions are excluded. A shared summary cannot describe
         that filtered window, so room histories always rebuild the bounded
         transcript and retain its refusal revision.
+
+        `snapshot` captures a top-level history through its current last ordinal.
+        It is for idle maintenance only: the caller can fence every model request
+        and the eventual summary write against any later transcript change.
         """
         if (
             sum(
@@ -307,8 +317,16 @@ class ConversationService:
             > 1
         ):
             raise BadRequestError(message="Choose one conversation history boundary")
+        if snapshot and any(
+            value is not None
+            for value in (room_request_message_id, before_message_id, thread_root_message_id)
+        ):
+            raise BadRequestError(message="A bounded snapshot cannot use a filtered history")
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, conversation_id, include_summary=True, fresh=True
+        )
+        through_ordinal = (
+            await conversation_repo.last_ordinal(self.db, conversation_id) if snapshot else None
         )
         revision = None if conversation is None else conversation.guardrail_revision
         if room_request_message_id is not None or thread_root_message_id is not None:
@@ -337,8 +355,15 @@ class ConversationService:
             return ModelHistory(
                 await self._restore_capability_loads(history, rows, exclude_message_id),
                 revision=revision,
+                ordinal=through_ordinal,
             )
         summary = None if conversation is None else conversation.summary_messages
+        summary_ordinal = None if conversation is None else conversation.summary_ordinal
+        if (
+            through_ordinal is not None
+            and (summary_ordinal is None or summary_ordinal > through_ordinal)
+        ):
+            summary = None
         before_ordinal: int | None = None
         if before_message_id is not None:
             boundary = await conversation_repo.messages_by_id(self.db, {before_message_id})
@@ -357,9 +382,15 @@ class ConversationService:
         ):
             return ModelHistory(
                 await self._from_transcript(
-                    conversation_id, limit, exclude_message_id, conversation, before_message_id
+                    conversation_id,
+                    limit,
+                    exclude_message_id,
+                    conversation,
+                    before_message_id,
+                    through_ordinal=through_ordinal,
                 ),
                 revision=revision,
+                ordinal=through_ordinal,
             )
         # Re-inline whatever the stored history references before it is parsed
         # (#55). Unconditional: offloading is the `media` capability's decision,
@@ -387,9 +418,15 @@ class ConversationService:
             )
             return ModelHistory(
                 await self._from_transcript(
-                    conversation_id, limit, exclude_message_id, conversation, before_message_id
+                    conversation_id,
+                    limit,
+                    exclude_message_id,
+                    conversation,
+                    before_message_id,
+                    through_ordinal=through_ordinal,
                 ),
                 revision=revision,
+                ordinal=through_ordinal,
             )
         since = await conversation_repo.get_messages_after(
             self.db,
@@ -397,6 +434,7 @@ class ConversationService:
             ordinal=conversation.summary_ordinal,
             limit=limit,
             top_level_only=True,
+            through_ordinal=through_ordinal,
         )
         if before_ordinal is not None:
             # The summary is older than the turn being retried, so only the
@@ -412,6 +450,7 @@ class ConversationService:
         return ModelHistory(
             await self._restore_capability_loads(history, since, exclude_message_id),
             revision=revision,
+            ordinal=through_ordinal,
         )
 
     async def _from_transcript(
@@ -421,6 +460,8 @@ class ConversationService:
         exclude_message_id: UUID | None,
         conversation: Conversation | None,
         before_message_id: UUID | None = None,
+        *,
+        through_ordinal: int | None = None,
     ) -> list[ModelMessage]:
         """The recent window, which is what every surface read before #49.
 
@@ -440,7 +481,11 @@ class ConversationService:
             )
         else:
             rows = await conversation_repo.get_recent_messages(
-                self.db, conversation_id, limit=limit, top_level_only=True
+                self.db,
+                conversation_id,
+                limit=limit,
+                top_level_only=True,
+                through_ordinal=through_ordinal,
             )
         spoken = await self._spoken(rows, conversation)
         history = build_message_history(_as_history(rows, exclude_message_id, spoken))
@@ -647,6 +692,43 @@ class ConversationService:
             logger.info(
                 "conversation_summary_superseded", extra={"conversation_id": str(conversation_id)}
             )
+
+    async def keep_summary_snapshot(
+        self,
+        conversation_id: UUID,
+        messages: list[dict[str, Any]],
+        *,
+        expected_revision: int | None,
+        expected_ordinal: int,
+    ) -> bool:
+        """Persist an idle maintenance summary only while its exact snapshot holds.
+
+        Unlike `keep_summary`, this caller wrote no transcript rows of its own.
+        The summary therefore covers exactly `expected_ordinal`; either a guardrail
+        revision change, a later message, or a room queue makes it stale.
+        """
+        if expected_revision is None:
+            logger.info(
+                "conversation_summary_unversioned", extra={"conversation_id": str(conversation_id)}
+            )
+            return False
+        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        if conversation is None:
+            return False
+        stored = await conversation_repo.set_summary(
+            self.db,
+            db_conversation=conversation,
+            messages=messages,
+            ordinal=expected_ordinal,
+            expected_revision=expected_revision,
+            expected_ordinal=expected_ordinal,
+        )
+        if not stored:
+            logger.info(
+                "conversation_summary_snapshot_superseded",
+                extra={"conversation_id": str(conversation_id)},
+            )
+        return stored
 
     async def readable(self, ctx: AuthContext, conversation_ids: Iterable[UUID]) -> set[UUID]:
         """Which of these conversations the caller may read the text of.
@@ -2515,7 +2597,6 @@ def _a_persons_turn(message: Message) -> bool:
 
 _EXCERPT_CHARS = 280
 """How much of a replied-to message is quoted to the model and above the reply."""
-
 
 _QUOTE_MARKDOWN = MarkdownIt("commonmark")
 

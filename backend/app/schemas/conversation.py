@@ -673,6 +673,12 @@ class ConversationForkList(BaseSchema):
     total: int
 
 
+class ConversationCompactionAvailability(BaseSchema):
+    """Whether the requested published agent supports a paid summary action."""
+
+    available: bool
+
+
 class ConversationRead(ConversationBase, TimestampSchema):
     """Schema for reading a conversation (API response)."""
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "48df7f75a5c9"
+source_sha: "da2b712157b6"
 ---
 
 # Konsola { #the-console }
@@ -945,6 +945,12 @@ Rozmowę z zapisaną checklistą można rozgałęzić tylko przy jej najnowszej 
 Przy zakończonej odpowiedzi asystenta w należącej do Ciebie prywatnej rozmowie opcja **Wątki poboczne** pozwala rozpocząć osobną rozmowę od tego miejsca lub ponownie otworzyć odgałęzienie tej samej odpowiedzi. Nowa rozmowa otwiera się obok głównej, z własnym polem wpisywania i kolejnymi wiadomościami. Historia, szkic i kolejka rozmowy głównej pozostają na miejscu; wiadomości wysłane w odgałęzieniu należą do niego.
 
 **Powrót do rozmowy nadrzędnej** zamyka panel i otwiera dokładną odpowiedź źródłową, wczytując starszą historię w razie potrzeby. Zamknięcie panelu nie usuwa rozmowy. Zmiana rozmowy źródłowej, konta lub organizacji usuwa stary panel. Zarchiwizowane odgałęzienia są tylko do odczytu. Lista pozwala wczytać więcej odgałęzień tej odpowiedzi, a błąd odczytu lub tworzenia umożliwia ponowienie bez przełączania głównej rozmowy.
+
+### Skracanie kontekstu rozmowy { #chat-compact-now }
+
+W bezczynnej rozmowie osobistej, której jesteś właścicielem, **Skróć kontekst teraz** w nagłówku prosi opublikowanego agenta o podsumowanie wcześniejszego kontekstu. Działanie pojawia się, gdy agent ma obsługiwaną strategię kompakcji przez podsumowanie. Zapisane wiadomości i szkic w edytorze pozostają dostępne. Funkcja nie jest dostępna w dyskusjach pokojów, rozmowach zarchiwizowanych lub tylko do odczytu, workflowach ani panelach testowania wersji roboczych.
+
+Komunikat nad edytorem pokazuje postęp i wynik: skrócono kontekst, nie ma dalszej redukcji, rozmowa jest zajęta, funkcja jest niedostępna albo wystąpił błąd. Podczas kompakcji wysyłanie i rozpoczynanie połączenia głosowego są wstrzymane; **Zatrzymaj** anuluje żądanie. Zmiana rozmowy go nie powtarza. Działanie korzysta z wybranego modelu czatu, gdy ma to zastosowanie, i podlega zwykłym budżetom użycia. Wskaźnik kontekstu zachowuje ostatni pomiar do kolejnego żądania modelu.
 
 ### Odpowiadanie na zaznaczony tekst { #chat-selected-quote }
 
