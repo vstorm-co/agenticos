@@ -11,7 +11,6 @@ interface ServiceCardProps {
   icon: LucideIcon;
   action: ReactNode;
   status?: ReactNode;
-  footer?: ReactNode;
   children?: ReactNode;
   collapsible?: boolean;
   defaultOpen?: boolean;
@@ -28,7 +27,6 @@ export function ServiceCard({
   icon: Icon,
   action,
   status,
-  footer,
   children,
   collapsible = false,
   defaultOpen = false,
@@ -109,7 +107,6 @@ export function ServiceCard({
           {children}
         </div>
       )}
-      {footer && <div className="px-4 pb-4 sm:px-5">{footer}</div>}
     </section>
   );
 }
