@@ -1,5 +1,5 @@
 ---
-source_sha: "acebff609542"
+source_sha: "e1e797d2487d"
 ---
 
 # Die Konsole { #the-console }
@@ -494,6 +494,8 @@ bisher und verbindet sich selbst wieder.
 ## Chat { #chat }
 
 Gemeinsame Räume, Projektchats und zur Bearbeitung freigegebene Gespräche verwenden sichtbare Chatbeiträge statt verborgener Modell-Checkpoints. Ein anderer Teilnehmer übernimmt keine privaten Toolergebnisse oder Denkprozesse eines früheren Autors; bei Bedarf fragt der Agent mit den Verbindungen der aktuellen Person erneut ab. Auch ein Fork einer geteilten Quelle lässt verborgene Checkpoints zurück. Private Webchats und Direktnachrichten behalten den strukturierten Modellverlauf.
+
+Private Checkpoints sind an den Agenten und die tatsächlich aufgelösten Modellziele einschließlich Fallback-Verbindungen gebunden. Ein anderer Agent, Endpunkt oder Anschluss baut den Verlauf aus sichtbaren Chatnachrichten neu auf, statt frühere verborgene Werkzeugergebnisse an einen anderen Empfänger zu senden. Ältere Checkpoints ohne diese Herkunft verwenden ebenfalls den sichtbaren Verlauf. Ein wartender Lauf kann nach einem Zielwechsel nicht fortgesetzt werden: Stellen Sie seine ursprüngliche Konfiguration wieder her oder beginnen Sie einen neuen Turn. Vor der Erfassung des Empfängers angehaltene Läufe müssen neu gestartet werden.
 
 Hier sprechen Sie mit einem veröffentlichten Agent. Die Auswahl entscheidet,
 welcher Agent antwortet, und der Run verhält sich genau so, wie er es in Slack

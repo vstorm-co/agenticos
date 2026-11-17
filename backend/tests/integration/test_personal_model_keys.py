@@ -79,7 +79,17 @@ async def test_two_members_use_the_same_model_with_isolated_rotatable_keys(
             assert isinstance(resolved.credential.secret, ApiKeySecret)
             assert resolved.credential.secret.api_key.get_secret_value() == value
             assert resolved.model == held.model and resolved.credential.base_url == held.base_url
+        previous_connection = await service.resolve(first, held)
         await service.save(first, uuid4(), key_request(held, "first-replacement"))
+        replacement_connection = await service.resolve(first, held)
+        assert (
+            previous_connection.credential.credential_id
+            == replacement_connection.credential.credential_id
+        )
+        assert previous_connection.credential.routing["credential_updated_at"] is None
+        assert replacement_connection.credential.routing["credential_updated_at"] is not None
+        assert previous_connection.credential.routing != replacement_connection.credential.routing
+
         assert len(await service.mine(first)) == 1
         assert len(await service.mine(second)) == 1
         for ctx, value in [(first, "first-replacement"), (second, "second-private-key")]:

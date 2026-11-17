@@ -1,5 +1,5 @@
 ---
-source_sha: "1b2ebcd504d7"
+source_sha: "52615751a50c"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -38,6 +38,8 @@ Tryb osobisty nie obsługuje obecnie kanałów prywatnych ani grupowych, widget�
 Klucze są szyfrowane w vaulcie dla właściciela i usuwane wraz z jego członkostwem lub kontem. Zmiana zatwierdzonego endpointu wymaga nowego połączenia. Rotacja klucza jednej osoby nie zmienia kluczy innych ani wspólnego profilu modelu.
 
 Impersonacja innego członka nie daje dostępu do jego osobistych połączeń z modelami: próby odczytu, zmiany lub użycia klucza są odrzucane przed dostępem do vault.
+
+Prywatna historia rozmowy jest przypisana do zatwierdzonych celów modeli, także fallbacków; [historia czatu](console.md#chat) opisuje zmianę połączenia i wznawianie oczekujących runów.
 
 ## Profil modelu { #a-model-profile }
 

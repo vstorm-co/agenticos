@@ -25,7 +25,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.usage import RequestUsage
 
 from app.agents.ephemeral_media import dump_messages
-from app.schemas.conversation import HistoryCheckpointFrontier
+from app.schemas.conversation import HistoryCheckpointFrontier, HistoryProvenance, HistorySource
 
 MODEL_HISTORY_MESSAGES = 200
 MODEL_HISTORY_BYTES = 2 * 1024 * 1024
@@ -88,23 +88,25 @@ def bounded_model_history(messages: Sequence[ModelMessage]) -> list[ModelMessage
 
 
 def bounded_stored_history(
-    messages: list[dict[str, JsonValue]],
+    messages: list[dict[str, JsonValue]], *, overhead_bytes: int = 0
 ) -> list[dict[str, JsonValue]]:
     """Bound the compact checkpoint before restoring potentially large media.
 
     Media references count at their stored size. Expanding one before applying
     this storage ceiling would discard valid images and offloaded tool results.
     """
-    start = _bounded_history_start(messages)
+    start = _bounded_history_start(messages, overhead_bytes=overhead_bytes)
     if start == 0:
         return messages
     notice = ModelRequest(parts=[UserPromptPart(content=HISTORY_TRIMMED)])
     return [*dump_messages([notice]), *messages[start:]]
 
 
-def _bounded_history_start(messages: Sequence[dict[str, JsonValue]]) -> int:
+def _bounded_history_start(
+    messages: Sequence[dict[str, JsonValue]], *, overhead_bytes: int = 0
+) -> int:
     sizes = [len(json.dumps(message, ensure_ascii=False).encode()) + 2 for message in messages]
-    total = sum(sizes)
+    total = sum(sizes) + overhead_bytes
     if len(messages) <= MODEL_HISTORY_MESSAGES and total <= MODEL_HISTORY_BYTES:
         return 0
     notice = ModelRequest(parts=[UserPromptPart(content=HISTORY_TRIMMED)])
@@ -164,10 +166,21 @@ class ModelHistory(list[ModelMessage]):
         *,
         revision: int | None,
         frontier: HistoryCheckpointFrontier | None = None,
+        provenance: HistoryProvenance | None = None,
+        source: HistorySource | None = None,
+        public_context: Sequence[ModelMessage] = (),
     ) -> None:
         super().__init__(messages)
         self.revision = revision
         self.frontier = frontier
+        self.provenance = provenance
+        self.source = source
+        self.public_context = list(public_context)
+
+    def extend_public_context(self, messages: Sequence[ModelMessage]) -> None:
+        """Retain authorized channel context if private checkpoint replay is refused."""
+        self.extend(messages)
+        self.public_context.extend(messages)
 
 
 class HistoryMessage(TypedDict):

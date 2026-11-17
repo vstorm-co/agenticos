@@ -1,5 +1,5 @@
 ---
-source_sha: "acebff609542"
+source_sha: "e1e797d2487d"
 ---
 
 # La consola { #the-console }
@@ -477,6 +477,8 @@ tus notificaciones solo a ti. Si la conexión se corta, la consola funciona como
 ## Chat { #chat }
 
 Las salas compartidas, los chats de proyecto y las conversaciones compartidas para edición usan los turnos visibles en vez de checkpoints internos del modelo. Otro participante no hereda resultados privados de herramientas ni razonamiento de un autor anterior; si hace falta, el agente consulta de nuevo con las conexiones de la persona actual. La bifurcación de una fuente compartida también omite sus checkpoints internos. Los chats web privados y los mensajes directos conservan el historial estructurado del modelo.
+
+Los checkpoints privados quedan vinculados al agente y a los destinos resueltos de los modelos, incluidas las conexiones de respaldo. Cambiar de agente, endpoint o conexión reconstruye el historial desde los mensajes visibles en lugar de enviar resultados ocultos anteriores a otro destinatario. Los checkpoints antiguos sin esta información también usan la transcripción visible. Una ejecución en espera no puede reanudarse si cambia su destino: restaure la configuración original o inicie un turno nuevo. Las ejecuciones pausadas antes de registrar el destinatario deben reiniciarse.
 
 Donde hablas con un agent publicado. El selector elige qué agent responde, y el
 run se comporta exactamente igual que en Slack o detrás de la API — mismo budget,

@@ -17,6 +17,8 @@ from app.db.models.user import User
 from app.repositories import conversation_repo
 from app.schemas.conversation import HistoryCheckpointFrontier
 from app.services.conversation import ConversationService
+from tests.history_fixtures import CHECKPOINT_PROVENANCE as _PROVENANCE
+from tests.history_fixtures import stored_checkpoint as _checkpoint
 
 pytestmark = pytest.mark.anyio
 
@@ -52,6 +54,7 @@ async def test_an_older_answer_cannot_replace_a_newer_checkpoint(db: AsyncSessio
             summary_ordinal=None, message_ordinal=second.ordinal
         ),
         through_message_id=str(second.id),
+        provenance=_PROVENANCE,
     )
     await service.keep_summary(
         conversation.id,
@@ -61,10 +64,11 @@ async def test_an_older_answer_cannot_replace_a_newer_checkpoint(db: AsyncSessio
             summary_ordinal=None, message_ordinal=first.ordinal
         ),
         through_message_id=str(first.id),
+        provenance=_PROVENANCE,
     )
     await db.refresh(conversation)
     assert conversation.summary_ordinal == second.ordinal
-    assert conversation.summary_messages == newer
+    assert conversation.summary_messages == _checkpoint(newer)
 
 
 async def _thread(db: AsyncSession) -> tuple[Conversation, Agent]:
@@ -126,10 +130,11 @@ async def test_a_prompt_written_after_reading_history_belongs_to_its_own_checkpo
         expected_revision=history.revision,
         expected_frontier=history.frontier,
         through_message_id=str(answer_id),
+        provenance=_PROVENANCE,
     )
     await db.refresh(conversation)
     assert conversation.summary_ordinal == answer_ordinal
-    assert conversation.summary_messages == snapshot
+    assert conversation.summary_messages == _checkpoint(snapshot)
 
 
 @pytest.mark.parametrize("late_role", ["user", "assistant"])
@@ -159,6 +164,7 @@ async def test_a_checkpoint_never_skips_an_intervening_turn_before_its_answer(
         expected_revision=history.revision,
         expected_frontier=history.frontier,
         through_message_id=str(answer.id),
+        provenance=_PROVENANCE,
     )
     await db.refresh(conversation)
     assert conversation.summary_messages is None and conversation.summary_ordinal is None
@@ -199,6 +205,7 @@ async def test_concurrent_turns_cannot_replace_the_checkpoint_they_did_not_read(
                 expected_revision=history.revision,
                 expected_frontier=history.frontier,
                 through_message_id=str(answer.id),
+                provenance=_PROVENANCE,
             )
             await session.commit()
             if name == "FIRST":
@@ -304,9 +311,10 @@ async def test_internal_compaction_can_replace_exactly_the_frontier_it_read(
         dump_messages(history),
         expected_revision=history.revision,
         expected_frontier=history.frontier,
+        provenance=_PROVENANCE,
     )
     await db.refresh(conversation)
-    assert conversation.summary_messages == dump_messages(history)
+    assert conversation.summary_messages == _checkpoint(dump_messages(history))
     assert (
         history.frontier is not None
         and conversation.summary_ordinal == history.frontier.message_ordinal
@@ -336,6 +344,7 @@ async def test_a_frontier_match_cannot_cross_a_new_refusal_revision(db: AsyncSes
         expected_revision=history.revision,
         expected_frontier=history.frontier,
         through_message_id=str(answer.id),
+        provenance=_PROVENANCE,
     )
     await db.refresh(conversation)
     assert conversation.summary_messages is None and conversation.summary_ordinal is None
@@ -374,6 +383,7 @@ async def test_a_workflow_placeholder_finishing_after_history_was_read_stays_rep
         expected_revision=history.revision,
         expected_frontier=history.frontier,
         through_message_id=str(answer.id),
+        provenance=_PROVENANCE,
     )
     await db.refresh(conversation)
     assert conversation.summary_messages is None

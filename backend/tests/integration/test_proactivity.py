@@ -44,6 +44,8 @@ from app.repositories.conversation import PersonRequest
 from app.schemas.conversation import MessageCreate
 from app.services.conversation import ConversationService
 from app.services.proactive._nightly import NightlyLook
+from tests.history_fixtures import CHECKPOINT_PROVENANCE as _PROVENANCE
+from tests.history_fixtures import stored_checkpoint as _checkpoint
 
 pytestmark = pytest.mark.anyio
 
@@ -1685,8 +1687,10 @@ async def test_marking_a_workflow_refusal_is_confined_to_its_source_turn(db):
     await db.flush()
     from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, UserPromptPart
 
-    first.summary_messages = ModelMessagesTypeAdapter.dump_python(
-        [ModelRequest(parts=[UserPromptPart(content=_BLOCKED)])], mode="json"
+    first.summary_messages = _checkpoint(
+        ModelMessagesTypeAdapter.dump_python(
+            [ModelRequest(parts=[UserPromptPart(content=_BLOCKED)])], mode="json"
+        )
     )
     first.summary_ordinal = message.ordinal
     await db.flush()
@@ -1804,6 +1808,7 @@ async def test_inflight_compaction_cannot_restore_a_later_refused_turn(db, engin
                 unsafe,
                 expected_revision=history.revision,
                 expected_frontier=history.frontier,
+                provenance=_PROVENANCE,
             )
             await writer.commit()
 
@@ -1830,9 +1835,10 @@ async def test_inflight_compaction_cannot_restore_a_later_refused_turn(db, engin
         safe_summary,
         expected_revision=safe_history.revision,
         expected_frontier=safe_history.frontier,
+        provenance=_PROVENANCE,
     )
     await db.refresh(chat)
-    assert chat.summary_messages == safe_summary
+    assert chat.summary_messages == _checkpoint(safe_summary)
     assert "An accepted summary after the refusal" in str(
         await ConversationService(db).model_history(chat.id, limit=20)
     )

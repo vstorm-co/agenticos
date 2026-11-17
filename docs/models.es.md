@@ -1,5 +1,5 @@
 ---
-source_sha: "1b2ebcd504d7"
+source_sha: "52615751a50c"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -38,6 +38,8 @@ El modo personal no admite canales privados ni grupales, widgets, páginas públ
 Las claves se cifran para su propietario en el almacén y se eliminan al borrar su membresía o cuenta. Cambiar el destino aprobado requiere una nueva conexión. Rotar la clave de un miembro no cambia las claves de otros ni el perfil de modelo compartido.
 
 Suplantar la identidad de otro miembro no concede acceso a sus conexiones personales de modelos: las solicitudes de lectura, modificación o uso de la clave se rechazan antes de acceder al vault.
+
+El historial privado queda vinculado a los destinos aprobados de los modelos, incluidos los de respaldo; consulte el [historial del chat](console.md#chat) para cambiar conexiones y reanudar ejecuciones en espera.
 
 ## Un perfil de modelo { #a-model-profile }
 
