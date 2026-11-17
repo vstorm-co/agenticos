@@ -643,6 +643,12 @@ export interface Agent {
 
 export interface AgentDetail extends Agent {
   draft_spec: AgentSpec;
+  draft_revision: string;
+}
+
+export interface AgentDraftUpdate {
+  spec: AgentSpec;
+  expected_revision: string;
 }
 
 /**

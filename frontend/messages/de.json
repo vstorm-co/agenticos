@@ -79,6 +79,8 @@
     "sessionsCouldNotBeRead": "Die Sitzungen konnten nicht gelesen werden."
   },
   "agents": {
+    "draftChanged": "Dieser Draft wurde an anderer Stelle geändert. Deine Eingaben bleiben erhalten, aber das Speichern ist angehalten. Kopiere alles, was du behalten möchtest, und lade dann den neuesten Draft.",
+    "reloadDraft": "Neuesten Draft laden",
     "voiceUnreportedTokenUsage": "Dieser Anbieter meldet keine Tokenkosten. Anrufe mit Ausgabenlimit können nicht starten; die erfassten Audiokosten sind eine Untergrenze.",
     "accentColour": "Akzentfarbe",
     "actsOutsideWorld": "wirkt auf die Außenwelt",

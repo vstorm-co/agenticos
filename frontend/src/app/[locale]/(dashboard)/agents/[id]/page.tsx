@@ -352,6 +352,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const openConversation = useConversationStore((state) => state.setCurrentConversationId);
 
   const [spec, setSpec] = useState<AgentSpec | null>(null);
+  const [draftRevision, setDraftRevision] = useState<string | null>(null);
+  const [draftConflict, setDraftConflict] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
   // The subset of them that names an input, so the capability whose
   // configuration was refused marks the box rather than only saying so in
@@ -431,8 +433,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // draft. Rolling back to a version structurally equal to the current draft
   // leaves React Query holding the same reference, and gating on the reference
   // moving left the page on its skeleton with no way out.
-  if (storedDraft && spec === null) {
+  if (agent && storedDraft && spec === null) {
     setSpec(storedDraft);
+    setDraftRevision(agent.draft_revision);
   }
 
   // This caller on this agent, not their role: a grant widens what the role
@@ -564,8 +567,48 @@ export default function AgentBuilderPage({ params }: PageProps) {
     local: spec,
     stored: storedDraft,
     fetchedAt,
-    adopt: setSpec,
+    adopt: (next) => {
+      setSpec(next);
+      setDraftRevision(agent?.draft_revision ?? null);
+    },
   });
+  const saveEditedDraft = useCallback(
+    async (next: AgentSpec): Promise<boolean> => {
+      if (draftConflict || draftRevision === null) return false;
+      try {
+        const saved = await storeDraft({ spec: next, expected_revision: draftRevision });
+        setDraftRevision(saved.draft_revision);
+        setSpec((current) =>
+          sameJson(current, next)
+            ? isSystem
+              ? forSystemAgent(saved.draft_spec)
+              : saved.draft_spec
+            : current,
+        );
+        return true;
+      } catch (error) {
+        if (error instanceof ApiError && error.details?.reason === "draft_changed") {
+          setDraftConflict(true);
+        }
+        return false;
+      }
+    },
+    [draftConflict, draftRevision, storeDraft, isSystem],
+  );
+  const reloadDraft = async (): Promise<void> => {
+    const latest = await refetchAgent();
+    if (latest.error) {
+      toast.error(getErrorMessage(latest.error, tErrors));
+      return;
+    }
+    if (!latest.data) return;
+    const fresh = latest.data;
+    setSpec(isSystem ? forSystemAgent(fresh.draft_spec) : fresh.draft_spec);
+    setDraftRevision(fresh.draft_revision);
+    setDraftConflict(false);
+    remote.keepMine();
+    attempts.current = { payload: "", tries: 0 };
+  };
   const attempts = useRef<{ payload: string; tries: number }>({ payload: "", tries: 0 });
   useEffect(() => {
     // A blank name is a 422 from the spec, so it waits here with the field
@@ -577,6 +620,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
       !isDirty ||
       storing ||
       remote.held ||
+      draftConflict ||
       !spec.name.trim()
     )
       return;
@@ -589,20 +633,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
           : { payload, tries: 1 };
       // Errors already toast in the hook; the badge only needs to keep saying
       // "unsaved", which `isDirty` staying true does on its own.
-      void storeDraft(spec)
-        .then((saved) => {
-          setSpec((current) =>
-            sameJson(current, spec)
-              ? isSystem
-                ? forSystemAgent(saved.draft_spec)
-                : saved.draft_spec
-              : current,
-          );
-        })
-        .catch(() => null);
+      void saveEditedDraft(spec);
     }, 1200);
     return () => clearTimeout(timer);
-  }, [spec, storedDraft, isDirty, canEdit, storeDraft, storing, remote.held, isSystem]);
+  }, [spec, storedDraft, isDirty, canEdit, saveEditedDraft, storing, remote.held, draftConflict]);
 
   // Asked once per visit, and only of someone who may publish: the dialog still
   // validates first and still asks before anything goes live.
@@ -1004,13 +1038,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
    * verdict on the one on screen. `saveDraft` has already said what went wrong.
    */
   async function persist(): Promise<boolean> {
-    if (!spec) return false;
-    try {
-      await saveDraft.mutateAsync(spec);
-      return true;
-    } catch {
-      return false;
-    }
+    if (!spec || remote.held || storing) return false;
+    return saveEditedDraft(spec);
   }
 
   /**
@@ -1038,8 +1067,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     setSpec(next);
     setFixing(true);
     try {
-      await saveDraft.mutateAsync(next);
-      showRefusal(await validate());
+      if (await saveEditedDraft(next)) showRefusal(await validate());
     } catch {
       // `saveDraft` has already said what went wrong.
     } finally {
@@ -1357,11 +1385,24 @@ export default function AgentBuilderPage({ params }: PageProps) {
           }
         />
 
-        {remote.conflict && (
+        {draftConflict && (
+          <Alert variant="warning" role="alert">
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              <span className="min-w-0 flex-1">{tMenu("draftChanged")}</span>
+              <Button size="sm" onClick={() => void reloadDraft()}>
+                {tMenu("reloadDraft")}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        {!draftConflict && remote.conflict && (
           <RemoteChangeBanner
             change={remote.conflict}
-            onReload={remote.reload}
-            onKeepMine={remote.keepMine}
+            onReload={() => void reloadDraft()}
+            onKeepMine={() => {
+              setDraftRevision(agent.draft_revision);
+              remote.keepMine();
+            }}
           />
         )}
 

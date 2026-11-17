@@ -1,5 +1,5 @@
 ---
-source_sha: "f824a1c79a78"
+source_sha: "419bd9ea9a93"
 ---
 
 # Begriffe { #concepts }
@@ -30,6 +30,12 @@ validiert.
 
 Ein Agent hat genau einen _Draft_-Spec, den der Builder laufend bearbeitet und
 speichert.
+
+Jeder Speichervorgang prüft den Draft, auf dem die Bearbeitung beruht. Hat
+ein anderer Tab oder eine Serveraktion ihn geändert, pausiert das Speichern;
+deine lokalen Eingaben bleiben sichtbar. Kopiere alles, was du behalten
+möchtest, bevor du **Neuesten Draft laden** wählst. Übertrage die Änderungen
+danach auf die aktuelle Version; ein veralteter Stand kann sie nicht überschreiben.
 
 Der Spec hält zwei Regeln ein, und sie sind es, die ihn nützlich machen.
 

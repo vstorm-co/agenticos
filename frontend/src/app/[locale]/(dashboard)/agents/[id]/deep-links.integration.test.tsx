@@ -1,4 +1,4 @@
-import type { AgentSpec } from "@/types/agents";
+import type { AgentDraftUpdate } from "@/types/agents";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
 import { Suspense, type ReactNode } from "react";
@@ -31,6 +31,7 @@ const AGENT: AgentDetail = {
   has_avatar: false,
   categories: [],
   tags: [],
+  draft_revision: "base",
   draft_spec: {
     name: "Support",
     description: null,
@@ -75,7 +76,10 @@ vi.mock("@/hooks", async () => {
       agent: { ...(page.agent as AgentDetail), kind: page.kind },
       isLoading: false,
       saveDraft: {
-        mutateAsync: vi.fn(async (spec: AgentSpec) => ({ draft_spec: spec })),
+        mutateAsync: vi.fn(async ({ spec }: AgentDraftUpdate) => ({
+          draft_spec: spec,
+          draft_revision: "saved",
+        })),
         isPending: false,
       },
       validate: page.validate,
