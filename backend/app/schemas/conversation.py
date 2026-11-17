@@ -17,6 +17,15 @@ if TYPE_CHECKING:
     from app.db.models.user import User
 
 
+class HistoryCheckpointFrontier(BaseSchema):
+    """The checkpoint and visible transcript frontier a model history was built from."""
+
+    model_config = ConfigDict(frozen=True)
+
+    summary_ordinal: int | None = Field(ge=0)
+    message_ordinal: int = Field(ge=0)
+
+
 class LocalMessageFileSource(BaseSchema):
     """Opaque turn origin; its folder mapping stays on the initiating desktop."""
 

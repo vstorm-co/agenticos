@@ -39,7 +39,9 @@ from app.db.models.channel_identity import ChannelIdentity
 from app.db.session import get_db_context
 from app.repositories import conversation_repo
 from app.services.channels.base import IncomingMessage
-from app.services.message_history import CHANNEL_AUTHOR_ID
+from app.services.message_history import CHANNEL_AUTHOR_ID, CHANNEL_AUTHORS
+
+_AUTHOR_REFERENCES = TypeAdapter(dict[str, UUID])
 
 LINK_ACCOUNT_INSTRUCTION = (
     "To connect your account, open a direct message with this bot and send `link` (without a slash). "
@@ -332,17 +334,21 @@ def channel_author_references(messages: list[ModelMessage]) -> dict[str, UUID]:
     """Capture server-authored user-part references before request normalization."""
     references: dict[str, UUID] = {}
     for message in messages:
-        if (
-            not isinstance(message, ModelRequest)
-            or (identity_id := _history_author(message)) is None
-        ):
+        if not isinstance(message, ModelRequest):
             continue
+        checkpointed = _AUTHOR_REFERENCES.validate_python(
+            (message.metadata or {}).get(CHANNEL_AUTHORS, {})
+        )
+        identity_id = _history_author(message)
         for part in message.parts:
             if isinstance(part, UserPromptPart):
                 key = part.timestamp.isoformat()
-                if key in references and references[key] != identity_id:
+                author = checkpointed.get(key, identity_id)
+                if author is None:
+                    continue
+                if key in references and references[key] != author:
                     raise ValueError("Ambiguous channel author reference")
-                references[key] = identity_id
+                references[key] = author
     return references
 
 
@@ -385,6 +391,10 @@ class ChannelReference(AbstractCapability[AgentDeps]):
             else None
         )
         ids = set(self.authors_by_timestamp.values())
+        if current_prompt is not None and self.author_identity_id is not None:
+            self.authors_by_timestamp[current_prompt.timestamp.isoformat()] = (
+                self.author_identity_id
+            )
         if self.author_identity_id is not None and not self.author_context:
             ids.add(self.author_identity_id)
         authors = await self.lookup_authors(list(ids)) if ids else {}

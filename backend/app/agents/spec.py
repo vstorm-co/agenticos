@@ -1624,6 +1624,15 @@ class AgentSpec(BaseModel):
         default_factory=ModelSettingsSpec,
         description="Per-agent overrides on top of the profile (temperature, max_tokens...)",
     )
+    model_credential_mode: Literal["organization", "personal"] = Field(
+        default="organization",
+        description=(
+            "Use the profile's organization credential by default, or each signed-in "
+            "web-chat user's own vault key. Personal mode fixes the model and endpoint, "
+            "has no organization-key fallback, and does not support channels, public "
+            "surfaces, automated runs, voice or delegation."
+        ),
+    )
 
     capabilities: list[CapabilityBindingSpec] = Field(default_factory=list)
     table_bindings: list[TableGrant] = Field(

@@ -463,7 +463,9 @@ def _read_output(ref: NodeOutputRef, outputs: dict[UUID, dict[str, Any] | None])
     if stored.get("status") != wanted:
         value = None
     for part in ref.field_path:
-        value = None if value is None else value.get(part)
+        # A dynamic value may stop being an object partway through the path.
+        # Treat that as missing; the target schema decides whether it accepts null.
+        value = value.get(part) if isinstance(value, dict) else None
     return value
 
 

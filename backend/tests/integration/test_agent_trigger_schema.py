@@ -7,6 +7,7 @@ and - the one the whole no-double-fire design rests on - that a second heartbeat
 claiming at the same instant takes none of the rows the first one locked.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -25,7 +26,13 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import agent_trigger_repo
 from app.repositories.conversation import create_conversation
-from app.schemas.agent_trigger import _POLLED_SOURCES, TriggerCreate, TriggerRead, TriggerUpdate
+from app.schemas.agent_trigger import (
+    _POLLED_SOURCES,
+    GithubFilteredEvent,
+    TriggerCreate,
+    TriggerRead,
+    TriggerUpdate,
+)
 from app.services.agent_trigger import AgentTriggerService
 
 pytestmark = pytest.mark.anyio
@@ -62,7 +69,7 @@ async def _agent(db, org: Organization) -> Agent:
         organization_id=org.id,
         slug=f"a-{uuid.uuid4().hex[:8]}",
         name="Nightly",
-        draft_spec={},
+        draft_spec={"name": "Nightly"},
     )
     db.add(agent)
     await db.flush()
@@ -779,3 +786,71 @@ class TestWithdrawingRunAsCreator:
         await db.refresh(members)
         assert withdrawn == 1
         assert (owners.runs_as_creator, members.runs_as_creator) == (False, True)
+
+
+async def test_a_filtered_event_snapshot_replaces_the_previous_one_without_a_run(
+    db: AsyncSession,
+) -> None:
+    org = await _org(db)
+    agent = await _agent(db, org)
+    trigger = _event(org, agent)
+    db.add(trigger)
+    await db.flush()
+    first = {"received_at": "2026-11-17T09:00:00Z", "reason": "author", "authors": "members"}
+    second = {"received_at": "2026-11-17T10:00:00Z", "reason": "mention", "authors": "contributors"}
+    for snapshot in (first, second):
+        await agent_trigger_repo.update(
+            db, trigger=trigger, update_data={"last_filtered_event": snapshot}
+        )
+    await db.refresh(trigger)
+    assert trigger.last_filtered_event == second
+    assert trigger.last_run_id is None
+    assert trigger.last_fired_at is None
+
+
+async def test_an_older_delivery_finishing_last_cannot_replace_a_newer_diagnostic(
+    db: AsyncSession,
+) -> None:
+    org = await _org(db)
+    agent = await _agent(db, org)
+    trigger = _event(org, agent)
+    db.add(trigger)
+    await db.commit()
+    factory = async_sessionmaker(db.bind, expire_on_commit=False)
+    older_loaded = asyncio.Event()
+    newer_saved = asyncio.Event()
+    earlier = GithubFilteredEvent(
+        received_at=datetime(2026, 11, 17, 9, tzinfo=UTC), reason="author", authors="members"
+    )
+    later = GithubFilteredEvent(
+        received_at=datetime(2026, 11, 17, 10, tzinfo=UTC), reason="mention", authors="contributors"
+    )
+
+    async def older_delivery() -> None:
+        async with factory() as session:
+            stale = await agent_trigger_repo.get_by_id(session, trigger.id)
+            assert stale is not None
+            older_loaded.set()
+            await newer_saved.wait()
+            await agent_trigger_repo.record_filtered_event(
+                session, trigger=stale, diagnostic=earlier
+            )
+            await session.commit()
+
+    async def newer_delivery() -> None:
+        await older_loaded.wait()
+        async with factory() as session:
+            current = await agent_trigger_repo.get_by_id(session, trigger.id)
+            assert current is not None
+            await agent_trigger_repo.record_filtered_event(
+                session, trigger=current, diagnostic=later
+            )
+            await session.commit()
+        newer_saved.set()
+
+    async with asyncio.TaskGroup() as group:
+        group.create_task(older_delivery())
+        group.create_task(newer_delivery())
+    await db.refresh(trigger)
+    assert trigger.last_filtered_event == later.model_dump(mode="json")
+    assert trigger.last_run_id is None

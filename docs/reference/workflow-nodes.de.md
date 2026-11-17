@@ -1,5 +1,5 @@
 ---
-source_sha: "be356456bbcc"
+source_sha: "b5a555f17ceb"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -396,6 +396,22 @@ nennt das Feld.
 ::: app.workflows.nodes.data_map._handler.DataMapConfig
 
 ::: app.workflows.nodes.data_map._handler.FieldMapping
+
+## data.value { #data-value }
+
+**Data** hält einen Wert für spätere Schritte bereit: ein Objekt, eine Liste
+oder eine einzelne Zahl, einen Text oder einen Wahrheitswert. Geben Sie ihn als
+JSON ein oder binden Sie ihn als Ganzes an eine frühere Ausgabe. Der Schritt
+gibt ihn unverändert als `value` weiter, und ein späterer Schritt bindet den
+ganzen Wert oder einen Pfad darin, etwa `value.customer.email`.
+
+Der Wert wird einmal pro Run gesetzt und nie überschrieben. Die Ausgabe eines
+Schritts steht fest, sobald er abgeschlossen ist, daher kann kein späterer
+Schritt sie ändern: Data ist eine benannte Konstante, keine Variable. Um einen
+Wert zu ändern, fügen Sie einen Schritt hinzu, der daraus einen neuen bildet.
+Um Werte aus den Elementen einer Schleife zu sammeln, verwenden Sie
+`loop.yield`. Ein Test-Run eines Data-Schritts ohne Wert schlägt mit
+`DATA_NOT_SET` fehl.
 
 ## data.filter und data.combine { #data-filter-and-data-combine }
 
@@ -1353,6 +1369,8 @@ nichts.
 Kleinschreibung, sodass ein Workflow seine Tabelle beim ersten Lauf anlegen und
 danach wiederverwenden kann. Beide Fragen verlassen den Schritt über genau einen
 Port, und ein `logic.merge` kann die Zweige wieder zusammenführen.
+
+`table.record.exists` und `table.record.query` akzeptieren in gespeicherten Filtern Optionsnamen von Auswahlspalten sowie IDs. Sie lösen Namen anhand der aktuellen Tabelle vor der Abfrage auf; unbekannte oder mehrdeutige Namen bleiben Validierungsfehler.
 
 ::: app.workflows.nodes.table_list._handler.TableListOutput
 

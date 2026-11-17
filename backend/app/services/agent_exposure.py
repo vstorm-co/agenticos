@@ -56,6 +56,7 @@ from app.services.capability_contracts import ToolContract, tool_contracts
 from app.services.channels.directory import PLATFORM_TOOLS
 from app.services.channels.formatting import TEST_ENVIRONMENT_GUIDANCE, house_style
 from app.services.channels.prompt_variables import VARIABLES as PROMPT_VARIABLES
+from app.services.personal_model_surfaces import require_organization_agent
 
 # How many bots one organization can have bound before the picker stops being a
 # picker. Far above any real deployment; it exists so the query is bounded.
@@ -315,6 +316,7 @@ class AgentExposureService:
                 would never learn the two requests were not both effective.
         """
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
+        await require_organization_agent(self.db, ctx, agent_id, environment_id=data.environment_id)
         refuse_system_agent(agent, action="a channel")
         bot = await channel_bot_repo.get_for_org(
             self.db, data.channel_bot_id, organization_id=ctx.organization_id
@@ -396,6 +398,13 @@ class AgentExposureService:
         """
         exposure = await self._owned(ctx, agent_id, exposure_id)
         changes = writable(data, over=AgentExposure)
+        if changes.get("is_active", exposure.is_active):
+            await require_organization_agent(
+                self.db,
+                ctx,
+                agent_id,
+                environment_id=changes.get("environment_id", exposure.environment_id),
+            )
         if data.observation is not None:
             from app.services.channels.observation import validate_configuration
 

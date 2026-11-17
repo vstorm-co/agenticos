@@ -757,7 +757,9 @@ class ChannelMessageRouter:
         # everything before it is the history. The turn itself is written by the
         # runner, which is also what records the tool calls, the model and the
         # version this bot's own write dropped.
-        history = await self._load_history(db, session.conversation_id)
+        history = await self._load_history(
+            db, session.conversation_id, chat_type=incoming.chat_type
+        )
         history.extend(thread_history)
 
         # The mention path opens its own placeholder lazily, because it may find
@@ -2634,7 +2636,9 @@ class ChannelMessageRouter:
         return lambda post: all(admits(post) for admits in filters)
 
     @staticmethod
-    async def _load_history(db: AsyncSession, conversation_id: UUID | None) -> ModelHistory:
+    async def _load_history(
+        db: AsyncSession, conversation_id: UUID | None, *, chat_type: str = "private"
+    ) -> ModelHistory:
         """The most recent turns of the channel thread, oldest first.
 
         **The most recent, which took a `count` to get right** - and the count
@@ -2649,4 +2653,8 @@ class ChannelMessageRouter:
         """
         if conversation_id is None:
             return ModelHistory([], revision=None)
-        return await ConversationService(db).model_history(conversation_id, limit=HISTORY_MESSAGES)
+        return await ConversationService(db).model_history(
+            conversation_id,
+            limit=HISTORY_MESSAGES,
+            public_transcript_only=chat_type != "private",
+        )

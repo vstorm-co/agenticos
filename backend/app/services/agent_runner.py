@@ -342,6 +342,8 @@ from app.repositories.agent_run import AgentSpendRow, RunFilters
 from app.repositories.voice_call import VoiceChain
 from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.schemas.agent_run import ChatAskerRead, RunOriginRead
+from app.schemas.conversation import HistoryCheckpointFrontier
+from app.schemas.organization import OrganizationTextToSpeech
 from app.schemas.user import WorkingHours
 from app.services import change_feed
 from app.services.agent_registry import (
@@ -402,13 +404,22 @@ from app.services.mcp_connection import (
     build_toolsets_for_agent,
     connect_personal_toolset,
 )
-from app.services.message_history import ModelHistory
+from app.services.message_history import (
+    ModelHistory,
+    bounded_stored_history,
+    without_standing_instructions,
+)
 from app.services.mirage_mounts import MirageMountService
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.model_profile import ModelProfileService, reaches_a_sign_in
 from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
+from app.services.personal_model_key import PersonalModelKeyService
+from app.services.personal_model_policy import (
+    require_organization_model,
+    require_personal_model_run,
+)
 from app.services.project import ProjectService
 from app.services.rag.overlay import with_overlay
 from app.services.routine_authority import MCP_SOURCES, RoutineAuthority
@@ -435,6 +446,7 @@ from app.services.spend import (
     organization_monthly_spend,
     organization_spend_since,
 )
+from app.services.text_to_speech_settings import TextToSpeechSettingsService
 from app.services.transcript import (
     STOPPED_TOOL_RESULT,
     RecordedToolCall,
@@ -1107,6 +1119,9 @@ class PausedRunState(BaseModel):
     )
     guardrail_revision: int | None = Field(
         default=None, ge=0, exclude_if=lambda value: value is None
+    )
+    history_frontier: HistoryCheckpointFrontier | None = Field(
+        default=None, exclude_if=lambda value: value is None
     )
     tool_identities: dict[str, ToolIdentity] = Field(default_factory=dict)
     code_checkpoints: dict[str, CodeCheckpoint] = Field(
@@ -1792,6 +1807,9 @@ class PreparedRun:
 
     channel_destination: ChannelDestination | None = None
     model_context_check: ModelContextCheck | None = None
+    shared_history: bool = False
+    """Only visible transcript turns may be replayed across a shared audience."""
+
     channel_context: str = ""
     channel_author_context: str = ""
     channel_authors: dict[str, UUID] = field(default_factory=dict)
@@ -2132,6 +2150,7 @@ def _classify_output(
     *,
     parked: dict[str, str],
     history_revision: int | None = None,
+    history_frontier: HistoryCheckpointFrontier | None = None,
 ) -> tuple[RunStatus, str, dict[str, Any] | None, PausedRunState | None]:
     """The terminal status a finished run reaches, and what it carries there.
 
@@ -2156,6 +2175,7 @@ def _classify_output(
             tool_call_ids=parked,
             questions=questions,
             guardrail_revision=history_revision,
+            history_frontier=history_frontier,
         )
         # Waiting on a decision outranks waiting on an answer: the approval queue
         # is where somebody can release it, and a question in the same step is
@@ -4143,12 +4163,26 @@ class AgentRunnerService:
                 api_key_id=None,
             )
         )
+        require_personal_model_run(
+            spec,
+            models_ctx,
+            surface,
+            override=model_profile_id,
+            local_model=local is not None and local.model_service is not None,
+            voice=voice is not None,
+            public_origin=public_origin,
+        )
         # A caller's override wins over the spec's choice. Only the model is
         # replaced - instructions, tools, budgets and the approval gate are the
         # agent's, so this cannot be used to run something the agent is not.
         local_model_choice: tuple[str, UUID] | None = None
         model_spec: ModelRequestSpec | None = None
-        if local is not None and local.model_service is not None:
+        if spec.model_credential_mode == "personal":
+            profile = await self.models.profile_for_organization(
+                models_ctx.organization_id, profile_id=spec.model_profile_id
+            )
+            model_spec = await PersonalModelKeyService(self.db).resolve(models_ctx, profile)
+        elif local is not None and local.model_service is not None:
             if voice is not None:
                 raise BadRequestError(message="Local models are available for text conversations")
             profile = await self.models.profile_for_organization(
@@ -4319,6 +4353,21 @@ class AgentRunnerService:
             environment_id=(
                 existing_run.environment_id if existing_run is not None else environment_id
             ),
+        )
+        speech_snapshot = (
+            OrganizationTextToSpeech.model_validate(existing_run.text_to_speech_defaults)
+            if existing_run is not None
+            and any(
+                binding.enabled
+                and binding.id == "text_to_speech"
+                and binding.config.get("use_organization_defaults") is True
+                for binding in spec.capabilities
+            )
+            and existing_run.text_to_speech_defaults is not None
+            else None
+        )
+        spec, speech_defaults = await TextToSpeechSettingsService(self.db).resolve_spec(
+            ctx.organization_id, spec, snapshot=speech_snapshot
         )
         spec, test_bindings = _with_test_secrets(spec, test_connections.secrets)
 
@@ -4572,6 +4621,9 @@ class AgentRunnerService:
                 started_at=opened_at,
                 is_test=is_test,
                 test_spec=test_spec,
+                text_to_speech_defaults=speech_defaults.model_dump(mode="json")
+                if speech_defaults is not None
+                else None,
             )
         elif run.skill_uses_recorded:
             # Recorded up to the park; this segment's uses are unknown until its own
@@ -5254,6 +5306,7 @@ class AgentRunnerService:
                 if channel_directory is None
                 else await resolve_prompt_variables(CHANNEL_CONTEXT, channel_directory)
             ),
+            shared_history=audience.room_key is not None or audience.shared_transcript,
             channel_authors=dict(restored_channel_authors or {}),
             channel_file_budget=ChannelFileBudget(channel_file_attempts),
             channel_destination=None
@@ -5757,6 +5810,9 @@ class AgentRunnerService:
                 shared,
             )
         )
+        spec = await TextToSpeechSettingsService(self.db).for_run(
+            ctx.organization_id, spec, delegation.run
+        )
         own_resources = await self._delegate_resources(
             ctx,
             spec,
@@ -5957,6 +6013,10 @@ class AgentRunnerService:
                 # other.
                 runnable = _without_delegation(pinned)
 
+        require_organization_model(runnable)
+        runnable = await TextToSpeechSettingsService(self.db).for_run(
+            ctx.organization_id, runnable, delegation.run
+        )
         model = await self.models.resolve(
             delegation.models_ctx, profile_id=runnable.model_profile_id
         )
@@ -7811,6 +7871,7 @@ class AgentRunnerService:
                     message_history=ModelHistory(
                         ModelMessagesTypeAdapter.validate_python(state.messages),
                         revision=state.guardrail_revision,
+                        frontier=state.history_frontier,
                     ),
                     deferred_tool_results=plan.results,
                     on_segment=on_segment,
@@ -8523,7 +8584,7 @@ class AgentRunnerService:
         budget: BudgetExceeded | None = None
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
-        summarized: list[dict[str, Any]] | None = None
+        history_snapshot: list[dict[str, Any]] | None = None
         message_id: UUID | None = None
         # True once this run reaches a terminal state here rather than unwinding -
         # a completion, a park, or a caught budget/guardrail stop. It is what the
@@ -8573,14 +8634,22 @@ class AgentRunnerService:
             # `new_messages`, not `all_messages`: a resumed run is handed
             # everything up to the park as history, and the wider list would
             # write the first attempt's calls again under the same run.
-            if prepared.built.context.summarized:
+            if not isinstance(result.output, DeferredToolRequests) and not prepared.shared_history:
+                # A room or edit-shared chat may expose the visible answer, but
+                # its next author must not inherit this person's private tool data.
                 # Offloaded before it is stored, if the agent asked for it. The
                 # chat runner does the same with the same helper: hooking one of
                 # the two gave the capability to the WebSocket chat and to
                 # nothing else (#55).
-                summarized = await offloaded_history(
-                    prepared.built.capabilities,
-                    dump_messages(result.all_messages()),
+                history_snapshot = bounded_stored_history(
+                    await offloaded_history(
+                        prepared.built.capabilities,
+                        dump_messages(
+                            without_standing_instructions(
+                                result.all_messages(), channel_authors=prepared.channel_authors
+                            )
+                        ),
+                    )
                 )
             new_messages = result.new_messages()
             called = tool_calls_in(
@@ -8598,6 +8667,9 @@ class AgentRunnerService:
                 result,
                 parked=prepared.checkpointed_approvals(),
                 history_revision=message_history.revision
+                if isinstance(message_history, ModelHistory)
+                else None,
+                history_frontier=message_history.frontier
                 if isinstance(message_history, ModelHistory)
                 else None,
             )
@@ -8717,13 +8789,17 @@ class AgentRunnerService:
                     # buys its own summary of a history one turn longer (#49).
                     if prepared.run.conversation_id is not None:
                         conversations = ConversationService(self.db)
-                        if summarized is not None:
+                        if history_snapshot is not None and message_id is not None:
                             await conversations.keep_summary(
                                 prepared.run.conversation_id,
-                                summarized,
+                                history_snapshot,
                                 expected_revision=message_history.revision
                                 if isinstance(message_history, ModelHistory)
                                 else None,
+                                expected_frontier=message_history.frontier
+                                if isinstance(message_history, ModelHistory)
+                                else None,
+                                through_message_id=str(message_id),
                             )
                         # On every turn, not only a summarising one: it is what the
                         # *next* turn needs before it has a response of its own.

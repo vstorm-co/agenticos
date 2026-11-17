@@ -1,10 +1,10 @@
 name: Apps
 on:
   pull_request:
-    paths: ["desktop/**", "mobile/**", ".github/workflows/apps.yml", ".github/workflows/app-release.yml"]
+    paths: ["desktop/**", "mobile/**", "scripts/check_desktop_installation.py", "scripts/build_linux_desktop_release.sh", ".github/workflows/apps.yml", ".github/workflows/app-release.yml"]
   push:
     branches: [main]
-    paths: ["desktop/**", "mobile/**", ".github/workflows/apps.yml"]
+    paths: ["desktop/**", "mobile/**", "scripts/check_desktop_installation.py", "scripts/build_linux_desktop_release.sh", ".github/workflows/apps.yml"]
   workflow_dispatch:
 permissions:
   contents: read

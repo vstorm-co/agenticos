@@ -10,7 +10,7 @@ import pytest
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.repositories import conversation_repo
+from app.repositories import conversation_repo, conversation_share_repo
 from app.repositories.conversation import RunOutcome
 from app.services import project as project_service
 from app.services.conversation import ConversationService
@@ -59,6 +59,11 @@ def service(monkeypatch: pytest.MonkeyPatch) -> ConversationService:
 
     monkeypatch.setattr("app.services.conversation.lock_wait_within", no_lock_wait)
     service = ConversationService(AsyncMock())
+    monkeypatch.setattr(conversation_share_repo, "has_edit_share", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        conversation_repo, "has_shared_channel_history", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(conversation_repo, "has_non_owner_author", AsyncMock(return_value=False))
     monkeypatch.setattr(conversation_repo, "owned_titles", AsyncMock(return_value={}))
     monkeypatch.setattr(conversation_repo, "run_ids_through", AsyncMock(return_value=set()))
     monkeypatch.setattr(conversation_repo, "run_outcomes", AsyncMock(return_value={}))
@@ -127,6 +132,7 @@ class TestTheOwnerForks:
             "source": source,
             "through": answer,
             "restored_summary": None,
+            "copy_summary": False,
             "copy_bytes": 5120,
         }
         assert fork.forked_from.conversation_id == source.id

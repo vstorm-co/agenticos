@@ -30,6 +30,12 @@ export interface TableColumnPickerProps {
    * where a column worked out on read never does.
    */
   storedOnly?: boolean;
+  /**
+   * Whether the step reads `column_ids`. A step that only filters ignores them,
+   * so the column list is hidden there - unless a stored ref already narrows it,
+   * which publish still checks and the author must be able to clear.
+   */
+  pinsColumns?: boolean;
 }
 
 /** A fresh ref pinned to a table's current schema, all columns. */
@@ -166,6 +172,7 @@ export function TableColumnPicker({
   disabled,
   error,
   storedOnly,
+  pinsColumns = true,
 }: TableColumnPickerProps) {
   const t = useTranslations("workflows");
   const { tables, isLoading: tablesLoading } = useWorkflowTables();
@@ -240,7 +247,7 @@ export function TableColumnPicker({
               </Button>
             </div>
           )}
-          {table !== null && !schemaChanged && (
+          {table !== null && !schemaChanged && (pinsColumns || value.column_ids !== null) && (
             <details open={value.column_ids !== null} className="group rounded-lg border px-3 py-2">
               <summary className="text-muted-foreground flex cursor-pointer list-none items-center gap-2 text-xs [&::-webkit-details-marker]:hidden">
                 <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" />

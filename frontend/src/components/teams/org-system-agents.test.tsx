@@ -182,6 +182,7 @@ describe("OrgSystemAgents", () => {
     expect(
       within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
         name: "pick",
+        hidden: true,
       }),
     ).not.toBeVisible();
     expect(screen.getByTestId("system-agent-memory_maintenance")).toHaveTextContent("noRuns");
@@ -372,4 +373,13 @@ it("keeps Save disabled until the role configuration changes and after it is res
   expect(save).toBeEnabled();
   await userEvent.clear(screen.getByLabelText("budget"));
   expect(save).toBeDisabled();
+});
+
+it("leaves briefing configuration to the combined card and keeps memory directly accessible", () => {
+  state.roles = [briefing, agent()];
+  render(<OrgSystemAgents org={ORG} excludeBriefing />);
+  expect(screen.queryByTestId("system-agent-daily_briefing")).not.toBeInTheDocument();
+  expect(
+    within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("switch"),
+  ).toBeVisible();
 });

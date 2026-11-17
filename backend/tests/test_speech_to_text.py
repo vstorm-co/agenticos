@@ -167,5 +167,5 @@ def test_elevenlabs_is_a_voice_service_without_becoming_a_chat_provider():
     offered = speech_to_text.by_provider("elevenlabs")
     assert offered is not None
     assert offered.api == "elevenlabs"
-    assert {model.id for model in offered.models} == {"scribe_v3", "scribe_v2"}
+    assert {model.id for model in offered.models} == {"scribe_v3", "scribe_v2", "scribe_v2_medical"}
     assert "elevenlabs" not in PROVIDERS

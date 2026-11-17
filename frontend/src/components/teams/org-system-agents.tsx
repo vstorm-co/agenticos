@@ -6,11 +6,8 @@ import { useFormatter, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
-import { SetupIndicator } from "@/components/settings/setup-indicator";
-import { systemAgentSetupHints } from "@/lib/setup-hints";
-import { SettingsSection } from "@/components/settings/settings-section";
 import { ErrorState } from "@/components/states";
-import { Badge, Button, Input, Label, Skeleton, Switch } from "@/components/ui";
+import { Badge, Button, Input, Skeleton, Switch } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { useModelProviders, useOrganizations, usePermissions } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
@@ -36,12 +33,11 @@ const BUDGET_FIELD = "monthly_budget_usd";
  */
 export function OrgSystemAgents({
   org,
-  collapsible = false,
+  excludeBriefing = false,
 }: {
   org: Organization;
-  collapsible?: boolean;
+  excludeBriefing?: boolean;
 }) {
-  const t = useTranslations("teams.systemAgents");
   const { can } = usePermissions();
   const tenantId = useTenantId();
   // The roles are the active organization's: this page can be opened for another one the
@@ -50,103 +46,42 @@ export function OrgSystemAgents({
   const allowed = can(Perm.budgetsManage) && tenantId === org.id;
   const { roles, isLoading, error } = useSystemAgents(allowed);
   if (!allowed) return null;
-  if (isLoading) return <RolesLoading collapsible={collapsible} />;
+  if (isLoading) return <RolesLoading />;
   // Said, not hidden: an operator must not read a failed request as a product with no
   // system-agent settings.
   if (error || !roles) return <ErrorState />;
   return (
-    <SettingsSection
-      title={t("title")}
-      description={t(collapsible ? "summary" : "description")}
-      collapsible={collapsible}
-      tour="org-system-agents"
-      status={<SetupIndicator hints={roles.flatMap(systemAgentSetupHints)} />}
-    >
-      <div className="grid items-stretch gap-3">
-        {roles.map((role) => (
+    <div className="grid items-stretch gap-3" data-tour="org-system-agents">
+      {roles
+        .filter((role) => !excludeBriefing || role.role !== "daily_briefing")
+        .map((role) => (
           <Role key={role.role} agent={role} org={org} />
         ))}
-      </div>
-    </SettingsSection>
+    </div>
   );
 }
 
-function RolesLoading({ collapsible }: { collapsible: boolean }) {
-  const t = useTranslations("teams.systemAgents");
+function RolesLoading() {
   const states = useTranslations("states");
   return (
-    <SettingsSection
-      title={t("title")}
-      description={t(collapsible ? "summary" : "description")}
-      collapsible={collapsible}
-    >
-      <div role="status" aria-label={states("loading")} aria-busy="true" className="grid gap-3">
-        {[0, 1].map((item) => (
-          <div key={item} aria-hidden className="bg-background overflow-hidden rounded-xl border">
-            <div className="flex items-center gap-3 p-4">
-              <Skeleton className="size-9 shrink-0 rounded-lg" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-4 w-36" />
-                <Skeleton className="h-3 w-48" />
-              </div>
+    <div role="status" aria-label={states("loading")} aria-busy="true" className="grid gap-3">
+      {[0, 1].map((item) => (
+        <div key={item} aria-hidden className="bg-background overflow-hidden rounded-xl border">
+          <div className="flex items-center gap-3 p-4">
+            <Skeleton className="size-9 shrink-0 rounded-lg" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-36" />
+              <Skeleton className="h-3 w-48" />
             </div>
           </div>
-        ))}
-      </div>
-    </SettingsSection>
+        </div>
+      ))}
+    </div>
   );
 }
 
 function Role({ agent, org }: { agent: SystemAgent; org: Organization }) {
-  const enabled =
-    agent.role === "daily_briefing"
-      ? Boolean(org.proactive_enabled && org.proactive_model_profile_id)
-      : Boolean(agent.enabled && agent.model_profile_id);
-  const t = useTranslations("teams.systemAgents");
-  return (
-    <div
-      role="region"
-      aria-label={t(`roles.${agent.role}.name`)}
-      className="bg-background min-w-0 overflow-hidden rounded-xl border"
-      data-testid={`system-agent-${agent.role}`}
-    >
-      <details className="group">
-        <summary className="hover:bg-muted/30 flex cursor-pointer list-none items-center gap-3 p-4 transition-colors motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
-          <span className="bg-muted text-muted-foreground grid size-9 shrink-0 place-items-center rounded-lg">
-            {agent.role === "daily_briefing" ? (
-              <Newspaper className="size-4" aria-hidden />
-            ) : (
-              <Brain className="size-4" aria-hidden />
-            )}
-          </span>
-          <div className="min-w-0 flex-1 space-y-1">
-            <h3 className="text-sm font-medium">{t(`roles.${agent.role}.name`)}</h3>
-            <span className="text-muted-foreground text-xs">{t("configure")}</span>
-          </div>
-          <Badge variant={enabled ? "success" : "secondary"}>{enabled ? t("on") : t("off")}</Badge>
-          <ChevronDown
-            className="text-muted-foreground size-4 shrink-0 transition-transform group-open:rotate-180 motion-reduce:transition-none"
-            aria-hidden
-          />
-        </summary>
-        <div className="space-y-5 border-t p-4 sm:p-5">
-          <p className="text-muted-foreground max-w-3xl text-sm leading-relaxed">
-            {t(`roles.${agent.role}.what`)}
-          </p>
-          {agent.unavailable && (
-            <p role="status" className="text-destructive text-sm">
-              {t("starterAgentMissing")}
-            </p>
-          )}
-          <Profile agent={agent} org={org} />
-          <div className="space-y-3 border-t pt-4">
-            <Spend agent={agent} />
-            <History agent={agent} />
-          </div>
-        </div>
-      </details>
-    </div>
-  );
+  return <Profile agent={agent} org={org} />;
 }
 
 function Profile({ agent, org }: { agent: SystemAgent; org: Organization }) {
@@ -158,6 +93,7 @@ function Profile({ agent, org }: { agent: SystemAgent; org: Organization }) {
   const { setProactivity } = useOrganizations();
   const proactive = useTranslations("teams.proactive");
   const briefing = agent.role === "daily_briefing";
+  const [open, setOpen] = useState(false);
   const modelId = briefing ? (org.proactive_model_profile_id ?? null) : agent.model_profile_id;
   const budget = briefing ? (org.proactive_limit_usd ?? "1") : agent.monthly_budget_usd;
   const saved = {
@@ -224,53 +160,117 @@ function Profile({ agent, org }: { agent: SystemAgent; org: Organization }) {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <Label htmlFor={`system-agent-${agent.role}-enabled`}>{t("enabled")}</Label>
+    <section
+      aria-label={t(`roles.${agent.role}.name`)}
+      className="bg-card min-w-0 overflow-hidden rounded-xl border"
+      data-testid={`system-agent-${agent.role}`}
+    >
+      <header className="flex items-center gap-3 p-4">
+        <span className="bg-muted text-muted-foreground grid size-9 shrink-0 place-items-center rounded-lg">
+          {briefing ? (
+            <Newspaper className="size-4" aria-hidden />
+          ) : (
+            <Brain className="size-4" aria-hidden />
+          )}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-medium">
+            <button
+              type="button"
+              aria-expanded={open}
+              aria-controls={`system-agent-${agent.role}-settings`}
+              onClick={() => setOpen(!open)}
+              className="focus-visible:ring-ring flex min-h-9 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2"
+            >
+              <ChevronDown aria-hidden className={open ? "size-4" : "size-4 -rotate-90"} />
+              <span>
+                {t(`roles.${agent.role}.name`)}
+                <span className="text-muted-foreground block text-xs font-normal">
+                  {t("configure")}
+                </span>
+              </span>
+            </button>
+          </h2>
+        </div>
+        <Badge variant={form.enabled ? "success" : "secondary"}>
+          {form.enabled ? t("on") : t("off")}
+        </Badge>
         <Switch
           id={`system-agent-${agent.role}-enabled`}
+          aria-label={t("enabled")}
           checked={form.enabled}
           disabled={busy || form.modelId === null}
-          onCheckedChange={(enabled) => edit({ enabled })}
+          onCheckedChange={(enabled) => {
+            edit({ enabled });
+            setOpen(true);
+          }}
         />
-      </div>
-      <fieldset className="min-w-0 space-y-2" disabled={busy}>
-        <legend className="text-sm font-medium">{t("model")}</legend>
-        <ModelProfilePicker
-          profiles={profiles}
-          profilesStatus={profilesStatus}
-          value={form.modelId}
-          onChange={(modelId) => edit({ modelId, ...(modelId === null ? { enabled: false } : {}) })}
-          onCreationPendingChange={(creating) => setPending((count) => count + (creating ? 1 : -1))}
-          allowAdd={can(Perm.connectionsManage)}
-          disabled={busy}
-        />
-        {errors[MODEL_FIELD] ? (
-          <p className="text-destructive text-xs">{errors[MODEL_FIELD]}</p>
-        ) : (
-          <p className="text-muted-foreground text-xs">{t("modelHint")}</p>
-        )}
-      </fieldset>
-      <FormField
-        label={briefing ? proactive("label") : t("budget")}
-        htmlFor={`system-agent-${agent.role}-budget`}
-        error={errors[BUDGET_FIELD] ?? null}
+      </header>
+      <div
+        id={`system-agent-${agent.role}-settings`}
+        hidden={!open}
+        className="space-y-4 border-t p-4 sm:p-5"
       >
-        <Input
-          id={`system-agent-${agent.role}-budget`}
-          type="number"
-          min="0"
-          step="0.5"
-          placeholder={t("noBudget")}
-          value={form.budget}
-          disabled={busy}
-          onChange={(event) => edit({ budget: event.target.value })}
-        />
-      </FormField>
-      <Button onClick={save} disabled={!changed || busy || pending > 0}>
-        {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-        {t("save")}
-      </Button>
+        <p className="text-muted-foreground max-w-3xl text-sm leading-relaxed">
+          {t(`roles.${agent.role}.what`)}
+        </p>
+        {agent.unavailable && (
+          <p role="status" className="text-destructive text-sm">
+            {t("starterAgentMissing")}
+          </p>
+        )}
+        <fieldset className="min-w-0 space-y-2" disabled={busy}>
+          <legend className="text-sm font-medium">{t("model")}</legend>
+          <ModelProfilePicker
+            profiles={profiles}
+            profilesStatus={profilesStatus}
+            value={form.modelId}
+            onChange={(modelId) =>
+              edit({ modelId, ...(modelId === null ? { enabled: false } : {}) })
+            }
+            onCreationPendingChange={(creating) =>
+              setPending((count) => count + (creating ? 1 : -1))
+            }
+            allowAdd={can(Perm.connectionsManage)}
+            disabled={busy}
+          />
+          {errors[MODEL_FIELD] ? (
+            <p className="text-destructive text-xs">{errors[MODEL_FIELD]}</p>
+          ) : (
+            <p className="text-muted-foreground text-xs">{t("modelHint")}</p>
+          )}
+        </fieldset>
+        <FormField
+          label={briefing ? proactive("label") : t("budget")}
+          htmlFor={`system-agent-${agent.role}-budget`}
+          error={errors[BUDGET_FIELD] ?? null}
+        >
+          <Input
+            id={`system-agent-${agent.role}-budget`}
+            type="number"
+            min="0"
+            step="0.5"
+            placeholder={t("noBudget")}
+            value={form.budget}
+            disabled={busy}
+            onChange={(event) => edit({ budget: event.target.value })}
+          />
+        </FormField>
+        <Button onClick={save} disabled={!changed || busy || pending > 0}>
+          {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {t("save")}
+        </Button>
+        <SystemAgentActivity agent={agent} />
+      </div>
+    </section>
+  );
+}
+
+export function SystemAgentActivity({ agent }: { agent: SystemAgent }) {
+  return (
+    <div className="space-y-3 border-t pt-4">
+      <Spend agent={agent} />
+      <History agent={agent} />
     </div>
   );
 }

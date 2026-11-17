@@ -60,6 +60,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import conversation_repo, member_repo
+from app.schemas.conversation import HistoryCheckpointFrontier
 from app.schemas.mention import MentionRef
 from app.services import change_feed
 from app.services.agent_runner import (
@@ -76,7 +77,11 @@ from app.services.attachments import AttachmentRouter
 from app.services.conversation import check_history_snapshot, model_context_check
 from app.services.device_hub import LocalTarget
 from app.services.mentions import MentionService, ResolvedMentions
-from app.services.message_history import ModelHistory
+from app.services.message_history import (
+    ModelHistory,
+    bounded_stored_history,
+    without_standing_instructions,
+)
 from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import SandboxWaitSink
 from app.services.screened_replay import screen_history, screened_copy
@@ -375,8 +380,11 @@ class ChatTurn:
     history_revision: int | None = None
     """The input snapshot's refusal revision; absent for unversioned caller histories."""
 
-    summarized_history: list[dict[str, Any]] | None = None
-    """The history a summary reduced this turn to, or `None` if none ran.
+    history_frontier: HistoryCheckpointFrontier | None = None
+    """The original checkpoint and transcript frontier this turn actually read."""
+
+    history_snapshot: list[dict[str, Any]] | None = None
+    """The bounded model history after a completed turn; absent while parked.
 
     Carried out rather than written here because the surface writes the turn's
     own rows *after* this returns, and what is recorded alongside it is how far
@@ -661,7 +669,7 @@ class ChatAgentRunner:
         budget_scope: BudgetScope | None = None
         budget: BudgetExceeded | None = None
         output = ""
-        summarized: list[dict[str, Any]] | None = None
+        history_snapshot: list[dict[str, Any]] | None = None
         # Set as the last statement of the `try`, so it is True only when this run
         # completed or parked without raising. It is what the terminal write below
         # reads to decide whether a persistence failure should surface or be
@@ -700,18 +708,26 @@ class ChatAgentRunner:
                 await stream(agent_run)
 
             result = _outcome(agent_run)
-            # Before the branch, so a turn that parked on an approval keeps its
-            # summary too: the resume replays the parked state, but the *next*
-            # turn reads the conversation and would otherwise summarise again.
-            if prepared.built.context.summarized:
-                summarized = await offloaded_history(
-                    prepared.built.capabilities,
-                    dump_messages(result.all_messages()),
+            # Parked runs retain their separate resume state. Conversation history
+            # is checkpointed only after a completed turn, without replayable actions.
+            if not isinstance(result.output, DeferredToolRequests) and not prepared.shared_history:
+                history_snapshot = bounded_stored_history(
+                    await offloaded_history(
+                        prepared.built.capabilities,
+                        dump_messages(
+                            without_standing_instructions(
+                                result.all_messages(), channel_authors=prepared.channel_authors
+                            )
+                        ),
+                    )
                 )
             status, output, _structured, paused = _classify_output(
                 result,
                 parked=prepared.checkpointed_approvals(),
                 history_revision=message_history.revision
+                if isinstance(message_history, ModelHistory)
+                else None,
+                history_frontier=message_history.frontier
                 if isinstance(message_history, ModelHistory)
                 else None,
             )
@@ -810,8 +826,11 @@ class ChatAgentRunner:
             mcp_origins=prepared.mcp_origins,
             draft_tools=draft_tool_names(prepared.spec),
             usage=await self._usage(ctx, prepared),
-            summarized_history=summarized,
+            history_snapshot=history_snapshot,
             history_revision=message_history.revision
+            if isinstance(message_history, ModelHistory)
+            else None,
+            history_frontier=message_history.frontier
             if isinstance(message_history, ModelHistory)
             else None,
             overhead_tokens=prepared.built.context.overhead,

@@ -4014,6 +4014,7 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
             await service.execute(_ctx(), uuid.uuid4(), "fix the bug")
 
         kept = conversations.return_value.keep_plan
@@ -4044,6 +4045,7 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
             await service.execute(_ctx(), uuid.uuid4(), "fix the bug")
 
         kept = conversations.return_value.keep_plan.await_args.args[1]
@@ -4075,6 +4077,7 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
             await service.execute(_ctx(), uuid.uuid4(), "fix the bug")
 
         kept = conversations.return_value.keep_plan.await_args.args[1]
@@ -4102,6 +4105,7 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
             await service.execute(_ctx(), uuid.uuid4(), "something else entirely")
 
         conversations.return_value.keep_plan.assert_not_awaited()
@@ -4128,6 +4132,7 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
             await service.execute(_ctx(), uuid.uuid4(), "start the next thing")
 
         kept = conversations.return_value.keep_plan
@@ -4154,6 +4159,7 @@ class TestParking:
 
         with patch("app.services.agent_runner.ConversationService") as conversations:
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
             await AgentRunnerService(_db()).keep_plan(prepared, status=RunStatus.CANCELLED)
 
         kept = conversations.return_value.keep_plan.await_args.args
@@ -10894,6 +10900,7 @@ class TestLiveQuestionContinuation:
 
 @pytest.mark.security
 def test_the_parked_payload_carries_the_history_revision():
+    from app.schemas.conversation import HistoryCheckpointFrontier
     from app.services.agent_runner import _classify_output
 
     result = MagicMock(
@@ -10902,9 +10909,17 @@ def test_the_parked_payload_carries_the_history_revision():
         )
     )
     result.all_messages.return_value = []
-    _, _, _, state = _classify_output(result, parked={"approval-1": "send-1"}, history_revision=7)
+    frontier = HistoryCheckpointFrontier(summary_ordinal=2, message_ordinal=4)
+    _, _, _, state = _classify_output(
+        result, parked={"approval-1": "send-1"}, history_revision=7, history_frontier=frontier
+    )
     assert state is not None
     assert state.model_dump(mode="json")["guardrail_revision"] == 7
+    assert PausedRunState.model_validate_json(state.model_dump_json()).history_frontier == frontier
+    assert (
+        PausedRunState.model_validate({"messages": [], "tool_call_ids": {}}).history_frontier
+        is None
+    )
 
 
 @pytest.mark.parametrize("project_id", [None, uuid.uuid4()])
@@ -11186,3 +11201,35 @@ async def test_channel_stop_finishes_as_cancelled_without_replaying_the_run(reas
         assert finish.await_args.kwargs["status"] == RunStatus.CANCELLED.value
         assert finish.await_args.kwargs["error"] == str(stop)
         assert db.commit.await_count == 2
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_personal_model_key_is_required_before_run_creation_or_shared_key_resolution():
+    ctx = _ctx()
+    service = AgentRunnerService(_db())
+    agent = MagicMock(
+        id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+    )
+    spec = AgentSpec(
+        name="Personal", model_profile_id=uuid.uuid4(), model_credential_mode="personal"
+    )
+    with (
+        patch.object(
+            service.registry,
+            "get_runnable_spec",
+            AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+        ),
+        patch.object(service.models, "resolve", AsyncMock()) as organization,
+        patch.object(service.models, "profile_for_organization", AsyncMock()) as profile,
+        patch(
+            "app.services.agent_runner.PersonalModelKeyService.resolve",
+            AsyncMock(side_effect=AuthorizationError(message="Connect your own key")),
+        ) as personal,
+        patch("app.services.agent_runner.agent_run_repo.create_run", AsyncMock()) as create,
+    ):
+        with pytest.raises(AuthorizationError, match="own key"):
+            await service.prepare(ctx, agent.id, surface=RunSurface.WEB)
+        personal.assert_awaited_once_with(ctx, profile.return_value)
+        organization.assert_not_awaited()
+        create.assert_not_awaited()

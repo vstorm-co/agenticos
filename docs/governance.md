@@ -41,6 +41,22 @@ An event trigger adds one more refusal at its edge: a webhook whose signature do
 not verify against the trigger's own secret is a 403 that never reaches the runner
 at all.
 
+GitHub routines show an author filter when creating or editing issue, pull-request
+and comment triggers. **Repository members (default)** admits `OWNER`, `MEMBER`
+and `COLLABORATOR`; **Members and contributors** also admits `CONTRIBUTOR`.
+**Anyone** includes first-time contributors and other reporters. These are GitHub
+author associations, not AgenticOS organization roles. Bot senders and an explicitly
+excluded connected login remain blocked under every option. The author filter does
+not apply to pushes, workflow runs or releases. Existing routines keep their policy;
+a configuration with no `authors` still means `members`.
+
+In the routine's history, its signed-in owner can see the **Latest filtered GitHub
+event**: when a verified webhook failed a filter, why, and the author policy at
+receipt. Both per-routine webhooks and GitHub App deliveries record this diagnostic.
+Only the latest rejection is retained, with no payload, author text or secret, and
+no run is created for it. No diagnostic means no rejection has been recorded; it
+does not prove webhook delivery. Public webhook responses remain unchanged.
+
 ## Routine delivery
 
 A routine created from a private chat through the platform MCP answers in that
@@ -847,7 +863,7 @@ notifications and decisions.
 Some work is the platform's own and still needs a model. A **system role** gives it
 an owner an operator can see: one configuration per organization and role, never
 an agent row, never one per job, and never attributed to the starter agent or any
-agent whose instructions did not run (#2575). **Organizations → AI & services → Background services** (`budgets:manage`) lists each role with what it runs on, this month's
+agent whose instructions did not run (#2575). **Organizations → AI & services** (`budgets:manage`) lists each role with what it runs on, this month's
 spend and its recent executions.
 
 | Role                 | What it does                                                                                                                                             | Configured                                                             |

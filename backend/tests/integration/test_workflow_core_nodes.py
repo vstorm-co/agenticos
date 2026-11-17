@@ -11,6 +11,7 @@ import uuid
 from typing import Any
 
 import pytest
+from pydantic import JsonValue
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.db.models.workflow_run import NodeRunStatus, WorkflowRunStatus
@@ -187,6 +188,56 @@ async def test_a_value_that_cannot_take_its_declared_type_fails_the_run_before_t
     assert output.id not in await node_statuses(seeded)
 
 
+def _held_value_graph(value: Any, *text_path: str) -> tuple[WorkflowGraph, NodeInstance]:
+    """input -> data.value (typed in) -> output, with `text` read from a path into the
+    held value and `structured` from the whole of it."""
+    entry = _node("core.input")
+    data = _node("data.value")
+    output = _node("core.output")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, data, output),
+        edges=(_edge(entry, data), _edge(data, output)),
+        bindings=(
+            Binding(target_node_id=data.id, target_field="value", source=LiteralValue(value=value)),
+            _bind(output, "text", data, "out", "value", *text_path),
+            _bind(output, "structured", data, "out", "value"),
+        ),
+    )
+    return graph, data
+
+
+async def test_a_typed_in_object_is_held_for_later_steps_whole_and_by_path(engine: AsyncEngine):
+    held = {"customer": {"email": "ada@example.com"}, "tags": ["vip", "eu"], "limit": 10}
+    graph, data = _held_value_graph(held, "customer", "email")
+    seeded = await _run(engine, graph, {})
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert (await node_statuses(seeded))[data.id] == NodeRunStatus.SUCCEEDED.value
+    assert run.output == {
+        "text": "ada@example.com",
+        "sources": [],
+        "artifacts": [],
+        "structured": held,
+    }
+
+
+async def test_a_path_into_the_held_value_of_the_wrong_type_fails_at_dispatch(
+    engine: AsyncEngine,
+):
+    """The held value has no schema, so a path into it publishes and is checked when
+    the step reading it runs: a list where text is wanted fails that step."""
+    graph, _ = _held_value_graph({"tags": ["vip", "eu"]}, "tags")
+    seeded = await _run(engine, graph, {})
+
+    run = await drive(seeded)
+
+    assert run.status == WorkflowRunStatus.FAILED.value
+    assert run.error is not None and run.error["code"] == "INVALID_BINDING"
+
+
 async def test_a_bound_path_the_payload_lacks_fails_the_target_node_at_dispatch(
     engine: AsyncEngine,
 ):
@@ -274,3 +325,106 @@ async def test_a_merge_whose_branches_leave_the_same_port_cannot_publish(engine:
         await _published(engine, graph, seeded.ctx)
 
     assert f"nodes.{merge.id}" in {problem["field"] for problem in refused.value.details["fields"]}
+
+
+@pytest.mark.parametrize(
+    ("held", "definition", "config", "field", "result_key", "expected"),
+    [
+        ("hello", "text.compare", {}, "a", "score", 1.0),
+        ([1, 2], "data.filter", {"condition": "item != `null`"}, "items", "items", [1, 2]),
+        (
+            {"x": 7},
+            "data.map",
+            {"mappings": [{"target_field": "x", "source_path": "source.x"}]},
+            "source",
+            "values",
+            {"x": 7},
+        ),
+    ],
+)
+async def test_a_whole_data_value_reaches_a_typed_consumer(
+    engine: AsyncEngine,
+    held: JsonValue,
+    definition: str,
+    config: dict[str, JsonValue],
+    field: str,
+    result_key: str,
+    expected: JsonValue,
+) -> None:
+    entry, data, reader, output = (
+        _node("core.input"),
+        _node("data.value"),
+        _node(definition, config),
+        _node("core.output"),
+    )
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, data, reader, output),
+        edges=(_edge(entry, data), _edge(data, reader), _edge(reader, output)),
+        bindings=(
+            Binding(target_node_id=data.id, target_field="value", source=LiteralValue(value=held)),
+            _bind(reader, field, data, "out", "value"),
+            *(
+                (
+                    Binding(
+                        target_node_id=reader.id,
+                        target_field="b",
+                        source=LiteralValue(value="hello"),
+                    ),
+                )
+                if definition == "text.compare"
+                else ()
+            ),
+            _bind(output, "structured", reader, "out"),
+        ),
+    )
+    run = await drive(await _run(engine, graph, {}))
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value, run.error
+    assert run.output is not None and run.output["structured"][result_key] == expected
+
+
+async def test_a_typed_upstream_value_can_be_held_by_data(engine: AsyncEngine) -> None:
+    first, data, output = (
+        _node("debug.echo", {"message": "hello"}),
+        _node("data.value"),
+        _node("core.output"),
+    )
+    graph = WorkflowGraph(
+        entry_node_id=first.id,
+        nodes=(first, data, output),
+        edges=(_edge(first, data), _edge(data, output)),
+        bindings=(
+            _bind(data, "value", first, "out", "echoed"),
+            _bind(output, "text", data, "out", "value"),
+        ),
+    )
+    run = await drive(await _run(engine, graph, {}))
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value, run.error
+    assert run.output is not None and run.output["text"] == "hello"
+
+
+@pytest.mark.parametrize("customer", ["scalar", ["array"], 3, False, None])
+async def test_a_dynamic_path_through_a_non_object_fails_as_invalid_binding(
+    engine: AsyncEngine,
+    customer: JsonValue,
+) -> None:
+    entry, data, reader = _node("core.input"), _node("data.value"), _node("text.compare")
+    graph = WorkflowGraph(
+        entry_node_id=entry.id,
+        nodes=(entry, data, reader),
+        edges=(_edge(entry, data), _edge(data, reader)),
+        bindings=(
+            Binding(
+                target_node_id=data.id,
+                target_field="value",
+                source=LiteralValue(value={"customer": customer}),
+            ),
+            _bind(reader, "a", data, "out", "value", "customer", "email"),
+            Binding(target_node_id=reader.id, target_field="b", source=LiteralValue(value="hello")),
+        ),
+    )
+    seeded = await _run(engine, graph, {})
+    run = await drive(seeded)
+    assert run.status == WorkflowRunStatus.FAILED.value
+    assert run.error is not None and run.error["code"] == "INVALID_BINDING"
+    assert (await node_statuses(seeded))[reader.id] == NodeRunStatus.FAILED.value

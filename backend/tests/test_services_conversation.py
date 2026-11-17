@@ -16,7 +16,7 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.repositories import conversation_repo, conversation_share_repo
 from app.repositories.conversation import RunOutcome
-from app.schemas.conversation import ToolCallCreate
+from app.schemas.conversation import HistoryCheckpointFrontier, ToolCallCreate
 from app.services.conversation import ConversationService
 from app.services.message_history import REFUSED_TURN
 
@@ -37,6 +37,14 @@ def capability_loads_repo(monkeypatch):
     mocked = AsyncMock(return_value=[])
     monkeypatch.setattr(conversation_repo, "capability_loads_in_messages", mocked)
     return mocked
+
+
+@pytest.fixture(autouse=True)
+def private_history_has_no_edit_share(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(conversation_share_repo, "has_edit_share", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        conversation_repo, "has_shared_channel_history", AsyncMock(return_value=False)
+    )
 
 
 class MockConversation:
@@ -90,6 +98,7 @@ class MockMessage:
         self.conversation_id = conversation_id or uuid4()
         self.role = role
         self.content = content
+        self.ordinal = 0
         self.model_name = model_name
         self.tokens_used = tokens_used
         # Which run produced the turn, and therefore how it ended - a listing
@@ -2481,7 +2490,15 @@ class TestTheThreadAModelIsGivenBack:
         next turn has nothing left to summarise a second time."""
         conversation = MockConversation()
         conversation.summary_messages = ModelMessagesTypeAdapter.dump_python(
-            [ModelRequest(parts=[SystemPromptPart(content="Summary: they said hello.")])],
+            [
+                ModelRequest(
+                    parts=[
+                        SystemPromptPart(
+                            content="Summary of previous conversation:\n\nThey said hello."
+                        )
+                    ]
+                )
+            ],
             mode="json",
         )
         conversation.summary_ordinal = 4
@@ -2495,21 +2512,24 @@ class TestTheThreadAModelIsGivenBack:
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
 
         assert [part.content for message in history for part in message.parts] == [
-            "Summary: they said hello.",
+            "Summary of previous conversation:\n\nThey said hello.",
             "and now?",
         ]
         assert after.await_args.kwargs["ordinal"] == 4
         conversation_repo.get_recent_messages.assert_not_awaited()
 
+    @pytest.mark.parametrize(
+        "summary", [[{"kind": "a shape from another version"}], ["legacy row"]]
+    )
     async def test_a_summary_the_library_no_longer_reads_costs_one_turn_not_the_thread(
-        self, monkeypatch
+        self, monkeypatch, summary
     ):
         """The blob is written by `pydantic-ai` and read back turns later, so an
         upgrade is exactly where the two disagree. Raising would make the thread
         unanswerable for ever, on every message anybody sent it - the transcript
         is still whole, and the cost is one summary bought again."""
         conversation = MockConversation()
-        conversation.summary_messages = [{"kind": "a shape from another version"}]
+        conversation.summary_messages = summary
         conversation.summary_ordinal = 4
         monkeypatch.setattr(
             conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
@@ -2518,6 +2538,11 @@ class TestTheThreadAModelIsGivenBack:
             conversation_repo,
             "get_recent_messages",
             AsyncMock(return_value=[self._row("user", "hi")]),
+        )
+
+        monkeypatch.setattr(conversation_repo, "get_messages_after", AsyncMock(return_value=[]))
+        monkeypatch.setattr(
+            conversation_repo, "capability_loads_in_messages", AsyncMock(return_value=[])
         )
 
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
@@ -2622,7 +2647,10 @@ class TestTheThreadAModelIsGivenBack:
         monkeypatch.setattr(conversation_repo, "set_summary", stored)
 
         await ConversationService(AsyncMock()).keep_summary(
-            conversation.id, [{"kind": "request"}], expected_revision=0
+            conversation.id,
+            [{"kind": "request"}],
+            expected_revision=0,
+            expected_frontier=HistoryCheckpointFrontier(summary_ordinal=None, message_ordinal=9),
         )
 
         assert stored.await_args.kwargs["ordinal"] == 9
@@ -2638,7 +2666,10 @@ class TestTheThreadAModelIsGivenBack:
         monkeypatch.setattr(conversation_repo, "set_summary", stored)
 
         await ConversationService(AsyncMock()).keep_summary(
-            uuid4(), [{"kind": "request"}], expected_revision=0
+            uuid4(),
+            [{"kind": "request"}],
+            expected_revision=0,
+            expected_frontier=HistoryCheckpointFrontier(summary_ordinal=None, message_ordinal=0),
         )
 
         stored.assert_not_awaited()
@@ -2703,7 +2734,14 @@ class TestTheThreadAModelIsGivenBack:
         """The other half of `model_history`: the rows written since a summary."""
         conversation = MockConversation()
         conversation.summary_messages = ModelMessagesTypeAdapter.dump_python(
-            [ModelRequest(parts=[SystemPromptPart(content="Summary.")])], mode="json"
+            [
+                ModelRequest(
+                    parts=[
+                        SystemPromptPart(content="Summary of previous conversation:\n\nSummary.")
+                    ]
+                )
+            ],
+            mode="json",
         )
         conversation.summary_ordinal = 4
         run_id = uuid4()
@@ -2721,7 +2759,7 @@ class TestTheThreadAModelIsGivenBack:
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
 
         assert [part.content for message in history for part in message.parts] == [
-            "Summary.",
+            "Summary of previous conversation:\n\nSummary.",
             REFUSED_TURN,
         ]
 
@@ -3291,3 +3329,15 @@ async def test_an_unversioned_summary_cannot_replace_the_guarded_cache(monkeypat
     monkeypatch.setattr(conversation_repo, "set_summary", stored)
     await ConversationService(AsyncMock()).keep_summary(uuid4(), [], expected_revision=None)
     stored.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_a_checkpoint_without_a_proven_input_frontier_does_not_read_or_replace_current_history(
+    monkeypatch,
+):
+    db = AsyncMock()
+    stored = AsyncMock()
+    monkeypatch.setattr(conversation_repo, "set_summary", stored)
+    await ConversationService(db).keep_summary(uuid4(), [], expected_revision=0)
+    stored.assert_not_awaited()
+    assert db.mock_calls == []

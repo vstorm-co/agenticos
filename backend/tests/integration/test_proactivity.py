@@ -1800,7 +1800,10 @@ async def test_inflight_compaction_cannot_restore_a_later_refused_turn(db, engin
             loaded.set()
             await finish.wait()
             await ConversationService(writer).keep_summary(
-                chat.id, unsafe, expected_revision=history.revision
+                chat.id,
+                unsafe,
+                expected_revision=history.revision,
+                expected_frontier=history.frontier,
             )
             await writer.commit()
 
@@ -1823,7 +1826,10 @@ async def test_inflight_compaction_cannot_restore_a_later_refused_turn(db, engin
         mode="json",
     )
     await ConversationService(db).keep_summary(
-        chat.id, safe_summary, expected_revision=safe_history.revision
+        chat.id,
+        safe_summary,
+        expected_revision=safe_history.revision,
+        expected_frontier=safe_history.frontier,
     )
     await db.refresh(chat)
     assert chat.summary_messages == safe_summary

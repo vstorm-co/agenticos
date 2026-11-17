@@ -2051,7 +2051,28 @@
       "reactingToMessage": "Reacting to a message",
       "messageReactions": "Message reactions",
       "exportingArtifact": "Exporting a PDF…",
-      "exportArtifact": "Export a Published App"
+      "exportArtifact": "Export a Published App",
+      "tableCall": {
+        "allRecords": "All records",
+        "search": "Matching “{text}”",
+        "sortedBy": "Sorted by {column}, {direction, select, desc {descending} other {ascending}}",
+        "createdAt": "Created",
+        "updatedAt": "Last updated",
+        "limit": "{count, plural, =1 {At most 1 record} other {At most # records}}",
+        "externalId": "External ID: {id}",
+        "found": "{count, plural, =0 {No records found} =1 {1 record found} other {# records found}}",
+        "hasMore": "more on the next page",
+        "moreRows": "{count, plural, =1 {and 1 more record} other {and # more records}}",
+        "exists": "A record with this external ID exists",
+        "missing": "No record has this external ID",
+        "deleted": "Record deleted",
+        "record": "Record “{title}” · revision {revision}",
+        "recordUntitled": "Record · revision {revision}",
+        "table": "Table",
+        "column": "Column",
+        "value": "Value",
+        "recordLabel": "Record"
+      }
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -6125,6 +6146,10 @@
       "channels-diagnostics": {
         "title": "Check readiness",
         "body": "Inspect the bot connection, agent publication and your own linked accounts without running a task."
+      },
+      "agent-model-credentials": {
+        "title": "Who supplies the model key",
+        "body": "Use the organization key, or require each signed-in chat user to connect a private vault key. The model and endpoint stay fixed; channels and automatic runs require the organization key."
       }
     },
     "chooseLanguage": "Language",
@@ -7221,7 +7246,15 @@
       "setBaseline": "Set a baseline",
       "improveFromGaps": "Improve this agent from these gaps",
       "systemAgentReadOnly": "Only an organization administrator can change a system agent. You can read how it works here.",
-      "continueConversation": "Continue my conversation"
+      "continueConversation": "Continue my conversation",
+      "modelCredentialMode": "Model access",
+      "organizationModelKey": "Use the organization’s key",
+      "personalModelKey": "Each user connects their own key",
+      "personalModelLimits": "The model and endpoint stay fixed. Signed-in web chat only. Disable active channels, widgets, hosted pages and routines before publishing. HTTP API runs, background topics, voice, delegation, reviewers, separate step models and model fallbacks are not supported.",
+      "draftChanged": "This draft changed elsewhere. Your edits are still here, but saving is paused. Copy anything you want to keep, then reload the latest draft.",
+      "reloadDraft": "Reload latest draft",
+      "speechUseOrganizationDefaults": "Use organization defaults",
+      "speechOrganizationDefaultsHint": "Inherit the organization’s provider, model, voice and key together. Turn off to configure this agent’s own voice."
     },
     "auth": {
       "backSign": "Back to sign in",
@@ -9708,7 +9741,14 @@
       "save": "Save changes",
       "saved": "Voice settings saved",
       "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below.",
-      "summary": "Default transcription provider and recording limits."
+      "summary": "Default transcription provider and recording limits.",
+      "tts": {
+        "title": "Text to speech",
+        "description": "Default provider, model, voice and organization key for agents that choose organization defaults. Agents can instead use their own voice configuration.",
+        "voice": "Voice",
+        "required": "Choose a provider, model and organization-wide key before enabling text to speech.",
+        "catalogUnavailable": "Speech models could not be loaded. Try again before changing the provider."
+      }
     },
     "publicAttribution": "AgenticOS on shared pages",
     "publicAttributionDescription": "Show a small floating AgenticOS badge with a GitHub link on public apps, dashboards and reports, and below shared conversations.",
@@ -9733,7 +9773,7 @@
       "discardChanges": "Discard changes",
       "title": "Assistant suggestions and monitoring",
       "description": "Conversation-based suggestions and read-only monitoring are independent. Scheduled and event routines do not require suggestions to be enabled.",
-      "nightly": "Nightly suggestions",
+      "nightly": "Daily briefing & suggestions",
       "nightlyHint": "Suggest routines, agents and profile updates from recent conversations and memory. Does not scan mailboxes. Creating a suggested routine still needs the person’s confirmation.",
       "model": "Model",
       "modelHint": "Used only to suggest improvements from conversations. Monitoring uses each selected agent’s model.",
@@ -9747,8 +9787,8 @@
       "hourHint": "In each person's own time zone.",
       "hourFallbackHint": "For people whose profile states no working hours, in their own time zone.",
       "save": "Save",
-      "saved": "Nightly suggestions saved",
-      "off": "Nightly suggestions are off",
+      "saved": "Background settings saved",
+      "off": "Background features are off",
       "invalid": "Enter an amount in dollars, 0 or more.",
       "welcome": "Welcome message in chat apps",
       "welcomeHint": "A new member gets a direct message from your Slack, Teams and Mattermost bots.",
@@ -9767,8 +9807,6 @@
     },
     "systemAgents": {
       "configure": "Configure model and budget",
-      "title": "Background services",
-      "description": "Model-powered platform services. Expand a service to configure its model and budget. Usage and recent runs stay visible below.",
       "on": "On",
       "off": "Off",
       "enabled": "Run this role",
@@ -9795,8 +9833,7 @@
           "what": "Reads a finished chat once and records the durable facts, preferences and decisions in it, in the conversation's own scope. Nothing runs while it is off or has no model."
         }
       },
-      "starterAgentMissing": "This role does nothing right now: the AgenticOS starter agent it is recorded under is missing, unpublished or renamed. Publish it again under the agenticos handle.",
-      "summary": "Models, budgets and recent runs for platform services."
+      "starterAgentMissing": "This role does nothing right now: the AgenticOS starter agent it is recorded under is missing, unpublished or renamed. Publish it again under the agenticos handle."
     }
   },
   "theme": {
@@ -10406,7 +10443,24 @@
     "noRoutineMatchesHint": "Try an agent name, routine title or words from its message.",
     "setupRequired": "Setup required",
     "setupRequiredHint": "Saved and paused. Repair the sources, review access, then enable this routine.",
-    "setupOwnerRequired": "Saved and paused. Its creator must repair and review the sources."
+    "setupOwnerRequired": "Saved and paused. Its creator must repair and review the sources.",
+    "filteredEventTitle": "Latest filtered GitHub event",
+    "filteredEventHint": "Only the latest verified event rejected by a filter is kept. It did not start a run. Payload content is not stored.",
+    "filteredEventEmpty": "No filtered event has been recorded yet. This does not confirm that a webhook has arrived.",
+    "filteredEventError": "Could not read filtered event diagnostics",
+    "filteredEventPolicy": "Author filter at receipt: {policy}",
+    "filteredEventReason": {
+      "event": "The event type did not match.",
+      "action": "The event action did not match.",
+      "bot": "The sender was a bot.",
+      "ignored_login": "The sender matched the excluded connected account.",
+      "author": "The author association was excluded by the author filter.",
+      "draft": "The pull request was opened as a draft.",
+      "branch": "The branch did not match.",
+      "mention": "The comment did not contain the required mention.",
+      "conclusion": "The workflow conclusion did not match.",
+      "not_branch": "The push deleted a branch or was not a branch push."
+    }
   },
   "portals": {
     "backToServices": "Back to services",
@@ -10488,7 +10542,18 @@
     "installationIdLabel": "Installation ID",
     "mailLabelFilter": "Gmail label ID",
     "mailFolderFilter": "Mailbox folder",
-    "sharedMailboxFilter": "Shared mailbox"
+    "sharedMailboxFilter": "Shared mailbox",
+    "githubAuthorsLabel": "Whose events can start this routine",
+    "githubAuthors": {
+      "members": "Repository members (default)",
+      "contributors": "Members and contributors",
+      "anyone": "Anyone"
+    },
+    "githubAuthorsHint": {
+      "members": "OWNER, MEMBER and COLLABORATOR. External contributors are excluded. Bots and the connected account remain excluded.",
+      "contributors": "OWNER, MEMBER, COLLABORATOR and CONTRIBUTOR. First-time contributors are excluded. Bots and the connected account remain excluded.",
+      "anyone": "All author associations, including first-time contributors and people with no prior contributions. Bots and the connected account remain excluded."
+    }
   },
   "agentTemplates": {
     "browse": "Agent templates",
@@ -11339,6 +11404,12 @@
     "panelProblemsCount": "{count, plural, =1 {1 problem} other {# problems}}",
     "nodeFormNoFields": "This node has no configurable fields.",
     "nodeFormAddRow": "Add row",
+    "nodeFormFilterColumn": "Column",
+    "nodeFormFilterColumnPlaceholder": "Choose a column",
+    "nodeFormFilterColumnNoTable": "Choose a table first",
+    "nodeFormFilterValue": "Value",
+    "nodeFormFilterValuePlaceholder": "Choose an option",
+    "nodeFormFilterOptionArchived": "{label} (archived)",
     "nodeFormRow": "Row {index}",
     "nodeFormMoveUp": "Move row {index} up",
     "nodeFormMoveDown": "Move row {index} down",
@@ -11446,6 +11517,7 @@
     "bindingJsonInvalid": "This is not valid JSON, so it was not saved.",
     "validationTriggerNotEntry": "Use one trigger of each unattended kind.",
     "triggerHintManual": "Start it with Run - at the editor's top right - or from its runs page. Declare fields to be asked for them when it starts.",
+    "dataValueSetOnce": "Set once per run and never overwritten: later steps read this value but cannot change it. To change it, add a step that builds a new value from it.",
     "triggerHintChat": "Members pick this workflow in the chat. The steps after it read the message as prompt, with the conversation and who sent it.",
     "triggerHintWebhook": "Publishing gives this workflow its own address and signing secret, which stay the same when you publish again. The steps after it read the delivery's JSON as body.",
     "publishTrigger": "It starts from {trigger}. A webhook, schedule or table trigger runs as you once it is published.",
@@ -13246,12 +13318,7 @@
     "description": "The assistant in the corner of every page, for everyone who may run agents. It is an agent like any other: its name, model and knowledge are edited in the Agent Builder, and its cost counts like any agent's.",
     "openBuilder": "Open in Agent Builder",
     "enabled": "Switched on",
-    "enabledHint": "Off, it disappears from every page for everyone in the organization, and nobody can run it.",
-    "needsModel": "It has no model yet, so it cannot answer. Choose one under Model in the Agent Builder.",
-    "greeting": "Greeting",
-    "greetingHint": "What it says when somebody opens it. Leave empty for the default.",
-    "save": "Save",
-    "summary": "Configure the workspace assistant and its greeting."
+    "needsModel": "It has no model yet, so it cannot answer. Choose one under Model in the Agent Builder."
   },
   "capabilityGuide": {
     "artifacts": {
@@ -14090,6 +14157,10 @@
       "max_characters": {
         "title": "Longest text",
         "description": "The most text one call may speak, which caps what a single call can cost."
+      },
+      "use_organization_defaults": {
+        "title": "Use organization defaults",
+        "description": "Inherit the organization's provider, model, voice and key as one group. Turn off to choose an agent override."
       }
     },
     "video_generation": {
@@ -18122,6 +18193,10 @@
         "name": "Map fields",
         "description": "Pick values out of earlier outputs and give each one a type."
       },
+      "data_value": {
+        "name": "Data",
+        "description": "Hold an object, a list or a value for later steps. Set once per run."
+      },
       "debug_echo": {
         "name": "Echo",
         "description": "Echoes its input back, unchanged. Has no real effect."
@@ -20844,5 +20919,19 @@
         }
       }
     }
+  },
+  "personalModelKeys": {
+    "title": "Your model connection",
+    "fixed": "Model: {model}. Destination: {endpoint}.",
+    "connected": "Your key is saved. Replace it here if authentication fails.",
+    "required": "Connect your own API key before sending a message.",
+    "key": "Your API key",
+    "replace": "Replace key",
+    "connect": "Connect key",
+    "privacy": "Saved privately in the vault. Never sent in chat. No organization-key fallback.",
+    "vaultHelp": "These keys belong only to you. Connect or replace them in the agent’s chat settings. Removing a key blocks future runs until you reconnect.",
+    "remove": "Remove connection",
+    "loading": "Loading connections…",
+    "defaultEndpoint": "Provider default"
   }
 }

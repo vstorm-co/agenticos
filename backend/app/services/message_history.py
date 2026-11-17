@@ -6,11 +6,14 @@ and the service that builds a thread's history - and `agent.py` reaches for
 `app.api.deps`, which reaches back for `ConversationService`.
 """
 
-from collections.abc import Sequence
+import json
+from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from datetime import timedelta
 from typing import NotRequired, TypedDict
 from uuid import UUID
 
+from pydantic import JsonValue
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -20,6 +23,121 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.usage import RequestUsage
+
+from app.agents.ephemeral_media import dump_messages
+from app.schemas.conversation import HistoryCheckpointFrontier
+
+MODEL_HISTORY_MESSAGES = 200
+MODEL_HISTORY_BYTES = 2 * 1024 * 1024
+CHANNEL_AUTHORS = "agenticos_channel_authors"
+HISTORY_TRIMMED = (
+    "Earlier conversation messages and tool results were omitted to keep history within its limits. "
+    "Rediscover tools whose discovery is no longer present, and read missing evidence again when needed."
+)
+
+
+def without_standing_instructions(
+    messages: Sequence[ModelMessage], *, channel_authors: Mapping[str, UUID] | None = None
+) -> list[ModelMessage]:
+    """Keep turn evidence before offloading media or after restoring stored references.
+
+    The next run supplies its current instructions and capabilities. Legacy harness
+    summaries used a system part; retain those until a new compaction replaces them.
+    """
+    history: list[ModelMessage] = []
+    for message in messages:
+        if isinstance(message, ModelRequest):
+            parts = [
+                part
+                for part in message.parts
+                if not isinstance(part, SystemPromptPart)
+                or part.content.startswith("Summary of previous conversation:\n\n")
+            ]
+            if parts:
+                metadata = dict(message.metadata or {})
+                if channel_authors:
+                    references = {
+                        part.timestamp.isoformat(): str(identity)
+                        for part in parts
+                        if isinstance(part, UserPromptPart)
+                        and (identity := channel_authors.get(part.timestamp.isoformat()))
+                        is not None
+                    }
+                    if references:
+                        metadata[CHANNEL_AUTHORS] = references
+                history.append(replace(message, parts=parts, metadata=metadata or None))
+        else:
+            history.append(message)
+    return history
+
+
+def bounded_model_history(messages: Sequence[ModelMessage]) -> list[ModelMessage]:
+    """Keep a bounded suffix without separating calls from their results.
+
+    This is a storage ceiling, independent of the agent's token-based compaction.
+    Evicted discovery expires with its evidence. Never invent a successful search
+    to restore it. A single oversized exchange is omitted as a whole and the
+    model is told that evidence was lost. The visible transcript stays intact.
+    """
+    serialized = dump_messages(messages)
+    start = _bounded_history_start(serialized)
+    if start == 0:
+        return list(messages)
+    notice = ModelRequest(parts=[UserPromptPart(content=HISTORY_TRIMMED)])
+    return [notice, *messages[start:]]
+
+
+def bounded_stored_history(
+    messages: list[dict[str, JsonValue]],
+) -> list[dict[str, JsonValue]]:
+    """Bound the compact checkpoint before restoring potentially large media.
+
+    Media references count at their stored size. Expanding one before applying
+    this storage ceiling would discard valid images and offloaded tool results.
+    """
+    start = _bounded_history_start(messages)
+    if start == 0:
+        return messages
+    notice = ModelRequest(parts=[UserPromptPart(content=HISTORY_TRIMMED)])
+    return [*dump_messages([notice]), *messages[start:]]
+
+
+def _bounded_history_start(messages: Sequence[dict[str, JsonValue]]) -> int:
+    sizes = [len(json.dumps(message, ensure_ascii=False).encode()) + 2 for message in messages]
+    total = sum(sizes)
+    if len(messages) <= MODEL_HISTORY_MESSAGES and total <= MODEL_HISTORY_BYTES:
+        return 0
+    notice = ModelRequest(parts=[UserPromptPart(content=HISTORY_TRIMMED)])
+    budget = MODEL_HISTORY_BYTES - len(
+        json.dumps(dump_messages([notice]), ensure_ascii=False).encode()
+    )
+    start = 0
+    while start < len(messages) and (
+        len(messages) - start >= MODEL_HISTORY_MESSAGES or total > budget
+    ):
+        total -= sizes[start]
+        start += 1
+
+    # Parallel calls may span several messages. Move the cut past every result
+    # whose call would be lost, including a batch containing retained calls too.
+    calls: dict[str, int] = {}
+    for index, message in enumerate(messages):
+        parts = message.get("parts")
+        if not isinstance(parts, list):
+            continue
+        for part in parts:
+            if not isinstance(part, dict):
+                continue
+            call_id = part.get("tool_call_id")
+            if not isinstance(call_id, str):
+                continue
+            kind = part.get("part_kind")
+            if kind == "tool-call":
+                calls[call_id] = index
+            elif kind == "tool-return" and index >= start and calls.get(call_id, -1) < start:
+                start = index + 1
+    return start
+
 
 CHANNEL_AUTHOR_ID = "agenticos_channel_author_identity"
 
@@ -40,9 +158,16 @@ again - where a refused one kept would undo the refusal."""
 class ModelHistory(list[ModelMessage]):
     """A transcript snapshot with the refusal revision its summary may replace."""
 
-    def __init__(self, messages: Sequence[ModelMessage], *, revision: int | None) -> None:
+    def __init__(
+        self,
+        messages: Sequence[ModelMessage],
+        *,
+        revision: int | None,
+        frontier: HistoryCheckpointFrontier | None = None,
+    ) -> None:
         super().__init__(messages)
         self.revision = revision
+        self.frontier = frontier
 
 
 class HistoryMessage(TypedDict):

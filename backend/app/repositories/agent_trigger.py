@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import and_, false, func, or_, select, true
+from sqlalchemy import DateTime, and_, cast, false, func, or_, select, true
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,7 @@ from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_trigger import AgentTrigger, TriggerAttempt, TriggerOverlap
 from app.db.models.resource_grant import Visibility
 from app.schemas.agent_trigger import (
+    GithubFilteredEvent,
     TriggerAttemptReason,
     TriggerAttemptStage,
     TriggerAttemptStatus,
@@ -36,6 +37,26 @@ _NON_TERMINAL_STATUSES = (
 # worker crash that skipped its `finally` - and the schedule is freed rather than
 # parked for ever.
 FIRE_LEASE = timedelta(hours=1)
+
+
+async def record_filtered_event(
+    db: AsyncSession, *, trigger: AgentTrigger, diagnostic: GithubFilteredEvent
+) -> None:
+    """Retain the newest verified rejection even when deliveries finish out of order."""
+    received_at = cast(
+        AgentTrigger.last_filtered_event["received_at"].astext, DateTime(timezone=True)
+    )
+    await db.execute(
+        sql_update(AgentTrigger)
+        .where(
+            AgentTrigger.id == trigger.id,
+            AgentTrigger.organization_id == trigger.organization_id,
+            or_(received_at.is_(None), received_at < diagnostic.received_at),
+        )
+        .values(last_filtered_event=diagnostic.model_dump(mode="json"))
+        .execution_options(synchronize_session=False)
+    )
+    await db.flush()
 
 
 async def get(
