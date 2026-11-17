@@ -612,10 +612,7 @@ async def test_fire_never_executes_a_wait_with_stale_or_unavailable_local_author
             assert wait.status == "waiting"
             assert wait.event_context == context
             notices.routine_blocked.assert_awaited_once()
-            assert (
-                "Waiting for its approved computer"
-                in notices.routine_blocked.await_args.kwargs["detail"]
-            )
+            assert notices.routine_blocked.await_args.kwargs["detail"] == "computer_waiting"
     execute.assert_not_awaited()
 
 

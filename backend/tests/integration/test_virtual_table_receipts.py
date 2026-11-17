@@ -14,7 +14,7 @@ import asyncio
 
 import pytest
 from sqlalchemy import func, select, text
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, NotFoundError
@@ -27,6 +27,7 @@ from app.db.models.virtual_table import (
 )
 from app.repositories import resource_grant_repo, virtual_table_repo
 from app.schemas.virtual_table import (
+    RecordBatchCreate,
     RecordCreate,
     RecordUpdate,
     RecordUpsert,
@@ -92,6 +93,75 @@ async def test_a_retry_returns_the_original_answer_even_after_the_record_changed
     assert retry.replayed and retry.created
     assert retry.record.revision == 1 and retry.record.values == {customer: "Acme"}
     assert first.record == retry.record
+
+
+@pytest.mark.security
+async def test_an_erased_legacy_batch_result_blocks_reexecution_until_expiry(
+    db: AsyncSession,
+) -> None:
+    from app.services.virtual_tables.exceptions import IdempotencyResultPurgedError
+
+    service, ctx, table, org = await _setup(db)
+    await service.create_record(
+        ctx, table.id, RecordCreate(external_id="private@example.com", values={})
+    )
+    batch = RecordBatchCreate(
+        records=[
+            RecordCreate(values={}),
+            RecordCreate(external_id="private@example.com", values={}),
+        ]
+    )
+    first, _ = await service.write_batch(ctx, table.id, batch, operation_key="legacy")
+    receipt = await db.scalar(
+        select(VirtualTableReceipt).where(VirtualTableReceipt.operation_key == "legacy")
+    )
+    # The migration erases unassociated legacy results but preserves their keys.
+    receipt.table_id = None
+    receipt.outcome = {"_purged": True}
+    digest = receipt.payload_hash
+    assert first.created == 1 and first.failed[0].details == {"external_id": "private@example.com"}
+
+    kept = await service.create_table(ctx, TableCreate(name="Kept"))
+    other_batch = RecordBatchCreate(records=[RecordCreate(values={})])
+    kept_result, _ = await service.write_batch(ctx, kept.id, other_batch, operation_key="kept")
+    foreign, foreign_ctx, foreign_table, _ = await _setup(db)
+    foreign_result, _ = await foreign.write_batch(
+        foreign_ctx, foreign_table.id, other_batch, operation_key="foreign-legacy"
+    )
+    foreign_receipt = await db.scalar(
+        select(VirtualTableReceipt).where(VirtualTableReceipt.operation_key == "foreign-legacy")
+    )
+    await db.flush()
+
+    purged = await service.create_table(ctx, TableCreate(name="Purged"))
+    await virtual_table_repo.delete_receipts_for_table(
+        db, organization_id=org.id, table_id=purged.id
+    )
+    await db.refresh(receipt)
+    await db.refresh(foreign_receipt)
+    assert receipt.outcome == {"_purged": True}
+    assert receipt.payload_hash == digest
+    assert foreign_receipt.outcome == foreign_result.model_dump(mode="json")
+    before = await _rows(db, VirtualTableRecord)
+    with pytest.raises(IdempotencyResultPurgedError) as raised:
+        await service.write_batch(ctx, table.id, batch, operation_key="legacy")
+    assert (raised.value.status_code, raised.value.code) == (409, "IDEMPOTENCY_RESULT_PURGED")
+    assert raised.value.details == {"operation": "record.batch"}
+    with pytest.raises(IdempotencyKeyReuseError):
+        await service.write_batch(ctx, table.id, other_batch, operation_key="legacy")
+    assert await _rows(db, VirtualTableRecord) == before
+    assert await service.write_batch(ctx, kept.id, other_batch, operation_key="kept") == (
+        kept_result,
+        True,
+    )
+    assert await foreign.write_batch(
+        foreign_ctx, foreign_table.id, other_batch, operation_key="foreign-legacy"
+    ) == (foreign_result, True)
+
+    await _age_receipts(db, settings.TABLES_RECEIPT_TTL_HOURS + 1)
+    after_expiry, replayed = await service.write_batch(ctx, table.id, batch, operation_key="legacy")
+    assert not replayed and after_expiry.created == 1
+    assert await _rows(db, VirtualTableRecord) == before + 1
 
 
 @pytest.mark.security

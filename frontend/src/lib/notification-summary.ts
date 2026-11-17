@@ -1,6 +1,7 @@
 import type { Translate } from "@/lib/agent-step-captions";
 import { ATTEMPT_RESULT_REASONS } from "@/lib/improvement-steps";
 import type { Notification } from "@/lib/notifications-api";
+import { usd, wordedSummary } from "@/lib/notification-wording";
 import { formatCostUsd } from "@/lib/utils";
 
 const IMPROVEMENT = ["ready", "stopped", "failed", "stale"];
@@ -69,14 +70,9 @@ export function notificationSummary(item: Notification, t: Translate, tStop: Tra
   return item.summary;
 }
 
-/** Dollars to the cent, or to the place spend is shown at when the cent would read as nothing. */
-function usd(value: string): string {
-  const amount = Number(value);
-  return amount > 0 && amount < 0.01 ? formatCostUsd(amount) : `$${amount.toFixed(2)}`;
-}
-
-/** An approval request or a budget limit, worded from the values the server kept. */
+/** A row worded from the values the server kept: by its `wording` when it names one. */
 function paramsSummary(item: Notification, t: Translate): string | null {
+  if (item.wording_params) return wordedSummary(item.wording_params, t);
   const params = item.params;
   if (!params) return null;
   switch (item.event_type) {

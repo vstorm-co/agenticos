@@ -13,9 +13,10 @@ and the refusals: another organization, the grants, a script or an
 administrator acting as somebody, the budget, the cost ceiling, model readiness, and an owner who has left.
 """
 
+import json
 import uuid
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -223,7 +224,12 @@ class Model:
         )
         self.db.add(run)
         await self.db.flush()
-        return self.answer(prompt), run
+        text = self.answer(prompt)
+        # A system agent answers in its schema; one whose script is not JSON answers nothing.
+        if kw.get("output_schema") is not None:
+            with suppress(ValueError):
+                kw["structured"].append(json.loads(text))
+        return text, run
 
 
 def _sessions(db: AsyncSession):

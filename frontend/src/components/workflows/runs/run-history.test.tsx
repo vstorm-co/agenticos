@@ -41,6 +41,7 @@ vi.mock("@/hooks", () => ({
     };
   },
   useWorkflows: () => ({ workflows: [{ id: "wf", name: "Lead intake" }] }),
+  useNodeCatalog: () => ({ nodes: [{ id: "data.map", name: "Map fields" }] }),
 }));
 
 function run(overrides: Partial<WorkflowRunRead> = {}): WorkflowRunRead {
@@ -101,6 +102,7 @@ describe("RunHistory", () => {
       workflowId: "wf",
       status: "failed",
       mode: "test",
+      stepTest: false,
       triggeredBy: "webhook",
       page: 2,
     });
@@ -111,6 +113,50 @@ describe("RunHistory", () => {
     await userEvent.click(screen.getByRole("option", { name: "Any status" }));
     expect(url.set).toHaveBeenCalledWith("status", null);
     expect(url.set).toHaveBeenCalledWith("page", null);
+  });
+
+  it("names the step a step test ran, apart from a test of the whole draft", () => {
+    const step = (label: string | null, definition_id: string | null) => ({
+      node_id: "n1",
+      label,
+      definition_id,
+    });
+    history.runs = [
+      run({ id: "r1", tested_step: step("Shape the answer", "data.map") }),
+      run({ id: "r2", tested_step: step(null, "data.map") }),
+      run({ id: "r3", tested_step: step(null, null) }),
+      run({ id: "blank", tested_step: step("   ", "data.map") }),
+      run({ id: "r4" }),
+      run({ id: "r5", mode: "real" }),
+    ];
+    render(<RunHistory workflowId="wf" />);
+
+    expect(screen.getByText("Step test · Shape the answer")).toBeTruthy();
+    expect(screen.getAllByText("Step test · Map fields")).toHaveLength(2);
+    expect(screen.getByText("Step test")).toBeTruthy();
+    expect(screen.getByText("Draft (test)")).toBeTruthy();
+    expect(screen.getByText("Published")).toBeTruthy();
+  });
+
+  it("filters to step tests alone, and leaves a version it does not know unfiltered", async () => {
+    url.values = { mode: "step" };
+    const { unmount } = render(<RunHistory workflowId="wf" />);
+    expect(history.query).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mode: "test", stepTest: true }),
+    );
+    expect(screen.getByText("No runs match")).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Version" }));
+    await userEvent.click(screen.getByRole("option", { name: "Published" }));
+    expect(url.set).toHaveBeenCalledWith("mode", "real");
+    unmount();
+
+    url.values = { mode: "draft" };
+    render(<RunHistory workflowId="wf" />);
+    const query = history.query.mock.lastCall?.[0] as Record<string, unknown>;
+    expect(query.mode).toBeUndefined();
+    expect(query.stepTest).toBeUndefined();
+    expect(screen.getByText("No runs yet")).toBeTruthy();
   });
 
   it("narrows to runs started within a window counted back from now", async () => {

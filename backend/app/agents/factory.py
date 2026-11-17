@@ -165,6 +165,14 @@ def answer_text(answer: AgentAnswer) -> str:
 OUTPUT_RETRIES = 2
 
 
+class OutputSchemaRetry(ModelRetry):
+    """Schema feedback whose stored diagnosis never includes the model's values."""
+
+    def __init__(self, message: str, *, schema_path: str) -> None:
+        super().__init__(message)
+        self.diagnosis = f"The answer did not match its output schema at {schema_path}"
+
+
 @dataclass
 class BuiltAgent:
     """A runnable agent plus what the caller needs to observe and account for it.
@@ -854,8 +862,9 @@ def _fits_schema(schema: dict[str, Any]) -> Callable[[AgentOutput], AgentOutput]
             problem = next(iter(sorted(checker.iter_errors(output), key=str)), None)
             if problem is not None:
                 where = "/".join(str(part) for part in problem.absolute_path) or "the answer"
-                raise ModelRetry(
-                    f"The answer does not fit its schema at {where}: {problem.message}"
+                raise OutputSchemaRetry(
+                    f"The answer does not fit its schema at {where}: {problem.message}",
+                    schema_path="/".join(str(part) for part in problem.absolute_schema_path),
                 )
         return output
 

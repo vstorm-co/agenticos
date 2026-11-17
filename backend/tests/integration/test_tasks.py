@@ -766,6 +766,7 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
     from app.db.models.background_job import BackgroundJob
     from app.db.models.project import Project
     from app.db.models.virtual_table import VirtualTable, VirtualTableReceipt, VirtualTableRecord
+    from app.schemas.virtual_table import RecordBatchCreate, RecordCreate
     from app.services.group import GroupService
     from app.services.personal_data import PersonalDataService
     from app.services.project import ProjectService
@@ -797,6 +798,7 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
             scope=kind,
             scope_id=scope_id,
             title="Reminder",
+            external_id="private@example.com",
             start_at=datetime.now(UTC) + timedelta(days=1),
         ),
     )
@@ -809,6 +811,21 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
     review_link = await db.get(TaskLink, review.id)
     case_id = review_link.outcome_id
     board_id, table_id = task.board_id, task.table_id
+    board = await service.ensure_board(data.contexts[0], BoardEnsure(scope=kind, scope_id=scope_id))
+    batch, _ = await VirtualTableService(db).write_batch(
+        data.contexts[0],
+        table_id,
+        RecordBatchCreate(
+            records=[
+                RecordCreate(
+                    external_id="private@example.com",
+                    values={board.column_ids["title"]: "Duplicate"},
+                )
+            ]
+        ),
+        operation_key="private-batch",
+    )
+    assert batch.failed[0].details == {"external_id": "private@example.com"}
     receipts = [
         VirtualTableReceipt(
             organization_id=data.org.id,
@@ -832,6 +849,15 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
             ]
         )
     ]
+    batch = VirtualTableReceipt(
+        organization_id=data.org.id,
+        principal_id=data.users[1].id,
+        operation="record.batch",
+        operation_key="batch",
+        payload_hash="0" * 64,
+        outcome={"failed": [{"details": {"external_id": "ada@example.com"}}]},
+        table_id=table_id,
+    )
     expired = VirtualTableReceipt(
         organization_id=data.org.id,
         principal_id=data.users[1].id,
@@ -841,7 +867,7 @@ async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
         outcome={"record": {"table_id": str(table_id), "values": {"title": "Old"}}},
         created_at=datetime.now(UTC) - timedelta(days=2),
     )
-    db.add_all([*receipts, expired])
+    db.add_all([*receipts, expired, batch])
     await db.flush()
     kept_receipt = receipts[2].id
     if kind == "project":
