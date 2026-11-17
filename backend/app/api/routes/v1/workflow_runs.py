@@ -120,6 +120,10 @@ async def list_workflow_runs(
         default=None, alias="status", description="Only runs in one of these states"
     ),
     mode: WorkflowRunMode | None = Query(default=None),
+    step_test: bool | None = Query(
+        default=None,
+        description="Only step tests when true; leave them out when false",
+    ),
     triggered_by: WorkflowRunTrigger | None = Query(default=None),
     created_after: datetime | None = Query(default=None, description="Started at or after"),
     created_before: datetime | None = Query(default=None, description="Started before"),
@@ -128,10 +132,11 @@ async def list_workflow_runs(
 ) -> Any:
     """Runs this caller may see, newest first - across every workflow they can view,
     or narrowed to one with `workflow_id` - filtered by state, mode, what started
-    them and when."""
+    them, when, and whether a test ran one step."""
     filters = WorkflowRunFilters(
         statuses=tuple(run_status or ()),
         mode=mode,
+        step_test=step_test,
         triggered_by=triggered_by,
         created_after=created_after,
         created_before=created_before,

@@ -6474,6 +6474,8 @@
       "allRunsDescription": "Every run of the workflows you can see, newest first.",
       "runRetryMark": "retry",
       "runModeTest": "Draft (test)",
+      "runModeStep": "Step test",
+      "runModeStepNamed": "Step test · {step}",
       "runModeReal": "Published",
       "runFilterAnyStatus": "Any status",
       "runFilterAnyMode": "Any version",
