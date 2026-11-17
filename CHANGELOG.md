@@ -53,6 +53,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Check browser health through its resolved IP address so Chromium accepts Compose service hosts in `agenticos cmd doctor`; bound DNS resolution and the HTTP probe together.
+
 - Bind private model-history checkpoints to their agent and resolved model destinations, including fallback connections, and to the live MCP account, endpoint and authorization generation. Changing a recipient rebuilds visible transcript history instead of sending earlier hidden tool results to another endpoint.
 
 - Preserve concurrent aside and main-turn exchanges when updating private model history; an older snapshot cannot advance past a conversation turn it never saw.
