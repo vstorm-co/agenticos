@@ -97,6 +97,8 @@ def _turns(answer: str = "hi", history: list[MagicMock] | None = None):
     turn asked it to do.
     """
     messages = history or []
+    for ordinal, message in enumerate(messages, start=1):
+        message.ordinal = ordinal
     with (
         patch("app.services.embed_session.AgentRunnerService") as runner_cls,
         patch(

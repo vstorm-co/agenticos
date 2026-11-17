@@ -1932,7 +1932,12 @@ async def get_fork_point(db: AsyncSession, message_id: UUID) -> Message | None:
         .where(Message.id == message_id)
         .options(
             load_only(
-                Message.id, Message.conversation_id, Message.role, Message.ordinal, raiseload=True
+                Message.id,
+                Message.conversation_id,
+                Message.role,
+                Message.ordinal,
+                Message.run_id,
+                raiseload=True,
             ),
             raiseload("*"),
         )
@@ -2296,6 +2301,7 @@ async def set_summary(
         Message.conversation_id == db_conversation.id,
         Message.ordinal > expected_frontier.message_ordinal,
         Message.ordinal <= ordinal,
+        Message.guardrail_refused.is_(False),
     )
     if through_message is not None:
         unseen = unseen.where(

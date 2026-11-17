@@ -118,15 +118,17 @@ async def test_a_prompt_written_after_reading_history_belongs_to_its_own_checkpo
     snapshot = dump_messages(
         [ModelRequest(parts=[UserPromptPart("Initial; own prompt; own answer and tool evidence")])]
     )
+    answer_id, answer_ordinal = answer.id, answer.ordinal
+    db.expunge(answer)
     await service.keep_summary(
         conversation.id,
         snapshot,
         expected_revision=history.revision,
         expected_frontier=history.frontier,
-        through_message_id=str(answer.id),
+        through_message_id=str(answer_id),
     )
     await db.refresh(conversation)
-    assert conversation.summary_ordinal == answer.ordinal
+    assert conversation.summary_ordinal == answer_ordinal
     assert conversation.summary_messages == snapshot
 
 
