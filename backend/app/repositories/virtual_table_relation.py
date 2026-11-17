@@ -117,6 +117,23 @@ async def sync_schema(
     await db.flush()
 
 
+async def referencing_tables(
+    db: AsyncSession, *, organization_id: UUID, target_table_id: UUID
+) -> list[UUID]:
+    """Other tables with a link definition, live or archived, naming `target_table_id`."""
+    result = await db.scalars(
+        select(VirtualTableRelation.source_table_id)
+        .where(
+            VirtualTableRelation.organization_id == organization_id,
+            VirtualTableRelation.target_table_id == target_table_id,
+            VirtualTableRelation.source_table_id != target_table_id,
+        )
+        .distinct()
+        .order_by(VirtualTableRelation.source_table_id)
+    )
+    return list(result)
+
+
 async def definitions(
     db: AsyncSession, *, organization_id: UUID, source_table_id: UUID
 ) -> list[VirtualTableRelation]:

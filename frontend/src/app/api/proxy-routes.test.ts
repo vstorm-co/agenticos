@@ -108,6 +108,7 @@ import * as workflowLogs from "./workflow-logs/[[...path]]/route";
 import * as workflowRuns from "./workflow-runs/[[...path]]/route";
 import * as workflows from "./workflows/[[...path]]/route";
 import * as userLocale from "./users/me/locale/route";
+import * as userAppearance from "./users/me/appearance/route";
 import * as mySuggestions from "./me/suggestions/[[...path]]/route";
 import * as myOnboarding from "./me/onboarding/[[...path]]/route";
 import * as myWatches from "./me/watches/[[...path]]/route";
@@ -305,4 +306,15 @@ it("coding accounts forwards only credential operations and requires a session",
     new NextRequest("http://localhost:3000/api/coding-accounts"),
   );
   expect(response.status).toBe(401);
+});
+
+it("appearance only exposes read, save and reset behind the session boundary", async () => {
+  const { NextRequest } = await import("next/server");
+  expect(Object.keys(userAppearance).sort()).toEqual(["DELETE", "GET", "PATCH"]);
+  for (const method of ["GET", "PATCH", "DELETE"] as const) {
+    const response = await userAppearance[method](
+      new NextRequest("http://localhost:3000/api/users/me/appearance", { method }),
+    );
+    expect(response.status, method).toBe(401);
+  }
 });

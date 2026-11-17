@@ -13,6 +13,7 @@ from app.db.models.virtual_table import (
     VirtualTableRecord,
     VirtualTableRecordHistory,
 )
+from app.db.table_rls import TABLE_OBJECTS
 from app.repositories import resource_grant_repo, virtual_table_repo
 from app.repositories import virtual_table_trigger as trigger_repo
 from app.schemas.table_view import TableViewCreate
@@ -955,7 +956,7 @@ async def test_linked_rows_the_viewer_cannot_see_never_count_against_the_budget(
     assert read.records == emptied.records
 
 
-async def test_a_linked_table_is_checked_once_per_binding(db, monkeypatch):
+async def test_linked_table_access_is_checked_once_per_binding(db, monkeypatch):
     service, ctx, _org = await _setup(db)
     products, ids = await _products(service, ctx)
     orders = await _orders(service, ctx, products, *_reading(products)[:2])
@@ -973,11 +974,11 @@ async def test_a_linked_table_is_checked_once_per_binding(db, monkeypatch):
     assert len(read.records) == 250
     assert read.records[0]["Names"] == ["Atlas", "Quill"]
     assert read.records[-1]["Kinds"] == ["Book", "Pen"]
-    # The bound table's current row policy is read once, then the linked table
-    # is resolved once for both computed columns and all 250 records.
+    # Resolve linked access once for both columns and all 250 records, then read
+    # the destination's current row policy once to size the shared canonical links.
     assert [
         args[1] if len(args) > 1 else kwargs["table_id"] for args, kwargs, _found in tables
-    ] == [orders.id, products.id]
+    ] == [orders.id, products.id, products.id]
     assert [args[2].id for args, _kwargs, _allowed in access] == [products.id]
 
 
@@ -1088,6 +1089,13 @@ async def test_every_statement_on_the_read_path_is_armed(db, monkeypatch):
     )
     await db.flush()
     events: list[str] = []
+    catalog_probes: list[str] = []
+    catalog_query = (
+        "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity "
+        "FROM pg_catalog.pg_class AS c "
+        "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace "
+        "WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname = ANY($1)"
+    )
     real_arm = ReadDeadline.arm
 
     async def arm(self, session):
@@ -1095,6 +1103,12 @@ async def test_every_statement_on_the_read_path_is_armed(db, monkeypatch):
         await real_arm(self, session)
 
     def capture(_conn, _cursor, statement, _parameters, _context, _executemany) -> None:
+        # Preactivation policy inspection precedes the bounded record read. Only
+        # this exact catalog query, for the fixed protected family, is exempt.
+        if statement == catalog_query:
+            assert _parameters == (list(TABLE_OBJECTS),)
+            catalog_probes.append(statement)
+            return
         events.append(statement)
 
     monkeypatch.setattr(ReadDeadline, "arm", arm)
@@ -1114,6 +1128,7 @@ async def test_every_statement_on_the_read_path_is_armed(db, monkeypatch):
         event.remove(sync_engine, "before_cursor_execute", capture)
 
     assert len(read.records) == 3 and read.records[0]["Names"] == ["Atlas"]
+    assert catalog_probes
     statements = [item for item in events if item != "ARM"]
     assert len([item for item in statements if "set_config" not in item]) >= 8
     for index, item in enumerate(events):

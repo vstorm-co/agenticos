@@ -32,6 +32,7 @@ from app.schemas.routine_notifications import ExternalNotificationChannel, Watch
 from app.schemas.skill import SkillResourceCreate, SkillUpdate
 from app.schemas.task import BoardEnsure, TaskCreate, TaskUpdate
 from app.schemas.user import ConsoleLocale
+from app.schemas.user_appearance import UserAppearance
 from app.schemas.virtual_table import (
     ColumnInput,
     RecordQuery,
@@ -2454,6 +2455,35 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("PUT", "/users/me/locale", json={"locale": locale})
 
+    async def get_my_appearance() -> dict[str, Any]:
+        """Read the requesting person's saved console appearance. Needs agents:run.
+
+        Use only in their own session or private chat. Shared rooms and unattended
+        runs cannot read or change another member's personal preferences.
+        """
+        return await api.request("GET", "/users/me/appearance")
+
+    async def set_my_appearance(preferences: UserAppearance) -> dict[str, Any]:
+        """Apply the appearance tokens the person explicitly asked to change.
+
+        Needs agents:run and the tool's normal write approval. Unspecified tokens
+        stay as saved. Only the enum values in the schema are accepted: no raw
+        CSS, selectors, URLs or target user id. Explain the proposed choices
+        before applying. The person can preview or reset in Profile → Appearance.
+        Runs in shared chats, projects, channels or in the background are refused.
+        """
+        return await api.request(
+            "PATCH", "/users/me/appearance", json=preferences.model_dump(exclude_unset=True)
+        )
+
+    async def reset_my_appearance() -> dict[str, Any]:
+        """Reset the requesting person's appearance, only when they ask.
+
+        Needs agents:run and the normal write approval; the same private-person
+        boundary as set_my_appearance applies.
+        """
+        return await api.request("DELETE", "/users/me/appearance")
+
     async def set_my_profile(
         job_title: str | None = None, about: str | None = None
     ) -> dict[str, Any]:
@@ -4335,6 +4365,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (list_sandbox_runtimes, False),
         (get_sandbox_policy, False),
         (set_my_language, True),
+        (get_my_appearance, False),
+        (set_my_appearance, True),
+        (reset_my_appearance, True),
         (set_my_profile, True),
     )
     return tuple(

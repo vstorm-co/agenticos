@@ -1,5 +1,5 @@
 ---
-source_sha: "8e1d955d9230"
+source_sha: "22b67b0bc732"
 ---
 
 # La consola { #the-console }
@@ -805,7 +805,7 @@ pudo transcribir se guarda hasta que pulses **Retry** o **Discard**.
 
 El brillo alrededor del cuadro de una página alojada mientras hablas sigue a **Voice glow** en
 **Settings → Profile → Appearance**, junto al tema y a **Motion**: **Vivid**,
-**Subtle** (por defecto) u **Off**. Se recuerda por navegador. **Motion** decide
+**Subtle** (por defecto) u **Off**. Apply lo guarda en tu cuenta. **Motion** decide
 cuánto se mueve toda la consola: **System** (por defecto) sigue el ajuste de
 movimiento reducido del sistema operativo, **Reduce** reduce el movimiento sin
 él y **Full** lo mantiene diga lo que diga el sistema operativo. Mientras el
@@ -814,7 +814,7 @@ y el nivel es un indicador de cinco pasos.
 
 **Workflow steps** en la misma tarjeta elige cómo dibuja un paso el lienzo del
 workflow: **In colour** (por defecto) dibuja cada paso en su familia,
-**Simple** deja las fichas neutras y el minimapa gris. Se recuerda por navegador; la
+**Simple** deja las fichas neutras y el minimapa gris. Se guarda en tu cuenta; la
 barra de herramientas del lienzo tiene el mismo interruptor. Véase
 [Cómo se dibuja un paso](workflows.md#how-a-step-is-drawn).
 
@@ -1058,6 +1058,28 @@ La bandeja exige demostrar el acceso al correo en la sesión actual: un nuevo ac
 Los puntos ámbar señalan pestañas de organización y tarjetas de voz, sugerencias nocturnas, mantenimiento de memoria y Architect cuando falta configuración o las sugerencias están desactivadas. Al pasar el cursor o enfocar el punto aparece una explicación; pulsarlo la mantiene abierta. Los indicadores usan valores guardados, desaparecen al completar la configuración y respetan los permisos de edición. Las sugerencias desactivadas se presentan como una opción, no como un error. La tarjeta de notificaciones iPhone también señala la falta de una clave Apple. La preferencia de movimiento reducido desactiva la animación.
 
 Los accesos guardados del navegador usan un panel compacto de ancho completo, sin estirar una sola entrada hasta ocupar toda la página. Los servicios conocidos muestran su marca integrada; los demás sitios usan su propio favicon sin enviar el referente y un globo si la imagen no está disponible.
+
+## Apariencia de la cuenta { #account-appearance }
+
+En **Settings → Profile → Appearance**, elige tema, estilo, color de acento,
+esquinas, tamaño de texto, movimiento, brillo de voz y pasos del workflow. La
+vista previa cambia con cada elección. **Apply** guarda los cambios en tu cuenta;
+**Discard preview** conserva lo guardado. **Reset to defaults** restaura de
+inmediato el tema del sistema y la apariencia estándar.
+
+Las opciones te siguen entre dispositivos y organizaciones. El tema y el estilo
+del menú de cuenta se guardan al instante. Al cerrar sesión se borra la
+apariencia de la cuenta anterior. Las preferencias antiguas del navegador no se
+asignan automáticamente a una cuenta: selecciónalas y aplícalas una vez.
+
+Puedes pedir cambios o un restablecimiento a un agente en tu propio chat privado
+sin compartir. `get_my_appearance`, `set_my_appearance` y
+`reset_my_appearance` usan la cuenta autenticada y necesitan `agents:run`;
+las escrituras conservan su política habitual de aprobación. Se rechazan chats
+compartidos, proyectos, canales, suplantaciones y ejecuciones sin supervisión.
+Solo se aceptan valores definidos, nunca CSS libre, URLs o el identificador de
+otra persona. La consola se actualiza tras una herramienta interna, al recuperar
+el foco y en un máximo de 30 segundos para cambios de otros dispositivos.
 
 ## Idiomas { #languages }
 

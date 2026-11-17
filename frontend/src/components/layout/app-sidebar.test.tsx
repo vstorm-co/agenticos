@@ -6,6 +6,7 @@ import { NAV_GROUPS, SidebarNav, isActive } from "./app-sidebar";
 const can = vi.fn<(permission: string) => boolean>();
 const currentPath = vi.fn<() => string>(() => "/dashboard");
 const currentUser = vi.fn<() => { is_app_admin?: boolean } | null>(() => ({}));
+const navigation = { hiddenItems: [] as string[], isLoaded: true };
 
 vi.mock("next/navigation", () => ({
   usePathname: () => currentPath(),
@@ -16,7 +17,13 @@ vi.mock("next/navigation", () => ({
 vi.mock("next-intl", async () => ({
   useTranslations: (await import("@/test-utils/intl")).keyTranslations(),
 }));
-vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can }) }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({
+    can,
+    hiddenNavigationItems: navigation.hiddenItems,
+    isLoaded: navigation.isLoaded,
+  }),
+}));
 const recentProjects = vi.fn<() => { id: string; name: string; has_unread_chats?: boolean }[]>(
   () => [],
 );
@@ -47,6 +54,8 @@ vi.mock("@/stores", () => ({
 
 beforeEach(() => {
   sidebar.closedGroups = [];
+  navigation.hiddenItems = [];
+  navigation.isLoaded = true;
 });
 
 function renderNav() {
@@ -104,6 +113,52 @@ describe("isActive", () => {
 });
 
 describe("SidebarNav", () => {
+  it.each([false, true])(
+    "hides configured entries and their pinned rows (collapsed: %s)",
+    (collapsed) => {
+      can.mockReturnValue(true);
+      currentUser.mockReturnValue({ is_app_admin: false });
+      navigation.hiddenItems = ["chat", "agents", "allApps", "allProjects", "documents"];
+      apps.mockReturnValue([{ id: "app-hidden", title: "Hidden app", name: "hidden-app" }]);
+      recentProjects.mockReturnValue([{ id: "project-hidden", name: "Hidden project" }]);
+      appsQuery.mockClear();
+      sidebar.openGroups = ["knowledge", "organization"];
+
+      render(<SidebarNav collapsed={collapsed} onNavigate={vi.fn()} />);
+
+      for (const name of [
+        "chat",
+        "agents",
+        "allApps",
+        "allProjects",
+        "documents",
+        "Hidden app",
+        "Hidden project",
+      ]) {
+        expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
+      }
+      expect(screen.getByRole("link", { name: "dashboard" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "organizations" })).toBeInTheDocument();
+      expect(appsQuery).not.toHaveBeenCalled();
+      apps.mockReturnValue([]);
+      recentProjects.mockReturnValue([]);
+    },
+  );
+
+  it("keeps only recovery navigation until the role policy is known", () => {
+    can.mockReturnValue(true);
+    currentUser.mockReturnValue({ is_app_admin: false });
+    navigation.isLoaded = false;
+    sidebar.openGroups = ["organization"];
+
+    renderNav();
+
+    expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
+      "/dashboard",
+      "/orgs",
+    ]);
+  });
+
   it("shows every destination the caller is entitled to", () => {
     can.mockReturnValue(true);
     sidebar.openGroups = ["knowledge", "monitoring"];

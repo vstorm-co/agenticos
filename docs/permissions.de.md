@@ -1,5 +1,5 @@
 ---
-source_sha: "bfd97a18b5a9"
+source_sha: "5ddb966db952"
 ---
 
 # Berechtigungen { #permissions }
@@ -721,16 +721,83 @@ rechnet jene Runs einer Person zu, ohne umzuschreiben, als was sie liefen. Siehe
 Was ein solcher Run tun darf, kommt von der **Exposure**, die ihn eingelassen
 hat, angelegt von jemandem, der sehr wohl eine Rolle hatte.
 
+## Sichtbarkeit der Seitenleiste { #sidebar-visibility }
+
+### Was ein Mitglied standardmäßig sieht { #what-a-member-sees-by-default }
+
+Ein Mitglied (Member) sieht Dashboard, Chat, Inbox, Agent Messages, Apps, Agents,
+Workflows, Routines, Projects, Knowledge Bases, Tables, Skills, Context, Documents,
+Background Work, Connectors, Organizations und Groups. Apps und Projects zeigen
+nur zugängliche Ressourcen. Activity und Failure Learning benötigen `runs:view`;
+der deploymentweite Admin-Bereich benötigt `is_app_admin`, das eine
+Organisationsrolle nicht gewährt.
+
+Die Rolle Member erreicht eigene Ressourcen sowie Ressourcen, die für die
+Organisation sichtbar oder ausdrücklich mit dem Mitglied oder seinen Gruppen
+geteilt sind. Sie erlaubt das Bearbeiten eigener Arbeitsressourcen und das
+Ausführen zugänglicher Agents und Workflows. Sie gewährt keinen organisationsweiten
+Zugriff auf private Ressourcen, Mitgliederverwaltung, Budgets oder Audit-Logs.
+Ein ausdrücklicher Grant auf einer Ressource kann den Zugriff wie oben
+beschrieben erweitern.
+
+### Navigation für eine Rolle konfigurieren { #configure-navigation-for-a-role }
+
+Öffne **Organisationen (Organizations) → Mitglieder (Members) → Benutzer & Rollen
+(Users & Roles)** und dann **Sidebar visibility**. Die sechs eingebauten Rollen
+und ihre Berechtigungsdefinitionen bleiben fest vorgegeben. Dieser Editor
+konfiguriert die Navigation jeder Rolle in der ausgewählten Organisation.
+
+1. Wähle eine Rolle aus, um ihre aktuelle Navigation zu prüfen.
+2. Wähle aus, welche konfigurierbaren Einträge erscheinen. Einträge, die wegen der
+   Rollenberechtigungen nicht verfügbar sind, bleiben auch dann nicht verfügbar,
+   wenn sie eingeblendet werden.
+3. Prüfe vor dem Speichern **Sidebar preview**.
+4. Wähle **Save sidebar**, um die Änderungen anzuwenden.
+5. Um die Navigation der Rolle zurückzusetzen, wähle **Reset to defaults** und
+   anschließend **Save sidebar**. **Discard changes** lässt die gespeicherte
+   Richtlinie unverändert.
+
+Ein Besitzer (Owner) kann Admin und die niedrigeren Rollen bearbeiten. Ein
+Administrator (Admin) kann Builder, Operator, Member und Viewer bearbeiten,
+aber nicht seine eigene Stufe oder Owner. Andere Mitglieder können Richtlinien
+ansehen, ohne sie zu bearbeiten. Änderungen benötigen `roles:manage` und werden
+im Audit-Trail der Organisation aufgezeichnet.
+
+Dashboard und Organizations können nicht ausgeblendet werden; der
+deploymentweite Admin-Eintrag behält seine bestehende Superadmin-Prüfung.
+Diese Wege zur Wiederherstellung der Konfiguration bleiben verfügbar.
+Die Navigation von Owner bleibt unverändert, und Plattform-Superadmins sind
+von der Sichtbarkeitsrichtlinie nicht betroffen.
+
+### Sichtbarkeit und Zugriff { #visibility-and-access }
+
+Die gespeicherte Auswahl filtert die Seitenleiste auf Desktop und Mobilgeräten,
+angeheftete Apps und Projects sowie die Navigation der Befehlspalette,
+einschließlich Ressourcenkürzeln und der Aktion für einen neuen Chat.
+Ein aktives Fenster aktualisiert Berechtigungen alle 60 Sekunden und lädt
+veraltete Berechtigungen erneut, wenn es den Fokus zurückerhält.
+
+Einen Eintrag auszublenden entzieht keine API-Berechtigungen, entfernt keine
+Ressourcen-Grants und sperrt keine direkte URL. Einen Eintrag einzublenden
+gewährt keinen zusätzlichen Zugriff. Steuere den Zugriff über die
+Rollenzuweisung und das Teilen von Ressourcen; vereinfache die Navigation über
+die Sichtbarkeit der Seitenleiste. Diese Einstellung erstellt keine
+benutzerdefinierten Rollen und bearbeitet ihre Berechtigungen nicht.
+
+
 ## Was das Frontend liest { #what-the-frontend-reads }
 
 | Endpunkt | Antwortet |
 | --- | --- |
-| `GET /me/permissions` | die Rolle des Aufrufers, `is_app_admin` und jede Berechtigung samt ihrem Scope |
+| `GET /me/permissions` | die Rolle des Aufrufers, `is_app_admin`, jede Berechtigung samt ihrem Scope und `hidden_navigation_items` für diese Rolle |
 | `GET /roles/catalog` | den ganzen Katalog und was jede Rolle bündelt |
+| `GET /roles/navigation` | die `hidden_items` der Organisation je Rolle, `configurable_items` und die `editable_roles` des Aufrufers |
+| `PATCH /roles/navigation/{role}` | ersetzt die `hidden_items` einer Rolle; erfordert `roles:manage` und Befugnis über diese Rolle |
 
-Beide sind **eine Bequemlichkeit für die Oberfläche und nichts weiter**. Der
-Server prüft jede Berechtigung auf dem Endpunkt erneut, der die Handlung
-ausführt, sodass ein Client, der diese APIs ignoriert, nichts gewinnt.
+Die Leseantworten steuern die Oberfläche; sie autorisieren keine Handlung.
+Der Server prüft jede Berechtigung an dem Endpunkt erneut, der die Handlung
+ausführt. Die Navigation zu ändern betrifft nur die Darstellung; ein Client,
+der sie ignoriert, erhält dadurch keinen zusätzlichen Zugriff.
 
 ## Zusammenfassung { #recap }
 

@@ -2854,7 +2854,7 @@
       "usedOfMax": "{max} üzerinden {used} kullanıldı",
       "usersRoles": "Kullanıcılar ve Roller",
       "waitingOnResponse": "{count, plural, =1 {1 yanıt bekleniyor} other {# yanıt bekleniyor}}",
-      "whatEachRoleMay": "Her rolün yapabilecekleri. İzinler kodda tanımlanır ve rollere eklenir; bir rol, platformun tanımlamadığı bir izni hiçbir zaman içeremez.",
+      "whatEachRoleMay": "Rol izinlerini inceleyin ve bu kuruluştaki her rolün kenar çubuğunda hangi bağlantıları göreceğini seçin.",
       "workspaceAvatarUpdated": "Kuruluş avatarı güncellendi",
       "workspaceName": "Kuruluş adı",
       "workspaceProfile": "Kuruluş profili",
@@ -2866,7 +2866,39 @@
       "tabProactivity": "Proaktiflik",
       "tabAssistant": "Yapay zekâ ve hizmetler",
       "workspaceSettingsHint": "Kuruluş kimliği ve ajanların ve kanal botlarının devraldığı varsayılan ses ayarları.",
-      "aiServicesHint": "Kuruluş Architect’ini, bellek bakımı ve özetler için arka plan hizmetlerini yapılandırın. Öneri ve izleme ilkeleri Proaktiflik sekmesindedir."
+      "aiServicesHint": "Kuruluş Architect’ini, bellek bakımı ve özetler için arka plan hizmetlerini yapılandırın. Öneri ve izleme ilkeleri Proaktiflik sekmesindedir.",
+      "navigation": {
+        "accessNotice": "Bu ayarlar gezinme bağlantılarını gizler. Veri erişimi, doğrudan bağlantılar ve işlemler izin matrisine ve kaynak paylaşımına tabi olmaya devam eder.",
+        "alwaysShown": "Her zaman gösterilir",
+        "controlsTitle": "Gezinme öğeleri",
+        "description": "Bu kuruluştaki her rolün hangi gezinme öğelerini göreceğini seçin.",
+        "discard": "Değişiklikleri iptal et",
+        "general": "Genel",
+        "hidden": "Gizli",
+        "loadError": "Kenar çubuğu ayarları yüklenemedi.",
+        "ownerProtected": "Kuruluş ayarlarına her zaman yeniden erişilebilmesi için Sahip rolünün kenar çubuğu kullanılabilir kalır.",
+        "permissionUnavailable": "Bu rol için kullanılamaz",
+        "previewHint": "Bu önizleme rolün izinlerini kullanır. Sabitlenmiş uygulamalar ve projeler yalnızca erişilebilir içerik varsa görünür.",
+        "previewTitle": "Kenar çubuğu önizlemesi",
+        "readOnly": "Bu rolün önizlemesini görebilirsiniz. Yalnızca kendi rolünüzün altındaki rolleri düzenleyebilirsiniz.",
+        "reset": "Varsayılanlara dön",
+        "retry": "Yeniden dene",
+        "role": "Rol",
+        "roles": {
+          "admin": "Yönetici",
+          "builder": "Oluşturucu",
+          "member": "Üye",
+          "operator": "Operatör",
+          "owner": "Sahip",
+          "viewer": "Görüntüleyici"
+        },
+        "save": "Kenar çubuğunu kaydet",
+        "saved": "Kenar çubuğu kaydedildi",
+        "showItem": "{item} öğesini göster",
+        "title": "Kenar çubuğu görünürlüğü",
+        "unsaved": "Kaydedilmemiş değişiklikler var. Rol değiştirmeden önce kaydedin veya iptal edin.",
+        "visible": "Görünür"
+      }
     },
     "admin": {
       "accessDomains": "İzin verilen e-posta alan adları",
@@ -8815,6 +8847,10 @@
         "title": "Satır erişim kuralları",
         "body": "Satırları kimlerin okuyabileceğini seçin, ardından bir kişiye veya gruba Okuma ya da Yazma izni vermek için satırı açın."
       },
+      "org-role-navigation": {
+        "body": "Bir rolün gezinme önizlemesini inceleyin ve göreceği bağlantıları seçin. Değişiklikleri bu kuruluş için kaydedin veya rolün varsayılan ayarlarını geri yükleyin. Verilere ve işlemlere erişimi izin matrisi belirlemeye devam eder.",
+        "title": "Her rolün kenar çubuğunu seçin"
+      },
       "chat-room-thread": {
         "title": "Bir mesajı tartışın",
         "body": "Ana odayı doldurmadan yanıtları bir arada tutmak için bir konu açın. Yanıt sayısı sizi tartışmaya geri götürür; Yanıtla bir mesajı alıntılamaya devam eder."
@@ -12839,7 +12875,7 @@
   },
   "appearance": {
     "colour": "Renkli",
-    "description": "Konsolun sizin için nasıl görünüp davrandığı. Bu tarayıcıda saklanır ve hemen uygulanır.",
+    "description": "Görünümünüzü seçin, önizleyin ve tüm cihazlarda hesabınıza uygulayın.",
     "full": "Tam",
     "look": "Görünüm stili",
     "lookHint": "Her stilin açık ve koyu biçimi vardır; hangisinin kullanılacağını yukarıdaki tema belirler. Masaüstü uygulamasındaki Glass, masaüstünüzü saydam gösterir.",
@@ -12873,7 +12909,40 @@
     "theme": "Tema",
     "voiceGlowHint": "Dikte sırasında sohbet kutusunun sesinize nasıl tepki vereceği",
     "workflowNodes": "Workflow adımları",
-    "workflowNodesHint": "Renkli görünüm her adımı türüne göre renklendirir. Sade görünüm kutuları nötr, küçük haritayı gri yapar."
+    "workflowNodesHint": "Renkli görünüm her adımı türüne göre renklendirir. Sade görünüm kutuları nötr, küçük haritayı gri yapar.",
+    "accent": "Vurgu rengi",
+    "radius": "Köşeler",
+    "textSize": "Metin boyutu",
+    "accents": {
+      "default": "Nötr",
+      "blue": "Mavi",
+      "violet": "Mor",
+      "green": "Yeşil",
+      "amber": "Kehribar",
+      "rose": "Pembe"
+    },
+    "radii": {
+      "default": "Standart",
+      "square": "Hafif",
+      "rounded": "Yuvarlak"
+    },
+    "textSizes": {
+      "default": "Standart",
+      "large": "Büyük"
+    },
+    "preview": "Canlı önizleme",
+    "previewTitle": "Çalışma alanınız",
+    "previewText": "Seçtiğiniz renklerin, köşelerin ve metin boyutunun bir örneği.",
+    "previewAction": "Örnek işlem",
+    "previewHint": "Uygula seçilene kadar yalnızca önizleme değişir. Sıfırla, hesabınızdaki varsayılanları geri yükler.",
+    "apply": "Uygula",
+    "discard": "Önizlemeyi iptal et",
+    "reset": "Varsayılanlara sıfırla",
+    "saved": "Görünüm kaydedildi",
+    "resetDone": "Görünüm sıfırlandı",
+    "loading": "Görünümünüz yükleniyor…",
+    "loadError": "Kaydedilmiş görünümünüz yüklenemedi.",
+    "retry": "Tekrar dene"
   },
   "voiceGlow": {
     "off": "Kapalı",

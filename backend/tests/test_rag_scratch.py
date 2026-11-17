@@ -241,6 +241,10 @@ class TestTheSweep:
     async def test_the_worker_sweeps_hourly_on_a_session_of_its_own(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # Before the patch below: `production()` imports every task module, and one
+        # imported first while `get_worker_db_context` is patched keeps the fake for
+        # good, so a later test in the same worker settles against a MagicMock.
+        kinds = production()
         session = MagicMock()
 
         @asynccontextmanager
@@ -257,7 +261,7 @@ class TestTheSweep:
         assert sweep.await_args.args == (session,)
         [schedule] = [s for s in SCHEDULES if s.task is jobs.SWEEP_RAG_SCRATCH]
         assert schedule.every == timedelta(hours=1)
-        assert jobs.SWEEP_RAG_SCRATCH.kind in production()
+        assert jobs.SWEEP_RAG_SCRATCH.kind in kinds
 
 
 class TestTheIngestJob:

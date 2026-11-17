@@ -21,44 +21,25 @@ name: CI
 # `concurrency` group is keyed on `github.ref`, so a stacked branch cancels its own
 # superseded runs like any other.
 #
-# Fast CI runs for every pull request. Heavy jobs run only for `full-ci` pull
-# requests, `sync/upstream-*` pull requests and `v*` release tags. Pushes run on
-# `t3`; docs-only pushes are ignored.
+# No CI runs on pull requests (user decision, 2026-11-16). The quick check (lint,
+# type checks, related tests) runs in the T3 session before it pushes, and its
+# command and output are pasted into the pull request for the lead to read before
+# merging; `t3` requires no status checks. Every push to `t3` (each merge) and
+# every `v*` tag runs the full suite. A failed `t3` run is reverted or fixed
+# before the next merge, and a production deploy needs it green.
 on:
   push:
     branches: [t3]
     tags: ['v*']
-    paths-ignore:
-      - 'docs/**'
-      - 'mkdocs.yml'
-      - '*.md'
-  pull_request:
-    types: [opened, synchronize, reopened, labeled]
 
-# One run per branch. `AGENTS.md` asks for a commit and a push per finished piece,
-# which is right - but with nothing cancelling, each push started a fresh 24-minute
-# matrix and left the previous one running to completion, answering a question
-# about a commit nobody was waiting on. 75 of the 369 runs in the first six days of
-# August were superseded while still in flight, about 1,800 billed minutes, and
-# only 2 runs in that window were ever `cancelled`. See #317.
-#
-# `main` is deliberately excluded: the push run is what makes the merge history and
-# the badge mean anything, and a commit whose CI never finished is worse than a
-# minute overspent. `cancel-in-progress: false` is **not** how you exclude it, which
-# is the trap this originally fell into: false means *queue*, and GitHub's rule is
-# that "any existing pending job or workflow in the same concurrency group will be
-# canceled and the new queued job or workflow will take its place". So with one
-# group for `main`, merge A running and B pending, C landing cancels B outright and
-# B's commit gets no CI at all - at fourteen releases in six days plus feature
-# merges, against a ~10 minute `main` run, two merges inside one window is not rare.
-#
-# So `main` is kept out of the group entirely rather than out of the cancelling:
-# `github.run_id` is unique per run, so every push gets a group of its own and
-# neither queues nor cancels. Pull requests all resolve to `-pr` and cancel each
-# other per `github.ref`, which is the whole point.
+# One run per ref, and a newer run cancels an older one on every ref, `t3`
+# included (user decision, 2026-11-16). A cancelled `t3` run never becomes a
+# baseline: the next push classifies its changes against the last *successful*
+# `t3` run (see `changes`), so the commits whose run was cancelled are still
+# tested by the run that replaced it.
 concurrency:
-  group: ci-${{ github.ref }}-${{ github.event_name == 'push' && github.run_id || 'pr' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 # Least privilege for every job. Nothing in this workflow writes anything back -
 # Codecov uses its own token - and a job that later needs more should declare it
@@ -117,10 +98,10 @@ jobs:
       pull-requests: read
       actions: read
     outputs:
-      full: ${{ github.event_name == 'pull_request' && (contains(github.event.pull_request.labels.*.name, 'full-ci') || startsWith(github.head_ref, 'sync/upstream-')) || github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
-      backend: ${{ steps.reused.outputs.backend || steps.scope.outputs.backend }}
-      frontend: ${{ steps.reused.outputs.frontend || steps.scope.outputs.frontend }}
-      e2e: ${{ steps.reused.outputs.e2e || steps.scope.outputs.e2e }}
+      full: ${{ github.event_name == 'push' }}
+      backend: ${{ steps.reused.outputs.backend || steps.scope.outputs.backend || steps.pushed.outputs.backend }}
+      frontend: ${{ steps.reused.outputs.frontend || steps.scope.outputs.frontend || steps.pushed.outputs.frontend }}
+      e2e: ${{ steps.reused.outputs.e2e || steps.scope.outputs.e2e || steps.pushed.outputs.e2e }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -168,6 +149,28 @@ jobs:
           # above, with full-run evidence; paths alone never exempt manifests.
           python3 scripts/ci_changed_scope.py \
             "$RUNNER_TEMP/changed.txt" >> "$GITHUB_OUTPUT"
+
+      - name: Work out which suites a t3 push requires
+        id: pushed
+        # Docs-only merges skip the heavy suites. The diff is taken from the head of
+        # the last *successful* `t3` run, not from `github.event.before`: with
+        # cancel-in-progress, the previous push's run may have been cancelled, and
+        # its changes must still be tested here. No usable baseline emits nothing,
+        # which runs every suite.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/t3' && steps.release.outputs.cut != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          base=$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=t3&event=push&status=success&per_page=1" \
+            --jq '.workflow_runs[0].head_sha // empty')
+          if [ -n "$base" ] && git cat-file -e "$base^{commit}" 2>/dev/null \
+            && git merge-base --is-ancestor "$base" "$GITHUB_SHA"; then
+            git diff --name-only "$base" "$GITHUB_SHA" > "$RUNNER_TEMP/changed.txt"
+            python3 scripts/ci_changed_scope.py \
+              "$RUNNER_TEMP/changed.txt" >> "$GITHUB_OUTPUT"
+          fi
 
   lint:
     # Never gated. It is one billed minute, `make lint-spelling` reads every
@@ -244,9 +247,9 @@ jobs:
     # `tests/test_coverage_gate.py` asserts what it was reaching for, properly:
     # every include pattern matches a real file, every platform module is
     # gated, and the `[[tool.ty.overrides]]` list has not drifted from it. It
-    # runs in the `test` job, where a database exists.
+    # runs in the `test-shard` jobs, where a database exists.
 
-  test:
+  test-shard:
     needs: changes
     # Two mechanisms, deliberately both. `!= 'false'` rather than `== 'true'` because
     # on a push the `changes` step does not run and the empty output has to mean
@@ -255,7 +258,11 @@ jobs:
     # check is a pass, so that is a green merge button over a suite that never ran.
     if: ${{ !cancelled() && needs.changes.outputs.full == 'true' && needs.changes.outputs.backend != 'false' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     services:
       postgres:
         # pgvector, not stock postgres: the RAG store runs
@@ -321,6 +328,9 @@ jobs:
         run: make ci-test-db-configure
 
       - name: Cycle the migration chain forwards and back
+        # Once per run, not once per shard: it checks the migrations rather than
+        # the tests, and the shards share nothing it leaves behind.
+        if: matrix.shard == 1
         # The only way to know a migration works. Backfills, check constraints
         # and the loud failures they raise cannot be verified by importing the
         # module — they need a database with the previous schema in it. And a
@@ -332,6 +342,7 @@ jobs:
         run: make test-migrations
 
       - name: Verify the models and the migrations still agree
+        if: matrix.shard == 1
         # `alembic check` fails if the models declare something no migration
         # creates - the gate that catches "edited a model, forgot the
         # migration". `test-migrations` above leaves the database at head, which
@@ -348,12 +359,10 @@ jobs:
       - name: Start the object store
         run: make docker-minio
 
-      - name: Run tests with the coverage gate
-        # Measure the whole application once; report the platform at 100% and
-        # reuse the same data for the informational inherited-code report.
-        #
-        # `COV_REPORT=xml` is the only difference from what `make test` does on a
-        # laptop, and it is for Codecov below rather than for the gate.
+      - name: Run a third of the backend tests
+        # `BACKEND_SHARD` makes `make test` run this shard's files and keep the
+        # coverage data rather than gate it: a third of the suite never reaches
+        # 100%, so the gate runs once, in `test`, over the three shards combined.
         #
         # `PYTEST_ADDOPTS` turns the Makefile's `-v` into one line of dots per
         # worker. With a line per test (about 25,000 of them, a few of them 50 KB
@@ -363,9 +372,71 @@ jobs:
         # finished in 14 to 20 minutes with quiet output, and with its output
         # sent to a file. Failures still print in full with a short summary, and
         # `faulthandler_timeout` still names a test that hangs.
+        #
+        # `--durations=25` names the slowest tests. The first sharded run spent
+        # nine of shard 1's 21 minutes with one worker alone on something the
+        # quiet output cannot name; the list says which file to move.
         env:
-          PYTEST_ADDOPTS: "-q -q"
-        run: make test COV_REPORT=xml
+          PYTEST_ADDOPTS: "-q -q --durations=25"
+          BACKEND_SHARD: ${{ matrix.shard }}/3
+        run: make test
+
+      - name: Save coverage data for the aggregate gate
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-cov-${{ matrix.shard }}
+          overwrite: true
+          path: backend/.coverage.shard${{ matrix.shard }}
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  test:
+    # The required context, kept under its name: `main`'s ruleset requires `test`,
+    # and the suite itself now runs in `test-shard`. The `if:` is the shards' own,
+    # so a backend the classifier skips skips this too; a shard that failed does
+    # not skip it - `!cancelled()` still holds - and the first step refuses it.
+    needs: [changes, test-shard]
+    if: ${{ !cancelled() && needs.changes.outputs.full == 'true' && needs.changes.outputs.backend != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.15
+
+      - name: Install dependencies
+        run: uv sync --directory backend --dev
+
+      - name: Require every backend shard to have succeeded
+        env:
+          TESTS: ${{ needs.test-shard.result }}
+        run: make test-backend-jobs-check
+
+      - name: Download all three shards' coverage data
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: backend-cov-*
+          path: backend
+          merge-multiple: true
+
+      - name: Require all shards' coverage data
+        run: make test-backend-reports-check
+
+      - name: Apply the coverage gate to the complete suite
+        # The gate `make test` applies on a laptop, over the shards' data combined.
+        # `COV_REPORT=xml` is for Codecov below rather than for the gate.
+        run: make test-backend-merge COV_REPORT=xml
 
       - name: Retain backend coverage diagnostics
         if: ${{ !cancelled() }}

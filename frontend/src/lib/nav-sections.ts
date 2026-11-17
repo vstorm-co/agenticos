@@ -306,8 +306,15 @@ export function navSectionFor(
   return null;
 }
 
-/** Whether a nav entry shows for a caller, given their permission check. */
-export function navItemVisible(item: NavItem, can: (permission: Permission) => boolean): boolean {
+/** Navigation preferences only narrow the entries permitted by the role. */
+export function navItemVisible(
+  item: NavItem,
+  can: (permission: Permission) => boolean,
+  hiddenItems: readonly string[] = [],
+  permissionsLoaded = true,
+): boolean {
+  const recoveryEntry = ["dashboard", "organizations", "adminOverview"].includes(item.labelKey);
+  if (!recoveryEntry && (!permissionsLoaded || hiddenItems.includes(item.labelKey))) return false;
   if (item.permissions) return item.permissions.some(can);
   return !item.permission || can(item.permission);
 }

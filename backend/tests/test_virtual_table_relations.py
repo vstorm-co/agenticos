@@ -1,18 +1,26 @@
-"""Classification preserves every invalid value and never manufactures a valid edge."""
+"""Relationship classification and guards preserve edges, evidence and read limits."""
 
-from uuid import UUID
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
+from uuid import UUID, uuid4
 
 import pytest
 from pydantic import ValidationError
 
+from app.core.permissions import AuthContext
+from app.db.models.virtual_table import VirtualTable
 from app.db.models.virtual_table_relation import (
     VirtualTableLinkEvidence,
     VirtualTableRecordLink,
     VirtualTableRelation,
 )
+from app.repositories import virtual_table_relation as relation_repo
+from app.repositories import virtual_table_repo
 from app.repositories.virtual_table_relation import LinkEvidence, LinkPlan, plan_links
-from app.schemas.virtual_table import ColumnInput
+from app.schemas.virtual_table import ColumnDef, ColumnInput
 from app.schemas.virtual_table_relation import BacklinkQuery
+from app.services.virtual_tables.computed import LinkedTable
+from app.services.virtual_tables.records import _BoundWalk
 
 FIRST = UUID("00000000-0000-4000-8000-000000000001")
 SECOND = UUID("00000000-0000-4000-8000-000000000002")
@@ -83,3 +91,50 @@ def test_relationship_reprs_never_include_retained_sensitive_cell_values():
     assert str(SECOND) in repr(edge)
     assert "invalid_cell" in repr(evidence)
     assert "private content" not in repr(evidence)
+
+
+@pytest.mark.anyio
+async def test_relationship_schema_requires_an_existing_source_table():
+    db = AsyncMock()
+    db.scalar.return_value = None
+
+    with pytest.raises(ValueError, match="requires an existing source table"):
+        await relation_repo.sync_schema(db, table_id=FIRST, columns=[])
+
+    db.execute.assert_not_awaited()
+    db.flush.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("target_state", ["missing", "archived"])
+async def test_unavailable_canonical_destinations_add_no_read_cost(target_state, monkeypatch):
+    record_id, linked_id = uuid4(), uuid4()
+    link = ColumnDef(id=uuid4(), label="Related", type="link", link_table_id=SECOND)
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="member")
+    target = (
+        None
+        if target_state == "missing"
+        else VirtualTable(id=SECOND, archived_at=datetime.now(UTC))
+    )
+    monkeypatch.setattr(
+        relation_repo,
+        "linked_ids",
+        AsyncMock(return_value={record_id: {link.id: [str(linked_id)]}}),
+    )
+    monkeypatch.setattr(virtual_table_repo, "get_table", AsyncMock(return_value=target))
+    sizes = AsyncMock(return_value={linked_id: 100})
+    monkeypatch.setattr(virtual_table_repo, "get_record_sizes_by_ids", sizes)
+    walk = _BoundWalk(
+        MagicMock(),
+        ctx,
+        FIRST,
+        [link],
+        tables={SECOND: LinkedTable(table_id=SECOND, columns=[], named_by=None)},
+        targets={SECOND: frozenset()},
+        reached=frozenset({link.id}),
+        deadline=MagicMock(arm=AsyncMock()),
+    )
+
+    assert await walk.fitting([(record_id, 5)], room=5) == ([record_id], 5)
+    sizes.assert_not_awaited()

@@ -29,7 +29,7 @@ from tests.integration.virtual_table_support import cid, column, ctx_for, make_o
 
 pytestmark = pytest.mark.anyio
 
-_PATH = Path(__file__).parents[2] / "alembic" / "versions" / "0334_virtual_table_relations.py"
+_PATH = Path(__file__).parents[2] / "alembic" / "versions" / "0327_virtual_table_relations.py"
 _SPEC = importlib.util.spec_from_file_location("relations_migration", _PATH)
 assert _SPEC is not None and _SPEC.loader is not None
 _MIGRATION = importlib.util.module_from_spec(_SPEC)

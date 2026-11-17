@@ -1,7 +1,7 @@
 """Install the complete Tables policy family without activating enforcement.
 
-Revision ID: 0335_tables_tenant_rls
-Revises: 0334_virtual_table_relations
+Revision ID: 0328_tables_tenant_rls
+Revises: 0327_virtual_table_relations
 
 The operator activates ENABLE/FORCE only after upgrading and draining every API
 and worker, provisioning separate credentials and passing the read-only preflight.
@@ -17,8 +17,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision = "0335_tables_tenant_rls"
-down_revision = "0334_virtual_table_relations"
+revision = "0328_tables_tenant_rls"
+down_revision = "0327_virtual_table_relations"
 branch_labels = None
 depends_on = None
 

@@ -341,7 +341,25 @@ async def view_expression(
     policy = parse_policy(table.row_policy)
     if not policy_columns_valid(policy, columns):
         return false()
-    if policy is None or bypasses_policy(ctx, owner_user_id=table.owner_user_id):
+    return await policy_view_expression(
+        db, ctx, policy, columns, owner_user_id=table.owner_user_id, deadline=deadline
+    )
+
+
+async def policy_view_expression(
+    db: AsyncSession,
+    ctx: AuthContext,
+    policy: RowPolicy | None,
+    columns: list[ColumnDef],
+    *,
+    owner_user_id: UUID | None,
+    deadline: ReadDeadline | None = None,
+) -> ColumnElement[bool] | None:
+    """`view_expression` for a policy already parsed and checked against `columns`.
+
+    For a caller that holds the table's policy and owner, so the table is not read again.
+    """
+    if policy is None or bypasses_policy(ctx, owner_user_id=owner_user_id):
         return None
     subject = ctx.user_id
     if subject is None:

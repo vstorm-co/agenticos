@@ -120,8 +120,8 @@ Record the release commit, migration head, PostgreSQL major, credential role
 names, backup reference and linked CI run before scheduling the cutover.
 Require the exact release's migration cycle, model parity, permission regressions
 and coverage gates to pass. The expected dependency chain is
-`0332_merge_t3_pools_v1761`, `0333_room_threads` (#90),
-`0334_virtual_table_relations` (#101), then `0335_tables_tenant_rls` (#102),
+`0332_merge_t3_pools_v1761`, published `0333_room_threads` (#90),
+`0327_virtual_table_relations` (#101), then `0328_tables_tenant_rls` (#102),
 with one Alembic head. The unreleased policy revision was renumbered during
 recovery; its original source remains in history. Track the combined release
 and current verification in #111.

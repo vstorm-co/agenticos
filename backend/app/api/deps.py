@@ -405,6 +405,7 @@ FileUploadSvc = Annotated[FileUploadService, Depends(get_file_upload_service)]
 from app.repositories import member_repo
 from app.services.organization import OrganizationService
 from app.services.retention import RetentionService
+from app.services.role_navigation import RoleNavigationService
 from app.services.member import MemberService
 from app.services.invitation import InvitationService
 from app.services.invitation_staging import InvitationStagingService
@@ -425,6 +426,10 @@ def get_organization_service(db: DBSession) -> OrganizationService:
     return OrganizationService(db)
 
 
+def get_role_navigation_service(db: DBSession) -> RoleNavigationService:
+    return RoleNavigationService(db)
+
+
 def get_member_service(db: DBSession) -> MemberService:
     """Create MemberService instance with database session."""
     return MemberService(db)
@@ -442,6 +447,7 @@ def get_invitation_staging_service(redis: Redis) -> InvitationStagingService:
 
 OrganizationSvc = Annotated[OrganizationService, Depends(get_organization_service)]
 RetentionSvc = Annotated[RetentionService, Depends(get_retention_service)]
+RoleNavigationSvc = Annotated[RoleNavigationService, Depends(get_role_navigation_service)]
 MemberSvc = Annotated[MemberService, Depends(get_member_service)]
 InvitationSvc = Annotated[InvitationService, Depends(get_invitation_service)]
 InvitationStagingSvc = Annotated[InvitationStagingService, Depends(get_invitation_staging_service)]

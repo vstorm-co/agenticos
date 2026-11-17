@@ -2,7 +2,7 @@
 source_sha: "7cb876b5ef26"
 ---
 
-<!-- source_sha: 38cf8cd6bd00 -->
+<!-- source_sha: cd2b76cc88df -->
 
 # Zu AgenticOS beitragen
 
@@ -114,9 +114,15 @@ verschickt.
 - Bugs kommen mit einem Regressionstest, der ohne den Fix fehlschlägt.
 - Schreiben Sie in die Beschreibung, was Sie entschieden haben und warum. Das
   Was zeigt der Code.
-- Die schnelle CI läuft für jeden Pull Request. Die vollständige CI erfordert
-  das Label `full-ci`, einen Pull-Request-Quellbranch nach dem Muster
-  `sync/upstream-*` oder eine Veröffentlichung (Push eines `v*`-Tags).
+- Für Pull Requests läuft keine CI. Führe vor dem Push die schnelle Prüfung
+  aus (Lint, Typprüfung, betroffene Tests) und füge Befehl und Ausgabe in den
+  Pull Request ein. Jeder Merge nach `t3` und jedes `v*`-Tag startet die
+  vollständige CI; schlägt ein `t3`-Lauf fehl, mache ihn vor dem nächsten Merge
+  rückgängig oder behebe ihn. Ein Produktions-Deployment setzt einen grünen
+  Lauf voraus.
+- Ist T3 nicht verfügbar, versieh den Pull Request stattdessen mit dem Label
+  `quick-check`. Der Workflow „Quick check“ führt dann dieselbe Prüfung in der
+  CI aus, und der Pull Request wird gemergt, sobald sie besteht.
 
 ## Sicherheit
 

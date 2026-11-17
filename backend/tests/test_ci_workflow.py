@@ -59,55 +59,66 @@ def triggers(workflow: dict[str, Any]) -> dict[str, Any]:
     return block
 
 
-class TestEveryPullRequestIsChecked:
-    """A pull request that runs nothing must not be possible to open."""
+class TestPullRequestsRunNoCI:
+    """The PR quick check runs in the T3 session and is pasted into the PR (2026-11-16)."""
 
-    def test_the_pull_request_trigger_matches_whatever_the_base_is(
-        self, triggers: dict[str, Any]
-    ) -> None:
-        assert "pull_request" in triggers, "CI no longer runs on pull requests at all"
-        event = triggers["pull_request"]
-        filters = sorted(
-            set(event or {}) & {"branches", "branches-ignore", "paths", "paths-ignore"}
-        )
-        assert not filters, (
-            f"the `pull_request` trigger filters on {filters}. A `branches` filter matches "
-            "the base, so a pull request stacked on a feature branch would run no jobs and "
-            "report an empty checks list rather than a red one - #359. A `paths` filter is "
-            "worse: the required checks never report and the merge button stays grey."
+    def test_pull_requests_trigger_nothing(self, triggers: dict[str, Any]) -> None:
+        assert "pull_request" not in triggers, (
+            "CI runs after merge and on release tags only; the lead reads the quick "
+            "check output pasted into each pull request before merging."
         )
 
-    def test_only_documentation_pushes_may_be_filtered_by_path(
-        self, triggers: dict[str, Any]
-    ) -> None:
-        """The fast/full CI policy skips docs-only pushes, while every PR still reports checks.
+    def test_no_trigger_is_filtered_by_path(self, triggers: dict[str, Any]) -> None:
+        """No trigger may carry a path filter.
 
-        Keep the exception limited to the documented push paths. A path filter on
-        pull requests would hide their required contexts, including stacked PRs.
+        A path filter on pull requests hides their required contexts, including stacked
+        PRs. On pushes, docs-only merges are classified by the `changes` job instead,
+        against the last successful `t3` run, so a cancelled run's commits stay covered.
         """
         filtered = {
             event: config
             for event, config in triggers.items()
             if {"paths", "paths-ignore"} & set(config or {})
         }
-        assert set(filtered) == {"push"}, (
-            f"path filters appear on {sorted(filtered)}; only documentation-only pushes may "
-            "be skipped. Pull requests must report their checks for every base and path."
-        )
-        push = filtered["push"]
-        assert "paths" not in push, "Push CI must not be restricted to an allow-list of paths."
-        assert set(push["paths-ignore"]) == {"docs/**", "mkdocs.yml", "*.md"}, (
-            "The push exception must ignore only the documented documentation paths."
-        )
+        assert not filtered, f"path filters appear on {sorted(filtered)}."
 
-    def test_labeling_a_pull_request_rechecks_the_full_ci_choice(
-        self, triggers: dict[str, Any]
+    def test_heavy_suites_run_after_every_merge_and_release(
+        self, triggers: dict[str, Any], workflow: dict[str, Any]
     ) -> None:
-        """Adding full-ci to an existing PR must schedule its selected checks."""
-        required = {"opened", "synchronize", "reopened", "labeled"}
-        assert required <= set(triggers["pull_request"].get("types", [])), (
-            "PR creation, updates, reopening and labeling must all trigger CI so full-ci "
-            "can opt an existing PR into the complete gates."
+        """Every `t3` push and `v*` tag runs the full suite."""
+        assert triggers["push"]["branches"] == ["t3"]
+        assert triggers["push"]["tags"] == ["v*"]
+        assert workflow["jobs"]["changes"]["outputs"]["full"] == (
+            "${{ github.event_name == 'push' }}"
+        ), "The heavy suites run on pushes (merges and tags), never on pull requests."
+
+    def test_a_push_classifies_against_the_last_successful_t3_run(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        """With cancel-in-progress, `github.event.before` may be a commit never tested."""
+        step = next(
+            step for step in workflow["jobs"]["changes"]["steps"] if step.get("id") == "pushed"
+        )
+        assert "status=success" in step["run"]
+        assert "github.event.before" not in step["run"]
+        assert "merge-base --is-ancestor" in step["run"]
+
+
+class TestWorkerBackedJourneys:
+    """A started worker must enable the journeys' durable-completion assertions."""
+
+    def test_the_started_worker_enables_completion_assertions(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        job = workflow["jobs"]["e2e-shards"]
+        steps = job["steps"]
+        worker = next(i for i, step in enumerate(steps) if "-m app.worker" in step.get("run", ""))
+        run = next(i for i, step in enumerate(steps) if "test:e2e" in step.get("run", ""))
+        assert worker < run
+        environment = {**workflow.get("env", {}), **job.get("env", {}), **steps[run].get("env", {})}
+        assert environment.get("E2E_WORKER") == "1", (
+            "The CI worker is running, but E2E_WORKER=1 is absent: workflow journeys skip "
+            "their completion assertions and teardown can cancel work still being settled."
         )
 
 

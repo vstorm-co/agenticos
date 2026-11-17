@@ -691,6 +691,43 @@ describe("room thread reconciliation", () => {
     );
   });
 
+  it("keeps a thread's parked local control until its save acknowledgement without touching other roots", () => {
+    const question = reply("question", "root-a", { role: "user" });
+    const local = reply("local-answer", "root-a", {
+      isTemporaryId: true,
+      content: "Confirm this action",
+      runWaitingFor: "approval",
+    });
+    const other = reply("other-thread", "root-b");
+    store().rereadMessages([], identity);
+    store().addMessage(question);
+    store().addMessage(other);
+    store().addMessage(local);
+    store().rereadRoomThread(
+      [question, reply("saved-answer", "root-a", { content: local.content })],
+      "root-a",
+      identity,
+    );
+    expect(store().messages.find((row) => row.id === "other-thread")).toBe(other);
+    expect(store().messages.filter((row) => row.threadRootMessageId === "root-a")).toEqual([
+      expect.objectContaining({ id: "question" }),
+      expect.objectContaining({
+        id: "local-answer",
+        persistedId: "saved-answer",
+        runWaitingFor: "approval",
+      }),
+    ]);
+    store().updateMessage("local-answer", (row) => ({
+      ...row,
+      id: "saved-answer",
+      isTemporaryId: false,
+    }));
+    expect(store().messages.filter((row) => row.threadRootMessageId === "root-a")).toHaveLength(2);
+    expect(store().messages.find((row) => row.id === "saved-answer")?.runWaitingFor).toBe(
+      "approval",
+    );
+  });
+
   it.each([
     null,
     { ...identity, conversationId: "other" },

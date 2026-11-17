@@ -108,6 +108,7 @@ from app.services.virtual_tables.row_policy import (
     may_edit_row,
     may_view_row,
     parse_policy,
+    policy_view_expression,
     view_expression,
     visible_project_ids,
 )
@@ -630,24 +631,25 @@ class _BoundWalk:
             } - self._sizes[table_id].keys()
             if not unmeasured:
                 continue
-            await self._deadline.arm(self._db)
-            target = await virtual_table_repo.get_table(
-                self._db, table_id, organization_id=self._ctx.organization_id
+            # `linked` is the table as `linked_table_access` already read and checked it
+            # for this binding, policy and owner included, so it is not read again.
+            visible = await policy_view_expression(
+                self._db,
+                self._ctx,
+                linked.row_policy,
+                linked.columns,
+                owner_user_id=linked.owner_user_id,
+                deadline=self._deadline,
             )
-            found = {}
-            if target is not None and target.archived_at is None:
-                visible = await view_expression(
-                    self._db, self._ctx, target, linked.columns, deadline=self._deadline
-                )
-                await self._deadline.arm(self._db)
-                found = await virtual_table_repo.get_record_sizes_by_ids(
-                    self._db,
-                    unmeasured,
-                    table_id=table_id,
-                    organization_id=self._ctx.organization_id,
-                    keys=linked_cell_keys(linked, self._targets[table_id]),
-                    extra=visible,
-                )
+            await self._deadline.arm(self._db)
+            found = await virtual_table_repo.get_record_sizes_by_ids(
+                self._db,
+                unmeasured,
+                table_id=table_id,
+                organization_id=self._ctx.organization_id,
+                keys=linked_cell_keys(linked, self._targets[table_id]),
+                extra=visible,
+            )
             # One deleted since costs nothing: it is not there to load.
             self._sizes[table_id].update(
                 {linked_id: found.get(linked_id, 0) for linked_id in unmeasured}

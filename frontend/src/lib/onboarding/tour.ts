@@ -1429,6 +1429,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   { id: "org-members", page: ORG_MEMBERS, target: "org-members", activate: "org-tab-members" },
+  { id: "org-role-navigation", page: ORG_ROLES, target: "org-role-navigation" },
   { id: "org-roles", page: ORG_ROLES, target: "org-roles" },
   {
     id: "org-retention",

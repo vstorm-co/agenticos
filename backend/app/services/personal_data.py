@@ -189,6 +189,7 @@ _PROFILE_FIELDS = (
     # What every agent is told about them, and how the console speaks to them
     # (#2301): their own words and choices, so theirs to take away.
     "locale",
+    "appearance",
     "time_zone",
     "job_title",
     "about",

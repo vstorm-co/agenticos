@@ -887,6 +887,7 @@ include = [
     "app/services/model_outputs.py",
     "app/services/organization_secret.py",
     "app/services/secret_requests.py",
+    "app/services/role_navigation.py",
     "app/services/openai_codex.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
     # decided by filtering a data file against what the platform can actually
@@ -983,6 +984,7 @@ include = [
     "app/repositories/intercepted_tool_call.py",
     "app/repositories/dashboard_layout.py",
     "app/services/dashboard_layout.py",
+    "app/services/user_appearance.py",
     "app/schemas/onboarding.py",
     "app/repositories/onboarding.py",
     "app/services/onboarding.py",
@@ -1842,6 +1844,7 @@ include = [
     "app/services/model_outputs.py",
     "app/services/organization_secret.py",
     "app/services/secret_requests.py",
+    "app/services/role_navigation.py",
     "app/services/openai_codex.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
     # decided by filtering a data file against what the platform can actually
@@ -1938,6 +1941,7 @@ include = [
     "app/repositories/intercepted_tool_call.py",
     "app/repositories/dashboard_layout.py",
     "app/services/dashboard_layout.py",
+    "app/services/user_appearance.py",
     "app/schemas/onboarding.py",
     "app/repositories/onboarding.py",
     "app/services/onboarding.py",

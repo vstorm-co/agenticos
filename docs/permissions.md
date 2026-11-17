@@ -633,16 +633,71 @@ rewriting what they ran as. See
 What such a run is allowed to do comes from the **exposure** that admitted it,
 created by somebody who did have a role.
 
+## Sidebar visibility
+
+### What a Member sees by default
+
+A Member sees Dashboard, Chat, Inbox, Agent Messages, Apps, Agents, Workflows,
+Routines, Projects, Knowledge Bases, Tables, Skills, Context, Documents, Background
+Work, Connectors, Organizations and Groups. Apps and Projects show only permitted
+resources. Activity and Failure Learning require `runs:view`; the deployment
+Admin area requires `is_app_admin`, which an organization role does not grant.
+
+The Member role reaches its own resources and those visible to the organization
+or explicitly shared with the member or their groups. It permits editing its own
+working resources and running permitted agents and workflows. It does not give
+organization-wide access to private resources, member administration, budgets or
+audit logs. An explicit resource grant can widen access as described above.
+
+### Configure navigation for a role
+
+Open **Organizations → Members → Users & Roles**, then **Sidebar visibility**.
+The six built-in roles and their permission definitions remain fixed. This editor
+configures each role's navigation in the selected organization.
+
+1. Select a role to inspect its current navigation.
+2. Choose which configurable entries appear. Entries unavailable to the role's
+   permissions remain unavailable even when shown.
+3. Review **Sidebar preview** before saving.
+4. Select **Save sidebar** to apply the changes.
+5. To restore the role's navigation, select **Reset to defaults**, then
+   **Save sidebar**. **Discard changes** leaves the saved policy unchanged.
+
+An Owner can edit Admin and the lower roles. An Admin can edit Builder, Operator,
+Member and Viewer, but cannot change its own level or Owner. Other members can
+preview policies without editing them. Changes require `roles:manage` and are
+recorded in the organization's audit trail.
+
+Dashboard and Organizations cannot be hidden, and the deployment Admin entry
+keeps its existing superadmin gate. These recovery paths remain available.
+Owner navigation is unchanged, and platform superadmins are unaffected by the
+visibility policy.
+
+### Visibility and access
+
+The saved choices filter the desktop and mobile sidebar, pinned Apps and
+Projects, and command-palette navigation, including entity shortcuts and the new
+chat action. An active window refreshes permissions every 60 seconds and
+refetches stale permissions when it regains focus.
+
+Hiding an entry does not revoke API permissions, remove resource grants or block
+a direct URL. Showing an entry grants no additional access. Use role assignment
+and resource sharing to control access; use sidebar visibility to simplify the
+navigation. This setting does not create custom roles or edit their permissions.
+
+
 ## What the frontend reads
 
 | Endpoint | Answers |
 | --- | --- |
-| `GET /me/permissions` | the caller's role, `is_app_admin`, and every permission with its scope |
+| `GET /me/permissions` | the caller's role, `is_app_admin`, every permission with its scope, and `hidden_navigation_items` for that role |
 | `GET /roles/catalog` | the whole catalog and what each role bundles |
+| `GET /roles/navigation` | the organization's `hidden_items` by role, `configurable_items`, and the caller's `editable_roles` |
+| `PATCH /roles/navigation/{role}` | replace one role's `hidden_items`; requires `roles:manage` and authority over that role |
 
-Both are **a convenience for the UI and nothing more**. The server re-checks every
-permission on the endpoint that performs the action, so a client that ignores
-these APIs gains nothing.
+The read responses guide the UI; they do not authorize an action. The server
+re-checks every permission on the endpoint that performs it. Updating navigation
+changes presentation only, so a client that ignores it gains no additional access.
 
 ## Recap
 

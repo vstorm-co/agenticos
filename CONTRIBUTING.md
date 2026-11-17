@@ -96,8 +96,14 @@ ends up sending email unattended.
   neither.
 - Bugs ship with a regression test that fails without the fix.
 - Say what you decided and why in the description. The code shows the what.
-- Fast CI runs on every pull request. Full CI requires the `full-ci` label, a
-  `sync/upstream-*` pull request head, or a release point (`v*` tag push).
+- No CI runs on pull requests. Before pushing, run the quick check (lint, type
+  checks, related tests) and paste its command and output into the pull
+  request. Every merge to `t3` and every `v*` tag runs the full suite; when a
+  `t3` run fails, revert or fix it before the next merge. A production deploy
+  needs it green.
+- When T3 is down, add the `quick-check` label to the pull request instead.
+  The Quick check workflow then runs the same check in CI, and the pull
+  request merges once it passes.
 
 ## Security
 

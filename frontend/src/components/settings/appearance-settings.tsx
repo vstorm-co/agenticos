@@ -1,25 +1,32 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import { ChoiceGroup } from "@/components/settings/choice-group";
 import { LookPicker } from "@/components/settings/look-picker";
+import { LOOK_PREVIEW } from "@/components/settings/look-preview";
 import { SectionCard } from "@/components/settings/settings-section";
-import { useMounted } from "@/hooks/use-mounted";
-import { useReducedMotion } from "@/hooks/use-reduced-motion";
+import { Button } from "@/components/ui/button";
+import { useUserAppearance } from "@/hooks/use-user-appearance";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
-import { useMotionStore, type MotionPreference } from "@/stores/motion-store";
-import { useThemeStore, type Theme } from "@/stores/theme-store";
-import { useVoiceGlowStore, type VoiceGlowStyle } from "@/stores/voice-glow-store";
-import { useWorkflowNodeStyleStore, type NodeStyle } from "@/stores/workflow-node-style-store";
+import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
+import { getErrorMessage } from "@/lib/api-error";
+import {
+  ACCENTS,
+  ACCENT_HUES,
+  APPEARANCE_RADII,
+  RADII,
+  TEXT_SIZES,
+  type UserAppearance,
+} from "@/lib/user-appearance";
 
-const THEMES: readonly Theme[] = ["light", "dark", "system"];
-const GLOW_STYLES: readonly VoiceGlowStyle[] = ["vivid", "subtle", "off"];
-const MOTIONS: readonly MotionPreference[] = ["system", "reduce", "full"];
-const NODE_STYLES: readonly NodeStyle[] = ["colour", "simple"];
+const THEMES = ["light", "dark", "system"] as const;
+const GLOW_STYLES = ["vivid", "subtle", "off"] as const;
+const MOTIONS = ["system", "reduce", "full"] as const;
+const NODE_STYLES = ["colour", "simple"] as const;
 
-/** One labelled choice in the card: a name, the group, and what it means. */
 function Setting({ id, label, children }: { id: string; label: string; children: ReactNode }) {
   return (
     <div>
@@ -31,85 +38,196 @@ function Setting({ id, label, children }: { id: string; label: string; children:
   );
 }
 
-/**
- * How the console looks and moves for this person: the theme, the style, the
- * voice glow, Motion preference and how workflow steps are drawn, side by side.
- *
- * All four are kept in this browser rather than on the account, like the
- * theme always was, so each applies the moment it is picked and there is
- * nothing to save. Gated on `useMounted` for the reason the account menu's
- * Appearance submenu is: the stored values are unknown on the server, so
- * before hydration nothing is shown as checked.
- *
- * Under reduced motion the glow is not drawn at all, so its choice shows Off,
- * offers nothing to pick, and says why - while the stored style survives for
- * when motion comes back.
- */
-export function AppearanceSettings() {
+/** Preview is confined to a sample; only an acknowledged save changes the console. */
+function AppearanceEditor({
+  saved,
+  account,
+}: {
+  saved: UserAppearance;
+  account: ReturnType<typeof useUserAppearance>;
+}) {
   const t = useTranslations("appearance");
   const tTheme = useTranslations("theme");
   const tGlow = useTranslations("voiceGlow");
-  const mounted = useMounted();
-  const { theme, setTheme, look, setLook } = useThemeStore();
-  const resolved = useResolvedTheme();
-  const { style, setStyle } = useVoiceGlowStore();
-  const { motion, setMotion } = useMotionStore();
-  const { style: nodeStyle, setStyle: setNodeStyle } = useWorkflowNodeStyleStore();
-  const reduced = useReducedMotion();
-  const glow: VoiceGlowStyle = reduced ? "off" : style;
+  const tErrors = useTranslations("errors");
+  const [changes, setChanges] = useState<Partial<UserAppearance>>({});
+  const draft = { ...saved, ...changes };
+  const resolved = useResolvedTheme(draft.theme);
+  const dark = resolved === "dark";
+  const [column, page, ink] = LOOK_PREVIEW[draft.look][dark ? "dark" : "light"];
+  const dirty = Object.entries(changes).some(
+    ([key, value]) => saved[key as keyof UserAppearance] !== value,
+  );
+  const choose = <K extends keyof UserAppearance>(key: K, value: UserAppearance[K]) =>
+    setChanges((previous) => ({ ...previous, [key]: value }));
+  const discard = () => setChanges({});
+  const save = async () => {
+    try {
+      await account.save(changes);
+      setChanges({});
+      toast.success(t("saved"));
+      return true;
+    } catch (error) {
+      toast.error(getErrorMessage(error, tErrors));
+      return false;
+    }
+  };
+  const reset = async () => {
+    try {
+      await account.reset();
+      setChanges({});
+      toast.success(t("resetDone"));
+    } catch (error) {
+      toast.error(getErrorMessage(error, tErrors));
+    }
+  };
+  useUnsavedChanges("account-appearance", { dirty, save, discard });
 
+  return (
+    <div className="space-y-5">
+      <fieldset disabled={account.pending} className="space-y-5 disabled:opacity-70">
+        <Setting id="appearance-theme" label={t("theme")}>
+          <ChoiceGroup
+            labelledBy="appearance-theme"
+            value={draft.theme}
+            options={THEMES.map((value) => ({ value, label: tTheme(value) }))}
+            onChange={(value) => choose("theme", value)}
+          />
+        </Setting>
+        <Setting id="appearance-look" label={t("look")}>
+          <LookPicker
+            labelledBy="appearance-look"
+            value={draft.look}
+            dark={dark}
+            onChange={(value) => choose("look", value)}
+          />
+          <p className="text-muted-foreground mt-1.5 text-xs">{t("lookHint")}</p>
+        </Setting>
+        <Setting id="appearance-accent" label={t("accent")}>
+          <ChoiceGroup
+            labelledBy="appearance-accent"
+            value={draft.accent}
+            options={ACCENTS.map((value) => ({ value, label: t(`accents.${value}`) }))}
+            onChange={(value) => choose("accent", value)}
+          />
+        </Setting>
+        <Setting id="appearance-radius" label={t("radius")}>
+          <ChoiceGroup
+            labelledBy="appearance-radius"
+            value={draft.radius}
+            options={RADII.map((value) => ({ value, label: t(`radii.${value}`) }))}
+            onChange={(value) => choose("radius", value)}
+          />
+        </Setting>
+        <Setting id="appearance-text-size" label={t("textSize")}>
+          <ChoiceGroup
+            labelledBy="appearance-text-size"
+            value={draft.text_size}
+            options={TEXT_SIZES.map((value) => ({ value, label: t(`textSizes.${value}`) }))}
+            onChange={(value) => choose("text_size", value)}
+          />
+        </Setting>
+        <Setting id="appearance-voice-glow" label={tGlow("title")}>
+          <ChoiceGroup
+            labelledBy="appearance-voice-glow"
+            value={draft.voice_glow}
+            options={GLOW_STYLES.map((value) => ({ value, label: tGlow(value) }))}
+            onChange={(value) => choose("voice_glow", value)}
+          />
+          <p className="text-muted-foreground mt-1.5 text-xs">
+            {t("voiceGlowHint")} · {tGlow("reducedMotion")}
+          </p>
+        </Setting>
+        <Setting id="appearance-motion" label={t("motion")}>
+          <ChoiceGroup
+            labelledBy="appearance-motion"
+            value={draft.motion}
+            options={MOTIONS.map((value) => ({ value, label: t(value) }))}
+            onChange={(value) => choose("motion", value)}
+          />
+          <p className="text-muted-foreground mt-1.5 text-xs">{t("motionHint")}</p>
+        </Setting>
+        <Setting id="appearance-workflow-nodes" label={t("workflowNodes")}>
+          <ChoiceGroup
+            labelledBy="appearance-workflow-nodes"
+            value={draft.workflow_nodes}
+            options={NODE_STYLES.map((value) => ({ value, label: t(value) }))}
+            onChange={(value) => choose("workflow_nodes", value)}
+          />
+          <p className="text-muted-foreground mt-1.5 text-xs">{t("workflowNodesHint")}</p>
+        </Setting>
+      </fieldset>
+
+      <section
+        aria-label={t("preview")}
+        className="overflow-hidden border"
+        style={{
+          borderRadius: APPEARANCE_RADII[draft.radius],
+          background: page,
+          color: ink,
+          fontSize: draft.text_size === "large" ? "1.125rem" : "1rem",
+        }}
+      >
+        <div className="px-4 py-3" style={{ background: column }}>
+          {t("preview")}
+        </div>
+        <div className="space-y-3 p-4">
+          <p className="font-semibold">{t("previewTitle")}</p>
+          <p>{t("previewText")}</p>
+          <span
+            className="inline-block px-4 py-2"
+            style={{
+              borderRadius: APPEARANCE_RADII[draft.radius],
+              // i18n-exempt: CSS colour coordinates for the preview.
+              background: `oklch(48% ${draft.accent === "default" ? 0 : 0.16} ${ACCENT_HUES[draft.accent]})`,
+              color: "white",
+            }}
+          >
+            {t("previewAction")}
+          </span>
+        </div>
+      </section>
+      <p className="text-muted-foreground text-xs" role="status">
+        {t("previewHint")}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button disabled={!dirty || account.pending} onClick={() => void save()}>
+          {t("apply")}
+        </Button>
+        <Button variant="outline" disabled={!dirty || account.pending} onClick={discard}>
+          {t("discard")}
+        </Button>
+        <Button variant="ghost" disabled={account.pending} onClick={() => void reset()}>
+          {t("reset")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function AppearanceSettings() {
+  const t = useTranslations("appearance");
+  const tTheme = useTranslations("theme");
+  const account = useUserAppearance();
   return (
     <div data-tour="settings-appearance">
       <SectionCard title={tTheme("appearance")} description={t("description")}>
-        <div className="space-y-5">
-          <Setting id="appearance-theme" label={t("theme")}>
-            <ChoiceGroup
-              labelledBy="appearance-theme"
-              value={mounted ? theme : undefined}
-              options={THEMES.map((value) => ({ value, label: tTheme(value) }))}
-              onChange={setTheme}
-            />
-          </Setting>
-          <Setting id="appearance-look" label={t("look")}>
-            <LookPicker
-              labelledBy="appearance-look"
-              value={mounted ? look : undefined}
-              dark={resolved === "dark"}
-              onChange={setLook}
-            />
-            <p className="text-muted-foreground mt-1.5 text-xs">{t("lookHint")}</p>
-          </Setting>
-          <Setting id="appearance-voice-glow" label={tGlow("title")}>
-            <ChoiceGroup
-              labelledBy="appearance-voice-glow"
-              value={mounted ? glow : undefined}
-              options={GLOW_STYLES.map((value) => ({ value, label: tGlow(value) }))}
-              onChange={setStyle}
-              disabled={reduced}
-            />
-            <p className="text-muted-foreground mt-1.5 text-xs">
-              {reduced ? tGlow("reducedMotion") : t("voiceGlowHint")}
-            </p>
-          </Setting>
-          <Setting id="appearance-motion" label={t("motion")}>
-            <ChoiceGroup
-              labelledBy="appearance-motion"
-              value={mounted ? motion : undefined}
-              options={MOTIONS.map((value) => ({ value, label: t(value) }))}
-              onChange={setMotion}
-            />
-            <p className="text-muted-foreground mt-1.5 text-xs">{t("motionHint")}</p>
-          </Setting>
-          <Setting id="appearance-workflow-nodes" label={t("workflowNodes")}>
-            <ChoiceGroup
-              labelledBy="appearance-workflow-nodes"
-              value={mounted ? nodeStyle : undefined}
-              options={NODE_STYLES.map((value) => ({ value, label: t(value) }))}
-              onChange={setNodeStyle}
-            />
-            <p className="text-muted-foreground mt-1.5 text-xs">{t("workflowNodesHint")}</p>
-          </Setting>
-        </div>
+        {account.preferences ? (
+          <AppearanceEditor key={account.owner} saved={account.preferences} account={account} />
+        ) : account.error ? (
+          <div role="alert" className="space-y-3">
+            <p>{t("loadError")}</p>
+            <Button variant="outline" onClick={() => void account.refetch()}>
+              {t("retry")}
+            </Button>
+          </div>
+        ) : (
+          <div className="min-h-60 space-y-4" aria-busy="true">
+            <p role="status">{t("loading")}</p>
+            <div className="bg-muted h-9 w-56 animate-pulse rounded-md" />
+            <div className="bg-muted h-24 animate-pulse rounded-md" />
+          </div>
+        )}
       </SectionCard>
     </div>
   );

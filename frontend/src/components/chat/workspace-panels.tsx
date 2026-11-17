@@ -48,6 +48,8 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
   const surface = useBrowserPanelStore((state) => state.surface);
   const open = useBrowserPanelStore((state) => state.openSurface);
   const close = useBrowserPanelStore((state) => state.close);
+  // Room responders are selected independently of the personal-chat agent.
+  const settingsAgentId = props.teamRoom ? null : props.agentId;
   const [filesSlot, setFilesSlot] = useState<HTMLSpanElement | null>(null);
   const panelPrefix = useId();
   const panelIds = {
@@ -84,7 +86,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
       before.organization !== organization ||
       before.agent !== props.agentId ||
       (before.conversation !== props.conversationId && !adopted) ||
-      (surface === "settings" && props.agentId === null)
+      (surface === "settings" && settingsAgentId === null)
     )
       close();
   }, [
@@ -95,6 +97,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
     props.busy,
     props.loading,
     surface,
+    settingsAgentId,
     close,
   ]);
   const access: WorkspaceStartAccess = {
@@ -131,6 +134,9 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
       />
       {surface !== "browser" && <div id={panelIds.browser} hidden aria-hidden="true" />}
       {surface !== "computer" && <div id={panelIds.computer} hidden aria-hidden="true" />}
+      {settingsAgentId !== null && surface !== "settings" && (
+        <div id={panelIds.settings} hidden aria-hidden="true" />
+      )}
       <WorkspaceFiles
         key={`${account}:${organization}:${props.agentId}:${props.conversationId}`}
         conversationId={props.conversationId}
@@ -141,11 +147,11 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
         onOpenChange={(shown) => (shown ? open("files") : close())}
         responsive
       />
-      {props.agentId !== null && (
+      {settingsAgentId !== null && (
         <ChatAgentSettingsPanel
-          key={`${account}:${organization}:${props.agentId}`}
+          key={`${account}:${organization}:${settingsAgentId}`}
           panelId={panelIds.settings}
-          agentId={props.agentId}
+          agentId={settingsAgentId}
           open={surface === "settings"}
           readOnly={props.readOnly || props.loading}
           onClose={close}
@@ -154,7 +160,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
       {!props.compact && (
         <WorkspaceRail
           filesSlot={setFilesSlot}
-          hasAgent={props.agentId !== null}
+          hasAgent={settingsAgentId !== null}
           panelIds={panelIds}
         />
       )}

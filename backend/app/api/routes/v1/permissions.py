@@ -7,23 +7,25 @@ performs the action, so a client that ignores this API gains nothing.
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.api.deps import Auth
+from app.api.deps import Auth, RoleNavigationSvc, require
 from app.api.public_api import PUBLIC
-from app.core.permissions import RESOURCE_PERMS, ROLE_PERMS, Perm
+from app.core.permissions import RESOURCE_PERMS, ROLE_PERMS, OrgRoleName, Perm
 from app.schemas.permissions import (
     MyPermissions,
     PermissionEntry,
     RoleCatalog,
     RoleDefinition,
+    RoleNavigationRead,
+    RoleNavigationUpdate,
 )
 
 router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get("/me/permissions", response_model=MyPermissions)
-async def get_my_permissions(ctx: Auth) -> Any:
+async def get_my_permissions(ctx: Auth, service: RoleNavigationSvc) -> Any:
     """Effective permissions for the caller in the active organization."""
     return MyPermissions(
         organization_id=str(ctx.organization_id),
@@ -34,6 +36,7 @@ async def get_my_permissions(ctx: Auth) -> Any:
             PermissionEntry(permission=perm.value, scope=scope.value)
             for perm, scope in sorted(ctx.permissions.items(), key=lambda kv: kv[0].value)
         ],
+        hidden_navigation_items=await service.for_caller(ctx),
     )
 
 
@@ -59,3 +62,25 @@ async def get_role_catalog(ctx: Auth) -> Any:
             for role, perms in ROLE_PERMS.items()
         ],
     )
+
+
+@router.get("/roles/navigation", response_model=RoleNavigationRead)
+async def get_role_navigation(ctx: Auth, service: RoleNavigationSvc) -> Any:
+    """Sidebar preferences for the caller's active organization, readable by every member."""
+    return await service.read(ctx)
+
+
+@router.patch(
+    "/roles/navigation/{role}",
+    response_model=RoleNavigationRead,
+    dependencies=[Depends(require(Perm.ROLES_MANAGE))],
+)
+async def update_role_navigation(
+    role: OrgRoleName, data: RoleNavigationUpdate, ctx: Auth, service: RoleNavigationSvc
+) -> Any:
+    """Replace a lower role's hidden sidebar entries in the active organization.
+
+    Empty hidden_items restores the default navigation. This does not change
+    permissions or grants, and an Owner's navigation cannot be hidden.
+    """
+    return await service.update(ctx, role, data)

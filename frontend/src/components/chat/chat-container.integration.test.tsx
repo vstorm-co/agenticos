@@ -29,6 +29,7 @@ import { useChatControlsStore, currentChatControlScope } from "@/stores/chat-con
 import {
   useAgentSelectionStore,
   useAuthStore,
+  useBrowserPanelStore,
   useChatStore,
   useWorkingStore,
   useComposerIntentStore,
@@ -330,6 +331,9 @@ beforeEach(() => {
   useComposerIntentStore.setState({ intent: null, shared: null });
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
+  // Drafts and the selected workspace pane intentionally survive component unmounts.
+  useChatStore.getState().clearRoomDrafts();
+  useBrowserPanelStore.getState().close();
   voiceCall.call = initialCall;
 });
 
@@ -654,6 +658,25 @@ describe("the chat container - project room workspace", () => {
     expect(files).toHaveFocus();
     expect(composer).toHaveValue("An unsent room draft");
     expect(composer).toBeEnabled();
+  });
+
+  it("keeps personal-agent settings out of team rooms", async () => {
+    savedProjectRoom(true);
+    useAgentSelectionStore.setState({ selectedAgentId: "personal-agent" });
+    mount();
+    const composer = await screen.findByRole("textbox", { name: "Message to the team" });
+    await userEvent.type(composer, "Keep this room draft");
+
+    expect(useAgentSelectionStore.getState().selectedAgentId).toBe("personal-agent");
+    expect(screen.getByRole("button", { name: "Open Browser" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Open Computer" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: /^Show the files/ })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Open agent settings" })).toBeNull();
+
+    act(() => useBrowserPanelStore.getState().openSurface("settings"));
+    expect(useBrowserPanelStore.getState().surface).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Agent settings" })).toBeNull();
+    expect(composer).toHaveValue("Keep this room draft");
   });
 
   it.each([true, false])(

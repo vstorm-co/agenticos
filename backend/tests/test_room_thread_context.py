@@ -45,6 +45,10 @@ def no_external_account_state(monkeypatch: pytest.MonkeyPatch) -> None:
         AsyncMock(return_value=[]),
     )
     monkeypatch.setattr(
+        "app.services.channel_actions.agent_exposure_repo.list_for_agent",
+        AsyncMock(return_value=[]),
+    )
+    monkeypatch.setattr(
         "app.services.agent_runner.group_repo.names_for_member", AsyncMock(return_value=[])
     )
     monkeypatch.setattr(

@@ -6263,6 +6263,10 @@
         "title": "Regeln für den Zeilenzugriff",
         "body": "Wählen Sie, wer Zeilen lesen darf. Öffnen Sie dann eine Zeile, um einer Person oder Gruppe Lesen oder Schreiben zu geben."
       },
+      "org-role-navigation": {
+        "body": "Sehen Sie sich die Navigation einer Rolle in der Vorschau an und wählen Sie ihre sichtbaren Links. Speichern Sie Änderungen für diese Organisation oder setzen Sie die Rolle auf die Standardeinstellungen zurück. Der Zugriff auf Daten und Aktionen richtet sich weiterhin nach der Berechtigungsmatrix.",
+        "title": "Seitenleiste für jede Rolle festlegen"
+      },
       "chat-room-thread": {
         "title": "Eine Nachricht besprechen",
         "body": "Öffne einen Thread, um Antworten zusammenzuhalten, ohne den Hauptraum zu füllen. Die Anzahl der Antworten führt zurück zur Diskussion; Antworten zitiert weiterhin eine Nachricht."
@@ -7107,7 +7111,7 @@
       "usedOfMax": "{used} von {max} belegt",
       "usersRoles": "Benutzer & Rollen",
       "waitingOnResponse": "{count, plural, =1 {1 wartet auf eine Antwort} other {# warten auf eine Antwort}}",
-      "whatEachRoleMay": "Was jede Rolle darf. Berechtigungen sind im Code definiert und zu Rollen gebündelt – eine Rolle kann nie eine Berechtigung halten, die die Plattform nicht definiert.",
+      "whatEachRoleMay": "Prüfen Sie die Rollenberechtigungen und wählen Sie, welche Links in der Seitenleiste jede Rolle in dieser Organisation sieht.",
       "workspaceAvatarUpdated": "Organisations-Avatar aktualisiert",
       "workspaceName": "Name der Organisation",
       "workspaceProfile": "Organisationsprofil",
@@ -7119,7 +7123,39 @@
       "tabProactivity": "Proaktivität",
       "tabAssistant": "KI und Dienste",
       "workspaceSettingsHint": "Identität der Organisation und die von Agents und Kanal-Bots übernommenen Spracheinstellungen.",
-      "aiServicesHint": "Den Architect und Hintergrunddienste für Gedächtnispflege und Briefings konfigurieren. Regeln für Vorschläge und Überwachung stehen unter Proaktivität."
+      "aiServicesHint": "Den Architect und Hintergrunddienste für Gedächtnispflege und Briefings konfigurieren. Regeln für Vorschläge und Überwachung stehen unter Proaktivität.",
+      "navigation": {
+        "accessNotice": "Diese Einstellungen blenden Navigationslinks aus. Datenzugriff, direkte Links und Aktionen richten sich weiterhin nach der Berechtigungsmatrix und der Ressourcenfreigabe.",
+        "alwaysShown": "Immer angezeigt",
+        "controlsTitle": "Navigationseinträge",
+        "description": "Wählen Sie, welche Navigationseinträge jede Rolle in dieser Organisation sieht.",
+        "discard": "Änderungen verwerfen",
+        "general": "Allgemein",
+        "hidden": "Ausgeblendet",
+        "loadError": "Die Einstellungen der Seitenleiste konnten nicht geladen werden.",
+        "ownerProtected": "Die Seitenleiste der Rolle „Inhaber“ bleibt verfügbar, damit der Zugriff auf die Organisationseinstellungen immer wiederhergestellt werden kann.",
+        "permissionUnavailable": "Für diese Rolle nicht verfügbar",
+        "previewHint": "Diese Vorschau berücksichtigt die Berechtigungen der Rolle. Angeheftete Apps und Projekte erscheinen nur, wenn zugängliche Inhalte vorhanden sind.",
+        "previewTitle": "Vorschau der Seitenleiste",
+        "readOnly": "Sie können diese Rolle in der Vorschau ansehen. Bearbeiten können Sie nur Rollen unterhalb Ihrer eigenen.",
+        "reset": "Auf Standard zurücksetzen",
+        "retry": "Erneut versuchen",
+        "role": "Rolle",
+        "roles": {
+          "admin": "Administrator",
+          "builder": "Ersteller",
+          "member": "Mitglied",
+          "operator": "Operator",
+          "owner": "Inhaber",
+          "viewer": "Betrachter"
+        },
+        "save": "Seitenleiste speichern",
+        "saved": "Seitenleiste gespeichert",
+        "showItem": "{item} anzeigen",
+        "title": "Sichtbarkeit der Seitenleiste",
+        "unsaved": "Ungespeicherte Änderungen. Speichern oder verwerfen Sie diese, bevor Sie die Rolle wechseln.",
+        "visible": "Sichtbar"
+      }
     },
     "rag": {
       "active": "Aktiv",
@@ -14559,7 +14595,7 @@
   },
   "appearance": {
     "colour": "Farbig",
-    "description": "Wie die Konsole für Sie aussieht und sich bewegt. In diesem Browser gespeichert und sofort angewendet.",
+    "description": "Wählen Sie Ihre Darstellung, prüfen Sie die Vorschau und übernehmen Sie sie für Ihr Konto auf allen Geräten.",
     "full": "Voll",
     "look": "Stil",
     "lookHint": "Jeder Stil hat eine helle und eine dunkle Seite; das Design oben wählt sie. In der Desktop-App lässt Glass den Schreibtisch durchscheinen.",
@@ -14593,7 +14629,40 @@
     "theme": "Design",
     "voiceGlowHint": "Wie das Chatfeld beim Diktieren auf Ihre Stimme reagiert",
     "workflowNodes": "Workflow-Schritte",
-    "workflowNodesHint": "Farbig zeichnet jeden Schritt in der Farbe seiner Familie. Schlicht lässt die Kacheln neutral und die Minikarte grau."
+    "workflowNodesHint": "Farbig zeichnet jeden Schritt in der Farbe seiner Familie. Schlicht lässt die Kacheln neutral und die Minikarte grau.",
+    "accent": "Akzentfarbe",
+    "radius": "Ecken",
+    "textSize": "Textgröße",
+    "accents": {
+      "default": "Neutral",
+      "blue": "Blau",
+      "violet": "Violett",
+      "green": "Grün",
+      "amber": "Bernstein",
+      "rose": "Rosa"
+    },
+    "radii": {
+      "default": "Standard",
+      "square": "Dezent",
+      "rounded": "Abgerundet"
+    },
+    "textSizes": {
+      "default": "Standard",
+      "large": "Groß"
+    },
+    "preview": "Live-Vorschau",
+    "previewTitle": "Ihr Arbeitsbereich",
+    "previewText": "Ein Beispiel für Ihre Farben, Ecken und Textgröße.",
+    "previewAction": "Beispielaktion",
+    "previewHint": "Bis Sie Übernehmen wählen, ändert sich nur die Vorschau. Zurücksetzen stellt die Standardwerte Ihres Kontos wieder her.",
+    "apply": "Übernehmen",
+    "discard": "Vorschau verwerfen",
+    "reset": "Auf Standard zurücksetzen",
+    "saved": "Darstellung gespeichert",
+    "resetDone": "Darstellung zurückgesetzt",
+    "loading": "Ihre Darstellung wird geladen…",
+    "loadError": "Ihre gespeicherte Darstellung konnte nicht geladen werden.",
+    "retry": "Erneut versuchen"
   },
   "answerFormat": {
     "addField": "Feld hinzufügen",
