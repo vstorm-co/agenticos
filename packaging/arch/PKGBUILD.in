@@ -9,7 +9,8 @@ license=('Apache-2.0')
 depends=('glibc' 'gcc-libs' 'gtk3' 'webkit2gtk-4.1' 'libayatana-appindicator' 'xdotool' 'libxcb' 'libpipewire' 'dbus' 'hicolor-icon-theme')
 makedepends=('rust' 'clang' 'pkgconf' 'python' 'git')
 optdepends=('bubblewrap: isolated local command execution' 'docker: local platform instances')
-options=('!debug')
+# Rust's LLVM linker cannot consume GCC LTO objects from the native aws-lc build.
+options=('!debug' '!lto')
 source=("agenticos-$pkgver.tar.gz")
 sha256sums=('@SHA256@')
 

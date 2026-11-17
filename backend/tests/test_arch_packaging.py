@@ -74,6 +74,17 @@ def test_package_recipe_checksums_the_committed_source_and_propagates_build_fail
     assert "pkgver=1.82.2" in recipe
     assert hashlib.sha256(archive.read_bytes()).hexdigest() in recipe
     assert "@VERSION@" not in recipe and "@SHA256@" not in recipe
+    options = subprocess.check_output(
+        [
+            "/bin/bash",
+            "-c",
+            'source "$1"; printf "%s\\n" "${options[@]}"',
+            "--",
+            str(output / "PKGBUILD"),
+        ],
+        text=True,
+    ).splitlines()
+    assert "!lto" in options
     calls = json.loads(calls_path.read_text())
     assert calls[0] == ["--cleanbuild", "--noconfirm"]
     assert len(calls) == (2 if build_status == 0 else 1)
