@@ -13,6 +13,7 @@ import asyncio
 import contextlib
 import hashlib
 import hmac
+import json
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -164,6 +165,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "next_fire_at": datetime(2026, 1, 1, tzinfo=UTC),
         "last_fired_at": None,
         "last_delivery_status": None,
+        "last_filtered_event": None,
         "last_run_id": None,
         "conversation_id": None,
         "connection_id": None,
@@ -2348,6 +2350,7 @@ class TestPreparingAnEventFire:
             repo.get_by_id = AsyncMock(return_value=trigger)
             events.verify_signature = MagicMock(return_value=True)
             events.event_matches = MagicMock(return_value=False)
+            events.github_filter_reason = MagicMock(return_value=None)
             decision = await service.prepare_event_fire(
                 "github", trigger.id, body=b'{"action": "closed"}', headers={}
             )
@@ -5605,3 +5608,105 @@ async def test_explicit_setup_review_stays_pending_even_when_initial_sources_are
         )
     assert created.is_active is False
     assert created.approved_sources == {"pending_review": True, "unavailable_sources": []}
+
+
+class TestGithubFilteredEventDiagnostics:
+    @pytest.mark.parametrize("policy", ["members", "contributors"])
+    async def test_a_signed_filtered_delivery_keeps_only_bounded_metadata(
+        self, policy: str
+    ) -> None:
+        service = _service()
+        trigger = _event_trigger(event_config={"authors": policy})
+        body = json.dumps(
+            {
+                "action": "opened",
+                "issue": {"author_association": "NONE", "body": "private issue text"},
+            }
+        ).encode()
+        headers = {
+            "x-github-event": "issues",
+            "x-hub-signature-256": "sha256="
+            + hmac.new(b"secret", body, hashlib.sha256).hexdigest(),
+        }
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            assert (
+                await service.prepare_event_fire("github", trigger.id, body=body, headers=headers)
+                is None
+            )
+        diagnostic = repo.update.await_args.kwargs["update_data"]["last_filtered_event"]
+        assert set(diagnostic) == {"received_at", "reason", "authors"}
+        assert diagnostic["reason"] == "author"
+        assert diagnostic["authors"] == policy
+        assert datetime.fromisoformat(diagnostic["received_at"]).tzinfo is not None
+        assert "private issue text" not in json.dumps(diagnostic)
+        assert trigger.last_fired_at is None
+
+    @pytest.mark.security
+    async def test_a_forged_delivery_cannot_write_diagnostics(self) -> None:
+        service = _service()
+        trigger = _event_trigger()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            repo.update = AsyncMock()
+            with pytest.raises(AuthorizationError):
+                await service.prepare_event_fire("github", trigger.id, body=b"{}", headers={})
+            repo.update.assert_not_awaited()
+
+    async def test_only_the_latest_snapshot_is_returned_to_its_owner(self) -> None:
+        agent = _agent()
+        trigger = _event_trigger(
+            agent_id=agent.id,
+            last_filtered_event={
+                "received_at": "2026-11-17T09:00:00Z",
+                "reason": "author",
+                "authors": "members",
+            },
+        )
+        service = _service(agent)
+        with patch(
+            "app.services.agent_trigger.agent_trigger_repo.get", AsyncMock(return_value=trigger)
+        ) as get:
+            result = await service.filtered_event(_ctx(), agent.id, trigger.id)
+        assert result.last_event is not None
+        assert result.last_event.reason == "author"
+        assert get.await_args.kwargs["organization_id"] == _ORG
+        assert "last_filtered_event" not in TriggerRead.model_fields
+
+    async def test_an_existing_routine_has_no_diagnostic(self) -> None:
+        agent = _agent()
+        trigger = _event_trigger(agent_id=agent.id)
+        with patch(
+            "app.services.agent_trigger.agent_trigger_repo.get", AsyncMock(return_value=trigger)
+        ):
+            result = await _service(agent).filtered_event(_ctx(), agent.id, trigger.id)
+        assert result.last_event is None
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("case", ["other_owner", "other_agent", "other_tenant", "no_subject"])
+    async def test_diagnostics_do_not_leak_to_other_viewers(self, case: str) -> None:
+        agent = _agent()
+        trigger = _event_trigger(agent_id=agent.id)
+        ctx = _ctx()
+        if case == "other_owner":
+            trigger.created_by_user_id = uuid.uuid4()
+        elif case == "other_agent":
+            trigger.agent_id = uuid.uuid4()
+        elif case == "other_tenant":
+            trigger = None  # The tenant-scoped repository lookup finds no row.
+        else:
+            ctx = AuthContext(user_id=None, organization_id=_ORG, role=OrgRoleName.OWNER)
+        with (
+            patch(
+                "app.services.agent_trigger.agent_trigger_repo.get", AsyncMock(return_value=trigger)
+            ),
+            pytest.raises(NotFoundError),
+        ):
+            await _service(agent).filtered_event(ctx, agent.id, uuid.uuid4())

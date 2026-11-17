@@ -779,3 +779,23 @@ class TestWithdrawingRunAsCreator:
         await db.refresh(members)
         assert withdrawn == 1
         assert (owners.runs_as_creator, members.runs_as_creator) == (False, True)
+
+
+async def test_a_filtered_event_snapshot_replaces_the_previous_one_without_a_run(
+    db: AsyncSession,
+) -> None:
+    org = await _org(db)
+    agent = await _agent(db, org)
+    trigger = _event(org, agent)
+    db.add(trigger)
+    await db.flush()
+    first = {"received_at": "2026-11-17T09:00:00Z", "reason": "author", "authors": "members"}
+    second = {"received_at": "2026-11-17T10:00:00Z", "reason": "mention", "authors": "contributors"}
+    for snapshot in (first, second):
+        await agent_trigger_repo.update(
+            db, trigger=trigger, update_data={"last_filtered_event": snapshot}
+        )
+    await db.refresh(trigger)
+    assert trigger.last_filtered_event == second
+    assert trigger.last_run_id is None
+    assert trigger.last_fired_at is None

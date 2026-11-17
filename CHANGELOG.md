@@ -19,7 +19,37 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
 
+- **Table calls read in the table's own names.** When an agent queries, reads,
+  adds, updates, upserts or deletes Virtual Table records through the platform
+  tools, the chat step shows the table, the record it targets, its conditions,
+  sort order, page size and written cells by column and option label, and the
+  records it found as a short table. Approval cards for table writes, in chat and under Runs, and each table
+  step of a run's timeline show the same summary above the raw arguments, and a
+  pending table write no longer leads with its table's id. When the reader cannot
+  open the table, and on hosted pages, the call is shown as sent.
+
+- Hold an object, a list or a single value in a workflow with the new **Data**
+  step (`data.value`): type it in as JSON or bind it from an earlier output, and
+  read it or a path into it from later steps. The value is set once per run and
+  is never overwritten, and the step's panel says so.
+
+- Expose GitHub routine author filters, including a members-and-contributors option, while preserving existing defaults. Routine owners can inspect the latest verified event rejected by a filter without storing webhook content or creating a run (#3072).
+
+### Changed
+
+- Workflow record filters choose their column by name from the step's table instead of asking for a column id, and a single or multi select column's value from its options, so Record exists? no longer refuses an option typed by its label. The Record exists? and List records steps no longer offer a column list they never read; a stored narrowing stays visible so it can be cleared.
+
+### Fixed
+
+- Validate whole Data values at dispatch against their consumer and settle non-object paths as missing values. Resolve saved select option labels in Record exists as List records does. Invalid rating values in pending table writes retain a raw preview without breaking the approvals queue.
+
+- Build Linux AppImages with the updated Tauri bundler to avoid bundled Wayland libraries crashing WebKitGTK on newer Mesa. Verify extracted AppImages in installer CI and before release uploads, rejecting the bundled Wayland client library that conflicts with host Mesa (#3041).
+
+### Upgrading
+
+- Apply migration `0337_github_filter_diagnostic.py` for the routine's bounded filter diagnostic. Existing author policies are unchanged; old configurations without `authors` remain member-only.
 
 ## [1.80.0] - 2026-11-16
 

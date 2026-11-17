@@ -2465,3 +2465,68 @@ def test_memory_snapshot_upgrade_preserves_legacy_runs_and_downgrades_cleanly() 
         assert result.returncode == 0, result.stderr
     finally:
         engine.dispose()
+
+
+def test_github_filter_diagnostic_preserves_existing_routine_policy() -> None:
+    """0337_github_filter_diagnostic.py adds a nullable snapshot without widening authors."""
+    from app.db.models.agent import Agent
+    from app.db.models.agent_trigger import AgentTrigger
+    from app.db.models.organization import Organization
+
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", "0336_run_memory_snapshot")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    trigger_id = uuid4()
+    try:
+        with DatabaseSession(engine) as db:
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add(owner)
+            db.flush()
+            org = Organization(
+                name="Legacy routine", slug=f"routine-{uuid4()}", created_by_user_id=owner.id
+            )
+            db.add(org)
+            db.flush()
+            agent = Agent(
+                organization_id=org.id, name="Triage", slug=f"triage-{uuid4()}", draft_spec={}
+            )
+            db.add(agent)
+            db.flush()
+            db.execute(
+                AgentTrigger.__table__.insert().values(
+                    id=trigger_id,
+                    organization_id=org.id,
+                    agent_id=agent.id,
+                    created_by_user_id=owner.id,
+                    trigger_type="event",
+                    event_source="github",
+                    event_config={"actions": ["opened"]},
+                    event_secret_encrypted="sealed",
+                    secret_key_version=1,
+                    prompt="Triage issues",
+                )
+            )
+            db.commit()
+        for action, revision in [
+            ("upgrade", "head"),
+            ("downgrade", "0336_run_memory_snapshot"),
+            ("upgrade", "head"),
+        ]:
+            result = _alembic(action, revision)
+            assert result.returncode == 0, result.stderr
+            if action == "upgrade":
+                with engine.connect() as connection:
+                    row = connection.execute(
+                        text(
+                            "SELECT event_config, last_filtered_event FROM agent_triggers WHERE id=:id"
+                        ),
+                        {"id": trigger_id},
+                    ).one()
+                    assert row.event_config == {"actions": ["opened"]}
+                    assert row.last_filtered_event is None
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()

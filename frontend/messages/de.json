@@ -10305,7 +10305,24 @@
     "noRoutineMatchesHint": "Suchen Sie nach dem Agentennamen, dem Routinentitel oder Wörtern aus ihrer Nachricht.",
     "setupRequired": "Einrichtung erforderlich",
     "setupRequiredHint": "Gespeichert und pausiert. Quellen reparieren, Zugriff prüfen und die Routine anschließend aktivieren.",
-    "setupOwnerRequired": "Gespeichert und pausiert. Der Ersteller muss die Quellen reparieren und prüfen."
+    "setupOwnerRequired": "Gespeichert und pausiert. Der Ersteller muss die Quellen reparieren und prüfen.",
+    "filteredEventTitle": "Zuletzt gefiltertes GitHub-Ereignis",
+    "filteredEventHint": "Nur das letzte verifizierte, durch einen Filter abgelehnte Ereignis wird gespeichert. Es hat keinen Run gestartet. Payload-Inhalte werden nicht gespeichert.",
+    "filteredEventEmpty": "Noch kein gefiltertes Ereignis erfasst. Dies bestätigt keinen Webhook-Eingang.",
+    "filteredEventError": "Filterdiagnose konnte nicht geladen werden",
+    "filteredEventPolicy": "Autorenfilter beim Empfang: {policy}",
+    "filteredEventReason": {
+      "event": "Der Ereignistyp passte nicht.",
+      "action": "Die Ereignisaktion passte nicht.",
+      "bot": "Der Absender war ein Bot.",
+      "ignored_login": "Der Absender entsprach dem ausgeschlossenen verbundenen Konto.",
+      "author": "Die Autorenzuordnung wurde durch den Autorenfilter ausgeschlossen.",
+      "draft": "Der Pull Request wurde als Entwurf geöffnet.",
+      "branch": "Der Branch passte nicht.",
+      "mention": "Der Kommentar enthielt die erforderliche Erwähnung nicht.",
+      "conclusion": "Das Workflow-Ergebnis passte nicht.",
+      "not_branch": "Der Push löschte einen Branch oder war kein Branch-Push."
+    }
   },
   "portals": {
     "backToServices": "Zurück zu den Diensten",
@@ -10387,7 +10404,18 @@
     "installationIdLabel": "Installations-ID",
     "mailLabelFilter": "Gmail-Label-ID",
     "mailFolderFilter": "Postfachordner",
-    "sharedMailboxFilter": "Freigegebenes Postfach"
+    "sharedMailboxFilter": "Freigegebenes Postfach",
+    "githubAuthorsLabel": "Wessen Ereignisse diese Routine starten können",
+    "githubAuthors": {
+      "members": "Repository-Mitglieder (Standard)",
+      "contributors": "Mitglieder und Beitragende",
+      "anyone": "Alle"
+    },
+    "githubAuthorsHint": {
+      "members": "OWNER, MEMBER und COLLABORATOR. Externe Beitragende sind ausgeschlossen. Bots und das verbundene Konto bleiben ausgeschlossen.",
+      "contributors": "OWNER, MEMBER, COLLABORATOR und CONTRIBUTOR. Erstmalig Beitragende sind ausgeschlossen. Bots und das verbundene Konto bleiben ausgeschlossen.",
+      "anyone": "Alle Autorenzuordnungen, einschließlich erstmalig Beitragender und Personen ohne frühere Beiträge. Bots und das verbundene Konto bleiben ausgeschlossen."
+    }
   },
   "agentTemplates": {
     "browse": "Agent-Vorlagen",
