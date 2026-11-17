@@ -1269,6 +1269,19 @@
     "title": "Abrechnung"
   },
   "chat": {
+    "sendMode": {
+      "label": "Während der Ausführung senden",
+      "queue": "Einreihen",
+      "steer": "Lenken",
+      "queueDescription": "Nach dem aktuellen Durchlauf senden.",
+      "steerDescription": "Hinweise in den aktuellen Durchlauf senden.",
+      "steerUnavailable": "Lenken unterstützt einfachen Text. Nachrichten mit Dateien, Erwähnungen, Antworten, Seitenkontext oder Workflow-Eingaben bleiben in der Warteschlange.",
+      "steerDisconnected": "Verbinde dich erneut, um den aktuellen Durchlauf zu lenken. Dein Entwurf bleibt im Eingabefeld.",
+      "steerFailed": "Die Hinweise konnten nicht gesendet werden. Dein Entwurf ist noch vorhanden."
+    },
+    "agentSettings": {
+      "reasoning": "Denkaufwand"
+    },
     "workspaceTasks": {
       "title": "Aufgaben",
       "open": "Aufgaben öffnen",
@@ -2762,7 +2775,9 @@
       "unavailable": "Modell nicht verfügbar",
       "useDefault": "Modell des Agents verwenden",
       "scope": "Wähle ein gespeichertes Modell für deine nächste Nachricht. Diese Chat-Auswahl wird für dein Konto in dieser Organisation gespeichert.",
-      "afterTurn": "Der laufende Run behält sein Modell. Deine Auswahl gilt für die nächste Nachricht und wird als Chat-Einstellung gespeichert.",
+      "afterTurn": "Nach diesem Durchlauf: Der laufende Durchlauf behält sein Modell. Deine Auswahl gilt für die nächste Nachricht und wird als Chat-Einstellung gespeichert.",
+      "afterTurnBadge": "Nach diesem Durchlauf",
+      "editReasoning": "Denkaufwand in den Agenteneinstellungen bearbeiten",
       "providers": "Modell-Provider",
       "search": "Gespeicherte Modelle oder Konten suchen…",
       "account": "Provider-Konto",
@@ -5154,6 +5169,14 @@
       "channels-phone": {
         "body": "Wähle einen Twilio-SMS-Bot, eine öffentliche Sprachoberfläche für eingehende Anrufe, Grenzen und erlaubte Weiterleitungskontakte. Kopiere die Webhook-URLs nach Twilio. Mitglieder stimmen separat zu.",
         "title": "Telefonrouting einrichten"
+      },
+      "chat-send-mode": {
+        "title": "Einreihen oder lenken",
+        "body": "Während ein Agent arbeitet, kannst du die nächste Nachricht einreihen oder den laufenden Durchlauf mit einfachem Text lenken. Dateien und weiterer Kontext bleiben in der normalen Warteschlange."
+      },
+      "chat-agent-reasoning": {
+        "title": "Denkaufwand einstellen",
+        "body": "Passe Thinking im Agentenentwurf an. Speichere den Entwurf und prüfe und veröffentliche ihn anschließend für künftige Durchläufe."
       },
       "chat-workspace-tasks": {
         "title": "Aufgaben neben der Unterhaltung",

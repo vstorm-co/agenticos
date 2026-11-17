@@ -1,5 +1,5 @@
 ---
-source_sha: "68a8eb22391c"
+source_sha: "ee3fd09f0b84"
 ---
 
 # La consola { #the-console }
@@ -965,6 +965,12 @@ Las bifurcaciones conservadas tienen una cuota separada de 100 MiB por miembro d
 El texto y los medios externalizados de un resumen válido se restauran dentro de la copia, por lo que eliminar el original no elimina ese contexto. El contenido restaurado cuenta para el límite de 20 MiB. La restauración admite hasta 100 referencias externas y diez segundos. Si falta contenido o se supera un límite, se rechaza la operación sin crear una copia parcial.
 
 Una conversación con una lista de tareas guardada solo puede bifurcarse en su último mensaje, que debe ser una respuesta del asistente. La copia conserva esa lista, incluidos los identificadores de tareas y las dependencias. No se guardan versiones anteriores de la lista, por lo que se rechaza una bifurcación anterior para evitar copiar tareas posteriores en un historial más antiguo.
+
+### Controles durante un turno { #chat-live-controls }
+
+Mientras un agente trabaja, **Queue** envía el siguiente mensaje después del turno actual. **Steer** envía indicaciones de texto al turno en curso, que las utiliza al continuar. La elección se recuerda para tu cuenta, organización y agente seleccionado, incluido el asistente general. Los archivos, las menciones, las respuestas, el contexto de página y las entradas de flujos de trabajo siguen la cola habitual. Si no se pueden enviar las indicaciones, el borrador permanece en el cuadro de mensaje.
+
+Elegir un modelo durante un turno muestra **After this turn**: la preferencia se aplica a un mensaje posterior. **Edit reasoning in agent settings** abre el control Thinking del borrador del agente para quienes pueden editarlo. Guarda el borrador y utiliza la revisión y publicación existentes para aplicar la configuración a futuras ejecuciones.
 
 ### Temas en segundo plano { #background-topics }
 

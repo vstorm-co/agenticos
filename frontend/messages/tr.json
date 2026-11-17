@@ -8155,6 +8155,14 @@
         "body": "Slack, Telegram veya Mattermost gibi bir sohbet platformu kaydedin; ardından yanıt vermesi için herhangi bir agent’ı bağlayabilirsiniz. Bot token’ı vault’ta korunur. Buradan bir kanal ekleyin.",
         "title": "Agent’lara insanların bulunduğu yerden ulaşın"
       },
+      "chat-send-mode": {
+        "title": "Sıraya al veya yönlendir",
+        "body": "Ajan çalışırken sonraki mesajını sıraya al veya geçerli turu düz metinle yönlendir. Dosyalar ve diğer bağlam normal sırada kalır."
+      },
+      "chat-agent-reasoning": {
+        "title": "Akıl yürütme ayarları",
+        "body": "Ajan taslağında Thinking ayarını düzenle. Taslağı kaydet, ardından sonraki çalıştırmalar için gözden geçir ve yayımla."
+      },
       "chat-workspace-tasks": {
         "title": "Konuşmanın yanındaki görevler",
         "body": "Bu sohbetin veya tüm agent'larınızın arka plan görevlerini açın. İlginizi gerektiren işleri inceleyin, konuşmasını açın veya etkin bir görevi durdurun."
@@ -8866,6 +8874,19 @@
     }
   },
   "chat": {
+    "sendMode": {
+      "label": "Çalışırken gönder",
+      "queue": "Sıraya al",
+      "steer": "Yönlendir",
+      "queueDescription": "Geçerli turdan sonra gönder.",
+      "steerDescription": "Geçerli tura yönlendirme gönder.",
+      "steerUnavailable": "Yönlendirme düz metni destekler. Dosya, bahsetme, yanıt, sayfa bağlamı veya iş akışı girdisi içeren mesajlar sırada kalır.",
+      "steerDisconnected": "Geçerli turu yönlendirmek için yeniden bağlan. Taslağın hâlâ mesaj alanında.",
+      "steerFailed": "Yönlendirme gönderilemedi. Taslağın hâlâ burada."
+    },
+    "agentSettings": {
+      "reasoning": "Akıl yürütme"
+    },
     "workspaceTasks": {
       "title": "Görevler",
       "open": "Görevleri aç",
@@ -10245,7 +10266,9 @@
       "unavailable": "Model kullanılamıyor",
       "useDefault": "Agent’ın modelini kullan",
       "scope": "Sonraki mesajın için kayıtlı bir model seç. Bu sohbet tercihi, bu kuruluştaki hesabın için hatırlanır.",
-      "afterTurn": "Devam eden run kendi modelini kullanmaya devam eder. Seçimin sonraki mesaj için geçerlidir ve sohbet tercihin olarak hatırlanır.",
+      "afterTurn": "Bu turdan sonra: Devam eden tur mevcut modelini kullanmaya devam eder. Seçimin sonraki mesaj için geçerlidir ve sohbet tercihin olarak hatırlanır.",
+      "afterTurnBadge": "Bu turdan sonra",
+      "editReasoning": "Ajan ayarlarında akıl yürütmeyi düzenle",
       "providers": "Model providerları",
       "search": "Kayıtlı modellerde veya hesaplarda ara…",
       "account": "Provider hesabı",

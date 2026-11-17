@@ -1,5 +1,5 @@
 ---
-source_sha: "68a8eb22391c"
+source_sha: "ee3fd09f0b84"
 ---
 
 # Die Konsole { #the-console }
@@ -1018,6 +1018,12 @@ Gespeicherte Abzweigungen haben ein eigenes Kontingent von 100 MiB pro Mitglied 
 Ausgelagerter Text und Medien einer übernommenen Zusammenfassung werden in die Kopie eingebettet. Das Löschen des Originals entfernt diesen Kontext daher nicht. Die wiederhergestellten Inhalte zählen zum Limit von 20 MiB. Die Wiederherstellung ist auf 100 externe Verweise und zehn Sekunden begrenzt. Fehlende Inhalte oder überschrittene Grenzen führen zur Ablehnung ohne unvollständige Kopie.
 
 Eine Unterhaltung mit einer gespeicherten Checkliste kann nur an ihrer neuesten Nachricht abgezweigt werden, wenn diese eine Antwort des Assistenten ist. Die Kopie behält diese Checkliste einschließlich Aufgaben-IDs und Abhängigkeiten. Frühere Checklistenstände werden nicht gespeichert; eine frühere Abzweigung wird daher abgelehnt, statt spätere Aufgaben in einen älteren Verlauf zu kopieren.
+
+### Steuerung während eines Durchlaufs { #chat-live-controls }
+
+Während ein Agent arbeitet, sendet **Einreihen** deine nächste Nachricht nach dem aktuellen Durchlauf. **Lenken** sendet einfachen Text als Hinweis an den laufenden Durchlauf; der Agent berücksichtigt ihn bei der Fortsetzung. Die Auswahl wird für dein Konto, deine Organisation und den gewählten Agenten einschließlich des allgemeinen Assistenten gespeichert. Dateien, Erwähnungen, Antworten, Seitenkontext und Workflow-Eingaben bleiben in der normalen Warteschlange. Kann ein Hinweis nicht gesendet werden, bleibt der Entwurf im Eingabefeld.
+
+Eine Modellwahl während der Ausführung zeigt **Nach diesem Durchlauf**: Die Einstellung gilt für eine spätere Nachricht. **Denkaufwand in den Agenteneinstellungen bearbeiten** öffnet für Mitglieder mit Bearbeitungsrecht die Thinking-Einstellung im Agentenentwurf. Speichere den Entwurf und verwende anschließend die vorhandene Prüfung und Veröffentlichung, damit die Konfiguration für künftige Durchläufe gilt.
 
 ### Hintergrundthemen { #background-topics }
 

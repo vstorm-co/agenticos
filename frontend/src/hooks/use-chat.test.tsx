@@ -52,12 +52,9 @@ vi.mock("@/lib/offline/device-cache", () => ({
   readThrough: (_key: string, fetch: () => Promise<unknown>) => fetch(),
 }));
 
-const { sent, socket, connect, disconnect, reopen } = vi.hoisted(() => ({
-  sent: vi.fn(),
-  connect: vi.fn(),
-  disconnect: vi.fn(),
-  reopen: vi.fn(),
-  socket: {
+const { sent, socket, connect, disconnect, reopen, sendMessage } = vi.hoisted(() => {
+  const sent = vi.fn();
+  const socket = {
     onMessage: null as ((event: MessageEvent) => void) | null,
     onMessageBatch: null as ((events: readonly MessageEvent[]) => void) | null,
     onClose: null as (() => void) | null,
@@ -67,8 +64,19 @@ const { sent, socket, connect, disconnect, reopen } = vi.hoisted(() => ({
     // carry. `protocols` above is what this render's would.
     getProtocols: null as (() => string[] | undefined) | null,
     isConnected: true,
-  },
-}));
+  };
+  return {
+    sent,
+    socket,
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    reopen: vi.fn(),
+    sendMessage: (frame: string | object) => {
+      if (!socket.isConnected) return false;
+      return sent(frame) !== false;
+    },
+  };
+});
 
 /**
  * `useChat` resolves the tenant through the organizations query, so it needs a
@@ -128,7 +136,7 @@ vi.mock("./use-websocket", () => ({
       connect,
       disconnect,
       reopen,
-      sendMessage: sent,
+      sendMessage,
     };
   },
 }));
@@ -5336,6 +5344,50 @@ describe("useChat - adding to a running turn (#2087)", () => {
     expect(answer?.parts?.at(-1)).toMatchObject({ type: "steer", content: "use the EU numbers" });
     // A second notice for the same words finds nothing left to clear.
     receive("steer_applied", { text: "use the EU numbers" });
+    expect(result.current.steers).toEqual([]);
+  });
+
+  it("sends plain text directly into the active run", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+    receive("model_request_start", {});
+
+    let accepted = false;
+    act(() => {
+      accepted = result.current.sendSteerMessage("  include the EU numbers  ");
+    });
+
+    expect(accepted).toBe(true);
+    expect(frame(1)).toEqual({ type: "steer", text: "include the EU numbers" });
+    expect(result.current.steers.map((steer) => steer.text)).toEqual(["include the EU numbers"]);
+  });
+
+  it("keeps direct text out of the steer queue when the socket refuses it", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+    receive("model_request_start", {});
+    sent.mockReturnValueOnce(false);
+
+    let accepted = true;
+    act(() => {
+      accepted = result.current.sendSteerMessage("keep this draft");
+    });
+
+    expect(accepted).toBe(false);
+    expect(result.current.steers).toEqual([]);
+  });
+
+  it("keeps a queued message if its Send now frame cannot be sent", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("keep this queued"));
+    const queued = result.current.queuedMessages[0]!;
+    sent.mockReturnValueOnce(false);
+
+    act(() => result.current.sendQueuedNow(queued.id));
+
+    expect(result.current.queuedMessages.map((entry) => entry.id)).toEqual([queued.id]);
     expect(result.current.steers).toEqual([]);
   });
 

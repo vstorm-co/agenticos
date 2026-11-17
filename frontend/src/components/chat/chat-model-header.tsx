@@ -9,6 +9,7 @@ export function ChatModelHeader({
   agentModel,
   readOnly,
   isProcessing,
+  canEditAgent,
   home,
   onChange,
 }: {
@@ -16,6 +17,7 @@ export function ChatModelHeader({
   agentModel: PublishedModel | null;
   readOnly: boolean;
   isProcessing: boolean;
+  canEditAgent: boolean;
   home: boolean;
   onChange: (profileId: string | null) => void;
 }) {
@@ -29,9 +31,11 @@ export function ChatModelHeader({
     >
       <span className="min-w-0 truncate text-sm font-medium">{name}</span>
       <ChatModelSelector
+        key={isProcessing ? "processing" : "idle"}
         agentModel={agentModel}
         readOnly={readOnly}
         isProcessing={isProcessing}
+        canEditAgent={canEditAgent}
         onChange={onChange}
       />
     </header>
