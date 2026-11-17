@@ -1,5 +1,5 @@
 ---
-source_sha: "e0b40c6f22e9"
+source_sha: "97d893a0101b"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -423,6 +423,23 @@ samym kandydatem we wcześniejszym czasie - ten sam spec na tym samym modelu,
 uruchomiony tak samo, jak ten, z którym porównuje się suita sprawdzająca
 codziennie jedną wersję: jego powtórki byłyby znowu tylko powtórkami kandydata,
 więc nie jest powtarzany, a dryf potwierdzają same powtórki kandydata.
+
+Przypadek przechodzi dopiero wtedy, gdy spełnia każde kryterium, według którego
+jest oceniany - każdy check, kryterium sędziego, oczekiwane wywołanie narzędzia i
+ocenę względem odpowiedzi wzorcowej - więc zmiana, która naprawia jedno z kilku
+niespełnionych kryteriów przypadku, nie odwraca żadnego przypadku. Przypadek, w
+którym odwróciło się jakiekolwiek kryterium ocenione po obu stronach, też jest
+powtarzany, a `criteria` porównania podaje dla każdego kryterium, na ilu
+przypadkach obie strony je oceniły, ile z nich każda strona spełniła w pierwszej
+odpowiedzi oraz naprawy i zepsucia potwierdzone tak samo jak przy przypadku:
+każda powtórka po obu stronach je powtarza.
+
+Werdykt poniżej dotyczy nadal całych
+przypadków; [sesja Improve](authoring.md#the-improve-wizard) i
+[sprawdzenie skilla](skills.md#the-rule) czytają kryteria, gdy żaden przypadek się
+nie odwrócił. Ponowne zadanie tych przypadków kosztuje więcej niż sprawdzenie,
+które powtarza tylko odwrócone przypadki, i mieści się w jego górnej granicy
+ceny, która i tak zakłada ponowne zadanie każdego przypadku.
 
 Run porównywany z baseline'em potrzebuje co najmniej jednej powtórki; run bez
 baseline'u może je pominąć. Run porównany z wcześniejszym runem, któremu nigdy

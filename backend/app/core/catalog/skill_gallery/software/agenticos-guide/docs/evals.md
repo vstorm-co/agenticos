@@ -396,6 +396,22 @@ checking one version every day compares with: its reruns would only be the
 candidate's again, so it is not rerun, and the candidate's reruns alone
 confirm the drift.
 
+A case passes only when every criterion it is graded on passes - each check,
+judge criterion, expected tool call and reference grade - so a change that
+fixes one of a case's several failing criteria flips no case. A case where
+any criterion graded on both sides flipped is rerun as well, and the
+comparison's `criteria` lists, per criterion, how many cases both sides
+graded on it, how many each side passed on its first answer, and the
+fixes and breaks confirmed the same way as a case's: every rerun on both
+sides repeats them.
+
+The verdict below stays about whole cases; an
+[Improve session](authoring.md#the-improve-wizard) and a
+[skill check](skills.md#the-rule) read the criteria when no case flipped.
+Asking those cases again costs more than a check that reruns flipped cases
+alone, and stays within its price ceiling, which already assumes every case
+is asked again.
+
 A run compared with a baseline needs at least one rerun; a run with
 none may skip them. A run compared with an earlier run it never asked again -
 one written before baselines were kept on runs, or one compared by hand with

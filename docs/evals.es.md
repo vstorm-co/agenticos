@@ -1,5 +1,5 @@
 ---
-source_sha: "e0b40c6f22e9"
+source_sha: "97d893a0101b"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -416,6 +416,23 @@ momento anterior - el mismo spec sobre el mismo modelo, ejecutado de la misma
 forma, como aquel con el que compara una suite que comprueba una versión cada
 día: sus repeticiones solo volverían a ser las del candidato, así que no se
 repite, y solo las repeticiones del candidato confirman la deriva.
+
+Un caso aprueba solo cuando cumple cada criterio con el que se califica - cada
+check, criterio del juez, llamada a herramienta esperada y calificación frente a
+la respuesta de referencia -, así que un cambio que arregla uno de varios
+criterios fallidos de un caso no cambia ningún caso. Un caso en el que cambió
+cualquier criterio calificado en ambos lados también se repite, y `criteria` de
+la comparación indica, por criterio, en cuántos casos lo calificaron ambos
+lados, cuántos aprobó cada lado con su primera respuesta, y los arreglos y
+roturas confirmados igual que los de un caso: cada repetición en ambos lados
+los repite.
+
+El veredicto de abajo sigue siendo sobre casos enteros; una
+[sesión de Improve](authoring.md#the-improve-wizard) y una
+[comprobación de skill](skills.md#the-rule) leen los criterios cuando ningún caso
+cambió. Volver a preguntar esos casos cuesta más que una comprobación que solo
+repite los casos cambiados, y se queda dentro de su precio máximo, que ya supone
+que cada caso se vuelve a preguntar.
 
 Un run comparado con un baseline necesita al menos una repetición; un run sin
 baseline puede omitirlas. Un run comparado con un run anterior al que nunca

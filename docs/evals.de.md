@@ -1,5 +1,5 @@
 ---
-source_sha: "e0b40c6f22e9"
+source_sha: "97d893a0101b"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -448,6 +448,24 @@ Modell, auf dieselbe Weise ausgeführt, wie sie eine Suite, die täglich eine
 Version prüft, zum Vergleich heranzieht: Ihre Wiederholungen wären nur wieder
 die des Kandidaten, daher wird sie nicht wiederholt, und die Wiederholungen des
 Kandidaten allein bestätigen die Drift.
+
+Ein Fall besteht erst, wenn jedes Kriterium besteht, nach dem er bewertet wird -
+jeder Check, jedes Kriterium des Bewerters, jeder erwartete Tool-Aufruf und jede
+Bewertung gegen die Referenzantwort -, daher lässt eine Änderung, die eines von
+mehreren nicht erfüllten Kriterien eines Falls behebt, keinen Fall kippen. Ein
+Fall, in dem irgendein auf beiden Seiten bewertetes Kriterium gekippt ist, wird
+ebenfalls wiederholt, und `criteria` des Vergleichs nennt für jedes Kriterium,
+auf wie vielen Fällen beide Seiten es bewertet haben, wie viele davon jede Seite
+mit ihrer ersten Antwort bestanden hat, und die Behebungen und
+Verschlechterungen, die genauso bestätigt werden wie bei einem Fall: Jede
+Wiederholung auf beiden Seiten wiederholt sie.
+
+Das Urteil unten bleibt bei
+ganzen Fällen; eine [Improve-Sitzung](authoring.md#the-improve-wizard) und eine
+[Skill-Prüfung](skills.md#the-rule) lesen die Kriterien, wenn kein Fall gekippt
+ist. Diese Fälle erneut zu fragen kostet mehr als eine Prüfung, die nur gekippte
+Fälle wiederholt, und bleibt innerhalb ihrer Preisobergrenze, die ohnehin
+annimmt, dass jeder Fall erneut gefragt wird.
 
 Ein Run, der mit einer Baseline verglichen wird, braucht mindestens eine
 Wiederholung; ein Run ohne Baseline darf sie überspringen. Ein Run, der mit
