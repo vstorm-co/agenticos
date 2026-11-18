@@ -155,3 +155,46 @@ configuration changes were needed for this audit.
 The design references informed the interaction rules, not a replacement visual
 identity. Native scroll-snap strips keep the browser's own inertia and edge
 behavior rather than adding a second JavaScript drag implementation.
+
+## Default assistant and personal coding sessions
+
+The selected 22 capabilities are now explicit in the shipped AgenticOS template.
+Personal coding defaults to the initiating person's enabled cloud account without
+an organization credential. Both Claude Code and Codex are selectable per task;
+model/effort choices stay with their configured coding agent. The starter-agent
+creation tests confirm that ordinary new agents continue receiving this template's
+instructions. Existing customized agents retain their preservation contract.
+Architect's template and shared durable-work skill are unchanged by this stage;
+the new session method is an AgenticOS-only skill.
+
+- 151 selected coding/runtime and starter-creation tests passed, followed by a
+  364-test catalog/registry/eval batch and a 28-test final refusal/security batch.
+  These batches overlap; they are not an aggregate test count.
+- 44 real-PostgreSQL personal-account/session integration tests passed. They cover
+  retained files/source identity, separate session names, tenant constraints,
+  owner-only reads even for another administrator, revocation, failed cleanup and
+  disconnect rollback with durable remote-destruction obligations.
+- 64 personal coding tests passed under coverage, reaching 100% lines for both
+  the personal session factory and account lease. A broader diagnostic report
+  also included unrelated services; its total is not the CI platform gate.
+- The coding report component reached 100% statements, branches, functions and
+  lines, including new/continued session labels and result-archive validation.
+- The additive `0342_personal_coding_sessions.py` migration was upgraded,
+  downgraded and upgraded again on the isolated PostgreSQL database. Alembic
+  reported no remaining model/schema drift there.
+- A detached native-process supervisor was exercised with real isolated local
+  process groups: normal exit and host-side timeout both stop descendants.
+- Two Mattermost worker acknowledgement regressions failed before the fix and
+  passed afterward, including stale in-process server/user caches. The related
+  89-test channel/security batch passed. No live Mattermost message or reaction
+  was sent.
+- Assistant eval scoring and execution were checked with TestModel. An explicit
+  optional AgentDojo environment passed four offline tests, including its actual
+  runtime and upstream utility scorer. No paid quality benchmark was run.
+
+The populated preview uses a copy of the existing local database. Its historical
+migration branch differs from the current repository, so additive compatibility
+changes were applied only to that disposable copy, retaining its data and legacy
+columns. This preview is not evidence of an upgrade from that old branch; the
+canonical migration round-trip above uses the separate current-schema QA database.
+The preview's API does not run a worker or submit scheduled/model work.

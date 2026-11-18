@@ -864,6 +864,9 @@ class OrganizationService:
         if self._vector_store is not None:
             restamp_orphans = await knowledge_base_repo.list_personal_carrying_org(self.db, org.id)
 
+        from app.services.sandbox_workspace import SandboxWorkspaceService
+
+        await SandboxWorkspaceService(self.db).purge_personal_coding(organization_id=org.id)
         await organization_repo.delete(self.db, org)
 
         restamps = [

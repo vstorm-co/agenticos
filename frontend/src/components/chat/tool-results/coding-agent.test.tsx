@@ -5,6 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 import { CodingAgentResult, parseCodingReport } from "./coding-agent";
 import type { ToolCall } from "@/types";
 
+vi.mock("./workspace", () => ({
+  WorkspaceFileCard: ({ path }: { path: string }) => <p>{`Archive ${path}`}</p>,
+}));
+
 vi.mock("./coding-changes", () => ({
   TaskChanges: ({ changeId, conversationId }: { changeId: string; conversationId?: string }) => (
     <p data-origin={conversationId}>{`changes ${changeId}`}</p>
@@ -147,4 +151,59 @@ describe("parseCodingReport", () => {
       harness: "claude_code",
     });
   });
+});
+
+it.each([
+  [true, "Session: api · continued"],
+  [false, "Session: api · new"],
+  [undefined, "Session: api"],
+])("shows the named personal session and its continuation state", (resumed, label) => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({ ...REPORT, session_name: "api", session_resumed: resumed })}
+    />,
+  );
+  expect(screen.getByText(label)).toBeInTheDocument();
+});
+
+it("does not render an invalid session name from stored tool output", () => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({ ...REPORT, session_name: "../private" })}
+    />,
+  );
+  expect(screen.queryByText(/Session:/)).not.toBeInTheDocument();
+});
+
+it("shows the personal account, source revision and validated result archive", () => {
+  const archive = "coding-results/12345678-1234-1234-1234-123456789abc.zip";
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({
+        ...REPORT,
+        account_label: "My Claude",
+        base_revision: "abcdef1234567890",
+        result_archive: archive,
+      })}
+    />,
+  );
+  expect(screen.getByText("Personal account: My Claude")).toBeInTheDocument();
+  expect(screen.getByText("Workspace snapshot: abcdef123456")).toBeInTheDocument();
+  expect(screen.getByText(`Archive ${archive}`)).toBeInTheDocument();
+});
+
+it("does not render a result archive outside the private result directory", () => {
+  render(
+    <CodingAgentResult
+      toolCall={call()}
+      resultText={JSON.stringify({
+        ...REPORT,
+        result_archive: "../private.zip",
+      })}
+    />,
+  );
+  expect(screen.queryByText(/Archive /)).not.toBeInTheDocument();
 });

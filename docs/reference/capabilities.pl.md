@@ -1,5 +1,5 @@
 ---
-source_sha: "2bc3e7bad49a"
+source_sha: "86c2be484011"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1704,7 +1704,13 @@ do modelu: druga próba zostałaby rozliczona ponownie.
 
 **Osobiste konta w chmurze.** W **Settings → Profile → Coding accounts** podłącz klucz Anthropic lub token konfiguracji Claude, klucz OpenAI albo nowe logowanie ChatGPT, a następnie jawnie włącz użycie w tej organizacji. W Coding agent wybierz **Private cloud task with my account**. Konto obsługuje tylko uwierzytelnione zadania rozpoczęte przez Ciebie w czacie web/API; nie harmonogramy, kanały, klucze API ani podszywanie się. Inni członkowie nie mogą pożyczyć konta.
 
-Osobny kontener zadania dostaje ograniczoną kopię źródeł (500 plików, 1 MiB na plik, 16 MiB łącznie; bez dowiązań, katalogów platformy i pamięci podręcznej). Raport wskazuje konto i snapshot oraz pokazuje diff i ZIP w czacie. Pliki źródłowe nie zmieniają się automatycznie. Cofnięcie dostępu do konta anuluje pracę; zewnętrzną zgodę ChatGPT można dodatkowo cofnąć w ustawieniach ChatGPT. Dotychczasowe konta organizacyjne w toolu oraz zatwierdzone foldery i logowania lokalnej CLI pozostają osobnymi trybami. Po `0290_personal_coding_accounts.py` zaktualizuj API i workery razem.
+Każda nazwana sesja osobista zachowuje prywatny kontener użytkownika, inicjalizowany raz z ograniczonej kopii źródeł (500 plików, 1 MiB na plik, 16 MiB łącznie; bez dowiązań, katalogów platformy i pamięci podręcznej). Raport wskazuje konto i snapshot oraz pokazuje diff i ZIP w czacie. Pliki źródłowe nie zmieniają się automatycznie. Cofnięcie dostępu do konta anuluje pracę; zewnętrzną zgodę ChatGPT można dodatkowo cofnąć w ustawieniach ChatGPT. Dotychczasowe konta organizacyjne w toolu oraz zatwierdzone foldery i logowania lokalnej CLI pozostają osobnymi trybami. Po `0290_personal_coding_accounts.py` zaktualizuj API i workery razem.
+
+Prywatne zadanie w chmurze może wybrać `harness=claude_code` lub `harness=codex` w każdym wywołaniu `run_coding_agent`; pominięcie parametru używa domyślnego agenta programistycznego. Oba narzędzia mogą pracować równocześnie przez tego samego agenta, w osobnych kontenerach sesji i na osobnych kontach. Skonfigurowany model dotyczy domyślnego narzędzia; drugie używa własnego modelu domyślnego. Każde konto zachowuje wyłączną blokadę poświadczeń, więc zadania na tym samym koncie czekają w kolejce z limitem czasu.
+
+Brakującego lub wyłączonego konta nie zastępuje klucz organizacji ani konto innej osoby. Codex jest odrzucany w kontenerach tylko do odczytu. Tryb piaskownicy organizacji pozostaje przypisany do skonfigurowanego narzędzia i poświadczenia.
+
+Nazwane prywatne sesje w chmurze zachowują osobne historie natywnej CLI i pliki w obrębie rozmowy i aktualnej zgody konta. Nowa nazwa kopiuje bieżące źródła; ponowne użycie kontynuuje istniejące pliki. `fresh_session` resetuje historię CLI, zachowując pliki. Wygaśnięcie bezczynnego sandboxa może zakończyć sesję. Nieudane zadanie, którego sprzątania nie można potwierdzić, jest usuwane; po utracie stanu jawnie wybierz nową nazwę. Zmiana zgody konta, odłączenie, usunięcie członkostwa oraz rozmowy, użytkownika lub organizacji kolejkują usunięcie zdalnych zasobów. Zastosuj `0342_personal_coding_sessions.py` i aktualizuj API oraz workery razem.
 
 Osobisty tryb chmurowy przyjmuje tylko prywatne źródłowe workspace. Odrzuca projekty, workspace agenta lub kanału, rozmowy grupowe i chaty udostępnione do edycji, zanim odczyta poświadczenie lub skopiuje pliki. Prywatny kontener docelowy nie nadaje zaufania kodowi kontrolowanemu przez współpracowników. Do wspólnej pracy projektowej użyj trybu z kontem organizacji. Redakcja wyniku nie chroni poświadczeń przed wykonywanym kodem źródłowym.
 
@@ -1741,7 +1747,7 @@ odrzuca to połączenie. To, czy człowiek mówi „tak” przed każdym zadanie
 istniejące zachowują swoją politykę. Nie ma zakładki Narzędzia: jedno
 narzędzie to sama capability.
 
-**Nazwane sesje.** Każde zadanie wskazuje `session` - `main`, gdy nie wskazuje żadnej. Ta sama nazwa kontynuuje wcześniejszą pracę tej sesji w rozmowie; nowa nazwa otwiera kolejną, a niezależne sesje działają równolegle, gdy agent wywołuje narzędzie kilka razy naraz. `fresh_session` zaczyna jedną sesję od nowa. Na tym komputerze sesja może też wybrać `harness` - Claude Code albo Codex, na logowaniu tego komputera - oraz `folder` wewnątrz folderu czatu, więc dwa projekty albo oba harnessy pracują jednocześnie. W sandboxie i w prywatnym zadaniu w chmurze jedynym harnessem jest ten z bindingu, bo należy do niego klucz albo konto.
+**Nazwane sesje.** Każde zadanie wskazuje `session` - `main`, gdy nie wskazuje żadnej. Ta sama nazwa kontynuuje wcześniejszą pracę tej sesji w rozmowie; nowa nazwa otwiera kolejną, a niezależne sesje działają równolegle, gdy agent wywołuje narzędzie kilka razy naraz. `fresh_session` zaczyna jedną sesję od nowa. Na tym komputerze sesja może też wybrać `harness` - Claude Code albo Codex, na logowaniu tego komputera - oraz `folder` wewnątrz folderu czatu, więc dwa projekty albo oba harnessy pracują jednocześnie. Zadanie w sandboxie organizacji używa skonfigurowanego narzędzia. Prywatna sesja w chmurze może wybrać Claude Code albo Codexa na własnym koncie użytkownika.
 
 **Na tym komputerze.** Ustaw `runs_on` na `this_computer`, aby użyć zainstalowanego harnessu przez [Agent Client Protocol](https://agentclientprotocol.com). Desktop uruchamia przypięty adapter przez `npx`, a protokół prowadzi serwer. Wybierz folder z pełnym dostępem w **Work on** i potwierdź każdy start w natywnym oknie. Folder jest katalogiem roboczym, nie sandboxem systemowym. Harness używa własnego logowania, więc klucz w vault jest opcjonalny. Prośby o uprawnienia stosują `access`; zgoda obowiązuje raz na zadanie. Claude read-only wyłącza bypass i narzędzia zapisujące; lokalny Codex wybiera natywny tryb odczytu.
 

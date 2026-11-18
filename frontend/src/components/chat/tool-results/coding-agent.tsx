@@ -36,6 +36,8 @@ interface CodingReport {
   outcome: "completed" | "failed" | "timed_out";
   answer: string;
   session_id?: string;
+  session_name?: string;
+  session_resumed?: boolean;
   steps?: CodingStep[];
   files_changed?: string[];
   refused?: string[];
@@ -148,6 +150,19 @@ function Report({ report, fileSource }: { report: CodingReport; fileSource?: Tur
       <div className="text-sm">
         <MarkdownContent content={report.answer} />
       </div>
+      {typeof report.session_name === "string" &&
+        /^[a-z0-9][a-z0-9_-]{0,39}$/.test(report.session_name) && (
+          <p className="text-muted-foreground text-xs">
+            {personal(
+              typeof report.session_resumed === "boolean"
+                ? report.session_resumed
+                  ? "continuedSession"
+                  : "newSession"
+                : "sessionName",
+              { name: report.session_name },
+            )}
+          </p>
+        )}
       {typeof report.account_label === "string" && (
         <p className="text-muted-foreground text-xs">
           {personal("personalAccount", { label: report.account_label })}

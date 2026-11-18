@@ -80,6 +80,7 @@ from app.core.background import spawn_after_commit
 from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.core.exceptions import (
+    AuthorizationError,
     BadRequestError,
     ExportTooLargeError,
     ExternalServiceError,
@@ -1649,13 +1650,51 @@ class SandboxWorkspaceService:
         user deleted. Only this platform knows the conversation is gone.
         """
         rows = await workspace_repo.list_for_conversation(
-            self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
+            self.db,
+            organization_id=ctx.organization_id,
+            conversation_id=conversation_id,
+            include_personal_coding=True,
         )
         for row in rows:
             if row.backend != "state" and row.session_id:
                 await self._purge_remote(ctx, row)
             await workspace_repo.delete(self.db, workspace=row)
         return len(rows)
+
+    async def purge_personal_coding(
+        self,
+        *,
+        organization_id: UUID | None = None,
+        user_id: UUID | None = None,
+        account_id: UUID | None = None,
+    ) -> int:
+        """Queue owned session teardown in the caller's deletion/consent transaction.
+
+        Internal lifecycle operation: callers have already authorized the account,
+        member or organization change. It grants no read access to session files.
+        """
+        rows = await workspace_repo.list_personal_coding(
+            self.db,
+            organization_id=organization_id,
+            user_id=user_id,
+            account_id=account_id,
+        )
+        for row in rows:
+            ctx = AuthContext(user_id=None, organization_id=row.organization_id, role="")
+            await self._purge_remote(ctx, row)
+            await workspace_repo.delete(self.db, workspace=row)
+        return len(rows)
+
+    async def discard_personal_coding(self, ctx: AuthContext, row: AgentWorkspace) -> None:
+        """Queue teardown of an admitted personal task whose cleanup cannot be trusted.
+
+        The personal runner supplies its own admitted row, never a model-selected
+        workspace. Commit this with the failed task's terminal bookkeeping.
+        """
+        if row.organization_id != ctx.organization_id or row.coding_account_id is None:
+            raise AuthorizationError(message="This is not an admitted personal coding workspace")
+        await self._purge_remote(ctx, row)
+        await workspace_repo.delete(self.db, workspace=row)
 
     async def _purge_remote(self, ctx: AuthContext, row: AgentWorkspace) -> None:
         """Delete the sandbox behind a workspace whose conversation or project is going.
@@ -2202,6 +2241,19 @@ class SandboxWorkspaceService:
         also discoverable here, but require both project view and use access;
         managing sandbox connections alone never grants access to a project.
         """
+        if row.coding_account_id is not None:
+            from app.repositories import coding_account as coding_account_repo
+
+            return (
+                ctx.user_id is not None
+                and await coding_account_repo.get(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    user_id=ctx.user_id,
+                    account_id=row.coding_account_id,
+                )
+                is not None
+            )
         if row.project_id is not None:
             if row.recovery_of_id is None:
                 return False

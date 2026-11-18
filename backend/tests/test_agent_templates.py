@@ -417,7 +417,6 @@ def test_shipped_agents_have_async_work_and_bounded_search_defaults() -> None:
             "background_tasks",
             "background_tools",
             "tool_search",
-            "conversation_search",
             "subagents",
         } <= bindings.keys()
         assert bindings["tool_search"]["config"] == {
@@ -426,12 +425,14 @@ def test_shipped_agents_have_async_work_and_bounded_search_defaults() -> None:
             "defer_capabilities": True,
             "exclude_capabilities": ["ask_user", "sandbox"],
         }
-        assert bindings["conversation_search"]["config"]["max_results"] == 5
+        if key == "general/platform-assistant":
+            assert bindings["conversation_search"]["config"]["max_results"] == 5
         config = bindings["subagents"]["config"]
         assert config["allow_dynamic"] and config["mode"] == "auto"
         assert {entry["name"] for entry in config["inline"]} == {"research", "explore", "review"}
         if key == "general/agenticos":
-            assert {"computer_use", "coding_agent", "browser_use"} <= bindings.keys()
+            assert {"coding_agent", "browser_use", "context"} <= bindings.keys()
+            assert "computer_use" not in bindings
         else:
             assert not (bindings.keys() & agent_templates.AGENTICOS_ONLY)
     assert not (agent_templates.starter_capabilities().keys() & agent_templates.AGENTICOS_ONLY)
@@ -451,3 +452,48 @@ def test_shipped_agents_and_new_agent_defaults_do_not_offer_planning_tools() -> 
         assert "write_plan" not in template.instructions
         assert "planning tool" not in template.instructions
     assert "planning" not in agent_templates.starter_capabilities()
+
+
+def test_agenticos_ships_the_requested_tools_without_a_shared_coding_account() -> None:
+    template = agent_templates.get("general/agenticos")
+    assert template is not None
+    bindings = {binding["id"]: binding for binding in template.capabilities}
+    assert set(bindings) == {
+        "charts",
+        "coding_agent",
+        "sandbox",
+        "visuals",
+        "monitor",
+        "context",
+        "memory_files",
+        "skills",
+        "background_tasks",
+        "subagents",
+        "background_tools",
+        "web_fetch",
+        "browser_use",
+        "web_research",
+        "artifacts",
+        "ask_user",
+        "clock",
+        "drafts",
+        "tool_search",
+        "tool_output_limits",
+        "media",
+        "compaction",
+    }
+    assert all(binding.get("enabled", True) for binding in bindings.values())
+    assert all(binding.get("secret_id") is None for binding in bindings.values())
+    assert bindings["coding_agent"]["config"]["runs_on"] == "personal_sandbox"
+    assert bindings["sandbox"]["config"] == {"backend": "service", "include_execute": True}
+
+
+def test_personal_coding_waits_for_a_container_without_switching_accounts_or_execution_mode() -> (
+    None
+):
+    bindings = ({"id": "coding_agent", "config": {"runs_on": "personal_sandbox"}},)
+    assert agent_templates.for_this_deployment(bindings, container_workspace=True) == list(bindings)
+    assert agent_templates.for_this_deployment(bindings, container_workspace=False) == [
+        {**bindings[0], "enabled": False}
+    ]
+    assert "enabled" not in bindings[0]

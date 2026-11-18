@@ -1032,7 +1032,7 @@ List footers stay at the bottom of their panel, with a solid background and cons
 
 The administration organization directory shows the uploaded organization picture, or initials in its chosen color when no image is set. Image access is limited to deployment administrators; the regular organization avatar route continues to require membership.
 
-**Chat controls → Tools & files** shows the coding account an agent needs when its Coding agent runs as **Private cloud task with my account**: only that harness, with its logo and consent status. Connect or manage it without leaving the chat; every account appears under **Settings → Profile**. Connecting does not change the agent’s execution mode: private cloud tasks still require **Private cloud task with my account**, while desktop coding uses its separate local sign-in.
+**Chat controls → Tools & files** shows both Claude Code and Codex connections when an agent uses **Private cloud task with my account**, with separate logos and consent status. Connect or manage either without leaving chat; all accounts appear under **Settings → Profile**. Each task uses only the initiating person’s enabled account for its selected harness. The default harness is a starting choice, not an exclusive provider. Connecting does not change the agent’s execution mode; desktop coding still uses separate local sign-ins.
 
 ## Your first task
 

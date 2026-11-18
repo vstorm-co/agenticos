@@ -42,9 +42,8 @@ export function CodingAccounts() {
 }
 
 /**
- * The one account a chat's agent needs: its coding agent runs as a private cloud
- * task on the person's own account, so the chat offers to connect that account and
- * no other.
+ * One personal connection door. A cloud-coding agent offers both harnesses and
+ * resolves only the selected harness's enabled account when a task starts.
  */
 export function PersonalCodingAccount({ harness }: { harness: CodingHarness }) {
   const t = useTranslations("codingAccounts");

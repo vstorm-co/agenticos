@@ -19,12 +19,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Keep named private cloud coding sessions with native CLI history and separate files. Queue tasks using the same personal account, allow Claude Code and Codex through different accounts concurrently, and show whether a session is new or continued. Clean up retained containers when account consent or ownership ends.
+- Add reproducible assistant smoke evaluations and an optional AgentDojo workspace utility adapter, using the shipped prompt, explicit model selection, bounded calls and recorded dataset/prompt identities. Offline checks make no paid model calls.
+- Let private cloud coding tasks choose Claude Code or Codex per task through one agent, using the initiating person’s own enabled account and an isolated container. Show both account connections in chat while preserving per-account exclusivity, read-only policy and organization-sandbox credentials.
+
 ### Changed
+
+- Align the shipped AgenticOS toolbox with the selected 22 capabilities, add Context and default personal cloud coding without a shared account. Include code-review and context-design skills; preserve customized agent specs during normal default refreshes. Cloud coding stays disabled on deployments that cannot provide a container.
 
 - Refine the default AgenticOS assistant’s guidance for economical specialist delegation, safe tool-error recovery, editable drafts and artifact verification. Keep media generation tied to available configured tools and preserve personal model, budget and prompt choices during normal default refreshes.
 
+### Upgrading
+
+- Apply `0342_personal_coding_sessions.py` and update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
+
 ### Fixed
 
+- Send Mattermost acknowledgement reactions from durable workers using the bot’s current server URL and token instead of relying on a stream process’s in-memory cache.
 - Keep streamed chat steps and expanded work details mounted after their first visit, so folding earlier activity no longer discards in-progress input. Animate disclosures with an intrinsic-size transition and a CSS-grid fallback, while preserving keyboard focus and hiding collapsed content from assistive technology.
 - Show the requested action, a readable subject and the requesting agent in Inbox approvals instead of serialized MCP requests or opaque record IDs. Preserve redacted approval boundaries.
 - Give chat drafts a dedicated action row, readable field spacing and stable version selection when streamed revisions change.

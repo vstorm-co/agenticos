@@ -5644,8 +5644,8 @@
     },
     "coding_agent": {
       "harness": {
-        "title": "Kodlama Agent'ı",
-        "description": "İşi hangi kodlama Agent'ının yapacağı: Anthropic key'i veya Claude abonelik token'ı kullanan Claude Code ya da OpenAI key'i veya ChatGPT oturumu kullanan Codex."
+        "title": "Varsayılan kodlama ajanı",
+        "description": "Görev Claude Code veya Codex seçmediğinde kullanılan varsayılan. Kişisel bulut ve masaüstü görevleri seçilen kodlama ajanı için kişinin kendi hesabını kullanır. Kuruluş sanal alanı yalnızca yapılandırılmış kodlama ajanını ve anahtarını kullanır."
       },
       "access": {
         "title": "Neler yapabilir?",
@@ -5653,7 +5653,7 @@
       },
       "model": {
         "title": "Model",
-        "description": "Kodlama Agent'ının çalıştırdığı model: Claude Code için Claude, Codex için OpenAI modeli. Boş bırakılırsa kodlama Agent'ının kendi varsayılanı kullanılır. Kendi ayarını kullandığı bu bilgisayarda kullanılamaz."
+        "description": "Varsayılan kodlama ajanının modeli: Claude Code için Claude, Codex için OpenAI. Boş bırakılırsa kendi varsayılanı kullanılır. Görev için diğer kodlama ajanı seçildiğinde onun varsayılan modeli kullanılır. Masaüstü görevleri yerel ayarı kullanır."
       },
       "base_url": {
         "title": "Anthropic uyumlu endpoint",
@@ -13442,6 +13442,9 @@
     "localHelp": "Profilini kullanmak için Coding agent aracında Hesabımla özel bulut görevi seçeneğini seç. Bu bilgisayarda seçeneği yerel CLI oturumunu ve onayladığın klasörü kullanır; yerel kimlik bilgileri bilgisayarında kalır.",
     "disconnectHelp": "Bağlantıyı kesmek AgenticOS kopyasını kaldırır ve görevlerini durdurur. ChatGPT yetkisini OpenAI ChatGPT Ayarlarından iptal et. Zamanlanmış ve kanal görevleri bu hesapları kullanmaz.",
     "personalAccount": "Kişisel hesap: {label}",
+    "continuedSession": "Oturum: {name} · devam ediyor",
+    "newSession": "Oturum: {name} · yeni",
+    "sessionName": "Oturum: {name}",
     "baseRevision": "Çalışma alanı anlık görüntüsü: {revision}",
     "chatTitle": "{name} hesabın",
     "chatHelp": "Bu agent kodlama görevlerini kendi hesabınla özel bir bulut görevi olarak çalıştırır. Diğer üyeler bu hesabı kullanamaz."

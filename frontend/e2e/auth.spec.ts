@@ -108,7 +108,9 @@ test.describe("Authentication", () => {
       expect(await response.json()).toMatchObject({
         error: { code: "AUTHENTICATION_ERROR", details: { reason: "invalid_credentials" } },
       });
-      await expect(page.getByRole("alert")).toHaveText("Invalid email or password");
+      await expect(page.getByRole("main").getByRole("alert")).toHaveText(
+        "Invalid email or password",
+      );
       await expect(page.getByLabel("Password")).toHaveAttribute("aria-invalid", "true");
       await expect(page.getByLabel("Password")).toHaveValue("wrongpassword");
       await expect(page).toHaveURL(/\/login$/);

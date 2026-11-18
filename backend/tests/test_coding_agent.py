@@ -794,7 +794,7 @@ class TestRunningATask:
         await shell.write_bytes(session_path("codex", THREAD), b"th-1\n")
         raw = await _call(shell, "Apply it", harness="codex")
         assert CodingReport.model_validate_json(raw).files_changed == ["app.py"]
-        assert shlex.split(shlex.split(shell.started[0])[4])[:4] == [
+        assert shlex.split(shell.started[0])[9:13] == [
             "codex",
             "exec",
             "resume",
@@ -1939,7 +1939,7 @@ def test_coding_instructions_distinguish_parallel_local_work_from_sandbox_snapsh
     assert "queue" in sandbox and "not separate files" in sandbox
     assert "can work at once" not in sandbox
     private = CodingAgent(runs_on="personal_sandbox").get_instructions()
-    assert "isolated copy" in private and "queue" not in private
+    assert "own files and native CLI history" in private and "bounded queue" in private
 
 
 @pytest.mark.security

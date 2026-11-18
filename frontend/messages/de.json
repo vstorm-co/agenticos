@@ -13779,8 +13779,8 @@
     },
     "coding_agent": {
       "harness": {
-        "title": "Coding Agent",
-        "description": "Welcher Coding Agent die Arbeit erledigt: Claude Code mit einem Anthropic-Key oder einem Claude-Abo-Token, oder Codex mit einem OpenAI-Key oder einer ChatGPT-Anmeldung."
+        "title": "Standard-Code-Agent",
+        "description": "Standard, wenn eine Aufgabe weder Claude Code noch Codex auswählt. Private Cloud- und Desktop-Aufgaben verwenden das eigene Konto der Person für den gewählten Coding-Agenten. Eine Organisations-Sandbox verwendet nur ihren konfigurierten Coding-Agenten und Schlüssel."
       },
       "access": {
         "title": "Was er darf",
@@ -13788,7 +13788,7 @@
       },
       "model": {
         "title": "Modell",
-        "description": "Das Modell, mit dem der Coding Agent läuft: ein Claude-Modell für Claude Code, ein OpenAI-Modell für Codex. Nicht gesetzt nimmt den Standard des Coding Agent. Auf diesem Computer nicht verfügbar; dort nutzt der Agent seine eigene Einstellung."
+        "description": "Modell des Standard-Code-Agenten: Claude für Claude Code, OpenAI für Codex. Leer verwendet dessen Standard. Wird für eine Aufgabe der andere Coding-Agent gewählt, gilt dessen eigenes Standardmodell. Desktop-Aufgaben verwenden ihre lokale Einstellung."
       },
       "base_url": {
         "title": "Anthropic-kompatibler Endpunkt",
@@ -17166,6 +17166,9 @@
     "localHelp": "Wähle im Werkzeug Coding agent die Option Private Cloud-Aufgabe mit meinem Konto. Auf diesem Computer nutzt stattdessen die lokale CLI-Anmeldung und deinen freigegebenen Ordner; lokale Zugangsdaten bleiben auf deinem Computer.",
     "disconnectHelp": "Trennen entfernt die Kopie von AgenticOS und beendet ihre Aufgaben. Widerrufe eine ChatGPT-Freigabe in den ChatGPT-Einstellungen bei OpenAI. Zeitpläne und Kanalaufgaben nutzen diese Konten nicht.",
     "personalAccount": "Persönliches Konto: {label}",
+    "continuedSession": "Sitzung: {name} · fortgesetzt",
+    "newSession": "Sitzung: {name} · neu",
+    "sessionName": "Sitzung: {name}",
     "baseRevision": "Arbeitsbereich-Snapshot: {revision}",
     "chatTitle": "Dein {name}-Konto",
     "chatHelp": "Dieser Agent führt Coding-Aufgaben als private Cloud-Aufgabe mit deinem eigenen Konto aus. Andere Mitglieder können es nicht nutzen."

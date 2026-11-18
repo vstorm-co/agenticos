@@ -421,14 +421,14 @@ it("offers no tools tab on the web for an agent that needs no account of the per
   expect(screen.queryByRole("tab", { name: "Tools & files" })).toBeNull();
 });
 
-it("offers the one coding account the agent codes on, under tools and not the model", async () => {
+it("offers both personal coding accounts under tools, with neither in the model tab", async () => {
   state.personalHarness = "codex";
   open();
   await userEvent.click(trigger());
   expect(screen.queryByRole("region", { name: "Your codex account" })).toBeNull();
   await userEvent.click(screen.getByRole("tab", { name: "Tools & files" }));
   expect(screen.getByRole("region", { name: "Your codex account" })).toBeVisible();
-  expect(screen.queryByRole("region", { name: "Your claude_code account" })).toBeNull();
+  expect(screen.getByRole("region", { name: "Your claude_code account" })).toBeVisible();
 });
 
 it("returns to Model when the selected agent no longer offers Tools", async () => {

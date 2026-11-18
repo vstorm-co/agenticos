@@ -2243,7 +2243,10 @@ class ChannelMessageRouter:
             return
         try:
             await get_adapter(incoming.platform).acknowledge_message(
-                unseal_bot_token(bot), incoming, bot.ack_reaction
+                unseal_bot_token(bot),
+                incoming,
+                bot.ack_reaction,
+                api_base_url=bot.api_base_url,
             )
         except Exception:
             logger.warning("Could not react to a message on %s", incoming.platform, exc_info=True)

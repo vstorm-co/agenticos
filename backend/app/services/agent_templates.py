@@ -178,7 +178,16 @@ def for_this_deployment(
     if container_workspace is None:
         container_workspace = bool(settings.SANDBOXD_TOKEN)
     resolved = []
-    for binding in bindings:
+    for original in bindings:
+        binding = dict(original)
+        if (
+            binding["id"] == "coding_agent"
+            and (binding.get("config") or {}).get("runs_on") == "personal_sandbox"
+            and not container_workspace
+        ):
+            # Keep the chosen execution policy visible without offering an unusable
+            # cloud task or falling back to somebody else's credential.
+            binding["enabled"] = False
         if binding["id"] == SANDBOX and not container_workspace:
             config = {**(binding.get("config") or {}), "backend": "state"}
             config.pop("include_execute", None)

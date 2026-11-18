@@ -313,10 +313,10 @@ class AgentRead(BaseSchema):
     personal_coding_harness: Literal["claude_code", "codex"] | None = Field(
         default=None,
         description=(
-            "The coding agent this agent's published version runs as a private cloud task "
-            "on the initiating person's own account, or null when it runs none that way. "
-            "Filled by the listing, so the chat can offer to connect that account where "
-            "the agent needs it."
+            "The default coding harness for this agent's personal cloud tasks, or null "
+            "when it does not use personal cloud coding. Each task may choose Claude Code "
+            "or Codex with the initiating person's own enabled account. Filled by the "
+            "listing so the chat can offer both personal connection doors."
         ),
     )
     local_workspace: bool = Field(

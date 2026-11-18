@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import String, and_, cast, func, inspect, or_, select, update
+from sqlalchemy import String, and_, cast, false, func, inspect, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
@@ -209,14 +209,19 @@ async def kept_for_conversation(
 
 
 async def list_for_conversation(
-    db: AsyncSession, *, organization_id: UUID, conversation_id: UUID
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    conversation_id: UUID,
+    include_personal_coding: bool = False,
 ) -> list[AgentWorkspace]:
-    result = await db.execute(
-        select(AgentWorkspace).where(
-            AgentWorkspace.organization_id == organization_id,
-            AgentWorkspace.conversation_id == conversation_id,
-        )
+    query = select(AgentWorkspace).where(
+        AgentWorkspace.organization_id == organization_id,
+        AgentWorkspace.conversation_id == conversation_id,
     )
+    if not include_personal_coding:
+        query = query.where(AgentWorkspace.coding_account_id.is_(None))
+    result = await db.execute(query)
     return list(result.scalars().all())
 
 
@@ -311,6 +316,20 @@ async def list_for_reader(
     query = select(AgentWorkspace).where(
         AgentWorkspace.organization_id == organization_id, AgentWorkspace.project_id.is_(None)
     )
+    from app.db.models.coding_account import CodingAccount
+
+    personal_owner = select(CodingAccount.id).where(
+        CodingAccount.organization_id == organization_id,
+        CodingAccount.user_id == user_id,
+    )
+    query = query.where(
+        or_(
+            AgentWorkspace.coding_account_id.is_(None),
+            AgentWorkspace.coding_account_id.in_(personal_owner)
+            if user_id is not None
+            else false(),
+        )
+    )
     if not see_all:
         if user_id is None:
             # An anonymous caller is part of no conversation, so the honest answer
@@ -383,3 +402,50 @@ async def lock_project_files(db: AsyncSession, *, project_id: UUID, organization
         .execution_options(populate_existing=True)
         .with_for_update()
     )
+
+
+async def list_personal_coding(
+    db: AsyncSession,
+    *,
+    organization_id: UUID | None = None,
+    user_id: UUID | None = None,
+    account_id: UUID | None = None,
+) -> list[AgentWorkspace]:
+    """Bounded teardown selection, before its owning account or conversation cascades."""
+    from app.db.models.coding_account import CodingAccount
+
+    if organization_id is None and user_id is None and account_id is None:
+        raise ValueError("Personal coding cleanup requires an owner, account or organization")
+    query = select(AgentWorkspace).join(
+        CodingAccount,
+        CodingAccount.id == AgentWorkspace.coding_account_id,
+    )
+    if organization_id is not None:
+        query = query.where(AgentWorkspace.organization_id == organization_id)
+    if user_id is not None:
+        query = query.where(CodingAccount.user_id == user_id)
+    if account_id is not None:
+        query = query.where(CodingAccount.id == account_id)
+    return list((await db.execute(query)).scalars().all())
+
+
+async def bind_personal_coding(
+    db: AsyncSession,
+    *,
+    workspace: AgentWorkspace,
+    account_id: UUID,
+    conversation_id: UUID,
+) -> None:
+    workspace.coding_account_id = account_id
+    workspace.conversation_id = conversation_id
+    await db.flush()
+
+
+async def initialize_personal_coding(
+    db: AsyncSession,
+    *,
+    workspace: AgentWorkspace,
+    source_revision: str,
+) -> None:
+    workspace.coding_source_revision = source_revision
+    await db.flush()

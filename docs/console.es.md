@@ -1,5 +1,5 @@
 ---
-source_sha: "79ff311d2516"
+source_sha: "9b63b61c4574"
 ---
 
 # La consola { #the-console }
@@ -1093,7 +1093,7 @@ Los pies de lista permanecen en el borde inferior del panel, con espaciado unifo
 
 El directorio de organizaciones de administración muestra la imagen cargada o las iniciales en el color elegido si no hay imagen. El acceso a las imágenes en esta vista se limita a administradores del despliegue; el endpoint normal de avatares sigue requiriendo pertenencia a la organización.
 
-**Chat controls → Tools & files** muestra la cuenta de coding que necesita un agente cuando su Coding agent se ejecuta como **Private cloud task with my account**: solo ese harness, con su logotipo y el estado del consentimiento. Conéctala o gestiónala sin salir del chat; todas las cuentas aparecen en **Settings → Profile**. Conectar no cambia el modo de ejecución del agente: las tareas privadas en la nube siguen necesitando **Private cloud task with my account**, mientras que el coding de escritorio utiliza su propio inicio de sesión local.
+**Chat controls → Tools & files** muestra las conexiones de Claude Code y Codex cuando un agente usa **Private cloud task with my account**, cada una con su logotipo y estado de consentimiento. Puedes gestionar ambas sin salir del chat; todas las cuentas aparecen en **Settings → Profile**. Cada tarea usa solo la cuenta habilitada de quien la inicia para el harness elegido. El harness predeterminado es una opción inicial, no un proveedor exclusivo. Conectar no cambia el modo de ejecución; el coding de escritorio sigue usando inicios de sesión locales separados.
 
 ## Tu primera tarea { #your-first-task }
 

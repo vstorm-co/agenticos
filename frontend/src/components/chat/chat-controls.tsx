@@ -108,11 +108,7 @@ export function ChatControls({
   // has no coding binding itself. Keep both connection doors in that case.
   const delegates =
     (agentCapabilities ?? selectedAgent?.published_capabilities)?.includes("subagents") === true;
-  const harnesses = delegates
-    ? (["claude_code", "codex"] as const)
-    : personalHarness
-      ? [personalHarness]
-      : [];
+  const harnesses = delegates || personalHarness ? (["claude_code", "codex"] as const) : [];
   const tools = desktop || harnesses.length > 0;
   const selectedTab = !tools && tab === "tools" ? "model" : tab;
   const { profiles } = useModelProviders();

@@ -1190,7 +1190,7 @@ def _local_coding_agent(binding: PublishedCodingAgent | None) -> LocalCodingAgen
 def _personal_coding_harness(
     binding: PublishedCodingAgent | None,
 ) -> Literal["claude_code", "codex"] | None:
-    """The harness a version runs as a private cloud task on the person's account."""
+    """The default harness for a version that offers personal cloud coding."""
     if binding is None or binding.runs_on != "personal_sandbox":
         return None
     return binding.harness

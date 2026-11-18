@@ -89,6 +89,32 @@ _READ_ONLY_NOTE = (
     "with Read, Grep and Glob. Nobody can approve anything else - there is no person "
     "at this terminal. Where a change or a command would be needed, say what it would be."
 )
+
+_SUPERVISE = """
+import os, signal, subprocess, sys
+events, errors, status, seconds, *command = sys.argv[1:]
+code = 125
+try:
+    with open(events, 'wb') as out, open(errors, 'wb') as err:
+        child = subprocess.Popen(command, stdout=out, stderr=err)
+        try:
+            code = child.wait(timeout=float(seconds))
+        except subprocess.TimeoutExpired:
+            code = 124
+finally:
+    try:
+        with open(status + '.part', 'w') as output:
+            output.write(str(code))
+        os.replace(status + '.part', status)
+    finally:
+        os.killpg(os.getpgrp(), signal.SIGKILL)
+"""
+"""The container enforces the deadline even if the platform worker disappears.
+
+The supervisor and all descendants share the detached task's process group.
+After recording the result it kills that whole group, including itself, so a
+successful CLI cannot leave credential-bearing child processes behind.
+"""
 """What a read-only Claude Code session is told, so it does not ask for an approval nobody can give."""
 
 
@@ -113,6 +139,8 @@ class CodingReport(BaseModel):
     base_revision: str | None = None
     result_archive: str | None = None
     session_id: str | None = None
+    session_name: str | None = None
+    session_resumed: bool | None = None
     steps: list[CodingStep] = []
     files_changed: list[str] = []
     task_updates: list[str] = []
@@ -143,7 +171,7 @@ class Invocation:
     argv: list[str]
     env: dict[str, str] = field(repr=False)
 
-    def detached_line(self, files: TaskFiles) -> str:
+    def detached_line(self, files: TaskFiles, *, timeout_seconds: int | None = None) -> str:
         """The command, started in a session of its own and left running.
 
         Detached, because a coding task outlives what one command call may wait
@@ -155,6 +183,20 @@ class Invocation:
 
         Every word is quoted; the redirections and the `&` are the point.
         """
+        if timeout_seconds is not None:
+            supervised = shlex.join(
+                [
+                    "python3",
+                    "-c",
+                    _SUPERVISE,
+                    files.events,
+                    files.errors,
+                    files.status,
+                    str(timeout_seconds),
+                    *self.argv,
+                ]
+            )
+            return f"setsid nohup {supervised} < /dev/null > /dev/null 2>&1 & echo $!"
         inner = (
             f"{shlex.join(self.argv)} > {shlex.quote(files.events)} 2> {shlex.quote(files.errors)}; "
             f"echo $? > {shlex.quote(files.status)}"

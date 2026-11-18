@@ -10765,8 +10765,8 @@
     },
     "coding_agent": {
       "harness": {
-        "title": "Coding agent",
-        "description": "Który coding agent wykonuje pracę: Claude Code na kluczu Anthropic albo tokenie subskrypcji Claude, albo Codex na kluczu OpenAI albo logowaniu ChatGPT."
+        "title": "Domyślny agent programistyczny",
+        "description": "Używany, gdy zadanie nie wybiera Claude Code ani Codexa. Zadania prywatne w chmurze i na komputerze korzystają z własnego konta użytkownika dla wybranego narzędzia. Piaskownica organizacji używa tylko skonfigurowanego narzędzia i klucza."
       },
       "access": {
         "title": "Co może robić",
@@ -10774,7 +10774,7 @@
       },
       "model": {
         "title": "Model",
-        "description": "Model, na którym działa coding agent: model Claude dla Claude Code, model OpenAI dla Codexa. Nieustawiony oznacza domyślny model coding agenta. Niedostępne na tym komputerze, gdzie agent używa własnego ustawienia."
+        "description": "Model domyślnego agenta programistycznego: Claude dla Claude Code, OpenAI dla Codexa. Puste pole oznacza jego model domyślny. Wybór drugiego narzędzia w zadaniu używa modelu domyślnego tego narzędzia. Zadania na komputerze korzystają z ustawienia lokalnego."
       },
       "base_url": {
         "title": "Endpoint zgodny z Anthropic",
@@ -17253,6 +17253,9 @@
     "localHelp": "Aby użyć profilu, w narzędziu Coding agent wybierz prywatne zadanie chmurowe z moim kontem. Opcja Ten komputer korzysta z lokalnego logowania CLI i zatwierdzonego folderu; poświadczenia zostają na komputerze.",
     "disconnectHelp": "Odłączenie usuwa kopię poświadczeń z AgenticOS i zatrzymuje zadania. Grant ChatGPT unieważnisz też w ustawieniach ChatGPT. Zadania harmonogramów i kanałów nie korzystają z tych kont.",
     "personalAccount": "Konto osobiste: {label}",
+    "continuedSession": "Sesja: {name} · kontynuowana",
+    "newSession": "Sesja: {name} · nowa",
+    "sessionName": "Sesja: {name}",
     "baseRevision": "Snapshot workspace: {revision}",
     "chatTitle": "Twoje konto {name}",
     "chatHelp": "Ten agent wykonuje zadania coding jako prywatne zadanie w chmurze na Twoim własnym koncie. Inni członkowie nie mogą z niego korzystać."
