@@ -1,5 +1,5 @@
 ---
-source_sha: "4d8a6c479c11"
+source_sha: "23b6ec4a41c3"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -412,7 +412,7 @@ według zegara serwera, a kolejne go odsyłają. Wiersz powtarzający zewnętrzn
 plik już podał, trafia na listę zamiast zostać wysłany, a partia odrzuca wiersz
 powtarzający id, które już zawiera, kodem `INVALID_RECORD`.
 
-**New table** zaczyna się od kolumny **Name**. Najpierw podaj nazwę tabeli i jej kolumny; opis oraz widoczność są pod **More options**, z domyślną widocznością prywatną. Zamiast tego może zacząć się od pliku:
+**New table** zaczyna się od kolumny **Name**. Podaj nazwę tabeli, wybierz, kto ją widzi, i dodaj kolumny; opis jest pod **More options**. Tabela zaczyna jako **Only me**; **Everyone** otwiera ją dla organizacji, a **Some people** udostępnia ją wybranym grupom i osobom, każdej na poziomie `use`, w tym samym żądaniu (`group_ids` i `user_ids` w `POST /tables`). Zamiast tego może zacząć się od pliku:
 **Start from a CSV file** zamienia nagłówek na kolumny i daje każdej najwęższy typ, w którym dają się odczytać
 wszystkie jej wartości - liczba całkowita, liczba, tak/nie, data, data i godzina
 w ISO, adres e-mail albo link - a w przeciwnym razie tekst lub długi tekst, gdy wartość ma podział wiersza albo

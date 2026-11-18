@@ -1,5 +1,5 @@
 ---
-source_sha: "4d8a6c479c11"
+source_sha: "23b6ec4a41c3"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -414,7 +414,7 @@ empezó según el reloj del servidor, y los demás lo devuelven. Una fila que re
 externo que el archivo ya nombró se lista en lugar de enviarse, y el lote rechaza con
 `INVALID_RECORD` una fila que repite un id que ya contiene.
 
-**New table** empieza con una columna **Name**. Primero indica el nombre y las columnas; la descripción y la visibilidad están en **More options**, con visibilidad privada por defecto. En su lugar puede empezar desde un
+**New table** empieza con una columna **Name**. Indica el nombre, elige quién puede verla y añade las columnas; la descripción está en **More options**. Una tabla empieza como **Only me**; **Everyone** la abre a la organización y **Some people** la comparte con los grupos y miembros que elijas, cada uno con `use`, en la misma solicitud (`group_ids` y `user_ids` en `POST /tables`). En su lugar puede empezar desde un
 archivo: **Start from a CSV file** convierte la cabecera en columnas y da a cada una el tipo más estrecho
 en que se leen todos sus valores - entero, número, sí/no, fecha, fecha y hora ISO, una dirección de correo o un enlace -
 y si no, texto, o texto largo cuando un valor tiene un salto de línea o pasa de 1.000

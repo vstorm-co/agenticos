@@ -39,6 +39,7 @@ from app.schemas.virtual_table import (
     TableUpdate,
 )
 from app.services.access import TABLE, accessible_ids, visible_resource_ids
+from app.services.sharing import SharingService
 from app.services.task_access import table_audience
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.conversions import convert, option_labels
@@ -142,6 +143,14 @@ class TableOperations(Operations):
                 target_id=str(table.id),
                 details={"name": table.name, "columns": len(columns)},
             )
+            if data.group_ids or data.user_ids:
+                await SharingService(self.db).restrict_to(
+                    ctx,
+                    table,
+                    resource_type=TABLE,
+                    group_ids=data.group_ids,
+                    user_ids=data.user_ids,
+                )
             return self._read(table, columns, can_edit=await self._can_edit(ctx, table))
 
         created, _replayed = await run_once(

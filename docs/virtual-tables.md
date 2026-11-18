@@ -394,7 +394,7 @@ clock, and the rest send it back. A row repeating an external id the file alread
 is listed rather than sent, and the batch refuses one repeating an id it already holds
 with `INVALID_RECORD`.
 
-**New table** starts with a **Name** column. Name the table and add its columns first; description and visibility are under **More options**, with private visibility as the default. It can start from a file instead: **Start
+**New table** starts with a **Name** column. Name the table, choose who can see it and add its columns; the description is under **More options**. A table starts as **Only me**; **Everyone** opens it to the organization, and **Some people** shares it with the groups and members you pick, each at `use`, in the same request (`group_ids` and `user_ids` on `POST /tables`). It can start from a file instead: **Start
 from a CSV file** turns
 the header into columns and gives each the narrowest type all its values read as -
 integer, number, yes/no, date, an ISO date and time, an email address or a link - and otherwise text, or long

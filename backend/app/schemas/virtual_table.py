@@ -17,7 +17,7 @@ not a write that silently skipped its concurrency check.
 """
 
 from datetime import datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
 from pydantic import (
@@ -267,7 +267,31 @@ class TableCreate(_Request):
     name: Label = Field(description="Unique among the organization's live tables")
     description: Description | None = None
     columns: list[ColumnInput] = Field(default_factory=list, max_length=MAX_COLUMNS)
-    visibility: VisibilityName = "private"
+    visibility: VisibilityName = Field(
+        default="private",
+        description=(
+            "`private` - the default - is the creator and whoever they share it with; "
+            "`org` is everyone in the organization. Naming `group_ids` or `user_ids` "
+            "makes it private."
+        ),
+    )
+    group_ids: list[UUID] = Field(
+        default_factory=list,
+        max_length=50,
+        description="Share it with these groups as it is created, each at `use`",
+    )
+    user_ids: list[UUID] = Field(
+        default_factory=list,
+        max_length=50,
+        description="Share it with these members as well, or instead, each at `use`",
+    )
+
+    @model_validator(mode="after")
+    def _an_audience_narrows_it(self) -> Self:
+        """The `AudienceChoice` rule: a table for chosen people is private to them."""
+        if self.group_ids or self.user_ids:
+            self.visibility = "private"
+        return self
 
 
 class TableUpdate(_Request):
