@@ -81,7 +81,9 @@ async def list_message_pins(
         .offset(skip)
         .limit(limit)
     )
-    items = list(result.all())
+    items: list[tuple[ConversationMessagePin, Message]] = [
+        (pin, message) for pin, message in result.all()
+    ]
     total = await db.scalar(
         select(func.count())
         .select_from(ConversationMessagePin)

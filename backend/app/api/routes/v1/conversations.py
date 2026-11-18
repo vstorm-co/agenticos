@@ -35,7 +35,6 @@ from app.schemas.conversation import (
     ConversationCreate,
     ConversationForkCreate,
     ConversationForkList,
-    ConversationForkRead,
     ConversationList,
     ConversationRead,
     ConversationReadWithMessages,
@@ -112,7 +111,7 @@ async def compaction_availability(
         return ConversationCompactionAvailability(available=False)
     try:
         _, spec, _ = await registry.get_runnable_spec(ctx, agent_id)
-    except (AuthorizationError, BadRequestError, NotFoundError):
+    except AuthorizationError, BadRequestError, NotFoundError:
         return ConversationCompactionAvailability(available=False)
     available = any(
         binding.id == "compaction"
@@ -448,9 +447,7 @@ async def list_conversation_forks(
         skip=skip,
         limit=limit,
     )
-    return ConversationForkList(
-        items=[ConversationForkRead.model_validate(item) for item in items], total=total
-    )
+    return ConversationForkList(items=items, total=total)
 
 
 @router.post(

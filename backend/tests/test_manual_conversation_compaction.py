@@ -1,6 +1,7 @@
 """Server-side invariants for idle conversation compaction."""
 
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from decimal import Decimal
@@ -9,8 +10,11 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+from pydantic_ai.capabilities import Thinking
 from pydantic_ai.messages import ModelRequest, UserPromptPart
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.settings import ModelSettings
+from pydantic_ai.tools import RunContext
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope, SpendLedger
 from app.agents.capabilities.compaction import (
@@ -21,7 +25,7 @@ from app.agents.capabilities.compaction import (
 )
 from app.agents.compaction_events import CompactionEvent
 from app.agents.deps import AgentDeps
-from app.core.exceptions import AuthorizationError, BadRequestError
+from app.core.exceptions import AuthenticationError, AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus
 from app.repositories import conversation as conversation_repo
@@ -41,6 +45,7 @@ def _session() -> AgentSession:
     user = MagicMock(id=PERSON)
     websocket = MagicMock()
     websocket.send_json = AsyncMock()
+    websocket.close = AsyncMock()
     session = AgentSession(websocket, user, SimpleNamespace(id=ORG))
     session._room = str(CONVERSATION)
     return session
@@ -223,6 +228,7 @@ async def test_compaction_availability_refuses_unowned_or_nonpersonal_chats(conv
     registry.get_runnable_spec.assert_not_awaited()
 
 
+@pytest.mark.security
 async def test_compaction_availability_hides_unsupported_policy_and_agent_permissions():
     from app.api.routes.v1.conversations import compaction_availability
 
@@ -409,6 +415,57 @@ async def test_stopping_compaction_releases_its_lease_and_emits_a_correlated_ter
     assert _events(session)[-1] == ("session_ready", {"conversation_id": str(CONVERSATION)})
 
 
+@pytest.mark.security
+async def test_revoked_session_cancels_active_compaction_and_releases_its_claim(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session = _session()
+    session._auth_token = "live-token"
+    dependencies = _install_session_dependencies(monkeypatch, session)
+    started = asyncio.Event()
+    wait_forever = asyncio.Event()
+
+    async def waits_until_revoked(*_args, **_kwargs):
+        started.set()
+        await wait_forever.wait()
+
+    runner = dependencies["runner"]
+    runner.compact_conversation.side_effect = waits_until_revoked
+    request = _CompactNowRequest(
+        request_id="revoked-maintenance",
+        conversation_id=CONVERSATION,
+        agent_id=AGENT,
+    )
+    task = asyncio.create_task(session._run_compaction(request))
+    session._compaction_task = task
+    try:
+        await asyncio.wait_for(started.wait(), timeout=5)
+
+        monkeypatch.setattr(
+            agent_session_module,
+            "authenticate_socket_token",
+            AsyncMock(side_effect=AuthenticationError(message="Session revoked")),
+        )
+        await session.handle_frame({"type": "stop"})
+
+        assert task.cancelled()
+        assert session._compaction_task is None
+        assert dependencies["claim_state"] == {"held": False, "released": True}
+        result = next(data for kind, data in _events(session) if kind == "compact_now_result")
+        assert result == {
+            "request_id": "revoked-maintenance",
+            "conversation_id": str(CONVERSATION),
+            "status": "failed",
+        }
+        assert _events(session)[-1] == ("session_ready", {"conversation_id": str(CONVERSATION)})
+        session.websocket.close.assert_awaited_once_with(code=4001, reason="Session revoked")
+    finally:
+        if not task.done():
+            task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
 def _prepared_compaction(
     *,
     conversation_id,
@@ -516,6 +573,73 @@ async def test_runner_records_summary_only_if_the_bounded_snapshot_cas_holds(
     assert db.commit.await_count == 2
 
 
+@pytest.mark.parametrize("callable_settings", [False, True])
+async def test_runner_resolves_model_settings_with_normal_layer_precedence(
+    monkeypatch: pytest.MonkeyPatch, callable_settings: bool
+):
+    history = ModelHistory(
+        [ModelRequest(parts=[UserPromptPart(content="remember this")])], revision=4, ordinal=9
+    )
+    prepared, capability = _prepared_compaction(conversation_id=CONVERSATION, history=history)
+    model = TestModel(settings=ModelSettings(timeout=12.0, max_tokens=100, thinking="high"))
+    prepared.built.agent.model = model
+    agent_settings = ModelSettings(max_tokens=240, temperature=0.2)
+    observed_contexts: list[RunContext[AgentDeps]] = []
+    observed_model_settings: list[object] = []
+
+    def resolve_agent_settings(run_context: RunContext[AgentDeps]) -> ModelSettings:
+        observed_contexts.append(run_context)
+        observed_model_settings.append(
+            None if run_context.model_settings is None else dict(run_context.model_settings)
+        )
+        return agent_settings
+
+    prepared.built.agent.model_settings = (
+        resolve_agent_settings if callable_settings else agent_settings
+    )
+    prepared.built.capabilities.append(Thinking(effort="low"))
+    service, _conversation_service, _db, ctx = _runner_harness(monkeypatch, history, prepared)
+
+    await service.compact_conversation(ctx, CONVERSATION, AGENT)
+
+    run_context = capability.compact_now.await_args.args[1]
+    if callable_settings:
+        assert len(observed_contexts) == 1
+        assert observed_contexts[0] is run_context
+        assert observed_model_settings == [model.settings]
+    else:
+        assert observed_contexts == []
+        assert observed_model_settings == []
+    assert run_context.model is model
+    assert run_context.messages == list(history)
+    assert run_context.deps is prepared.built.deps
+    assert run_context.model_settings == {
+        "timeout": 12.0,
+        "max_tokens": 240,
+        "thinking": "low",
+        "temperature": 0.2,
+    }
+
+
+@pytest.mark.parametrize("unprepared_model", [None, "openai:unresolved"])
+async def test_runner_refuses_an_unprepared_request_response_model_without_fallback(
+    monkeypatch: pytest.MonkeyPatch, unprepared_model: str | None
+):
+    history = ModelHistory(
+        [ModelRequest(parts=[UserPromptPart(content="remember this")])], revision=4, ordinal=9
+    )
+    prepared, capability = _prepared_compaction(conversation_id=CONVERSATION, history=history)
+    prepared.built.agent.model = unprepared_model
+    service, conversation_service, _db, ctx = _runner_harness(monkeypatch, history, prepared)
+
+    with pytest.raises(TypeError, match="requires the prepared request-response model"):
+        await service.compact_conversation(ctx, CONVERSATION, AGENT)
+
+    capability.compact_now.assert_not_awaited()
+    conversation_service.keep_summary_snapshot.assert_not_awaited()
+    assert service.finish_compaction.await_args.kwargs["status"] is RunStatus.FAILED
+
+
 async def test_runner_keeps_the_existing_cache_when_snapshot_cas_loses(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -562,6 +686,7 @@ async def test_runner_refuses_a_stale_guardrail_revision_before_calling_the_summ
     assert service.finish_compaction.await_args.kwargs["status"] is RunStatus.GUARDRAIL_BLOCKED
 
 
+@pytest.mark.security
 async def test_runner_books_budget_refusal_and_does_not_replace_the_summary(
     monkeypatch: pytest.MonkeyPatch,
 ):

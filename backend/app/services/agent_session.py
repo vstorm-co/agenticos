@@ -336,9 +336,8 @@ class AgentSession:
                 return
             if not await self._reauthorize():
                 return
-            if (
-                (self._turn_task is not None and not self._turn_task.done())
-                or (self._compaction_task is not None and not self._compaction_task.done())
+            if (self._turn_task is not None and not self._turn_task.done()) or (
+                self._compaction_task is not None and not self._compaction_task.done()
             ):
                 await self._answer_failed(
                     request_id,
@@ -360,19 +359,20 @@ class AgentSession:
 
         if msg_type == "compact_now":
             raw_request_id = data.get("request_id")
-            if not isinstance(raw_request_id, str) or not raw_request_id or len(raw_request_id) > 128:
+            if (
+                not isinstance(raw_request_id, str)
+                or not raw_request_id
+                or len(raw_request_id) > 128
+            ):
                 return
             if not await self._reauthorize():
                 return
             try:
                 request = _CompactNowRequest.model_validate(data)
             except ValidationError:
-                await self._compaction_result(
-                    raw_request_id, None, "unavailable"
-                )
-                if (
-                    (self._turn_task is None or self._turn_task.done())
-                    and (self._compaction_task is None or self._compaction_task.done())
+                await self._compaction_result(raw_request_id, None, "unavailable")
+                if (self._turn_task is None or self._turn_task.done()) and (
+                    self._compaction_task is None or self._compaction_task.done()
                 ):
                     await self._emit(
                         "session_ready", {"conversation_id": self.current_conversation_id}
@@ -382,17 +382,15 @@ class AgentSession:
                 await self._compaction_result(
                     request.request_id, str(request.conversation_id), "unavailable"
                 )
-                if (
-                    (self._turn_task is None or self._turn_task.done())
-                    and (self._compaction_task is None or self._compaction_task.done())
+                if (self._turn_task is None or self._turn_task.done()) and (
+                    self._compaction_task is None or self._compaction_task.done()
                 ):
                     await self._emit(
                         "session_ready", {"conversation_id": self.current_conversation_id}
                     )
                 return
-            if (
-                (self._turn_task is not None and not self._turn_task.done())
-                or (self._compaction_task is not None and not self._compaction_task.done())
+            if (self._turn_task is not None and not self._turn_task.done()) or (
+                self._compaction_task is not None and not self._compaction_task.done()
             ):
                 await self._compaction_result(
                     request.request_id, str(request.conversation_id), "busy"
@@ -404,9 +402,8 @@ class AgentSession:
             return
 
         if msg_type == "stop":
-            if (
-                (self._turn_task is None or self._turn_task.done())
-                and (self._compaction_task is None or self._compaction_task.done())
+            if (self._turn_task is None or self._turn_task.done()) and (
+                self._compaction_task is None or self._compaction_task.done()
             ):
                 return
             if not await self._reauthorize():
@@ -510,9 +507,8 @@ class AgentSession:
         if msg_type is not None:
             return
 
-        if (
-            (self._turn_task is not None and not self._turn_task.done())
-            or (self._compaction_task is not None and not self._compaction_task.done())
+        if (self._turn_task is not None and not self._turn_task.done()) or (
+            self._compaction_task is not None and not self._compaction_task.done()
         ):
             logger.warning("Ignoring message received while chat maintenance is in progress")
             return
@@ -702,15 +698,13 @@ class AgentSession:
                 ):
                     status = "unavailable"
                     return
-                if await conversation_repo.has_unfinished_runs(db, conversation_id) or await (
-                    conversation_repo.has_room_submissions(db, conversation_id)
-                ):
+                if await conversation_repo.has_unfinished_runs(
+                    db, conversation_id
+                ) or await conversation_repo.has_room_submissions(db, conversation_id):
                     status = "busy"
                     return
 
-            acquired = await admission.enter_async_context(
-                claim(conversation_id, background=True)
-            )
+            acquired = await admission.enter_async_context(claim(conversation_id, background=True))
             if not acquired:
                 status = "busy"
                 return
@@ -738,9 +732,9 @@ class AgentSession:
                 ):
                     status = "unavailable"
                     return
-                if await conversation_repo.has_unfinished_runs(db, conversation_id) or await (
-                    conversation_repo.has_room_submissions(db, conversation_id)
-                ):
+                if await conversation_repo.has_unfinished_runs(
+                    db, conversation_id
+                ) or await conversation_repo.has_room_submissions(db, conversation_id):
                     status = "busy"
                     return
 
@@ -764,7 +758,7 @@ class AgentSession:
         except asyncio.CancelledError:
             status = "failed"
             raise
-        except (AuthorizationError, NotFoundError):
+        except AuthorizationError, NotFoundError:
             status = "unavailable"
         except AlreadyExistsError:
             status = "busy"
@@ -784,9 +778,7 @@ class AgentSession:
                 await admission.aclose()
             if self._compaction_task is asyncio.current_task():
                 self._compaction_task = None
-            await self._compaction_result(
-                request.request_id, str(conversation_id), status
-            )
+            await self._compaction_result(request.request_id, str(conversation_id), status)
             await self._emit("session_ready", {"conversation_id": str(conversation_id)})
 
     async def _answer_failed(self, request_id: str, error: AppException) -> None:

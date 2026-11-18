@@ -70,6 +70,7 @@ from app.schemas.conversation import (
     ConversationCost,
     ConversationCreate,
     ConversationForkOrigin,
+    ConversationForkRead,
     ConversationUpdate,
     MessageCreate,
     MessageRead,
@@ -216,9 +217,10 @@ async def check_history_snapshot(
         expected = history.revision if history.revision is not None else 0
         current_history = revision is not None and revision == expected
         if current_history and history.ordinal is not None:
-            current_history = (
-                await conversation_repo.last_ordinal(db, conversation_id) == history.ordinal
-                and not await conversation_repo.has_room_submissions(db, conversation_id)
+            current_history = await conversation_repo.last_ordinal(
+                db, conversation_id
+            ) == history.ordinal and not await conversation_repo.has_room_submissions(
+                db, conversation_id
             )
     if not current_history:
         raise GuardrailBlocked(
@@ -359,9 +361,8 @@ class ConversationService:
             )
         summary = None if conversation is None else conversation.summary_messages
         summary_ordinal = None if conversation is None else conversation.summary_ordinal
-        if (
-            through_ordinal is not None
-            and (summary_ordinal is None or summary_ordinal > through_ordinal)
+        if through_ordinal is not None and (
+            summary_ordinal is None or summary_ordinal > through_ordinal
         ):
             summary = None
         before_ordinal: int | None = None
@@ -597,10 +598,7 @@ class ConversationService:
                     if getattr(row, "reply_to_excerpt", None) and not answered.guardrail_refused
                     else _excerpt(_said(answered))
                 )
-                text = (
-                    f'(In reply to {_whose(answered, people)}: "{excerpt}")'
-                    f"\n\n{text}"
-                )
+                text = f'(In reply to {_whose(answered, people)}: "{excerpt}")\n\n{text}'
             author = people.get(row.author_user_id) if in_project and row.author_user_id else None
             if author is not None:
                 text = f"{ChatPerson.of(author).name}: {text}"
@@ -1927,7 +1925,7 @@ class ConversationService:
         message_id: UUID | None = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> tuple[list[Conversation], int]:
+    ) -> tuple[list[ConversationForkRead], int]:
         """List this owner's personal forks, including archived children.
 
         A project conversation may be visible to its members, but its forks use
@@ -1960,13 +1958,22 @@ class ConversationService:
         # it is the trusted origin for every row in this source-scoped query. Use
         # it directly instead of a second title lookup that could race a delete
         # and leave a response without the required origin object.
-        for fork in forks:
-            fork.forked_from = ConversationForkOrigin(
-                conversation_id=source.id,
-                message_id=fork.forked_from_message_id,
-                title=source.title,
+        items = [
+            ConversationForkRead(
+                id=fork.id,
+                title=fork.title,
+                created_at=fork.created_at,
+                updated_at=fork.updated_at,
+                is_archived=fork.is_archived,
+                forked_from=ConversationForkOrigin(
+                    conversation_id=source.id,
+                    message_id=fork.forked_from_message_id,
+                    title=source.title,
+                ),
             )
-        return forks, total
+            for fork in forks
+        ]
+        return items, total
 
     async def update_conversation(
         self,

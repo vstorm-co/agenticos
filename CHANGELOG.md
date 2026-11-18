@@ -144,6 +144,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Manual chat compaction resolves the published model's defaults, agent settings and Thinking capability before requesting a summary. It uses the already prepared model and refuses incomplete model preparation.
 - Atomic table link changes refuse hidden and unknown targets identically even when the stored link cell is full, so cardinality errors cannot reveal an existing hidden connection.
 - Table link replacements validate every explicitly submitted destination before accepting an unchanged write. Hidden and missing destination IDs receive the same refusal; omitted hidden links remain preserved for older clients.
 - Table upserts return the same refusal for a hidden external ID and an unavailable creation, including absent or stale revisions, so row-grant readers cannot use error messages to discover hidden records.

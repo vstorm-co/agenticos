@@ -340,7 +340,12 @@ class TestQuotingWhatAReplyAnswers:
 
     async def test_one_turn_s_quote_is_what_a_follower_is_sent(self):
         answered = SimpleNamespace(
-            id=uuid4(), role="assistant", content="Plan: A, B", author_user_id=None, agent_id=None
+            id=uuid4(),
+            role="assistant",
+            content="Plan: A, B",
+            author_user_id=None,
+            agent_id=None,
+            guardrail_refused=False,
         )
         reply = SimpleNamespace(id=uuid4(), reply_to_message_id=answered.id)
         with (

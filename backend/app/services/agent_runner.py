@@ -78,6 +78,7 @@ from pydantic import (
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai import ToolReturn
 from pydantic_ai.agent import AgentRealtime
+from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.exceptions import ModelAPIError, ModelRequestTimeout
 from pydantic_ai.messages import (
     ModelMessage,
@@ -86,6 +87,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
     UserContent,
 )
+from pydantic_ai.models import Model
 from pydantic_ai.realtime import (
     RealtimeModel,
     RealtimeModelSettings,
@@ -95,6 +97,7 @@ from pydantic_ai.realtime import (
 )
 from pydantic_ai.run import AgentRun as AgentIteration
 from pydantic_ai.run import AgentRunResult as PydanticAgentRunResult
+from pydantic_ai.settings import ModelSettings, merge_model_settings
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, RunContext, ToolApproved
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import RunUsage, UsageLimits
@@ -4113,10 +4116,10 @@ class AgentRunnerService:
             if aside:
                 raise BadRequestError(message="A maintenance run cannot answer a side question")
             spec = _compaction_only(spec)
-            binding = next(
-                (item for item in spec.capabilities if item.id == "compaction"), None
+            binding = next((item for item in spec.capabilities if item.id == "compaction"), None)
+            strategy = (
+                "summarize" if binding is None else binding.config.get("strategy", "summarize")
             )
-            strategy = "summarize" if binding is None else binding.config.get("strategy", "summarize")
             if binding is None or strategy not in {"summarize", "tiered"}:
                 raise BadRequestError(
                     message="This agent is not configured for summarising compaction"
@@ -7285,7 +7288,9 @@ class AgentRunnerService:
             ),
             None,
         )
-        strategy = "summarize" if compaction is None else compaction.config.get("strategy", "summarize")
+        strategy = (
+            "summarize" if compaction is None else compaction.config.get("strategy", "summarize")
+        )
         if compaction is None or strategy not in {"summarize", "tiered"}:
             raise BadRequestError(message="This agent is not configured for summarising compaction")
         history = await conversations.model_history(
@@ -7349,14 +7354,43 @@ class AgentRunnerService:
                     acting_for_no_person(prepared.built.deps.run_person is None),
                     acting_impersonated(prepared.built.deps.impersonated),
                 ):
+                    model = prepared.built.agent.model
+                    if not isinstance(model, Model):
+                        raise TypeError(  # noqa: TRY301
+                            "Manual compaction requires the prepared request-response model"
+                        )
                     run_context = RunContext(
                         deps=prepared.built.deps,
-                        model=prepared.built.agent.model,
+                        model=model,
                         usage=RunUsage(),
                         messages=list(history),
-                        model_settings=prepared.built.agent.model_settings,
+                        model_settings=model.settings,
                         usage_limits=prepared.built.usage_limits,
                     )
+                    resolved_model_settings = model.settings
+                    agent_model_settings = prepared.built.agent.model_settings
+                    if isinstance(agent_model_settings, Callable):
+                        resolved_agent_model_settings: ModelSettings | None = agent_model_settings(
+                            run_context
+                        )
+                    else:
+                        resolved_agent_model_settings = agent_model_settings
+                    resolved_model_settings = merge_model_settings(
+                        resolved_model_settings, resolved_agent_model_settings
+                    )
+                    run_context.model_settings = resolved_model_settings
+                    for capability in prepared.built.capabilities:
+                        if not isinstance(capability, AbstractCapability):
+                            raise TypeError(  # noqa: TRY301
+                                "Manual compaction encountered an unprepared capability"
+                            )
+                        capability_settings = capability.get_model_settings()
+                        if callable(capability_settings):
+                            capability_settings = capability_settings(run_context)
+                        resolved_model_settings = merge_model_settings(
+                            resolved_model_settings, capability_settings
+                        )
+                        run_context.model_settings = resolved_model_settings
                     compacted = await compactor.compact_now(list(history), run_context)
 
             if prepared.built.context.summarized and compacted is not None:
@@ -7397,9 +7431,7 @@ class AgentRunnerService:
             with anyio.CancelScope(shield=True):
                 finished = await self.finish_compaction(prepared, status=status, error=error)
                 await self.db.commit()
-            await change_feed.publish_run(
-                finished, "updated" if published_created else "created"
-            )
+            await change_feed.publish_run(finished, "updated" if published_created else "created")
 
         if failure is not None:
             raise failure

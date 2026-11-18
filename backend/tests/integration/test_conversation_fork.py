@@ -282,6 +282,7 @@ class TestTheSidebarListsForks:
         assert by_id[fork.id].forked_from.conversation_id == source.id
         assert by_id[source.id].forked_from is None
 
+    @pytest.mark.security
     async def test_fork_pages_are_tenant_owner_and_source_scoped_and_keep_archives(
         self, db: AsyncSession
     ) -> None:
@@ -337,18 +338,25 @@ class TestTheSidebarListsForks:
             organization_id=source.organization_id,
             owner_id=source.user_id,
             source_id=source.id,
-            message_id=answer.id,
             skip=0,
-            limit=1,
+            limit=2,
         )
         second_page, second_total = await conversation_repo.list_conversation_forks(
             db,
             organization_id=source.organization_id,
             owner_id=source.user_id,
             source_id=source.id,
+            skip=2,
+            limit=2,
+        )
+        answer_page, answer_total = await conversation_repo.list_conversation_forks(
+            db,
+            organization_id=source.organization_id,
+            owner_id=source.user_id,
+            source_id=source.id,
             message_id=answer.id,
-            skip=1,
-            limit=1,
+            skip=0,
+            limit=2,
         )
         other_page, other_total = await conversation_repo.list_conversation_forks(
             db,
@@ -360,11 +368,16 @@ class TestTheSidebarListsForks:
             limit=1,
         )
 
-        assert total == second_total == 2
-        assert len(page) == len(second_page) == 1
-        assert {page[0].id, second_page[0].id} == {first.id, second.id}
-        assert next(child for child in [*page, *second_page] if child.id == first.id).is_archived
-        assert next(child for child in [*page, *second_page] if child.id == first.id).forked_from_message_id is None
+        assert total == second_total == 3
+        assert len(page) == 2
+        assert len(second_page) == 1
+        source_children = [*page, *second_page]
+        assert {child.id for child in source_children} == {first.id, second.id, other_anchor.id}
+        archived_legacy_child = next(child for child in source_children if child.id == first.id)
+        assert archived_legacy_child.is_archived
+        assert archived_legacy_child.forked_from_message_id is None
+        assert answer_total == 1
+        assert [child.id for child in answer_page] == [second.id]
         assert other_total == 1
         assert [child.id for child in other_page] == [other_anchor.id]
 

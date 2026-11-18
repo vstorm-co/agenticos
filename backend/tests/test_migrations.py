@@ -1980,7 +1980,7 @@ def test_published_thread_chain_preserves_saved_profiles_and_matches_models(prev
         assert upgraded.returncode == 0, upgraded.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0336_merge_core_v1761"
+                "0340_browser_teaching_review"
             ]
             row = connection.execute(
                 text(
@@ -2033,7 +2033,19 @@ class TestRoomThreadMigration:
         combined = script.get_revision("0336_merge_core_v1761")
         assert combined is not None
         assert combined.down_revision == "0331_merge_core_accounts"
-        assert script.get_heads() == ["0336_merge_core_v1761"]
+        pins = script.get_revision("0337_conversation_message_pins")
+        assert pins is not None
+        assert pins.down_revision == "0336_merge_core_v1761"
+        excerpt = script.get_revision("0338_message_reply_excerpt")
+        assert excerpt is not None
+        assert excerpt.down_revision == "0337_conversation_message_pins"
+        teaching = script.get_revision("0339_browser_teaching_capture")
+        assert teaching is not None
+        assert teaching.down_revision == "0338_message_reply_excerpt"
+        teaching_review = script.get_revision("0340_browser_teaching_review")
+        assert teaching_review is not None
+        assert teaching_review.down_revision == "0339_browser_teaching_capture"
+        assert script.get_heads() == ["0340_browser_teaching_review"]
 
     def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
         reset = _alembic("downgrade", "base")
@@ -2061,7 +2073,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0336_merge_core_v1761"]
+                ).all() == ["0340_browser_teaching_review"]
                 rows = connection.execute(
                     text(
                         "SELECT id,reply_to_message_id,thread_root_message_id FROM messages "
@@ -2131,7 +2143,7 @@ class TestRoomThreadMigration:
             with engine.begin() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0336_merge_core_v1761"]
+                ).all() == ["0340_browser_teaching_review"]
                 assert (
                     connection.scalar(
                         text("SELECT thread_root_message_id FROM messages WHERE id=:id"),
@@ -2159,7 +2171,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0336_merge_core_v1761"]
+                ).all() == ["0340_browser_teaching_review"]
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
         finally:
@@ -2362,7 +2374,7 @@ class TestRoomThreadMigration:
         assert resumed.returncode == 0, resumed.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0336_merge_core_v1761"
+                "0340_browser_teaching_review"
             ]
             assert connection.execute(
                 text("SELECT content, thread_root_message_id FROM messages WHERE id = :id"),

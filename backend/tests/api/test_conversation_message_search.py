@@ -65,6 +65,7 @@ def _hit() -> FoundConversation:
 
 
 class TestMessageSearchRoute:
+    @pytest.mark.security
     async def test_search_is_literal_tenant_scoped_and_returns_message_target(self) -> None:
         user_id, organization_id = uuid4(), uuid4()
         hit = _hit()

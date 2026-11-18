@@ -1,7 +1,9 @@
 """Pin messages for the current reader without copying transcript content."""
 
+from typing import Literal
 from uuid import UUID
 
+from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
@@ -15,6 +17,10 @@ from app.schemas.conversation_message_pin import (
     ConversationMessagePinRead,
 )
 from app.services.conversation import ConversationService, _excerpt, _said
+
+_PIN_MESSAGE_ROLE: TypeAdapter[Literal["user", "assistant", "system"]] = TypeAdapter(
+    Literal["user", "assistant", "system"]
+)
 
 
 class ConversationMessagePinService:
@@ -147,7 +153,7 @@ class ConversationMessagePinService:
         return ConversationMessagePinRead(
             message_id=message.id,
             thread_root_message_id=message.thread_root_message_id,
-            role=message.role,
+            role=_PIN_MESSAGE_ROLE.validate_python(message.role),
             message_created_at=message.created_at,
             pinned_at=pin.created_at,
             preview=_excerpt(_said(message)),

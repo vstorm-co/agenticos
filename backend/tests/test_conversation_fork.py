@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
@@ -307,6 +308,8 @@ class TestTheOwnerListsPersonalSideThreads:
         source.is_archived = True
         fork = _conversation(forked_from=source.id)
         fork.is_archived = True
+        fork.created_at = datetime(2026, 1, 1, tzinfo=UTC)
+        fork.updated_at = None
         forks = AsyncMock(return_value=([fork], 1))
         monkeypatch.setattr(service, "get_conversation", AsyncMock(return_value=source))
         monkeypatch.setattr(conversation_repo, "list_conversation_forks", forks)
@@ -322,7 +325,14 @@ class TestTheOwnerListsPersonalSideThreads:
             limit=25,
         )
 
-        assert (items, total) == ([fork], 1)
+        assert total == 1
+        assert len(items) == 1
+        item = items[0]
+        assert item.id == fork.id
+        assert item.title == fork.title
+        assert item.is_archived is True
+        assert item.created_at == fork.created_at
+        assert item.updated_at is None
         assert service.get_conversation.await_args.args == (source.id,)
         assert service.get_conversation.await_args.kwargs == {
             "organization_id": ORG_ID,
@@ -339,9 +349,10 @@ class TestTheOwnerListsPersonalSideThreads:
             "skip": 10,
             "limit": 25,
         }
-        assert fork.forked_from.conversation_id == source.id
-        assert fork.forked_from.message_id == answer_id
-        assert fork.forked_from.title == source.title
+        assert item.forked_from.conversation_id == source.id
+        assert item.forked_from.message_id == answer_id
+        assert item.forked_from.title == source.title
+        assert not hasattr(fork, "forked_from")
 
     @pytest.mark.parametrize(
         ("source_user", "project_id"),
@@ -366,7 +377,10 @@ class TestTheOwnerListsPersonalSideThreads:
 
         forks.assert_not_awaited()
 
-    async def test_cross_tenant_or_unreadable_source_never_lists_children(self, service, monkeypatch):
+    @pytest.mark.security
+    async def test_cross_tenant_or_unreadable_source_never_lists_children(
+        self, service, monkeypatch
+    ):
         source_id = uuid4()
         missing = AsyncMock(side_effect=NotFoundError(message="Conversation not found"))
         monkeypatch.setattr(service, "get_conversation", missing)

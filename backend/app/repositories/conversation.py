@@ -1463,9 +1463,7 @@ async def fork_conversation(
             channel_identity_id=original.channel_identity_id,
             author_user_id=original.author_user_id,
             reply_to_message_id=copied_reply_id,
-            reply_to_excerpt=(
-                original.reply_to_excerpt if copied_reply_id is not None else None
-            ),
+            reply_to_excerpt=(original.reply_to_excerpt if copied_reply_id is not None else None),
             thread_root_message_id=copied[original.thread_root_message_id]
             if original.thread_root_message_id is not None
             else None,
@@ -2619,9 +2617,7 @@ async def capability_loads_in_messages(
 async def has_room_submissions(db: AsyncSession, conversation_id: UUID) -> bool:
     """Whether a room queue means this history is not a shared transcript prefix."""
     return bool(
-        await db.scalar(
-            select(exists().where(RoomSubmission.conversation_id == conversation_id))
-        )
+        await db.scalar(select(exists().where(RoomSubmission.conversation_id == conversation_id)))
     )
 
 

@@ -663,14 +663,30 @@ class TestReauthorizingEachFrame:
         """A correction acts on the session, so it is refused on a dead credential (#2087)."""
         session = self._socket_session()
         inbox = SteeringInbox()
+        running = asyncio.Event()
+        wait_forever = asyncio.Event()
+
+        async def wait_for_cancellation() -> None:
+            running.set()
+            await wait_forever.wait()
+
+        turn_task = asyncio.create_task(wait_for_cancellation())
         session._steering = inbox
-        session._turn_task = asyncio.get_running_loop().create_future()  # a turn "running"
+        session._turn_task = turn_task
+        try:
+            await _wait(running)
 
-        with self._revoked():
-            await session.handle_frame({"type": "steer", "text": "use the EU numbers"})
+            with self._revoked():
+                await session.handle_frame({"type": "steer", "text": "use the EU numbers"})
 
-        assert inbox.unapplied() == []
-        session._turn_task.cancel()
+            assert inbox.unapplied() == []
+            assert turn_task.cancelled()
+            assert session._turn_task is None
+        finally:
+            if not turn_task.done():
+                turn_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await turn_task
 
     async def test_a_revoked_session_cancels_a_turn_already_running(self):
         """A turn in flight when the next frame lands on a revoked session is
@@ -4142,22 +4158,40 @@ class TestVisualReports:
         websocket = MagicMock(send_json=AsyncMock(), close=AsyncMock())
         session = AgentSession(websocket, MagicMock(), MagicMock(), auth_token="live")
         reports = VisualReports()
+        running = asyncio.Event()
+        wait_forever = asyncio.Event()
+
+        async def wait_for_cancellation() -> None:
+            running.set()
+            await wait_forever.wait()
+
+        turn_task = asyncio.create_task(wait_for_cancellation())
         session._visual_reports = reports
-        session._turn_task = asyncio.get_running_loop().create_future()
+        session._turn_task = turn_task
+        try:
+            await _wait(running)
 
-        with (
-            patch("app.services.agent_session.get_db_context") as db_context,
-            patch(
-                "app.services.agent_session.authenticate_socket_token",
-                new=AsyncMock(side_effect=AuthenticationError(message="Session ended")),
-            ),
-        ):
-            db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
-            db_context.return_value.__aexit__ = AsyncMock(return_value=False)
-            await session.handle_frame({"type": "visual_report", "tool_call_id": "t", "errors": []})
+            with (
+                patch("app.services.agent_session.get_db_context") as db_context,
+                patch(
+                    "app.services.agent_session.authenticate_socket_token",
+                    new=AsyncMock(side_effect=AuthenticationError(message="Session ended")),
+                ),
+            ):
+                db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+                db_context.return_value.__aexit__ = AsyncMock(return_value=False)
+                await session.handle_frame(
+                    {"type": "visual_report", "tool_call_id": "t", "errors": []}
+                )
 
-        assert reports._futures == {}
-        session._turn_task.cancel()
+            assert reports._futures == {}
+            assert turn_task.cancelled()
+            assert session._turn_task is None
+        finally:
+            if not turn_task.done():
+                turn_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await turn_task
 
     async def test_a_drawing_s_pictures_are_sent_to_the_tab(self):
         session = self._session()

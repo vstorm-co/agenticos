@@ -206,6 +206,7 @@ async def test_personal_forks_are_listed_with_anchor_and_scope(service: AsyncMoc
     }
 
 
+@pytest.mark.security
 async def test_personal_forks_refuse_an_unowned_or_wrong_tenant_source(service: AsyncMock) -> None:
     service.list_forks = AsyncMock(side_effect=NotFoundError(message="Conversation not found"))
 
