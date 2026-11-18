@@ -17,25 +17,35 @@ from app.db.models.browser_teaching import BrowserTeachingSession
 PARAMETER_ACTIONS = frozenset({"input_parameter", "select"})
 
 
-def steps_of(row: BrowserTeachingSession) -> tuple[tuple[CapturedStep, ...], dict[int, ReviewedStep]]:
+def steps_of(
+    row: BrowserTeachingSession,
+) -> tuple[tuple[CapturedStep, ...], dict[int, ReviewedStep]]:
     events = tuple(CapturedStep.model_validate(item) for item in row.sanitized_events)
-    review = {step.sequence: step for step in (ReviewedStep.model_validate(item) for item in row.review)}
+    review = {
+        step.sequence: step for step in (ReviewedStep.model_validate(item) for item in row.review)
+    }
     return events, review
 
 
-def review_refusal(events: tuple[CapturedStep, ...], review: tuple[ReviewedStep, ...]) -> TeachingReason | None:
+def review_refusal(
+    events: tuple[CapturedStep, ...], review: tuple[ReviewedStep, ...]
+) -> TeachingReason | None:
     """Why this review cannot be stored against these steps, or `None` when it can."""
     by_sequence = {event.sequence: event for event in events}
     for step in review:
         event = by_sequence.get(step.sequence)
         if event is None:
             return TeachingReason.REVIEW_UNKNOWN_STEP
-        if step.parameter is not None and (event.human_step or event.action not in PARAMETER_ACTIONS):
+        if step.parameter is not None and (
+            event.human_step or event.action not in PARAMETER_ACTIONS
+        ):
             return TeachingReason.REVIEW_UNKNOWN_STEP
     return None
 
 
-def proposal_refusal(events: tuple[CapturedStep, ...], review: dict[int, ReviewedStep]) -> TeachingReason | None:
+def proposal_refusal(
+    events: tuple[CapturedStep, ...], review: dict[int, ReviewedStep]
+) -> TeachingReason | None:
     """Why the review is not finished: every control needs a label, every typed input a parameter."""
     if not events:
         return TeachingReason.REVIEW_INCOMPLETE
@@ -71,7 +81,9 @@ def source_hash(row: BrowserTeachingSession, name: str) -> str:
             for event in events
         ],
     }
-    return hashlib.sha256(json.dumps(content, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return hashlib.sha256(
+        json.dumps(content, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 def _line(event: CapturedStep, step: ReviewedStep | None) -> str:
@@ -85,12 +97,18 @@ def _line(event: CapturedStep, step: ReviewedStep | None) -> str:
     if event.action == "scroll":
         return f"Scroll {event.direction} to {named}." if label else f"Scroll {event.direction}."
     if event.action == "checkpoint":
-        return f"Check that {named} is shown." if label else "Check that the page shows the expected state."
+        return (
+            f"Check that {named} is shown."
+            if label
+            else "Check that the page shows the expected state."
+        )
     parameter = None if step is None else step.parameter
     if event.action == "input_parameter":
         return f"Enter `{{{parameter}}}` in {named}{role}."
     if event.action == "select":
-        return f"Choose `{{{parameter}}}` in {named}{role}." if parameter else f"Choose {named}{role}."
+        return (
+            f"Choose `{{{parameter}}}` in {named}{role}." if parameter else f"Choose {named}{role}."
+        )
     return f"Click {named}{role}."
 
 
@@ -113,7 +131,10 @@ def render(row: BrowserTeachingSession, name: str) -> tuple[str, str]:
     lines += [
         "## Steps",
         "",
-        *(f"{index}. {_line(event, review.get(event.sequence))}" for index, event in enumerate(events, start=1)),
+        *(
+            f"{index}. {_line(event, review.get(event.sequence))}"
+            for index, event in enumerate(events, start=1)
+        ),
         "",
         "## How to follow it",
         "",

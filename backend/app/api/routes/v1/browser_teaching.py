@@ -18,7 +18,13 @@ from fastapi import APIRouter, Depends, Header, status
 from app.api.deps import Auth, BrowserTeachingSvc, require
 from app.core.browser_teaching import revision_from_if_match
 from app.core.permissions import Perm
-from app.schemas.browser_teaching import TeachingEdit, TeachingPropose, TeachingRead, TeachingReview, TeachingStart
+from app.schemas.browser_teaching import (
+    TeachingEdit,
+    TeachingPropose,
+    TeachingRead,
+    TeachingReview,
+    TeachingStart,
+)
 
 router = APIRouter()
 
@@ -75,7 +81,9 @@ async def change_browser_teaching(
     return await service.change(ctx, session_id, body, revision)
 
 
-@router.post("/{session_id}/propose", response_model=TeachingRead, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/{session_id}/propose", response_model=TeachingRead, status_code=status.HTTP_202_ACCEPTED
+)
 async def propose_browser_teaching(
     session_id: UUID,
     body: TeachingPropose,

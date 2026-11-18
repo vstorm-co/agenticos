@@ -14,7 +14,13 @@ import pytest
 from sqlalchemy import func, select, update
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
-from app.core.browser_teaching import Observation, ReviewedStep, TeachingConflict, TeachingReason, TeachingRefused
+from app.core.browser_teaching import (
+    Observation,
+    ReviewedStep,
+    TeachingConflict,
+    TeachingReason,
+    TeachingRefused,
+)
 from app.core.config import settings
 from app.db.models.background_job import BackgroundJob
 from app.db.models.browser_teaching import BrowserTeachingSession
@@ -22,17 +28,16 @@ from app.db.models.organization import OrganizationMember
 from app.db.models.skill_proposal import SkillProposal
 from app.schemas.browser_teaching import TeachingPropose, TeachingReview
 from app.services.browser_teaching import _service
-from tests.integration.test_browser_teaching_capture import (
-    ORIGIN,
-    SECRETS,
-    _ctx,
-    _recording,
-    _seen,
-    enabled,  # noqa: F401 - fixture
-    redis,  # noqa: F401 - fixture
-)
+from tests.integration import test_browser_teaching_capture as capture
+from tests.integration.test_browser_teaching_capture import ORIGIN, SECRETS, _ctx, _recording, _seen
 
 pytestmark = pytest.mark.anyio
+
+# The capture module's fixtures, bound by name so pytest finds them here. Bound by
+# assignment rather than imported: every test takes them as parameters, and an
+# imported name shadowed by a parameter is a redefinition to ruff (F811).
+enabled = capture.enabled
+redis = capture.redis
 
 FINGERPRINT_PREFIX = "sha256:"
 
@@ -40,9 +45,15 @@ FINGERPRINT_PREFIX = "sha256:"
 async def _in_review(db, redis, enabled):
     """A stopped demonstration: open a page, type an invoice number, click Download."""
     organization, owner, agent, run, hold, service, started = await _recording(db, redis, enabled)
-    await service.record(hold, input_id=uuid.uuid4(), action="navigate", observation=Observation(origin=ORIGIN))
-    await service.record(hold, input_id=uuid.uuid4(), action="input_parameter", observation=_seen("textbox", 2))
-    await service.record(hold, input_id=uuid.uuid4(), action="click", observation=_seen("button", 3))
+    await service.record(
+        hold, input_id=uuid.uuid4(), action="navigate", observation=Observation(origin=ORIGIN)
+    )
+    await service.record(
+        hold, input_id=uuid.uuid4(), action="input_parameter", observation=_seen("textbox", 2)
+    )
+    await service.record(
+        hold, input_id=uuid.uuid4(), action="click", observation=_seen("button", 3)
+    )
     stopped = await service.stop(_ctx(owner, organization), started.id)
     return organization, owner, service, stopped
 
@@ -59,21 +70,35 @@ def _review(**overrides: ReviewedStep) -> TeachingReview:
 
 async def _reviewed(db, redis, enabled):
     organization, owner, service, stopped = await _in_review(db, redis, enabled)
-    reviewed = await service.review(_ctx(owner, organization), stopped.id, _review(), stopped.revision)
+    reviewed = await service.review(
+        _ctx(owner, organization), stopped.id, _review(), stopped.revision
+    )
     return organization, owner, service, reviewed
 
 
 async def _jobs(db) -> int:
-    return await db.scalar(select(func.count()).select_from(BackgroundJob).where(BackgroundJob.kind == "build-teaching-proposal"))
+    return await db.scalar(
+        select(func.count())
+        .select_from(BackgroundJob)
+        .where(BackgroundJob.kind == "build-teaching-proposal")
+    )
 
 
 async def _proposals(db, session_id: uuid.UUID) -> list[SkillProposal]:
-    return list(await db.scalars(select(SkillProposal).where(SkillProposal.browser_teaching_id == session_id)))
+    return list(
+        await db.scalars(
+            select(SkillProposal).where(SkillProposal.browser_teaching_id == session_id)
+        )
+    )
 
 
-async def test_review_stores_labels_and_parameters_and_a_retry_changes_nothing(db, redis, enabled) -> None:
+async def test_review_stores_labels_and_parameters_and_a_retry_changes_nothing(
+    db, redis, enabled
+) -> None:
     organization, owner, service, stopped = await _in_review(db, redis, enabled)
-    reviewed = await service.review(_ctx(owner, organization), stopped.id, _review(), stopped.revision)
+    reviewed = await service.review(
+        _ctx(owner, organization), stopped.id, _review(), stopped.revision
+    )
     assert reviewed.revision == stopped.revision + 1
     assert reviewed.parameters == ("invoice_number",)
     assert [step.sequence for step in reviewed.review] == [1, 2, 3]
@@ -90,7 +115,9 @@ async def test_a_stale_review_edit_conflicts(db, redis, enabled) -> None:
     assert conflict.value.reason == TeachingReason.STALE_REVISION
 
 
-async def test_review_refuses_an_unknown_step_and_a_parameter_on_a_click(db, redis, enabled) -> None:
+async def test_review_refuses_an_unknown_step_and_a_parameter_on_a_click(
+    db, redis, enabled
+) -> None:
     organization, owner, service, stopped = await _in_review(db, redis, enabled)
     unknown = _review(s9=ReviewedStep(sequence=9, label="Ghost"))
     with pytest.raises(TeachingRefused) as refused:
@@ -111,32 +138,49 @@ async def test_another_member_cannot_review_or_propose(db, redis, enabled) -> No
     with pytest.raises(NotFoundError):
         await service.review(_ctx(intruder, organization), stopped.id, _review(), stopped.revision)
     with pytest.raises(NotFoundError):
-        await service.propose(_ctx(intruder, organization), stopped.id, TeachingPropose(name="x"), stopped.revision)
+        await service.propose(
+            _ctx(intruder, organization), stopped.id, TeachingPropose(name="x"), stopped.revision
+        )
 
 
 async def test_an_unfinished_review_cannot_be_proposed(db, redis, enabled) -> None:
     organization, owner, service, stopped = await _in_review(db, redis, enabled)
     with pytest.raises(TeachingRefused) as refused:
-        await service.propose(_ctx(owner, organization), stopped.id, TeachingPropose(name="download-invoice"), stopped.revision)
+        await service.propose(
+            _ctx(owner, organization),
+            stopped.id,
+            TeachingPropose(name="download-invoice"),
+            stopped.revision,
+        )
     assert refused.value.reason == TeachingReason.REVIEW_INCOMPLETE
     assert await _jobs(db) == 0
 
 
+@pytest.mark.security
 async def test_budget_refusal_queues_nothing(db, redis, enabled, monkeypatch) -> None:
     organization, owner, service, reviewed = await _reviewed(db, redis, enabled)
 
     async def over_budget(_db, _organization_id) -> None:
-        raise BudgetExceeded(limit_usd=Decimal("1"), spent_usd=Decimal("1"), scope=BudgetScope.ORGANIZATION)
+        raise BudgetExceeded(
+            limit_usd=Decimal("1"), spent_usd=Decimal("1"), scope=BudgetScope.ORGANIZATION
+        )
 
     monkeypatch.setattr(_service, "assert_organization_within_budget", over_budget)
     with pytest.raises(TeachingRefused) as refused:
-        await service.propose(_ctx(owner, organization), reviewed.id, TeachingPropose(name="download-invoice"), reviewed.revision)
+        await service.propose(
+            _ctx(owner, organization),
+            reviewed.id,
+            TeachingPropose(name="download-invoice"),
+            reviewed.revision,
+        )
     assert refused.value.reason == TeachingReason.BUDGET
     assert await _jobs(db) == 0
     assert (await db.get(BrowserTeachingSession, reviewed.id)).status == "review"
 
 
-async def test_a_repeated_proposal_request_queues_one_build_and_yields_one_proposal(db, redis, enabled) -> None:
+async def test_a_repeated_proposal_request_queues_one_build_and_yields_one_proposal(
+    db, redis, enabled
+) -> None:
     organization, owner, service, reviewed = await _reviewed(db, redis, enabled)
     ctx, body = _ctx(owner, organization), TeachingPropose(name="download-invoice")
     asked = await service.propose(ctx, reviewed.id, body, reviewed.revision)
@@ -151,43 +195,81 @@ async def test_a_repeated_proposal_request_queues_one_build_and_yields_one_propo
     proposals = await _proposals(db, reviewed.id)
     assert len(proposals) == 1
     done = await service.get(ctx, reviewed.id)
-    assert (done.status, done.proposal_id, done.events, done.review) == ("proposed", proposals[0].id, (), ())
+    assert (done.status, done.proposal_id, done.events, done.review) == (
+        "proposed",
+        proposals[0].id,
+        (),
+        (),
+    )
     assert await service.propose(ctx, reviewed.id, body, None) == done
 
 
-async def test_the_proposal_holds_only_reviewed_steps_parameter_names_and_allowed_origins(db, redis, enabled) -> None:
+async def test_the_proposal_holds_only_reviewed_steps_parameter_names_and_allowed_origins(
+    db, redis, enabled
+) -> None:
     organization, owner, service, reviewed = await _reviewed(db, redis, enabled)
-    await service.propose(_ctx(owner, organization), reviewed.id, TeachingPropose(name="download-invoice"), reviewed.revision)
+    await service.propose(
+        _ctx(owner, organization),
+        reviewed.id,
+        TeachingPropose(name="download-invoice"),
+        reviewed.revision,
+    )
     row = await db.get(BrowserTeachingSession, reviewed.id)
     await service.build_proposal(organization.id, reviewed.id, row.source_hash)
     (proposal,) = await _proposals(db, reviewed.id)
-    assert (proposal.skill_id, proposal.status, proposal.name) == (None, "pending", "download-invoice")
+    assert (proposal.skill_id, proposal.status, proposal.name) == (
+        None,
+        "pending",
+        "download-invoice",
+    )
     body = proposal.description + proposal.content
     assert ORIGIN in body and "`{invoice_number}`" in body and '"Download"' in body
     assert FINGERPRINT_PREFIX not in body and "Download invoice" not in body
     assert not any(secret in body for secret in SECRETS)
-    assert {line.removeprefix("- ") for line in body.splitlines() if line.startswith("- https://")} == {ORIGIN}
+    assert {
+        line.removeprefix("- ") for line in body.splitlines() if line.startswith("- https://")
+    } == {ORIGIN}
 
 
+@pytest.mark.security
 async def test_permission_loss_before_the_build_writes_no_proposal(db, redis, enabled) -> None:
     organization, owner, service, reviewed = await _reviewed(db, redis, enabled)
-    await service.propose(_ctx(owner, organization), reviewed.id, TeachingPropose(name="download-invoice"), reviewed.revision)
+    await service.propose(
+        _ctx(owner, organization),
+        reviewed.id,
+        TeachingPropose(name="download-invoice"),
+        reviewed.revision,
+    )
     row = await db.get(BrowserTeachingSession, reviewed.id)
     digest = row.source_hash
-    await db.execute(update(OrganizationMember).where(OrganizationMember.user_id == owner.id).values(role="viewer"))
+    await db.execute(
+        update(OrganizationMember)
+        .where(OrganizationMember.user_id == owner.id)
+        .values(role="viewer")
+    )
     await service.build_proposal(organization.id, reviewed.id, digest)
     assert await _proposals(db, reviewed.id) == []
     row = await db.get(BrowserTeachingSession, reviewed.id)
     assert (row.status, row.reason_code, row.source_hash) == ("review", "authority_changed", None)
 
 
-async def test_budget_refusal_at_build_time_writes_no_proposal(db, redis, enabled, monkeypatch) -> None:
+@pytest.mark.security
+async def test_budget_refusal_at_build_time_writes_no_proposal(
+    db, redis, enabled, monkeypatch
+) -> None:
     organization, owner, service, reviewed = await _reviewed(db, redis, enabled)
-    await service.propose(_ctx(owner, organization), reviewed.id, TeachingPropose(name="download-invoice"), reviewed.revision)
+    await service.propose(
+        _ctx(owner, organization),
+        reviewed.id,
+        TeachingPropose(name="download-invoice"),
+        reviewed.revision,
+    )
     row = await db.get(BrowserTeachingSession, reviewed.id)
 
     async def over_budget(_db, _organization_id) -> None:
-        raise BudgetExceeded(limit_usd=Decimal("1"), spent_usd=Decimal("1"), scope=BudgetScope.ORGANIZATION)
+        raise BudgetExceeded(
+            limit_usd=Decimal("1"), spent_usd=Decimal("1"), scope=BudgetScope.ORGANIZATION
+        )
 
     monkeypatch.setattr(_service, "assert_organization_within_budget", over_budget)
     await service.build_proposal(organization.id, reviewed.id, row.source_hash)
@@ -195,9 +277,16 @@ async def test_budget_refusal_at_build_time_writes_no_proposal(db, redis, enable
     assert (await db.get(BrowserTeachingSession, reviewed.id)).reason_code == "budget_exceeded"
 
 
-async def test_a_disabled_flag_or_a_discarded_session_stops_the_build(db, redis, enabled, monkeypatch) -> None:
+async def test_a_disabled_flag_or_a_discarded_session_stops_the_build(
+    db, redis, enabled, monkeypatch
+) -> None:
     organization, owner, service, reviewed = await _reviewed(db, redis, enabled)
-    await service.propose(_ctx(owner, organization), reviewed.id, TeachingPropose(name="download-invoice"), reviewed.revision)
+    await service.propose(
+        _ctx(owner, organization),
+        reviewed.id,
+        TeachingPropose(name="download-invoice"),
+        reviewed.revision,
+    )
     digest = (await db.get(BrowserTeachingSession, reviewed.id)).source_hash
     monkeypatch.setattr(settings, "BROWSER_TEACHING_ENABLED", False)
     await service.build_proposal(organization.id, reviewed.id, digest)
@@ -207,13 +296,26 @@ async def test_a_disabled_flag_or_a_discarded_session_stops_the_build(db, redis,
     assert await _proposals(db, reviewed.id) == []
 
 
-async def test_an_applied_teaching_proposal_creates_the_skill_through_the_existing_flow(db, redis, enabled) -> None:
+async def test_an_applied_teaching_proposal_creates_the_skill_through_the_existing_flow(
+    db, redis, enabled
+) -> None:
     from app.schemas.resource_usage import ProposalDecision
     from app.services.skill_proposal import SkillProposalService
 
     organization, owner, service, reviewed = await _reviewed(db, redis, enabled)
-    await service.propose(_ctx(owner, organization), reviewed.id, TeachingPropose(name="download-invoice"), reviewed.revision)
-    await service.build_proposal(organization.id, reviewed.id, (await db.get(BrowserTeachingSession, reviewed.id)).source_hash)
+    await service.propose(
+        _ctx(owner, organization),
+        reviewed.id,
+        TeachingPropose(name="download-invoice"),
+        reviewed.revision,
+    )
+    await service.build_proposal(
+        organization.id,
+        reviewed.id,
+        (await db.get(BrowserTeachingSession, reviewed.id)).source_hash,
+    )
     (proposal,) = await _proposals(db, reviewed.id)
-    applied = await SkillProposalService(db).apply(_ctx(owner, organization), proposal.id, ProposalDecision(revision=1))
+    applied = await SkillProposalService(db).apply(
+        _ctx(owner, organization), proposal.id, ProposalDecision(revision=1)
+    )
     assert applied.status == "applied"

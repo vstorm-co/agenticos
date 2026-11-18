@@ -82,7 +82,8 @@ def upgrade() -> None:
     )
 
     op.add_column(
-        "skill_proposals", sa.Column("browser_teaching_id", postgresql.UUID(as_uuid=True), nullable=True)
+        "skill_proposals",
+        sa.Column("browser_teaching_id", postgresql.UUID(as_uuid=True), nullable=True),
     )
     op.create_foreign_key(
         op.f("skill_proposals_browser_teaching_id_fkey"),
@@ -102,7 +103,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index(op.f("skill_proposals_browser_teaching_id_idx"), table_name="skill_proposals")
-    op.drop_constraint(op.f("skill_proposals_browser_teaching_id_fkey"), "skill_proposals", type_="foreignkey")
+    op.drop_constraint(
+        op.f("skill_proposals_browser_teaching_id_fkey"), "skill_proposals", type_="foreignkey"
+    )
     op.drop_column("skill_proposals", "browser_teaching_id")
 
     op.execute(
@@ -115,7 +118,9 @@ def downgrade() -> None:
     op.drop_constraint(op.f("browser_teaching_sessions_proposed_check"), _TABLE, type_="check")
     op.drop_constraint(op.f("browser_teaching_sessions_review_check"), _TABLE, type_="check")
     op.drop_constraint(op.f("browser_teaching_sessions_erased_check"), _TABLE, type_="check")
-    op.create_check_constraint(op.f("browser_teaching_sessions_erased_check"), _TABLE, _ERASED_BEFORE)
+    op.create_check_constraint(
+        op.f("browser_teaching_sessions_erased_check"), _TABLE, _ERASED_BEFORE
+    )
     op.drop_constraint(op.f("browser_teaching_sessions_state_check"), _TABLE, type_="check")
     op.create_check_constraint(
         op.f("browser_teaching_sessions_state_check"), _TABLE, f"status IN ({_STATES_BEFORE})"

@@ -9,4 +9,6 @@ from ._service import BrowserTeachingService
 async def build_teaching_proposal(job: BuildTeachingProposal) -> None:
     """Build it in one transaction; the service rechecks authority, state and budget first."""
     async with get_db_context() as db:
-        await BrowserTeachingService(db, None).build_proposal(job.organization_id, job.session_id, job.source_hash)
+        await BrowserTeachingService(db, None).build_proposal(
+            job.organization_id, job.session_id, job.source_hash
+        )

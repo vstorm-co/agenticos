@@ -6,11 +6,8 @@ import { useTranslations } from "next-intl";
 
 import { ModelSetupCard } from "@/components/chat/model-setup-card";
 import { ChatWelcome } from "@/components/chat/chat-welcome";
+import type { AssistantPageContext } from "@/lib/assistant-page-context";
 import { useAuthStore } from "@/stores";
-
-export interface PageContext {
-  path: string;
-}
 
 interface Tile {
   key: "build" | "documents" | "lookAround" | "recipes";
@@ -29,7 +26,7 @@ interface AssistantWelcomeProps {
   name: string;
   /** The Architect's face, above the greeting. */
   mark: ReactNode;
-  page: PageContext | null;
+  page: Pick<AssistantPageContext, "path" | "title"> | null;
   onPick: (prompt: string) => void;
   setup?: { agentId: string; canConfigure: boolean };
 }
@@ -51,7 +48,7 @@ export function AssistantWelcome({
 
   const prompt = (tile: Tile["key"]) =>
     tile === "lookAround" && page
-      ? t("tiles.lookAround.askOnPage", { path: page.path })
+      ? t("tiles.lookAround.askOnPage", { title: page.title, path: page.path })
       : t(`tiles.${tile}.ask`);
 
   if (setup)

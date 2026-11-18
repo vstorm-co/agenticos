@@ -36,7 +36,13 @@ from app.core.permissions import AuthContext
 from app.db.models.browser_teaching import BrowserTeachingSession
 from app.repositories import browser_teaching as repo
 from app.repositories import skill_proposal_repo, skill_repo
-from app.schemas.browser_teaching import TeachingChange, TeachingPropose, TeachingRead, TeachingReview, TeachingStart
+from app.schemas.browser_teaching import (
+    TeachingChange,
+    TeachingPropose,
+    TeachingRead,
+    TeachingReview,
+    TeachingStart,
+)
 from app.services.background_jobs import enqueue
 from app.services.skill_proposal import SkillProposalService
 from app.services.spend import assert_organization_within_budget
@@ -253,14 +259,18 @@ class BrowserTeachingService:
         row = await self._owned(ctx, session_id)
         if row.status != TeachingState.REVIEW:
             raise TeachingConflict(TeachingReason.WRONG_STATE)
-        steps = [step for step in body.steps if step.label is not None or step.parameter is not None]
+        steps = [
+            step for step in body.steps if step.label is not None or step.parameter is not None
+        ]
         stored = [step.model_dump(mode="json") for step in steps]
         if stored == row.review:
             return read(row)
         if revision is None or revision != row.revision:
             raise TeachingConflict(TeachingReason.STALE_REVISION)
         _access.require_enabled(row.organization_id)
-        await _access.reviewer(self.db, row.organization_id, row.owner_user_id, row.run_id, row.agent_id)
+        await _access.reviewer(
+            self.db, row.organization_id, row.owner_user_id, row.run_id, row.agent_id
+        )
         events, _ = _propose.steps_of(row)
         refusal = _propose.review_refusal(events, tuple(steps))
         if refusal is not None:
@@ -295,7 +305,9 @@ class BrowserTeachingService:
         if incomplete is not None:
             raise TeachingRefused(incomplete)
         _access.require_enabled(row.organization_id)
-        await _access.reviewer(self.db, row.organization_id, row.owner_user_id, row.run_id, row.agent_id)
+        await _access.reviewer(
+            self.db, row.organization_id, row.owner_user_id, row.run_id, row.agent_id
+        )
         await _within_budget(self.db, row.organization_id)
         if await skill_repo.get_by_name(self.db, body.name, organization_id=row.organization_id):
             raise TeachingRefused(TeachingReason.SKILL_NAME)
@@ -309,7 +321,9 @@ class BrowserTeachingService:
         await enqueue(
             self.db,
             jobs.BUILD_TEACHING_PROPOSAL,
-            jobs.BuildTeachingProposal(organization_id=row.organization_id, session_id=row.id, source_hash=digest),
+            jobs.BuildTeachingProposal(
+                organization_id=row.organization_id, session_id=row.id, source_hash=digest
+            ),
             organization_id=row.organization_id,
             dedupe_key=key,
             dedupe_active=True,
@@ -366,7 +380,9 @@ class BrowserTeachingService:
 
     async def _recheck(self, row: BrowserTeachingSession) -> AuthContext:
         _access.require_enabled(row.organization_id)
-        member = await _access.reviewer(self.db, row.organization_id, row.owner_user_id, row.run_id, row.agent_id)
+        member = await _access.reviewer(
+            self.db, row.organization_id, row.owner_user_id, row.run_id, row.agent_id
+        )
         await _within_budget(self.db, row.organization_id)
         return member
 

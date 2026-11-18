@@ -16,8 +16,14 @@ from pydantic import ValidationError
 
 from app.agents.browser_events import BrowserCommand
 from app.agents.capabilities.browser_use._loop import BrowseSession, held
-from app.core.browser_teaching import CapturedStep, ReviewedStep, revision_from_if_match, safe_label, teaching_origin
 from app.agents.deps import AgentDeps
+from app.core.browser_teaching import (
+    CapturedStep,
+    ReviewedStep,
+    revision_from_if_match,
+    safe_label,
+    teaching_origin,
+)
 from app.core.config import settings
 from app.schemas.browser_teaching import TeachingReview, TeachingStart
 from app.services.browser_teaching import _capture, _observe
@@ -279,7 +285,12 @@ async def test_capture_ignores_a_hold_by_anyone_but_its_person(teaching_on) -> N
     assert capture is not None
     await capture.begin("call", str(uuid.uuid4()))
     assert capture.hold is None
-    assert await capture.before_input(BrowserCommand(type="type", text=SECRET, by_user_id=deps.user_id)) is None
+    assert (
+        await capture.before_input(
+            BrowserCommand(type="type", text=SECRET, by_user_id=deps.user_id)
+        )
+        is None
+    )
 
 
 @pytest.mark.parametrize(
@@ -318,5 +329,7 @@ def test_a_review_names_each_step_once_and_bounds_its_parameters() -> None:
     many = tuple(ReviewedStep(sequence=n, parameter=f"p{n}") for n in range(1, 22))
     with pytest.raises(ValidationError):
         TeachingReview(action="review", steps=many)
-    ordered = TeachingReview(action="review", steps=(ReviewedStep(sequence=2), ReviewedStep(sequence=1)))
+    ordered = TeachingReview(
+        action="review", steps=(ReviewedStep(sequence=2), ReviewedStep(sequence=1))
+    )
     assert [step.sequence for step in ordered.steps] == [1, 2]

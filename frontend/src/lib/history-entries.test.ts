@@ -57,12 +57,12 @@ describe("previousEntryInApp", () => {
   it("is false when Back would land on signing in, in any locale", () => {
     entries(`${origin}/login`, `${origin}/dashboard`);
     expect(previousEntryInApp()).toBe(false);
-    entries(`${origin}/pl/auth/callback?code=x`, `${origin}/pl/dashboard`);
+    entries(`${origin}/en/auth/callback?code=x`, `${origin}/en/dashboard`);
     expect(previousEntryInApp()).toBe(false);
   });
 
   it("is true for a locale-prefixed page of the app", () => {
-    entries(`${origin}/de/datasets`, `${origin}/de/datasets/d1`);
+    entries(`${origin}/en/datasets`, `${origin}/en/datasets/d1`);
     expect(previousEntryInApp()).toBe(true);
   });
 

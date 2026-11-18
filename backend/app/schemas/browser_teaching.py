@@ -85,7 +85,9 @@ TeachingEdit = Annotated[TeachingChange | TeachingReview, Field(discriminator="a
 class TeachingPropose(_Request):
     """Ask for one skill proposal from the reviewed steps. The current revision is sent in `If-Match`."""
 
-    name: str = Field(min_length=1, max_length=64, description="The new skill's name, such as `download-invoice`")
+    name: str = Field(
+        min_length=1, max_length=64, description="The new skill's name, such as `download-invoice`"
+    )
 
     @field_validator("name")
     @classmethod

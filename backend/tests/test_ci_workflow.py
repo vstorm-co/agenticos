@@ -82,15 +82,14 @@ class TestPullRequestsRunNoCI:
         }
         assert not filtered, f"path filters appear on {sorted(filtered)}."
 
-    def test_heavy_suites_run_after_every_merge_and_release(
+    def test_every_run_is_a_manual_full_run(
         self, triggers: dict[str, Any], workflow: dict[str, Any]
     ) -> None:
-        """Every `t3` push and `v*` tag runs the full suite."""
-        assert triggers["push"]["branches"] == ["t3"]
-        assert triggers["push"]["tags"] == ["v*"]
+        """CI runs only when the user dispatches it, and each run is full (#162, 2026-11-17)."""
+        assert set(triggers) == {"workflow_dispatch"}
         assert workflow["jobs"]["changes"]["outputs"]["full"] == (
-            "${{ github.event_name == 'push' }}"
-        ), "The heavy suites run on pushes (merges and tags), never on pull requests."
+            "${{ github.event_name != 'pull_request' }}"
+        ), "A dispatched run is never a pull request, so it runs every suite."
 
     def test_a_push_classifies_against_the_last_successful_t3_run(
         self, workflow: dict[str, Any]

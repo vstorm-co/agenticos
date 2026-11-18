@@ -24,7 +24,7 @@ from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, TypedDict
 from uuid import UUID
 
 from pydantic import BaseModel, ValidationError
@@ -103,6 +103,18 @@ from app.services.system_agent_runner import SystemAgentRunner
 logger = logging.getLogger(__name__)
 
 type Sessions = Callable[[], AbstractAsyncContextManager[AsyncSession]]
+
+
+class _ProposalValues(TypedDict):
+    """The proposal fields `replace_pending` and `create` both take, typed as they declare them."""
+
+    description: str
+    content: str
+    resources: dict[str, Any]
+    conversation_id: UUID | None
+    base_version: int | None
+    base_version_id: UUID | None
+    fork_id: UUID | None
 
 
 class Stopped(Exception):
@@ -801,7 +813,7 @@ class AuthoringRun:
         improver = await self.runner.agents.ensure(
             organization_id=self.ctx.organization_id, key=IMPROVER.key
         )
-        values = {
+        values: _ProposalValues = {
             "description": proposal.description[:500],
             "content": content,
             "resources": {},

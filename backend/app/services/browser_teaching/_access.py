@@ -55,7 +55,9 @@ def _personal(run: AgentRun | None, user_id: UUID) -> bool:
     )
 
 
-async def _may_run_agent(db: AsyncSession, member: AuthContext, organization_id: UUID, agent_id: UUID) -> bool:
+async def _may_run_agent(
+    db: AsyncSession, member: AuthContext, organization_id: UUID, agent_id: UUID
+) -> bool:
     agent = await agent_repo.get(db, agent_id, organization_id=organization_id)
     return (
         agent is not None
