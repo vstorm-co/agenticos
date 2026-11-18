@@ -102,6 +102,7 @@ def load_builtins() -> None:
         ai_extract,
         ai_prompt,
         ai_rewrite,
+        asset_input,
         channel_find,
         channel_members,
         channel_read,
@@ -137,6 +138,7 @@ def load_builtins() -> None:
         http_request,
         http_upload,
         human_approval,
+        image_generate,
         image_transform,
         knowledge_add,
         knowledge_search,
@@ -174,6 +176,7 @@ def load_builtins() -> None:
         trigger_webhook,
         trigger_workflow_call,
         trigger_workflow_failed,
+        video_generate,
         webhook_respond,
         workflow_run,
     )

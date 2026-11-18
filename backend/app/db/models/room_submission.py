@@ -14,6 +14,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Identity,
     Index,
+    Integer,
     String,
     UniqueConstraint,
     select,
@@ -41,6 +42,15 @@ class RoomSubmission(Base, TimestampMixin):
             "requester_id",
             "client_message_id",
             name="uq_room_submission_client",
+        ),
+        UniqueConstraint(
+            "organization_id", "conversation_id", "id", name="uq_room_submission_scope"
+        ),
+        CheckConstraint(
+            "(intent = 'message' AND lead_policy_revision IS NULL) OR "
+            "(intent = 'ask_lead' AND lead_policy_revision IS NOT NULL "
+            "AND lead_policy_revision >= 1 AND agent_id IS NOT NULL)",
+            name="lead_intent",
         ),
         CheckConstraint(
             "status IN ('posted', 'queued', 'running', 'awaiting_approval', 'awaiting_answer', "
@@ -90,6 +100,8 @@ class RoomSubmission(Base, TimestampMixin):
     ordinal: Mapped[int] = mapped_column(BigInteger, Identity(), nullable=False)
     client_message_id: Mapped[str] = mapped_column(String(128), nullable=False)
     fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    intent: Mapped[str] = mapped_column(String(16), default="message", server_default="message")
+    lead_policy_revision: Mapped[int | None] = mapped_column(Integer)
     agent_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="posted")

@@ -29,6 +29,9 @@ vi.mock("@/hooks/use-permissions", () => ({
 
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  // The browser continuation panel reaches next-intl's navigation, which reads these.
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
   useSearchParams: () => params,
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   // The header's "?" reads the path to decide whether this page has tips.

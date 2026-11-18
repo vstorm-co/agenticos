@@ -31,6 +31,15 @@ const account: CodingAccount = {
   generation: "generation",
   is_default: true,
   pool_member: false,
+  model_catalog: {
+    status: "unknown",
+    source: "unavailable",
+    observed_at: null,
+    valid_until: null,
+    model_ids: [],
+    reason_code: "model_catalog_unverified",
+  },
+  usage_refresh_pending: false,
   usage: {
     status: "unknown",
     observed_at: null,

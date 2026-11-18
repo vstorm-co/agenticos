@@ -59,6 +59,31 @@ beforeEach(() => {
 });
 
 describe("BrowserPanel - a browse beside the chat", () => {
+  it("keeps a protected tab reachable and closes only its view without sending a browser command", async () => {
+    useBrowserPanelStore.getState().open("c1");
+    render(
+      <BrowserPanel
+        browses={[
+          browse({
+            tabId: "main",
+            navigable: true,
+            nativeId: "old-native-view",
+            image: "data:image/jpeg;base64,OLD",
+            outputProtected: true,
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Protected browser" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Protected browser" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Pricing" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Close tab" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Close view" }));
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+    expect(live.value.send).not.toHaveBeenCalled();
+  });
+
   it("draws nothing when nothing has browsed, or nothing was opened", () => {
     const { container, rerender } = render(<BrowserPanel browses={[]} />);
     expect(container).toBeEmptyDOMElement();

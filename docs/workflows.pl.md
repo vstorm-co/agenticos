@@ -1,5 +1,5 @@
 ---
-source_sha: "3dcf65276140"
+source_sha: "ebe2636bfc0c"
 ---
 
 # Workflows { #workflows }
@@ -519,6 +519,94 @@ Wiersze są przechowywane razem z przebiegiem i usuwane razem z nim, gdy retencj
 usuwa przebieg (zob. [Ustawienia workflow](#workflow-settings)). Czytasz je na
 [stronie Logs](#the-logs-page) albo, osobno dla każdego kroku, w widoku przebiegu.
 
+## Dane multimedialne i generowanie { #media-inputs-and-generation }
+
+Użyj **Asset**, aby sprawdzić istniejący obraz, nagranie audio lub wideo,
+**Generate image**, aby utworzyć obraz, oraz **Generate video**, aby utworzyć
+klip. Każdy krok przekazuje dalej typowaną referencję pliku. Asset odczytuje
+dozwolone pliki bez wywoływania modelu. Generowanie wywołuje wybranego dostawcę
+i może powodować naliczenie opłaty, także podczas uruchomienia testowego.
+
+Te trzy kroki są domyślnie wyłączone. Administrator wdrożenia włącza je osobno.
+Wyłączony krok nie pojawia się w palecie. Zapisany graf zachowuje jego
+definicję, ale nie może go wykonać. [Opis węzłów](reference/workflow-nodes.md#asset-input)
+podaje ustawienia wdrożenia oraz typowane wejścia i wyjścia.
+
+### Wybierz plik, model i klucz dostawcy { #media-configuration }
+
+Powiąż `file` w Asset z dopuszczonym wejściem runa lub plikiem utworzonym przez
+wcześniejszy krok. Asset sprawdza rzeczywiste bajty, typ, wymiary i czas trwania
+w ramach ustawionych limitów. Nazwa pliku ani URL nie daje prawa do odczytu.
+Wyjście `file` można powiązać z opcjonalnym `reference_image` kroku generowania
+tylko wtedy, gdy wybrany model obsługuje obraz wejściowy. Pliki audio i wideo
+nie pasują do tego wejścia obrazu.
+
+Wybierz dostawcę i model z katalogu workflow, a następnie **klucz API** o zasięgu
+organizacji w selektorze Vault. Jego przeznaczenie musi dokładnie odpowiadać
+dostawcy. Osobiste połączenie, dane logowania do przeglądarki ani klucz
+z przeznaczeniem `custom` nie spełniają wymagań. Te same zasady obowiązują przy
+tworzeniu klucza w selektorze. Run używa własnych uprawnień i ponownie sprawdza
+generację autoryzacji klucza przed wysłaniem żądania oraz publikacją wyniku.
+
+Model określa dostępne opcje rozmiaru, jakości, proporcji, rozdzielczości,
+długości i dźwięku. Domyślne wartości pochodzą z katalogu serwera. Opcjonalny
+dźwięk wideo jest początkowo wyłączony; stały dźwięk lub długość są oznaczone
+jako stałe. Generowanie obrazów OpenAI w workflow początkowo przyjmuje tylko
+tekst. GPT Image 2 nie jest dostępny w tym katalogu, dopóki nie ma uzasadnionej
+górnej granicy kosztu wyjścia. Istniejąca konfiguracja tego modelu dla agentów
+działa niezależnie.
+
+### Sprawdź rezerwację przed uruchomieniem { #media-reservations }
+
+Edytor pobiera z serwera oszacowanie bieżącej konfiguracji bez odszyfrowywania
+klucza ani kontaktowania się z dostawcą. Pokazuje datę cennika, rezerwację USD
+i bajtów wyjściowych oraz założenia dotyczące limitów wejścia i wyjścia,
+długości promptu narzędzia obrazu albo czasu i stawki wideo. Model samodzielnie
+wybierający długość rezerwuje swoje maksimum. Limit ceny opcjonalnego dźwięku
+obejmuje obsługiwane żądania z włączonym dźwiękiem.
+
+Ta ostrożna rezerwacja zabezpiecza dostępne środki; nie prognozuje rachunku.
+Może być znacznie większa niż koszt typowego krótkiego żądania. Gdy
+`max_cost_usd` kroku jest za mały, oszacowanie pokazuje brakującą kwotę. Zmniejsz
+żądanie albo sprawdź limit przed uruchomieniem. Wysyłanie dodatkowo sprawdza
+pozostały budżet workflow i organizacji oraz limity plików. Poprawne
+oszacowanie nie rezerwuje środków i nie omija późniejszych kontroli.
+
+Dziennik runa rozdziela kwoty **zarezerwowane**, **poniesione** i **zaksięgowane**
+oraz wskazuje koszt zgłoszony przez dostawcę lub oszacowany z katalogu.
+Niewykorzystane maksimum nigdy nie jest księgowane jako opłata. Praca
+o nieznanym wyniku zachowuje rezerwację po upływie czasu, wygaśnięciu dzierżawy,
+usunięciu klucza lub utworzeniu kolejnego runa. Obraz OpenAI może być zapisany,
+gdy niezweryfikowany koszt wejścia natywnego narzędzia nadal pozostaje
+zarezerwowany. Zwrócony poprawiony prompt nie dowodzi pełnego rozliczonego
+wejścia. Kontrole budżetu zwykłych agentów uwzględniają otwarte zobowiązania
+multimedialne; raporty wydatków pokazują zaksięgowane opłaty.
+
+### Sprawdź wyniki i odzyskaj przerwaną pracę { #media-recovery }
+
+Otwórz Files lub wyjście kroku, aby podejrzeć lub pobrać zapisany wynik
+z zachowaniem dotychczasowych uprawnień do plików runa. Serwer sprawdza
+wygenerowane bajty przed publikacją pliku. Dziennik pokazuje fazę i dostępność
+potwierdzenia dostawcy bez ujawniania klucza, odpowiedzi dostawcy lub prywatnego
+adresu pobrania. Łączna nierozliczona kwota obejmuje też wcześniejsze operacje
+tego kroku.
+
+Odzyskiwanie zależy od zachowanych dowodów. **Collect existing** odpytuje to
+samo zadanie dostawcy, a **Recover output** zwraca ten sam zapisany plik.
+Żadna z tych czynności nie rozpoczyna nowego generowania. Nadal wymagają
+aktualnych uprawnień i pierwotnej generacji klucza. Nieznane wysłanie bez
+użytecznego potwierdzenia ani zachowanego wyniku wymaga wyjaśnienia i nie może
+zostać ponowione w tym samym runie. Lokalne anulowanie nie gwarantuje
+anulowania ani zwrotu opłaty u dostawcy.
+
+Jawnie oferowane nowe wysłanie wymaga potwierdzenia możliwej opłaty.
+**Retry from failed step** tworzy osobny run: ukończone kroki mogą ponownie
+wykorzystać swoje wyniki, lecz ponownie wykonany krok generowania może naliczyć
+nową opłatę. Wcześniejsze nierozliczone rezerwacje pozostają. Sprawdź dziennik
+przed rozpoczęciem pracy zastępczej. Odświeżenie podglądu lub odebranie wyniku
+istniejącego zadania nie wymaga nowego wysłania. Runy z nierozliczonymi kosztami
+lub rezerwacją bajtów pozostają zachowane do wyjaśnienia tych zobowiązań.
+
 ## Połączenia i scope foreach { #connections-and-foreach-scope }
 
 Krawędź rysujesz, łącząc port wyjściowy jednego węzła z portem wejściowym innego
@@ -896,8 +984,8 @@ tego przebiegu. Wiersze, które zapisał [szybki log](#quick-log) kroku, widać 
 
 **Retry from failed step** uruchamia nowy przebieg tej samej wersji
 z tym samym wejściem, w którym każdy krok, który się udał, przekazuje to, co
-przekazał wcześniej, więc działa tylko nieudany krok i to, do czego nie doszedł, a
-zapis nigdy nie powtarza się dwa razy. Pętla działa ponownie i używa kroków
+przekazał wcześniej, więc działa tylko nieudany krok i to, do czego nie doszedł.
+Ukończone kroki ponownie wykorzystują potwierdzone wyniki. Pętla działa ponownie i używa kroków
 każdego elementu, które się udały. **Debug in editor** przypina do kroków wersji
 roboczej to, co każdy krok poza pętlą przekazał w tym przebiegu, więc przebieg
 testowy zaczyna od miejsca, w którym tamten był. Przez API ponawia `POST

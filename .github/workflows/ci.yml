@@ -299,6 +299,7 @@ jobs:
     # below already does it. Four identical copies is four places to forget one.
     env:
       PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
+      T3OS_TEST_CHROMIUM_EXECUTABLE: /usr/bin/google-chrome
       POSTGRES_HOST: localhost
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
@@ -323,6 +324,14 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --directory backend --dev
+
+      - name: Install the pinned media inspector
+        timeout-minutes: 5
+        run: make ci-media-inspector
+
+      - name: Verify the native browser acceptance runtime
+        timeout-minutes: 2
+        run: make ci-browser-runtime-check
 
       - name: Configure the disposable test database
         env:

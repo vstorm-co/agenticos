@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BROWSER_TEACHING_DETAIL,
   SKILL_DETAIL,
   SKILL_IMPROVEMENT,
   SKILL_IMPROVEMENT_START,
@@ -45,6 +46,34 @@ const UNGATED_LAUNCH = [
   "app-connections",
   "finish",
 ];
+
+describe("browser teaching route help", () => {
+  it("keeps owner capture help distinct from a skill and explains each available review phase", () => {
+    expect(pageKey(ROUTES.SKILLS_TEACHING)).toBe(ROUTES.SKILLS_TEACHING);
+    expect(pageKey(ROUTES.SKILL_TEACHING("capture-1"))).toBe(BROWSER_TEACHING_DETAIL);
+    expect(
+      stepsForPage(ROUTES.SKILL_TEACHING("capture-1"), () => false).map((step) => step.id),
+    ).toEqual(["teaching-summary", "teaching-review", "teaching-draft", "teaching-proposal"]);
+    expect(stepsForPage(ROUTES.SKILLS_TEACHING, () => false).map((step) => step.id)).toEqual([
+      "teaching-list",
+    ]);
+  });
+
+  it("opens governance for the teaching policy only when the viewer may change organization settings", () => {
+    const teaching = stepsForPage("/orgs/org-1/members", () => true).find(
+      (step) => step.id === "org-browser-teaching",
+    );
+    expect(teaching).toMatchObject({
+      activate: "org-tab-governance",
+      permission: Perm.orgSettings,
+    });
+    expect(
+      stepsForPage("/orgs/org-1/members", (permission) => permission !== Perm.orgSettings).some(
+        (step) => step.id === "org-browser-teaching",
+      ),
+    ).toBe(false);
+  });
+});
 
 // Every builder stop, in the order the "?" walks them. The launch pass takes a
 // subset of these (instructions, tools, publish).
@@ -93,6 +122,7 @@ const KB_STEPS = [
 const ORG_STEPS = [
   "org-profile",
   "org-governance",
+  "org-browser-teaching",
   "org-proactivity",
   "org-proactivity-model",
   "org-public-attribution",
@@ -310,6 +340,7 @@ describe("stepsForPage", () => {
       "chat-composer",
       "chat-send-mode",
       "chat-workspace",
+      "browser-protected-continuation",
       "chat-workspace-tasks",
       "chat-agent-settings",
       "chat-agent-reasoning",

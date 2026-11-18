@@ -545,6 +545,14 @@ class SkillProposalService:
         )
         if decided is None:
             raise _changed(proposal)
+        if (
+            decided.source == SkillVersionSource.BROWSER_TEACHING.value
+            and decided.browser_teaching_id is None
+            and decided.browser_procedure is not None
+        ):
+            from app.repositories import browser_procedure_teaching
+
+            await browser_procedure_teaching.erase_decided(self.db, ctx.organization_id, decided.id)
         return decided
 
     @staticmethod

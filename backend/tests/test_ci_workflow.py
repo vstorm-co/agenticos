@@ -32,6 +32,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+MAKEFILE = REPO_ROOT / "Makefile"
 
 # The ceiling on any one job's `timeout-minutes`. Set against the slowest job this
 # workflow runs - `test`, which runs the suite twice. The 18,711-test native-client
@@ -119,6 +120,37 @@ class TestWorkerBackedJourneys:
             "The CI worker is running, but E2E_WORKER=1 is absent: workflow journeys skip "
             "their completion assertions and teardown can cancel work still being settled."
         )
+
+
+class TestNativeBrowserAcceptance:
+    """Full backend CI must execute the native credential and teaching cases."""
+
+    def test_backend_cases_receive_a_verified_browser(self, workflow: dict[str, Any]) -> None:
+        job = workflow["jobs"]["test-shard"]
+        steps = job["steps"]
+        run = next(i for i, step in enumerate(steps) if step.get("run", "").strip() == "make test")
+        assert steps[run]["env"]["BACKEND_SHARD"] == "${{ matrix.shard }}/3"
+        environment = {**workflow.get("env", {}), **job.get("env", {}), **steps[run].get("env", {})}
+        assert environment.get("T3OS_TEST_CHROMIUM_EXECUTABLE") == "/usr/bin/google-chrome"
+        # CI steps call Makefile targets (`test_ci_parity.py`), so the check is the
+        # `ci-browser-runtime-check` target, and its recipe must hold the probe.
+        target = "ci-browser-runtime-check"
+        verified = [
+            i for i, step in enumerate(steps) if step.get("run", "").strip() == f"make {target}"
+        ]
+        assert len(verified) == 1 and verified[0] < run
+        assert not steps[verified[0]].get("continue-on-error", False)
+        lines = MAKEFILE.read_text().splitlines()
+        start = lines.index(f"{target}:") + 1
+        recipe = []
+        for line in lines[start:]:
+            if not line.startswith("\t"):
+                break
+            recipe.append(line.strip())
+        assert recipe == [
+            'test -x "$(T3OS_TEST_CHROMIUM_EXECUTABLE)"',
+            '"$(T3OS_TEST_CHROMIUM_EXECUTABLE)" --version',
+        ]
 
 
 class TestEveryJobBoundsItsOwnRuntime:

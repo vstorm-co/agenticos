@@ -24,5 +24,8 @@ class TeachCapture(Protocol):
     async def after_input(self, prepared: object | None) -> None:
         """The input was carried out; record what `before_input` observed."""
 
+    async def failed_input(self) -> None:
+        """The command failed after observation; pause capture without changing the page."""
+
     async def end(self) -> None:
         """The person handed the tab back, lost it, or the hold timed out."""

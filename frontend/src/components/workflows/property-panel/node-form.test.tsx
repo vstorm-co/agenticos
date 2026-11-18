@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +13,34 @@ import {
 
 import { NodeForm } from "./node-form";
 import type { Schema } from "./schema-model";
+
+const mediaForm = vi.hoisted(() => ({ referenceAllowed: true as boolean | null }));
+vi.mock("./media-generation-fields", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./media-generation-fields")>()),
+  MediaGenerationFields: ({
+    children,
+    onChange,
+    disabled,
+  }: {
+    children: (allowed: boolean | null) => ReactNode;
+    onChange: (config: Record<string, unknown>) => void;
+    disabled?: boolean;
+  }) => (
+    <>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange({ provider: "google", model: "catalog-image" })}
+      >
+        Choose media model
+      </button>
+      {children(mediaForm.referenceAllowed)}
+    </>
+  ),
+}));
+afterEach(() => {
+  mediaForm.referenceAllowed = true;
+});
 
 // The resource pickers are covered in their own suite; here they stand in as
 // simple controls so the form's wiring — which picker, and what it writes — is
@@ -367,6 +396,87 @@ function renderForm(
 }
 
 describe("NodeForm sections", () => {
+  function mediaDefinition(id = "image.generate") {
+    return makeDefinition({
+      id,
+      config_schema: {
+        type: "object",
+        properties: {
+          provider: { type: "string", title: "Provider" },
+          model: { type: "string", title: "Model" },
+          secret_id: {
+            type: "string",
+            title: "Provider key",
+            "x-resource": "secret",
+            "x-secret-kind": "api_key",
+          },
+          filename: { type: "string", title: "Filename", default: "generated.png" },
+          max_cost_usd: { type: "number", title: "Budget ceiling" },
+        },
+        required: ["provider", "model", "secret_id"],
+      },
+      input_schema: {
+        type: "object",
+        properties: {
+          prompt: { type: "string", title: "Prompt" },
+          reference_image: { type: "string", title: "Reference image" },
+        },
+        required: ["prompt"],
+      },
+    });
+  }
+
+  it.each(["image.generate", "video.generate"])(
+    "draws %s model/key controls once and leaves its other fields editable",
+    (id) => {
+      const { updateNodeConfig } = renderForm({ definition: mediaDefinition(id) });
+      expect(screen.queryByLabelText("Provider")).toBeNull();
+      expect(screen.queryByText("secret-kind:api_key")).toBeNull();
+      expect(screen.getByLabelText("Filename")).toBeVisible();
+      expect(screen.getByLabelText("Budget ceiling")).toBeVisible();
+      expect(screen.getByText("Reference image")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Choose media model" }));
+      expect(updateNodeConfig).toHaveBeenCalledWith("N", {
+        provider: "google",
+        model: "catalog-image",
+      });
+    },
+  );
+
+  it("hides a new unsupported reference binding", () => {
+    mediaForm.referenceAllowed = false;
+    renderForm({ definition: mediaDefinition() });
+    expect(screen.queryByText("Reference image")).toBeNull();
+  });
+
+  it("keeps an existing unsupported reference visible with a refusal so it can be removed", () => {
+    mediaForm.referenceAllowed = false;
+    renderForm({
+      definition: mediaDefinition(),
+      bindings: [
+        {
+          target_node_id: "N",
+          target_field: "reference_image",
+          source: { kind: "literal", value: "existing" },
+        },
+      ],
+    });
+    expect(screen.getByText("Reference image")).toBeVisible();
+    expect(
+      screen.getByText("This model accepts text only. Remove any reference image binding."),
+    ).toBeVisible();
+  });
+
+  it("does not refuse a saved reference while catalog availability is unknown", () => {
+    mediaForm.referenceAllowed = null;
+    renderForm({ definition: mediaDefinition(), disabled: true });
+    expect(screen.getByRole("button", { name: "Choose media model" })).toBeDisabled();
+    expect(screen.getByText("Reference image")).toBeVisible();
+    expect(
+      screen.queryByText("This model accepts text only. Remove any reference image binding."),
+    ).toBeNull();
+  });
+
   it("binds a file as one object rather than asking for its metadata", () => {
     renderForm({
       definition: makeDefinition({

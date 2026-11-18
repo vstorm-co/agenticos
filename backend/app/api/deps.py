@@ -87,7 +87,17 @@ from app.services.mentions import MentionService
 from app.services.mfa import MfaService
 from app.services.personal_data import PersonalDataService
 from app.services.browser_sign_in import BrowserSignInService
+from app.services.browser_credentials import (
+    BrowserCredentialContinuationService,
+    BrowserCredentialPlanService,
+    BrowserCredentialPolicyService,
+)
 from app.services.browser_teaching import BrowserTeachingService
+from app.services.browser_procedure_teaching._service import BrowserProcedureTeachingService
+from app.services.browser_procedure_teaching._policy import BrowserProcedureTeachingPolicyService
+from app.services.browser_procedure_teaching._generation import (
+    BrowserProcedureTeachingDraftService,
+)
 from app.services.user import UserService
 from app.services.session import SessionService
 from app.services.web_push import WebPushService
@@ -102,6 +112,7 @@ from app.services.conversation_message_pin import ConversationMessagePinService
 from app.services.coding_task_changes import CodingTaskChangeService
 from app.services.conversation_tasks import ConversationTaskService
 from app.services.room_submission import RoomSubmissionService
+from app.services.room_routing import RoomRoutingService
 from app.services.tasks import TaskService
 from app.services.visual import VisualService
 from app.services.local_service import LocalServiceService
@@ -207,6 +218,13 @@ def get_room_submission_service(db: DBSession) -> RoomSubmissionService:
 
 
 RoomSubmissionSvc = Annotated[RoomSubmissionService, Depends(get_room_submission_service)]
+
+
+def get_room_routing_service(db: DBSession) -> RoomRoutingService:
+    return RoomRoutingService(db)
+
+
+RoomRoutingSvc = Annotated[RoomRoutingService, Depends(get_room_routing_service)]
 
 
 def get_coding_task_change_service(db: DBSession) -> CodingTaskChangeService:
@@ -1300,12 +1318,76 @@ def get_browser_sign_in_service(db: DBSession) -> BrowserSignInService:
 BrowserSignInSvc = Annotated[BrowserSignInService, Depends(get_browser_sign_in_service)]
 
 
+def get_browser_credential_plan_service(
+    db: DBSession, redis: Redis
+) -> BrowserCredentialPlanService:
+    return BrowserCredentialPlanService(db, redis)
+
+
+BrowserCredentialPlanSvc = Annotated[
+    BrowserCredentialPlanService, Depends(get_browser_credential_plan_service)
+]
+
+
+def get_browser_credential_continuation_service(
+    db: DBSession, redis: Redis
+) -> BrowserCredentialContinuationService:
+    return BrowserCredentialContinuationService(db, redis)
+
+
+BrowserCredentialContinuationSvc = Annotated[
+    BrowserCredentialContinuationService, Depends(get_browser_credential_continuation_service)
+]
+
+
+def get_browser_credential_policy_service(db: DBSession) -> BrowserCredentialPolicyService:
+    return BrowserCredentialPolicyService(db)
+
+
+BrowserCredentialPolicySvc = Annotated[
+    BrowserCredentialPolicyService, Depends(get_browser_credential_policy_service)
+]
+
+
 def get_browser_teaching_service(db: DBSession, redis: Redis) -> BrowserTeachingService:
     """Create BrowserTeachingService over the request's session and the shared Redis."""
     return BrowserTeachingService(db, redis)
 
 
 BrowserTeachingSvc = Annotated[BrowserTeachingService, Depends(get_browser_teaching_service)]
+
+
+def get_browser_procedure_teaching_service(
+    db: DBSession, redis: Redis
+) -> BrowserProcedureTeachingService:
+    return BrowserProcedureTeachingService(db, redis)
+
+
+BrowserProcedureTeachingSvc = Annotated[
+    BrowserProcedureTeachingService, Depends(get_browser_procedure_teaching_service)
+]
+
+
+def get_browser_procedure_teaching_policy_service(
+    db: DBSession,
+) -> BrowserProcedureTeachingPolicyService:
+    return BrowserProcedureTeachingPolicyService(db)
+
+
+BrowserProcedureTeachingPolicySvc = Annotated[
+    BrowserProcedureTeachingPolicyService, Depends(get_browser_procedure_teaching_policy_service)
+]
+
+
+def get_browser_procedure_teaching_draft_service(
+    db: DBSession, redis: Redis
+) -> BrowserProcedureTeachingDraftService:
+    return BrowserProcedureTeachingDraftService(db, redis)
+
+
+BrowserProcedureTeachingDraftSvc = Annotated[
+    BrowserProcedureTeachingDraftService, Depends(get_browser_procedure_teaching_draft_service)
+]
 
 
 def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
@@ -1600,6 +1682,12 @@ def require(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
         return _refuse_missing(ctx, perms)
 
     return dependency
+
+
+async def require_media_catalog_access(ctx: Auth) -> None:
+    """Read-only model metadata is shared by agent and workflow editors."""
+    if not ctx.has(Perm.WORKFLOWS_VIEW):
+        await require(Perm.AGENTS_VIEW)(ctx)
 
 
 def key_needs(perm: Perm) -> Callable[..., Awaitable[None]]:
@@ -2650,6 +2738,18 @@ def get_coding_account_service(db: DBSession) -> CodingAccountService:
 
 
 CodingAccountSvc = Annotated[CodingAccountService, Depends(get_coding_account_service)]
+
+
+from app.services.coding_account_usage import CodingAccountUsageService
+
+
+def get_coding_account_usage_service(db: DBSession, redis: Redis) -> CodingAccountUsageService:
+    return CodingAccountUsageService(db, redis)
+
+
+CodingAccountUsageSvc = Annotated[
+    CodingAccountUsageService, Depends(get_coding_account_usage_service)
+]
 
 
 from app.services.onboarding import OnboardingService

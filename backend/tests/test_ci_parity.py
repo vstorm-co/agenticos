@@ -94,6 +94,10 @@ INSTALL_EXEMPT = frozenset(
 CI_ONLY_TARGETS = {
     # This disables durability only on CI's ephemeral database container.
     "ci-test-db-configure",
+    # Runner provisioning: a pinned ffmpeg onto `$GITHUB_PATH`, and a check that
+    # the runner's Chromium exists. A laptop installs its own of both.
+    "ci-media-inspector",
+    "ci-browser-runtime-check",
     # Distribution and aggregation transport the same suite/gate as test-frontend-cov.
     "test-frontend-jobs-check",
     "test-frontend-reports-check",

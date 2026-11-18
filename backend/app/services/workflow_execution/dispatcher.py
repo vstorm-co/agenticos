@@ -79,6 +79,7 @@ from app.repositories import member as member_repo
 from app.repositories import user as user_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_approval as workflow_approval_repo
+from app.repositories import workflow_media_operation as media_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.workflow_run import StepChoice
 from app.services.access import WORKFLOW, resolve_access
@@ -107,6 +108,7 @@ from app.services.workflow_execution.exceptions import (
     WorkflowStepNotResolvableError,
 )
 from app.services.workflow_execution.run_status import refresh_run_status
+from app.services.workflow_media import _recovery as media_recovery
 from app.workflows import _registry
 from app.workflows.contracts.definition import NodeDefinition, NodeHandler
 from app.workflows.contracts.definition import RetryGuarantee as CallGuarantee
@@ -423,6 +425,11 @@ async def _principal_context(db: AsyncSession, run: WorkflowRun) -> AuthContext:
         visited.add(parent.id)
         parent_node_id = parent.parent_node_run_id
     return auth
+
+
+async def current_principal(db: AsyncSession, run: WorkflowRun) -> AuthContext:
+    """Recheck the canonical run principal at an effect's current authority boundary."""
+    return await _principal_context(db, run)
 
 
 def idempotency_key(
@@ -939,7 +946,12 @@ async def begin_attempt(
             ),
         )
         return None
+    media_collection = False
     if budget.over_budget(run):
+        media_collection = await media_recovery.can_collect(
+            db, organization_id=run.organization_id, node_run_id=node_run.id
+        )
+    if budget.over_budget(run) and not media_collection:
         # Terminal, not a pause: nothing resumes a run once its cap is spent
         # (raising the cap means publishing a new version and starting again).
         await _end_run_before_dispatch(
@@ -998,6 +1010,14 @@ async def begin_attempt(
     # A step woken because the run it called ended only collects the answer: the called
     # run did the spending, and holding it back for a sibling's share could not help.
     collecting = node_run.waiting_reason == WaitingReason.EXTERNAL_EVENT.value
+    if definition.id in {"image.generate", "video.generate"}:
+        collecting = (
+            collecting
+            or media_collection
+            or await media_recovery.can_collect(
+                db, organization_id=run.organization_id, node_run_id=node_run.id
+            )
+        )
     if definition.spends_budget and run.budget_limit is not None and not collecting:
         free = await budget.unreserved(db, run)
         if not free:
@@ -1064,6 +1084,7 @@ async def begin_attempt(
         auth=auth,
         resumed_agent_run_id=node_run.waiting_agent_run_id,
         claim=claim if claim is not None else context.ClaimState(),
+        claim_token=token,
         workflow_id=run.workflow_id,
         run_input=run.input,
         triggered_by=run.triggered_by,
@@ -1429,6 +1450,8 @@ async def resolve_orphaned_attempt(
     A cost already booked onto the attempt by a late settle is kept.
     """
     now = datetime.now(UTC)
+    media_collection = await media_recovery.orphaned(db, attempt)
+    run = await book_media_costs(db, run=run, node_run=node_run)
     late_agent_run_id: UUID | None = None
     agent_run_id = attempt.agent_run_id or node_run.waiting_agent_run_id
     if agent_run_id is not None:
@@ -1526,7 +1549,9 @@ async def resolve_orphaned_attempt(
                 db, run=run, node_run=node_run, waiting_agent_run_id=late_agent_run_id
             )
         return
-    await _resolve_orphan_of_live_run(db, run=run, node_run=node_run, attempt=attempt, now=now)
+    await _resolve_orphan_of_live_run(
+        db, run=run, node_run=node_run, attempt=attempt, now=now, collect_media=media_collection
+    )
     await refresh_run_status(db, run=run)
     if late_agent_run_id is not None:
         await cleanup.withdraw_late_wait(
@@ -1539,10 +1564,16 @@ async def resolve_orphaned_attempt(
 
 
 async def _resolve_orphan_of_live_run(
-    db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun, attempt: NodeAttempt, now: datetime
+    db: AsyncSession,
+    *,
+    run: WorkflowRun,
+    node_run: NodeRun,
+    attempt: NodeAttempt,
+    now: datetime,
+    collect_media: bool = False,
 ) -> None:
     """Retry an interrupted attempt that is safe to repeat; otherwise a person decides."""
-    if attempt.retry_guarantee == RetryGuarantee.IDEMPOTENT.value:
+    if attempt.retry_guarantee == RetryGuarantee.IDEMPOTENT.value or collect_media:
         # The same ceiling and backoff a `Failed` result gets: a node whose
         # every attempt dies mid-call (a handler that crashes its worker) must
         # end, not be redispatched on every reconcile tick for ever.
@@ -1740,6 +1771,16 @@ async def _settle_loaded(
     attempt: NodeAttempt,
 ) -> list[tuple[UUID, UUID]]:
     now = datetime.now(UTC)
+    if begun.definition.id in {"image.generate", "video.generate"}:
+        # Even a lost admission acknowledgement can leave a prepared row when
+        # the handler returns a refusal. No committed submission token proves
+        # that this attempt cannot have sent the paid request.
+        await media_recovery.orphaned(db, attempt)
+        run = await book_media_costs(db, run=run, node_run=node_run)
+        # The durable journal books onto the original attempt, including a fee
+        # observed by a later collector. Preserve that cumulative amount when
+        # the ordinary settlement stores this attempt's result.
+        outcome = replace(outcome, cost=max(outcome.cost, attempt.cost))
     if attempt.agent_run_id is not None and attempt.status == NodeAttemptStatus.IN_FLIGHT.value:
         child = await agent_run_repo.get_run(
             db, attempt.agent_run_id, organization_id=run.organization_id
@@ -1991,6 +2032,9 @@ async def resolve_needs_attention(
     if choice == "run_again":
         try:
             async with db.begin_nested():
+                await media_recovery.explicit_retry(
+                    db, organization_id=run.organization_id, node_run_id=node_run.id, now=now
+                )
                 await workflow_run_repo.update_node_run(
                     db,
                     node_run=node_run,
@@ -2117,6 +2161,46 @@ async def _use_late_result(
         stands_in=None,
         now=now,
     )
+
+
+async def book_media_costs(db: AsyncSession, *, run: WorkflowRun, node_run: NodeRun) -> WorkflowRun:
+    """Book each journal delta through the canonical run/attempt ledger exactly once.
+
+    The caller holds the organization's file lock and the run/node rows. Both
+    normal/orphan settlement and the existing reconciler use this one path.
+    An unresolved reservation is never an incurred charge or a partial fee.
+    """
+    operations = await media_repo.unbooked_for_node(
+        db, organization_id=run.organization_id, node_run_id=node_run.id
+    )
+    for operation in operations:
+        origin = await workflow_run_repo.get_attempt(db, operation.origin_attempt_id)
+        if (
+            origin is None
+            or origin.node_run_id != node_run.id
+            or origin.organization_id != run.organization_id
+        ):
+            raise RuntimeError("The media cost journal lost its canonical attempt")
+        delta = operation.incurred_usd - operation.booked_usd
+        fact = HandlerOutcome(
+            result=Uncertain(detail="Recording the media operation's observed fee"), cost=delta
+        )
+        run = await _book_cost(db, run=run, outcome=fact)
+        await _book_attempt_cost(db, attempt=origin, outcome=fact)
+        await workflow_run_repo.record_node_spend(
+            db,
+            organization_id=run.organization_id,
+            attempt_id=origin.id,
+            cost_usd=origin.cost,
+            cost_is_partial=origin.cost_is_partial,
+        )
+        await media_repo.change(
+            db,
+            operation.id,
+            organization_id=run.organization_id,
+            values={"booked_usd": operation.incurred_usd},
+        )
+    return run
 
 
 async def _book_cost(db: AsyncSession, *, run: WorkflowRun, outcome: HandlerOutcome) -> WorkflowRun:

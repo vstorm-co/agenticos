@@ -83,6 +83,7 @@ from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.schemas.virtual_table import ColumnDef
 from app.services.access import TABLE, WORKFLOW, resolve_access
+from app.services.workflow_media_catalog import media_binding_problems
 from app.workflows import _registry
 from app.workflows.contracts.definition import TRIGGER_CATEGORY, NodeDefinition, Port
 from app.workflows.contracts.io import (
@@ -178,6 +179,7 @@ async def validate_graph(db: AsyncSession, ctx: AuthContext, graph: WorkflowGrap
     problems += _binding_target_field_problems(graph, definitions)
     problems += _literal_binding_type_problems(graph, definitions)
     problems += _template_binding_problems(graph, definitions)
+    problems += media_binding_problems(graph)
     problems += await _table_binding_problems(db, ctx, graph)
     problems += await file_binding_problems(db, ctx, graph)
     problems += await _resource_problems(db, ctx, graph, definitions)

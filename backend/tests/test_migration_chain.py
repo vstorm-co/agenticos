@@ -229,6 +229,61 @@ def test_unreleased_core_follows_published_threads_without_duplicate_ddl() -> No
         assert script.down_revision == parent
 
 
+_T3_TEACHING_REVISIONS = {
+    "0339_browser_teaching_capture",
+    "0340_browser_teaching_review",
+}
+_OPENBOT_UPGRADES = {
+    "0341_room_task_handoffs",
+    "0342_browser_credential_plans",
+    "0343_workflow_media_operations",
+    "0344_browser_procedure_teaching",
+    "0345_credential_continuations",
+}
+
+
+@pytest.mark.parametrize(
+    ("current", "remaining"),
+    [
+        ("0338_message_reply_excerpt", _T3_TEACHING_REVISIONS | _OPENBOT_UPGRADES),
+        ("0339_browser_teaching_capture", {"0340_browser_teaching_review"} | _OPENBOT_UPGRADES),
+        ("0340_browser_teaching_review", _OPENBOT_UPGRADES),
+    ],
+)
+def test_openbot_features_apply_after_the_published_t3_teaching_chain(
+    current: str, remaining: set[str]
+) -> None:
+    chain = _chain()
+    pending = list(chain.iterate_revisions("0345_credential_continuations", current))
+    ordered = [revision.revision for revision in reversed(pending)]
+    assert set(ordered) == remaining
+    assert len(ordered) == len(remaining)
+    assert ordered[-1] == "0345_credential_continuations"
+    positions = {revision: position for position, revision in enumerate(ordered)}
+    for revision in pending:
+        parents = revision.down_revision
+        for parent in (parents,) if isinstance(parents, str) else parents or ():
+            if parent in positions:
+                assert positions[parent] < positions[revision.revision]
+
+
+def test_openbot_features_extend_the_published_chain_without_rewriting_it() -> None:
+    chain = _chain()
+    assert chain.get_heads() == ["0345_credential_continuations"]
+    expected = {
+        "0339_browser_teaching_capture": "0338_message_reply_excerpt",
+        "0340_browser_teaching_review": "0339_browser_teaching_capture",
+        "0341_room_task_handoffs": "0340_browser_teaching_review",
+        "0342_browser_credential_plans": "0341_room_task_handoffs",
+        "0343_workflow_media_operations": "0342_browser_credential_plans",
+        "0344_browser_procedure_teaching": "0343_workflow_media_operations",
+        "0345_credential_continuations": "0344_browser_procedure_teaching",
+    }
+    for revision, parent in expected.items():
+        script = chain.get_revision(revision)
+        assert script is not None and script.down_revision == parent
+
+
 # `alembic_version.version_num` is `VARCHAR(32)`, which alembic creates and never
 # widens. A longer id is not refused when the file is written or when the chain is
 # read - it is refused by the *database*, after the migration's DDL has run, on the

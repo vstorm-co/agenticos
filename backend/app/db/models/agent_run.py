@@ -27,6 +27,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -516,6 +517,7 @@ class AgentRun(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_agent_runs_org_id"),
         CheckConstraint(
             "routine_kind IN ('trigger', 'watch') AND "
             "(routine_kind != 'watch' OR (routine_origin_id IS NOT NULL AND routine_policy IS NOT NULL))",

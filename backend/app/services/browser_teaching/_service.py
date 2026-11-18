@@ -35,7 +35,7 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.browser_teaching import BrowserTeachingSession
 from app.repositories import browser_teaching as repo
-from app.repositories import skill_proposal_repo, skill_repo
+from app.repositories import browser_teaching_view, skill_proposal_repo, skill_repo
 from app.schemas.browser_teaching import (
     TeachingChange,
     TeachingPropose,
@@ -202,7 +202,18 @@ class BrowserTeachingService:
         hold = await self._live_hold(organization_id, user_id, run.id, body.call_id)
         if hold.agent_id != run.agent_id:
             raise TeachingRefused(TeachingReason.NOT_HELD)
-        if await repo.active_for_view(self.db, organization_id, run.id, body.call_id) is not None:
+        active_view = await browser_teaching_view.lock_view_and_check_active(
+            self.db, organization_id, run.id, body.call_id
+        )
+        # A concurrent retry can pass the first request-key lookup while the
+        # original insert is still uncommitted. Recheck under the view mutex so
+        # it remains idempotent across both capture kinds.
+        earlier = await repo.by_request(self.db, organization_id, user_id, key)
+        if earlier is not None:
+            if earlier.request_fingerprint != fingerprint:
+                raise TeachingConflict(TeachingReason.REQUEST_REUSED)
+            return read(earlier)
+        if active_view:
             raise TeachingConflict(TeachingReason.ALREADY_RECORDING)
         now = datetime.now(UTC)
         row = BrowserTeachingSession(

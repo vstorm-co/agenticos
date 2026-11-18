@@ -145,6 +145,14 @@ class HoldCapture:
             logger.warning("Browser teaching step not recorded (%s)", type(exc).__name__)
             await self._release(hold, TeachingReason.CAPTURE_FAILED)
 
+    async def failed_input(self) -> None:
+        """Pause the simple capture if the person's command did not reach the page."""
+        hold = self.hold
+        if hold is None:
+            return
+        await self._release(hold, TeachingReason.CAPTURE_FAILED)
+        await self.end()
+
     async def end(self) -> None:
         hold, self.hold = self.hold, None
         task, self._renewer = self._renewer, None

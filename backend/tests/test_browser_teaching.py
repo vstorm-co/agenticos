@@ -16,6 +16,8 @@ from pydantic import ValidationError
 
 from app.agents.browser_events import BrowserCommand
 from app.agents.capabilities.browser_use._loop import BrowseSession, held
+from app.agents.capabilities.browser_use._protected import BrowserOutputGuard
+from app.agents.capabilities.browser_use._teaching_capture import BrowserTeachingCapture
 from app.agents.deps import AgentDeps
 from app.core.browser_teaching import (
     CapturedStep,
@@ -48,13 +50,24 @@ class _Recorder:
     async def after_input(self, prepared: object | None) -> None:
         self.calls.append(("after", prepared))
 
+    async def failed_input(self) -> None:
+        self.calls.append(("failed_input", None))
+
     async def end(self) -> None:
         self.calls.append(("end", None))
 
 
+def _quick_capture(recorder: _Recorder) -> BrowserTeachingCapture:
+    return BrowserTeachingCapture(
+        simple=recorder,
+        procedure=None,
+        guard=BrowserOutputGuard(),
+    )
+
+
 async def test_held_reports_each_carried_out_input_to_the_capture() -> None:
     recorder = _Recorder()
-    session = BrowseSession(_FakePage(), teaching=recorder)
+    session = BrowseSession(_FakePage(), teaching=_quick_capture(recorder))
     await held(
         session,
         _Control(BrowserCommand(type="reload"), GIVE),
@@ -74,7 +87,9 @@ async def test_held_reports_each_carried_out_input_to_the_capture() -> None:
 
 async def test_held_does_not_record_an_input_the_page_refused() -> None:
     recorder = _Recorder()
-    session = BrowseSession(_FakePage(refuse="Outside allowed domains"), teaching=recorder)
+    session = BrowseSession(
+        _FakePage(refuse="Outside allowed domains"), teaching=_quick_capture(recorder)
+    )
     await held(
         session,
         _Control(BrowserCommand(type="navigate", url="https://other.test/"), GIVE),
@@ -85,6 +100,7 @@ async def test_held_does_not_record_an_input_the_page_refused() -> None:
         remember=None,
     )
     assert ("after", "navigate") not in recorder.calls
+    assert ("failed_input", None) in recorder.calls
     assert recorder.calls[-1] == ("end", None)
 
 

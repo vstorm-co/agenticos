@@ -1,7 +1,7 @@
 """Only the owner sees coding-account metadata; credentials never leave the vault."""
 
 from datetime import UTC, datetime
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 from uuid import UUID
 
 from pydantic import Field, SecretStr, field_validator, model_validator
@@ -33,6 +33,13 @@ UsageReasonCode = Literal[
     "provider_authentication_required",
     "provider_capacity_unavailable",
     "provider_busy",
+    "provider_identity_mismatch",
+    "provider_readiness_unavailable",
+    "provider_reported_quota_exhausted",
+    "runtime_version_unsupported",
+    "model_catalog_unverified",
+    "telemetry_unsupported",
+    "probe_timeout",
 ]
 MAX_USAGE_CLOCK_SKEW_SECONDS = 60
 
@@ -50,6 +57,7 @@ class ProviderUsageWindow(BaseSchema):
         pattern=r"^[a-z0-9_-]+$",
     )
     resets_at: datetime | None = None
+    window_duration_minutes: int | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def values_have_a_unit(self) -> Self:
@@ -118,6 +126,49 @@ def unavailable_provider_usage() -> ProviderUsageSnapshot:
     return ProviderUsageSnapshot(reason_code="provider_contract_unverified")
 
 
+ModelId = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9._:/-]{0,127}$")]
+
+
+class ProviderModelCatalog(BaseSchema):
+    """Models advertised by the selected account's provider; no per-call guarantee."""
+
+    status: Literal["advertised", "unknown"] = "unknown"
+    source: Literal["native_runtime", "unavailable"] = "unavailable"
+    observed_at: datetime | None = None
+    valid_until: datetime | None = None
+    model_ids: list[ModelId] = Field(default_factory=list, max_length=200)
+    reason_code: UsageReasonCode | None = "model_catalog_unverified"
+
+    def fresh(self, now: datetime) -> Self:
+        """A stale catalog cannot be presented as current provider advertisement."""
+        if (
+            self.status != "advertised"
+            or self.source != "native_runtime"
+            or not self.model_ids
+            or self.observed_at is None
+            or self.valid_until is None
+            or self.observed_at.tzinfo is None
+            or self.valid_until.tzinfo is None
+            or self.observed_at > self.valid_until
+            or (self.observed_at - now).total_seconds() > MAX_USAGE_CLOCK_SKEW_SECONDS
+            or now >= self.valid_until
+        ):
+            return type(self)()
+        return self
+
+
+class CodingAccountUsageRead(BaseSchema):
+    account_id: UUID
+    generation: UUID
+    usage: ProviderUsageSnapshot = Field(default_factory=unavailable_provider_usage)
+    model_catalog: ProviderModelCatalog = Field(default_factory=ProviderModelCatalog)
+    refresh_pending: bool = False
+
+
+class CodingAccountUsageRefresh(BaseSchema):
+    generation: UUID
+
+
 class CodingAccountCreate(BaseSchema):
     harness: CodingHarness
     label: str = Field(min_length=1, max_length=120)
@@ -142,6 +193,8 @@ class CodingAccountRead(BaseSchema):
     is_default: bool
     pool_member: bool
     usage: ProviderUsageSnapshot = Field(default_factory=unavailable_provider_usage)
+    model_catalog: ProviderModelCatalog = Field(default_factory=ProviderModelCatalog)
+    usage_refresh_pending: bool = False
 
 
 class CodingAccountList(BaseSchema):

@@ -37,10 +37,24 @@ _SPEC.loader.exec_module(_MIGRATION)
 
 
 def _migrate(connection, direction):
-    with Operations.context(
-        MigrationContext.configure(connection, opts={"target_metadata": Base.metadata})
-    ):
+    ctx = MigrationContext.configure(connection, opts={"target_metadata": Base.metadata})
+    operations = Operations(ctx)
+    with Operations.context(ctx):
+        # The create_all schema includes revision 0332's room_task_links, whose foreign
+        # key uses the record key 0327 owns. A real rollback removes 0332 first, so the
+        # rehearsal of 0327 alone stands that later key aside and restores it.
+        if direction == "downgrade":
+            operations.drop_constraint("fk_room_task_link_task", "room_task_links")
         getattr(_MIGRATION, direction)()
+        if direction == "upgrade":
+            operations.create_foreign_key(
+                "fk_room_task_link_task",
+                "room_task_links",
+                "virtual_table_records",
+                ["organization_id", "table_id", "task_id"],
+                ["organization_id", "table_id", "id"],
+                ondelete="CASCADE",
+            )
 
 
 async def test_backfill_keeps_ids_revisions_order_archived_fields_and_every_rejected_value(db):

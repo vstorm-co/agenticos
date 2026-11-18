@@ -1952,7 +1952,14 @@ class TestConnectedAccountSources:
 
 
 @pytest.mark.parametrize(
-    "previous", ["0311_room_submissions", "0332_merge_t3_pools_v1761", "0333_room_threads"]
+    "previous",
+    [
+        "0311_room_submissions",
+        "0332_merge_t3_pools_v1761",
+        "0333_room_threads",
+        "0336_merge_core_v1761",
+        "0340_browser_teaching_review",
+    ],
 )
 def test_published_thread_chain_preserves_saved_profiles_and_matches_models(previous: str) -> None:
     reset = _alembic("downgrade", "base")
@@ -1980,7 +1987,7 @@ def test_published_thread_chain_preserves_saved_profiles_and_matches_models(prev
         assert upgraded.returncode == 0, upgraded.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0340_browser_teaching_review"
+                "0345_credential_continuations"
             ]
             row = connection.execute(
                 text(
@@ -2045,7 +2052,22 @@ class TestRoomThreadMigration:
         teaching_review = script.get_revision("0340_browser_teaching_review")
         assert teaching_review is not None
         assert teaching_review.down_revision == "0339_browser_teaching_capture"
-        assert script.get_heads() == ["0340_browser_teaching_review"]
+        handoffs = script.get_revision("0341_room_task_handoffs")
+        assert handoffs is not None
+        assert handoffs.down_revision == "0340_browser_teaching_review"
+        credentials = script.get_revision("0342_browser_credential_plans")
+        assert credentials is not None
+        assert credentials.down_revision == "0341_room_task_handoffs"
+        media = script.get_revision("0343_workflow_media_operations")
+        assert media is not None
+        assert media.down_revision == "0342_browser_credential_plans"
+        procedure = script.get_revision("0344_browser_procedure_teaching")
+        assert procedure is not None
+        assert procedure.down_revision == "0343_workflow_media_operations"
+        continuation = script.get_revision("0345_credential_continuations")
+        assert continuation is not None
+        assert continuation.down_revision == "0344_browser_procedure_teaching"
+        assert script.get_heads() == ["0345_credential_continuations"]
 
     def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
         reset = _alembic("downgrade", "base")
@@ -2073,7 +2095,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0340_browser_teaching_review"]
+                ).all() == ["0345_credential_continuations"]
                 rows = connection.execute(
                     text(
                         "SELECT id,reply_to_message_id,thread_root_message_id FROM messages "
@@ -2143,7 +2165,7 @@ class TestRoomThreadMigration:
             with engine.begin() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0340_browser_teaching_review"]
+                ).all() == ["0345_credential_continuations"]
                 assert (
                     connection.scalar(
                         text("SELECT thread_root_message_id FROM messages WHERE id=:id"),
@@ -2171,7 +2193,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0340_browser_teaching_review"]
+                ).all() == ["0345_credential_continuations"]
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
         finally:
@@ -2374,7 +2396,7 @@ class TestRoomThreadMigration:
         assert resumed.returncode == 0, resumed.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0340_browser_teaching_review"
+                "0345_credential_continuations"
             ]
             assert connection.execute(
                 text("SELECT content, thread_root_message_id FROM messages WHERE id = :id"),

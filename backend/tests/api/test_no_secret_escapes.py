@@ -33,6 +33,9 @@ _SECRET_MODELS = frozenset(
         "AwsCredentialsSecret",
         "GcpServiceAccountSecret",
         "GithubOAuthAppSecret",
+        "BrowserLoginSecret",
+        "BrowserProfileSecret",
+        "BrowserTotp",
         # `NoSecret` is deliberately absent. It said "this provider needs no
         # key", and the only thing that ever accepted it was the credential
         # store that the vault replaced - the vault has no such shape, because a
@@ -166,6 +169,8 @@ _PATTERN_ALLOWED: dict[str, str] = {
     "avg_tokens": "the same usage count, averaged over an eval arm's cases",
     "cache_read_tokens": "the prompt tokens a turn read from the provider's prompt cache",
     "cache_write_tokens": "the prompt tokens a turn wrote to that cache",
+    "max_input_tokens": "an image model's context limit, a capacity an admitted request is held against",
+    "max_output_tokens": "the output-token cap an image request is sent with, a count not a key",
 }
 
 # A property whose type is one of these cannot be carrying a credential

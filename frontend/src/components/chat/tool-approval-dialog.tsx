@@ -23,6 +23,7 @@ import { Button } from "@/components/ui";
 import { usePermissions } from "@/hooks";
 import { approvalSummary } from "@/lib/agent-step-captions";
 import { callSummary } from "@/lib/approval-view";
+import { isBrowserCredentialPreparation } from "@/lib/browser-credential-approval";
 import { cn } from "@/lib/utils";
 import type { ActionRequest, ReviewConfig, Decision } from "@/types";
 import { Perm } from "@/types/permissions";
@@ -71,6 +72,7 @@ export function ToolApprovalDialog({
 }: ToolApprovalDialogProps) {
   const t = useTranslations("chat");
   const tTools = useTranslations("chat.tools");
+  const browser = useTranslations("browserCredentials");
   const { can } = usePermissions();
   const mayDecide = can(Perm.approvalsDecide);
   const phrase = useActionPhrase();
@@ -145,6 +147,13 @@ export function ToolApprovalDialog({
                       : t("approvalAsk", { action: phrase(action.tool_name) })}
                   </p>
                   <AccountBadge account={action.account} />
+                  {isBrowserCredentialPreparation(
+                    action.capability_tool_id ?? action.tool_name,
+                  ) && (
+                    <p className="text-muted-foreground text-sm">
+                      {browser("requestPreparationOnly")}
+                    </p>
+                  )}
                   {/* Why the agent asks, in its own words, first: a request to share a
                     view mid-way through "publish a page" reads as unrelated without it. */}
                   {typeof reason === "string" && reason !== "" && (

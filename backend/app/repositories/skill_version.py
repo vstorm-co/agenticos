@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from pydantic import JsonValue
 from sqlalchemy import Text, and_, any_, cast, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +35,7 @@ async def create_version(
     library_fingerprint: str | None,
     created_by_user_id: UUID | None,
     merged_from_id: UUID | None = None,
+    browser_procedure: dict[str, JsonValue] | None = None,
 ) -> SkillVersion:
     version = SkillVersion(
         organization_id=organization_id,
@@ -49,6 +51,7 @@ async def create_version(
         proposal_id=proposal_id,
         library_fingerprint=library_fingerprint,
         created_by_user_id=created_by_user_id,
+        browser_procedure=browser_procedure,
     )
     db.add(version)
     await db.flush()

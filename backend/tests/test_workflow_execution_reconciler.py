@@ -53,6 +53,14 @@ def repo():
     mocked.database_time.return_value = datetime.now(UTC)
     with (
         patch(
+            "app.repositories.workflow_media_operation.current_for_node",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.repositories.workflow_media_operation.unbooked_for_node",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
             "app.services.workflow_execution.approval_wake.agent_run_repo.list_approvals_for_run",
             new=AsyncMock(return_value=[]),
         ),

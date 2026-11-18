@@ -26,6 +26,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TypedDict
 
+from pydantic import JsonValue
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
@@ -60,6 +61,7 @@ class SkillVersionSource(StrEnum):
     WORKSPACE = "workspace"
     """An agent's change to the files in its workspace, accepted by a person."""
     IMPROVE = "improve"
+    BROWSER_TEACHING = "browser_teaching"
     """The assistant's proposal, accepted by a person."""
     RESTORE = "restore"
     CATCH_UP = "catch_up"
@@ -174,6 +176,9 @@ class SkillVersion(Base):
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
     source: Mapped[str] = mapped_column(String(16), nullable=False)
+    browser_procedure: Mapped[dict[str, JsonValue] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     restored_from_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("skill_versions.id", ondelete="SET NULL"),

@@ -15,7 +15,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 
 from app.agents.model_resolver import PROVIDERS, ModelApi, is_decision_api
-from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require
+from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require, require_media_catalog_access
 from app.api.public_api import PUBLIC
 from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER
 from app.core.exceptions import AuthorizationError
@@ -56,6 +56,7 @@ from app.services.speech_to_text import LANGUAGES as SPEECH_TO_TEXT_LANGUAGES
 from app.services.speech_to_text import providers as speech_to_text_providers
 from app.services.text_to_speech_models import providers as text_to_speech_providers
 from app.services.video_models import providers as video_providers
+from app.services.workflow_media_catalog import video_support
 
 router = APIRouter()
 
@@ -172,7 +173,7 @@ async def delete_model_profile(profile_id: UUID, service: ModelProfileSvc, ctx: 
 @router.get(
     "/image-models",
     response_model=ImageProviderList,
-    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+    dependencies=[Depends(require_media_catalog_access)],
 )
 async def list_image_models() -> Any:
     """Which providers can draw an image, and which of their models may be asked to.
@@ -197,7 +198,12 @@ async def list_image_models() -> Any:
                 provider=entry.provider,
                 name=entry.name,
                 models=[
-                    ImageModelRead(id=model.id, name=model.name, description=model.description)
+                    ImageModelRead(
+                        id=model.id,
+                        name=model.name,
+                        description=model.description,
+                        workflow=model.workflow,
+                    )
                     for model in entry.models
                 ],
             )
@@ -348,7 +354,7 @@ async def list_text_to_speech_models() -> Any:
 @router.get(
     "/video-models",
     response_model=VideoProviderList,
-    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+    dependencies=[Depends(require_media_catalog_access)],
 )
 async def list_video_models() -> Any:
     """Which providers can make a video, and what each of their models can make.
@@ -379,6 +385,7 @@ async def list_video_models() -> Any:
                         resolutions=list(model.resolutions),
                         audio=model.audio,
                         first_frame=model.first_frame,
+                        workflow=video_support(model),
                     )
                     for model in entry.models
                 ],

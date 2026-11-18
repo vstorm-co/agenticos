@@ -777,6 +777,10 @@ class TestNodesRoute:
                 f"{FACADE_PATH}.workflow_approval_repo.step_decisions",
                 new=AsyncMock(return_value=[]),
             ),
+            patch(
+                f"{FACADE_PATH}.WorkflowMediaReadService.for_nodes",
+                new=AsyncMock(return_value={}),
+            ),
         ):
             async with owner_client() as http:
                 response = await http.get(_url(f"/{run.id}/nodes"))
@@ -819,6 +823,10 @@ class TestNodesRoute:
             patch(
                 f"{FACADE_PATH}.workflow_approval_repo.step_decisions",
                 new=AsyncMock(return_value=[decision]),
+            ),
+            patch(
+                f"{FACADE_PATH}.WorkflowMediaReadService.for_nodes",
+                new=AsyncMock(return_value={}),
             ),
         ):
             async with owner_client() as http:
@@ -878,6 +886,10 @@ class TestGraphRoute:
                 patch(
                     f"{FACADE_PATH}.workflow_approval_repo.step_decisions",
                     new=AsyncMock(return_value=[decision]),
+                ),
+                patch(
+                    f"{FACADE_PATH}.WorkflowMediaReadService.for_nodes",
+                    new=AsyncMock(return_value={}),
                 ),
             ):
                 async with AsyncClient(

@@ -98,6 +98,7 @@ mirage = [
 [package.dev-dependencies]
 dev = [
     { name = "anyio", extra = ["trio"] },
+    { name = "cdp-use" },
     { name = "deptry" },
     { name = "httpx" },
     { name = "jsonschema" },
@@ -197,6 +198,7 @@ provides-extras = ["browser", "kerberos", "mirage"]
 [package.metadata.requires-dev]
 dev = [
     { name = "anyio", extras = ["trio"], specifier = ">=4.16.0" },
+    { name = "cdp-use", specifier = "==1.4.5" },
     { name = "deptry", specifier = ">=0.23.0" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "jsonschema", specifier = ">=4.26.0" },

@@ -26,6 +26,35 @@ fallbacks cannot use profile accounts. Delegates sharing that run's workspace
 inherit its initiating authority. Missing consent is an explicit refusal; neither
 the tool key nor somebody else's account is substituted.
 
+## Check provider usage in Profile
+
+Open **Settings → Profile → Coding accounts** and choose **Refresh usage** on
+an enabled Codex account connected with ChatGPT sign-in. This owner-only action
+can run before the first coding task. It requests a bounded metadata refresh;
+it does not start a coding task or model turn. Claude connections and API-key
+connections explicitly show that usage reporting is unsupported. Disabled
+accounts must be enabled before they can refresh.
+
+The report shows the provider's stated availability, its source, when it was
+checked and when that evidence expires. Each reported window keeps its original
+unit and exact reset timestamp; a missing reset remains unknown. A percentage
+does not decide whether the account is available. Expired usage windows are
+hidden and availability becomes **Unknown**. Model names appear separately as
+**Provider-advertised models**, with their own freshness, and do not confirm
+entitlement to each model.
+
+While a refresh is pending, the page reads cached status every three seconds for
+at most three minutes. **Check again** reads that cached status and resumes a
+bounded polling window if the job is still pending; it does not request another
+provider refresh. A transient read failure preserves a still-valid report.
+Changing the signed-in person, organization, account or consent generation hides
+the previous scope's evidence. Opening Profile and automatic polling never
+request a provider refresh.
+
+Desktop and mobile usage screenshots use clearly labelled synthetic owned-account
+fixtures on the Profile page. They verify presentation only. Real-provider
+sign-in, telemetry and entitlement acceptance remain separate manual checks.
+
 ## Shared project work
 
 The server copies source files into a **different run-scoped container**, never

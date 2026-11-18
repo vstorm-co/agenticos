@@ -208,6 +208,13 @@ class Call:
     """Appended verbatim, so it carries its own `?` - there is no route here that
     needs one twice and no reason for this to guess."""
 
+    also: Perm | None = None
+    """A second permission that admits the caller on its own, for a gate that reads
+    "either". The refusal test then withholds both, and each must get through alone."""
+
+    read_only: bool = False
+    """A POST that only computes an answer - no write - so a Viewer may call it."""
+
     upload: bool = False
     """A multipart route, which is sent a token file rather than a JSON body.
 
@@ -438,6 +445,23 @@ CALLS: tuple[Call, ...] = (
         },
     ),
     Call("POST", "/workflows/import", Perm.WORKFLOWS_CREATE, body={"name": "Imported"}),
+    # A cost estimate: no credential unwrap, provider call or write.
+    Call(
+        "POST",
+        "/workflows/media-estimate",
+        Perm.WORKFLOWS_VIEW,
+        body={
+            "kind": "image",
+            "config": {"provider": "openai", "model": "gpt-image-1.5", "secret_id": str(_SOME_ID)},
+        },
+        read_only=True,
+    ),
+    Call(
+        "POST",
+        "/workflows/media-operations/{operation_id}/resolve",
+        Perm.BUDGETS_MANAGE,
+        body={"outcome": "not_charged"},
+    ),
     Call("GET", "/workflow-runs", Perm.WORKFLOWS_VIEW),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
@@ -451,10 +475,12 @@ CALLS: tuple[Call, ...] = (
     # Gated the same way and for the same reason: it is the Builder's picker, and
     # "OpenAI draws through the Responses API" is not a secret.
     Call("GET", "/agents/mcp-servers", Perm.AGENTS_VIEW),
-    Call("GET", "/providers/image-models", Perm.AGENTS_VIEW),
+    # The two media catalogs are also the workflow media nodes' pickers, so a
+    # workflow viewer reads them too (`require_media_catalog_access`).
+    Call("GET", "/providers/image-models", Perm.AGENTS_VIEW, also=Perm.WORKFLOWS_VIEW),
     Call("GET", "/providers/speech-to-text-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/text-to-speech-models", Perm.AGENTS_VIEW),
-    Call("GET", "/providers/video-models", Perm.AGENTS_VIEW),
+    Call("GET", "/providers/video-models", Perm.AGENTS_VIEW, also=Perm.WORKFLOWS_VIEW),
     Call("GET", "/providers/realtime-models", Perm.AGENTS_VIEW),
     # The organization's call minutes by agent, for the dashboard figure and the
     # Voice card: what the organization spent time on, read like its runs.
@@ -704,7 +730,9 @@ CALLS: tuple[Call, ...] = (
     Call("POST", "/context-changes/{proposal_id}/discard", Perm.CONTEXT_EDIT, body={"revision": 1}),
 )
 
-WRITE_CALLS: tuple[Call, ...] = tuple(call for call in CALLS if call.method != "GET")
+WRITE_CALLS: tuple[Call, ...] = tuple(
+    call for call in CALLS if call.method != "GET" and not call.read_only
+)
 
 
 class TestEachRouteDemandsItsOwnPermission:
@@ -720,13 +748,21 @@ class TestEachRouteDemandsItsOwnPermission:
     @pytest.mark.parametrize("call", CALLS, ids=str)
     @pytest.mark.usefixtures("synthetic_roles")
     async def test_a_caller_missing_only_that_permission_is_refused(
-        self, call: Call, as_role: ClientFactory
+        self, call: Call, as_role: ClientFactory, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        async with as_role(all_but(call.permission)) as client:
+        role = all_but(call.permission)
+        withheld = {call.permission, call.also}
+        if call.also is not None:
+            role = f"{role}:{call.also.value}"
+            monkeypatch.setitem(
+                ROLE_PERMS, role, {other: Scope.ALL for other in Perm if other not in withheld}
+            )
+        async with as_role(role) as client:
             response = await _send(client, call)
 
         assert response.status_code == 403, (
-            f"{call} admitted a caller holding every permission except {call.permission.value}"
+            f"{call} admitted a caller holding every permission except "
+            f"{sorted(p.value for p in withheld if p is not None)}"
         )
 
     @pytest.mark.security
@@ -740,12 +776,15 @@ class TestEachRouteDemandsItsOwnPermission:
         422 is excluded as well: a request the app rejects as malformed never
         reached the gate, and would make this test pass for the wrong reason.
         """
-        async with as_role(only(call.permission)) as client:
-            response = await _send(client, call)
+        for permission in (call.permission, call.also):
+            if permission is None:
+                continue
+            async with as_role(only(permission)) as client:
+                response = await _send(client, call)
 
-        assert response.status_code not in (403, 422), (
-            f"{call} refused a caller holding {call.permission.value}"
-        )
+            assert response.status_code not in (403, 422), (
+                f"{call} refused a caller holding {permission.value}"
+            )
 
 
 class TestViewersCannotWrite:
@@ -1061,6 +1100,9 @@ def _required_permissions(route: RouteContext) -> frozenset[Perm]:
 # authorized even without a `require()` gate - and *must* be, for anything
 # acting on a single resource.
 RESOURCE_AWARE_SERVICES = (
+    # Room routing rechecks the signed-in member's room, project-edit policy
+    # authority and requester-only decisions before touching canonical Tasks.
+    deps.get_room_routing_service,
     deps.get_sharing_service,
     # Listing and revoking API keys act on the caller's own unless they hold
     # `api_keys:manage`; the service decides per key, and answers a key that is

@@ -798,7 +798,10 @@ def _attribute(value: str) -> str:
 class _CdpUseClient(Protocol):
     """The part of `cdp_use.CDPClient` a render uses."""
 
-    register: object
+    # Read-only: a mutable protocol attribute is invariant, and `CDPClient`
+    # declares its own registration library rather than `object`.
+    @property
+    def register(self) -> object: ...
 
     async def send_raw(
         self, method: str, params: CdpPayload | None = None, session_id: str | None = None
@@ -886,9 +889,9 @@ async def _connect(endpoint: str) -> CdpConnection:
         ExternalServiceError: Nothing at the endpoint answered as a browser.
     """
     try:
-        # ty: `cdp-use` arrives with the `browser` extra, which a default install
-        # and CI do not have; the `except` is what such a deployment gets.
-        from cdp_use import CDPClient  # ty: ignore[import-not-found]
+        # `cdp-use` arrives with the `browser` extra; the `except` is what a
+        # deployment without it gets.
+        from cdp_use import CDPClient
     except ImportError as missing:
         raise ConfigurationError(message=NO_EXTRA) from missing
     try:

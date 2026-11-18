@@ -659,6 +659,11 @@ class TestReadOnlyDeclarations:
             ("browser_use", "browser_tabs"),
             ("browser_use", "browser_switch_tab"),
             ("browser_use", "browser_close_tab"),
+            # Read the live origin of this run's browser session, like `browser_read`.
+            ("browser_use", "browser_procedures"),
+            ("browser_use", "browser_credential_options"),
+            # Types a vaulted sign-in into the open page.
+            ("browser_use", "browser_fill_credential"),
             ("coding_agent", "run_coding_agent"),
             ("monitor", "start_monitor"),
             ("monitor", "list_monitors"),

@@ -182,6 +182,7 @@ class Agent(Base, TimestampMixin):
     # otherwise accept values the production database rejects, and the tests
     # asserting those constraints would pass against a schema that lacks them.
     __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_agents_org_id"),
         UniqueConstraint("organization_id", "slug", name="uq_agent_org_slug"),
         CheckConstraint("status IN ('draft', 'published', 'archived')", name="ck_agent_status"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_agent_visibility"),

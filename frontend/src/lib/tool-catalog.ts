@@ -306,6 +306,24 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     captionKey: "readingPage",
     displayNameKey: "readPage",
   },
+  browser_procedures: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
+  browser_credential_options: {
+    kind: "web",
+    render: "generic",
+    captionKey: "readingPage",
+    displayNameKey: "readPage",
+  },
+  browser_fill_credential: {
+    kind: "web",
+    render: "generic",
+    captionKey: "typingOnPage",
+    displayNameKey: "typeOnPage",
+  },
   browser_read: {
     kind: "web",
     render: "generic",

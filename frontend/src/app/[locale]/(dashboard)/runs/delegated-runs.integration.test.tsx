@@ -48,6 +48,9 @@ function queryPanel() {
 
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  // The browser continuation panel reaches next-intl's navigation, which reads these.
+  redirect: vi.fn(),
+  permanentRedirect: vi.fn(),
   // The empty Activity window offers to ask an agent (#2075).
   useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => params,
