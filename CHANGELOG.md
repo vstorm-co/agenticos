@@ -22,7 +22,6 @@ Two things are versioned separately from this file and worth knowing about:
 ### Added
 
 - Keep named private cloud coding sessions with native CLI history and separate files. Queue tasks using the same personal account, allow Claude Code and Codex through different accounts concurrently, and show whether a session is new or continued. Clean up retained containers when account consent or ownership ends.
-- Add reproducible assistant smoke evaluations and an optional AgentDojo workspace utility adapter, using the shipped prompt, explicit model selection, bounded calls and recorded dataset/prompt identities. Offline checks make no paid model calls.
 - Let private cloud coding tasks choose Claude Code or Codex per task through one agent, using the initiating person’s own enabled account and an isolated container. Show both account connections in chat while preserving per-account exclusivity, read-only policy and organization-sandbox credentials.
 
 ### Changed
