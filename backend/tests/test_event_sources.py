@@ -99,7 +99,7 @@ def signed(body):
     }
 
 
-def test_dedicated_source_keeps_its_preexisting_consent_fingerprint():
+def test_consent_fingerprint_distinguishes_reusable_sources_and_preserves_dedicated_reviews():
     trigger = AgentTrigger(
         agent_id=UUID(int=3),
         runs_as_creator=True,
@@ -110,6 +110,10 @@ def test_dedicated_source_keeps_its_preexisting_consent_fingerprint():
     assert (
         source_scope(trigger) == "56c2b3ef3c3437115ae6520bbc83aee8022eebb9256879ed699b3150c7e29805"
     )
+    trigger.source_id = UUID(int=4)
+    first_source = source_scope(trigger)
+    trigger.source_id = UUID(int=5)
+    assert source_scope(trigger) != first_source
 
 
 async def test_receipt_retains_complete_json_and_no_auth_headers(db, source, repos):
@@ -187,7 +191,9 @@ async def test_each_active_subscriber_gets_its_own_job_in_the_receipt_transactio
     module.repo.subscriptions.return_value = subs
     with (
         patch.object(
-            module.trigger_repo, "get_by_id", AsyncMock(return_value=MagicMock(is_active=True))
+            module.trigger_repo,
+            "get_by_id",
+            AsyncMock(return_value=MagicMock(is_active=True, source_id=source.id)),
         ),
         patch(
             "app.services.agent_trigger.AgentTriggerService.source_admission_policy",
@@ -204,7 +210,8 @@ async def test_each_active_subscriber_gets_its_own_job_in_the_receipt_transactio
     db.commit.assert_not_called()
 
 
-async def test_paused_target_gets_no_dispatch_even_if_it_resumes_before_worker(db, source, repos):
+@pytest.mark.parametrize("moved", [False, True])
+async def test_a_paused_or_rebound_target_gets_no_dispatch(db, source, repos, moved):
     module.repo.subscriptions.return_value = [
         EventSubscription(
             id=uuid4(),
@@ -214,7 +221,11 @@ async def test_paused_target_gets_no_dispatch_even_if_it_resumes_before_worker(d
         )
     ]
     with patch.object(
-        module.trigger_repo, "get_by_id", AsyncMock(return_value=MagicMock(is_active=False))
+        module.trigger_repo,
+        "get_by_id",
+        AsyncMock(
+            return_value=MagicMock(is_active=moved, source_id=uuid4() if moved else source.id)
+        ),
     ):
         await EventSourceService(db).receive(source.id, body=b"{}", headers=signed(b"{}"))
     repos.assert_not_called()

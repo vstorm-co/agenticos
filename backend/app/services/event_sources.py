@@ -352,19 +352,17 @@ class EventSourceService:
             raise AuthorizationError(
                 message="Editing and running the agent is required to attach a source"
             )
-        existing = await repo.target_subscription(self.db, trigger_id=trigger_id)
-        if existing and existing.source_id == source_id:
-            return
-        await self.unbind_routine(trigger_id)
-        await repo.save(
-            self.db,
-            EventSubscription(
+        subscription = await repo.target_subscription(self.db, trigger_id=trigger_id)
+        if subscription is None:
+            subscription = EventSubscription(
                 organization_id=ctx.organization_id, source_id=source_id, trigger_id=trigger_id
-            ),
-        )
-
-    async def unbind_routine(self, trigger_id: UUID) -> None:
-        await repo.unbind(self.db, trigger_id=trigger_id)
+            )
+        elif subscription.source_id == source_id:
+            return
+        else:
+            # Keep the row referenced by both accepted and concurrently arriving dispatches.
+            subscription.source_id = source_id
+        await repo.save(self.db, subscription)
 
     async def bind_workflow(self, ctx: AuthContext, source_id: UUID, exposure_id: UUID) -> None:
         await self.get(ctx, source_id, perm=Perm.EVENT_SOURCES_USE, lock=True)
@@ -473,7 +471,11 @@ class EventSourceService:
                     target_trigger = await trigger_repo.get_by_id(
                         self.db, sub.trigger_id, fresh=True
                     )
-                    if not target_trigger or not target_trigger.is_active:
+                    if (
+                        not target_trigger
+                        or not target_trigger.is_active
+                        or target_trigger.source_id != source.id
+                    ):
                         continue
                     policy_id = await AgentTriggerService(self.db).source_admission_policy(
                         target_trigger

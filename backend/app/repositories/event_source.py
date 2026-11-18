@@ -75,15 +75,8 @@ async def subscriptions(
     )
 
 
-async def unbind(
-    db: AsyncSession, *, trigger_id: UUID | None = None, exposure_id: UUID | None = None
-) -> None:
-    target = (
-        EventSubscription.trigger_id == trigger_id
-        if trigger_id
-        else EventSubscription.exposure_id == exposure_id
-    )
-    await db.execute(delete(EventSubscription).where(target))
+async def unbind(db: AsyncSession, *, exposure_id: UUID) -> None:
+    await db.execute(delete(EventSubscription).where(EventSubscription.exposure_id == exposure_id))
     await db.flush()
 
 

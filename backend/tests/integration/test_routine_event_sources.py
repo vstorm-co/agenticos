@@ -8,13 +8,14 @@ from uuid import uuid5
 
 import pytest
 from pydantic import SecretStr
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.models.agent_run import AgentRun
 from app.db.models.agent_trigger import TriggerAttempt
 from app.db.models.background_job import BackgroundJob
 from app.db.models.event_source import EventDelivery, EventDispatch, EventSubscription
+from app.repositories import event_source as source_repo
 from app.schemas.agent_trigger import TriggerCreate, TriggerUpdate
 from app.schemas.event_source import EventSourceCreate, SourceAuth, SourceCredentials
 from app.schemas.routine_sources import RoutineSourceConsent
@@ -26,6 +27,95 @@ from app.worker.jobs import FireTrigger
 from tests.integration.test_routine_sources import world
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("overlap", ["receipt", "dispatch"])
+async def test_rebinding_during_delivery_preserves_the_other_subscriber_and_retires_consent(
+    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, overlap: str
+) -> None:
+    ctx, seed, _, _ = await world(db)
+    sources = EventSourceService(db)
+    config = EventSourceCreate(
+        name="Original",
+        auth=SourceAuth(method="api_key", header_name="x-api-key", signature_prefix=""),
+        credentials=SourceCredentials(secret=SecretStr("test-key")),
+    )
+    source = await sources.create(ctx, config)
+    other = await sources.create(ctx, config.model_copy(update={"name": "Other"}))
+    triggers = AgentTriggerService(db)
+    spec = TriggerCreate(trigger_type="event", source_id=source.id, prompt="One routine")
+    moving = await triggers.create(ctx, seed.agent_id, spec)
+    sibling = await triggers.create(
+        ctx, seed.agent_id, spec.model_copy(update={"prompt": "Another routine"})
+    )
+    subscription = await source_repo.target_subscription(db, trigger_id=moving.id)
+    assert subscription is not None
+    session = async_sessionmaker(engine, expire_on_commit=False)
+    await db.commit()
+    monkeypatch.setattr(
+        rate_limit,
+        "trigger_delivery_allowed",
+        AsyncMock(return_value=rate_limit.Decision(allowed=True, retry_after_seconds=0)),
+    )
+
+    async def rebind() -> None:
+        async with session.begin() as editor:
+            await editor.execute(text("SET LOCAL lock_timeout = '3s'"))
+            await AgentTriggerService(editor).update(
+                ctx, seed.agent_id, moving.id, TriggerUpdate(source_id=other.id)
+            )
+
+    async def receive() -> None:
+        _, _, admitted = await sources.receive(
+            source.id, body=b"{}", headers={"x-api-key": "test-key"}
+        )
+        assert admitted
+
+    with monkeypatch.context() as race:
+        if overlap == "receipt":
+            save = source_repo.save
+
+            async def move_before_dispatch_insert(session, row):
+                if isinstance(row, EventDispatch) and row.subscription_id == subscription.id:
+                    await rebind()
+                return await save(session, row)
+
+            race.setattr(source_repo, "save", move_before_dispatch_insert)
+            await receive()
+        else:
+            await receive()
+            await db.commit()
+            dispatch = await db.scalar(
+                select(EventDispatch).where(EventDispatch.subscription_id == subscription.id)
+            )
+            assert dispatch is not None
+            queue_fire = AgentTriggerService.queue_fire
+
+            async def move_before_routine_lock(service, trigger_id, **kwargs):
+                await rebind()
+                return await queue_fire(service, trigger_id, **kwargs)
+
+            race.setattr(AgentTriggerService, "queue_fire", move_before_routine_lock)
+            await sources.dispatch(ctx.organization_id, dispatch.id)
+    await db.commit()
+    await db.refresh(subscription)
+    assert subscription.source_id == other.id
+
+    await triggers.update(ctx, seed.agent_id, moving.id, TriggerUpdate(source_id=source.id))
+    review_service = RoutineSourceService(db)
+    review = await review_service.options(ctx, moving)
+    assert not review.current
+    await review_service.replace(
+        ctx, moving, RoutineSourceConsent(review_token=review.review_token)
+    )
+    dispatches = list(await db.scalars(select(EventDispatch)))
+    assert len(dispatches) == 2
+    for dispatch in dispatches:
+        await sources.dispatch(ctx.organization_id, dispatch.id)
+    assert sorted(row.status for row in dispatches) == ["admitted", "skipped"]
+    jobs = list(await db.scalars(select(BackgroundJob).where(BackgroundJob.kind == "fire-trigger")))
+    assert [FireTrigger.model_validate(job.payload).trigger_id for job in jobs] == [sibling.id]
 
 
 async def test_shared_source_admits_one_routine_job_with_structured_input_across_restart(
@@ -213,6 +303,42 @@ async def test_source_delivery_requires_the_same_valid_review_at_receipt_and_dis
     )
     attempt = await db.scalar(select(TriggerAttempt).where(TriggerAttempt.trigger_id == routine.id))
     assert attempt is not None and attempt.reason == "source_review_required"
+
+
+async def test_deleting_a_routine_detaches_it_and_preserves_its_accepted_receipt(
+    db: AsyncSession,
+) -> None:
+    ctx, seed, _, _ = await world(db)
+    sources = EventSourceService(db)
+    source = await sources.create(
+        ctx,
+        EventSourceCreate(
+            name="Events",
+            auth=SourceAuth(method="api_key", header_name="x-key", signature_prefix=""),
+            credentials=SourceCredentials(secret=SecretStr("test-key")),
+        ),
+    )
+    triggers = AgentTriggerService(db)
+    routine = await triggers.create(
+        ctx,
+        seed.agent_id,
+        TriggerCreate(trigger_type="event", source_id=source.id, prompt="Review"),
+    )
+    _, receipt, accepted = await sources.receive(
+        source.id, body=b"{}", headers={"x-key": "test-key"}
+    )
+    assert accepted
+    routine_id = routine.id
+    await triggers.delete(ctx, seed.agent_id, routine_id)
+    await db.commit()
+    assert await source_repo.target_subscription(db, trigger_id=routine_id) is None
+    dispatch = await db.scalar(select(EventDispatch).where(EventDispatch.delivery_id == receipt.id))
+    assert dispatch is not None and dispatch.subscription_id is None
+    await sources.dispatch(ctx.organization_id, dispatch.id)
+    assert dispatch.status == "skipped"
+    assert (
+        await db.scalar(select(BackgroundJob).where(BackgroundJob.kind == "fire-trigger")) is None
+    )
 
 
 async def test_dedicated_webhooks_preserve_literal_input_and_validate_template_input(

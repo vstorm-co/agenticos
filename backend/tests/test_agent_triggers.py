@@ -5901,10 +5901,16 @@ async def test_routine_edits_refuse_source_and_prompt_modes_without_a_usable_eve
         repo.update.assert_not_awaited()
 
 
-@pytest.mark.parametrize("same_source", [False, True])
-async def test_routine_source_edit_only_unbinds_when_the_selected_source_changes(same_source):
+@pytest.mark.parametrize(("same_source", "pending"), [(False, False), (True, False), (False, True)])
+async def test_routine_source_edit_retires_consent_only_when_the_source_changes(
+    same_source, pending
+):
     source_id = uuid.uuid4()
     trigger = _event_trigger(source_id=source_id, event_source="webhook", event_config={})
+    if pending:
+        trigger.setup_required = True
+        trigger.approved_sources = {"pending_review": True, "unavailable_sources": ["Mailbox"]}
+    prior_review = trigger.approved_sources
     selected_id = source_id if same_source else uuid.uuid4()
     service = _service(_agent(agent_id=trigger.agent_id))
 
@@ -5921,20 +5927,16 @@ async def test_routine_source_edit_only_unbinds_when_the_selected_source_changes
         repo.get = AsyncMock(return_value=trigger)
         repo.update = AsyncMock(side_effect=update)
         sources.return_value.require_use = AsyncMock(
-            return_value=SimpleNamespace(provider="webhook")
+            return_value=SimpleNamespace(id=selected_id, provider="webhook")
         )
         sources.return_value.bind_routine = AsyncMock()
-        sources.return_value.unbind_routine = AsyncMock()
         await service.update(
             _ctx(), trigger.agent_id, trigger.id, TriggerUpdate(source_id=selected_id)
         )
     assert trigger.source_id == selected_id
     assert trigger.event_source == "webhook"
     sources.return_value.bind_routine.assert_awaited_once_with(_ctx(), selected_id, trigger.id)
-    if same_source:
-        sources.return_value.unbind_routine.assert_not_awaited()
-    else:
-        sources.return_value.unbind_routine.assert_awaited_once_with(trigger.id)
+    assert trigger.approved_sources == (prior_review if same_source or pending else None)
 
 
 @pytest.mark.security
@@ -5977,23 +5979,6 @@ async def test_oversized_example_is_refused_even_when_prompt_selects_no_fields(
             TriggerPromptPreviewCreate(prompt="Hello", payload={"large": "x" * 101}),
         )
     assert queued_fires == []
-
-
-async def test_deleting_shared_routine_removes_its_source_subscription():
-    trigger = _event_trigger(source_id=uuid.uuid4())
-    service = _service(_agent(agent_id=trigger.agent_id))
-    with (
-        patch("app.services.agent_trigger.agent_trigger_repo") as repo,
-        patch("app.services.event_sources.EventSourceService") as sources,
-        patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
-    ):
-        repo.get = AsyncMock(return_value=trigger)
-        repo.get_by_id = AsyncMock(return_value=trigger)
-        repo.delete = AsyncMock()
-        sources.return_value.unbind_routine = AsyncMock()
-        await service.delete(_ctx(), trigger.agent_id, trigger.id)
-    sources.return_value.unbind_routine.assert_awaited_once_with(trigger.id)
-    repo.delete.assert_awaited_once_with(service.db, trigger)
 
 
 @pytest.mark.security

@@ -1404,7 +1404,6 @@ class AgentTriggerService:
         select another reusable source, rechecking access and its typed filters.
         """
         trigger = await self._owned(ctx, agent_id, trigger_id, for_update=True)
-        previous_source_id = trigger.source_id
         changes = writable(data, over=AgentTrigger)
         if changes.get("is_active", trigger.is_active):
             await require_organization_agent(
@@ -1441,6 +1440,9 @@ class AgentTriggerService:
             source = await EventSourceService(self.db).require_use(
                 ctx, changes["source_id"], lock=True
             )
+            if source.id != trigger.source_id and not trigger.setup_required:
+                # Moving back to a former source must not revive its earlier consent.
+                changes["approved_sources"] = None
             changes["event_source"] = source.provider
             changes["event_config"] = self._merged_source_config(
                 source.provider, changes.get("event_config", trigger.event_config)
@@ -1530,8 +1532,6 @@ class AgentTriggerService:
         if "source_id" in changes:
             from app.services.event_sources import EventSourceService
 
-            if previous_source_id != updated.source_id:
-                await EventSourceService(self.db).unbind_routine(updated.id)
             assert updated.source_id is not None
             await EventSourceService(self.db).bind_routine(ctx, updated.source_id, updated.id)
         if changes.get("is_active") is True:
@@ -1725,10 +1725,6 @@ class AgentTriggerService:
             routine_id=trigger.id,
             routine_kind="trigger",
         )
-        if trigger.source_id is not None:
-            from app.services.event_sources import EventSourceService
-
-            await EventSourceService(self.db).unbind_routine(trigger.id)
         await agent_trigger_repo.delete(self.db, trigger)
         await record_audit(
             self.db,
