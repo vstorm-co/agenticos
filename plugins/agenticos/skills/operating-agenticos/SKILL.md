@@ -25,7 +25,7 @@ This skill writes tools as `agenticos:<tool>`. The server name is whatever the c
 - **Follow pagination.** Continue while `next_skip` is set, `has_more` is true, or fewer items than `total` have been read (some listings return only `items` and `total`; page those with `skip`). One page is not the whole set.
 - **An `error` envelope is a refusal, not a result.** It carries `status`, `code`, `message` and `details`. Fix the input or report the missing permission. Do not retry a failed write unchanged and do not route around a permission refusal. A call that times out or loses its connection has an unknown outcome: the server may still be working. Look for the result (`agenticos:list_runs`, the relevant `list_*`) before sending it again.
 - **Say what will change before a write.** Writes land in a live organization. Publishing, inviting, starting runs and creating automations are the user's decisions: name the effect, then call.
-- **Quote the price before spending.** Improve sessions, skill checks and knowledge drafts each have an `estimate_*` tool. Run it, tell the user the price and the limit, and pass its `total_usd` and `candidate_hash` on.
+- **Quote the price before spending.** Improve sessions, skill checks and knowledge drafts each have an `estimate_*` tool. Run it and tell the user the price and the limit. Then give the spending step what its schema asks for: session steps take the estimate's `total_usd` (as `estimate_usd`) and `candidate_hash`; a skill update check takes neither, and a catch-up takes only `budget_usd`.
 - **Read back consequential writes** before claiming success: `agenticos:get_agent` after a publish, `agenticos:get_workflow_execution_steps` after a workflow test, `agenticos:list_routines` after creating a routine.
 - **Draft, test, then publish.** A draft changes nothing live. Testing still makes real model calls and, for workflows, real external calls.
 
@@ -38,6 +38,7 @@ Do not promise these; send the user to the console instead.
 - Upload binary documents. `agenticos:add_document` takes text content (`.md`, `.txt`).
 - Read the Inbox from an external MCP client. `agenticos:list_inbox_cases` and `agenticos:settle_inbox_case` need the person's own chat or console session.
 - Grant desktop folders, browsers or local models. The person selects those in the Desktop app.
+- Discover channel bots or chat IDs. A workflow's Slack, Telegram or Mattermost step needs a `bot_id` and a channel ID that no tool lists: the user picks the bot in the workflow editor or supplies both.
 - Approve personal routines or watches unless the connection was authorized with the `personal:consent` scope.
 - Run Improve and eval tools through an organization API key. They need a connection signed in with OAuth. A harmless probe is `agenticos:list_improvements`: an API key is refused there.
 
@@ -85,7 +86,7 @@ Full detail, bindings and Improve: [reference/agents.md](reference/agents.md).
 
 Read the one that matches the task.
 
-- **Use cases to offer, each with its tool chain and how it was confirmed**: [reference/use-cases.md](reference/use-cases.md). Read it when the user asks what is possible or wants ideas, and pick by the permissions `agenticos:whoami` returned and what the organization already has.
+- **Use cases to offer, each with its tool chain and what it needs**: [reference/use-cases.md](reference/use-cases.md). Read it when the user asks what is possible or wants ideas, and pick by the permissions `agenticos:whoami` returned and what the organization already has.
 - **Every tool by domain, with the permission it needs**: [reference/tool-map.md](reference/tool-map.md)
 - **Agents: capabilities, MCP bindings, sandboxes, testing, publishing, Improve**: [reference/agents.md](reference/agents.md)
 - **Routines, watches and tasks**: [reference/automation.md](reference/automation.md)

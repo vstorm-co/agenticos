@@ -56,7 +56,7 @@ plugins/agenticos/
 ├── skills/operating-agenticos/
 │   ├── SKILL.md                         overview, rules, core workflows
 │   └── reference/
-│       ├── use-cases.md                 what to offer, and how each was confirmed
+│       ├── use-cases.md                 what to offer, and what each needs
 │       ├── tool-map.md                  every tool, by domain, with its permission
 │       ├── agents.md                    build, bind, test, publish, Improve
 │       ├── automation.md                routines, watches, tasks
@@ -65,13 +65,18 @@ plugins/agenticos/
 └── evaluations/                         scenarios for checking the skill
 ```
 
-## How the use cases were confirmed
+## How the skill was checked
 
-Each use case names how far its tool chain was exercised against a running deployment (AgenticOS 1.82.2, signed in as an organization owner):
+The tool chains in the use-case catalogue were run against a live deployment (AgenticOS 1.82.2, signed in with OAuth as an organization owner):
 
-- **live**: the whole chain ran. This covers diagnosing a failed run, spend, the organization snapshot, asking a published agent, drafting, testing and discarding an agent, creating, retiming and deleting a routine, building a workflow with its table and testing it (the record was read back), table upserts, updates and typed queries, the task chain, and creating and editing a skill and a context file.
-- **reads live**: every discovery step ran, and the arguments of the write steps were built from those reads and checked against the live schemas, but the writes were not sent. This covers what needs a precondition the test organization lacked (a dataset, a personal connection, an embedding key, the `personal:consent` scope) and the steps that go live: `publish_agent`, `publish_workflow`, `run_workflow` and `invite_member`.
-- **contract**: checked against the schemas and source only.
+- diagnosing a failed run, the spend report and the organization snapshot
+- drafting, testing, publishing and running an agent, including one that answered from a bound skill
+- creating, retiming and deleting a routine
+- building a workflow with its table in one call, testing it, publishing it and starting it with `run_workflow`, with the filed record read back each time
+- table upserts, updates, typed queries and deletes, and the task chain with an idempotent retry
+- creating and editing a skill and a context file
+
+Three fresh Claude sessions then used the skill on the scenarios in `evaluations/`, read-only, building the arguments of every write and checking them against the live schemas. What they could not find in the skill was added to it.
 
 ## Maintaining the skill
 

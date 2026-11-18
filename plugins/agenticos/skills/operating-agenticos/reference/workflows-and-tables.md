@@ -25,7 +25,8 @@ The node catalog is the source of truth. `agenticos:list_workflow_nodes` returns
 | `logic`, `control` | `logic.if`, `logic.switch`, `control.foreach`, `flow.wait`, `workflow.run` |
 | `tables`, `knowledge` | `table.record.upsert`, `table.record.query`, `knowledge.search`, `knowledge.add` |
 | `http`, `mcp` | `http.request`, `http.download`, `mcp.call` |
-| messaging | `slack.message.send`, `telegram.message.send`, `email.send`, `notification.send` |
+| `slack`, `telegram`, `mattermost`, `email`, `notification` | `slack.message.send`, `telegram.message.send`, `email.send`, `notification.send` |
+| `data`, `transform`, `files`, `code` | `data.filter`, `transform.sort`, `file.read`, `code.python.simple` |
 | `people`, `error` | `human.approval`, `error.handle` |
 | `core` | `core.output`, `webhook.respond` |
 
@@ -80,10 +81,11 @@ If step 5 or 7 reports an error, fix the graph, save it and return to step 5.
 ```
 
 - Every `id` is a unique UUID generated for this graph. `definition_version` comes from the catalog.
-- Edges connect ports by ID. Most ports are listed in the node definition's `ports`. Branching steps name their own output ports in config, and those do not appear in `ports`: `ai.classify` (`categories[].name`), `logic.switch` (`rules[].name`), `logic.split` and `error.handle` (`branches[].name`), `human.approval` (`choices[].id`).
+- Edges connect ports by ID. Most ports are listed in the node definition's `ports`. Branching steps name their own output ports in config, and those do not appear in `ports`: `ai.classify` (`categories[].name`), `logic.switch` (`rules[].name`), `logic.split` and `error.handle` (`branches[].name`), `human.approval` (`choices[].id`). They sit beside the static ports that are listed, such as the `other` port of `ai.classify`. They sit beside the static ports that are listed, such as `ai.classify`'s `other`.
 - Branches that continue to a shared step rejoin through `logic.merge`. Only one `core.output` may run in a run; the validator refuses a graph where two can.
 - A binding feeds one `target_field` of one node from a `source`: `node_output` (another node's port, narrowed by `field_path`), `template` (text with node outputs in it), `literal`, `table` or `file`.
 - One key of an open object is bound as `field/key`: a record step's column is `values/<Column label>`.
+- A branching step hands its result on through the merge: after `ai.classify` → `logic.merge`, the category is the merge's `out` port at `field_path: ["value", "category"]`.
 - Labels are unique in a graph. Space nodes about 300 apart on `x` so the canvas is readable.
 - A node `policy` sets `timeout_seconds`, `retry` and `on_error`; `route` sends a settled failure out of the node's `error` port.
 
@@ -127,6 +129,6 @@ Managed task boards are tables too. Change them with the task tools, not the rec
 | Delete | `agenticos:delete_virtual_table_record` | `expected_revision` |
 
 - `agenticos:virtual_table_record_exists` checks an `external_id`. A refusal does not mean the record is absent.
-- For an upsert of a record that may exist, query it first for its ID and revision.
+- An upsert of a record that already exists needs its `expected_revision`, and no tool looks a record up by `external_id`: page `agenticos:query_virtual_table` and match `external_id` in the results to get the ID and revision.
 - Invalid values are refused, never converted. Fix the value to the column's type.
 - For syncing from another system, always use `external_id` so reruns are idempotent.

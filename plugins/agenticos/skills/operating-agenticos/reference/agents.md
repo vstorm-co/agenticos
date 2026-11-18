@@ -26,6 +26,8 @@ Write instructions as a working contract: role, source precedence, decision poli
 2. `agenticos:create_agent_draft` with `name`, `instructions` and the bindings. `ask_user` and `drafts` are always included.
 3. `agenticos:get_agent` returns `draft_spec`, `draft_revision` and the published `current_version_id`. Published `starters` are top-level; a draft's are in `draft_spec.starters`.
 
+`agenticos:get_agent` does not return the published spec, and its summary fields (`published_capabilities`, `published_model`, `channels`) can be empty where `agenticos:list_agents` fills them. A publish ships every pending draft edit, not only the one just made: before editing a published agent, tell the user the draft may already differ from what is live.
+
 `agenticos:update_agent_draft` changes only what is passed, with these whole-value replacements:
 
 | Field | Behaviour |
