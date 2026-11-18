@@ -12,6 +12,7 @@ const MANIFEST: &str = include_str!("../../runtime/package.json");
 const MUSE: &str = include_str!("../../runtime/muse.mts");
 const BRIDGE: &str = include_str!("../../runtime/platform-bridge.mts");
 const PI_TOOLS: &str = include_str!("../../runtime/pi-tools.mjs");
+const PLATFORM_HTTP: &str = include_str!("../../runtime/platform-http.mjs");
 const LOCK: &str = include_str!("../../runtime/package-lock.json");
 static PREPARING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
@@ -136,6 +137,7 @@ fn complete(runtime: &Runtime) -> bool {
         && present(&runtime.muse_adapter())
         && present(&runtime.platform_bridge())
         && present(&runtime.directory.join("pi-tools.mjs"))
+        && present(&runtime.directory.join("platform-http.mjs"))
         && present(&runtime.directory.join("node_modules/@muse-code/sdk/dist/src/index.js"))
         && [
             crate::local_agents::AgentId::ClaudeCode,
@@ -154,7 +156,9 @@ fn complete(runtime: &Runtime) -> bool {
 fn revision() -> String {
     format!(
         "{:x}",
-        Sha256::digest(format!("{NODE_VERSION}\n{MANIFEST}\n{LOCK}\n{MUSE}\n{BRIDGE}\n{PI_TOOLS}").as_bytes())
+        Sha256::digest(
+            format!("{NODE_VERSION}\n{MANIFEST}\n{LOCK}\n{MUSE}\n{BRIDGE}\n{PI_TOOLS}\n{PLATFORM_HTTP}").as_bytes()
+        )
     )
 }
 
@@ -290,6 +294,9 @@ async fn install(directory: &Path, archive: &str, checksum: &str) -> Result<(), 
     tokio::fs::write(directory.join("package-lock.json"), LOCK)
         .await
         .map_err(|e| e.to_string())?;
+    tokio::fs::write(directory.join("platform-http.mjs"), PLATFORM_HTTP)
+        .await
+        .map_err(|error| format!("Cannot prepare the loopback transport: {error}"))?;
     tokio::fs::write(directory.join("platform-bridge.mts"), BRIDGE)
         .await
         .map_err(|error| format!("Cannot prepare the platform bridge: {error}"))?;

@@ -216,6 +216,8 @@ test("Pi registers the prepared platform schemas and never persists bootstrap au
   owned.push(bridge);
   await bridge.listen();
   Object.assign(process.env, bridge.environment());
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("A vendor global dispatcher must not receive local bridge authority"); };
   try {
     await platformTools({ registerTool: (tool) => registrations.push(tool) });
     assert.equal(process.env.AGENTICOS_BRIDGE_TOKEN, undefined);
@@ -228,6 +230,7 @@ test("Pi registers the prepared platform schemas and never persists bootstrap au
       { type: "text", text: "3" },
     ]);
   } finally {
+    globalThis.fetch = originalFetch;
     delete process.env.AGENTICOS_BRIDGE_TOKEN;
     delete process.env.AGENTICOS_BRIDGE_URL;
   }

@@ -9,6 +9,8 @@ import { once } from "node:events";
 import type { Readable, Writable } from "node:stream";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { localRequest } from "./platform-http.mjs";
+
 type ObjectValue = Record<string, unknown>;
 type Emit = (frame: ObjectValue) => Promise<void>;
 const MAX_FRAME = 2 << 20;
@@ -393,12 +395,10 @@ async function client(): Promise<void> {
   const controller = new AbortController();
   let failed = false;
   async function forward(frame: ObjectValue): Promise<void> {
-    const response = await fetch(endpoint, {
-      method: "POST",
+    const response = await localRequest(endpoint, {
       headers,
       body: JSON.stringify(frame),
       signal: AbortSignal.any([controller.signal, AbortSignal.timeout(310000)]),
-      redirect: "error",
     });
     if (response.status === 202) return;
     if (!response.ok || !response.body)

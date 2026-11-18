@@ -15,5 +15,5 @@
     "allowJs": true,
     "checkJs": true
   },
-  "include": ["*.mts", "pi-key.mjs", "pi-tools.mjs"]
+  "include": ["*.mts", "pi-key.mjs", "pi-tools.mjs", "platform-http.mjs"]
 }

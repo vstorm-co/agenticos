@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { localRequest } from "./platform-http.mjs";
 
 /** @typedef {Record<string, unknown>} JsonObject */
 /** @typedef {{ registerTool: (definition: { name: string, label: string, description: string, parameters: JsonObject, execute: (id: string, args: JsonObject, signal?: AbortSignal) => Promise<{content: {type: 'text', text: string}[], details: JsonObject}> }) => void }} Pi */
@@ -32,9 +33,7 @@ export default async function platformTools(pi) {
     /** @type {Promise<unknown> | undefined} */
     let cancellation;
     const cancel = () => {
-      cancellation = fetch(endpoint, {
-        method: "POST",
-        redirect: "error",
+      cancellation = localRequest(endpoint, {
         signal: AbortSignal.timeout(5000),
         headers: {
           Authorization: `Bearer ${token}`,
@@ -50,9 +49,7 @@ export default async function platformTools(pi) {
     };
     active.addEventListener("abort", cancel, { once: true });
     try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        redirect: "error",
+      const response = await localRequest(endpoint, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
