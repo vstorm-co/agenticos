@@ -313,6 +313,8 @@ struct OpenArgs {
     custom_agent_id: Option<String>,
     #[serde(default)]
     supports_auth_modes: bool,
+    #[serde(default)]
+    supports_model_constraints: bool,
     root: String,
     mode: Mode,
     #[serde(default)]
@@ -453,6 +455,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         agent,
         custom_agent_id,
         supports_auth_modes,
+        supports_model_constraints,
         root,
         mode,
         resume_key,
@@ -497,6 +500,16 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         return Err(Refusal::new(
             "denied",
             "Update the AgenticOS server to use Antigravity personal-account mode.",
+        ));
+    }
+    if external
+        .as_ref()
+        .is_some_and(|item| item.provider == crate::external_agents::Provider::OpenCodeGo)
+        && !supports_model_constraints
+    {
+        return Err(Refusal::new(
+            "denied",
+            "Update the AgenticOS server to use OpenCode Go model constraints.",
         ));
     }
     let mut consent = Consent::new(&root, &before.connection_revision, agent);
@@ -590,8 +603,18 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         .filter(|item| item.provider == crate::external_agents::Provider::Antigravity)
         .map(|_| "oauth-personal");
     let runtime_name = external.as_ref().map(|item| item.name.as_str());
+    let model_prefix = external
+        .as_ref()
+        .filter(|item| item.provider == crate::external_agents::Provider::OpenCodeGo)
+        .map(|_| "opencode-go/");
+    let refresh_catalog = external.as_ref().is_some_and(|item| {
+        matches!(
+            item.provider,
+            crate::external_agents::Provider::OpenCode | crate::external_agents::Provider::OpenCodeGo
+        )
+    });
     Ok(object(
-        serde_json::json!({ "id": id, "session_id": resumed, "auth_method": auth_method, "runtime_name": runtime_name }),
+        serde_json::json!({ "id": id, "session_id": resumed, "auth_method": auth_method, "runtime_name": runtime_name, "model_prefix": model_prefix, "refresh_catalog": refresh_catalog }),
     ))
 }
 

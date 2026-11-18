@@ -75,6 +75,7 @@ async def test_custom_task_uses_shared_acp_lifecycle_with_only_registration_id(
             "agent",
             "custom_agent_id",
             "supports_auth_modes",
+            "supports_model_constraints",
             "resume_key",
             "fresh_session",
             "root",

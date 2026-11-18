@@ -1,5 +1,5 @@
 ---
-source_sha: "585c7355ba27"
+source_sha: "3597cd25fe90"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3507,3 +3507,5 @@ wersja protokołu i brak obsługi wznowienia kończą się jawnym błędem. Reje
 nie potwierdza uprawnienia do korzystania z subskrypcji dostawcy.
 
 `inspect_acp_agent` odczytuje modele i poziomy reasoning konta/sesji bez promptu do inferencji. `auth_method` domyślnie ma wartość `configured`; `oauth-personal` jawnie wybiera osobiste logowanie Google w Antigravity. Rejestracja Antigravity w Desktop wymusza ten tryb. Opcjonalne `model_id` wybiera dokładne ID modelu środowiska. [Konfiguracja Antigravity](../desktop.md#antigravity-acp) opisuje rozliczenia i oczekujący test konta.
+
+Rejestracje OpenCode odczytują opóźnione aktualizacje katalogu sesji. Osobny szablon Go filtruje katalog i ogranicza główny model do `opencode-go/`; modele pomocnicze oraz Extra Usage pozostają ustawieniami CLI i konta. Zobacz [konfigurację OpenCode i Go](../desktop.md#opencode-acp).

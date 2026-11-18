@@ -100,6 +100,8 @@ def build_acp_toolset(
                 pipe,
                 root=root,
                 auth_method=pipe.auth_method or auth_method,
+                model_prefix=pipe.model_prefix,
+                wait_for_updates=pipe.refresh_catalog,
                 timeout_seconds=min(timeout_seconds, 60),
             )
             return catalog.model_dump_json()

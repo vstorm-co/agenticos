@@ -33,7 +33,7 @@ class ExternalAcpConfig(BaseModel):
     model_id: str | None = Field(
         default=None,
         title="External model ID",
-        description="Optional exact ID from inspect_acp_agent on this account. Empty keeps the program's own model. This selects a runtime model, not a Gemini API profile.",
+        description="Optional exact ID from inspect_acp_agent on this account. Empty keeps the program's own model. This selects a runtime model, not an AgenticOS model profile.",
         min_length=1,
         max_length=256,
         pattern=r"^\S+$",

@@ -167,7 +167,6 @@ async def test_discovery_requires_a_desktop_workspace() -> None:
         {"configOptions": [{"category": "model", "options": [{"options": [{"options": []}]}]}]},
         {"configOptions": [{"category": "model", "options": [{"options": None}]}]},
         {"configOptions": [{"category": "model", "currentValue": "missing", "options": []}]},
-        {"configOptions": [{"category": "model", "options": []}] * 2},
     ],
 )
 def test_catalog_refuses_invalid_ambiguous_or_unbounded_options(opened: dict[str, object]) -> None:

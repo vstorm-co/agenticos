@@ -81,21 +81,42 @@ export function ExternalAgentSettings() {
             id="external-agent-provider"
             value={provider}
             onChange={(event) => {
-              const selected = event.target.value === "antigravity" ? "antigravity" : "custom";
-              setProvider(selected);
-              if (selected === "antigravity") {
-                setId("antigravity");
-                // i18n-exempt: product name
-                setName("Antigravity");
-                setArgs('["acp"]');
+              const selected = event.target.value;
+              if (
+                selected !== "antigravity" &&
+                selected !== "opencode" &&
+                selected !== "opencode_go"
+              ) {
+                setProvider("custom");
+                return;
               }
+              setProvider(selected);
+              setId(selected.replaceAll("_", "-"));
+              // i18n-exempt: product names
+              const names = {
+                antigravity: "Antigravity",
+                opencode: "OpenCode",
+                opencode_go: "OpenCode Go",
+              };
+              setName(names[selected]);
+              setArgs('["acp"]');
             }}
           >
             <option value="custom">{t("custom")}</option>
             {/* i18n-exempt: product name */}
             <option value="antigravity">Antigravity</option>
+            {/* i18n-exempt: product names */}
+            <option value="opencode">OpenCode</option>
+            {/* i18n-exempt: product names */}
+            <option value="opencode_go">OpenCode Go</option>
           </NativeSelect>
         </div>
+        {provider === "opencode" && (
+          <p className="text-muted-foreground text-xs">{t("opencodeHelp")}</p>
+        )}
+        {provider === "opencode_go" && (
+          <p className="text-muted-foreground text-xs">{t("opencodeGoHelp")}</p>
+        )}
         {provider === "antigravity" && (
           <p className="text-muted-foreground text-xs">{t("antigravityHelp")}</p>
         )}

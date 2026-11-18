@@ -1,5 +1,5 @@
 ---
-source_sha: "585c7355ba27"
+source_sha: "3597cd25fe90"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3763,3 +3763,5 @@ nicht unterstützte Protokolle und fehlende Fortsetzungsunterstützung ergeben k
 Fehler. Die Registrierung bestätigt keine Abonnementberechtigung beim Anbieter.
 
 `inspect_acp_agent` liest Modell- und Denkoptionen des Kontos beziehungsweise der Sitzung ohne Inferenz-Prompt. `auth_method` ist standardmäßig `configured`; `oauth-personal` fordert die persönliche Google-Anmeldung von Antigravity an. Eine Desktop-Antigravity-Registrierung erzwingt diesen Modus. Optionales `model_id` wählt eine genaue Laufzeit-ID. [Antigravity einrichten](../desktop.md#antigravity-acp) beschreibt Abrechnung und ausstehende Kontoprüfung.
+
+OpenCode-Registrierungen lesen verzögerte Katalogaktualisierungen. Die separate Go-Vorlage filtert den Katalog und beschränkt das primäre Modell auf `opencode-go/`; Hilfsmodelle und Extra Usage bleiben CLI- und Kontoeinstellungen. Siehe [OpenCode und Go einrichten](../desktop.md#opencode-acp).

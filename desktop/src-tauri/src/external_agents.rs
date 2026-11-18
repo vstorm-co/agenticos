@@ -14,6 +14,10 @@ pub enum Provider {
     #[default]
     Custom,
     Antigravity,
+    #[serde(rename = "opencode")]
+    OpenCode,
+    #[serde(rename = "opencode_go")]
+    OpenCodeGo,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -68,8 +72,15 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
     {
         return Err("Use at most 32 arguments of up to 4096 bytes, without control characters. Never put tokens or passwords in arguments.".into());
     }
-    if input.provider == Provider::Antigravity && input.args != ["acp"] {
-        return Err("Antigravity uses the acp command with Google personal sign-in. Register other billing modes as a separate custom agent.".into());
+    if matches!(
+        input.provider,
+        Provider::Antigravity | Provider::OpenCode | Provider::OpenCodeGo
+    ) && input.args != ["acp"]
+    {
+        return Err(
+            "This runtime template uses the acp command. Register other launch arguments as a separate custom agent."
+                .into(),
+        );
     }
     Ok(Registration {
         provider: input.provider,
@@ -97,6 +108,8 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
     let (send, receive) = tokio::sync::oneshot::channel();
     let billing = match registration.provider {
         Provider::Antigravity => "Google personal OAuth is required; inherited Gemini API key variables are removed.",
+        Provider::OpenCode => "OpenCode uses its own configured providers and credentials. Its model choices may include free models, Go and paid APIs.",
+        Provider::OpenCodeGo => "Only an opencode-go primary model may receive a prompt. Connect Go under opencode-go in OpenCode itself; no key is copied by AgenticOS. Go Extra Usage and OpenCode auxiliary-model settings can incur additional charges. Coding tasks only.",
         Provider::Custom => "The program's own configuration decides subscription or API billing.",
     };
     app.dialog().message(format!(
@@ -180,6 +193,25 @@ mod tests {
             ..input()
         })
         .is_err());
+    }
+
+    #[test]
+    fn opencode_templates_preserve_namespaces_and_refuse_launch_overrides() {
+        for (provider, wire) in [(Provider::OpenCode, "opencode"), (Provider::OpenCodeGo, "opencode_go")] {
+            let registered = checked(RegistrationInput { provider, ..input() }).unwrap();
+            assert_eq!(registered.provider, provider);
+            assert_eq!(serde_json::to_value(provider).unwrap(), wire);
+            assert_eq!(
+                serde_json::from_value::<Provider>(serde_json::json!(wire)).unwrap(),
+                provider
+            );
+            assert!(checked(RegistrationInput {
+                provider,
+                args: vec!["acp".into(), "--model".into(), "other/model".into()],
+                ..input()
+            })
+            .is_err());
+        }
     }
 
     #[test]

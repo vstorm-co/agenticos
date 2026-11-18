@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Add OpenCode and OpenCode Go Desktop ACP templates, delayed model discovery and a Go primary-model namespace restriction, without copying CLI credentials (#3108).
+
 - Add an Antigravity Desktop setup template with enforced Google personal ACP login, account-specific model discovery and explicit runtime model selection (#3109).
 
 - Register installed ACP agents in Desktop settings and delegate tasks through the External ACP agent capability, with native consent, isolated session identity and revocation (#3130).

@@ -752,3 +752,32 @@ Real-account login, entitlement, quota, revocation and resume-after-restart stil
 require acceptance testing. See the [official ACP guide](https://antigravity.google/docs/ide/extensions/acp)
 for supported authentication methods and client restrictions. API-key use belongs
 to a separate Gemini API profile or an explicitly configured custom registration.
+
+## OpenCode and Go through ACP { #opencode-acp }
+
+Install OpenCode, run `opencode auth login` in a terminal, then register its
+absolute executable path with the **OpenCode** template under **External ACP
+agents**. The template launches `opencode acp`. Provider credentials, custom
+endpoints and project settings stay in OpenCode; AgenticOS does not copy keys or
+rewrite its configuration. This delegates native tasks and does not forward
+AgenticOS tools or replace the main conversation runtime.
+
+Use `inspect_acp_agent` for a session snapshot of configured model choices. It
+waits briefly for delayed ACP catalog updates; `refresh_pending` means no model
+choices arrived within that window. Inspect again after completing CLI setup.
+The catalog describes configuration, not verified entitlement or remaining quota.
+Set **External model ID** to an exact returned ID or keep the CLI default.
+
+For **OpenCode Go**, connect the Go key under **OpenCode Go** using `/connect` in
+OpenCode itself. Register the separate **OpenCode Go** template and choose an
+`opencode-go/…` model. A task requires that namespace both before selection and
+in the acknowledged session settings; missing or different selections fail before
+an inference prompt. Discovery filters other providers from this registration.
+There is no automatic fallback to another primary provider after a refusal.
+
+Go is for coding work. The namespace restriction covers the primary model;
+OpenCode's auxiliary models and Go **Extra Usage** settings can incur additional
+charges. AgenticOS reports external spend as unpriced. Account login, Go quota,
+revocation and restart/resume need real-account acceptance tests. See the
+[ACP guide](https://opencode.ai/docs/cli/acp/) and
+[Go account setup](https://opencode.ai/docs/console/go/).

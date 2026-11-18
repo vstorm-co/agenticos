@@ -10812,7 +10812,9 @@
         "invalidArgs": "Enter a JSON array containing only strings.",
         "provider": "Setup template",
         "custom": "Custom ACP program",
-        "antigravityHelp": "Use the absolute agy path and the acp argument. Google personal sign-in is enforced; Gemini API keys inherited from the app environment are removed. Run agy acp --login first. In the Builder, use this ID in External ACP agent; inspect_acp_agent reads this account’s model choices. This is delegated execution. Real-account eligibility and plan limits still need verification."
+        "antigravityHelp": "Use the absolute agy path and the acp argument. Google personal sign-in is enforced; Gemini API keys inherited from the app environment are removed. Run agy acp --login first. In the Builder, use this ID in External ACP agent; inspect_acp_agent reads this account’s model choices. This is delegated execution. Real-account eligibility and plan limits still need verification.",
+        "opencodeHelp": "Register the installed opencode executable with acp. Connect providers using opencode auth login or /connect in its TUI. inspect_acp_agent reads the current model snapshot, including delayed updates. Configure custom endpoints in OpenCode itself; AgenticOS does not copy vault keys or overwrite its files. Models may use free access, a subscription or an API balance.",
+        "opencodeGoHelp": "Coding tasks only. Connect the Go key specifically as opencode-go in OpenCode, then select an exact opencode-go/model ID from inspect_acp_agent. Other primary-model namespaces are refused. Go Extra Usage may spend Console credits, and OpenCode auxiliary-model settings can incur other charges. Check those settings separately; runtime usage is unpriced in AgenticOS."
       }
     },
     "quickAsk": {
@@ -14326,7 +14328,7 @@
       },
       "model_id": {
         "title": "External model ID",
-        "description": "Optional exact ID from inspect_acp_agent on this account. Empty keeps the program's own model. This selects a runtime model, not a Gemini API profile."
+        "description": "Optional exact ID from inspect_acp_agent on this account. Empty keeps the program's own model. This selects a runtime model, not an AgenticOS model profile."
       }
     }
   },

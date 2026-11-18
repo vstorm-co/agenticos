@@ -1,5 +1,5 @@
 ---
-source_sha: "c619b5b062f3"
+source_sha: "edd8b3ab383b"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -790,3 +790,34 @@ El inicio de sesión, los derechos, las cuotas, la revocación y la continuació
 tras reiniciar aún requieren pruebas con una cuenta real. La [guía ACP oficial](https://antigravity.google/docs/ide/extensions/acp)
 describe los métodos y restricciones. Las claves API pertenecen a un perfil Gemini
 API separado o a un registro personalizado configurado expresamente.
+
+## OpenCode y Go mediante ACP { #opencode-acp }
+
+Instala OpenCode, ejecuta `opencode auth login` en una terminal y registra la ruta
+absoluta del ejecutable con la plantilla **OpenCode** en **Agentes ACP externos**.
+La plantilla inicia `opencode acp`. Las credenciales, los endpoints propios y la
+configuración del proyecto permanecen en OpenCode; AgenticOS no copia claves ni
+reescribe ajustes. La integración delega tareas nativas, no reenvía herramientas
+de AgenticOS ni sustituye el runtime principal de la conversación.
+
+`inspect_acp_agent` devuelve una instantánea de los modelos configurados en la
+sesión. Espera brevemente actualizaciones tardías del catálogo ACP;
+`refresh_pending` indica que no llegaron modelos durante ese intervalo. Repite
+la consulta después de configurar el CLI. El catálogo no confirma derechos de
+acceso ni cuota restante. Usa un ID exacto del resultado en **ID del modelo
+externo** o conserva el modelo predeterminado del CLI.
+
+Para **OpenCode Go**, conecta la clave Go con `/connect` dentro de OpenCode y
+selecciona **OpenCode Go**. Registra la plantilla independiente **OpenCode Go** y
+elige un modelo `opencode-go/…`. Se exige ese espacio de nombres antes de la
+selección y en los ajustes confirmados de la sesión. Una selección ausente o
+distinta falla antes del prompt de inferencia. El catálogo de esta inscripción
+filtra otros providers. Un rechazo no cambia automáticamente el provider principal.
+
+Go está destinado a tareas de programación. La restricción afecta al modelo
+principal; los modelos auxiliares de OpenCode y **Extra Usage** de Go pueden
+generar cargos adicionales. AgenticOS registra el gasto externo sin valorar.
+El inicio de sesión, la cuota Go, la revocación y la reanudación tras reiniciar
+requieren pruebas con una cuenta real. Consulta la
+[guía ACP](https://opencode.ai/docs/cli/acp/) y la
+[configuración Go](https://opencode.ai/docs/console/go/).

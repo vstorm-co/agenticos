@@ -124,3 +124,23 @@ it("registers the Antigravity personal-account template without an API key", asy
     }),
   );
 });
+
+it.each([
+  ["opencode", "opencode", "OpenCode"],
+  ["opencode_go", "opencode-go", "OpenCode Go"],
+])("registers %s without copying provider credentials", async (provider, id, name) => {
+  mount();
+  await userEvent.selectOptions(screen.getByLabelText("Setup template"), provider);
+  expect(screen.getByLabelText("Agent ID")).toHaveValue(id);
+  expect(screen.getByLabelText("Arguments (JSON array)")).toHaveValue('["acp"]');
+  await userEvent.type(screen.getByLabelText("Absolute executable path"), "/opt/bin/opencode");
+  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+      registration: { provider, id, name, program: "/opt/bin/opencode", args: ["acp"] },
+    }),
+  );
+  expect(parseExternalAgents([{ ...registration, provider }])).toEqual([
+    { ...registration, provider },
+  ]);
+});

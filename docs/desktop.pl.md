@@ -1,5 +1,5 @@
 ---
-source_sha: "c619b5b062f3"
+source_sha: "edd8b3ab383b"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -763,3 +763,32 @@ Logowanie na rzeczywistym koncie, uprawnienia, limity, cofnięcie dostępu i wzn
 po restarcie wymagają jeszcze testu odbiorowego. [Oficjalny przewodnik ACP](https://antigravity.google/docs/ide/extensions/acp)
 opisuje metody logowania i ograniczenia klientów. Klucz API należy do osobnego
 profilu Gemini API albo jawnie skonfigurowanej własnej rejestracji.
+
+## OpenCode i Go przez ACP { #opencode-acp }
+
+Zainstaluj OpenCode, uruchom w terminalu `opencode auth login`, a następnie w
+**Zewnętrzni agenci ACP** zarejestruj bezwzględną ścieżkę programu, wybierając
+szablon **OpenCode**. Uruchamia on `opencode acp`. Dane logowania providerów,
+własne endpointy i ustawienia projektu pozostają w OpenCode; AgenticOS nie kopiuje
+kluczy ani nie zmienia konfiguracji. Integracja deleguje zadania natywne, nie
+przekazuje narzędzi AgenticOS i nie zastępuje głównego runtime'u rozmowy.
+
+`inspect_acp_agent` zwraca migawkę modeli skonfigurowanych w sesji. Krótko czeka
+na opóźnione aktualizacje katalogu ACP; `refresh_pending` oznacza, że w tym czasie
+nie otrzymano modeli. Po konfiguracji CLI ponów sprawdzenie. Katalog opisuje
+konfigurację, a nie potwierdzone uprawnienia lub pozostały limit. W **ID modelu
+zewnętrznego** wpisz dokładne ID z wyniku albo zachowaj domyślny model CLI.
+
+Dla **OpenCode Go** podłącz klucz przez `/connect` w OpenCode, wybierając
+**OpenCode Go**. Zarejestruj osobny szablon **OpenCode Go** i wybierz model
+`opencode-go/…`. Zadanie wymaga tej przestrzeni nazw przed wyborem i w ustawieniach
+sesji potwierdzonych przez CLI. Brak lub inny wybór kończy się błędem przed
+wysłaniem promptu do inferencji. Katalog tej rejestracji pomija innych providerów.
+Odmowa nie przełącza automatycznie głównego modelu na innego providera.
+
+Go służy do zadań programistycznych. Ograniczenie przestrzeni nazw obejmuje główny
+model; modele pomocnicze OpenCode i ustawienie Go **Extra Usage** mogą generować
+dodatkowe opłaty. AgenticOS pokazuje koszt zewnętrzny jako niewyceniony. Logowanie,
+limity Go, cofnięcie dostępu i wznowienie po restarcie wymagają testów na prawdziwym
+koncie. Zobacz [przewodnik ACP](https://opencode.ai/docs/cli/acp/) i
+[konfigurację Go](https://opencode.ai/docs/console/go/).

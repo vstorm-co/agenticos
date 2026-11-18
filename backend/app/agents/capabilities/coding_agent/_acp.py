@@ -143,6 +143,8 @@ class DevicePipe:
         self.session_id: str | None = None
         self.auth_method: str | None = None
         self.runtime_name: str | None = None
+        self.model_prefix: str | None = None
+        self.refresh_catalog: bool = False
         self._device = device
         self._harness = harness
         self._id: str | None = None
@@ -153,6 +155,7 @@ class DevicePipe:
         args: dict[str, Any] = {"agent": self._harness}
         if self._harness == "custom":
             args["supports_auth_modes"] = True
+            args["supports_model_constraints"] = True
         if self._custom_agent_id is not None:
             args["custom_agent_id"] = self._custom_agent_id
         if self._resume_key is not None:
@@ -171,6 +174,13 @@ class DevicePipe:
         label = opened.get("runtime_name")
         if isinstance(label, str) and 0 < len(label) <= 120:
             self.runtime_name = label
+        prefix = opened.get("model_prefix")
+        if prefix is not None:
+            if prefix != "opencode-go/":
+                await self.close()
+                raise AcpError("The Desktop app requires unsupported model constraints.")
+            self.model_prefix = prefix
+        self.refresh_catalog = opened.get("refresh_catalog") is True
         method = opened.get("auth_method")
         if method is not None:
             if method != "oauth-personal":
@@ -260,9 +270,15 @@ class _Collector:
     said: list[str] = field(default_factory=list)
     refused: list[str] = field(default_factory=list)
     task_updates: list[str] = field(default_factory=list)
+    config_options: object = None
+    config_generation: int = 0
 
     def update(self, update: dict[str, Any]) -> list[LiveItem]:
         match update.get("sessionUpdate"):
+            case "config_option_update":
+                self.config_options = update.get("configOptions")
+                self.config_generation += 1
+                return []
             case "agent_message_chunk":
                 text = (update.get("content") or {}).get("text")
                 if isinstance(text, str):
@@ -363,7 +379,7 @@ class Conversation:
 
     async def request(
         self, method: str, params: dict[str, Any], *, sent: anyio.Event | None = None
-    ) -> Any:
+    ) -> dict[str, Any] | None:
         """Send a request and read until its answer, handling everything between."""
         if method == "session/prompt":
             await check_model_context()
@@ -387,7 +403,16 @@ class Conversation:
                     code = detail.get("code") if isinstance(detail, dict) else None
                     shown = f" (code {code})" if isinstance(code, int) else ""
                     raise AcpError(f"The agent refused the request{shown}.")
-                return message.get("result")
+                result = message.get("result")
+                if result is not None and not isinstance(result, dict):
+                    raise AcpError("The agent returned a non-object protocol result.")
+                return result
+
+    async def receive_update(self) -> None:
+        """Consume a bounded unsolicited update, without submitting another prompt."""
+        message = await self._pipe.receive()
+        self._consume(message)
+        await self._handle(message)
 
     def _consume(self, message: dict[str, object]) -> None:
         # ASCII JSON counts escaped Unicode too, without allocating a second byte copy.
@@ -511,8 +536,8 @@ async def _configure_session(
     *,
     model: str | None,
     effort: str | None,
-) -> None:
-    """Apply explicit choices through ACP; an unsupported choice is never ignored."""
+) -> Mapping[str, object]:
+    """Apply choices and return the runtime's acknowledged session settings."""
     options = (opened or {}).get("configOptions")
     for category, value in (("model", model), ("thought_level", effort)):
         if value is None:
@@ -540,6 +565,18 @@ async def _configure_session(
             {"sessionId": session_id, "configId": identifier, "value": value},
         )
         options = (configured or {}).get("configOptions", options)
+    return {"configOptions": options}
+
+
+def current_session_model(opened: Mapping[str, object] | None) -> str | None:
+    """The session's advertised model, without guessing from a global default."""
+    options = (opened or {}).get("configOptions")
+    if isinstance(options, list):
+        for option in options:
+            if isinstance(option, dict) and option.get("category") == "model":
+                value = option.get("currentValue")
+                return value if isinstance(value, str) else None
+    return None
 
 
 async def initialize_session(
@@ -585,6 +622,7 @@ async def run_task(
     effort: str | None = None,
     previous_session: str | None = None,
     auth_method: str | None = None,
+    model_prefix: str | None = None,
     remember: Callable[[str], Awaitable[None]] | None = None,
     steering: SteeringInbox | None = None,
 ) -> CodingReport:
@@ -639,12 +677,31 @@ async def run_task(
                 await conversation.request(
                     "session/set_mode", {"sessionId": session_id, "modeId": "read-only"}
                 )
-            await _configure_session(conversation, session_id, opened, model=model, effort=effort)
+            if model_prefix is not None:
+                selected = model or current_session_model(opened)
+                if (
+                    selected is None
+                    or not selected.startswith(model_prefix)
+                    or selected == model_prefix
+                ):
+                    raise AcpError(
+                        "This registration requires an opencode-go primary model. Inspect its catalog and set an exact Go model ID; no other provider was selected."
+                    )
+            configured = await _configure_session(
+                conversation, session_id, opened, model=model, effort=effort
+            )
+            if model_prefix is not None and current_session_model(configured) != selected:
+                raise AcpError(
+                    "The agent did not confirm the selected Go model. No prompt was submitted."
+                )
             if remember is not None:
                 await remember(session_id)
             prompt = f"{_READ_ONLY_NOTE}{task}" if access == "read_only" else task
             result = await conversation.prompt(session_id, prompt, steering)
-            stop = str((result or {}).get("stopReason", "end_turn"))
+            reason = (result or {}).get("stopReason")
+            if not isinstance(reason, str):
+                raise AcpError("The agent did not report how its task ended.")
+            stop = reason
         answer = "".join(collector.said).strip()
         if stop == "timed_out":
             if session_id is not None:

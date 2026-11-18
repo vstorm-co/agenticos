@@ -1,5 +1,5 @@
 ---
-source_sha: "585c7355ba27"
+source_sha: "3597cd25fe90"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3609,3 +3609,5 @@ de sesión requerido, un protocolo incompatible o una continuación no admitida
 producen errores explícitos. El registro no certifica derechos de suscripción.
 
 `inspect_acp_agent` lee las opciones de modelo y razonamiento de la cuenta/sesión sin prompt de inferencia. `auth_method` usa `configured` por defecto; `oauth-personal` solicita la cuenta personal de Google en Antigravity. El registro Desktop de Antigravity exige ese modo. `model_id` opcional selecciona un ID exacto del entorno. [Configurar Antigravity](../desktop.md#antigravity-acp) describe la facturación y las pruebas de cuenta pendientes.
+
+Las inscripciones OpenCode leen actualizaciones tardías del catálogo. La plantilla Go filtra los modelos y limita el modelo principal a `opencode-go/`; los modelos auxiliares y Extra Usage dependen del CLI y la cuenta. Consulta la [configuración de OpenCode y Go](../desktop.md#opencode-acp).

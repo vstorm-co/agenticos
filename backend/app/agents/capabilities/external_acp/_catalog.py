@@ -22,6 +22,8 @@ class AcpChoice(BaseModel):
 
 
 class AcpCatalog(BaseModel):
+    refresh_pending: bool = False
+    model_prefix: str | None = None
     models_exposed: bool = False
     models: list[AcpChoice] = Field(default_factory=list, max_length=128)
     current_model: str | None = None
@@ -78,7 +80,7 @@ def session_catalog(opened: Mapping[str, object]) -> AcpCatalog:
         if not isinstance(category, str) or category not in {"model", "thought_level"}:
             continue
         if category in seen:
-            raise AcpError("The agent advertised ambiguous session settings.")
+            continue
         seen.add(category)
         choices = _choices(option.get("options"))
         current = option.get("currentValue")
@@ -93,20 +95,55 @@ def session_catalog(opened: Mapping[str, object]) -> AcpCatalog:
     return catalog
 
 
+def _scoped_catalog(opened: Mapping[str, object], model_prefix: str | None) -> AcpCatalog:
+    catalog = session_catalog(opened)
+    if model_prefix is not None:
+        catalog.model_prefix = model_prefix
+        catalog.models = [
+            model
+            for model in catalog.models
+            if model.id.startswith(model_prefix) and model.id != model_prefix
+        ]
+        if catalog.current_model not in {model.id for model in catalog.models}:
+            catalog.current_model = None
+            catalog.efforts = []
+            catalog.current_effort = None
+    return catalog
+
+
 async def inspect_session(
-    pipe: Pipe, *, root: str, auth_method: str | None, timeout_seconds: int
+    pipe: Pipe,
+    *,
+    root: str,
+    auth_method: str | None,
+    timeout_seconds: int,
+    model_prefix: str | None = None,
+    wait_for_updates: bool = False,
+    refresh_seconds: float = 2.0,
 ) -> AcpCatalog:
     async def ignore(_items: list[LiveItem]) -> None:
         return None
 
-    conversation = Conversation(pipe, access="read_only", collector=_Collector(), shown=ignore)
+    collector = _Collector()
+    conversation = Conversation(pipe, access="read_only", collector=collector, shown=ignore)
     try:
         with anyio.fail_after(timeout_seconds):
             await initialize_session(conversation, auth_method=auth_method)
             opened = await conversation.request("session/new", {"cwd": root, "mcpServers": []})
             if not isinstance(opened, dict) or not isinstance(opened.get("sessionId"), str):
                 raise AcpError("The agent did not open a session for model discovery.")
-            return session_catalog(opened)
+            if wait_for_updates and collector.config_generation == 0:
+                with anyio.move_on_after(refresh_seconds):
+                    while collector.config_generation == 0:
+                        await conversation.receive_update()
+            state = (
+                {**opened, "configOptions": collector.config_options}
+                if collector.config_generation
+                else opened
+            )
+            catalog = _scoped_catalog(state, model_prefix)
+            catalog.refresh_pending = wait_for_updates and not catalog.models
+            return catalog
     finally:
         with anyio.CancelScope(shield=True):
             await pipe.close()

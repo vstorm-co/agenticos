@@ -1,5 +1,5 @@
 ---
-source_sha: "c619b5b062f3"
+source_sha: "edd8b3ab383b"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -803,3 +803,34 @@ Anmeldung, Berechtigung, Kontingente, Widerruf und Fortsetzung nach Neustart mü
 noch mit einem echten Konto abgenommen werden. Der [offizielle ACP-Leitfaden](https://antigravity.google/docs/ide/extensions/acp)
 beschreibt Anmeldung und Clientgrenzen. API-Schlüssel gehören in ein separates
 Gemini-API-Profil oder eine ausdrücklich konfigurierte eigene Registrierung.
+
+## OpenCode und Go über ACP { #opencode-acp }
+
+Installieren Sie OpenCode, führen Sie `opencode auth login` im Terminal aus und
+registrieren Sie den absoluten Programmpfad mit der Vorlage **OpenCode** unter
+**Externe ACP-Agenten**. Sie startet `opencode acp`. Provider-Zugangsdaten, eigene
+Endpunkte und Projekteinstellungen bleiben in OpenCode; AgenticOS kopiert keine
+Schlüssel und überschreibt keine Konfiguration. Die Integration delegiert native
+Aufgaben, leitet keine AgenticOS-Tools weiter und ersetzt nicht die Hauptlaufzeit.
+
+`inspect_acp_agent` liefert eine Momentaufnahme der konfigurierten Modelle. Der
+Aufruf wartet kurz auf verzögerte ACP-Katalogaktualisierungen; `refresh_pending`
+bedeutet, dass innerhalb dieser Zeit keine Modelle eingetroffen sind. Prüfen Sie
+nach der CLI-Einrichtung erneut. Der Katalog bestätigt weder Berechtigung noch
+Restkontingent. Tragen Sie eine zurückgegebene ID unter **Externe Modell-ID** ein
+oder behalten Sie die CLI-Vorgabe bei.
+
+Verbinden Sie für **OpenCode Go** den Go-Schlüssel in OpenCode über `/connect`
+unter **OpenCode Go**. Registrieren Sie die separate Vorlage **OpenCode Go** und
+wählen Sie ein Modell `opencode-go/…`. Dieser Namensraum muss vor der Auswahl und
+in den bestätigten Sitzungseinstellungen vorliegen. Ein fehlendes oder anderes
+Modell wird vor dem Inferenz-Prompt abgelehnt. Der Katalog dieser Registrierung
+filtert andere Provider aus. Nach einer Ablehnung wird der primäre Provider nicht
+automatisch gewechselt.
+
+Go ist für Programmieraufgaben bestimmt. Die Einschränkung gilt für das primäre
+Modell; Hilfsmodelle von OpenCode und Go **Extra Usage** können weitere Kosten
+verursachen. AgenticOS weist externe Kosten als unbepreist aus. Anmeldung,
+Go-Kontingent, Widerruf und Wiederaufnahme nach Neustart erfordern Tests mit einem
+echten Konto. Siehe [ACP-Anleitung](https://opencode.ai/docs/cli/acp/) und
+[Go-Einrichtung](https://opencode.ai/docs/console/go/).
