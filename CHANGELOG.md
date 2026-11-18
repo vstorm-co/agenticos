@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Replay earlier assistant answers once when stored content and streamed parts differ only in edge whitespace, include several final text parts, or contain blank fragments. Preserve human reply ordering and the token anchor used for history compaction, including in existing conversations (#3156).
+
 ## [1.82.2] - 2026-11-18
 
 ### Added

@@ -125,6 +125,40 @@ def _file_uuids(file_ids: Sequence[str]) -> tuple[list[UUID], list[str]]:
     return ids, malformed
 
 
+def _replays_content(texts: Sequence[str], content: str) -> bool:
+    """Match a final response (possibly several parts) or an unfinished turn.
+
+    Content is stripped by MessageCreate; streamed parts retain whitespace.
+    Compare only at part boundaries so a new answer that is merely a substring
+    of an earlier part is still replayed.
+    """
+    expected = content.strip()
+    suffix = ""
+    for text in reversed(texts):
+        suffix = text + suffix
+        candidate = suffix.strip()
+        if candidate == expected:
+            return True
+        if len(candidate) > len(expected):
+            return False
+    return False
+
+
+def _anchor_replayed_answer(ordered: list[HistoryMessage], used: int | None) -> None:
+    """Keep usage on the response that survives adjacent-response normalization."""
+    anchor: HistoryMessage | None = None
+    for entry in reversed(ordered):
+        if entry["role"] != "assistant":
+            if anchor is not None:
+                break
+            continue
+        if entry["content"].strip():
+            entry.pop("context_used_tokens", None)
+            anchor = entry
+    if anchor is not None:
+        anchor["context_used_tokens"] = used
+
+
 def _as_history(
     rows: Sequence[Message],
     exclude_message_id: UUID | None,
@@ -155,10 +189,10 @@ def _as_history(
                     row.role == "assistant"
                     and kind == "text"
                     and isinstance(text := part.get("text"), str)
-                    and text.strip()
                 ):
-                    ordered.append({"role": "assistant", "content": text})
                     texts.append(text)
+                    if text.strip():
+                        ordered.append({"role": "assistant", "content": text})
                 elif kind == "steer" and isinstance(text := part.get("text"), str):
                     ordered.append({"role": "user", "content": f"{STEER_PREFIX}\n\n{text}"})
                 elif (
@@ -171,15 +205,11 @@ def _as_history(
                     ordered.append(
                         {"role": "user", "content": f"Question: {question}\nAnswer: {answer}"}
                     )
-        history.extend(ordered)
-        if texts and (row.content == texts[-1] or row.content == "".join(texts)):
-            # Anchor compaction to the last answer, not to every streamed fragment.
-            for entry in reversed(ordered):
-                if entry["role"] == "assistant":
-                    entry["context_used_tokens"] = row.context_used_tokens
-                    break
+        if _replays_content(texts, row.content):
+            _anchor_replayed_answer(ordered, row.context_used_tokens)
+            history.extend(ordered)
             continue
-        history.append(
+        ordered.append(
             {
                 "role": row.role,
                 "content": (
@@ -201,6 +231,8 @@ def _as_history(
                 ),
             }
         )
+        _anchor_replayed_answer(ordered, row.context_used_tokens)
+        history.extend(ordered)
     return history
 
 
