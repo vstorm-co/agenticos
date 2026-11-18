@@ -1,5 +1,5 @@
 ---
-source_sha: "2bc3e7bad49a"
+source_sha: "9a9b600834b2"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1781,6 +1781,11 @@ pracę innej rozmowy. Potrzebujesz bieżącego dostępu do edycji; żaden run ni
 zapisywać workspace. Treść i tryb wykonywalny każdego pliku muszą odpowiadać
 stanowi po zadaniu. Konflikt odrzuca całe cofnięcie i wskazuje pliki. Pozostałe
 pliki oraz indeks i historia Git pozostają bez zmian.
+
+Cofnięcie jest niedostępne, jeśli którykolwiek snapshot napotka niezapisany duży
+plik, nieczytelną ścieżkę lub nieobsługiwany typ pliku, nawet gdy ta ścieżka wydaje
+się niezmieniona. Zapisany diff nadal można czytać. Katalogi platformy i narzędzi
+pozostają celowo poza zakresem snapshotów.
 
 Akcja kolejkuje trwałe zadanie i rezerwuje workspace. Panel pokazuje postęp oraz
 jednoznaczne odmowy. Nieznany wynik zachowuje rezerwację; **Ponów cofnięcie**

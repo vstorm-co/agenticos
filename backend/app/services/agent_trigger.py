@@ -3886,7 +3886,9 @@ class AgentTriggerService:
                 different agent than the one in the path, or created by someone else
                 and the caller lacks `agents:edit`.
         """
-        agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        # Publication locks the agent before withdrawing routine consent. Keep
+        # that order when an edit locks both rows for model-surface admission.
+        agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN, for_update=for_update)
         trigger = await agent_trigger_repo.get(
             self.db, trigger_id, organization_id=ctx.organization_id, for_update=for_update
         )
