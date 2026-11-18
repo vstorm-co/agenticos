@@ -143,6 +143,16 @@ export class ApiError extends Error {
   }
 }
 
+/** A credential-specific refusal, excluding disabled accounts and session failures. */
+export function credentialsRejected(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 401 &&
+    (error.code === "DIRECTORY_CREDENTIALS_REJECTED" ||
+      (error.code === "AUTHENTICATION_ERROR" && error.details?.reason === "invalid_credentials"))
+  );
+}
+
 /**
  * The sentence a refusal shows, in the caller's locale.
  *

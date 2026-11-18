@@ -1577,12 +1577,15 @@ describe("the work before an answer", () => {
 
     view.rerender(<MessageItem message={message({ parts, isStreaming: false })} />);
     expect(screen.getByText("Here is the final comparison.")).toBeVisible();
-    expect(screen.queryByText("I will check Poland first.")).toBeNull();
+    expect(screen.getByText("I will check Poland first.")).toBe(first);
+    expect(first.closest("[inert]")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("region")).toBeNull();
     const toggle = screen.getByRole("button", { name: /Worked/ });
     expect(screen.getAllByRole("button", { name: /Worked/ })).toHaveLength(1);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(toggle);
-    expect(screen.getByText("I will check Poland first.")).toBeVisible();
+    expect(screen.getByText("I will check Poland first.")).toBe(first);
+    expect(first).toBeVisible();
     expect(screen.getByTestId("tool-tc-poland")).toBeVisible();
     expect(screen.getByText("Here is the final comparison.").closest('[role="region"]')).toBeNull();
   });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
-import { animate, motion, useMotionValue } from "motion/react";
+import { animate, motion, useMotionValue, useMotionValueEvent } from "motion/react";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { CheckCircle2, XCircle } from "lucide-react";
 
@@ -54,13 +54,20 @@ export function SwipeToDecide({
   const [offset, setOffset] = useState(0);
   const x = useMotionValue(0);
   const reduced = useReducedMotion();
-  useEffect(() => () => x.stop(), [x]);
-  useEffect(() => {
-    if (reduced) x.jump(0);
-  }, [reduced, x]);
   // Following the finger, which no transition may lag behind.
   const drag = useRef<Drag | null>(null);
   const past = useRef(false);
+  useMotionValueEvent(x, "change", (value) => {
+    if (value === 0) setOffset(0);
+  });
+  useEffect(() => () => x.stop(), [x]);
+  useEffect(() => {
+    if (reduced) {
+      drag.current = null;
+      past.current = false;
+      x.jump(0);
+    }
+  }, [reduced, x]);
 
   const reset = () => {
     drag.current = null;

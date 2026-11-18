@@ -36,7 +36,7 @@ export function ApprovalsWaiting() {
       const summary = call.content_hidden
         ? null
         : (approvalSummary(call.capability_tool_id, call.context, tTools) ??
-          callSummary(call.tool_args));
+          callSummary(call.tool_args, { omitOpaqueIds: true }));
       return {
         id: `tool:${call.id}`,
         title: action,

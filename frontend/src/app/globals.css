@@ -41,12 +41,10 @@
 .disclosure-content {
   display: grid;
   grid-template-rows: 0fr;
-  visibility: hidden;
   opacity: 0;
 }
 .disclosure-content[data-open="true"] {
   grid-template-rows: 1fr;
-  visibility: visible;
   opacity: 1;
 }
 @supports (interpolate-size: allow-keywords) {

@@ -93,10 +93,14 @@ const SUMMARY_LENGTH = 160;
  * The one line that says what the call is about, or null when nothing does.
  *
  * Its first line only: a script's first line is the command, and the rest is
- * what the details are for.
+ * what the details are for. Inbox may omit opaque IDs; decision cards retain
+ * them when the caller cannot read the resource's name.
  */
-export function callSummary(args: Record<string, unknown>): string | null {
-  const value = summaryValue(args, 0);
+export function callSummary(
+  args: Record<string, unknown>,
+  { omitOpaqueIds = false }: { omitOpaqueIds?: boolean } = {},
+): string | null {
+  const value = summaryValue(args, 0, true, omitOpaqueIds);
   if (value === null) return null;
   const line = value.trim().split("\n")[0]!.trim();
   return line.length > SUMMARY_LENGTH ? `${line.slice(0, SUMMARY_LENGTH - 1)}…` : line;
@@ -106,25 +110,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function summaryText(value: string, depth: number): string | null {
+function summaryText(value: string, depth: number, omitOpaqueIds: boolean): string | null {
   const text = value.trim();
-  if (!text || /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(text)) return null;
+  if (!text || (omitOpaqueIds && /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(text)))
+    return null;
   if (!/^[\[{]/.test(text)) return text;
   // Some MCP schemas carry the entire search request as a JSON string.
   // Decode only bounded objects; opaque requests belong in the full details.
   if (depth >= 2 || text.length > 8192) return null;
+  let decoded: unknown;
   try {
-    const decoded: unknown = JSON.parse(text);
-    return isRecord(decoded) ? summaryValue(decoded, depth + 1, false) : null;
+    decoded = JSON.parse(text);
   } catch {
-    return null;
+    // Brackets and braces also start shell commands and ordinary subjects.
+    // Preserve unparsed text so an approver can still see what will execute.
+    return text;
   }
+  return isRecord(decoded) ? summaryValue(decoded, depth + 1, false, omitOpaqueIds) : null;
 }
 
 function summaryValue(
   args: Record<string, unknown>,
   depth: number,
-  allowFallback = true,
+  allowFallback: boolean,
+  omitOpaqueIds: boolean,
 ): string | null {
   const strings = Object.entries(args).filter(
     (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim() !== "",
@@ -132,7 +141,10 @@ function summaryValue(
   for (const key of TELLING) {
     const telling = strings.find(([name]) => name === key);
     if (telling === undefined) continue;
-    const subject = summaryText(telling[1], depth);
+    const subject =
+      key === "command" || key === "cmd"
+        ? telling[1].trim()
+        : summaryText(telling[1], depth, omitOpaqueIds);
     if (subject !== null) return subject;
   }
   if (Array.isArray(args.filterGroups)) {
@@ -140,7 +152,7 @@ function summaryValue(
       if (!isRecord(group) || !Array.isArray(group.filters)) return [];
       return group.filters.flatMap((filter: unknown) => {
         if (!isRecord(filter) || typeof filter.value !== "string") return [];
-        const subject = summaryText(filter.value, 2);
+        const subject = summaryText(filter.value, 2, omitOpaqueIds);
         return subject === null ? [] : [subject];
       });
     });
@@ -152,13 +164,13 @@ function summaryValue(
     for (const key of ["task", "record", "data", "draft", "payload", "values"]) {
       const nested = args[key];
       if (!isRecord(nested)) continue;
-      const subject = summaryValue(nested, depth + 1, allowFallback);
+      const subject = summaryValue(nested, depth + 1, allowFallback, omitOpaqueIds);
       if (subject !== null) return subject;
     }
   }
   if (allowFallback) {
     for (const [, value] of strings) {
-      const subject = summaryText(value, depth);
+      const subject = summaryText(value, depth, omitOpaqueIds);
       if (subject !== null) return subject;
     }
   }

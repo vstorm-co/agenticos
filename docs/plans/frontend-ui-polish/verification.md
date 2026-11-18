@@ -35,23 +35,33 @@ this patch does not change them or cut a release.
   Wizards enter from the navigation direction. Reduced motion resolves the
   person's console preference against the operating system's preference.
 - Mobile gestures preserve release velocity when returning to rest, cancel on
-  system cancellation and respect reduced motion. Pull resistance increases
+  system cancellation and respect reduced motion. A preference change cancels an
+  armed swipe rather than changing its direction. Pull resistance increases
   beyond the refresh threshold; pending refreshes cannot be duplicated.
 - Swipe decisions read the live motion value rather than a possibly stale React
   render. A new disabled or rejection-only restriction is checked again on release.
 - Inbox previews retain the action/subject/requester hierarchy. Redacted calls
   never expose context or arguments. Bounded serialized search requests may
-  supply a readable subject; opaque UUIDs and arbitrary JSON do not become titles.
+  supply a readable subject; opaque UUIDs and arbitrary JSON do not become Inbox
+  titles. Decision cards retain opaque targets when a resource name is unavailable.
+  Literal commands are never decoded as JSON, and unparsed text stays visible.
 - Draft previews retain inert images and never evaluate raw HTML. Copy keeps the
   original source. Version selection stays accessible when revisions disappear.
-- Only credential refusals mark the password invalid and trigger a shake. Inline
+- Only credential refusals mark the password invalid and trigger a shake. The
+  existing authentication error code/status are preserved; a structured reason
+  distinguishes invalid local credentials, and directory sign-in uses its
+  existing credential-rejection code. Disabled accounts are not field errors. Inline
   errors remain available with reduced motion, input is preserved, and provider
-  outages are not presented as incorrect passwords.
+  outages are not presented as incorrect passwords. The email-login proxy preserves
+  the domain refusal envelope; real-browser login verified that the reason survives
+  both server hops before correcting the password and signing in successfully.
 
 ## Local checks
 
-- 293 tests across 27 explicitly selected unit/integration files passed. No full
-  application test suite was run locally.
+- 537 tests across 32 explicitly selected unit/integration files passed. No full
+  application test suite was run locally. Eleven focused backend authentication
+  and security-inventory tests also passed. A final auth-specific batch passed
+  163 tests across four files, including session-route and LDAP proxy contracts.
 - Focused coverage checks for the changed summary helpers, new hooks,
   disclosure primitive and gesture components reached 100% statements,
   functions and lines. Branch coverage exceeded the repository's 97.5% threshold.

@@ -245,7 +245,8 @@ it("preserves the expanded timeline DOM while parking, resuming and completing a
   rerender(draw("running", true));
   expect(screen.getByText("create_routine")).toBe(step);
   rerender(draw("completed", false));
-  expect(screen.queryByText("create_routine")).toBeNull();
+  expect(screen.getByText("create_routine")).toBe(step);
+  expect(step.closest("[inert]")).toHaveAttribute("aria-hidden", "true");
   expect(screen.queryByRole("region")).toBeNull();
 });
 

@@ -205,6 +205,24 @@ describe("SwipeToDecide", () => {
     expect(onReject).not.toHaveBeenCalled();
   });
 
+  it.each([1, -1])(
+    "cancels an armed gesture when reduced motion changes, direction=%s",
+    (direction) => {
+      const { target, onApprove, onReject } = row();
+      fireEvent.pointerDown(target, { pointerId: 1, pointerType: "touch", clientX: 0, clientY: 0 });
+      fireEvent.pointerMove(target, {
+        pointerId: 1,
+        pointerType: "touch",
+        clientX: direction * (SWIPE_THRESHOLD + 10),
+        clientY: 0,
+      });
+      act(() => useMotionStore.setState({ motion: "reduce" }));
+      fireEvent.pointerUp(target, { pointerId: 1, pointerType: "touch" });
+      expect(onApprove).not.toHaveBeenCalled();
+      expect(onReject).not.toHaveBeenCalled();
+    },
+  );
+
   it("stops a returning row and skips spring motion when the preference changes", async () => {
     const { target, onApprove, onReject } = row();
     fireEvent.pointerDown(target, { pointerId: 1, pointerType: "touch", clientX: 0, clientY: 0 });

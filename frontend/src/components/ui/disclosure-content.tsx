@@ -18,6 +18,7 @@ export function DisclosureContent({
   mountOnOpen = true,
   children,
   className,
+  style,
   ...props
 }: DisclosureContentProps) {
   const [visited, setVisited] = useState(open || !mountOnOpen);
@@ -35,6 +36,7 @@ export function DisclosureContent({
       {...props}
       ref={ref}
       className={cn("disclosure-content", className)}
+      style={{ ...style, visibility: open ? "visible" : "hidden" }}
       data-open={open}
       aria-hidden={!open}
       inert={!open}

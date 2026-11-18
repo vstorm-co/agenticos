@@ -199,7 +199,15 @@ describe("credential refusal feedback", () => {
   it.each([false, true])(
     "marks only rejected credentials, including directory=%s",
     async (directory) => {
-      vi.mocked(apiClient.post).mockRejectedValue(new ApiError(401, "Invalid credentials"));
+      vi.mocked(apiClient.post).mockRejectedValue(
+        new ApiError(401, "Invalid credentials", {
+          error: {
+            code: directory ? "DIRECTORY_CREDENTIALS_REJECTED" : "AUTHENTICATION_ERROR",
+            message: "Invalid credentials",
+            details: directory ? null : { reason: "invalid_credentials" },
+          },
+        }),
+      );
       mount();
       if (directory) await openDirectoryForm();
       await userEvent.type(
@@ -218,6 +226,34 @@ describe("credential refusal feedback", () => {
       await userEvent.click(screen.getByRole("button", { name: "Login" }));
       await screen.findByRole("alert");
       expect(password).toHaveAttribute("aria-invalid", "false");
+    },
+  );
+  it.each([false, true])(
+    "keeps a disabled-account 401 separate from the password, directory=%s",
+    async (directory) => {
+      vi.mocked(apiClient.post).mockRejectedValue(
+        new ApiError(401, "User account is disabled", {
+          error: {
+            code: "AUTHENTICATION_ERROR",
+            message: "User account is disabled",
+            details: null,
+          },
+        }),
+      );
+      mount();
+      if (directory) await openDirectoryForm();
+      await userEvent.type(
+        screen.getByLabelText(directory ? "Active Directory username" : "Email"),
+        directory ? "jdoe" : "ada@example.com",
+      );
+      const password = screen.getByLabelText("Password");
+      await userEvent.type(password, "correct-password");
+      await userEvent.click(screen.getByRole("button", { name: "Login" }));
+      await expect(screen.findByRole("alert")).resolves.toHaveTextContent(
+        "User account is disabled",
+      );
+      expect(password).toHaveAttribute("aria-invalid", "false");
+      expect(password).toHaveValue("correct-password");
     },
   );
 });

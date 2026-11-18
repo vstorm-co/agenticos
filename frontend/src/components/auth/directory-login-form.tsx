@@ -9,7 +9,7 @@ import { usePublicConfig } from "@/components/public-config/public-config-provid
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
-import { getErrorMessage, isTimeout } from "@/lib/api-error";
+import { credentialsRejected, getErrorMessage, isTimeout } from "@/lib/api-error";
 import { invitationFlowFrom } from "@/lib/invitation-links";
 import { useRejectedFieldMotion } from "@/hooks/use-rejected-field-motion";
 
@@ -47,7 +47,7 @@ export function DirectoryLoginForm({ onBack }: { onBack: () => void }) {
       await loginWithDirectory({ username, password }, returnTo, invitationFlowFrom(returnTo));
       toast.success(t("loginSuccess"));
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) setRejectedAttempts((count) => count + 1);
+      if (credentialsRejected(err)) setRejectedAttempts((count) => count + 1);
       else setRejectedAttempts(0);
       const message =
         err instanceof ApiError

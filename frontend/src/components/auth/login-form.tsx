@@ -14,7 +14,7 @@ import { returnToForAttempt } from "@/lib/oauth-return";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
-import { getErrorMessage, isTimeout } from "@/lib/api-error";
+import { credentialsRejected, getErrorMessage, isTimeout } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { registerHref } from "@/lib/invitation-links";
 import { EMAIL_RE } from "@/lib/utils";
@@ -66,7 +66,7 @@ export function LoginForm() {
       await login({ email, password }, returnTo);
       toast.success(t("loginSuccess"));
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) setRejectedAttempts((count) => count + 1);
+      if (credentialsRejected(err)) setRejectedAttempts((count) => count + 1);
       else setRejectedAttempts(0);
       const message =
         err instanceof ApiError

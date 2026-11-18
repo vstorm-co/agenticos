@@ -414,7 +414,9 @@ class UserService:
         stored = user.hashed_password if user and user.hashed_password else _DUMMY_HASH
         ok = await asyncio.to_thread(verify_password, password, stored)
         if not user or not user.hashed_password or not ok:
-            raise AuthenticationError(message="Invalid email or password")
+            raise AuthenticationError(
+                message="Invalid email or password", details={"reason": "invalid_credentials"}
+            )
         if not user.is_active:
             raise AuthenticationError(message="User account is disabled")
         return user
