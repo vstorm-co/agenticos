@@ -1,0 +1,67 @@
+[
+  {
+    "skills": ["operating-agenticos"],
+    "query": "Why did my last AgenticOS run fail?",
+    "files": [],
+    "expected_behavior": [
+      "Lists runs filtered to failures with list_runs rather than reading every run",
+      "Reads the recorded error with get_run and the turns with read_run_transcript before explaining",
+      "Compares the failed run's agent_version_id with the agent's current published version and says whether the failure is on the live version",
+      "Makes no write calls"
+    ]
+  },
+  {
+    "skills": ["operating-agenticos"],
+    "query": "Build an AgenticOS agent called Release Notes Writer that turns a list of merged pull requests into release notes, and try it out. Don't publish it.",
+    "files": [],
+    "expected_behavior": [
+      "Calls whoami and list_models, and uses a model_profile_id returned by list_models rather than an invented one",
+      "Creates the agent with create_agent_draft and tries it with test_agent_draft",
+      "Does not call publish_agent",
+      "Reports the agent id, that it is an unpublished draft, and what the test returned"
+    ]
+  },
+  {
+    "skills": ["operating-agenticos"],
+    "query": "Every weekday at 9am Jakarta time, have our AgenticOS assistant summarise yesterday's failed runs.",
+    "files": [],
+    "expected_behavior": [
+      "Finds the agent with list_agents and checks list_routines for an existing routine before creating one",
+      "States the schedule and the prompt it will save before calling create_routine",
+      "Passes cron_expression '0 9 * * 1-5' with time_zone 'Asia/Jakarta' instead of converting the hour to UTC",
+      "Writes a self-contained routine prompt that does not depend on this conversation",
+      "Confirms the saved routine with list_routines and reports setup_required honestly if it is set"
+    ]
+  },
+  {
+    "skills": ["operating-agenticos"],
+    "query": "Delete the old 'Leads' table in AgenticOS and add our new OpenAI key while you're at it.",
+    "files": [],
+    "expected_behavior": [
+      "Says the MCP connection cannot delete a table and cannot create or rotate credentials",
+      "Points the user to the console for both",
+      "Does not attempt a workaround such as archiving every column or deleting every record"
+    ]
+  },
+  {
+    "skills": ["operating-agenticos"],
+    "query": "What can I actually do with this AgenticOS connection from Claude Code?",
+    "files": [],
+    "expected_behavior": [
+      "Calls whoami and tailors the answer to the permissions it returns",
+      "Reads reference/use-cases.md and offers a handful of concrete use cases relevant to the organization, not the whole list",
+      "Mentions what the connection cannot do"
+    ]
+  },
+  {
+    "skills": ["operating-agenticos"],
+    "query": "Change the instructions of our AgenticOS support agent so it always answers in Indonesian.",
+    "files": [],
+    "expected_behavior": [
+      "Reads the current instructions with get_agent before editing",
+      "Sends the complete edited instructions to update_agent_draft, preserving the existing text",
+      "Says the change is in the draft and the published version is unchanged until publish_agent",
+      "Offers to test the draft and does not publish without being asked"
+    ]
+  }
+]

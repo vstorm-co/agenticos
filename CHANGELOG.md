@@ -21,6 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Ship a Claude plugin, `plugins/agenticos`, whose `operating-agenticos` skill guides Claude through the platform MCP server: choosing between agents, routines, watches, workflows and tables, the order of operations, safe-write rules, what the connection cannot do, and a catalogue of confirmed use cases. The repository is its own plugin marketplace: `claude plugin marketplace add vstorm-co/agenticos`.
 - Let external agent runs use the API key or OAuth token issuer's personal MCP connections with the explicit `mcp:personal:use` scope. Existing credentials and presets retain organization-only access; resumed runs and subagents retain the original caller, with live credential and connected-account checks before tool calls (#3154).
 - Delegate to subagents using each signed-in web chat caller's personal LLM keys for the exact model profile selected on a personal-mode root. Organization-mode parents cannot spend personal delegate keys; inline specialists inherit their parent's mode. Missing connections stop the run without borrowing an organization key, and approval resumes recheck the original caller's connections (#3155).
 
