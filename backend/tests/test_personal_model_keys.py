@@ -126,6 +126,10 @@ async def test_delegation_is_allowed_but_separate_step_models_are_refused() -> N
         }
     )
     assert "separate capability models" in personal_model_problems(chosen)[0]
+    with pytest.raises(BadRequestError) as refused:
+        require_personal_model_run(chosen, context(), RunSurface.WEB)
+    assert refused.value.code == "PERSONAL_MODEL_CONFIGURATION"
+    assert "separate capability models" in refused.value.message
 
 
 def test_personal_profile_rejects_non_key_credentials_fallbacks_and_non_chat_models() -> None:

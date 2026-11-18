@@ -3054,6 +3054,22 @@ class _ModelCatalog:
     """Each profile resolved so far, by id - `None` for one that did not resolve."""
 
 
+@dataclass
+class _PersonalMcpDelegation:
+    """One original credential, retained only if the assembled tree reaches personal MCP."""
+
+    validate: Callable[[], Awaitable[None]]
+    required: bool = False
+
+    async def require_for(self, refs: Sequence[McpServerRef]) -> None:
+        self.required = self.required or any(isinstance(ref, PersonalMcpServerRef) for ref in refs)
+        await self.check()
+
+    async def check(self) -> None:
+        if self.required:
+            await self.validate()
+
+
 @dataclass(frozen=True)
 class _Delegation:
     """What every level of one run's delegation tree is resolved against.
@@ -3145,7 +3161,7 @@ class _Delegation:
     """The run's isolation, when it is an eval, which every level of the tree is under."""
     personal_model_root: AgentSpec
     """The model selected in the root chat; delegates cannot widen personal spending."""
-    personal_mcp_check: Callable[[], Awaitable[None]] | None = None
+    personal_mcp: _PersonalMcpDelegation | None = None
     personal_models_blocked: bool = False
     """Public input, voice or a local model replacement cannot spend personal keys."""
     output_screen: ScreenedStream | None = None
@@ -4546,7 +4562,7 @@ class AgentRunnerService:
             if acts_for_sender and not subject_is_publisher_fallback
             else None
         )
-        personal_mcp_check = None
+        personal_mcp = None
         if existing_run is None and surface is RunSurface.API and ctx.may_delegate_personal_mcp:
             personal_mcp_key_id = ctx.api_key_id
         if personal_mcp_key_id is not None:
@@ -4559,13 +4575,15 @@ class AgentRunnerService:
                 or (existing_run is None and not ctx.key_allows(Perm.MCP_PERSONAL_USE))
             ):
                 raise AuthorizationError(message="This run cannot use delegated personal MCP")
-            personal_mcp_check = _personal_mcp_check(
-                personal_mcp_key_id,
-                user_id=person,
-                organization_id=ctx.organization_id,
-                agent_id=agent.id,
+            personal_mcp = _PersonalMcpDelegation(
+                _personal_mcp_check(
+                    personal_mcp_key_id,
+                    user_id=person,
+                    organization_id=ctx.organization_id,
+                    agent_id=agent.id,
+                )
             )
-            await personal_mcp_check()
+            await personal_mcp.require_for(spec.mcp_servers)
             personal_mcp_user_id = person
         # Whether a signed-in person is behind this run even where a personal
         # binding may not speak through their account - true on the API, where a
@@ -4596,7 +4614,7 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             refs=spec.mcp_servers,
             sender_user_id=personal_mcp_user_id,
-            recheck_sources=personal_mcp_check is not None,
+            recheck_sources=personal_mcp is not None,
             test_connections=test_connections.mcp,
             personal_sources=personal_sources,
             organization_sources=admitted_mcp_sources,
@@ -4622,9 +4640,9 @@ class AgentRunnerService:
         if model_spec is not None:
             _require_history_provenance(expected_history_provenance, history_provenance)
         spec_toolsets: list[AbstractToolset[object]] = resolved.toolsets
-        if personal_mcp_check is not None:
+        if personal_mcp is not None:
             spec_toolsets = [
-                AuthorityChecked(wrapped=tools, check=personal_mcp_check) for tools in spec_toolsets
+                AuthorityChecked(wrapped=tools, check=personal_mcp.check) for tools in spec_toolsets
             ]
         if routine is not None and routine.routine_kind == "trigger":
             spec_toolsets = [
@@ -5199,7 +5217,7 @@ class AgentRunnerService:
             surface=surface,
             user_name=user_name,
             personal_mcp_user_id=personal_mcp_user_id,
-            personal_mcp_check=personal_mcp_check,
+            personal_mcp=personal_mcp,
             sender_present=sender_present,
             resources=resources,
             approvals=channel,
@@ -5498,7 +5516,9 @@ class AgentRunnerService:
                 approval_mode=approval_mode,
                 local=local,
                 acts_for_sender=acts_for_sender,
-                personal_mcp_key_id=personal_mcp_key_id,
+                personal_mcp_key_id=personal_mcp_key_id
+                if personal_mcp is not None and personal_mcp.required
+                else None,
                 audience_user_id=audience.user_id,
                 audience_room_key=audience.room_key,
                 audience_writes_memory=audience.writes_memory,
@@ -5556,7 +5576,7 @@ class AgentRunnerService:
         routine_check: RoutineCheck | None = None,
         routine_action_check: RoutineToolCheck | None = None,
         routine_sources: dict[UUID, McpSourceIdentity] | None = None,
-        personal_mcp_check: Callable[[], Awaitable[None]] | None = None,
+        personal_mcp: _PersonalMcpDelegation | None = None,
     ) -> SubagentRuntime | None:
         """The delegation tree this run may reach, or `None` if it delegates to none.
 
@@ -5620,7 +5640,7 @@ class AgentRunnerService:
             user_id=None if ctx.user_id is None else str(ctx.user_id),
             user_name=user_name,
             personal_mcp_user_id=personal_mcp_user_id,
-            personal_mcp_check=personal_mcp_check,
+            personal_mcp=personal_mcp,
             sender_present=sender_present,
             approvals=approvals,
             budget=budget,
@@ -6045,9 +6065,7 @@ class AgentRunnerService:
             agent_id=None,
             shared=shared,
             parent_resources=resources,
-            person_id=delegation.personal_mcp_user_id
-            if delegation.personal_mcp_check is None
-            else None,
+            person_id=delegation.personal_mcp_user_id if delegation.personal_mcp is None else None,
             authorities=delegation.stash.mirage_authorities,
             restoring=delegation.stash.restoring_mirage,
         )
@@ -6178,9 +6196,7 @@ class AgentRunnerService:
             agent_id=ref.agent_id,
             shared=shared,
             parent_resources=resources,
-            person_id=delegation.personal_mcp_user_id
-            if delegation.personal_mcp_check is None
-            else None,
+            person_id=delegation.personal_mcp_user_id if delegation.personal_mcp is None else None,
             authorities=delegation.stash.mirage_authorities,
             restoring=delegation.stash.restoring_mirage,
         )
@@ -6251,14 +6267,14 @@ class AgentRunnerService:
         # Recorded now so the child's run row can name the model that answered.
         delegation.attribution[ref.agent_version_id] = model
         runnable, test_bindings = _with_test_secrets(runnable, delegation.test_connections.secrets)
-        if delegation.personal_mcp_check is not None:
-            await delegation.personal_mcp_check()
+        if delegation.personal_mcp is not None:
+            await delegation.personal_mcp.require_for(runnable.mcp_servers)
         resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
             refs=runnable.mcp_servers,
             sender_user_id=delegation.personal_mcp_user_id,
-            recheck_sources=delegation.personal_mcp_check is not None,
+            recheck_sources=delegation.personal_mcp is not None,
             test_connections=delegation.test_connections.mcp,
             personal_sources=delegation.routine_sources,
             organization_sources=delegation.routine_sources,
@@ -6268,9 +6284,9 @@ class AgentRunnerService:
             platform_credential=await self._platform_credential(runnable, ctx, delegation.run),
         )
         toolsets: list[AbstractToolset[Any]] = resolved.toolsets
-        if delegation.personal_mcp_check is not None:
+        if delegation.personal_mcp is not None:
             toolsets = [
-                AuthorityChecked(wrapped=tools, check=delegation.personal_mcp_check)
+                AuthorityChecked(wrapped=tools, check=delegation.personal_mcp.check)
                 for tools in toolsets
             ]
         # Briefed like the parent: a delegate may bind a service the parent does

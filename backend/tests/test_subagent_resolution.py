@@ -2802,7 +2802,10 @@ async def test_nested_delegates_retain_an_inherited_shared_computer_requirement(
 
 
 @pytest.mark.security
-async def test_personal_mcp_delegation_keeps_the_same_subject_and_call_guard_in_a_delegate():
+@pytest.mark.parametrize("nested", [False, True])
+async def test_personal_mcp_delegation_keeps_the_same_subject_and_call_guard_in_a_delegate(
+    nested: bool,
+):
     from pydantic_ai.toolsets import FunctionToolset
 
     from app.agents.mcp import AuthorityChecked
@@ -2820,7 +2823,24 @@ async def test_personal_mcp_delegation_keeps_the_same_subject_and_call_guard_in_
             mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
         ),
     )
-    spec = _delegating(subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)])
+    versions = {pinned.id: pinned}
+    if nested:
+        middle_id = uuid.uuid4()
+        middle = _version(
+            middle_id,
+            _delegating(
+                name="Middle",
+                subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)],
+            ),
+        )
+        versions[middle.id] = middle
+        spec = _delegating(
+            max_depth=2, subagents=[SubagentRef(agent_id=middle_id, agent_version_id=middle.id)]
+        )
+    else:
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
     check = AsyncMock()
     with (
         patch(f"{RUNNER}._personal_mcp_check", return_value=check),
@@ -2830,12 +2850,19 @@ async def test_personal_mcp_delegation_keeps_the_same_subject_and_call_guard_in_
         ) as tools,
         patch.object(AgentRunnerService, "_add_mirage_terminal", new=AsyncMock()) as terminal,
     ):
-        prepared = await _prepare(spec, ctx=ctx, versions={pinned.id: pinned})
-        built = prepared.built("personal-reader")
+        prepared = await _prepare(spec, ctx=ctx, versions=versions)
+        built = (
+            prepared.built("middle", "personal-reader")
+            if nested
+            else prepared.built("personal-reader")
+        )
     assert all(call.kwargs["sender_user_id"] == ctx.user_id for call in tools.await_args_list)
     wrapped = built["extra_toolsets"][0]
     assert isinstance(wrapped, AuthorityChecked)
-    assert wrapped.check is check
+    assert prepared.prepared.admitted_as.personal_mcp_key_id == ctx.api_key_id
+    check.reset_mock()
+    await wrapped.check()
+    check.assert_awaited_once()
     assert all(call.kwargs["person_id"] is None for call in terminal.await_args_list)
 
 
@@ -2978,6 +3005,60 @@ async def test_a_saved_delegate_key_does_not_replace_the_chat_models_consent(
         await _prepare(parent, ctx=ctx, surface=RunSurface.WEB, versions={child.id: child})
     assert refused.value.code == "PERSONAL_MODEL_CONSENT"
     assert "unapproved-delegate-key" not in str(refused.value)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("code", ["PERSONAL_MODEL_KEY_REQUIRED", "PERSONAL_MODEL_PROFILE"])
+async def test_delegate_key_refusals_explain_missing_keys_and_preserve_other_errors(
+    personal_models: _PersonalModels,
+    code: str,
+) -> None:
+    ctx = _ctx()
+    profile = personal_models.profile()
+    personal_models.connect(ctx, profile, "parent-key")
+    child_id = uuid.uuid4()
+    child = _version(
+        child_id,
+        AgentSpec(
+            name="Private reader", model_profile_id=profile.id, model_credential_mode="personal"
+        ),
+    )
+    root = _delegating(
+        model_profile_id=profile.id,
+        model_credential_mode="personal",
+        subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+    )
+    from app.services.personal_model_key import PersonalModelKeyService
+
+    original = PersonalModelKeyService.resolve
+    failure = AuthorizationError(
+        message="Personal profile unavailable", code=code, details={"reason": "unavailable"}
+    )
+    calls = 0
+
+    async def resolve(
+        service: PersonalModelKeyService, context: AuthContext, chosen: ModelProfile
+    ) -> ModelRequestSpec:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return await original(service, context, chosen)
+        raise failure
+
+    with (
+        patch.object(PersonalModelKeyService, "resolve", resolve),
+        pytest.raises(AuthorizationError) as refused,
+    ):
+        await _prepare(root, ctx=ctx, surface=RunSurface.WEB, versions={child.id: child})
+    assert refused.value.code == code
+    assert refused.value.details == failure.details
+    if code == "PERSONAL_MODEL_KEY_REQUIRED":
+        assert "Private reader" in refused.value.message
+        assert profile.label in refused.value.message
+        assert "Connect your own model API key" in refused.value.message
+    else:
+        assert refused.value is failure
+    assert "parent-key" not in str(refused.value)
 
 
 async def test_inline_and_dynamic_specialists_keep_the_personal_model_contract(

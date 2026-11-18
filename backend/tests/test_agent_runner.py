@@ -846,8 +846,11 @@ class TestPrepare:
     @pytest.mark.anyio
     @pytest.mark.security
     @pytest.mark.parametrize("delegated", [False, True])
+    @pytest.mark.parametrize("personal_binding", [False, True])
     async def test_a_key_can_delegate_mcp_without_opening_other_personal_state(
-        self, delegated: bool
+        self,
+        delegated: bool,
+        personal_binding: bool,
     ):
         """Codex on #2062: a key acts for its issuer, but whoever holds it is not
         them - so no memory, conversation search, kept sign-in or `user`-scoped
@@ -867,7 +870,18 @@ class TestPrepare:
                 service.registry,
                 "get_runnable_spec",
                 new=AsyncMock(
-                    return_value=(agent, AgentSpec(name="Script"), agent.current_version_id)
+                    return_value=(
+                        agent,
+                        AgentSpec(
+                            name="Script",
+                            mcp_servers=[
+                                PersonalMcpServerRef(account="personal", catalog_key="notion")
+                            ]
+                            if personal_binding
+                            else [],
+                        ),
+                        agent.current_version_id,
+                    )
                 ),
             ),
             patch.object(
@@ -891,8 +905,10 @@ class TestPrepare:
         assert opened.await_args.kwargs["identity"].user_id is None
 
         assert toolsets.await_args.kwargs["sender_user_id"] == (ctx.user_id if delegated else None)
-        assert prepared.admitted_as.personal_mcp_key_id == (ctx.api_key_id if delegated else None)
-        assert check.await_count == int(delegated)
+        assert prepared.admitted_as.personal_mcp_key_id == (
+            ctx.api_key_id if delegated and personal_binding else None
+        )
+        assert check.await_count == int(delegated and personal_binding)
         assert prepared.admitted_as.acts_for_sender is False
 
         assert terminal.await_args.kwargs["person_id"] is None
@@ -4509,6 +4525,7 @@ class TestResume:
         started_at: datetime | None = None,
         resumer: AuthContext | None = None,
         run_key_scopes: list[str] | None = None,
+        spec: AgentSpec | None = None,
     ) -> MagicMock:
         """Resume a parked run and hand back the `build_agent` mock.
 
@@ -4516,6 +4533,9 @@ class TestResume:
         is what the *continuation* was built with, which is decided before any of
         it matters.
         """
+        version = self._version()
+        if spec is not None:
+            version.spec = spec.model_dump(mode="json")
         service = AgentRunnerService(_db())
         approval = self._approval(status=ApprovalStatus.REJECTED.value, tool_args={}, note="no")
         # `orphaned` is a run whose member was deleted: `SET NULL` cleared its owner.
@@ -4567,7 +4587,7 @@ class TestResume:
             ),
             patch(
                 "app.services.agent_runner.agent_repo.get_version",
-                new=AsyncMock(return_value=self._version()),
+                new=AsyncMock(return_value=version),
             ),
             patch("app.services.agent_runner.build_agent", return_value=self._built()) as build,
             patch(
@@ -4973,8 +4993,11 @@ class TestResume:
     @pytest.mark.anyio
     @pytest.mark.security
     @pytest.mark.parametrize("limited_key", [False, True])
+    @pytest.mark.parametrize("personal_binding", [False, True])
     async def test_api_mcp_resume_uses_the_original_key_and_owner_not_the_approver(
-        self, limited_key: bool
+        self,
+        limited_key: bool,
+        personal_binding: bool,
     ):
         resumer = (
             replace(
@@ -4996,6 +5019,12 @@ class TestResume:
         ):
             await self._resumed(
                 surface=RunSurface.API,
+                spec=AgentSpec(
+                    name="API",
+                    mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")]
+                    if personal_binding
+                    else [],
+                ),
                 resumer=resumer,
                 run_key_scopes=[Perm.AGENTS_RUN.value, Perm.MCP_PERSONAL_USE.value],
                 paused_state={
@@ -5008,11 +5037,14 @@ class TestResume:
         assert self.resumed_run.user_id != self.resumer.user_id
         assert factory.call_args.kwargs["user_id"] == self.resumed_run.user_id
         assert toolsets.await_args.kwargs["sender_user_id"] == self.resumed_run.user_id
-        check.assert_awaited_once()
+        assert check.await_count == int(personal_binding)
 
     @pytest.mark.anyio
     @pytest.mark.security
-    async def test_revoked_personal_mcp_delegation_stops_resume_before_connecting(self):
+    @pytest.mark.parametrize("personal_binding", [False, True])
+    async def test_revoked_personal_mcp_delegation_stops_resume_before_connecting(
+        self, personal_binding: bool
+    ):
         from app.core.exceptions import AuthenticationError
 
         with (
@@ -5020,18 +5052,27 @@ class TestResume:
                 "app.services.agent_runner._personal_mcp_check",
                 return_value=AsyncMock(side_effect=AuthenticationError(message="Revoked")),
             ),
-            patch("app.services.agent_runner.build_toolsets_for_agent", new=AsyncMock()) as tools,
-            pytest.raises(AuthenticationError),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ) as tools,
+            pytest.raises(AuthenticationError) if personal_binding else nullcontext(),
         ):
             await self._resumed(
                 surface=RunSurface.API,
+                spec=AgentSpec(
+                    name="API",
+                    mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")]
+                    if personal_binding
+                    else [],
+                ),
                 paused_state={
                     "messages": [],
                     "tool_call_ids": {},
                     "admitted_as": {"personal_mcp_key_id": str(uuid.uuid4())},
                 },
             )
-        tools.assert_not_awaited()
+        assert tools.await_count == int(not personal_binding)
 
     @pytest.mark.anyio
     async def test_the_audience_is_the_runs_own_not_the_approvers(self):
