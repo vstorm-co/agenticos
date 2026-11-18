@@ -1,5 +1,5 @@
 ---
-source_sha: "ef5a787328c9"
+source_sha: "b8c1a4d65015"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -412,6 +412,14 @@ son espacios en blanco, y necesita al menos un límite.
 Una comprobación `judge` es un criterio solo para un caso, calificado en el
 mismo run del juez que la rúbrica del dataset. Úsala para lo que una regla no
 puede expresar, como "se niega y no revela la dirección del cliente".
+
+Cada comprobación admite un `family` opcional (como máximo 80 caracteres): lo que
+prueba en todo el dataset, como `total including VAT` en la regex de cada caso
+para su propio importe. Una comparación cuenta juntas las comprobaciones de una
+familia, caso por caso, así que un cambio se juzga por lo que se movió en todo el
+dataset y no por el patrón de un caso. Una comprobación sin familia es una
+familia propia; una con familia puntúa, y calcula la huella de su puntuación,
+exactamente igual que antes.
 
 ### Llamadas a herramientas esperadas { #trajectory }
 

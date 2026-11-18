@@ -276,7 +276,10 @@ from recent answers, each question is asked once: an answer someone rated wins
 over one that only failed, so one question never asks for an answer and forbids
 it too.
 
-Then the agent's own questions:
+Then the agent's own questions, from the dataset its newest
+[Improve session](authoring.md#the-improve-wizard) measures on when that dataset
+tests it, and otherwise the first dataset testing it. A set kept back for a final
+measurement is so never asked by a skill check while the agent improves on another.
 
 - **Quick**, the default: four questions of the agent's dataset - more when the
   skill's own held-out questions are too few for the five a result needs - whose

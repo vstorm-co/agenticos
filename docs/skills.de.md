@@ -1,5 +1,5 @@
 ---
-source_sha: "54b551bbe389"
+source_sha: "19d422f1ab94"
 ---
 
 # Skills { #skills }
@@ -305,7 +305,11 @@ positiv bewertet haben. Aus jüngsten Antworten angelegt, wird jede Frage einmal
 gestellt: Eine Antwort, die jemand bewertet hat, gewinnt gegen eine, die nur
 fehlschlug, so verlangt eine Frage nie eine Antwort und verbietet sie zugleich.
 
-Dann die eigenen Fragen des Agents:
+Dann die eigenen Fragen des Agents, aus dem Dataset, auf dem seine neueste
+[Improve-Sitzung](authoring.md#the-improve-wizard) misst, wenn dieses Dataset ihn
+testet, und sonst aus dem ersten Dataset, das ihn testet. Ein Satz, der für eine
+abschließende Messung zurückgehalten wird, wird so nie von einer Skill-Prüfung
+gefragt, während sich der Agent auf einem anderen verbessert.
 
 - **Quick**, der Standard: vier Fragen aus dem Dataset des Agents - mehr, wenn die
   eigenen Held-out-Fragen des Skills für die fünf, die ein Ergebnis braucht, nicht

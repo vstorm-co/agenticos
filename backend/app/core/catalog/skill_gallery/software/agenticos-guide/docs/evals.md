@@ -393,6 +393,12 @@ environment with the same `from_recordings` and `live_reads`, and it finished wi
 `EVAL_BASELINE_CACHE_HOURS`. The run says which run it reused. Only its first
 answers are reused: a case that flips is asked of it again in this run.
 
+A baseline that is the agent's draft - what an Improve session measures each
+attempt against - is matched by the draft's exact fingerprint, and only when the
+earlier run left out exactly the same cases. A session leaves out its own evidence
+in every check, so while the draft is unchanged the baseline answers once per
+session. A published baseline with cases left out is never reused.
+
 ### A flip is confirmed before it counts { #a-flip-is-confirmed-before-it-counts }
 
 A case that flipped is rerun `EVAL_RERUNS` times (2 by default) when the first
@@ -412,22 +418,31 @@ confirm the drift.
 
 A case passes only when every criterion it is graded on passes - each check,
 judge criterion, expected tool call and reference grade - so a change that
-fixes one of a case's several failing criteria flips no case. A case where
-any criterion graded on both sides flipped is rerun as well, and the
+fixes one of a case's several failing criteria flips no case. The
 comparison's `criteria` lists, per criterion, how many cases both sides
-graded on it, how many each side passed on its first answer, and the
-fixes and breaks confirmed the same way as a case's: every rerun on both
-sides repeats them.
+graded on it, how many each side passed on its first answer, and the fixes
+and breaks every rerun on both sides repeated. It lists at most 200: past
+that, every criterion that moved comes first, then the ones failing most
+often.
 
-The comparison lists at most 200 criteria: past that, every criterion
-that moved comes first, then the ones failing most often.
+Criteria are also counted by **family**: the checks and judge criteria that
+test one thing across the dataset, named by a check's
+[`family`](datasets.md#checks). A criterion whose check names none is a family
+of its own. A family passes in a case when every criterion of it does there, and
+the comparison's `families` lists, per family, the cases both sides graded,
+how many each side passed, and the cases it flipped on.
+
+A family is **settled**
+when its own flipped cases are enough for an exact McNemar test to tell which
+way it moved; then every flip counts. A family that moved on two cases or more
+without being settled has those cases rerun, and only the flips every rerun
+repeated count. A family that moved on one case decides nothing and sends
+nothing to be asked again. Beside the cases whose outcome flipped, these are the
+only cases rerun.
 
 The verdict below stays about whole cases; an
 [Improve session](authoring.md#the-improve-wizard) and a
-[skill check](skills.md#the-rule) read the criteria when no case flipped.
-Asking those cases again costs more than a check that reruns flipped cases
-alone, and stays within its price ceiling, which already assumes every case
-is asked again.
+[skill check](skills.md#the-rule) read the families when no case flipped.
 
 A run compared with a baseline needs at least one rerun; a run with
 none may skip them. A run compared with an earlier run it never asked again -

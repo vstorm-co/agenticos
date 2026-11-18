@@ -1,5 +1,5 @@
 ---
-source_sha: "32a6c0a170f0"
+source_sha: "b716ae4cacc5"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -210,7 +210,7 @@ Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingab
 
 Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats und Fälle ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
 
-Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat. Der Kontext früherer Versuche enthält begrenzte Auszüge aus höchstens sechs zuletzt gemessenen Versuchen, damit lange Änderungen an Anweisungen oder Skill-Inhalten nicht den Prompt des nächsten Vorschlags füllen.
+Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat.
 
 Eine menschliche Entscheidung und **Entscheidung zurücknehmen** verwerfen abhängige Run-Vergleiche und berechnen gespeicherte Suite-Ergebnisse in derselben Transaktion neu. Run, Suite, Umgebungsschranke und Beförderungsdialog zeigen das korrigierte Urteil und die prüfende Person. Das Audit hält alte und neue Zustände sowie Zählwerte fest; ein geändertes Suite-Urteil erzeugt eine neue Benachrichtigung. Namen werden aus der aktuellen Organisationsmitgliedschaft aufgelöst und nicht in aufbewahrte Ergebnisse kopiert.
 
@@ -386,18 +386,6 @@ Ein Bewerterkriterium kann für alle Fälle oder nur für Fälle mit mindestens 
 
 ## Mit einer Baseline vergleichen { #comparing-with-a-baseline }
 
-`criterion_change` ist die Zahl bestätigter Kriterienkorrekturen abzüglich bestätigter Verschlechterungen, geteilt durch alle paarweise verglichenen Kriterienbewertungen. Sie wird vor der Begrenzung der Antwortdetails berechnet. Wenn ganze Fragen unverändert bleiben und mehrere Versuche nur Kriterien verbessern, bevorzugt Improve die größere normalisierte Kriterienänderung; bei exaktem Gleichstand bleibt der frühere Versuch. Bei ungültigen Vergleichen werden Kriterienänderungen weder aggregiert noch zurückgegeben. Nicht vergleichbare Baselines lösen keine kostenpflichtigen Bestätigungswiederholungen aus.
-
-Kriteriennamen, Einzelbewertungen und Skill-Zuordnungen erfordern `runs:view`, Zugriff auf den festgelegten Datensatz der Sitzung und auf jeden genannten Skill. Details einer Skill-Prüfung erfordern Zugriff auf alle beteiligten Datensätze. Verborgene oder fehlende Quellen blenden diese Details aus, ohne gespeicherte Ergebnisse zu ändern. Ergebnisbenachrichtigungen prüfen die aktuellen Zugriffsrechte des Empfängers, bevor sie Kriteriendetails enthalten. Gespeicherte Benachrichtigungen mit Kriteriendetails prüfen diese Quellen beim Lesen des Posteingangs und vor einer verzögerten Zustellung erneut; fehlende Herkunftsdaten oder entzogener Zugriff blenden die Benachrichtigung aus.
-
-Gespeicherte Skill-Quellen verwenden stabile IDs: Eine Umbenennung behält die Identität bei; Löschen und erneutes Verwenden des Namens stellt keinen Zugriff auf alte Belege wieder her. Kriteriendetails einer Sitzung mit benanntem Skill, aber ohne ursprüngliche Skill-ID bleiben ebenfalls verborgen. Der optionale angezeigte Skill-Name gewährt keinen Zugriff: Die ursprüngliche ID wird auch ohne Bezeichnung geprüft.
-
-Interaktive Vergleichsabrufe erlauben bis zu 30 Anfragen pro Person und 60 pro Organisation und Minute; je Organisation wird jeweils ein Vergleich ausgeführt. Konsole und API teilen diese Grenzen. Überschüssige oder gleichzeitige Anfragen erhalten HTTP 429 mit `Retry-After`; Clients sollen vor dem Wiederholen warten. Gemeinsames Redis koordiniert die Worker; bei einem Ausfall bleibt je Worker eine lokale Begrenzung bestehen. Manuelle Bewertungsänderungen für Eval-Antworten nutzen dasselbe Budget und dieselbe Sperre, nach Prüfung des Datensatzzugriffs und vor Änderungen an der Bewertung oder gespeicherten Ergebnissen.
-
-Leser benötigen `runs:view`, bevor sie die Parallelitätssperre belegen oder Kontingent verbrauchen. Aktive Vergleiche erneuern ihre Sperren; der Ablauf nach 120 Sekunden gibt Sperren abgestürzter Prozesse frei. Eine fehlgeschlagene Redis-Erneuerung wird protokolliert und behält die lokale Worker-Sperre bei.
-
-Ablehnungen wegen eines laufenden Vergleichs verbrauchen die Minutenkontingente nicht. Die Konsole pausiert Abfragen bis zum Ablauf von `Retry-After`.
-
 Ein Vergleich ordnet beide Seiten Fall für Fall über die stabile ID des Falls
 zu und meldet jeden Fall als **Regression** (bestanden, jetzt nicht mehr),
 **behoben** (nicht bestanden, jetzt bestanden), unverändert oder unvollständig.
@@ -445,6 +433,13 @@ innerhalb von `EVAL_BASELINE_CACHE_HOURS` fertig wurde. Der Run nennt den Run, d
 wiederverwendet hat. Nur seine ersten Antworten werden wiederverwendet: Ein Fall,
 der kippt, wird ihm in diesem Run erneut gestellt.
 
+Eine Baseline, die der Entwurf des Agents ist - das, woran eine Improve-Sitzung
+jeden Versuch misst -, wird über den exakten Fingerabdruck des Entwurfs
+zugeordnet, und nur, wenn der frühere Run genau dieselben Fälle ausgelassen hat.
+Eine Sitzung lässt bei jeder Prüfung ihre eigenen Belege aus, sodass die
+Baseline, solange der Entwurf unverändert bleibt, einmal pro Sitzung antwortet.
+Eine veröffentlichte Baseline mit ausgelassenen Fällen wird nie wiederverwendet.
+
 ### Ein Kippen wird bestätigt, bevor es zählt { #a-flip-is-confirmed-before-it-counts }
 
 Ein gekippter Fall wird `EVAL_RERUNS` Mal (standardmäßig 2) wiederholt, sobald
@@ -466,23 +461,35 @@ Kandidaten allein bestätigen die Drift.
 Ein Fall besteht erst, wenn jedes Kriterium besteht, nach dem er bewertet wird -
 jeder Check, jedes Kriterium des Bewerters, jeder erwartete Tool-Aufruf und jede
 Bewertung gegen die Referenzantwort -, daher lässt eine Änderung, die eines von
-mehreren nicht erfüllten Kriterien eines Falls behebt, keinen Fall kippen. Ein
-Fall, in dem irgendein auf beiden Seiten bewertetes Kriterium gekippt ist, wird
-ebenfalls wiederholt, und `criteria` des Vergleichs nennt für jedes Kriterium,
-auf wie vielen Fällen beide Seiten es bewertet haben, wie viele davon jede Seite
-mit ihrer ersten Antwort bestanden hat, und die Behebungen und
-Verschlechterungen, die genauso bestätigt werden wie bei einem Fall: Jede
-Wiederholung auf beiden Seiten wiederholt sie.
+mehreren nicht erfüllten Kriterien eines Falls behebt, keinen Fall kippen.
+`criteria` des Vergleichs nennt für jedes Kriterium, auf wie vielen Fällen beide
+Seiten es bewertet haben, wie viele davon jede Seite mit ihrer ersten Antwort
+bestanden hat, und die Behebungen und Verschlechterungen, die jede Wiederholung
+auf beiden Seiten wiederholt hat. Die Liste nennt höchstens 200: Darüber hinaus
+zuerst jedes Kriterium, das sich bewegt hat, dann die am häufigsten nicht
+erfüllten.
 
-Der Vergleich nennt höchstens 200 Kriterien: Darüber hinaus zuerst jedes
-Kriterium, das sich bewegt hat, dann die am häufigsten nicht erfüllten.
+Kriterien werden auch nach **Familie** gezählt: den Checks und Kriterien des
+Bewerters, die eine Sache über das ganze Dataset hinweg prüfen, benannt durch
+die [`family`](datasets.md#checks) eines Checks. Ein Kriterium, dessen Check
+keine nennt, ist eine eigene Familie. Eine Familie besteht in einem Fall, wenn
+dort jedes ihrer Kriterien besteht, und `families` des Vergleichs nennt für jede
+Familie die Fälle, die beide Seiten bewertet haben, wie viele davon jede Seite
+bestanden hat, und die Fälle, auf denen sie gekippt ist.
+
+Eine Familie ist
+**entschieden**, wenn ihre eigenen gekippten Fälle ausreichen, damit ein exakter
+McNemar-Test sagen kann, in welche Richtung sie sich bewegt hat; dann zählt jedes
+Kippen. Bei einer Familie, die sich auf zwei oder mehr Fällen bewegt hat, ohne
+entschieden zu sein, werden diese Fälle wiederholt, und nur ein Kippen, das jede
+Wiederholung wiederholt hat, zählt. Eine Familie, die sich auf einem Fall bewegt
+hat, entscheidet nichts und lässt keinen Fall erneut fragen. Neben den Fällen,
+deren Ergebnis gekippt ist, sind dies die einzigen wiederholten Fälle.
 
 Das Urteil unten bleibt bei
 ganzen Fällen; eine [Improve-Sitzung](authoring.md#the-improve-wizard) und eine
-[Skill-Prüfung](skills.md#the-rule) lesen die Kriterien, wenn kein Fall gekippt
-ist. Diese Fälle erneut zu fragen kostet mehr als eine Prüfung, die nur gekippte
-Fälle wiederholt, und bleibt innerhalb ihrer Preisobergrenze, die ohnehin
-annimmt, dass jeder Fall erneut gefragt wird.
+[Skill-Prüfung](skills.md#the-rule) lesen die Familien, wenn kein Fall gekippt
+ist.
 
 Ein Run, der mit einer Baseline verglichen wird, braucht mindestens eine
 Wiederholung; ein Run ohne Baseline darf sie überspringen. Ein Run, der mit

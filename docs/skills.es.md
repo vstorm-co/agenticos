@@ -1,5 +1,5 @@
 ---
-source_sha: "54b551bbe389"
+source_sha: "19d422f1ab94"
 ---
 
 # Skills { #skills }
@@ -294,7 +294,11 @@ valoraron bien. Creado a partir de respuestas recientes, cada pregunta se hace u
 vez: una respuesta que alguien valoró gana a una que solo falló, así que una
 pregunta nunca pide una respuesta y a la vez la prohíbe.
 
-Después, las preguntas del propio agent:
+Después, las preguntas del propio agent, del dataset con el que mide su
+[sesión de Improve](authoring.md#the-improve-wizard) más reciente cuando ese
+dataset lo prueba, y si no, del primer dataset que lo prueba. Así, un conjunto
+reservado para una medición final nunca lo pregunta una comprobación de skill
+mientras el agent mejora con otro.
 
 - **Quick**, por defecto: cuatro preguntas del dataset del agent - más cuando las
   preguntas held-out del propio skill no llegan a las cinco que necesita un

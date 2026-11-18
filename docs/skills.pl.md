@@ -1,5 +1,5 @@
 ---
-source_sha: "54b551bbe389"
+source_sha: "19d422f1ab94"
 ---
 
 # Skille { #skills }
@@ -286,7 +286,11 @@ górę. Zestaw z ostatnich odpowiedzi zadaje każde pytanie raz: odpowiedź, kt�
 ktoś ocenił, wygrywa z taką, która tylko się nie udała, więc jedno pytanie nigdy
 nie wymaga odpowiedzi i jednocześnie jej nie zabrania.
 
-Potem o pytania samego agenta:
+Potem o pytania samego agenta, z datasetu, na którym mierzy jego najnowsza
+[sesja Improve](authoring.md#the-improve-wizard), gdy ten dataset go testuje, a w
+przeciwnym razie z pierwszego datasetu, który go testuje. Zestaw zachowany na
+końcowy pomiar nie jest więc nigdy zadawany przez sprawdzenie skilla, gdy agent
+poprawia się na innym.
 
 - **Quick**, domyślnie: cztery pytania z datasetu agenta - więcej, gdy pytań
   held-out samego skilla jest za mało do pięciu, których wymaga wynik - których

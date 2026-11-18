@@ -1,5 +1,5 @@
 ---
-source_sha: "32a6c0a170f0"
+source_sha: "b716ae4cacc5"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -199,7 +199,7 @@ Kopie pytań treningowych lub materiału źródłowego są wykluczane według zn
 
 Sesja poprawy przypina wersję datasetu i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy i przypadki nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
 
-Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła. Kontekst wcześniejszych prób zawiera ograniczone fragmenty z najwyżej sześciu ostatnich zmierzonych prób, aby długie zmiany instrukcji lub treści skilla nie wypełniały promptu następnej propozycji.
+Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła.
 
 Decyzja człowieka i **Wycofaj decyzję** unieważniają zależne porównania runów i przeliczają zapisane wyniki suit w tej samej transakcji. Run, suita, bramka środowiska i dialog promocji pokazują poprawiony werdykt oraz osobę, która go przejrzała. Audyt zapisuje poprzednie i nowe statusy oraz liczby; zmiana werdyktu suity wysyła nowe powiadomienie. Nazwy osób są odczytywane z aktualnego członkostwa organizacji, bez kopiowania do zachowanych wyników.
 
@@ -367,18 +367,6 @@ Kryterium sędziego może dotyczyć wszystkich przypadków albo tylko przypadkó
 
 ## Porównanie z baseline'em { #comparing-with-a-baseline }
 
-`criterion_change` to liczba potwierdzonych napraw kryteriów pomniejszona o potwierdzone pogorszenia, podzielona przez liczbę wszystkich ocen kryteriów porównanych parami. Jest obliczana przed ograniczeniem szczegółów odpowiedzi. Gdy całe pytania nie zmieniają wyniku, a kilka prób poprawia same kryteria, Improve wybiera większą znormalizowaną poprawę kryteriów; dokładny remis pozostawia wcześniejszą próbę. Nieporównywalne testy nie powodują agregacji ani zwracania zmian kryteriów. Nieporównywalny wynik bazowy nie uruchamia płatnych powtórzeń potwierdzających.
-
-Nazwy kryteriów, oceny poszczególnych kryteriów i przypisania do skilli wymagają `runs:view`, dostępu do datasetu przypisanego do sesji i do każdego wskazanego skilla. Szczegóły sprawdzania skilla wymagają dostępu do wszystkich użytych datasetów. Ukryte lub usunięte źródła powodują ukrycie tych szczegółów bez zmiany zapisanych wyników. Powiadomienia o wynikach sprawdzają aktualny dostęp odbiorcy przed dołączeniem szczegółów kryteriów. Zapisane powiadomienia zawierające kryteria ponownie sprawdzają te źródła przy odczycie skrzynki i przed opóźnioną wysyłką; brak informacji o źródłach lub cofnięty dostęp ukrywa powiadomienie.
-
-Zapisane źródła skilli używają stałych ID: zmiana nazwy zachowuje tożsamość skilla, a jego usunięcie i ponowne użycie nazwy nie przywraca dostępu do dawnych dowodów. Szczegóły kryteriów sesji wskazujące skill bez jego pierwotnego ID również pozostają ukryte. Opcjonalna nazwa wyświetlana skilla nie nadaje dostępu: pierwotne ID jest sprawdzane również bez etykiety.
-
-Interaktywne odczyty porównań dopuszczają do 30 żądań na osobę i 60 na organizację na minutę, z jednym wykonywanym porównaniem na organizację jednocześnie. Konsola i API współdzielą te limity. Nadmiarowe lub równoległe żądania zwracają HTTP 429 z `Retry-After`; klient powinien odczekać przed ponowieniem. Wspólny Redis koordynuje workery, a podczas awarii każdy worker zachowuje lokalny limit. Ręczne zmiany oceny odpowiedzi pochodzących z ewaluacji korzystają z tego samego budżetu i blokady, po sprawdzeniu dostępu do datasetu, a przed zmianą oceny lub zapisanych wyników.
-
-Odczyt wymaga `runs:view` przed zajęciem blokady współbieżności lub zużyciem limitu. Aktywne porównania odnawiają blokady; wygaśnięcie po 120 sekundach zwalnia blokady procesów, które przestały działać. Błąd odnowienia w Redisie jest logowany i pozostawia lokalną blokadę workera.
-
-Odmowy z powodu zajętego porównania nie zużywają minutowych limitów odczytów. Konsola wstrzymuje polling do upływu `Retry-After`.
-
 Porównanie dopasowuje obie strony przypadek po przypadku według stałego id
 przypadku i podaje każdy jako **regresję** (był zaliczony, teraz nie jest),
 **naprawiony** (nie był, teraz jest), bez zmian albo niepełny. Przypadki, na
@@ -421,6 +409,13 @@ skończyło się w ciągu `EVAL_BASELINE_CACHE_HOURS`. Run mówi, który run
 wykorzystał. Wykorzystywane są tylko jego pierwsze odpowiedzi: przypadek, który
 się odwraca, jest mu w tym runie zadawany ponownie.
 
+Baseline będący wersją roboczą agenta - tym, z czym sesja Improve porównuje
+każdą próbę - jest dopasowywany po dokładnym odcisku wersji roboczej i tylko
+wtedy, gdy wcześniejszy run pominął dokładnie te same przypadki. Sesja w każdym
+sprawdzeniu pomija własne dowody, więc dopóki wersja robocza się nie zmienia,
+baseline odpowiada raz na sesję. Opublikowany baseline z pominiętymi
+przypadkami nigdy nie jest wykorzystywany ponownie.
+
 ### Odwrócenie jest potwierdzane, zanim się liczy { #a-flip-is-confirmed-before-it-counts }
 
 Przypadek, który się odwrócił, jest powtarzany `EVAL_RERUNS` razy (domyślnie
@@ -441,22 +436,34 @@ więc nie jest powtarzany, a dryf potwierdzają same powtórki kandydata.
 Przypadek przechodzi dopiero wtedy, gdy spełnia każde kryterium, według którego
 jest oceniany - każdy check, kryterium sędziego, oczekiwane wywołanie narzędzia i
 ocenę względem odpowiedzi wzorcowej - więc zmiana, która naprawia jedno z kilku
-niespełnionych kryteriów przypadku, nie odwraca żadnego przypadku. Przypadek, w
-którym odwróciło się jakiekolwiek kryterium ocenione po obu stronach, też jest
-powtarzany, a `criteria` porównania podaje dla każdego kryterium, na ilu
-przypadkach obie strony je oceniły, ile z nich każda strona spełniła w pierwszej
-odpowiedzi oraz naprawy i zepsucia potwierdzone tak samo jak przy przypadku:
-każda powtórka po obu stronach je powtarza.
+niespełnionych kryteriów przypadku, nie odwraca żadnego przypadku. `criteria`
+porównania podaje dla każdego kryterium, na ilu przypadkach obie strony je
+oceniły, ile z nich każda strona spełniła w pierwszej odpowiedzi oraz naprawy i
+zepsucia, które powtórzyła każda powtórka po obu stronach. Podaje najwyżej 200
+kryteriów: powyżej tej liczby najpierw każde kryterium, które się zmieniło,
+potem te, które najczęściej nie są spełnione.
 
-Porównanie podaje najwyżej 200 kryteriów: powyżej tej liczby najpierw każde
-kryterium, które się zmieniło, potem te, które najczęściej nie są spełnione.
+Kryteria są też liczone według **rodziny**: checków i kryteriów sędziego, które
+sprawdzają jedną rzecz w całym datasecie, nazwanej przez
+[`family`](datasets.md#checks) checka. Kryterium, którego check nie nazywa
+żadnej, jest osobną rodziną. Rodzina przechodzi w przypadku, gdy spełnione jest
+tam każde jej kryterium, a `families` porównania podaje dla każdej rodziny
+przypadki, które oceniły obie strony, ile z nich każda strona spełniła, i
+przypadki, na których się odwróciła.
+
+Rodzina jest **rozstrzygnięta**, gdy jej
+własne odwrócone przypadki wystarczą, by dokładny test McNemara wskazał, w którą
+stronę się przesunęła; wtedy liczy się każde odwrócenie. W rodzinie, która
+przesunęła się na dwóch przypadkach lub więcej, nie będąc rozstrzygniętą, te
+przypadki są powtarzane i liczą się tylko odwrócenia, które powtórzyła każda
+powtórka. Rodzina, która przesunęła się na jednym przypadku, niczego nie
+rozstrzyga i nie wysyła niczego do ponownego zadania. Poza przypadkami, których
+wynik się odwrócił, tylko te przypadki są powtarzane.
 
 Werdykt poniżej dotyczy nadal całych
 przypadków; [sesja Improve](authoring.md#the-improve-wizard) i
-[sprawdzenie skilla](skills.md#the-rule) czytają kryteria, gdy żaden przypadek się
-nie odwrócił. Ponowne zadanie tych przypadków kosztuje więcej niż sprawdzenie,
-które powtarza tylko odwrócone przypadki, i mieści się w jego górnej granicy
-ceny, która i tak zakłada ponowne zadanie każdego przypadku.
+[sprawdzenie skilla](skills.md#the-rule) czytają rodziny, gdy żaden przypadek się
+nie odwrócił.
 
 Run porównywany z baseline'em potrzebuje co najmniej jednej powtórki; run bez
 baseline'u może je pominąć. Run porównany z wcześniejszym runem, któremu nigdy
