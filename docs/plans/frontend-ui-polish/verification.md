@@ -226,3 +226,19 @@ All four findings on `ae53c04` were confirmed and addressed with regressions:
 The related seven-file backend batch passed 513 tests. The two real-database
 cleanup regressions passed independently. Four static-analysis comments about
 Alembic's dynamic revision metadata were explained and resolved as false positives.
+
+
+## Benchmark layout and source research, 2026-11-18
+
+The existing AgentDojo adapter and its optional upstream-runtime test now live
+separately from authored assistant smoke checks. The new AppWorld and LongMemEval
+directories document their intended protocols and explicitly say their adapters
+are not implemented. `evals/comparison.md` records external system results,
+missing exact-model evidence, model-launch benchmark choices and separate
+AgentDojo/LongMemEval cost scenarios; `evals/openrouter-prices.json` preserves
+the dated public price quote. No paid model call or dataset ingestion was run.
+
+The scoped smoke and security-marker checks passed seven tests; the optional
+AgentDojo test was skipped in the ordinary environment and then passed with
+the pinned AgentDojo/DeepDiff overlay, using TestModel and the actual upstream
+scorer. The moved command's default plan returned zero model calls.
