@@ -134,6 +134,13 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
     expect(maximize).toHaveBeenCalledOnce();
     expect(live.send).not.toHaveBeenCalled();
   });
+  it("drops the bar's heading when its page already titles the window, keeping the region label", () => {
+    render(
+      <BrowserWindow browse={browse({ outputProtected: true })} control={control()} titledByPage />,
+    );
+    expect(screen.queryByRole("heading", { name: "Protected browser" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Protected browser" })).toBeInTheDocument();
+  });
   it("labels a computer honestly and preserves authorized takeover without browser chrome or resizing", async () => {
     const live = { ...control(), canRemember: true };
     const close = vi.fn();

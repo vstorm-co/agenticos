@@ -375,13 +375,13 @@ test.describe("Browser credentials — fixture-only visual evidence", () => {
 
         await page.goto("/browse/" + ids.run + "/" + CALL);
         const main = page.getByRole("main");
-        // The page title and the window bar both name the protected state.
+        // The page title names the protected state once; the window bar does not repeat it.
         await expect(
           main.getByRole("heading", { name: "Protected browser", exact: true, level: 1 }),
         ).toBeVisible();
         await expect(
-          main.getByRole("heading", { name: "Protected browser", exact: true, level: 2 }),
-        ).toBeVisible();
+          main.getByRole("heading", { name: "Protected browser", exact: true }),
+        ).toHaveCount(1);
         const liveTitle = main.getByRole("heading", { name: "Live browser", exact: true });
         await expect(liveTitle).toHaveCount(0);
         await expect(

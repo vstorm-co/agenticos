@@ -84,4 +84,21 @@ describe("the browse page title", () => {
     await renderPage(browse(), "connecting");
     expect(await screen.findByRole("heading", { level: 1, name: "Live browser" })).toBeVisible();
   });
+
+  it("names a loaded protected browse once, in the page heading, and keeps the window's region label", async () => {
+    await renderPage(browse({ outputProtected: true }));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Protected browser" }),
+    ).toBeVisible();
+    expect(screen.getAllByRole("heading", { name: "Protected browser" })).toHaveLength(1);
+    expect(screen.getAllByText("Protected browser")).toHaveLength(1);
+    expect(screen.getByRole("region", { name: "Protected browser" })).toBeInTheDocument();
+  });
+
+  it("leaves an unprotected browse's live title and window heading unchanged", async () => {
+    await renderPage(browse());
+    expect(await screen.findByRole("heading", { level: 1, name: "Live browser" })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 2, name: "Pricing" })).toBeInTheDocument();
+    expect(screen.queryByText("Protected browser")).not.toBeInTheDocument();
+  });
 });

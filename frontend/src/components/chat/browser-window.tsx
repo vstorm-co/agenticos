@@ -293,6 +293,8 @@ interface BrowserWindowProps {
   onComment?: (comment: PageComment) => void;
   surface?: BrowseSurface;
   onProtected?: () => void;
+  /** The page heading already names a protected browse, so the window bar leaves the name out. */
+  titledByPage?: boolean;
 }
 
 export function BrowserWindow(props: BrowserWindowProps) {
@@ -311,6 +313,7 @@ function ProtectedBrowserWindow({
   maximized,
   newTabHref,
   onProtected,
+  titledByPage,
 }: BrowserWindowProps) {
   const t = useTranslations("browserCredentials");
   const chat = useTranslations("chat");
@@ -321,7 +324,9 @@ function ProtectedBrowserWindow({
     >
       <div className="border-border flex shrink-0 items-center gap-2 border-b p-2">
         <Lock className="size-4 shrink-0" aria-hidden />
-        <h2 className="min-w-0 flex-1 text-sm font-medium">{t("protectedTitle")}</h2>
+        {!titledByPage && (
+          <h2 className="min-w-0 flex-1 text-sm font-medium">{t("protectedTitle")}</h2>
+        )}
         {newTabHref && (
           <a
             href={newTabHref}

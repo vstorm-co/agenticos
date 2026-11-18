@@ -87,6 +87,7 @@ export default function LiveBrowsePage({ params }: PageProps) {
       <div className="border-border bg-background min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-2xl border shadow-sm">
         <BrowserWindow
           waitForFit
+          titledByPage
           browse={browse}
           control={{ canControl, canRemember, send }}
           onProtected={protect}
