@@ -1,5 +1,5 @@
 ---
-source_sha: "e958989d6bcc"
+source_sha: "327da9eb6755"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -677,6 +677,8 @@ Seiten erhalten keine Konsolen- oder Dateiberechtigungen; sie dürfen nur eine
 Der Apps-Workflow baut auch Entwicklungsinstaller und prüft die Installation ohne UI-Automatisierung: Kopieren der Mac-App aus dem DMG, stille Installation und Entfernung unter Windows, Installation und Entfernung des Debian-Pakets sowie Entpacken der portablen AppImage. Er prüft das eingebettete macOS-Widget und Signaturen, die Isolation persistenter Sitzungen und die Ablehnung veränderter Update-Downloads. Diese Prüfungen nutzen Ad-hoc- oder unsignierte Builds und bestätigen keine öffentliche Beglaubigung oder Store-Freigabe.
 
 Die Installer-CI und Linux-Release-Builds prüfen auch das entpackte AppImage und lehnen eine mitgelieferte Wayland-Client-Bibliothek (`libwayland-client.so*`) ab, die mit dem Mesa-Treiber des Systems kollidieren und WebKitGTK zum Absturz bringen kann. Die Release-Prüfung erfolgt vor dem Hochladen von Installern und Update-Signaturen. Diese Bibliotheksprüfung bestätigt nicht die Rendering-Kompatibilität mit jedem Wayland-Compositor oder jeder GPU.
+
+Beim manuellen Start für ein älteres Tag ohne `scripts/build_linux_desktop_release.sh` baut der Linux-Job direkt mit Tauri und protokolliert eine Warnung, dass die AppImage-Prüfung vor dem Hochladen nicht verfügbar ist. Tags mit dem Wrapper behalten diese Prüfung; ein Build- oder Prüfungsfehler verhindert weiterhin die Veröffentlichung des Update-Manifests.
 
 Der GitHub-Actions-Workflow **Apps** prüft native Crates auf macOS, Windows und
 Linux und baut Android-Debug-APKs sowie die iOS-Simulator-App. Vollständige native

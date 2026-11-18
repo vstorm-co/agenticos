@@ -33,6 +33,9 @@ Two things are versioned separately from this file and worth knowing about:
 - Replay earlier assistant answers once when stored content and streamed parts differ only in edge whitespace, include several final text parts, or contain blank fragments. Preserve human reply ordering and the token anchor used for history compaction, including in existing conversations (#3156).
 - Forward agent avatar uploads through the authenticated console proxy, preserving multipart file bytes, the active organization and backend validation errors (#3153).
 - Let members manage their personal MCP connections without organization permissions. Only request organization connections with `mcp:manage`, use that permission for organization controls, and hide cached organization accounts when the query is disabled (#3152).
+### Fixed
+
+- Build Linux desktop installers when manually dispatching App release for older tags without the build wrapper. These builds warn that pre-upload AppImage validation is unavailable; releases containing the wrapper retain that validation (#3140).
 
 ## [1.82.2] - 2026-11-18
 
