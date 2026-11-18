@@ -87,6 +87,7 @@ from app.services.message_history import (
     bounded_stored_history,
     build_message_history,
     without_standing_instructions,
+    without_stored_standing_instructions,
 )
 
 logger = logging.getLogger(__name__)
@@ -125,6 +126,67 @@ def _file_uuids(file_ids: Sequence[str]) -> tuple[list[UUID], list[str]]:
     return ids, malformed
 
 
+def _replays_content(texts: Sequence[str], content: str) -> bool:
+    """Match a final response (possibly several parts) or an unfinished turn.
+
+    Content is stripped by MessageCreate; streamed parts retain whitespace.
+    Compare only at part boundaries so a new answer that is merely a substring
+    of an earlier part is still replayed.
+    """
+    expected = content.strip()
+    joined = "".join(texts).rstrip()
+    if not joined.endswith(expected):
+        return False
+    start = len(joined) - len(expected)
+    # A suffix may start with whitespace, but must start at a part boundary.
+    earliest = len(joined[:start].rstrip())
+    offset = 0
+    for text in texts:
+        if earliest <= offset <= start:
+            return True
+        offset += len(text)
+    return False
+
+
+def _preserve_blank_text(ordered: list[HistoryMessage]) -> list[HistoryMessage]:
+    """Attach blank fragments to neighboring text without crossing human turns.
+
+    A blank model response is rejected by some providers. Buffer its fragments
+    and join once so highly fragmented stored timelines remain linear to replay.
+    """
+    result: list[HistoryMessage] = []
+    blanks: list[str] = []
+    for entry in ordered:
+        if entry["role"] == "assistant" and not entry["content"].strip():
+            blanks.append(entry["content"])
+            continue
+        if blanks:
+            if entry["role"] == "assistant":
+                entry["content"] = "".join(blanks) + entry["content"]
+            elif result and result[-1]["role"] == "assistant":
+                result[-1]["content"] += "".join(blanks)
+            blanks.clear()
+        result.append(entry)
+    if blanks and result and result[-1]["role"] == "assistant":
+        result[-1]["content"] += "".join(blanks)
+    return result
+
+
+def _anchor_replayed_answer(ordered: list[HistoryMessage], used: int | None) -> None:
+    """Keep usage on the response that survives adjacent-response normalization."""
+    anchor: HistoryMessage | None = None
+    for entry in reversed(ordered):
+        if entry["role"] != "assistant":
+            if anchor is not None:
+                break
+            continue
+        if entry["content"].strip():
+            entry.pop("context_used_tokens", None)
+            anchor = entry
+    if anchor is not None:
+        anchor["context_used_tokens"] = used
+
+
 def _as_history(
     rows: Sequence[Message],
     exclude_message_id: UUID | None,
@@ -155,10 +217,9 @@ def _as_history(
                     row.role == "assistant"
                     and kind == "text"
                     and isinstance(text := part.get("text"), str)
-                    and text.strip()
                 ):
-                    ordered.append({"role": "assistant", "content": text})
                     texts.append(text)
+                    ordered.append({"role": "assistant", "content": text})
                 elif kind == "steer" and isinstance(text := part.get("text"), str):
                     ordered.append({"role": "user", "content": f"{STEER_PREFIX}\n\n{text}"})
                 elif (
@@ -171,15 +232,12 @@ def _as_history(
                     ordered.append(
                         {"role": "user", "content": f"Question: {question}\nAnswer: {answer}"}
                     )
-        history.extend(ordered)
-        if texts and (row.content == texts[-1] or row.content == "".join(texts)):
-            # Anchor compaction to the last answer, not to every streamed fragment.
-            for entry in reversed(ordered):
-                if entry["role"] == "assistant":
-                    entry["context_used_tokens"] = row.context_used_tokens
-                    break
+        ordered = _preserve_blank_text(ordered)
+        if _replays_content(texts, row.content):
+            _anchor_replayed_answer(ordered, row.context_used_tokens)
+            history.extend(ordered)
             continue
-        history.append(
+        ordered.append(
             {
                 "role": row.role,
                 "content": (
@@ -201,6 +259,8 @@ def _as_history(
                 ),
             }
         )
+        _anchor_replayed_answer(ordered, row.context_used_tokens)
+        history.extend(ordered)
     return history
 
 
@@ -309,7 +369,9 @@ class ConversationService:
             )
             # Bound stored references, not their expanded bytes. Restoring a valid
             # multi-megabyte image before this storage limit would drop its exchange.
-            summary = bounded_stored_history([*summary, *dump_messages(tail)])
+            summary = bounded_stored_history(
+                without_stored_standing_instructions([*summary, *dump_messages(tail)])
+            )
             if conversation.organization_id is not None:
                 summary = await restore_stored_media(
                     summary,

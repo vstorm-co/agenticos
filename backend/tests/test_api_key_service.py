@@ -50,7 +50,12 @@ class TestPresets:
         presets = {preset.id: set(preset.scopes) for preset in catalog.presets}
         assert "runs:view" not in presets["read_only"]
         assert presets["knowledge_ingest"] == {"collections:view", "collections:edit"}
-        assert presets["full_access"] == set(catalog.scopes) - {"personal:consent"}
+        assert presets["full_access"] == set(catalog.scopes) - {
+            "personal:consent",
+            "mcp:personal:use",
+        }
+        assert "mcp:personal:use" in catalog.scopes
+        assert all("mcp:personal:use" not in scopes for scopes in presets.values())
         assert "personal:consent" in catalog.scopes
         assert all("personal:consent" not in scopes for scopes in presets.values())
         # Keys never manage keys.

@@ -2535,7 +2535,7 @@
       "modelCredentialMode": "Dostęp do modelu",
       "organizationModelKey": "Użyj klucza organizacji",
       "personalModelKey": "Każdy użytkownik podłącza własny klucz",
-      "personalModelLimits": "Model i endpoint pozostają stałe. Tylko czat zalogowanego użytkownika. Przed publikacją wyłącz aktywne kanały, widgety, strony publiczne i rutyny. Uruchomienia przez HTTP API, tematy w tle, głos, delegowanie, recenzenci, osobne modele kroków i modele zapasowe nie są obsługiwane.",
+      "personalModelLimits": "Model i endpoint pozostają stałe. Tylko czat zalogowanego użytkownika. Przed publikacją wyłącz aktywne kanały, widgety, strony publiczne i rutyny. Uruchomienia przez HTTP API, tematy w tle, głos, recenzenci, osobne modele kroków i modele zapasowe nie są obsługiwane. W czacie zalogowanego użytkownika delegowanie korzysta z klucza osoby, która rozpoczęła run, dla każdego agenta w trybie osobistym.",
       "speechUseOrganizationDefaults": "Użyj ustawień organizacji",
       "speechOrganizationDefaultsHint": "Dziedzicz wspólnie dostawcę, model, głos i klucz organizacji. Wyłącz, aby skonfigurować własny głos agenta."
     },
@@ -13280,6 +13280,7 @@
     "mappingDeleted": "Mapowanie usunięte"
   },
   "apiKeys": {
+    "personalMcpWhy": "Delegowanie osobistych połączeń MCP jest wyłączone ze wszystkich zestawów uprawnień. Wybierz mcp:personal:use i agents:run w Custom, aby ten klucz lub aplikacja mogły korzystać z Twoich połączeń MCP w zewnętrznych runach agentów. Każdy posiadacz danych dostępowych może korzystać z tych połączeń jako Ty. Nie otwiera to osobistej pamięci, historii czatów ani zalogowanych sesji przeglądarki.",
     "title": "Klucze API",
     "why": "Klucze pozwalają skryptowi, klientowi HTTP albo klientowi MCP wywoływać API tej organizacji w twoim imieniu, z zawężonym zakresem. Klucz nigdy nie zrobi więcej niż ty dzisiaj.",
     "createTitle": "Utwórz klucz",

@@ -6497,7 +6497,7 @@ async def test_a_personal_published_version_cannot_serve_a2a_after_editing_the_d
 @pytest.mark.anyio
 @pytest.mark.security
 @pytest.mark.parametrize("personal", [True, False])
-async def test_pinned_delegates_cannot_borrow_a_web_chat_users_personal_key(personal: bool) -> None:
+async def test_pins_allow_both_personal_and_organization_model_modes(personal: bool) -> None:
     from app.agents.spec import SubagentRef
 
     ctx, service = _ctx(), AgentRegistryService(_db())
@@ -6514,14 +6514,9 @@ async def test_pinned_delegates_cannot_borrow_a_web_chat_users_personal_key(pers
         resolved = await service._resolve_pins(
             ctx, [SubagentRef(agent_id=child.id, agent_version_id=version.id)]
         )
-    if personal:
-        assert resolved.problems == ["Agents using personal model keys cannot be delegated to"]
-        assert resolved.delegates == []
-        assert resolved.handles == []
-    else:
-        assert resolved.problems == []
-        assert [delegate.version_id for delegate in resolved.delegates] == [version.id]
-        assert resolved.handles == [child.slug]
+    assert resolved.problems == []
+    assert [delegate.version_id for delegate in resolved.delegates] == [version.id]
+    assert resolved.handles == [child.slug]
 
 
 @pytest.mark.anyio

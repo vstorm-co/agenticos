@@ -1,5 +1,5 @@
 ---
-source_sha: "ab8ea2eb9b04"
+source_sha: "97749d8a04f5"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1826,6 +1826,12 @@ acceso de edición actual y ningún run debe estar escribiendo en el workspace.
 El contenido y modo ejecutable de cada archivo deben coincidir con el estado
 final de la tarea. Un conflicto rechaza toda la reversión e indica los archivos.
 Los demás archivos, el índice de Git y su historial permanecen sin cambios.
+
+La reversión no está disponible si cualquiera de los snapshots encuentra un
+archivo demasiado grande sin capturar, una ruta ilegible o un tipo de archivo no
+compatible, aunque la ruta parezca no haber cambiado. El diff capturado sigue
+visible. Las carpetas de la plataforma y las herramientas quedan fuera del alcance
+de los snapshots por diseño.
 
 La acción encola un trabajo duradero y reserva el workspace. El panel muestra el
 progreso y los rechazos confirmados. Un resultado desconocido conserva la reserva;

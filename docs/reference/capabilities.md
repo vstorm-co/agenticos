@@ -1721,6 +1721,11 @@ workspace. Every affected file must match the task's final content and executabl
 mode; a conflict refuses the whole revert and lists the files. Unrelated files
 and your Git index and history stay unchanged.
 
+Undo is unavailable if either snapshot encounters an uncaptured oversized file,
+an unreadable path or an unsupported file type, even if that path appears unchanged.
+The captured diff stays readable. Platform and toolchain folders remain outside
+snapshot coverage by design.
+
 The action queues a durable job and reserves the workspace. The panel shows
 progress and any definite refusal. An unknown result keeps the reservation;
 **Retry revert** checks whether the files were already restored before applying

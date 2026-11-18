@@ -9,7 +9,6 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.repositories import agent_environment_repo, agent_repo
 from app.services.agent_registry import AgentRegistryService
-from app.services.personal_model_policy import require_organization_model
 
 
 async def require_organization_agent(
@@ -21,8 +20,9 @@ async def require_organization_agent(
     environment_id: UUID | None = None,
     version_id: UUID | None = None,
 ) -> None:
-    agent = await AgentRegistryService(db).get(ctx, agent_id, perm=perm, for_update=True)
-    require_organization_model(AgentSpec.model_validate(agent.draft_spec))
+    registry = AgentRegistryService(db)
+    agent = await registry.get(ctx, agent_id, perm=perm, for_update=True)
+    await registry.require_organization_spec(ctx, AgentSpec.model_validate(agent.draft_spec))
     selected = version_id or agent.current_version_id
     if environment_id is not None and version_id is None:
         environment = await agent_environment_repo.get(
@@ -35,4 +35,4 @@ async def require_organization_agent(
         version = await agent_repo.get_version(db, selected, organization_id=ctx.organization_id)
         if version is None or version.agent_id != agent.id:
             raise NotFoundError(message="Agent version not found")
-        require_organization_model(AgentSpec.model_validate(version.spec))
+        await registry.require_organization_spec(ctx, AgentSpec.model_validate(version.spec))

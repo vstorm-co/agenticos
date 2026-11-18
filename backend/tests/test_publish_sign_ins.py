@@ -636,3 +636,62 @@ class TestApiKeys:
         problems = await vault.problems(_spec(model_profile_id=str(gpt.id)), scoped)
 
         assert problems.messages == []
+
+
+@pytest.mark.parametrize("nested", [False, True])
+async def test_personal_parents_still_validate_organization_delegates_sign_ins(
+    nested: bool,
+) -> None:
+    sign_in = _secret(SecretKind.OPENAI_CODEX)
+    codex = _profile("Private Codex", secret=sign_in)
+    leaf = _version("Leaf", model_profile_id=str(codex.id))
+    personal = _version(
+        "Personal",
+        model_credential_mode="personal",
+        model_profile_id=str(uuid.uuid4()),
+        capabilities=[_delegation()],
+        subagents=[_pin(leaf)],
+    )
+    vault = _Vault(codex, secrets=(sign_in,), versions=(leaf, personal))
+    problems = await vault.problems(
+        _spec(
+            model_credential_mode="personal",
+            capabilities=[_delegation(max_depth=2)],
+            subagents=[_pin(personal if nested else leaf)],
+        )
+    )
+    assert len(problems.fields) == 1
+    assert problems.fields[0]["field"] == "subagents.0.agent_version_id"
+    assert "Private Codex" in problems.fields[0]["message"]
+
+
+async def test_personal_delegate_does_not_borrow_its_profiles_organization_sign_in() -> None:
+    sign_in = _secret(SecretKind.OPENAI_CODEX)
+    profile = _profile("Shared profile", secret=sign_in)
+    personal = _version(
+        "Personal",
+        model_credential_mode="personal",
+        model_profile_id=str(profile.id),
+        capabilities=[
+            _delegation(
+                allow_dynamic=True,
+                inline=[
+                    {
+                        "name": "summary",
+                        "instructions": "Summarise",
+                        "description": "Summary",
+                        "model_profile_id": str(profile.id),
+                    }
+                ],
+            )
+        ],
+    )
+    vault = _Vault(profile, secrets=(sign_in,), versions=(personal,))
+    problems = await vault.problems(
+        _spec(
+            capabilities=[_delegation(max_depth=2)],
+            subagents=[_pin(personal)],
+        )
+    )
+    assert problems.fields == []
+    vault.access.assert_not_awaited()
