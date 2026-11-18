@@ -407,3 +407,287 @@ def test_empty_and_multiline_editors_preserve_the_explicit_submission(text: str)
 def test_native_choices_need_visible_nonempty_labels(label: str) -> None:
     with pytest.raises(ValueError):
         RuntimeChoice(label=label)
+
+
+@pytest.mark.security
+async def test_duplicate_native_choice_ids_and_missing_question_content_are_refused() -> None:
+    with pytest.raises(ValueError):
+        await _human.cursor_questions(
+            {
+                "questions": [
+                    {
+                        "id": "q",
+                        "prompt": "Choose",
+                        "options": [{"id": "same", "label": "A"}, {"id": "same", "label": "B"}],
+                    }
+                ]
+            },
+            None,
+        )
+    for params in [
+        {},
+        {"toolCall": {}},
+        {
+            "toolCall": {"content": [{"content": {"text": "Q"}}]},
+            "options": [
+                {"kind": "allow_once", "optionId": "same", "name": "A"},
+                {"kind": "allow_once", "optionId": "same", "name": "B"},
+            ],
+        },
+    ]:
+        with pytest.raises((TypeError, ValueError)):
+            await _human.permission_question(params, None)
+    params = {
+        "toolCall": {"content": [None, {}, {"content": {"text": "Q"}}]},
+        "options": [{"kind": "allow_once", "optionId": "one", "name": "A"}],
+    }
+    assert await _human.permission_question(params, Human([RuntimeAnswer(selected=["A"])])) == {
+        "outcome": {"outcome": "selected", "optionId": "one"}
+    }
+
+
+async def test_muse_questions_keep_native_bounds_and_grok_accepts_an_unannotated_option() -> None:
+    human = Human([RuntimeAnswer(selected=["A"])])
+    result = await _human.muse_questions(
+        {
+            "questions": [
+                {
+                    "id": "q",
+                    "question": "Choose",
+                    "options": [{"label": "A"}],
+                    "multi_select": True,
+                    "min_selections": 0,
+                    "max_selections": 1,
+                }
+            ]
+        },
+        human,
+    )
+    assert result["answers"][0]["selected"] == ["A"]
+    assert human.seen[0].runtime_name == "Muse" and human.seen[0].questions[0].min_selections == 0
+    assert (
+        await _human.grok_questions(
+            {"questions": [{"question": "Q", "options": [{"label": "A"}]}]}, human
+        )
+    )["annotations"] == {}
+
+
+def test_native_selection_bounds_and_custom_text_limits_are_enforced() -> None:
+    from app.agents.runtime_questions import normalize_runtime_answers
+
+    with pytest.raises(ValueError):
+        RuntimeQuestion(id="q", question="Choose", min_selections=2, max_selections=1)
+    request = RuntimeQuestionRequest(
+        runtime_name="Muse",
+        questions=[
+            RuntimeQuestion(
+                id="q", question="Choose", multi_select=True, options=[RuntimeChoice(label="A")]
+            )
+        ],
+    )
+    result = normalize_runtime_answers(request, [{"selected": ["A"]}])
+    assert not result.cancelled and result.answers[0].selected == ["A"]
+    request = RuntimeQuestionRequest(
+        runtime_name="Muse",
+        questions=[RuntimeQuestion(id="q", question="Write", max_answer_length=2)],
+    )
+    assert normalize_runtime_answers(request, [{"answer": "too long"}]).cancelled
+
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        "cursor/ask_question",
+        "x.ai/ask_user_question",
+        "_agenticos/request_questions",
+        "session/request_permission",
+    ],
+)
+async def test_malformed_native_questions_are_cancelled_before_any_answer_is_invented(
+    method: str,
+) -> None:
+    from app.agents.capabilities.coding_agent._acp import AcpError, Conversation, _Collector
+    from tests.test_coding_agent_acp import ScriptedAgent, ScriptedPipe, _nothing
+
+    pipe = ScriptedPipe(ScriptedAgent())
+    conversation = Conversation(
+        pipe, access="edit", collector=_Collector(), shown=_nothing, runtime_questions=Human()
+    )
+    params: dict[str, object] = {"questions": []}
+    if method == "session/request_permission":
+        params = {"toolCall": {"title": "AskUserQuestion", "content": []}}
+    with pytest.raises(AcpError, match="human-input"):
+        await conversation._handle({"id": "question", "method": method, "params": params})
+    reply = pipe.agent.seen[-1]["result"]
+    assert reply in (
+        {"cancelled": True, "answers": []},
+        {"outcome": "cancelled"},
+        {"outcome": {"outcome": "cancelled"}},
+    )
+
+
+@pytest.mark.parametrize("identifier", [True, "x" * 257, "duplicate"])
+async def test_duplex_acp_refuses_invalid_or_reused_pending_dialog_ids(identifier: object) -> None:
+    import anyio
+
+    from app.agents.capabilities.coding_agent._acp import AcpError, Conversation, _Collector
+    from tests.test_coding_agent_acp import ScriptedAgent, ScriptedPipe, _nothing
+
+    pipe = ScriptedPipe(ScriptedAgent())
+    pipe.agent.out = [
+        {"id": identifier, "method": "cursor/create_plan", "params": {"plan": "Read"}}
+    ]
+    conversation = Conversation(
+        pipe, access="edit", collector=_Collector(), shown=_nothing, runtime_questions=Human()
+    )
+    if identifier == "duplicate":
+        conversation._human_scopes["duplicate"] = anyio.CancelScope()
+    async with anyio.create_task_group() as group:
+        with pytest.raises(AcpError, match="human-input"):
+            await conversation._receive_result(1, group)
+        group.cancel_scope.cancel()
+    assert not any("result" in message for message in pipe.agent.seen)
+
+
+async def test_duplex_acp_cancellation_releases_only_the_identified_dialog() -> None:
+    import anyio
+
+    from app.agents.capabilities.coding_agent._acp import Conversation, _Collector
+    from tests.test_coding_agent_acp import ScriptedAgent, ScriptedPipe, _nothing
+
+    pipe = ScriptedPipe(ScriptedAgent())
+    own, other = anyio.CancelScope(), anyio.CancelScope()
+    conversation = Conversation(
+        pipe, access="edit", collector=_Collector(), shown=_nothing, runtime_questions=Human()
+    )
+    conversation._human_scopes = {"own": own, "other": other}
+    pipe.agent.out = [
+        {"method": "_agenticos/cancel_request", "params": {"id": "missing"}},
+        {"method": "_agenticos/cancel_request", "params": {"id": "own"}},
+        {"id": 1, "result": {}},
+    ]
+    async with anyio.create_task_group() as group:
+        assert await conversation._receive_result(1, group) == {}
+        group.cancel_scope.cancel()
+    assert own.cancel_called and not other.cancel_called
+
+
+async def test_pi_malformed_dialog_sends_cancellation_and_releases_its_pending_slot() -> None:
+    from app.agents.capabilities.coding_agent._acp import AcpError
+    from app.agents.capabilities.external_acp._pi import _Record, _Session
+    from tests.test_pi_rpc import Pi, ignore
+
+    pi = Pi()
+    session = _Session(pi, ignore, runtime_questions=Human())
+    session.pending_questions.add("q")
+    with pytest.raises(AcpError, match="human-input"):
+        await session.answer_dialog(
+            _Record(type="extension_ui_request", id="q", method="select", options=[])
+        )
+    assert pi.seen[-1] == {"type": "extension_ui_response", "id": "q", "cancelled": True}
+    assert not session.pending_questions
+
+
+async def test_pi_dialog_timeout_cancels_without_fabricating_a_reply() -> None:
+    import anyio
+
+    from app.agents.capabilities.external_acp._pi import _Record, _Session
+    from tests.test_pi_rpc import Pi, ignore
+
+    async def pending(_request: RuntimeQuestionRequest) -> RuntimeQuestionResponse:
+        await anyio.sleep_forever()
+
+    pi = Pi()
+    session = _Session(pi, ignore, runtime_questions=pending)
+    await session.answer_dialog(
+        _Record(type="extension_ui_request", id="q", method="input", title="Answer", timeout=1)
+    )
+    assert pi.seen[-1] == {"type": "extension_ui_response", "id": "q", "cancelled": True}
+
+
+@pytest.mark.parametrize("pending_id", [None, "duplicate"])
+async def test_pi_refuses_missing_or_reused_dialog_identity(pending_id: str | None) -> None:
+    import anyio
+
+    from app.agents.capabilities.coding_agent._acp import AcpError
+    from app.agents.capabilities.external_acp._pi import _Session
+    from tests.test_pi_rpc import Pi, ignore
+
+    pi = Pi()
+    pi.messages.append({"type": "extension_ui_request", "method": "input", "id": pending_id})
+    session = _Session(pi, ignore, runtime_questions=Human())
+    session.pending_questions.add("duplicate")
+    async with anyio.create_task_group() as group:
+        session.question_group = group
+        with pytest.raises(AcpError):
+            await session.receive()
+        group.cancel_scope.cancel()
+    assert not pi.seen
+
+
+@pytest.mark.parametrize("replacement", ["future", "nonce", "completed"])
+async def test_runtime_answers_are_discarded_if_the_waiter_changes_during_authorization(
+    monkeypatch: pytest.MonkeyPatch, replacement: str
+) -> None:
+    import asyncio
+
+    from tests.test_agent_session import _session
+
+    session = _session()
+    original = asyncio.get_running_loop().create_future()
+    session._ask_user_future = original
+    session._runtime_question_id = "owned"
+
+    async def authorize() -> bool:
+        if replacement == "future":
+            session._ask_user_future = asyncio.get_running_loop().create_future()
+        elif replacement == "nonce":
+            session._runtime_question_id = "successor"
+        else:
+            original.set_result([])
+        return True
+
+    monkeypatch.setattr(session, "_reauthorize_write", authorize)
+    await session.handle_frame(
+        {
+            "type": "ask_user_response",
+            "runtime_question_id": "owned",
+            "answers": [{"answer": "obsolete"}],
+        }
+    )
+    assert not original.done() or original.result() == []
+    if session._ask_user_future is not original:
+        assert not session._ask_user_future.done()
+
+
+async def test_an_empty_native_input_is_recorded_as_an_intentional_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from app.services.chat_timeline import TurnTimeline
+    from tests.test_agent_session import _next_frame, _sent_events, _session, _wait
+
+    session = _session()
+    session._current_timeline = TurnTimeline()
+    monkeypatch.setattr(session, "_reauthorize_write", AsyncMock(return_value=True))
+    request = RuntimeQuestionRequest(
+        runtime_name="Pi",
+        questions=[RuntimeQuestion(id="q", question="Optional input", allow_empty=True)],
+    )
+    visible = _next_frame(session)
+    task = asyncio.create_task(session._runtime_questions(request))
+    await _wait(visible)
+    frame = next(data for kind, data in _sent_events(session) if kind == "ask_user")
+    await session.handle_frame(
+        {
+            "type": "ask_user_response",
+            "runtime_question_id": frame["runtime_question_id"],
+            "answers": [{"answer": ""}],
+        }
+    )
+    result = await task
+    assert not result.cancelled and result.answers[0].answer == ""
+    timeline = session._current_timeline.stored()
+    assert timeline is not None and timeline[-1].answer == "(empty text)"
