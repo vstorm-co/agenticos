@@ -5,10 +5,11 @@ change that fixes one of several failing criteria flips no question and was
 judged no change. An Improve attempt's verdict gains `criteria_better` - a
 criterion its re-asks confirmed better and none worse - and
 `criteria_worse`, a criterion confirmed worse with no question broken; a
-session stopped on the second keeps `criteria_worse` as its stop reason. A
-skill check's agent gains the same two states, and `skill_check_agents`
-gains `criteria`, each criterion's counts over the agent's held-out
-questions. An attempt keeps its criteria in `verdict_detail`, which is JSONB
+session stopped on the second keeps `criteria_worse` as its stop reason.
+A skill's improvement session shares both enums, so its attempts and runs
+take the same values. A skill check's agent gains the same two states, and
+`skill_check_agents` gains `criteria`, each criterion's counts over the
+agent's held-out questions. An attempt keeps its criteria in `verdict_detail`, which is JSONB
 already.
 
 The downgrade reads both new verdicts and states, and the new stop reason,
@@ -60,6 +61,22 @@ def _checks(verdicts: str, reasons: str, states: str) -> None:
         "improvement_runs",
         f"stop_reason IS NULL OR stop_reason IN ({reasons})",
     )
+    op.drop_constraint(
+        "ck_skill_improvement_iteration_verdict", "skill_improvement_iterations", type_="check"
+    )
+    op.create_check_constraint(
+        "ck_skill_improvement_iteration_verdict",
+        "skill_improvement_iterations",
+        f"verdict IS NULL OR verdict IN ({verdicts})",
+    )
+    op.drop_constraint(
+        "ck_skill_improvement_run_stop_reason", "skill_improvement_runs", type_="check"
+    )
+    op.create_check_constraint(
+        "ck_skill_improvement_run_stop_reason",
+        "skill_improvement_runs",
+        f"stop_reason IS NULL OR stop_reason IN ({reasons})",
+    )
     op.drop_constraint("ck_skill_check_agent_state", "skill_check_agents", type_="check")
     op.create_check_constraint(
         "ck_skill_check_agent_state", "skill_check_agents", f"state IN ({states})"
@@ -87,6 +104,14 @@ def downgrade() -> None:
     )
     op.execute(
         "UPDATE improvement_runs SET stop_reason = 'no_change' WHERE stop_reason = 'criteria_worse'"
+    )
+    op.execute(
+        "UPDATE skill_improvement_iterations SET verdict = 'no_change' "
+        "WHERE verdict IN ('criteria_better', 'criteria_worse')"
+    )
+    op.execute(
+        "UPDATE skill_improvement_runs SET stop_reason = 'no_change' "
+        "WHERE stop_reason = 'criteria_worse'"
     )
     op.execute(
         "UPDATE skill_check_agents SET state = 'no_change' "
