@@ -2338,6 +2338,7 @@ class AgentRegistryService:
                     ctx, spec.model_profile_id, decision=decision_model
                 )
             )
+            problems.merge(await self._native_only_problems(ctx, spec, spec.model_profile_id))
         # And each reviewer's, refused here rather than when a run first reaches
         # its cadence and finds nothing to review with.
         for reviewer in spec.reviewers:
@@ -2447,6 +2448,38 @@ class AgentRegistryService:
         if pattern == "mcp_servers/{server}/allowed_tools":
             return await self._mcp_problems(ctx, spec.mcp_servers, taken=taken_tool_names(spec))
         return []
+
+    async def _native_only_problems(
+        self, ctx: AuthContext, spec: AgentSpec, profile_id: UUID
+    ) -> _SpecProblems:
+        """Bindings set to a provider-native tool on a model that supports none (#166).
+
+        A Claude subscription model runs application tools only. A binding with a
+        local tool behind the native one uses it there; one configured to the native
+        tool alone would fail on the first turn, so it is refused here, on the input.
+        """
+        problems = _SpecProblems()
+        profile = await credential_repo.get_profile(
+            self.db, profile_id, organization_id=ctx.organization_id
+        )
+        if profile is None or profile.provider != CLAUDE_SUBSCRIPTION_PROVIDER:
+            return problems
+        for binding in spec.capabilities:
+            try:
+                definition = get_capability(binding.id)
+                config = definition.validate_config(binding.config)
+            except BadRequestError:
+                continue  # `_binding_problems` reports an unknown id or a bad config.
+            if definition.native_only is None or not definition.native_only.is_met(config):
+                continue
+            field = definition.native_only.field
+            problems.refuse(
+                f"capabilities.{binding.id}.{field}",
+                f"Capability '{binding.id}': {field} "
+                f"'{getattr(config, field)}' needs a provider-native tool, and Claude "
+                "subscription models support none. Choose another option.",
+            )
+        return problems
 
     async def _binding_problems(
         self, ctx: AuthContext, binding: CapabilityBindingSpec

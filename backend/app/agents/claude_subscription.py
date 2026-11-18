@@ -168,10 +168,9 @@ class ClaudeSubscriptionModelClient(Model):
         requested_settings = merge_model_settings(self.settings, model_settings)
         maximum_tokens = _max_output_tokens(requested_settings)
         timeout = _request_timeout(requested_settings)
-        if model_request_parameters.native_tools:
-            raise UserError(
-                "Claude subscription models support application tools, not provider-native tools"
-            )
+        # The profile supports no native tool, so resolution here drops an optional
+        # native tool or one with a local fallback and refuses any other (#166).
+        # The unresolved parameters still list the dropped ones; never check those.
         settings, parameters = self.prepare_request(model_settings, model_request_parameters)
         tools = _request_tools(settings, parameters)
         # Construct and validate the entire input before the first runtime call.

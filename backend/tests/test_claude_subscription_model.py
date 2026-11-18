@@ -41,11 +41,12 @@ from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities import load_builtins
 from app.agents.capabilities.approval import ApprovalGranted, ApprovalPending
+from app.agents.capabilities.web_fetch._capability import build_web_fetch
 from app.agents.claude_subscription import ClaudeSubscriptionModelClient
 from app.agents.ephemeral_media import dump_messages, ephemeral_image
 from app.agents.factory import build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER, ClaudeSubscriptionOwner
 from app.core.secret_kinds import NoSecret
 from app.services.claude_subscription import ClaudeInference, ClaudeSubscriptionRuntime
@@ -277,15 +278,80 @@ async def test_unsupported_attachments_fail_before_inference(prompt):
     runtime.infer.assert_not_awaited()
 
 
-async def test_native_tools_fail_before_inference():
+async def test_native_tools_without_a_local_fallback_fail_before_inference():
     model, runtime = _model()
-    with pytest.raises(UserError, match="application tools, not provider-native tools"):
+    with pytest.raises(UserError, match="not supported by this model"):
         await model.request(
             [ModelRequest(parts=[UserPromptPart("Search")])],
             None,
             ModelRequestParameters(native_tools=[WebSearchTool()]),
         )
     runtime.infer.assert_not_awaited()
+
+
+async def test_web_fetch_on_auto_offers_its_local_tool():
+    load_builtins()
+    model, runtime = _model(_reply("Read."))
+    fetch = build_web_fetch(
+        method="auto", max_content_chars=1000, allowed_domains=None, blocked_domains=None
+    )
+    await Agent(model, capabilities=[fetch]).run("Read https://example.com")
+    assert [tool["name"] for tool in _prompt(runtime)["available_tools"]] == ["web_fetch"]
+
+
+async def test_architect_capabilities_answer_a_text_attachment_with_local_tools():
+    """#166: the Architect's tool search and fetch run locally on a subscription model.
+
+    Its `tool_search` (`local_bm25`) offers an optional native tool search and
+    `web_fetch` on `auto` a native fetch with a local fallback. Neither is native
+    here, so the turn must reach inference with their local tools and no native one.
+    """
+    load_builtins()
+    owner = _owner()
+    runtime = AsyncMock(spec=ClaudeSubscriptionRuntime)
+    runtime.infer.side_effect = [_reply("The file lists two release risks.")]
+    model_spec = ModelRequestSpec(
+        profile_id=uuid4(),
+        label="My Claude",
+        provider=CLAUDE_SUBSCRIPTION_PROVIDER,
+        model="sonnet",
+        params={},
+        fallbacks=[],
+        credential=ResolvedCredential(
+            provider=CLAUDE_SUBSCRIPTION_PROVIDER,
+            secret=NoSecret(),
+            personal_owner_user_id=owner.user_id,
+            claude_subscription_owner=owner,
+        ),
+    )
+    spec = AgentSpec(
+        name="Architect",
+        instructions="Help people use the platform.",
+        capabilities=[
+            CapabilityBindingSpec(id="web_fetch", config={"method": "auto"}),
+            CapabilityBindingSpec(
+                id="tool_search",
+                config={
+                    "strategy": "local_bm25",
+                    "max_results": 5,
+                    "defer_capabilities": True,
+                },
+            ),
+        ],
+    )
+    attachment = "\n---\nAttached file: pasted.txt\n```\nRisk one.\nRisk two.\n```"
+
+    with patch("app.agents.claude_subscription.ClaudeSubscriptionRuntime", return_value=runtime):
+        built = build_agent(
+            spec, model_spec, organization_id=owner.organization_id, user_id=owner.user_id
+        )
+        result = await built.agent.run("Analyze the attached file(s)" + attachment, deps=built.deps)
+
+    assert result.output == "The file lists two release risks."
+    sent = _prompt(runtime)
+    assert "Risk two." in json.dumps(sent["conversation"])
+    # `web_fetch` is deferred behind the local search, so only that is offered up front.
+    assert "search_tools" in {tool["name"] for tool in sent["available_tools"]}
 
 
 @pytest.mark.parametrize(
