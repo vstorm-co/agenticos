@@ -613,6 +613,30 @@ class CriterionMoveRead(BaseSchema):
     broken_unconfirmed: int
 
 
+class FamilyMoveRead(BaseSchema):
+    """One family of criteria over the cases both sides graded it on, first answers counted.
+
+    A family passes in a case when every criterion of it does. Its direction is
+    `settled` when its own flipped cases are enough for an exact McNemar test to
+    tell; otherwise only the flips every rerun repeated count. A family that moved
+    on fewer than two cases decides nothing.
+    """
+
+    family: str
+    criteria: list[str] = Field(description="The criteria counted in it, by name; at most 50")
+    cases: int = Field(description="Cases both sides' first answers graded it on")
+    baseline_passed: int
+    candidate_passed: int
+    fixed: int = Field(description="Cases it went from fail to pass on, first answers")
+    broken: int = Field(description="Cases it went from pass to fail on, first answers")
+    fixed_confirmed: int
+    broken_confirmed: int
+    p_value: float
+    settled: bool
+    better: bool
+    worse: bool
+
+
 class EfficiencyRead(BaseSchema):
     cost_per_pass: TrendLiteral
     avg_tokens: TrendLiteral
@@ -686,4 +710,8 @@ class EvalComparisonRead(BaseSchema):
             "Criteria graded on both sides, by scorer and name: at most 200, the ones "
             "that moved first"
         ),
+    )
+    families: list[FamilyMoveRead] = Field(
+        default_factory=list,
+        description="Each family of criteria graded on both sides, by name",
     )

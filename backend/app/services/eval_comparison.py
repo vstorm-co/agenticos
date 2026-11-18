@@ -1,7 +1,7 @@
 """How two eval arms compare: per case, per tag, and as one verdict.
 
-Comparison arithmetic over outcomes the scorers already produced, kept apart from the
-service that gathers them so every rule can be checked without the application database.
+Pure arithmetic over outcomes the scorers already produced, kept apart from the
+service that gathers them so every rule here can be checked without a database.
 
 The rules are the ones a gate can trust:
 
@@ -16,10 +16,15 @@ The rules are the ones a gate can trust:
   unless it is the candidate itself at an earlier time, the same spec on the
   same model, whose reruns would only be the candidate's again.
 * **A criterion moves as a case flips.** Each check, judge criterion, expected
-  call and reference grade is compared on its own over the same cases, and a
-  case where one of them flipped is asked again as a flipped case is: a moved
-  criterion counts only when the reruns repeat it on both sides. A case that
-  still fails can so show what a change fixed in it.
+  call and reference grade is compared on its own over the same cases. A case
+  that still fails can so show what a change fixed in it.
+* **A family moves across cases.** The criteria of one family - every case's
+  "total including VAT" check - pass in a case when all of them pass there, and
+  the family is compared case by case. Its direction is settled by an exact
+  McNemar test over its own flipped cases when they are enough to tell; only a
+  family that moved and is not settled sends its flipped cases to be asked
+  again, and then counts what the reruns repeated. A family that moved on fewer
+  than two cases decides nothing.
 * **A verdict rests on confirmed flips.** One confirmed regression makes the
   candidate worse, confirmed fixes alone make it better, both make it mixed.
   An exact McNemar test over the confirmed flips says separately whether the
@@ -35,10 +40,8 @@ The rules are the ones a gate can trust:
 
 import enum
 import math
-import sqlite3
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
-from contextlib import closing
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Literal
@@ -407,31 +410,48 @@ type Grades = Mapping[Criterion, Outcome]
 _STATUS_OUTCOME: dict[object, bool] = {"pass": True, "fail": False}
 
 
+def _required(
+    results: Iterable[Mapping[str, object]],
+) -> Iterable[tuple[Criterion, Mapping[str, object]]]:
+    """Each required result under the criterion it grades.
+
+    Two results under one scorer and name - two schema checks at one path - are
+    told apart by their order, which the same scoring repeats on every answer:
+    the second is `name #2`.
+    """
+    seen: Counter[Criterion] = Counter()
+    for result in results:
+        if result.get("required") is False:
+            continue
+        criterion = (str(result["scorer"]), str(result["name"]))
+        seen[criterion] += 1
+        if seen[criterion] > 1:
+            criterion = (criterion[0], f"{criterion[1]} #{seen[criterion]}")
+        yield criterion, result
+
+
 def grades(results: Iterable[Mapping[str, object]]) -> dict[Criterion, Outcome]:
     """A stored score's required results as criterion outcomes.
 
     A skipped or failed scorer decides none. An optional result is left out, as
-    `case_passed` leaves it out of the question. Two results under one scorer and
-    name - two schema checks at one path - are told apart by their order, which
-    the same scoring repeats on every answer. Repeats get an unused numbered
-    suffix without overwriting a criterion whose literal name includes it.
+    `case_passed` leaves it out of the question.
     """
-    required = [result for result in results if result.get("required") is not False]
-    original_names = {(str(result["scorer"]), str(result["name"])) for result in required}
-    outcomes: dict[Criterion, Outcome] = {}
-    seen: Counter[Criterion] = Counter()
-    for result in required:
-        criterion = (str(result["scorer"]), str(result["name"]))
-        seen[criterion] += 1
-        if seen[criterion] > 1:
-            original = criterion
-            criterion = (original[0], f"{original[1]} #{seen[original]}")
-            # A literal criterion name may already use the generated suffix.
-            while criterion in original_names or criterion in outcomes:
-                seen[original] += 1
-                criterion = (original[0], f"{original[1]} #{seen[original]}")
-        outcomes[criterion] = _STATUS_OUTCOME.get(result.get("status"))
-    return outcomes
+    return {
+        criterion: _STATUS_OUTCOME.get(result.get("status"))
+        for criterion, result in _required(results)
+    }
+
+
+def families(results: Iterable[Mapping[str, object]]) -> dict[Criterion, str]:
+    """The family each required result's check named, keyed as `grades` keys them.
+
+    A result whose check named none is left out: it is a family of its own.
+    """
+    return {
+        criterion: str(result["family"])
+        for criterion, result in _required(results)
+        if result.get("family")
+    }
 
 
 @dataclass(frozen=True)
@@ -458,14 +478,6 @@ class PairedGrades:
             tuple(run.get(criterion) for run in self.candidate_reruns),
             drift=self.drift,
         )
-
-
-def criterion_flipped(baseline: Grades, candidate: Grades) -> bool:
-    """Whether any criterion graded on both sides came out the other way."""
-    return any(
-        classify(outcome, candidate.get(criterion)) in (Flip.REGRESSION, Flip.FIXED)
-        for criterion, outcome in baseline.items()
-    )
 
 
 @dataclass(frozen=True)
@@ -513,17 +525,9 @@ MAX_COMPARED_CRITERIA = 200
 """Criteria a comparison reports. A dataset's per-case checks can name thousands."""
 
 
-@dataclass(frozen=True)
-class CriterionComparison:
-    """Bounded detail and normalized confirmed movement over every graded pair."""
-
-    moves: list[CriterionMove]
-    change: float
-
-
-def compare_criteria(
+def criterion_moves(
     cases: Iterable[PairedGrades], *, limit: int = MAX_COMPARED_CRITERIA
-) -> CriterionComparison:
+) -> list[CriterionMove]:
     """The criteria graded on both sides of some case, by scorer and then name.
 
     Past `limit`, the ones that decide a verdict are kept first - every criterion
@@ -531,91 +535,208 @@ def compare_criteria(
     ones failing most often - so a verdict read from the kept list is the one
     the whole list gives.
     """
-    if not 0 <= limit <= MAX_COMPARED_CRITERIA:
-        raise ValueError("Criterion response limit must be between 0 and 200")
-    # A private, automatically deleted scratch database spills beyond its 2 MiB
-    # cache. A dict of every distinct criterion can exhaust a worker on valid data.
-    with closing(sqlite3.connect("")) as scratch:
-        scratch.execute("PRAGMA cache_size = -2048")
-        scratch.execute("PRAGMA temp_store = FILE")
-        scratch.execute("PRAGMA journal_mode = OFF")
-        scratch.execute("PRAGMA synchronous = OFF")
-        scratch.execute(
-            "CREATE TABLE moves (scorer TEXT, name TEXT, graded INTEGER, "
-            "baseline_passed INTEGER, candidate_passed INTEGER, fixed_confirmed INTEGER, "
-            "broken_confirmed INTEGER, fixed_unconfirmed INTEGER, broken_unconfirmed INTEGER, "
-            "PRIMARY KEY (scorer, name)) WITHOUT ROWID"
-        )
-        scratch.executemany(
-            "INSERT INTO moves VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
-            "ON CONFLICT (scorer, name) DO UPDATE SET "
-            "graded = graded + excluded.graded, "
-            "baseline_passed = baseline_passed + excluded.baseline_passed, "
-            "candidate_passed = candidate_passed + excluded.candidate_passed, "
-            "fixed_confirmed = fixed_confirmed + excluded.fixed_confirmed, "
-            "broken_confirmed = broken_confirmed + excluded.broken_confirmed, "
-            "fixed_unconfirmed = fixed_unconfirmed + excluded.fixed_unconfirmed, "
-            "broken_unconfirmed = broken_unconfirmed + excluded.broken_unconfirmed",
-            _criterion_contributions(cases),
-        )
-        # Aggregate before limiting detail, so selection sees every criterion.
-        scratch.row_factory = _criterion_change_row
-        change: float = scratch.execute(
-            "SELECT coalesce(sum(fixed_confirmed - broken_confirmed), 0), "
-            "coalesce(sum(graded), 0) FROM moves"
-        ).fetchone()
-        scratch.row_factory = _criterion_move_row
-        # Rank and limit before constructing response objects. Name tie-breaks
-        # match the former stable sort, including criteria with equal counts.
-        moves = sorted(
-            scratch.execute(
-                "SELECT * FROM moves ORDER BY "
-                "(broken_confirmed = 0), "
-                "NOT (broken_confirmed = 0 AND fixed_confirmed > 0 "
-                "AND candidate_passed >= baseline_passed), "
-                "NOT (fixed_unconfirmed OR broken_unconfirmed OR fixed_confirmed), "
-                "candidate_passed - graded, scorer, name LIMIT ?",
-                (limit,),
-            ),
-            key=lambda move: (move.scorer, move.name),
-        )
-        return CriterionComparison(moves=moves, change=change)
-
-
-def _criterion_change_row(_cursor: sqlite3.Cursor, row: tuple[int, int]) -> float:
-    # Our aggregate SELECT always returns one pair of integer sums, including empty input.
-    moved, graded = row
-    return moved / graded if graded else 0.0
-
-
-type _CriterionContribution = tuple[str, str, int, int, int, int, int, int, int]
-
-
-def _criterion_contributions(cases: Iterable[PairedGrades]) -> Iterable[_CriterionContribution]:
-    """Stream contributions without retaining all criterion names."""
+    counts: dict[Criterion, Counter[str]] = {}
     for case in cases:
-        for (scorer, name), before in case.baseline.items():
-            criterion = (scorer, name)
+        for criterion, before in case.baseline.items():
             after = case.candidate.get(criterion)
             if before is None or after is None:
                 continue
+            row = counts.setdefault(criterion, Counter())
+            row["graded"] += 1
+            row["baseline_passed"] += int(before)
+            row["candidate_passed"] += int(after)
             flip = case.flip(criterion)
-            confirmed = case.confirmed(criterion)
-            fixed = flip is Flip.FIXED
-            broken = flip is Flip.REGRESSION
-            yield (
-                scorer,
-                name,
-                1,
-                int(before),
-                int(after),
-                int(fixed and confirmed),
-                int(broken and confirmed),
-                int(fixed and not confirmed),
-                int(broken and not confirmed),
+            if flip in (Flip.FIXED, Flip.REGRESSION):
+                which = "fixed" if flip is Flip.FIXED else "broken"
+                state = "confirmed" if case.confirmed(criterion) else "unconfirmed"
+                row[f"{which}_{state}"] += 1
+    moves = [
+        CriterionMove(
+            scorer=scorer,
+            name=name,
+            graded=row["graded"],
+            baseline_passed=row["baseline_passed"],
+            candidate_passed=row["candidate_passed"],
+            fixed_confirmed=row["fixed_confirmed"],
+            broken_confirmed=row["broken_confirmed"],
+            fixed_unconfirmed=row["fixed_unconfirmed"],
+            broken_unconfirmed=row["broken_unconfirmed"],
+        )
+        for (scorer, name), row in sorted(counts.items())
+    ]
+    if len(moves) <= limit:
+        return moves
+    kept = sorted(
+        moves,
+        key=lambda move: (
+            not move.worse,
+            not move.better,
+            not (move.fixed_unconfirmed or move.broken_unconfirmed or move.fixed_confirmed),
+            move.candidate_passed - move.graded,
+        ),
+    )[:limit]
+    return sorted(kept, key=lambda move: (move.scorer, move.name))
+
+
+MIN_FAMILY_CASES = 2
+"""Cases a family must have moved on to decide anything; one case is one answer."""
+
+
+def family_of(criterion: Criterion, named: Mapping[Criterion, str]) -> str:
+    """The family a criterion is counted in: the one its check named, else its own name."""
+    return named.get(criterion, criterion[1])
+
+
+def family_outcomes(graded: Grades, named: Mapping[Criterion, str]) -> dict[str, Outcome]:
+    """How each family came out in one answer: passed when every criterion of it passed.
+
+    One failed criterion fails the family; with none failed, one undecided leaves it
+    undecided.
+    """
+    members: dict[str, list[Outcome]] = {}
+    for criterion, outcome in graded.items():
+        members.setdefault(family_of(criterion, named), []).append(outcome)
+    return {
+        family: False if False in outcomes else None if None in outcomes else True
+        for family, outcomes in members.items()
+    }
+
+
+@dataclass(frozen=True)
+class FamilyMove:
+    """How one family came out on the cases both sides graded it on, first answers counted.
+
+    Attributes:
+        family: The family's name - the one its checks named, or a lone criterion's.
+        criteria: The criteria counted in it, by name, sorted.
+        cases: Cases whose first answer graded it on both sides.
+        baseline_passed: Of those, how many the baseline passed.
+        candidate_passed: Of those, how many the candidate passed.
+        fixed: Cases it went from fail to pass on in the first answers.
+        broken: Cases it went from pass to fail on in the first answers.
+        fixed_confirmed: Of `fixed`, those every rerun on both sides repeated.
+        broken_confirmed: Of `broken`, those every rerun on both sides repeated.
+        p_value: The exact McNemar p-value over `fixed` and `broken`.
+        settled: Whether its flipped cases are enough on their own to tell its
+            direction, at the significance the comparison was made with.
+    """
+
+    family: str
+    criteria: tuple[str, ...]
+    cases: int
+    baseline_passed: int
+    candidate_passed: int
+    fixed: int
+    broken: int
+    fixed_confirmed: int
+    broken_confirmed: int
+    p_value: float
+    settled: bool
+
+    @property
+    def moved(self) -> bool:
+        """Whether it flipped on enough cases to decide anything."""
+        return self.fixed + self.broken >= MIN_FAMILY_CASES
+
+    @property
+    def fixed_held(self) -> int:
+        """Fixed cases that count: every flipped one when settled, else the confirmed ones."""
+        return self.fixed if self.settled else self.fixed_confirmed
+
+    @property
+    def broken_held(self) -> int:
+        """Broken cases that count: every flipped one when settled, else the confirmed ones."""
+        return self.broken if self.settled else self.broken_confirmed
+
+    @property
+    def needs_reruns(self) -> bool:
+        """Moved, and only asking its flipped cases again can tell which way."""
+        return self.moved and not self.settled
+
+    @property
+    def worse(self) -> bool:
+        """More cases held broken than fixed, on at least two cases."""
+        return self.broken_held >= MIN_FAMILY_CASES and self.broken_held > self.fixed_held
+
+    @property
+    def better(self) -> bool:
+        """More cases held fixed than broken, on at least two, and no fewer passes."""
+        return (
+            self.fixed_held >= MIN_FAMILY_CASES
+            and self.fixed_held > self.broken_held
+            and self.candidate_passed >= self.baseline_passed
+        )
+
+
+def family_moves(
+    cases: Iterable[PairedGrades], named: Mapping[Criterion, str], *, alpha: float
+) -> list[FamilyMove]:
+    """Every family graded on both sides of some case, by name.
+
+    `named` is the family each criterion's check named, from either side's scores:
+    a side scored before families existed names none, and the other side's names
+    hold for both.
+    """
+    rows: dict[str, Counter[str]] = {}
+    members: dict[str, set[str]] = {}
+    for case in cases:
+        before = family_outcomes(case.baseline, named)
+        after = family_outcomes(case.candidate, named)
+        before_reruns = [family_outcomes(run, named) for run in case.baseline_reruns]
+        after_reruns = [family_outcomes(run, named) for run in case.candidate_reruns]
+        for criterion in case.baseline:
+            if criterion in case.candidate:
+                members.setdefault(family_of(criterion, named), set()).add(criterion[1])
+        for family, was in before.items():
+            now = after.get(family)
+            if was is None or now is None:
+                continue
+            row = rows.setdefault(family, Counter())
+            row["cases"] += 1
+            row["baseline_passed"] += int(was)
+            row["candidate_passed"] += int(now)
+            flip = classify(was, now)
+            if flip not in (Flip.FIXED, Flip.REGRESSION):
+                continue
+            which = "fixed" if flip is Flip.FIXED else "broken"
+            row[which] += 1
+            if reproduced(
+                was,
+                now,
+                tuple(run.get(family) for run in before_reruns),
+                tuple(run.get(family) for run in after_reruns),
+                drift=case.drift,
+            ):
+                row[f"{which}_confirmed"] += 1
+    moves = []
+    for family, row in sorted(rows.items()):
+        p = mcnemar_p(row["broken"], row["fixed"])
+        moves.append(
+            FamilyMove(
+                family=family,
+                criteria=tuple(sorted(members.get(family, ()))),
+                cases=row["cases"],
+                baseline_passed=row["baseline_passed"],
+                candidate_passed=row["candidate_passed"],
+                fixed=row["fixed"],
+                broken=row["broken"],
+                fixed_confirmed=row["fixed_confirmed"],
+                broken_confirmed=row["broken_confirmed"],
+                p_value=p,
+                settled=row["fixed"] + row["broken"] >= MIN_FAMILY_CASES and p < alpha,
             )
+        )
+    return moves
 
 
-def _criterion_move_row(_cursor: sqlite3.Cursor, row: _CriterionContribution) -> CriterionMove:
-    # The SELECT reads exactly the nine columns of our private scratch table.
-    return CriterionMove(*row)
+def family_flipped(
+    baseline: Grades, candidate: Grades, named: Mapping[Criterion, str], among: Collection[str]
+) -> bool:
+    """Whether a family in `among` came out the other way in this case."""
+    before = family_outcomes(baseline, named)
+    after = family_outcomes(candidate, named)
+    return any(
+        classify(before[family], after.get(family)) in (Flip.REGRESSION, Flip.FIXED)
+        for family in among
+        if family in before
+    )

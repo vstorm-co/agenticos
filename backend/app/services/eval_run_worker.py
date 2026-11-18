@@ -20,7 +20,7 @@ of whose criteria, flipped against the baseline are rerun, and the run ends.
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from contextlib import AbstractAsyncContextManager, aclosing, suppress
+from contextlib import AbstractAsyncContextManager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -76,7 +76,7 @@ from app.services.access import AGENT, DATASET, resolve_access
 from app.services.agent_registry import Candidate, PublishedCandidate, UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
-from app.services.eval_comparison import Flip, classify, criterion_flipped
+from app.services.eval_comparison import Flip, PairedGrades, classify, family_flipped, family_moves
 from app.services.eval_run import EvalRunService, drifts, skill_body_from_json
 from app.services.improvement_states import affordable
 from app.services.message_history import HistoryMessage, build_message_history
@@ -828,20 +828,14 @@ class EvalRunWorker:
 
     @staticmethod
     def _spend(agent_run: AgentRun, attempt: EvalRunCase) -> dict[str, Any]:
-        """What an answer spent, including earlier tries of an attempt asked again."""
-
-        def accumulated(current: int | None, previous: int | None) -> int | None:
-            return (
-                None if current is None and previous is None else (current or 0) + (previous or 0)
-            )
-
+        """What an answer spent, with what an earlier try of an attempt asked again spent."""
         return {
             "agent_run_id": agent_run.id,
             "cost_usd": agent_run.cost_usd + (attempt.cost_usd or Decimal(0)),
             "cost_is_partial": agent_run.cost_is_partial or bool(attempt.cost_is_partial),
-            "input_tokens": accumulated(agent_run.input_tokens, attempt.input_tokens),
-            "output_tokens": accumulated(agent_run.output_tokens, attempt.output_tokens),
-            "latency_ms": accumulated(_latency_ms(agent_run), attempt.latency_ms),
+            "input_tokens": agent_run.input_tokens,
+            "output_tokens": agent_run.output_tokens,
+            "latency_ms": _latency_ms(agent_run),
         }
 
     async def _fail(
@@ -907,8 +901,8 @@ class EvalRunWorker:
 
         An answer a provider timed out on, or failed, leaves its case incomplete, and
         an incomplete case makes the whole check inconclusive - which the session then
-        pays to run again in full. Asking just those answers again uses their arm's frozen
-        answer and judge estimate, and is done only when the session's budget still covers it
+        pays to run again in full. Asking just those answers again costs their share
+        of the estimate, and is done only when the session's budget still covers it
         beside the confirming reruns still to come. It happens once, before the flips
         are confirmed, so a case it settles is confirmed like any other; an answer
         that fails again stays incomplete. A case anonymised meanwhile is not asked.
@@ -926,8 +920,7 @@ class EvalRunWorker:
                 or run.proposal_check is None
             ):
                 return False
-            record = ProposalCheckRecord.model_validate(run.proposal_check)
-            session_id = record.improvement_run_id
+            session_id = ProposalCheckRecord.model_validate(run.proposal_check).improvement_run_id
             if session_id is None:
                 return False
             firsts = [
@@ -956,21 +949,7 @@ class EvalRunWorker:
             if session is None:
                 return False
             spent = await improvement_repo.spent(db, session_id, organization_id=org)
-            arms = await eval_run_repo.list_arms(db, [run.id], organization_id=org)
-            prices = {
-                arm.id: record.answer_estimates_usd[arm.position]
-                for arm in arms
-                if 0 <= arm.position < len(record.answer_estimates_usd)
-            }
-            if any(attempt.arm_id not in prices for attempt in lost):
-                logger.info(
-                    "eval_answer_retry_estimate_missing", extra={"eval_run_id": str(run.id)}
-                )
-                return False
-            price = (
-                sum((prices[attempt.arm_id] for attempt in lost), Decimal(0))
-                + run.rerun_ceiling_usd
-            )
+            price = run.estimate_usd * len(lost) / len(firsts) + run.rerun_ceiling_usd
             if not affordable(spent=spent, step_estimate=price, budget=session.budget_usd):
                 return False
             await personal_data_repo.forget_runs(
@@ -984,11 +963,13 @@ class EvalRunWorker:
             return True
 
     async def _queue_reruns(self, ctx: AuthContext) -> bool:
-        """Queue the confirmation reruns of every flipped case. True if any were queued.
+        """Queue the confirmation reruns of every case that decides. True if any were queued.
 
-        A case flipped when its outcome did, or when any criterion graded on both
-        sides did: a case that kept failing for one reason may pass another now,
-        and only the reruns can confirm that.
+        A case decides when its outcome flipped, or when a family of criteria
+        flipped in it that the first answers alone cannot settle: one that moved
+        on at least two cases with too few of them for an exact test to tell which
+        way. A family settled by its own spread needs no reruns, and one that
+        moved on a single case decides nothing, so neither sends a case again.
 
         A stability run compares nothing: every first answer is asked again.
 
@@ -1023,8 +1004,6 @@ class EvalRunWorker:
                     baseline = await service.baseline_for(ctx, run, arm)
                     if baseline is None:
                         continue
-                    if await service._incomparable(ctx, run, arm, baseline, attempts) is not None:
-                        continue
                     mine = await service.outcomes(ctx, arm, attempts)
                     their_attempts = (
                         attempts
@@ -1046,36 +1025,44 @@ class EvalRunWorker:
                         else None
                     )
                     same, _ = await service.pairing(ctx, run, arm, baseline, attempts)
-                    criterion_flips: set[UUID] = set()
-                    async with aclosing(
-                        service.criterion_batches(
-                            ctx,
-                            arm,
-                            attempts,
-                            baseline.here or baseline.arm,
-                            their_attempts,
-                            case_ids=[
-                                case_id for case_id in mine if case_id in same and case_id in theirs
+                    mine_graded = await service.criterion_outcomes(ctx, arm, attempts)
+                    theirs_graded = await service.criterion_outcomes(
+                        ctx, baseline.here or baseline.arm, their_attempts
+                    )
+                    my_grades, their_grades = mine_graded.by_case, theirs_graded.by_case
+                    named = theirs_graded.named | mine_graded.named
+                    compared = [
+                        case_id
+                        for case_id in same
+                        if case_id in my_grades and case_id in their_grades
+                    ]
+                    undecided = {
+                        move.family
+                        for move in family_moves(
+                            [
+                                PairedGrades(
+                                    baseline=their_grades[case_id][0],
+                                    candidate=my_grades[case_id][0],
+                                )
+                                for case_id in compared
                             ],
+                            named,
+                            alpha=settings.EVAL_SIGNIFICANCE,
                         )
-                    ) as batches:
-                        async for batch in batches:
-                            criterion_flips.update(
-                                case_id
-                                for case_id, pair in batch
-                                if criterion_flipped(pair.baseline, pair.candidate)
-                            )
+                        if move.needs_reruns
+                    }
                     for case_id, (outcome, _, _) in mine.items():
                         first = firsts.get((arm.id, case_id))
                         if case_id not in same or first is None:
                             continue
-                        if (
-                            classify(theirs[case_id][0], outcome)
-                            not in (
-                                Flip.REGRESSION,
-                                Flip.FIXED,
-                            )
-                            and case_id not in criterion_flips
+                        if classify(theirs[case_id][0], outcome) not in (
+                            Flip.REGRESSION,
+                            Flip.FIXED,
+                        ) and not family_flipped(
+                            their_grades.get(case_id, ({}, ()))[0],
+                            my_grades.get(case_id, ({}, ()))[0],
+                            named,
+                            undecided,
                         ):
                             continue
                         queued[(arm.id, case_id)] = first
