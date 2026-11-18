@@ -1,5 +1,7 @@
 "use client";
 
+import { isChatGPTSignInKind } from "@/types/secrets";
+
 import { useId, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
@@ -107,6 +109,10 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
   const endpoint = inheritedProfile?.base_url ?? null;
   const providers = purposes.filter((entry) => entry.category === "model_provider");
   const provider = providers.find((entry) => entry.id === providerId);
+  const providerKey =
+    secrets.find(
+      (secret) => secret.id === inheritedProfile?.secret_id && secret.purpose === providerId,
+    ) ?? secrets.find((secret) => secret.purpose === providerId);
   const {
     models: suggestions,
     refused,
@@ -115,6 +121,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
   } = useProviderModels(
     providerId,
     providerId === "openrouter" ? (endpoint ?? undefined) : undefined,
+    providerId === "openai_chatgpt" ? providerKey?.id : undefined,
   );
   // An override profile and the agent's published model both carry
   // provider/model/label, so one summary renders whichever is current.
@@ -124,6 +131,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     (profile) =>
       profile.provider === providerId &&
       profile.model === model.trim() &&
+      (providerId !== "openai_chatgpt" || profile.secret_id === providerKey?.id) &&
       (!endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "")),
   );
   const hasCustomEndpoint = matching.some(
@@ -176,10 +184,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
       return;
     }
 
-    const key =
-      secrets.find(
-        (secret) => secret.id === inheritedProfile?.secret_id && secret.purpose === provider.id,
-      ) ?? secrets.find((secret) => secret.purpose === provider.id);
+    const key = providerKey;
     if (key === undefined) {
       // The form below offers to add one, so this says what is missing rather than
       // sending somebody to another page for it.
@@ -350,8 +355,10 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
               the purpose this key needs is known. */}
               {provider !== undefined &&
                 !secrets.some((secret) => secret.purpose === provider.id) &&
-                (provider.kind === "openai_codex" ? (
+                (isChatGPTSignInKind(provider.kind) ? (
                   <InlineChatGPTSignIn
+                    key={provider.id}
+                    kind={isChatGPTSignInKind(provider.kind) ? provider.kind : "openai_codex"}
                     suggestedName={provider.label}
                     onCreated={() => setFailure(null)}
                   />

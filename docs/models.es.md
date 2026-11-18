@@ -1,5 +1,5 @@
 ---
-source_sha: "0c45d2754e35"
+source_sha: "2418a76aad40"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -852,3 +852,15 @@ Un administrador puede configurar un perfil aprobado con un token bearer Copilot
 La autorización GitHub no basta: antes de guardar el token, AgenticOS comprueba que cuenta y aplicación ofrecen el modelo elegido por `/chat/completions`. Los catálogos son propios de cada cuenta, filtran endpoints compatibles y no usan un catálogo global de respaldo. No se ofrecen Responses, Messages, embeddings ni realtime de Copilot. Las conexiones personales siguen limitadas al chat web autenticado, sin sustituirlas por claves de organización u otro proveedor.
 
 El device flow admite concesiones OAuth App sin caducidad. Rechaza expresamente concesiones GitHub App caducables o renovables; no implementa renovación ni descarta refresh tokens silenciosamente. Permisos, políticas, revocación y cuotas requieren reconectar o actuar en la cuenta. El nombre del modelo no determina la factura: el uso del plan Copilot queda sin precio hasta verificar la facturación en USD; las cuotas no se interpretan como dólares. La aceptación con cuenta real, aplicación propia e identidad AgenticOS sigue pendiente. Consulta [Pydantic AI Copilot](https://pydantic.dev/docs/ai/models/github-copilot/) y [GitHub OAuth](https://docs.github.com/en/copilot/how-tos/copilot-sdk/setup/github-oauth).
+
+## Uso oficial del plan ChatGPT { #official-chatgpt-plan-usage }
+
+**ChatGPT plan usage (official)** utiliza una autorización propia de la aplicación y la API pública Responses. **ChatGPT (Codex subscription)** sigue siendo la integración separada del backend Codex. Sus inicios de sesión, tipos de bóveda y tokens no son intercambiables.
+
+La función está desactivada por defecto. El operador debe verificar la elegibilidad, establecer `OPENAI_CHATGPT_PLAN_USAGE_ENABLED=true` y conservar un UUID en `OPENAI_CHATGPT_HOST_ID` entre reinicios y réplicas. Las aplicaciones de pago o alojadas remotamente necesitan aprobación de OpenAI. La configuración confirma la decisión del operador; no obtiene aprobación. Restaura el UUID original antes de reconectar una instalación existente.
+
+Elige el proveedor oficial en la bóveda o selector de modelos, inicia sesión y pega la dirección final `http://127.0.0.1:1455/auth/callback?...`. La autorización se guarda como privada. Solo su propietario puede usarla; perfiles compartidos, claves API y tareas en segundo plano no la prestan a otra persona. Rechazar compartir el plan conserva registro y autorización, muestra una advertencia e impide inferencia. Reconecta para solicitar consentimiento. El registro emitido sobrevive a errores del intercambio de tokens. Cada callback es de un solo uso y pertenece al miembro y organización iniciadores; otro inicio invalida los anteriores.
+
+Elige un modelo del catálogo actual de la cuenta seleccionada. No se sustituye por un catálogo global de claves API. La rotación usa escritura condicional en la bóveda. Cada petición comprueba revocación y pertenencia actual del propietario. Elimina la autorización de la bóveda para desconectar localmente; revoca acceso en la configuración ChatGPT para hacerlo en OpenAI. Los metadatos del registro se conservan para reconectar.
+
+Pydantic AI impone streaming, `store=false`, historial local y el protocolo preview admitido. No se ofrecen recuperación de respuestas suspendidas, Batch API ni herramientas alojadas incompatibles. El plan oficial no participa en fallbacks automáticos de modelos. Los cargos no tienen precio calculado en AgenticOS; un precio API no demuestra el cargo del plan. Elegibilidad, cuota y facturación necesitan pruebas con una cuenta apta. Consulta [el flujo OpenAI](https://developers.openai.com/siwc/token-sharing-open-source) y [el adaptador Pydantic AI](https://pydantic.dev/docs/ai/models/openai-chatgpt/).

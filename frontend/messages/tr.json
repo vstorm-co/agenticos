@@ -12432,7 +12432,10 @@
       "chatGPTSignIn": "{name}, ChatGPT aboneliği üzerinden model erişimi sağlayan bir ChatGPT oturum açmasıdır. Voice özellikleri OpenAI API key’i gerektirir; bu oturum açma burada kullanılamaz."
     },
     "notRecorded": "Kaydedilmedi",
-    "googleAccount": "Google hesabı"
+    "googleAccount": "Google hesabı",
+    "chatgptPlanDeclined": "Plan paylaşımı reddedildi. Kayıt saklandı ancak bu izin modelleri çalıştıramaz. Yeniden bağlanıp plan kullanımını onaylayın.",
+    "chatgptOfficialHelp": "Resmi ChatGPT uygulama izni, Codex’ten ayrı olarak herkese açık Responses API kullanır. Dağıtım uygun olmalı ve işletmecisi tarafından etkinleştirilmelidir. Son 127.0.0.1 adresini buraya yapıştırın. Planı reddetmek kaydı saklar ancak model erişimi vermez.",
+    "chatgptOwnerOnly": "Bu izinle modelleri yalnızca siz çalıştırabilirsiniz. Paylaşılan profiller, API anahtarları ve arka plan işleri bu izni kullanamaz."
   },
   "portals": {
     "backToServices": "Hizmetlere dön",

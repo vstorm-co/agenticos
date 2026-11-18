@@ -55,6 +55,7 @@ from app.db.models.case_generation import CaseProposal
 from app.db.models.case_score import CaseScore
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
+from app.db.models.chatgpt_registration import ChatGPTRegistration
 from app.db.models.coding_account import CodingAccount
 from app.db.models.coding_task_change import CodingTaskChange
 from app.db.models.context_proposal import ContextProposal
@@ -1854,4 +1855,10 @@ async def personal_model_generations_of(
         await db.scalars(
             select(PersonalModelGeneration).where(PersonalModelGeneration.user_id == user_id)
         )
+    )
+
+
+async def chatgpt_registrations_of(db: AsyncSession, user_id: UUID) -> list[ChatGPTRegistration]:
+    return list(
+        await db.scalars(select(ChatGPTRegistration).where(ChatGPTRegistration.user_id == user_id))
     )

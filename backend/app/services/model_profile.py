@@ -8,6 +8,7 @@ import logging
 import os
 from collections.abc import Mapping
 from dataclasses import replace
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -42,6 +43,7 @@ from app.core.secret_kinds import (
     AzureOpenAISecret,
     GcpServiceAccountSecret,
     NoSecret,
+    OpenAIChatGPTSecret,
     OpenAICodexSecret,
     SecretKind,
     SecretValue,
@@ -65,6 +67,9 @@ from app.services.model_catalog import CUSTOM_LISTINGS, CatalogModel, models_for
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.openai_codex import VaultCodexCredentials
 from app.services.organization_secret import OrganizationSecretService
+
+if TYPE_CHECKING:
+    from app.services.chatgpt_plan import VaultChatGPTCredentials
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +182,10 @@ def usable_for_agents(profile: ModelProfile) -> bool:
 def is_sign_in(profile: ModelProfile) -> bool:
     """Whether the profile runs on a ChatGPT sign-in, one person's subscription."""
     provider = PROVIDERS.get(profile.provider)
-    return provider is not None and provider.secret_kind is SecretKind.OPENAI_CODEX
+    return provider is not None and provider.secret_kind in {
+        SecretKind.OPENAI_CODEX,
+        SecretKind.OPENAI_CHATGPT,
+    }
 
 
 def choosable_for_others(profile: ModelProfile, profiles: Mapping[UUID, ModelProfile]) -> bool:
@@ -347,10 +355,14 @@ class ModelProfileService:
         if region is None:
             region = spec.default_region()
         _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api, region=region)
-        if is_decision_api(provider, api) and fallback_profile_ids:
+        if (
+            is_decision_api(provider, api) or provider == "openai_chatgpt"
+        ) and fallback_profile_ids:
             raise refused_field(
                 "fallback_profile_ids",
-                "Decision model probabilities require an explicit model; automatic fallbacks are not supported",
+                "Official ChatGPT plan usage cannot switch accounts or billing through automatic fallbacks"
+                if provider == "openai_chatgpt"
+                else "Decision model probabilities require an explicit model; automatic fallbacks are not supported",
             )
         await self._check_label_free(ctx, label)
         if secret_id is not None:
@@ -403,6 +415,14 @@ class ModelProfileService:
         api: ModelApi | None = None,
     ) -> CatalogModel | None:
         """Read creation-time metadata using the selected authenticated gateway credential."""
+        if provider == "openai_chatgpt":
+            if secret_id is None:
+                raise refused_field("secret_id", "Choose the official ChatGPT grant first")
+            choices = await OrganizationSecretService(self.db).chatgpt_models(ctx, secret_id)
+            selected = next((entry for entry in choices if entry.id == model), None)
+            if selected is None:
+                raise refused_field("model", "Select a model available to this ChatGPT account")
+            return selected
         endpoint = base_url if CUSTOM_LISTINGS.get(provider) else None
         secrets = OrganizationSecretService(self.db)
         api_key = (
@@ -520,10 +540,14 @@ class ModelProfileService:
             region = changes.region if changes.region is not None else spec.default_region()
         _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api, region=region)
 
-        if is_decision_api(profile.provider, api) and profile.fallback_profile_ids:
+        if (
+            is_decision_api(profile.provider, api) or profile.provider == "openai_chatgpt"
+        ) and profile.fallback_profile_ids:
             raise refused_field(
                 "api",
-                "This profile has fallbacks. Create a separate decision model profile without fallbacks",
+                "Official ChatGPT plan usage requires a profile without automatic fallbacks"
+                if profile.provider == "openai_chatgpt"
+                else "This profile has fallbacks. Create a separate decision model profile without fallbacks",
             )
 
         wanted: dict[str, object] = {
@@ -734,6 +758,11 @@ class ModelProfileService:
             routing=_credential_routing(value),
             # A ChatGPT sign-in rotates as it is used, so the provider is handed
             # the secret's place in the vault rather than only what it holds now.
+            chatgpt_source=(
+                _chatgpt_source(organization_id, secret.id, secret.authorization_generation)
+                if isinstance(value, OpenAIChatGPTSecret)
+                else None
+            ),
             credential_source=(
                 VaultCodexCredentials(organization_id=organization_id, secret_id=secret.id)
                 if isinstance(value, OpenAICodexSecret)
@@ -940,6 +969,12 @@ async def _may_spend(credential: ResolvedCredential, user_id: UUID | None) -> bo
 
     A caller with no person behind it reaches nobody's sign-in.
     """
+    if credential.provider == "openai_chatgpt":
+        return (
+            user_id is not None
+            and credential.chatgpt_source is not None
+            and await credential.chatgpt_source.visible_to(user_id)
+        )
     source = credential.credential_source
     if not isinstance(source, VaultCodexCredentials):
         return True
@@ -964,3 +999,13 @@ def sign_in_person(ctx: AuthContext) -> UUID | None:
     ):
         return None
     return ctx.user_id
+
+
+def _chatgpt_source(
+    organization_id: UUID, secret_id: UUID, generation: UUID
+) -> VaultChatGPTCredentials:
+    from app.services.chatgpt_plan import VaultChatGPTCredentials
+
+    return VaultChatGPTCredentials(
+        organization_id=organization_id, secret_id=secret_id, generation=generation
+    )

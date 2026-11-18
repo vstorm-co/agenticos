@@ -2283,6 +2283,7 @@ def get_secret_service(db: DBSession) -> OrganizationSecretService:
 
 
 SecretSvc = Annotated[OrganizationSecretService, Depends(get_secret_service)]
+from app.services.chatgpt_plan import ChatGPTPlanService
 from app.services.openai_codex import OpenAICodexService
 
 
@@ -2517,3 +2518,10 @@ def get_copilot_sign_in_service(db: DBSession, redis: Redis) -> CopilotSignInSer
 
 
 CopilotSignInSvc = Annotated[CopilotSignInService, Depends(get_copilot_sign_in_service)]
+
+
+def get_chatgpt_plan_service(db: DBSession, redis: Redis) -> ChatGPTPlanService:
+    return ChatGPTPlanService(db, redis)
+
+
+ChatGPTPlanSvc = Annotated[ChatGPTPlanService, Depends(get_chatgpt_plan_service)]

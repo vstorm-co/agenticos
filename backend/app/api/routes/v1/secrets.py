@@ -24,12 +24,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import Auth, OpenAICodexSvc, SecretSvc, require
+from app.api.deps import Auth, ChatGPTPlanSvc, OpenAICodexSvc, SecretSvc, require
 from app.core.permissions import Perm
 from app.core.secret_kinds import describe_kinds
 from app.core.secret_purposes import all_purposes
 from app.db.models.resource_grant import Visibility
 from app.schemas.secret import (
+    ChatGPTPlanComplete,
+    ChatGPTPlanCreate,
+    ChatGPTPlanReconnect,
+    ChatGPTPlanSignIn,
     OpenAICodexSecretCreate,
     OpenAICodexSecretReconnect,
     OpenAICodexSignIn,
@@ -152,6 +156,39 @@ async def reconnect_openai_codex_secret(
     secret_id: UUID, data: OpenAICodexSecretReconnect, service: OpenAICodexSvc, ctx: Auth
 ) -> Any:
     """Sign in with ChatGPT again, in place of a sign-in that stopped working."""
+    return await service.reconnect(ctx, secret_id, callback_url=data.callback_url)
+
+
+@router.post("/openai-chatgpt/sign-in", response_model=ChatGPTPlanSignIn)
+async def start_official_chatgpt_sign_in(service: ChatGPTPlanSvc, ctx: Auth) -> Any:
+    """Start official application plan consent, separately from Codex authentication."""
+    return ChatGPTPlanSignIn(authorization_url=await service.start_sign_in(ctx))
+
+
+@router.post(
+    "/openai-chatgpt",
+    response_model=ChatGPTPlanComplete,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.SECRETS_EDIT))],
+)
+async def complete_official_chatgpt_sign_in(
+    data: ChatGPTPlanCreate, service: ChatGPTPlanSvc, ctx: Auth
+) -> Any:
+    """Persist a private application grant, including explicitly declined plan consent."""
+    return await service.create(
+        ctx,
+        callback_url=data.callback_url,
+        name=data.name,
+        description=data.description,
+        visibility=Visibility(data.visibility),
+    )
+
+
+@router.put("/{secret_id}/openai-chatgpt", response_model=ChatGPTPlanComplete)
+async def reconnect_official_chatgpt_sign_in(
+    secret_id: UUID, data: ChatGPTPlanReconnect, service: ChatGPTPlanSvc, ctx: Auth
+) -> Any:
+    """Replace the owner's official grant; application registration remains durable."""
     return await service.reconnect(ctx, secret_id, callback_url=data.callback_url)
 
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { isChatGPTSignInKind } from "@/types/secrets";
+
 import type { ReactNode } from "react";
 import { RotateCw, Trash2, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -221,7 +223,7 @@ export function VaultTable({
                   variant="ghost"
                   size="icon"
                   aria-label={t(
-                    row.secret.kind === "openai_codex" ? "chatgptReconnectNamed" : "rotateNamed",
+                    isChatGPTSignInKind(row.secret.kind) ? "chatgptReconnectNamed" : "rotateNamed",
                     { name: row.name },
                   )}
                   onClick={() => onRotate(row.secret)}

@@ -64,6 +64,7 @@ from app.core.secret_kinds import (
     AzureOpenAISecret,
     GcpServiceAccountSecret,
     NoSecret,
+    OpenAIChatGPTSecret,
     OpenAICodexSecret,
     SecretKind,
     SecretValue,
@@ -71,6 +72,8 @@ from app.core.secret_kinds import (
 
 if TYPE_CHECKING:
     from pydantic_ai.providers.openai_codex import OpenAICodexCredentialSource
+
+    from app.services.chatgpt_plan import VaultChatGPTCredentials
 
 ModelApi = Literal["chat", "responses", "decisions"]
 """Which of OpenAI's two APIs a profile's requests go to: Chat Completions or Responses."""
@@ -149,7 +152,9 @@ class ProviderSpec:
     def apis(self) -> tuple[ModelApi, ...]:
         """The APIs a profile may choose between; empty where there is no choice."""
         ordinary: tuple[ModelApi, ...] = (
-            ("chat",)
+            ("responses",)
+            if self.id == "openai_chatgpt"
+            else ("chat",)
             if self.id in {"google", "openrouter"}
             else ("responses", "chat")
             if self.native_api is not None
@@ -169,6 +174,8 @@ class ProviderSpec:
         a gateway or a regional OpenAI endpoint that serves Responses is a choice
         the profile makes explicitly.
         """
+        if self.id == "openai_chatgpt":
+            return "responses"
         if self.id in {"typesafe", "system-one"}:
             return "decisions"
         if self.id in {"google", "openrouter"}:
@@ -333,6 +340,12 @@ PROVIDERS: dict[str, ProviderSpec] = {
         # because the credential is a sign-in that rotates, and because it is
         # billed to one person's subscription rather than to an API key.
         ProviderSpec(
+            id="openai_chatgpt",
+            name="ChatGPT plan usage (official)",
+            secret_kind=SecretKind.OPENAI_CHATGPT,
+            model_prefix="openai-chatgpt",
+        ),
+        ProviderSpec(
             id="openai_codex",
             name="ChatGPT (Codex subscription)",
             secret_kind=SecretKind.OPENAI_CODEX,
@@ -427,6 +440,7 @@ class ResolvedCredential:
     # ones back to. `secret` is the pair as it was when the run resolved it,
     # which a refresh in any other run may already have spent.
     credential_source: OpenAICodexCredentialSource | None = None
+    chatgpt_source: VaultChatGPTCredentials | None = None
     # The profile's, like `api`: where the requests may run, for a provider that
     # takes a region. `None` for every provider that does not.
     region: ModelRegion | None = None
@@ -479,6 +493,14 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
         )
     if isinstance(secret, GcpServiceAccountSecret):
         return _google_cloud_provider(secret)
+    if isinstance(secret, OpenAIChatGPTSecret):
+        from app.agents.chatgpt_plan import ChatGPTPlanProvider
+
+        if spec.id != "openai_chatgpt" or credential.chatgpt_source is None:
+            raise BadRequestError(
+                message="Official ChatGPT usage requires its own durable grant source"
+            )
+        return ChatGPTPlanProvider(credential.chatgpt_source)
     if isinstance(secret, OpenAICodexSecret):
         return _openai_codex_provider(spec, credential.credential_source)
 
@@ -722,6 +744,10 @@ def build_with_fallbacks(
     A single provider outage should not take an organization's agents down when
     they have a second key or a second provider configured.
     """
+    if fallbacks and any(entry[0].provider == "openai_chatgpt" for entry in [primary, *fallbacks]):
+        raise BadRequestError(
+            message="Official ChatGPT plan usage cannot participate in automatic model fallbacks"
+        )
     model = build_model(*primary)
     if not fallbacks:
         return model

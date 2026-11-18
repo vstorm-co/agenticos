@@ -11,7 +11,10 @@ import { getErrorMessage, submitFailure } from "@/lib/api-error";
 import { useAuthStore } from "@/stores";
 import { Perm } from "@/types/permissions";
 
+import type { ChatGPTSignInKind } from "@/types/secrets";
+
 interface ChatGPTSignInStepsProps {
+  kind?: ChatGPTSignInKind;
   /** The pasted address, owned by the form that submits it. */
   callbackUrl: string;
   onCallbackUrlChange: (value: string) => void;
@@ -33,6 +36,7 @@ interface ChatGPTSignInStepsProps {
  * the link that stays behind is for when one does anyway.
  */
 export function ChatGPTSignInSteps({
+  kind = "openai_codex",
   callbackUrl,
   onCallbackUrlChange,
   error,
@@ -41,7 +45,7 @@ export function ChatGPTSignInSteps({
 }: ChatGPTSignInStepsProps) {
   const t = useTranslations("vault");
   const tErrors = useTranslations("errors");
-  const { start } = useChatGPTSignIn();
+  const { start } = useChatGPTSignIn(kind);
   const [authorizationUrl, setAuthorizationUrl] = useState<string | null>(null);
 
   function begin() {
@@ -63,6 +67,9 @@ export function ChatGPTSignInSteps({
 
   return (
     <div className="space-y-3">
+      {kind === "openai_chatgpt" && (
+        <p className="text-muted-foreground text-xs">{t("chatgptOfficialHelp")}</p>
+      )}
       <div className="space-y-1.5">
         <p className="text-muted-foreground text-xs">{t("chatgptStepOne")}</p>
         <div className="flex flex-wrap items-center gap-3">
@@ -100,7 +107,11 @@ export function ChatGPTSignInSteps({
           value={callbackUrl}
           onChange={(event) => onCallbackUrlChange(event.target.value)}
           // i18n-exempt: an example address, the same in every language
-          placeholder="http://localhost:1455/auth/callback?code=…"
+          placeholder={
+            kind === "openai_chatgpt"
+              ? "http://127.0.0.1:1455/auth/callback?code=…"
+              : "http://localhost:1455/auth/callback?code=…"
+          }
           autoComplete="off"
           disabled={disabled}
           className="font-mono"
@@ -111,6 +122,7 @@ export function ChatGPTSignInSteps({
 }
 
 interface InlineChatGPTSignInProps {
+  kind?: ChatGPTSignInKind;
   /** What the stored sign-in is called. */
   suggestedName: string;
   /** Called with the new secret's id once it is stored. */
@@ -128,13 +140,14 @@ interface InlineChatGPTSignInProps {
  * the reason `InlineSecret` does - the permission belongs to the write.
  */
 export function InlineChatGPTSignIn({
+  kind = "openai_codex",
   suggestedName,
   onCreated,
   disabled,
 }: InlineChatGPTSignInProps) {
   const t = useTranslations("vault");
   const tErrors = useTranslations("errors");
-  const { create } = useChatGPTSignIn();
+  const { create } = useChatGPTSignIn(kind);
   const { can } = usePermissions();
   const [callbackUrl, setCallbackUrl] = useState("");
   const [error, setError] = useState<string | undefined>(undefined);
@@ -171,6 +184,8 @@ export function InlineChatGPTSignIn({
     <div className="border-border space-y-3 rounded-lg border border-dashed p-3">
       <p className="text-muted-foreground text-xs">{t("chatgptPersonal")}</p>
       <ChatGPTSignInSteps
+        key={kind}
+        kind={kind}
         callbackUrl={callbackUrl}
         onCallbackUrlChange={(value) => {
           setCallbackUrl(value);

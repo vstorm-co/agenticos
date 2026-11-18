@@ -885,6 +885,8 @@ include = [
     "app/services/model_outputs.py",
     "app/services/organization_secret.py",
     "app/services/openai_codex.py",
+    "app/services/chatgpt_plan.py",
+    "app/repositories/chatgpt_registration.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
     # decided by filtering a data file against what the platform can actually
     # reach, and an entry that quietly stops being offered - or starts being
@@ -1812,6 +1814,8 @@ include = [
     "app/services/model_outputs.py",
     "app/services/organization_secret.py",
     "app/services/openai_codex.py",
+    "app/services/chatgpt_plan.py",
+    "app/repositories/chatgpt_registration.py",
     # Same shape and the same reason as `image_models`: what a picker offers is
     # decided by filtering a data file against what the platform can actually
     # reach, and an entry that quietly stops being offered - or starts being

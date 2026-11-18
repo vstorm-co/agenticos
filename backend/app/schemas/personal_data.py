@@ -13,6 +13,17 @@ from app.schemas.routine_sources import RoutineSourcePolicy
 from app.schemas.telephony import PhoneContactConfig
 
 
+class ChatGPTRegistrationRead(BaseModel):
+    """Owner's public registration metadata, without security intent or grants."""
+
+    model_config = ConfigDict(from_attributes=True)
+    organization_id: UUID
+    host_id: UUID
+    client_id: str | None
+    created_at: datetime
+    updated_at: datetime | None
+
+
 class RoutineAnswerExport(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -300,6 +311,10 @@ class PersonalDataExport(BaseModel):
     )
     notification_routes: list[dict[str, Any]] = Field(
         default_factory=list, description="Their explicit private notification destinations."
+    )
+    chatgpt_registrations: list[ChatGPTRegistrationRead] = Field(
+        default_factory=list,
+        description="Official ChatGPT application registration metadata; no grants or security generation.",
     )
     personal_model_keys: list[PersonalModelKeyRead] = Field(
         default_factory=list, description="Personal LLM connection metadata; never API keys."

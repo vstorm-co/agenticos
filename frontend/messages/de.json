@@ -9898,7 +9898,10 @@
       "chatGPTSignIn": "{name} ist eine ChatGPT-Anmeldung für den Modellzugriff über ein ChatGPT-Abonnement. Sprachfunktionen benötigen einen OpenAI-API-Schlüssel; diese Anmeldung kann hier nicht verwendet werden."
     },
     "notRecorded": "Nicht erfasst",
-    "googleAccount": "Google-Konto"
+    "googleAccount": "Google-Konto",
+    "chatgptPlanDeclined": "Die Planfreigabe wurde abgelehnt. Die Registrierung wurde gespeichert, kann aber keine Modelle ausführen. Verbinde erneut und erlaube die Plannutzung.",
+    "chatgptOfficialHelp": "Die offizielle ChatGPT-Anwendungsfreigabe nutzt die öffentliche Responses API getrennt von Codex. Der Betreiber muss die Berechtigung prüfen und die Funktion aktivieren. Kopiere die abschließende 127.0.0.1-Adresse hierher. Eine Ablehnung speichert die Registrierung ohne Modellzugriff.",
+    "chatgptOwnerOnly": "Nur du kannst Modelle mit dieser Freigabe ausführen. Geteilte Profile, API-Schlüssel und Hintergrundaufträge können sie nicht nutzen."
   },
   "context": {
     "created": "{name} erstellt",

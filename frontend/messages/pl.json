@@ -8715,7 +8715,10 @@
       "chatGPTSignIn": "{name} to logowanie ChatGPT zapewniające dostęp do modeli w ramach subskrypcji ChatGPT. Funkcje głosowe wymagają klucza API OpenAI; tego logowania nie można tu użyć."
     },
     "notRecorded": "Brak danych",
-    "googleAccount": "Konto Google"
+    "googleAccount": "Konto Google",
+    "chatgptPlanDeclined": "Odmówiono udostępnienia planu. Rejestracja została zapisana, ale ten grant nie uruchomi modeli. Połącz ponownie i zatwierdź użycie planu.",
+    "chatgptOfficialHelp": "Oficjalna zgoda ChatGPT dla aplikacji używa publicznego Responses API, osobno od Codex. Wdrożenie musi spełniać warunki i zostać włączone przez operatora. Wklej końcowy adres 127.0.0.1. Odmowa użycia planu zachowuje rejestrację bez dostępu do modeli.",
+    "chatgptOwnerOnly": "Tylko Ty możesz uruchamiać modele z tym grantem. Współdzielone profile, klucze API i zadania w tle nie mogą go używać."
   },
   "context": {
     "created": "Utworzono {name}",

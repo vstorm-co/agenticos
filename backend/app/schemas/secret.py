@@ -194,3 +194,29 @@ class SecretKindList(BaseSchema):
 
     items: list[SecretKindInfo]
     total: int
+
+
+class ChatGPTPlanSignIn(BaseSchema):
+    """Open official consent, then paste its 127.0.0.1:1455 loopback callback."""
+
+    authorization_url: str
+
+
+class ChatGPTPlanCreate(BaseSchema):
+    """Store an owner-bound official application grant after consent."""
+
+    name: str = Field(min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=1000)
+    visibility: Literal["private"] = "private"
+    callback_url: str = Field(min_length=1, max_length=_MAX_CALLBACK_URL)
+
+
+class ChatGPTPlanReconnect(BaseSchema):
+    callback_url: str = Field(min_length=1, max_length=_MAX_CALLBACK_URL)
+
+
+class ChatGPTPlanComplete(BaseSchema):
+    """A stored grant may retain registration without consent to spend plan tokens."""
+
+    secret: SecretRead
+    plan_usage_granted: bool

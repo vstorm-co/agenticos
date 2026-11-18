@@ -126,6 +126,7 @@ class TestListing:
             "http_credential",
             "microsoft_oauth_app",
             "openai_codex",
+            "openai_chatgpt",
             "smtp_account",
         }
         assert all(entry["json_schema"]["properties"] for entry in response.json()["items"])
@@ -303,3 +304,60 @@ class TestSigningInWithChatGPT:
 
         assert response.status_code == 422
         assert codex.create.await_count == 0
+
+
+class TestOfficialChatGPTPlan:
+    @pytest.fixture
+    def official(self) -> Iterator[MagicMock]:
+        from app.services.chatgpt_plan import ConnectedChatGPT
+
+        row = _row(
+            kind="openai_chatgpt",
+            purpose="openai_chatgpt",
+            visibility="private",
+            owner_user_id=uuid.uuid4(),
+        )
+        row.access_token = "never-return-access"
+        row.refresh_token = "never-return-refresh"
+        stub = MagicMock()
+        stub.start_sign_in = AsyncMock(
+            return_value="https://auth.openai.com/oauth/authorize?state=official"
+        )
+        stub.create = AsyncMock(return_value=ConnectedChatGPT(row, False))
+        stub.reconnect = AsyncMock(return_value=ConnectedChatGPT(row, True))
+        app.dependency_overrides[deps.get_chatgpt_plan_service] = lambda: stub
+        yield stub
+
+    async def test_start_is_separate_from_codex_and_complete_reports_declined_plan_consent(
+        self, client, official
+    ) -> None:
+        async with client() as opened:
+            response = await opened.post(_url("/openai-chatgpt/sign-in"))
+            assert (
+                response.status_code == 200 and "official" in response.json()["authorization_url"]
+            )
+            result = await opened.post(
+                _url("/openai-chatgpt"),
+                json={
+                    "name": "My official plan",
+                    "callback_url": "http://127.0.0.1:1455/auth/callback?code=c&state=s",
+                },
+            )
+        assert result.status_code == 201
+        assert result.json()["plan_usage_granted"] is False
+        assert result.json()["secret"]["kind"] == "openai_chatgpt"
+        assert "never-return" not in result.text and "refresh_token" not in result.text
+        assert official.create.call_args.kwargs["visibility"].value == "private"
+
+    async def test_reconnect_preserves_the_secret_id_and_returns_only_safe_metadata(
+        self, client, official
+    ) -> None:
+        async with client() as opened:
+            result = await opened.put(
+                _url(f"/{_SECRET_ID}/openai-chatgpt"),
+                json={"callback_url": "http://127.0.0.1:1455/auth/callback?code=c&state=s"},
+            )
+        assert result.status_code == 200 and result.json()["plan_usage_granted"] is True
+        assert result.json()["secret"]["id"] == str(_SECRET_ID)
+        assert "never-return" not in result.text
+        assert official.reconnect.call_args.args[1] == _SECRET_ID

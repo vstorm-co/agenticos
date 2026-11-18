@@ -281,7 +281,7 @@ function providerModelsQuery(
       ...(decision ? ["decisions"] : []),
     ],
     queryFn: () => apiClient.get<ProviderModelList>(`/providers/${providerId}/models${query}`),
-    staleTime: 60 * 60 * 1000,
+    staleTime: providerId === "openai_chatgpt" ? 0 : 60 * 60 * 1000,
     // An empty dropdown is the fallback the field is built for, so a provider
     // that cannot be reached must not retry three times behind an open form.
     retry: false,
@@ -310,6 +310,7 @@ export function useProviderModels(
     ...providerModelsQuery(providerId, baseUrl, secretId, decision),
     enabled:
       providerId !== "" &&
+      !(providerId === "openai_chatgpt" && !secretId) &&
       !(providerId === "otari" && !baseUrl) &&
       !(["stav", "otari", "zai"].includes(providerId) && baseUrl && !secretId),
   });

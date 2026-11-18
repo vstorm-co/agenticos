@@ -1,5 +1,7 @@
 "use client";
 
+import { isChatGPTSignInKind } from "@/types/secrets";
+
 import { useId, useState } from "react";
 import { Check, KeyRound, Plus, Save } from "lucide-react";
 
@@ -357,7 +359,9 @@ export function AddModel({
   } = useProviderModels(
     providerId === "zai" && manualDiscovery && !confirmedGateway ? "" : providerId,
     ["openrouter", "stav", "otari", "zai"].includes(providerId) ? listingEndpoint : undefined,
-    ["stav", "otari", "zai"].includes(providerId) ? chosenKey || undefined : undefined,
+    ["stav", "otari", "zai", "openai_chatgpt"].includes(providerId)
+      ? chosenKey || undefined
+      : undefined,
     (pickedApi ?? startingApi) === "decisions" || ["typesafe", "system-one"].includes(providerId),
   );
 
@@ -681,14 +685,16 @@ export function AddModel({
                   ? t("noProviderKeyAddOneHere", { provider: provider.label })
                   : t("noProviderKeyAskSomebody", { provider: provider.label })}
               </p>
-              {canStoreKey && provider.kind === "openai_codex" && (
+              {canStoreKey && isChatGPTSignInKind(provider.kind) && (
                 <InlineChatGPTSignIn
+                  key={provider.id}
+                  kind={isChatGPTSignInKind(provider.kind) ? provider.kind : "openai_codex"}
                   suggestedName={provider.label}
                   onCreated={chooseKey}
                   disabled={disabled}
                 />
               )}
-              {canStoreKey && provider.kind !== "openai_codex" && (
+              {canStoreKey && !isChatGPTSignInKind(provider.kind) && (
                 <InlineSecret
                   kind="api_key"
                   purpose={provider.id}

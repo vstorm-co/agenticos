@@ -34,6 +34,7 @@ from app.core.memory_keys import person_owner_key
 from app.db.locks import LockScope, hold_subject
 from app.repositories import personal_data_repo, user_repo
 from app.schemas.personal_data import (
+    ChatGPTRegistrationRead,
     CodingTaskChangeExport,
     ConnectedAccountExport,
     OutcomeExport,
@@ -352,6 +353,10 @@ class PersonalDataService:
                 await personal_data_repo.notification_routes_of(self.db, user_id),
                 ("id", "organization_id", "channel", "session_id", "created_at"),
             ),
+            chatgpt_registrations=[
+                ChatGPTRegistrationRead.model_validate(row)
+                for row in await personal_data_repo.chatgpt_registrations_of(self.db, user_id)
+            ],
             personal_model_keys=[
                 PersonalModelKeyRead.model_validate(row)
                 for row in await personal_data_repo.personal_model_keys_of(self.db, user_id)

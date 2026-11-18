@@ -4,6 +4,7 @@
 import ipaddress
 from decimal import Decimal
 from pathlib import Path
+from uuid import UUID
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -48,6 +49,18 @@ def find_env_file() -> Path | None:
 
 class Settings(BaseSettings):
     """Application settings."""
+
+    OPENAI_CHATGPT_PLAN_USAGE_ENABLED: bool = False
+    OPENAI_CHATGPT_HOST_ID: UUID | None = None
+    """Operator attestation that this deployment is eligible for official ChatGPT plan usage."""
+
+    @model_validator(mode="after")
+    def chatgpt_plan_host(self) -> Settings:
+        if self.OPENAI_CHATGPT_PLAN_USAGE_ENABLED and self.OPENAI_CHATGPT_HOST_ID is None:
+            raise ValueError(
+                "OPENAI_CHATGPT_HOST_ID must be a stable installation UUID when official ChatGPT plan usage is enabled"
+            )
+        return self
 
     model_config = SettingsConfigDict(
         env_file=find_env_file(),

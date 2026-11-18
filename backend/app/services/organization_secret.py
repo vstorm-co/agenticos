@@ -54,6 +54,7 @@ from app.services.notifications import NotificationService
 if TYPE_CHECKING:
     from app.agents.pi_keys import PiKeyProvider, PiRuntimeKey
     from app.services.email.service import EmailService
+    from app.services.model_catalog import CatalogModel
 
 # The credentials a connect flow spends: separate kinds even where the fields are
 # identical, because a kind names what a credential is for.
@@ -371,6 +372,12 @@ class OrganizationSecretService:
             )
             for secret_id, row in rows.items()
         }
+
+    async def chatgpt_models(self, ctx: AuthContext, secret_id: UUID) -> list[CatalogModel]:
+        """List only the selected visible official ChatGPT account's models."""
+        from app.services.chatgpt_plan import account_models
+
+        return await account_models(self.db, ctx, secret_id)
 
     async def listing_key(
         self, ctx: AuthContext, provider: str, *, secret_id: UUID | None = None

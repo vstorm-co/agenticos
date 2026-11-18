@@ -48,12 +48,14 @@ from app.core.secret_kinds import (
     GcpServiceAccountSecret,
     GithubOAuthAppSecret,
     NoSecret,
+    OpenAIChatGPTSecret,
     OpenAICodexSecret,
     SecretKind,
     seal_secret,
 )
 from app.core.vault import VaultScope
 from app.schemas.model_profile import ModelProfileRead, ModelProfileUpdate
+from app.services.chatgpt_plan import VaultChatGPTCredentials
 from app.services.model_catalog import CatalogModel
 from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
@@ -117,6 +119,13 @@ def secret_for(spec: ProviderSpec):
             aws_access_key_id="AKIAEXAMPLE1234",
             aws_secret_access_key="aws-secret",
             region_name="us-east-1",
+        )
+    if spec.secret_kind is SecretKind.OPENAI_CHATGPT:
+        return OpenAIChatGPTSecret(
+            client_id="test-client",
+            access_token="test-access-token",
+            refresh_token="test-refresh-token",
+            scope="chatgpt.tokens.use.direct",
         )
     if spec.secret_kind is SecretKind.OPENAI_CODEX:
         return codex_secret()
@@ -334,6 +343,11 @@ class TestProviderCatalog:
             credential_source=VaultCodexCredentials(
                 organization_id=uuid.uuid4(), secret_id=uuid.uuid4()
             ),
+            chatgpt_source=VaultChatGPTCredentials(
+                organization_id=uuid.uuid4(), secret_id=uuid.uuid4(), generation=uuid.uuid4()
+            )
+            if provider_id == "openai_chatgpt"
+            else None,
         )
         assert build_model(credential, model) is not None
 
@@ -472,6 +486,7 @@ class TestProviderCatalog:
         offering = {spec.id: spec.apis for spec in PROVIDERS.values() if spec.apis}
         assert offering == {
             "openai": ("responses", "chat", "decisions"),
+            "openai_chatgpt": ("responses",),
             "google": ("chat", "decisions"),
             "openrouter": ("chat", "decisions"),
             "typesafe": ("decisions",),

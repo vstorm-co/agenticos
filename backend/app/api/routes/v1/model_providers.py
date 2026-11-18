@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, status
 from app.agents.model_resolver import PROVIDERS, ModelApi, is_decision_api
 from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require
 from app.api.public_api import PUBLIC
-from app.core.exceptions import AuthorizationError
+from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.field_errors import refused_field
 from app.core.permissions import Perm
 from app.schemas.model_profile import (
@@ -402,6 +402,27 @@ async def list_provider_models(
     api: ModelApi | None = None,
 ) -> Any:
     """List suggestions; custom authenticated endpoints require a visible selected key."""
+    if provider == "openai_chatgpt":
+        if base_url is not None or api not in (None, "responses"):
+            raise BadRequestError(
+                message="Official ChatGPT usage requires its fixed public Responses API"
+            )
+        choices = await secrets.chatgpt_models(ctx, secret_id) if secret_id is not None else []
+        return ProviderModelList(
+            items=[
+                ProviderModelRead(
+                    id=model.id,
+                    name=model.name,
+                    context_length=None,
+                    output_modalities=[],
+                    apis=["responses"],
+                    chat_capable=True,
+                )
+                for model in choices
+            ],
+            total=len(choices),
+            source="live" if secret_id is not None else "unlisted",
+        )
     if (
         base_url is None
         and (spec := PROVIDERS.get(provider)) is not None

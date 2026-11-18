@@ -10018,7 +10018,10 @@
       "chatGPTSignIn": "{name} is a ChatGPT sign-in for model access through a ChatGPT subscription. Voice features require an OpenAI API key; this sign-in cannot be used here."
     },
     "notRecorded": "Not recorded",
-    "googleAccount": "Google account"
+    "googleAccount": "Google account",
+    "chatgptPlanDeclined": "Plan sharing was declined. The registration was saved, but this grant cannot run models. Reconnect and approve plan usage.",
+    "chatgptOfficialHelp": "Official ChatGPT application consent uses the public Responses API, separately from Codex. This deployment must be eligible and enabled by its operator. Copy the final 127.0.0.1 address back here. Declining plan sharing saves registration without enabling inference.",
+    "chatgptOwnerOnly": "Only you can run models on this grant. Shared profiles, API keys and background jobs cannot use it."
   },
   "context": {
     "created": "Created {name}",

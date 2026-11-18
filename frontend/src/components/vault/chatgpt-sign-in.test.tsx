@@ -80,7 +80,7 @@ vi.mock("@/hooks", async () => {
   };
 });
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 
 function render(ui: ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -399,4 +399,122 @@ describe("reconnecting a ChatGPT sign-in", () => {
 
     expect(await screen.findByText("ChatGPT did not accept this sign-in")).toBeVisible();
   });
+});
+
+describe("official ChatGPT application consent", () => {
+  const official = { ...STORED, kind: "openai_chatgpt" as const, purpose: "openai_chatgpt" };
+  const officialKind = { ...CODEX, kind: "openai_chatgpt" as const };
+  const callback = "http://127.0.0.1:1455/auth/callback?code=c&state=s";
+
+  it("opens the independent official flow and explains its loopback callback", async () => {
+    const tab = fakeTab();
+    api.post.mockResolvedValue({ authorization_url: AUTHORIZE });
+    render(
+      <ChatGPTSignInSteps
+        kind="openai_chatgpt"
+        callbackUrl=""
+        onCallbackUrlChange={vi.fn()}
+        idPrefix="official"
+      />,
+    );
+    expect(screen.getByText(/public Responses API/)).toBeVisible();
+    expect(screen.getByLabelText("Address ChatGPT sent you to")).toHaveAttribute(
+      "placeholder",
+      "http://127.0.0.1:1455/auth/callback?code=…",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Sign in with ChatGPT" }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/secrets/openai-chatgpt/sign-in"));
+    expect(tab.location.href).toBe(AUTHORIZE);
+  });
+
+  it.each([true, false])(
+    "stores explicit plan consent %s without mixing Codex grants",
+    async (granted) => {
+      const created = vi.fn();
+      api.post.mockResolvedValue({ secret: official, plan_usage_granted: granted });
+      render(
+        <InlineChatGPTSignIn
+          kind="openai_chatgpt"
+          suggestedName="Official ChatGPT"
+          onCreated={created}
+        />,
+      );
+      await userEvent.type(screen.getByLabelText("Address ChatGPT sent you to"), callback);
+      await userEvent.click(screen.getByRole("button", { name: "Save sign-in" }));
+      await waitFor(() => expect(created).toHaveBeenCalledWith("s1"));
+      expect(api.post).toHaveBeenCalledWith("/secrets/openai-chatgpt", {
+        name: "Official ChatGPT",
+        callback_url: callback,
+        visibility: "private",
+      });
+      if (granted) expect(toast.warning).not.toHaveBeenCalled();
+      else expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining("cannot run models"));
+    },
+  );
+
+  it.each([true, false])(
+    "reconnects an official grant with explicit plan consent %s",
+    async (granted) => {
+      api.put.mockResolvedValue({ secret: official, plan_usage_granted: granted });
+      render(
+        <RotateSecretDialog
+          secret={official}
+          onOpenChange={vi.fn()}
+          kinds={[officialKind]}
+          onSubmit={vi.fn()}
+          isPending={false}
+        />,
+      );
+      await userEvent.type(screen.getByLabelText("Address ChatGPT sent you to"), callback);
+      await userEvent.click(screen.getByRole("button", { name: "Reconnect" }));
+      await waitFor(() =>
+        expect(api.put).toHaveBeenCalledWith("/secrets/s1/openai-chatgpt", {
+          callback_url: callback,
+        }),
+      );
+      await waitFor(() => expect(toast.success).toHaveBeenCalled());
+      if (granted) expect(toast.warning).not.toHaveBeenCalled();
+      else expect(toast.warning).toHaveBeenCalled();
+    },
+  );
+});
+
+it("stores an official grant privately from the vault and never offers token entry", async () => {
+  const purpose = {
+    ...PURPOSES.items[0]!,
+    id: "openai_chatgpt",
+    label: "ChatGPT plan usage (official)",
+    kind: "openai_chatgpt",
+  };
+  PURPOSES.items.push(purpose);
+  onTestFinished(() => {
+    PURPOSES.items.splice(PURPOSES.items.indexOf(purpose), 1);
+  });
+  const official = { ...STORED, kind: "openai_chatgpt" as const, purpose: "openai_chatgpt" };
+  api.post.mockResolvedValue({ secret: official, plan_usage_granted: true });
+  render(
+    <AddSecretDialog
+      open
+      onOpenChange={vi.fn()}
+      kinds={[{ ...CODEX, kind: "openai_chatgpt" }]}
+      onSubmit={vi.fn()}
+      isPending={false}
+      purposeId="openai_chatgpt"
+    />,
+  );
+  expect(await screen.findByLabelText("Address ChatGPT sent you to")).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "Who can use it" })).toBeDisabled();
+  expect(screen.getByText(/Only you can run models on this grant/)).toBeVisible();
+  expect(screen.queryByLabelText(/Access token/)).not.toBeInTheDocument();
+  const callback = "http://127.0.0.1:1455/auth/callback?code=c&state=s";
+  await userEvent.type(screen.getByLabelText("Address ChatGPT sent you to"), callback);
+  await userEvent.click(screen.getByRole("button", { name: "Store key" }));
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith("/secrets/openai-chatgpt", {
+      name: "ChatGPT plan usage (official)",
+      description: null,
+      visibility: "private",
+      callback_url: callback,
+    }),
+  );
 });

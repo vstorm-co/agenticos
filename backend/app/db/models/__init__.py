@@ -461,3 +461,5 @@ __all__ = [
 ]
 
 from app.db.models.telephony import PhoneCall, PhoneContact, PhoneEndpoint
+
+from app.db.models.chatgpt_registration import ChatGPTRegistration as ChatGPTRegistration
