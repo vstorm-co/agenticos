@@ -7,7 +7,7 @@ import { usd } from "@/components/evals/format";
 import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
 import { IncomparableResult } from "./incomparable-result";
 import { ChangedAnswers } from "./changed-answers";
-import { CriteriaTable, GAINS, criteriaOf, movedCriteria } from "./criteria";
+import { CriteriaTable, GAINS, movedCriteria, rowsOf } from "./criteria";
 import { BeforeAfter, Details, StateBadge } from "./widgets";
 import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement } from "@/hooks/use-improvements";
@@ -47,7 +47,7 @@ export function RoundResults({
           noise={session.measurement_noise}
         />
       )}
-      <CriteriaTable criteria={criteriaOf(round)} />
+      <CriteriaTable criteria={rowsOf(round)} />
       <Details summary={t("showDetails")} onToggle={setDetailsOpen}>
         {latestCheck && <HowMeasured runId={latestCheck} />}
         {earlier.length > 0 && (

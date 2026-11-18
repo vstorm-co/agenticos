@@ -16699,7 +16699,9 @@
       "movedBroken": "{count} broken",
       "movedBoth": "+{fixed} fixed · {broken} broken",
       "movedNone": "None",
-      "skill": "Put down to the skill “{skill}”"
+      "skill": "Put down to the skill “{skill}”",
+      "betterBeside": "Beside the questions it broke, attempt {number} made {agent} better on {count, plural, one {# criterion} other {# criteria}}: {list}. Keep the part that helped by trying again with a note.",
+      "skillWorse": "{agent} now follows the skill more closely and fails more often on {count, plural, one {# criterion} other {# criteria}} the skill gets wrong: {list}. Fix the skill rather than the agent."
     },
     "noise": {
       "headlineSpread": "The test can't tell a better version from a worse one: today's version of {agent} scored {low} and {high} on the questions its attempts shared.",
@@ -16991,7 +16993,11 @@
       "alreadyAdded": "{count, plural, one {# already added} other {# already added}}",
       "partitionAbout": "Each attempt keeps about {holdout, plural, one {# question} other {# questions}} aside to check the result; about {train, plural, one {# helps} other {# help}} write the changes. A question also asked in the conversations it learns from helps write them instead, so fewer may be kept aside.",
       "partitionAttempt": "Attempt {attempt} kept {holdout, plural, one {# question} other {# questions}} aside to check the result; {train, plural, one {# helped} other {# helped}} write the changes.",
-      "partitionStart": "The first attempt keeps {holdout, plural, one {# question} other {# questions}} aside to check the result; {train, plural, one {# helps} other {# help}} write the changes, counting those also asked in the conversations it learns from."
+      "partitionStart": "The first attempt keeps {holdout, plural, one {# question} other {# questions}} aside to check the result; {train, plural, one {# helps} other {# help}} write the changes, counting those also asked in the conversations it learns from.",
+      "criteriaPassed": "Criteria passed",
+      "criteriaMove": "{before} → {after}",
+      "criteriaBetter": "{count, plural, =0 {No criterion better yet} one {# criterion better} other {# criteria better}}",
+      "heldBySkill": "Still held back by a skill"
     },
     "sessionLine": "Session",
     "budgetUsed": "Spending limit used",

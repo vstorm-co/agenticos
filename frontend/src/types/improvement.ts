@@ -83,9 +83,33 @@ export interface VerdictCriterion {
   skill?: string | null;
   skill_id?: string | null;
 }
+/**
+ * One family of criteria on an attempt's held-out questions, counted case by case: it
+ * passes in a question when every criterion of it does.
+ */
+export interface VerdictFamily {
+  family: string;
+  /** How many criteria are counted in it. */
+  criteria: number;
+  cases: number;
+  before: number;
+  after: number;
+  /** Questions that hold fixed: every flipped one when settled, else the confirmed ones. */
+  fixed: number;
+  broken: number;
+  /** Its own flipped questions were enough to tell its direction without asking again. */
+  settled: boolean;
+  better: boolean;
+  worse: boolean;
+  /** The skill the session's improver put this family down to. */
+  skill?: string | null;
+}
 export type ImprovementVerdict =
   "better" | "criteria_better" | "no_change" | "criteria_worse" | "regression" | "inconclusive";
-export type VerdictDetail = Record<string, string | number | null | VerdictCriterion[]>;
+export type VerdictDetail = Record<
+  string,
+  string | number | null | VerdictCriterion[] | VerdictFamily[]
+>;
 export interface ImprovementIteration {
   id: string;
   number: number;

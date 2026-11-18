@@ -134,6 +134,66 @@ beforeEach(() => {
   });
 });
 
+it("shows how often the criteria passed before and after, and what a skill still holds back", () => {
+  state.compared = comparison({});
+  const family = {
+    criteria: 1,
+    settled: true,
+    worse: false,
+  };
+  render(
+    <ResultSummary
+      session={SESSION}
+      round={{
+        ...ROUND,
+        verdict: "criteria_better",
+        verdict_detail: {
+          fixed: 0,
+          broken: 0,
+          families: [
+            {
+              ...family,
+              family: "price break",
+              cases: 28,
+              before: 3,
+              after: 28,
+              fixed: 25,
+              broken: 0,
+              better: true,
+            },
+            {
+              ...family,
+              family: "valid for 14 days",
+              cases: 22,
+              before: 0,
+              after: 0,
+              fixed: 0,
+              broken: 0,
+              better: false,
+              skill: "fernhill-quote-format",
+            },
+          ],
+        },
+      }}
+    />,
+  );
+
+  const passed = screen.getByText("Criteria passed").closest("div.flex-col")!;
+  expect(passed).toHaveTextContent("6% → 56%");
+  expect(passed).toHaveTextContent("1 criterion better");
+  const held = screen.getByText("Still held back by a skill").closest("div.flex-col")!;
+  expect(held).toHaveTextContent("1");
+  expect(held).toHaveTextContent("fernhill-quote-format");
+});
+
+it("shows no criteria tiles for an attempt measured before criteria were kept", () => {
+  state.compared = comparison({});
+  render(<ResultSummary session={SESSION} round={{ ...ROUND, verdict_detail: { fixed: 1 } }} />);
+
+  expect(screen.queryByText("Criteria passed")).toBeNull();
+  expect(screen.queryByText("Still held back by a skill")).toBeNull();
+});
+
 it("counts confirmed changes large, unconfirmed ones beside them, and links the topics", () => {
   state.compared = comparison({
     cases: [

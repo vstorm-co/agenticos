@@ -16385,7 +16385,9 @@
       "movedBroken": "{count} verschlechtert",
       "movedBoth": "+{fixed} behoben · {broken} verschlechtert",
       "movedNone": "Keine",
-      "skill": "Dem Skill „{skill}“ zugeordnet"
+      "skill": "Dem Skill „{skill}“ zugeordnet",
+      "betterBeside": "Neben den Fragen, die er verschlechtert hat, hat Versuch {number} {agent} bei {count, plural, one {# Kriterium} other {# Kriterien}} verbessert: {list}. Behalte den hilfreichen Teil, indem du es mit einer Notiz erneut versuchst.",
+      "skillWorse": "{agent} folgt dem Skill jetzt genauer und verfehlt öfter {count, plural, one {# Kriterium, das der Skill falsch vorgibt} other {# Kriterien, die der Skill falsch vorgibt}}: {list}. Korrigiere den Skill statt des Agents."
     },
     "noise": {
       "headlineSpread": "Der Test kann eine bessere Version nicht von einer schlechteren unterscheiden: Die heutige Version von {agent} erreichte auf den gemeinsamen Fragen ihrer Versuche {low} und {high}.",
@@ -16677,7 +16679,11 @@
       "alreadyAdded": "{count, plural, one {# schon hinzugefügt} other {# schon hinzugefügt}}",
       "partitionAbout": "Jeder Versuch legt etwa {holdout, plural, one {# Frage} other {# Fragen}} zurück, um das Ergebnis zu prüfen; etwa {train, plural, one {# hilft} other {# helfen}}, die Änderungen zu schreiben. Eine Frage, die auch in den Gesprächen vorkommt, aus denen er lernt, hilft stattdessen beim Schreiben, daher können weniger zurückgelegt werden.",
       "partitionAttempt": "Versuch {attempt} hat {holdout, plural, one {# Frage} other {# Fragen}} zurückgelegt, um das Ergebnis zu prüfen; {train, plural, one {# half} other {# halfen}}, die Änderungen zu schreiben.",
-      "partitionStart": "Der erste Versuch legt {holdout, plural, one {# Frage} other {# Fragen}} zurück, um das Ergebnis zu prüfen; {train, plural, one {# hilft} other {# helfen}}, die Änderungen zu schreiben, einschließlich derer, die auch in den Gesprächen gestellt wurden, aus denen er lernt."
+      "partitionStart": "Der erste Versuch legt {holdout, plural, one {# Frage} other {# Fragen}} zurück, um das Ergebnis zu prüfen; {train, plural, one {# hilft} other {# helfen}}, die Änderungen zu schreiben, einschließlich derer, die auch in den Gesprächen gestellt wurden, aus denen er lernt.",
+      "criteriaPassed": "Erfüllte Kriterien",
+      "criteriaMove": "{before} → {after}",
+      "criteriaBetter": "{count, plural, =0 {Noch kein Kriterium besser} one {# Kriterium besser} other {# Kriterien besser}}",
+      "heldBySkill": "Noch von einem Skill blockiert"
     },
     "sessionLine": "Sitzung",
     "budgetUsed": "Genutztes Ausgabenlimit",

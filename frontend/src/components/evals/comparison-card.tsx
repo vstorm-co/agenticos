@@ -7,6 +7,7 @@ import { Badge, Card, CardContent, CardHeader, CardTitle } from "@/components/ui
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
 import type { CaseFlip, ComparisonSide, EvalComparison, Flip, Trend } from "@/types/eval-runs";
+import { CriteriaTable, familyRows } from "@/components/improvement/criteria";
 import { sideName, type SideCheck } from "./names";
 
 const TREND_TONE: Record<Trend, "success" | "destructive" | "secondary" | "outline"> = {
@@ -122,6 +123,7 @@ export function ComparisonCard({
             : t("comparedTag", { compared: scope.cases.length, tag: scope.tag })}
         </p>
         <p className="text-muted-foreground text-xs">{t("glossary")}</p>
+        {scope === null && <CriteriaTable criteria={familyRows(comparison.families ?? [])} />}
         {efficiency && (
           <div className="flex flex-wrap gap-2">
             {(Object.keys(efficiency) as (keyof typeof efficiency)[]).map((metric) => (

@@ -347,6 +347,27 @@ export interface Efficiency {
 }
 
 /** A candidate arm against its baseline; `baseline` null means nothing to compare with yet. */
+/**
+ * One family of criteria over the questions both sides graded it on: it passes in a
+ * question when every criterion of it does. `settled` when its own flipped questions
+ * were enough to tell its direction; otherwise only the flips the reruns repeated count.
+ */
+export interface FamilyMove {
+  family: string;
+  criteria: string[];
+  cases: number;
+  baseline_passed: number;
+  candidate_passed: number;
+  fixed: number;
+  broken: number;
+  fixed_confirmed: number;
+  broken_confirmed: number;
+  p_value: number;
+  settled: boolean;
+  better: boolean;
+  worse: boolean;
+}
+
 export interface EvalComparison {
   candidate: ComparisonSide;
   baseline: ComparisonSide | null;
@@ -371,8 +392,8 @@ export interface EvalComparison {
   efficiency: Efficiency | null;
   cases: CaseFlip[];
   flips_by_tag: Record<string, Partial<Record<Flip, number>>>;
-  /** Net confirmed movement over every paired criterion grade, before detail limits. */
-  criterion_change?: number;
+  /** Each family of criteria graded on both sides, counted question by question. */
+  families?: FamilyMove[];
 }
 
 /**

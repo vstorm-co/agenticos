@@ -659,6 +659,40 @@ describe("ComparisonCard", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("tables each family of criteria over the whole run, and none under a tag", () => {
+    const move = {
+      family: "price break",
+      criteria: ["Points out 1,000"],
+      cases: 28,
+      baseline_passed: 3,
+      candidate_passed: 28,
+      fixed: 25,
+      broken: 0,
+      fixed_confirmed: 0,
+      broken_confirmed: 0,
+      p_value: 0,
+      settled: true,
+      better: true,
+      worse: false,
+    };
+    const { rerender } = render(
+      <ComparisonCard agentId="agent-1" comparison={comparison({ families: [move] })} tag={null} />,
+    );
+
+    const row = screen.getByText("price break").closest("tr")!;
+    expect(row).toHaveTextContent("3 of 28");
+    expect(row).toHaveTextContent("28 of 28");
+    expect(row).toHaveTextContent("+25 fixed");
+    rerender(
+      <ComparisonCard
+        agentId="agent-1"
+        comparison={comparison({ families: [move] })}
+        tag="refunds"
+      />,
+    );
+    expect(screen.queryByText("price break")).toBeNull();
+  });
+
   it("shows both sides, the changes with what confirmed means, and the efficiency axis", () => {
     render(<ComparisonCard agentId="agent-1" comparison={comparison()} tag={null} />);
     expect(screen.getByText("How the two compare")).toBeInTheDocument();
