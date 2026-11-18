@@ -52,7 +52,7 @@ Bind a base to an agent with `collection_ids` and the `knowledge` capability.
 A skill is instructions for a future agent, not a record of one conversation: when to use it, the steps, what to check and what to hand back.
 
 1. `agenticos:list_skills` (`q` to search) finds an existing one. `agenticos:get_skill` reads its body, files, forks and the version each agent reads.
-2. `agenticos:create_skill` with a lowercase hyphenated `name`, a one-line `description` an agent reads before loading it, and the Markdown `content`.
+2. `agenticos:create_skill` with a lowercase hyphenated `name`, a one-line `description` an agent reads before loading it, and the Markdown `content`. The new skill is visible to the whole organization; tell the user.
 3. `agenticos:add_skill_resource` attaches a text reference, template or script. Reference its exact name from the body. A script is stored as text; adding it runs nothing.
 4. Bind with `skill_ids` on the agent draft, then publish the agent.
 

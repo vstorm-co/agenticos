@@ -28,7 +28,7 @@ A routine runs a published agent on a cadence with a fixed prompt.
 1. `agenticos:list_agents` to pick the agent; `agenticos:list_routines` with its `agent_id` to check for a duplicate.
 2. `agenticos:create_routine`.
 3. `agenticos:run_routine_now` to show what it produces, schedule untouched.
-4. `agenticos:list_routines` to confirm `active`, the next fire time and the last run.
+4. `agenticos:list_routines` to confirm `is_active`, `next_fire_at` and the last run.
 
 Points that decide whether it works:
 
@@ -36,9 +36,9 @@ Points that decide whether it works:
 - **One cadence.** Either `cron_expression` (five fields, read in `time_zone`, an IANA name) or `every_minutes`. Write the local time as the user said it: 9:00 on weekdays in `Europe/Warsaw` is `0 9 * * 1-5` with that zone.
 - **`result_mode`.** `report` produces a report per run. `inbox` creates one working chat and Inbox case per relevant source item and stays quiet on unchanged ones.
 - **`answer_to`.** `run_log` keeps results in the routine's log, `primary` uses the person's primary conversation, `conversation` uses `delivery_conversation_id`. For a topic thread, find the chat with `agenticos:list_conversations` or open one with `agenticos:create_conversation`.
-- **`runs_as_me`** fires as the creator, with their memory and personal connections. A prompt that reads platform records (runs, spend, tables) needs the agent to bind the platform MCP server (`account: "platform"`) and the routine to fire as a person, because that binding is absent when nobody is behind the run.
+- **`runs_as_me`** (the default) fires as the creator, with their memory and personal connections. It needs the `personal:consent` scope; without it the call is refused with "Only you, signed in as yourself, can let a trigger act as you". With `runs_as_me: false`, an agent that binds the platform MCP server is saved paused with `setup_required`, because that binding needs a person: the user enables Act as creator under `/routines`. A prompt that reads platform records (runs, spend, tables) needs the agent to bind the platform MCP server (`account: "platform"`) and the routine to fire as a person, because that binding is absent when nobody is behind the run.
 - **Bounds.** `ends_at` (ISO with offset) for time-limited requests; `monthly_budget_usd` as a cap; `pinned_version_id` to hold one published version.
-- **`setup_required: true`** means the routine was saved paused because a source is unavailable. Report that, link `/routines`, and repair that routine. Do not create a second one or retry with another agent.
+- **`setup_required: true`** means the routine was saved paused (`is_active: false`); `setup_issues` says why. Report that, link `/routines`, and repair that routine. Do not create a second one or retry with another agent.
 
 `agenticos:update_routine` changes only what is passed; `active: false` pauses. `agenticos:delete_routine` removes it for good, so prefer pausing unless the user asked to delete.
 

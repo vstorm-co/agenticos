@@ -69,8 +69,8 @@ plugins/agenticos/
 
 Each use case names how far its tool chain was exercised against a running deployment (AgenticOS 1.82.2, signed in as an organization owner):
 
-- **live**: the whole chain ran. This covers diagnosing a failed run, spend, the organization snapshot, querying a table with typed filters, checking a workflow draft, estimating a skill session, the task chain (create, idempotent re-create, update, remove), and creating, editing, testing and discarding an agent draft.
-- **reads live**: every discovery step ran; the writes were checked against the tool schemas and `backend/app/services/platform_mcp/`, and not executed, because MCP cannot undo them (a table, a knowledge base, a workflow and a skill cannot be deleted over MCP) or the test organization lacked the precondition (a dataset, a personal connection, an embedding key).
+- **live**: the whole chain ran. This covers diagnosing a failed run, spend, the organization snapshot, asking a published agent, drafting, testing and discarding an agent, creating, retiming and deleting a routine, building a workflow with its table and testing it (the record was read back), table upserts, updates and typed queries, the task chain, and creating and editing a skill and a context file.
+- **reads live**: every discovery step ran, and the arguments of the write steps were built from those reads and checked against the live schemas, but the writes were not sent. This covers what needs a precondition the test organization lacked (a dataset, a personal connection, an embedding key, the `personal:consent` scope) and the steps that go live: `publish_agent`, `publish_workflow`, `run_workflow` and `invite_member`.
 - **contract**: checked against the schemas and source only.
 
 ## Maintaining the skill

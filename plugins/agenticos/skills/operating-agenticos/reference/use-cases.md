@@ -62,7 +62,7 @@ A use case that is not `live` is still valid; start it with its read steps, whic
 | Give an agent a SaaS tool | "Let the agent read our GitHub issues" | `search_mcp_servers` → `list_org_connections` → `list_mcp_connection_tools` → `update_agent_draft` with `mcp_servers` | `search_mcp_servers` live; binding needs a connection made in the console |
 | Coding agent with a shell | "An agent that can run Python on our data" | `list_sandbox_connections` → `get_sandbox_policy` → `create_agent_draft` with the `sandbox` capability | reads live |
 | Agent that operates the platform | "An agent that tells people why runs failed" | `create_agent_draft` with `mcp_servers: [{account: "platform", approval: "writes"}]`, narrowed by `allowed_tools` | contract |
-| Ask a published agent from the terminal | "Ask the research agent to summarise this" | `list_agents` → `run_agent` | contract; same run path as `test_agent_draft` |
+| Ask a published agent from the terminal | "Ask the research agent to summarise this" | `list_agents` → `run_agent` | live |
 
 ## Knowledge and standing context
 
@@ -70,18 +70,18 @@ A use case that is not `live` is still valid; start it with its read steps, whic
 |---|---|---|---|
 | Seed a knowledge base from a repository's docs | "Load our `docs/` folder so agents can answer from it" | `list_embedding_models` → `list_knowledge_bases` → `create_knowledge_base` → `add_document` per file → `search_knowledge` | reads live; creating needs an embedding key or a keyless provider |
 | Check what an agent would retrieve | "Does the handbook collection cover parental leave?" | `list_knowledge_bases` → `search_knowledge` | reads live; needs a knowledge base |
-| Publish a glossary or policy to agents | "Make every agent use our product names" | `list_context_files` → `create_context_file` → `update_agent_draft` with `context_ids` → `publish_agent` | reads live |
-| Save a procedure that worked | "Make a skill of what we just did" | `list_skills` → `create_skill` → `add_skill_resource` → `update_agent_draft` with `skill_ids` | reads live |
+| Publish a glossary or policy to agents | "Make every agent use our product names" | `list_context_files` → `create_context_file` → `update_agent_draft` with `context_ids` → `publish_agent` | live through create, update and binding to a draft; `publish_agent` by contract |
+| Save a procedure that worked | "Make a skill of what we just did" | `list_skills` → `create_skill` → `add_skill_resource` → `update_agent_draft` with `skill_ids` | live through create, resource, update and binding to a draft |
 | Draft a document for a question knowledge could not answer | "Write up what's missing on refunds" | `get_improvement` (knowledge topics) → `estimate_knowledge_draft` → `draft_knowledge_topic` | contract; needs an Improve session with topics |
 
 ## Automate
 
 | Use case | A prompt that starts it | Tool chain | Confirmed |
 |---|---|---|---|
-| Scheduled report | "Every weekday at 9, summarise yesterday's failed runs" | `list_agents` → `list_routines` → `create_routine` → `run_routine_now` → `list_routines` | reads live |
-| Pause or retime a routine | "Pause the weekly digest until January" | `list_routines` → `update_routine` | reads live; needs a routine |
+| Scheduled report | "Every weekday at 9, summarise yesterday's failed runs" | `list_agents` → `list_routines` → `create_routine` → `run_routine_now` → `list_routines` | live for create, update and delete; `run_routine_now` by contract, because the test routine was saved paused (see the routine notes in automation.md) |
+| Pause or retime a routine | "Pause the weekly digest until January" | `list_routines` → `update_routine` | live |
 | Watch a personal account | "Tell me when a customer replies about the contract" | `list_my_connections` → `list_agents` → `create_watch` | reads live; needs a personal connection and the `personal:consent` scope |
-| Build a workflow with its table | "When a form comes in, classify it and file it in a table" | `list_workflow_definitions` → `list_workflow_nodes` → `get_workflow_node` → `prepare_workflow_draft` → `check_workflow_draft` → `test_workflow_draft` → `get_workflow_execution_steps` → `publish_workflow` | reads and `check_workflow_draft` live |
+| Build a workflow with its table | "When a form comes in, classify it and file it in a table" | `list_workflow_definitions` → `list_workflow_nodes` → `get_workflow_node` → `prepare_workflow_draft` → `check_workflow_draft` → `test_workflow_draft` → `get_workflow_execution_steps` → `publish_workflow` | live through test: the draft and table were created in one call, the test run classified a message and the record was read back; `publish_workflow` by contract |
 | Wrap an HTTP API that has no MCP server | "Call our billing API when an invoice record changes" | `get_workflow_node` (`http.request`, `trigger.table_record`) → `prepare_workflow_draft` | reads live; the credential is a vault secret set in the console |
 | Start a published workflow from the terminal | "Run the onboarding workflow for this customer" | `get_workflow_input_schema` → `run_workflow` → `get_workflow_execution` → `get_workflow_execution_steps` | contract; needs a published workflow |
 
@@ -89,7 +89,7 @@ A use case that is not `live` is still valid; start it with its read steps, whic
 
 | Use case | A prompt that starts it | Tool chain | Confirmed |
 |---|---|---|---|
-| Keep an operational table in sync | "Mirror our open incidents into a table" | `list_virtual_tables` → `create_virtual_table` → `get_virtual_table` → `upsert_virtual_table_record` keyed by `external_id` | reads live |
+| Keep an operational table in sync | "Mirror our open incidents into a table" | `list_virtual_tables` → `create_virtual_table` → `get_virtual_table` → `upsert_virtual_table_record` keyed by `external_id` | live: upsert by `external_id`, update against the revision, query |
 | Query records | "Which leads have no owner?" | `list_virtual_tables` → `get_virtual_table` → `query_virtual_table` with typed `filters` | live, including a `single_select` filter by option UUID |
 | Durable follow-ups | "Remind me Friday to check the migration" | `list_task_boards` → `ensure_task_board` → `create_task` → `update_task` | live: created, re-created with the same `external_id` (returned the same task), updated against its revision, then removed with `delete_virtual_table_record` |
 | Hand a task to an agent | "Have the research agent draft this by Monday" | `create_task` with `assignee_agent_id`, `next_actor: "agent"`, `start_at` | contract |
