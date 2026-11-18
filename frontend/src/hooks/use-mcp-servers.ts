@@ -9,6 +9,8 @@ import { mergeServers, type McpServerRow } from "@/lib/mcp-servers";
 import { qk } from "@/lib/query-keys";
 import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import type { McpCatalog, McpServerStateFilter, PlatformMcpToolList } from "@/types/mcp";
+import { Perm } from "@/types/permissions";
+import { usePermissions } from "./use-permissions";
 import { useMcpConnections } from "./use-mcp-connections";
 import { useOrgMcpConnections } from "./use-org-mcp-connections";
 
@@ -132,12 +134,13 @@ export type { McpServerRow };
  * are refetched by the hook that owns them.
  */
 export function useMcpServers() {
+  const { can } = usePermissions();
   const catalog = useQuery({
     queryKey: qk.mcpServers.catalog(),
     queryFn: () => apiClient.get<McpCatalog>("/agents/mcp-catalog"),
     staleTime: Infinity,
   });
-  const organization = useOrgMcpConnections();
+  const organization = useOrgMcpConnections({ enabled: can(Perm.mcpManage) });
   const personal = useMcpConnections();
 
   const [toolsByConnection, setToolsByConnection] = useState<Record<string, McpToolInfo[]>>({});
@@ -152,10 +155,9 @@ export function useMcpServers() {
     isLoading: catalog.isLoading || organization.isLoading || personal.isLoading,
     /**
      * A failure everybody's view depends on is reported — the catalog and the
-     * caller's own connections. The organization list's is not: a member
-     * without `connections:manage` gets a 403 there and can still read the
-     * other two, so surfacing it as the page's error would replace a usable
-     * screen with a refusal about one column of it. A failed catalog is the
+     * caller's own connections. The organization list's is not: its failure
+     * must not prevent managing a personal account. Members without
+     * `mcp:manage` do not request that list at all. A failed catalog is the
      * opposite case — without it `mergeServers` yields an empty page dressed
      * as "no servers", on the one deployment state that cannot be true.
      */

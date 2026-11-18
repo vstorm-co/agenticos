@@ -116,7 +116,7 @@ function rowDescription(row: McpServerRow, t: (key: string) => string): string {
 }
 
 interface McpServerListProps {
-  /** False for a member without `connections:manage` - the organization column reads only. */
+  /** Whether the caller holds `mcp:manage` and may manage organization accounts. */
   canManageOrganization: boolean;
   /** An embedded account picker starts on the service its caller needs. */
   initialServerKey?: string;
@@ -137,7 +137,7 @@ interface McpServerListProps {
  *
  * - **Organization** - the organization's credential. The only kind an agent
  *   spec may name by id, because a published agent must not reach different
- *   tools depending on whose session built it. Gated on `connections:manage`.
+ *   tools depending on whose session built it. Gated on `mcp:manage`.
  * - **You** - your own credential. What an agent bound to *each person's own
  *   account* speaks through when you are the one talking to it, and what a
  *   `?connect=<key>` arrival from such an agent creates.
