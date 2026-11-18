@@ -4173,6 +4173,7 @@ class AgentRegistryService:
         # so the provider side is swept first, best-effort. Imported locally:
         # the trigger service imports this module at module scope.
         from app.services.agent_trigger import AgentTriggerService
+        from app.services.sandbox_workspace import SandboxWorkspaceService
         from app.services.tasks import TaskService
 
         await agent_repo.fence_deletion(self.db, agent.id, organization_id=ctx.organization_id)
@@ -4188,6 +4189,9 @@ class AgentRegistryService:
             organization_id=ctx.organization_id,
             resource_type=AGENT.key,
             resource_id=agent.id,
+        )
+        await SandboxWorkspaceService(self.db).purge_personal_coding(
+            organization_id=ctx.organization_id, agent_id=agent.id
         )
         await agent_repo.delete(self.db, agent)
         await record_audit(

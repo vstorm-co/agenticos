@@ -151,8 +151,8 @@ will ever resume.
 """
 DISCARD_ENV = "AGENTICOS_CODEX_DISCARD"
 READ_AUTH = (
-    f'cat "${HOME_ENV}/auth.json" 2>/dev/null; rm -rf "${HOME_ENV}"'
-    f' ${{{DISCARD_ENV}:+"${DISCARD_ENV}"}}'
+    f'cat "${HOME_ENV}/auth.json" 2>/dev/null; auth_read_status=$?; rm -rf "${HOME_ENV}"'
+    f' ${{{DISCARD_ENV}:+"${DISCARD_ENV}"}} || exit $?; exit "$auth_read_status"'
 )
 
 CODEX_HOMES = "/tmp/agenticos-codex"  # noqa: S108
@@ -690,6 +690,8 @@ def build_coding_toolset(
             session_id=session_id,
             base_url=base_url,
         )
+        if personal_isolated:
+            command = replace(command, supervised=True)
         if home is not None:
             # The sign-in is this task's, and the sessions it resumes the conversation's.
             command = replace(command, env={**command.env, HOME_ENV: home})
@@ -792,7 +794,7 @@ async def _keep_rotated(
         return
     if strict and result.exit_code != 0:
         raise UserError("Codex could not remove its temporary sign-in from the private sandbox")
-    rotated = rotated_sign_in(result.stdout, written)
+    rotated = rotated_sign_in(result.stdout, written, strict=strict)
     if rotated is not None:
         await source.swap(written, rotated)
 

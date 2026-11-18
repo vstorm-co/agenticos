@@ -956,18 +956,21 @@ async def test_personal_session_constraints_refuse_cross_tenant_or_shared_rows(
             await db.flush()
 
 
-async def test_account_disconnect_keeps_remote_cleanup_in_the_same_rollback_boundary(
-    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("operation", ["disconnect", "agent_delete"])
+async def test_deletion_keeps_remote_cleanup_in_the_same_rollback_boundary(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, operation: str
 ) -> None:
     from unittest.mock import AsyncMock
 
     from pydantic_ai.workspaces import WorkspaceUnavailableError
     from sqlalchemy import select
 
+    from app.db.models.agent import Agent
     from app.db.models.agent_workspace import AgentWorkspace
     from app.db.models.conversation import Conversation
     from app.db.models.pending_sandbox_destroy import PendingSandboxDestroy
     from app.db.models.sandbox_connection import SandboxConnection
+    from app.services.agent_registry import AgentRegistryService
     from app.services.sandbox_connection import SandboxConnectionService
 
     monkeypatch.setattr(
@@ -984,7 +987,14 @@ async def test_account_disconnect_keeps_remote_cleanup_in_the_same_rollback_boun
         account = await CodingAccountService(db).create(auth, request(enabled=True))
         conversation = Conversation(organization_id=org.id, user_id=owner.id, title="Private")
         remote = SandboxConnection(organization_id=org.id, name="Offline", kind="opensandbox")
-        db.add_all([conversation, remote])
+        agent = Agent(
+            organization_id=org.id,
+            owner_user_id=owner.id,
+            name="Private coding agent",
+            slug=uuid4().hex,
+            draft_spec=AgentSpec(name="Private coding agent").model_dump(mode="json"),
+        )
+        db.add_all([conversation, remote, agent])
         await db.flush()
         workspace = AgentWorkspace(
             organization_id=org.id,
@@ -994,14 +1004,22 @@ async def test_account_disconnect_keeps_remote_cleanup_in_the_same_rollback_boun
             scope_key=uuid4().hex,
             backend="service",
             coding_account_id=account.id,
+            agent_id=agent.id,
             connection_id=remote.id,
             session_id="personal-session-to-destroy",
         )
         db.add(workspace)
         await db.flush()
-        account_id, workspace_id = account.id, workspace.id
+        account_id, workspace_id, agent_id = account.id, workspace.id, agent.id
+
+        async def remove(db: AsyncSession) -> None:
+            if operation == "agent_delete":
+                await AgentRegistryService(db).delete(auth, agent_id)
+            else:
+                await CodingAccountService(db).disconnect(auth, account_id)
+
         await db.commit()
-        await CodingAccountService(db).disconnect(auth, account_id)
+        await remove(db)
         assert (
             await db.scalar(select(AgentWorkspace.id).where(AgentWorkspace.id == workspace_id))
             is None
@@ -1014,11 +1032,12 @@ async def test_account_disconnect_keeps_remote_cleanup_in_the_same_rollback_boun
         assert await db.get(AgentWorkspace, workspace_id) is not None
         assert await db.get(CodingAccount, account_id) is not None
         assert not (await db.scalars(select(PendingSandboxDestroy))).all()
-        await CodingAccountService(db).disconnect(auth, account_id)
+        await remove(db)
         await db.commit()
     async with AsyncSession(engine, expire_on_commit=False) as db:
         assert await db.get(AgentWorkspace, workspace_id) is None
-        assert await db.get(CodingAccount, account_id) is None
+        assert (await db.get(CodingAccount, account_id) is None) == (operation == "disconnect")
+        assert (await db.get(Agent, agent_id) is None) == (operation == "agent_delete")
         assert (
             await db.scalars(select(PendingSandboxDestroy))
         ).one().ref_id == "personal-session-to-destroy"

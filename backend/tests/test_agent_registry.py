@@ -3536,6 +3536,10 @@ class TestArchiveAndDelete:
             patch("app.services.agent_trigger.AgentTriggerService") as triggers_cls,
             patch("app.repositories.task.has_agent_execution", new=AsyncMock(return_value=False)),
             patch("app.services.tasks.TaskService.purge_scope", new=AsyncMock()) as purge_board,
+            patch(
+                "app.services.sandbox_workspace.SandboxWorkspaceService.purge_personal_coding",
+                new=AsyncMock(return_value=0),
+            ) as purge_sessions,
         ):
             triggers = triggers_cls.return_value
             triggers.deregister_agent_webhooks = AsyncMock()
@@ -3550,6 +3554,9 @@ class TestArchiveAndDelete:
         # stored webhook ids the hooks are removable by are gone for good.
         triggers.deregister_agent_webhooks.assert_awaited_once_with(ctx, agent.id)
         purge_board.assert_awaited_once_with("agent", agent.id, organization_id=ctx.organization_id)
+        purge_sessions.assert_awaited_once_with(
+            organization_id=ctx.organization_id, agent_id=agent.id
+        )
 
 
 class TestGetVersion:
@@ -5862,7 +5869,15 @@ class TestUndoingADraft:
         )
         purge = AsyncMock()
         monkeypatch.setattr("app.services.tasks.TaskService.purge_scope", purge)
+        purge_sessions = AsyncMock(return_value=0)
+        monkeypatch.setattr(
+            "app.services.sandbox_workspace.SandboxWorkspaceService.purge_personal_coding",
+            purge_sessions,
+        )
         await AgentRegistryService(db).delete(ctx, agent.id, draft_only=True)
+        purge_sessions.assert_awaited_once_with(
+            organization_id=ctx.organization_id, agent_id=agent.id
+        )
 
         purge.assert_awaited_once_with("agent", agent.id, organization_id=ctx.organization_id)
         delete.assert_awaited_once_with(db, agent)

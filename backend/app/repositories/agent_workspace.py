@@ -410,11 +410,12 @@ async def list_personal_coding(
     organization_id: UUID | None = None,
     user_id: UUID | None = None,
     account_id: UUID | None = None,
+    agent_id: UUID | None = None,
 ) -> list[AgentWorkspace]:
     """Bounded teardown selection, before its owning account or conversation cascades."""
     from app.db.models.coding_account import CodingAccount
 
-    if organization_id is None and user_id is None and account_id is None:
+    if organization_id is None and user_id is None and account_id is None and agent_id is None:
         raise ValueError("Personal coding cleanup requires an owner, account or organization")
     query = select(AgentWorkspace).join(
         CodingAccount,
@@ -426,6 +427,8 @@ async def list_personal_coding(
         query = query.where(CodingAccount.user_id == user_id)
     if account_id is not None:
         query = query.where(CodingAccount.id == account_id)
+    if agent_id is not None:
+        query = query.where(AgentWorkspace.agent_id == agent_id)
     return list((await db.execute(query)).scalars().all())
 
 

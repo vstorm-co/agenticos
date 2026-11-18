@@ -528,3 +528,67 @@ async def test_stopping_personal_codex_finishes_credential_readback_before_cance
             personal_isolated=True,
         )
     assert cleaned
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("payload", ["", "not json", "[]", "{}"])
+async def test_personal_codex_rejects_unreadable_auth_even_after_successful_removal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    payload: str,
+) -> None:
+    from pydantic_ai.exceptions import UserError
+    from pydantic_ai.workspaces import CommandResult
+
+    from tests.test_coding_agent import SIGNED_IN, _Store
+
+    workspace = Workspace(LocalWorkspaceBackend(tmp_path))
+    monkeypatch.setattr(
+        workspace,
+        "run",
+        AsyncMock(
+            return_value=CommandResult(
+                stdout=payload,
+                stderr="",
+                exit_code=0,
+            )
+        ),
+    )
+    ctx = RunContext(
+        deps=AgentDeps(), model=TestModel(), usage=RunUsage(), prompt="Task", workspace=workspace
+    )
+    store = _Store()
+    with pytest.raises(UserError, match="unreadable sign-in state"):
+        await _toolset._keep_rotated(
+            ctx, store, SIGNED_IN, env={"CODEX_HOME": "private"}, strict=True
+        )
+    assert not store.saved
+
+
+async def test_personal_codex_accepts_valid_unchanged_auth(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pydantic_ai.workspaces import CommandResult
+
+    from app.agents.capabilities.coding_agent._harness import codex_auth_file
+    from tests.test_coding_agent import SIGNED_IN, _Store
+
+    workspace = Workspace(LocalWorkspaceBackend(tmp_path))
+    monkeypatch.setattr(
+        workspace,
+        "run",
+        AsyncMock(
+            return_value=CommandResult(
+                stdout=codex_auth_file(SIGNED_IN),
+                stderr="",
+                exit_code=0,
+            )
+        ),
+    )
+    ctx = RunContext(
+        deps=AgentDeps(), model=TestModel(), usage=RunUsage(), prompt="Task", workspace=workspace
+    )
+    store = _Store()
+    await _toolset._keep_rotated(ctx, store, SIGNED_IN, env={"CODEX_HOME": "private"}, strict=True)
+    assert not store.saved

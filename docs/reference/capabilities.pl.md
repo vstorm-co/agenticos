@@ -1,5 +1,5 @@
 ---
-source_sha: "86c2be484011"
+source_sha: "ab8ea2eb9b04"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1710,7 +1710,7 @@ Prywatne zadanie w chmurze może wybrać `harness=claude_code` lub `harness=code
 
 Brakującego lub wyłączonego konta nie zastępuje klucz organizacji ani konto innej osoby. Codex jest odrzucany w kontenerach tylko do odczytu. Tryb piaskownicy organizacji pozostaje przypisany do skonfigurowanego narzędzia i poświadczenia.
 
-Nazwane prywatne sesje w chmurze zachowują osobne historie natywnej CLI i pliki w obrębie rozmowy i aktualnej zgody konta. Nowa nazwa kopiuje bieżące źródła; ponowne użycie kontynuuje istniejące pliki. `fresh_session` resetuje historię CLI, zachowując pliki. Wygaśnięcie bezczynnego sandboxa może zakończyć sesję. Nieudane zadanie, którego sprzątania nie można potwierdzić, jest usuwane; po utracie stanu jawnie wybierz nową nazwę. Zmiana zgody konta, odłączenie, usunięcie członkostwa oraz rozmowy, użytkownika lub organizacji kolejkują usunięcie zdalnych zasobów. Zastosuj `0342_personal_coding_sessions.py` i aktualizuj API oraz workery razem.
+Nazwane prywatne sesje w chmurze zachowują osobne historie natywnej CLI i pliki w obrębie rozmowy i aktualnej zgody konta. Nowa nazwa kopiuje bieżące źródła; ponowne użycie kontynuuje istniejące pliki. `fresh_session` resetuje historię CLI, zachowując pliki. Wygaśnięcie bezczynnego sandboxa może zakończyć sesję. Nieudane zadanie, którego sprzątania nie można potwierdzić, jest usuwane; po utracie stanu jawnie wybierz nową nazwę. Zmiana zgody konta, odłączenie, usunięcie członkostwa oraz agenta, rozmowy, użytkownika lub organizacji kolejkują usunięcie zdalnych zasobów. Zastosuj `0342_personal_coding_sessions.py` i aktualizuj API oraz workery razem.
 
 Osobisty tryb chmurowy przyjmuje tylko prywatne źródłowe workspace. Odrzuca projekty, workspace agenta lub kanału, rozmowy grupowe i chaty udostępnione do edycji, zanim odczyta poświadczenie lub skopiuje pliki. Prywatny kontener docelowy nie nadaje zaufania kodowi kontrolowanemu przez współpracowników. Do wspólnej pracy projektowej użyj trybu z kontem organizacji. Redakcja wyniku nie chroni poświadczeń przed wykonywanym kodem źródłowym.
 

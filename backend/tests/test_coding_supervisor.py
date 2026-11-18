@@ -55,8 +55,31 @@ def test_supervisor_reaps_descendants_and_records_the_actual_outcome(
 
 
 def test_supervised_launch_passes_a_deadline_without_putting_credentials_on_the_command() -> None:
-    command = Invocation(["codex", "exec", "a quoted ' task"], {"API_KEY": "private-token"})
+    command = Invocation(
+        ["codex", "exec", "a quoted ' task"], {"API_KEY": "private-token"}, supervised=True
+    )
     line = command.detached_line(TaskFiles("events", "errors", "status"), timeout_seconds=30)
     assert "private-token" not in line and "API_KEY" not in line
     assert "python3" in line and "setsid nohup" in line
     assert "30" in line
+
+
+def test_an_organization_sandbox_keeps_its_shell_only_launcher() -> None:
+    command = Invocation(["codex", "exec", "Inspect"], {})
+    line = command.detached_line(TaskFiles("events", "errors", "status"), timeout_seconds=30)
+    assert line.startswith("setsid nohup sh -c ")
+    assert "python3" not in line
+
+
+def test_auth_read_preserves_failure_status_while_removing_the_temporary_home(
+    tmp_path: Path,
+) -> None:
+    from app.agents.capabilities.coding_agent._toolset import HOME_ENV, READ_AUTH
+
+    home = tmp_path / "auth"
+    home.mkdir()
+    result = subprocess.run(
+        ["/bin/sh", "-c", READ_AUTH], env={**os.environ, HOME_ENV: str(home)}, capture_output=True
+    )
+    assert result.returncode != 0 and result.stdout == b""
+    assert not home.exists()

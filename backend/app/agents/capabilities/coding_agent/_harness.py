@@ -170,6 +170,7 @@ class Invocation:
 
     argv: list[str]
     env: dict[str, str] = field(repr=False)
+    supervised: bool = False
 
     def detached_line(self, files: TaskFiles, *, timeout_seconds: int | None = None) -> str:
         """The command, started in a session of its own and left running.
@@ -183,7 +184,7 @@ class Invocation:
 
         Every word is quoted; the redirections and the `&` are the point.
         """
-        if timeout_seconds is not None:
+        if self.supervised and timeout_seconds is not None:
             supervised = shlex.join(
                 [
                     "python3",
@@ -351,18 +352,24 @@ def codex_auth_file(credentials: OpenAICodexCredentials) -> str:
 
 
 def rotated_sign_in(
-    auth_file: str, written: OpenAICodexCredentials
+    auth_file: str, written: OpenAICodexCredentials, *, strict: bool = False
 ) -> OpenAICodexCredentials | None:
     """The tokens Codex left in its `auth.json`, when they differ from what was written."""
     try:
         data = json.loads(auth_file)
     except ValueError:
+        if strict:
+            raise UserError("Codex returned unreadable sign-in state") from None
         return None
     if not isinstance(data, Mapping):
+        if strict:
+            raise UserError("Codex returned unreadable sign-in state")
         return None
     try:
         current = OpenAICodexCredentials.from_codex_cli_auth(data)
     except UserError:
+        if strict:
+            raise UserError("Codex returned unreadable sign-in state") from None
         return None
     unchanged = (
         current.access_token == written.access_token

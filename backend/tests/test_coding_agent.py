@@ -794,7 +794,7 @@ class TestRunningATask:
         await shell.write_bytes(session_path("codex", THREAD), b"th-1\n")
         raw = await _call(shell, "Apply it", harness="codex")
         assert CodingReport.model_validate_json(raw).files_changed == ["app.py"]
-        assert shlex.split(shell.started[0])[9:13] == [
+        assert shlex.split(shlex.split(shell.started[0])[4])[:4] == [
             "codex",
             "exec",
             "resume",

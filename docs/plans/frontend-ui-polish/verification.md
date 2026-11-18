@@ -204,3 +204,25 @@ CLI conversation that restarts successfully is reported as new, while a real
 continuation remains marked continued. Seven focused regressions cover that
 state and its propagation into the personal result; the related 154-test coding
 batch passed. Four native-state cases reproduced the missing state before the fix.
+
+## Follow-up to the expanded Codex review
+
+All four findings on `ae53c04` were confirmed and addressed with regressions:
+
+- Strict personal Codex read-back rejects missing/malformed auth as well as a
+  nonzero command exit. Removal preserves the auth read's failure status; valid
+  unchanged credentials remain accepted.
+- Agent deletion queues personal-container teardown before workspace metadata
+  cascades. Real-PostgreSQL deletion and rollback tests passed for both account
+  disconnect and agent removal, including an unavailable provider.
+- Container-side Python supervision is opt-in for personal cloud invocations,
+  whose bounded source-copy path already requires Python. Organization sandboxes
+  retain their shell-only launch contract; custom images need no new runtime.
+- Shipped refresh resolves the organization's container availability once and
+  passes it consistently through release identity, target defaults and legacy
+  recognition. A remote default sandbox keeps coding enabled without a local
+  deployment token.
+
+The related seven-file backend batch passed 513 tests. The two real-database
+cleanup regressions passed independently. Four static-analysis comments about
+Alembic's dynamic revision metadata were explained and resolved as false positives.

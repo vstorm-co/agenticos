@@ -227,10 +227,12 @@ selection and local sign-ins.
 
 Named personal sessions retain native history and files, unlike separate source copies
 for every task. A new name copies the current source; `fresh_session` resets CLI
-history and preserves files. Account changes and conversation/member/user/org
+history and preserves files. Account changes and agent/conversation/member/user/org
 deletion queue remote teardown before cascading metadata. Failed tasks are
-discarded when safe retention cannot be established. The detached supervisor
-enforces a container-side deadline even if the worker disappears. Codex auth
+discarded when safe retention cannot be established. Personal cloud invocations opt into a Python supervisor that enforces a
+container-side deadline even if the worker disappears; Python is already needed
+for their bounded source copy. Organization sandbox tasks keep the existing
+shell-only launcher and caller-side deadline. Codex auth
 read-back must succeed before retaining a personal container; its per-task auth
 home is removed while native session history stays. See
 `0342_personal_coding_sessions.py` and the integration tests for ownership,

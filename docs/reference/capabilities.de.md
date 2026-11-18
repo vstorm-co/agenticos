@@ -1,5 +1,5 @@
 ---
-source_sha: "86c2be484011"
+source_sha: "ab8ea2eb9b04"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1813,7 +1813,7 @@ Private Cloud-Aufgaben können bei jedem Aufruf von `run_coding_agent` zwischen 
 
 Ein fehlendes oder deaktiviertes Konto wird weder durch einen Organisationsschlüssel noch durch ein fremdes Konto ersetzt. Codex wird für schreibgeschützte Containeraufgaben abgelehnt. Der Organisations-Sandboxmodus bleibt an den konfigurierten Coding-Agenten und dessen Zugangsdaten gebunden.
 
-Benannte private Cloud-Sitzungen behalten getrennte native CLI-Verläufe und Dateien innerhalb derselben Unterhaltung und Kontofreigabe. Ein neuer Name kopiert die aktuellen Quellen; derselbe Name setzt bestehende Dateien fort. `fresh_session` setzt den CLI-Verlauf zurück und behält Dateien. Sandbox-Ablauf bei Inaktivität kann eine Sitzung beenden. Fehlgeschlagene Aufgaben mit unbestätigter Bereinigung werden verworfen; wähle nach verlorenem Zustand ausdrücklich einen neuen Namen. Änderungen der Kontofreigabe, Trennung, Mitgliedschaftsentzug sowie Löschen von Unterhaltung, Benutzer oder Organisation stellen entfernte Bereinigung in die Warteschlange. Wende `0342_personal_coding_sessions.py` an und aktualisiere API und Worker gemeinsam.
+Benannte private Cloud-Sitzungen behalten getrennte native CLI-Verläufe und Dateien innerhalb derselben Unterhaltung und Kontofreigabe. Ein neuer Name kopiert die aktuellen Quellen; derselbe Name setzt bestehende Dateien fort. `fresh_session` setzt den CLI-Verlauf zurück und behält Dateien. Sandbox-Ablauf bei Inaktivität kann eine Sitzung beenden. Fehlgeschlagene Aufgaben mit unbestätigter Bereinigung werden verworfen; wähle nach verlorenem Zustand ausdrücklich einen neuen Namen. Änderungen der Kontofreigabe, Trennung, Mitgliedschaftsentzug sowie Löschen von Agent, Unterhaltung, Benutzer oder Organisation stellen entfernte Bereinigung in die Warteschlange. Wende `0342_personal_coding_sessions.py` an und aktualisiere API und Worker gemeinsam.
 
 Der persönliche Cloud-Modus akzeptiert nur private Quell-Workspaces. Er verweigert Projekte, Agenten-/Kanal-Workspaces, Gruppenchats und zur Bearbeitung freigegebene Unterhaltungen, bevor Anmeldedaten geladen oder Dateien kopiert werden. Ein privater Zielcontainer macht von Mitarbeitern kontrollierten Quellcode nicht vertrauenswürdig. Nutze für gemeinsame Projektarbeit den organisationsseitig konfigurierten Coding-Modus. Die Schwärzung der Ausgabe schützt Anmeldedaten nicht vor ausführbarem Quellcode.
 

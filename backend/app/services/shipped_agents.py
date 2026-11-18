@@ -97,11 +97,16 @@ class ShippedAgentService:
         if agent.status == AgentStatus.ARCHIVED.value:
             return agent
         template = self._template(key)
+        container_workspace = await SandboxConnectionService(self.db).can_provide(
+            ctx.organization_id
+        )
         release = template_release(
             key,
             AgentSpec(
                 name=template.name,
-                capabilities=agent_templates.for_this_deployment(template.capabilities),
+                capabilities=agent_templates.for_this_deployment(
+                    template.capabilities, container_workspace=container_workspace
+                ),
             ).model_dump_json(include={"capabilities"}),
         )
         if agent.shipped_template is not None and agent.shipped_template.get("release") == release:
@@ -113,13 +118,17 @@ class ShippedAgentService:
         previous = agent.shipped_template
         if previous is None:
             previous = await self._legacy_baseline(
-                ctx, draft, key, legacy_instructions_fingerprint=legacy_instructions_fingerprint
+                ctx,
+                draft,
+                key,
+                legacy_instructions_fingerprint=legacy_instructions_fingerprint,
+                container_workspace=container_workspace,
             )
             if previous is None:
                 return agent
         if previous.get("key") != key:
             return agent
-        target = await self._target(ctx, template)
+        target = await self._target(ctx, template, container_workspace=container_workspace)
         new_draft = merge_defaults(draft, target, previous)
         new_published: AgentSpec | None = None
         if agent.current_version_id is not None:
@@ -167,14 +176,26 @@ class ShippedAgentService:
             update_data={"shipped_template": {**delivered, "release": release}},
         )
 
-    async def _target(self, ctx: AuthContext, template: agent_templates.AgentTemplate) -> AgentSpec:
+    async def _target(
+        self,
+        ctx: AuthContext,
+        template: agent_templates.AgentTemplate,
+        *,
+        container_workspace: bool | None = None,
+    ) -> AgentSpec:
         await self.ensure_skills(ctx.organization_id)
         skills = await self.registry.template_skills(ctx, template)
         for skill_key in template.skills:
             entry = skill_library.gallery_get(skill_key)
             if entry is not None and any(skill.name == entry.name for skill in skills):
                 await SkillService(self.db).refresh_gallery(ctx, skill_key)
-        capabilities = agent_templates.for_this_deployment(template.capabilities)
+        if container_workspace is None:
+            container_workspace = await SandboxConnectionService(self.db).can_provide(
+                ctx.organization_id
+            )
+        capabilities = agent_templates.for_this_deployment(
+            template.capabilities, container_workspace=container_workspace
+        )
         if template.key == ARCHITECT and await SandboxConnectionService(
             self.db
         ).ensure_local_connection(ctx.organization_id):
@@ -198,6 +219,7 @@ class ShippedAgentService:
         key: str,
         *,
         legacy_instructions_fingerprint: str | None = None,
+        container_workspace: bool | None = None,
     ) -> dict[str, str] | None:
         """Recognize historical shipped values; never trust the AgenticOS name alone.
 
@@ -228,7 +250,9 @@ class ShippedAgentService:
             )
             variants = [
                 row.capabilities,
-                agent_templates.for_this_deployment(tuple(row.capabilities)),
+                agent_templates.for_this_deployment(
+                    tuple(row.capabilities), container_workspace=container_workspace
+                ),
             ]
             if key == ARCHITECT:
                 variants.append(
@@ -236,7 +260,7 @@ class ShippedAgentService:
                         *[
                             binding
                             for binding in agent_templates.for_this_deployment(
-                                tuple(row.capabilities)
+                                tuple(row.capabilities), container_workspace=container_workspace
                             )
                             if binding["id"] != "sandbox"
                         ],

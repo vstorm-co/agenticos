@@ -1,5 +1,5 @@
 ---
-source_sha: "86c2be484011"
+source_sha: "ab8ea2eb9b04"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1748,7 +1748,7 @@ Las tareas privadas en la nube pueden elegir `harness=claude_code` o `harness=co
 
 Una cuenta ausente o deshabilitada no se sustituye por una clave de la organización ni por una cuenta ajena. Codex se rechaza para tareas de contenedor de solo lectura. El modo de sandbox de la organización sigue vinculado al harness y las credenciales configurados.
 
-Las sesiones privadas con nombre conservan historiales nativos de CLI y archivos separados dentro de la misma conversación y autorización de cuenta. Un nombre nuevo copia el código actual; el mismo nombre continúa sus archivos existentes. `fresh_session` reinicia el historial CLI y conserva los archivos. La caducidad del sandbox por inactividad puede terminar una sesión. Se descarta una tarea fallida cuya limpieza no se puede confirmar; elige explícitamente un nombre nuevo si se pierde el estado. Cambiar el consentimiento, desconectar la cuenta, retirar la membresía o eliminar la conversación, usuario u organización encola la limpieza remota. Aplica `0342_personal_coding_sessions.py` y actualiza API y workers juntos.
+Las sesiones privadas con nombre conservan historiales nativos de CLI y archivos separados dentro de la misma conversación y autorización de cuenta. Un nombre nuevo copia el código actual; el mismo nombre continúa sus archivos existentes. `fresh_session` reinicia el historial CLI y conserva los archivos. La caducidad del sandbox por inactividad puede terminar una sesión. Se descarta una tarea fallida cuya limpieza no se puede confirmar; elige explícitamente un nombre nuevo si se pierde el estado. Cambiar el consentimiento, desconectar la cuenta, retirar la membresía o eliminar el agente, conversación, usuario u organización encola la limpieza remota. Aplica `0342_personal_coding_sessions.py` y actualiza API y workers juntos.
 
 El modo personal en la nube solo acepta workspaces de origen privados. Rechaza proyectos, workspaces de agente/canal, chats grupales y conversaciones compartidas para editar antes de cargar credenciales o copiar archivos. Un contenedor privado de destino no convierte en fiable el código controlado por colaboradores. Usa el modo de programación configurado por la organización para proyectos compartidos. La redacción del resultado no protege credenciales frente al código ejecutable.
 

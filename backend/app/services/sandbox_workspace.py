@@ -1667,17 +1667,19 @@ class SandboxWorkspaceService:
         organization_id: UUID | None = None,
         user_id: UUID | None = None,
         account_id: UUID | None = None,
+        agent_id: UUID | None = None,
     ) -> int:
         """Queue owned session teardown in the caller's deletion/consent transaction.
 
         Internal lifecycle operation: callers have already authorized the account,
-        member or organization change. It grants no read access to session files.
+        member, agent or organization change. It grants no read access to session files.
         """
         rows = await workspace_repo.list_personal_coding(
             self.db,
             organization_id=organization_id,
             user_id=user_id,
             account_id=account_id,
+            agent_id=agent_id,
         )
         for row in rows:
             ctx = AuthContext(user_id=None, organization_id=row.organization_id, role="")

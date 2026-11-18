@@ -214,7 +214,7 @@ async def run_detached(
                     reader.events,
                     await _read(ctx, files.errors),
                     exit_code,
-                    timed_out=exit_code == 124,
+                    timed_out=command.supervised and exit_code == 124,
                 )
             if time.monotonic() >= deadline:
                 return Outcome(reader.events, await _read(ctx, files.errors), None, timed_out=True)
