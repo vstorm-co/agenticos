@@ -1,10 +1,11 @@
 """Drafts, versions and serving pointers change under one per-agent lock."""
 
 import asyncio
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.spec import AgentSpec
@@ -12,14 +13,97 @@ from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun
+from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.schemas.agent_environment import EnvironmentUpdate
+from app.schemas.agent_trigger import TriggerUpdate
 from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService
+from app.services.agent_trigger import AgentTriggerService
 from tests.integration._keys import provider_key
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.mark.security
+async def test_a_routine_edit_and_publication_serialize_without_restoring_creator_consent(
+    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    publisher, agent = await _setup(db, published=True)
+    creator = User(email=f"{uuid4()}@example.com", hashed_password="x")
+    db.add(creator)
+    await db.flush()
+    db.add(
+        OrganizationMember(
+            organization_id=publisher.organization_id, user_id=creator.id, role="member"
+        )
+    )
+    trigger = AgentTrigger(
+        organization_id=publisher.organization_id,
+        agent_id=agent.id,
+        created_by_user_id=creator.id,
+        prompt="Original prompt",
+        interval_seconds=300,
+        next_fire_at=datetime.now(UTC),
+        is_active=True,
+        runs_as_creator=True,
+    )
+    db.add(trigger)
+    await db.commit()
+    editor = AuthContext(
+        user_id=creator.id, organization_id=publisher.organization_id, role="member"
+    )
+    entered, release = _pause_validation(monkeypatch)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with factory() as publishing, factory() as editing:
+        publisher_pid = await publishing.scalar(text("SELECT pg_backend_pid()"))
+        editor_pid = await editing.scalar(text("SELECT pg_backend_pid()"))
+        # Keep a pre-publication copy: the locked reread must see the withdrawal.
+        cached = await editing.get(AgentTrigger, trigger.id)
+        assert cached is not None and cached.runs_as_creator
+
+        async def publish() -> None:
+            await AgentRegistryService(publishing).publish(publisher, agent.id)
+            await publishing.commit()
+
+        async def edit() -> None:
+            await AgentTriggerService(editing).update(
+                editor, agent.id, trigger.id, TriggerUpdate(prompt="Updated prompt")
+            )
+            await editing.commit()
+
+        async with asyncio.timeout(15), asyncio.TaskGroup() as tasks:
+            tasks.create_task(publish())
+            await entered.wait()
+            tasks.create_task(edit())
+            # Release publication only once PostgreSQL confirms the edit is waiting
+            # for its agent lock. With the old order, the edit already holds the
+            # routine lock, so the consent withdrawal closes a real deadlock cycle.
+            while True:
+                if await db.scalar(
+                    text("SELECT :publisher = ANY(pg_blocking_pids(:editor))"),
+                    {"publisher": publisher_pid, "editor": editor_pid},
+                ):
+                    break
+                await asyncio.sleep(0.01)
+            release.set()
+
+    await db.refresh(trigger)
+    assert trigger.prompt == "Updated prompt"
+    assert trigger.is_active
+    assert not trigger.runs_as_creator
+    assert trigger.pinned_version_id is None
+    assert (
+        await db.scalar(
+            select(AgentVersion.version)
+            .where(AgentVersion.agent_id == agent.id)
+            .order_by(AgentVersion.version.desc())
+            .limit(1)
+        )
+        == 2
+    )
 
 
 async def _setup(db: AsyncSession, *, published: bool = False) -> tuple[AuthContext, Agent]:
