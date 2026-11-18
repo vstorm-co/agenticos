@@ -126,6 +126,7 @@ it("registers the Antigravity personal-account template without an API key", asy
 });
 
 it.each([
+  ["cursor", "cursor", "Cursor"],
   ["opencode", "opencode", "OpenCode"],
   ["opencode_go", "opencode-go", "OpenCode Go"],
 ])("registers %s without copying provider credentials", async (provider, id, name) => {

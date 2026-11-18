@@ -183,7 +183,7 @@ class DevicePipe:
         self.refresh_catalog = opened.get("refresh_catalog") is True
         method = opened.get("auth_method")
         if method is not None:
-            if method != "oauth-personal":
+            if method not in {"oauth-personal", "cursor_login"}:
                 await self.close()
                 raise AcpError("The Desktop app requires an unsupported authentication mode.")
             self.auth_method = method
@@ -263,6 +263,7 @@ class _Tool:
 
 @dataclass
 class _Collector:
+    cursor_account: bool = False
     """What a session's updates add up to: the steps, the files, the answer."""
 
     tools: dict[str, _Tool] = field(default_factory=dict)
@@ -282,6 +283,21 @@ class _Collector:
             case "agent_message_chunk":
                 text = (update.get("content") or {}).get("text")
                 if isinstance(text, str):
+                    if self.cursor_account and (
+                        text.strip()
+                        in {
+                            "Please sign in to continue",
+                            "Upgrade your plan to continue",
+                            "Add a payment method to continue",
+                            "Add a payment method to continue.",
+                        }
+                        or text.startswith(
+                            "\n\nError: [unauthenticated] Backend rejected authentication."
+                        )
+                    ):
+                        raise AcpError(
+                            "Cursor requires account sign-in or a billing change. Check agent status and your plan; no other account was selected."
+                        )
                     self.said.append(text)
                 return []
             case "tool_call":
@@ -510,6 +526,17 @@ class Conversation:
                 self._collector.refused.append(clip(str(title or "a request")))
             await self._pipe.send({"jsonrpc": "2.0", "id": message["id"], "result": reply})
             return
+        if method in {"cursor/ask_question", "cursor/create_plan"}:
+            await self._pipe.send(
+                {
+                    "jsonrpc": "2.0",
+                    "id": message["id"],
+                    "result": {"outcome": {"outcome": "cancelled"}},
+                }
+            )
+            raise AcpError(
+                "Cursor needs a human answer or plan approval. Its request was cancelled; no answer or approval was invented. Continue in the Cursor CLI to review it."
+            )
         # The client advertises no files or terminals: the agent uses its own.
         await self._pipe.send(
             {
@@ -631,7 +658,7 @@ async def run_task(
     Raises:
         AcpError: The agent could not be spoken to, or ended before it answered.
     """
-    collector = _Collector()
+    collector = _Collector(cursor_account=auth_method == "cursor_login")
     conversation = Conversation(pipe, access=access, collector=collector, shown=shown)
     session_id: str | None = None
     try:

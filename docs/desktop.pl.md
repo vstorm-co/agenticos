@@ -1,5 +1,5 @@
 ---
-source_sha: "edd8b3ab383b"
+source_sha: "f1e02452ad28"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -792,3 +792,28 @@ dodatkowe opłaty. AgenticOS pokazuje koszt zewnętrzny jako niewyceniony. Logow
 limity Go, cofnięcie dostępu i wznowienie po restarcie wymagają testów na prawdziwym
 koncie. Zobacz [przewodnik ACP](https://opencode.ai/docs/cli/acp/) i
 [konfigurację Go](https://opencode.ai/docs/console/go/).
+
+## Cursor przez ACP { #cursor-acp }
+
+Zainstaluj Cursor CLI, uruchom `agent login` i sprawdź `agent status`. Zarejestruj
+bezwzględną ścieżkę programu za pomocą szablonu **Cursor**. Uruchamia on
+`agent acp`, wymaga reklamowanej metody `cursor_login` i usuwa odziedziczone
+`CURSOR_API_KEY` oraz `CURSOR_AUTH_TOKEN`. Logowanie pozostaje po stronie Cursor;
+AgenticOS nie odczytuje plików tokenów, nie zmienia ustawień i nie instaluje CLI.
+Szablon obsługuje konto CLI, a nie rejestrację klucza API. Izolacja klucza API
+wymaga dalszej weryfikacji.
+
+`inspect_acp_agent` zwraca modele sesji; **ID modelu zewnętrznego** przyjmuje
+dokładne ID z wyniku. Brak pola wyboru nie potwierdza uprawnień konta. Użycie jest
+niewycenione; ustawienia Cursor określają opłaty abonamentowe, na żądanie i inne.
+Wyloguj się przez `agent logout`, a następnie usuń lub ponownie zarejestruj wpis
+Desktop, aby zatrzymać sesje i usunąć zapamiętane wznowienia. Po zmianie konta
+zarejestruj wpis ponownie; sama zmiana danych CLI nie cofa dostępu procesu.
+
+Pytanie natywne lub prośba o zatwierdzenie planu zostaje jawnie anulowana i kończy
+zadanie do sprawdzenia w Cursor CLI; AgenticOS nie podejmuje decyzji za człowieka.
+Standardowe zgody ACP korzystają z istniejących zasad delegacji. Integracja wymaga
+pełnego dostępu lokalnego i nie przekazuje narzędzi AgenticOS. Logowanie, dostęp
+do modeli, odmowa po wyczerpaniu limitu i wznowienie po restarcie pozostają testami
+odbiorowymi. Zobacz [Cursor ACP](https://cursor.com/docs/cli/acp) i
+[logowanie CLI](https://cursor.com/docs/cli/reference/authentication).

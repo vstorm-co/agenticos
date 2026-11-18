@@ -1,5 +1,5 @@
 ---
-source_sha: "3597cd25fe90"
+source_sha: "c105dec79805"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3509,3 +3509,5 @@ nie potwierdza uprawnienia do korzystania z subskrypcji dostawcy.
 `inspect_acp_agent` odczytuje modele i poziomy reasoning konta/sesji bez promptu do inferencji. `auth_method` domyślnie ma wartość `configured`; `oauth-personal` jawnie wybiera osobiste logowanie Google w Antigravity. Rejestracja Antigravity w Desktop wymusza ten tryb. Opcjonalne `model_id` wybiera dokładne ID modelu środowiska. [Konfiguracja Antigravity](../desktop.md#antigravity-acp) opisuje rozliczenia i oczekujący test konta.
 
 Rejestracje OpenCode odczytują opóźnione aktualizacje katalogu sesji. Osobny szablon Go filtruje katalog i ogranicza główny model do `opencode-go/`; modele pomocnicze oraz Extra Usage pozostają ustawieniami CLI i konta. Zobacz [konfigurację OpenCode i Go](../desktop.md#opencode-acp).
+
+Szablon Cursor korzysta z logowania kontem CLI przez `cursor_login`, usuwa odziedziczone przełączniki danych API i anuluje pytania wymagające człowieka. Rejestracja klucza API wymaga potwierdzenia izolacji. Zobacz [konfigurację Cursor](../desktop.md#cursor-acp).

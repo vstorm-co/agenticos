@@ -35,3 +35,12 @@ Official protocol reference: https://antigravity.google/docs/ide/extensions/acp
 Real-account login, quota, revocation and restart acceptance remain pending.
 Platform tool forwarding and primary conversation runtime are separate work;
 this capability currently delegates using the external program's native tools.
+
+Cursor account registrations require `cursor_login` and remove API/auth-token
+overrides in the native child. Cursor human questions and plan approvals return
+`cancelled` and stop delegation until the person reviews them in the CLI.
+Known whole-chunk account/billing failures must not become successful end turns;
+the patterns are based on OpenBot's observations of Cursor 2026.10.22-27dcf5f
+([source](https://github.com/nightly-labs/openbot/blob/82f897328826ad425dd3e2d2ac710340bbdf0cbd/src/backend/acp-flavor.ts#L799)).
+They are not a general parser for error-like prose. API-key registration remains
+pending verification of a supported isolated credential-store contract.

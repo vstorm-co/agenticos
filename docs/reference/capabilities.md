@@ -3385,3 +3385,5 @@ registration does not certify a vendor's subscription entitlement.
 `inspect_acp_agent` reads account/session model and thinking choices without an inference prompt. `auth_method` defaults to `configured`; `oauth-personal` explicitly requests Antigravity Google personal login. A Desktop Antigravity registration enforces that mode. Optional `model_id` selects an exact advertised runtime ID. See [Antigravity setup](../desktop.md#antigravity-acp) for billing boundaries and pending account verification.
 
 OpenCode registrations refresh delayed session catalog updates. The separate Go template filters discovery and restricts the primary model to `opencode-go/`; auxiliary models and Extra Usage remain CLI/account settings. See [OpenCode and Go setup](../desktop.md#opencode-acp).
+
+The Cursor template uses CLI account login with `cursor_login`, removes inherited API credential overrides and cancels unanswered human requests. API-key registration remains pending isolation verification. See [Cursor setup](../desktop.md#cursor-acp).

@@ -1,5 +1,5 @@
 ---
-source_sha: "edd8b3ab383b"
+source_sha: "f1e02452ad28"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -834,3 +834,29 @@ verursachen. AgenticOS weist externe Kosten als unbepreist aus. Anmeldung,
 Go-Kontingent, Widerruf und Wiederaufnahme nach Neustart erfordern Tests mit einem
 echten Konto. Siehe [ACP-Anleitung](https://opencode.ai/docs/cli/acp/) und
 [Go-Einrichtung](https://opencode.ai/docs/console/go/).
+
+## Cursor über ACP { #cursor-acp }
+
+Installieren Sie Cursor CLI, führen Sie `agent login` aus und prüfen Sie
+`agent status`. Registrieren Sie den absoluten Programmpfad mit der Vorlage
+**Cursor**. Sie startet `agent acp`, verlangt die angekündigte Methode
+`cursor_login` und entfernt geerbte `CURSOR_API_KEY`- und `CURSOR_AUTH_TOKEN`-Werte.
+Die Anmeldung bleibt bei Cursor; AgenticOS liest keine Token-Dateien, ändert keine
+Einstellungen und installiert das CLI nicht. Die Vorlage unterstützt das
+CLI-Konto, keine API-Schlüsselregistrierung. Die Schlüsselisolierung bleibt offen.
+
+`inspect_acp_agent` liest die Modelle der Sitzung; **Externe Modell-ID** nimmt
+eine genaue ID daraus an. Ein fehlender Selektor bestätigt keine Berechtigung.
+Die Nutzung bleibt unbepreist; Cursor-Kontoeinstellungen bestimmen Abonnement-,
+On-Demand- und weitere Kosten. Melden Sie sich mit `agent logout` ab und entfernen
+oder registrieren Sie den Desktop-Eintrag erneut, um Sitzungen und gespeicherte
+Fortsetzungen zu löschen. Registrieren Sie nach einem Kontowechsel erneut; allein
+der Wechsel der CLI-Zugangsdaten widerruft keinen laufenden Prozess.
+
+Native Fragen und Planfreigaben werden ausdrücklich abgebrochen und stoppen die
+Aufgabe zur Prüfung in Cursor CLI. AgenticOS erfindet keine menschliche Entscheidung.
+Standard-ACP-Toolfreigaben nutzen die bestehende Delegationsrichtlinie. Die
+Integration verlangt vollen lokalen Zugriff und leitet keine AgenticOS-Tools
+weiter. Kontoanmeldung, Modellzugriff, Kontingentablehnung und Wiederaufnahme nach
+Neustart bleiben Abnahmetests. Siehe [Cursor ACP](https://cursor.com/docs/cli/acp)
+und [CLI-Anmeldung](https://cursor.com/docs/cli/reference/authentication).

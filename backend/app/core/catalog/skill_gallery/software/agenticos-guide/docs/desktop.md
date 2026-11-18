@@ -781,3 +781,28 @@ charges. AgenticOS reports external spend as unpriced. Account login, Go quota,
 revocation and restart/resume need real-account acceptance tests. See the
 [ACP guide](https://opencode.ai/docs/cli/acp/) and
 [Go account setup](https://opencode.ai/docs/console/go/).
+
+## Cursor through ACP { #cursor-acp }
+
+Install the Cursor CLI, run `agent login` and check `agent status`. Register the
+absolute executable path using the **Cursor** template. It launches `agent acp`,
+requires the advertised `cursor_login` method and removes inherited
+`CURSOR_API_KEY` and `CURSOR_AUTH_TOKEN` overrides. Sign-in stays with Cursor;
+AgenticOS does not read token files, change Cursor settings or install its CLI.
+This template supports the CLI account, not an API-key registration. API-key
+isolation remains pending verification.
+
+Use `inspect_acp_agent` for session model choices and **External model ID** for an
+exact returned ID. An absent picker does not imply account eligibility. Usage is
+unpriced; Cursor account settings decide subscription, on-demand and other charges.
+Log out using `agent logout`, then remove or re-register the Desktop entry to stop
+owned sessions and clear remembered continuation. Register again after a switch
+of account; changing CLI credentials alone does not revoke a running process.
+
+A native question or plan-approval request is cancelled explicitly and stops the
+task for review in Cursor CLI; AgenticOS does not fabricate a human decision.
+Standard ACP tool permissions use the existing delegation policy. This integration
+requires full local access and forwards no AgenticOS tools. Real-account login,
+model eligibility, quota refusal and restart/resume remain acceptance follow-ups.
+See [Cursor ACP](https://cursor.com/docs/cli/acp) and
+[CLI authentication](https://cursor.com/docs/cli/reference/authentication).

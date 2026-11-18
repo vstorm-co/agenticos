@@ -1,5 +1,5 @@
 ---
-source_sha: "edd8b3ab383b"
+source_sha: "f1e02452ad28"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -821,3 +821,30 @@ El inicio de sesión, la cuota Go, la revocación y la reanudación tras reinici
 requieren pruebas con una cuenta real. Consulta la
 [guía ACP](https://opencode.ai/docs/cli/acp/) y la
 [configuración Go](https://opencode.ai/docs/console/go/).
+
+## Cursor mediante ACP { #cursor-acp }
+
+Instala Cursor CLI, ejecuta `agent login` y comprueba `agent status`. Registra la
+ruta absoluta del ejecutable con la plantilla **Cursor**. Inicia `agent acp`,
+exige el método anunciado `cursor_login` y elimina los valores heredados
+`CURSOR_API_KEY` y `CURSOR_AUTH_TOKEN`. Cursor conserva el inicio de sesión;
+AgenticOS no lee archivos de tokens, no cambia ajustes ni instala el CLI. La
+plantilla admite la cuenta CLI, no el registro de una clave API. El aislamiento
+de claves API sigue pendiente de verificación.
+
+`inspect_acp_agent` lee los modelos de la sesión; **ID del modelo externo** acepta
+un ID exacto del resultado. La ausencia de selector no confirma derechos de
+acceso. El uso se registra sin valorar; la cuenta Cursor determina los cargos por
+suscripción, bajo demanda y otros. Ejecuta `agent logout` y elimina o vuelve a
+registrar la entrada Desktop para detener sesiones y borrar continuaciones.
+Registra de nuevo después de cambiar de cuenta; cambiar las credenciales del CLI
+no revoca por sí solo un proceso activo.
+
+Las preguntas nativas y solicitudes de aprobación de planes se cancelan de forma
+explícita y detienen la tarea para revisarla en Cursor CLI. AgenticOS no inventa
+una decisión humana. Los permisos ACP estándar siguen la política de delegación
+existente. La integración exige acceso local completo y no reenvía herramientas
+de AgenticOS. El inicio de sesión, los modelos, el rechazo por cuota y la
+reanudación tras reiniciar siguen pendientes de pruebas reales. Consulta
+[Cursor ACP](https://cursor.com/docs/cli/acp) y la
+[autenticación CLI](https://cursor.com/docs/cli/reference/authentication).

@@ -189,9 +189,16 @@ impl Sessions {
     }
 }
 
+fn cursor_account_environment(command: &mut tokio::process::Command) {
+    command
+        .env_remove("CURSOR_API_KEY")
+        .env_remove("CURSOR_AUTH_TOKEN")
+        .env("NO_OPEN_BROWSER", "1");
+}
+
 /// Start `program` in `cwd` and begin collecting what it writes.
 fn spawn(program: &Path, args: &[String], cwd: &Path, path_env: Option<String>) -> Result<Session, Refusal> {
-    spawn_authenticated(program, args, cwd, path_env, false)
+    spawn_authenticated(program, args, cwd, path_env, crate::external_agents::Provider::Custom)
 }
 
 fn spawn_authenticated(
@@ -199,7 +206,7 @@ fn spawn_authenticated(
     args: &[String],
     cwd: &Path,
     path_env: Option<String>,
-    google_personal: bool,
+    provider: crate::external_agents::Provider,
 ) -> Result<Session, Refusal> {
     let mut command = tokio::process::Command::new(program);
     command
@@ -212,12 +219,15 @@ fn spawn_authenticated(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    if google_personal {
+    if provider == crate::external_agents::Provider::Antigravity {
         command
             .env_remove("GEMINI_API_KEY")
             .env_remove("GOOGLE_API_KEY")
             .env_remove("GOOGLE_GENAI_USE_VERTEXAI")
             .env_remove("GOOGLE_GENAI_USE_GCA");
+    }
+    if provider == crate::external_agents::Provider::Cursor {
+        cursor_account_environment(&mut command);
     }
     if let Some(path_env) = path_env {
         command.env("PATH", path_env);
@@ -492,14 +502,16 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         }
         (_, None) => None,
     };
-    if external
-        .as_ref()
-        .is_some_and(|item| item.provider == crate::external_agents::Provider::Antigravity)
-        && !supports_auth_modes
+    if external.as_ref().is_some_and(|item| {
+        matches!(
+            item.provider,
+            crate::external_agents::Provider::Antigravity | crate::external_agents::Provider::Cursor
+        )
+    }) && !supports_auth_modes
     {
         return Err(Refusal::new(
             "denied",
-            "Update the AgenticOS server to use Antigravity personal-account mode.",
+            "Update the AgenticOS server to use this account authentication mode.",
         ));
     }
     if external
@@ -579,7 +591,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
             &external.args,
             &root,
             path_with(Path::new(&external.program)),
-            external.provider == crate::external_agents::Provider::Antigravity,
+            external.provider,
         )?
     } else if let (Some(runtime), Some(builtin)) = (&runtime, agent.builtin()) {
         spawn(
@@ -598,10 +610,11 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     let id = uuid::Uuid::new_v4().simple().to_string();
     sessions.map.lock().await.insert(id.clone(), session);
     drop(slot);
-    let auth_method = external
-        .as_ref()
-        .filter(|item| item.provider == crate::external_agents::Provider::Antigravity)
-        .map(|_| "oauth-personal");
+    let auth_method = external.as_ref().and_then(|item| match item.provider {
+        crate::external_agents::Provider::Antigravity => Some("oauth-personal"),
+        crate::external_agents::Provider::Cursor => Some("cursor_login"),
+        _ => None,
+    });
     let runtime_name = external.as_ref().map(|item| item.name.as_str());
     let model_prefix = external
         .as_ref()
@@ -915,6 +928,19 @@ mod tests {
         assert!(sessions.contains_key("retained"));
         assert!(drain(&output, 0).await.2.is_some());
         remove_external(&mut sessions, "second");
+    }
+
+    #[test]
+    fn cursor_account_drops_inherited_api_modes_without_touching_cli_files() {
+        let mut command = tokio::process::Command::new("cursor-agent");
+        cursor_account_environment(&mut command);
+        let environment: std::collections::BTreeMap<_, _> = command.as_std().get_envs().collect();
+        assert_eq!(environment.get(std::ffi::OsStr::new("CURSOR_API_KEY")), Some(&None));
+        assert_eq!(environment.get(std::ffi::OsStr::new("CURSOR_AUTH_TOKEN")), Some(&None));
+        assert_eq!(
+            environment.get(std::ffi::OsStr::new("NO_OPEN_BROWSER")),
+            Some(&Some(std::ffi::OsStr::new("1")))
+        );
     }
 
     #[test]

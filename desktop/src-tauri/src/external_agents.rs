@@ -14,6 +14,7 @@ pub enum Provider {
     #[default]
     Custom,
     Antigravity,
+    Cursor,
     #[serde(rename = "opencode")]
     OpenCode,
     #[serde(rename = "opencode_go")]
@@ -74,7 +75,7 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
     }
     if matches!(
         input.provider,
-        Provider::Antigravity | Provider::OpenCode | Provider::OpenCodeGo
+        Provider::Antigravity | Provider::Cursor | Provider::OpenCode | Provider::OpenCodeGo
     ) && input.args != ["acp"]
     {
         return Err(
@@ -107,6 +108,7 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
     let before = settings::current(&app).connection_revision;
     let (send, receive) = tokio::sync::oneshot::channel();
     let billing = match registration.provider {
+        Provider::Cursor => "Cursor uses its own CLI account login; inherited API keys and auth-token overrides are removed. Account, model and on-demand settings determine charges. Sign in with agent login first. API-key registration is not supported by this template.",
         Provider::Antigravity => "Google personal OAuth is required; inherited Gemini API key variables are removed.",
         Provider::OpenCode => "OpenCode uses its own configured providers and credentials. Its model choices may include free models, Go and paid APIs.",
         Provider::OpenCodeGo => "Only an opencode-go primary model may receive a prompt. Connect Go under opencode-go in OpenCode itself; no key is copied by AgenticOS. Go Extra Usage and OpenCode auxiliary-model settings can incur additional charges. Coding tasks only.",
@@ -196,8 +198,12 @@ mod tests {
     }
 
     #[test]
-    fn opencode_templates_preserve_namespaces_and_refuse_launch_overrides() {
-        for (provider, wire) in [(Provider::OpenCode, "opencode"), (Provider::OpenCodeGo, "opencode_go")] {
+    fn runtime_templates_preserve_ids_and_refuse_launch_overrides() {
+        for (provider, wire) in [
+            (Provider::Cursor, "cursor"),
+            (Provider::OpenCode, "opencode"),
+            (Provider::OpenCodeGo, "opencode_go"),
+        ] {
             let registered = checked(RegistrationInput { provider, ..input() }).unwrap();
             assert_eq!(registered.provider, provider);
             assert_eq!(serde_json::to_value(provider).unwrap(), wire);

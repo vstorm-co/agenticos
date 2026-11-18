@@ -683,7 +683,7 @@ export async function setQuickAskPickerOpen(open: boolean): Promise<void> {
 
 /** An executable registered and confirmed by the owner of this Desktop connection. */
 export interface ExternalAgent {
-  provider: "custom" | "antigravity" | "opencode" | "opencode_go";
+  provider: "custom" | "antigravity" | "cursor" | "opencode" | "opencode_go";
   id: string;
   name: string;
   program: string;
@@ -702,6 +702,7 @@ export function parseExternalAgents(value: unknown): ExternalAgent[] {
     if (
       provider !== "custom" &&
       provider !== "antigravity" &&
+      provider !== "cursor" &&
       provider !== "opencode" &&
       provider !== "opencode_go"
     )

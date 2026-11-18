@@ -84,6 +84,7 @@ export function ExternalAgentSettings() {
               const selected = event.target.value;
               if (
                 selected !== "antigravity" &&
+                selected !== "cursor" &&
                 selected !== "opencode" &&
                 selected !== "opencode_go"
               ) {
@@ -95,6 +96,7 @@ export function ExternalAgentSettings() {
               // i18n-exempt: product names
               const names = {
                 antigravity: "Antigravity",
+                cursor: "Cursor",
                 opencode: "OpenCode",
                 opencode_go: "OpenCode Go",
               };
@@ -106,11 +108,16 @@ export function ExternalAgentSettings() {
             {/* i18n-exempt: product name */}
             <option value="antigravity">Antigravity</option>
             {/* i18n-exempt: product names */}
+            <option value="cursor">Cursor</option>
+            {/* i18n-exempt: product names */}
             <option value="opencode">OpenCode</option>
             {/* i18n-exempt: product names */}
             <option value="opencode_go">OpenCode Go</option>
           </NativeSelect>
         </div>
+        {provider === "cursor" && (
+          <p className="text-muted-foreground text-xs">{t("cursorHelp")}</p>
+        )}
         {provider === "opencode" && (
           <p className="text-muted-foreground text-xs">{t("opencodeHelp")}</p>
         )}
