@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Exclude repeated agent instructions and SDK instruction baselines and deltas from conversation checkpoints, preserving more conversation and tool evidence within the existing storage limit. Later turns continue with the agent's current instructions (#3141).
+
 ## [1.82.2] - 2026-11-18
 
 ### Added
