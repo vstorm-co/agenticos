@@ -283,7 +283,10 @@ class TestCapabilityDestinations:
         row = section.rows[0]
         assert row[:3] == ["agent external", "default v1", "external_acp"]
         assert "directly from the person's computer" in row[3]
-        assert "does not control" in row[3]
+        assert "CLI-owned modes use that program's endpoint and sign-in" in row[3]
+        assert "Selected Pi vault-key modes" in row[3]
+        assert "fixed provider endpoints" in row[3]
+        assert "independently authorized" in row[3]
         assert "sandbox" not in row[3]
 
     def test_every_registered_capability_is_classified(self) -> None:

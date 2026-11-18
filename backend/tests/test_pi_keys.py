@@ -354,3 +354,47 @@ async def test_the_real_native_tool_path_never_streams_or_reports_the_selected_k
     streamed = json.dumps(to_jsonable_python(frames))
     assert "selected-" not in streamed and "private-key" not in streamed
     assert pi.closed
+
+
+async def test_a_selected_key_cannot_launch_without_an_exact_model() -> None:
+    device = FakeDevice([])
+    pipe = DevicePipe(device, "custom", custom_agent_id="pi-key", pi_key=key())
+    with pytest.raises(AcpError, match="exact model ID"):
+        await pipe.open()
+    assert not device.calls
+
+
+@pytest.mark.parametrize("models", [None, [{"provider": "deepseek"}]])
+async def test_selected_key_rejects_malformed_native_catalog_before_inference(
+    models: object,
+) -> None:
+    pi = Pi()
+    pi.models = models
+    with pytest.raises(AcpError, match="unsupported model catalog"):
+        await run_pi(
+            pi,
+            task="Work",
+            timeout_seconds=1,
+            shown=ignore,
+            key_provider="deepseek",
+            model="deepseek/native-model",
+        )
+    assert pi.closed
+    assert not any(message["type"] == "prompt" for message in pi.seen)
+
+
+async def test_a_listed_model_does_not_replace_the_required_native_state_acknowledgement() -> None:
+    pi = Pi()
+    pi.models = [{**MODEL, "provider": "deepseek", "id": "native-model"}]
+    with pytest.raises(AcpError, match="did not acknowledge"):
+        await run_pi(
+            pi,
+            task="Work",
+            timeout_seconds=1,
+            shown=ignore,
+            key_provider="deepseek",
+            model="deepseek/native-model",
+        )
+    assert pi.closed
+    assert any(message["type"] == "set_model" for message in pi.seen)
+    assert not any(message["type"] == "prompt" for message in pi.seen)

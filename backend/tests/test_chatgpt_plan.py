@@ -744,3 +744,14 @@ async def test_official_profiles_refuse_fallbacks_at_creation_and_update(
     monkeypatch.setattr(service, "_get_profile", AsyncMock(return_value=profile))
     with pytest.raises(BadRequestError, match="automatic fallbacks"):
         await service.update_profile(ctx, profile.id, ModelProfileUpdate(label="Renamed"))
+
+
+def test_subscription_tokens_are_never_priced_as_a_metered_openai_api_bill() -> None:
+    from pydantic_ai.usage import RequestUsage
+
+    from app.agents.capabilities.budget import price_request
+
+    usage = RequestUsage(input_tokens=1000, output_tokens=100)
+    for provider in ["openai_chatgpt", "openai-chatgpt"]:
+        assert price_request(usage, "gpt-4.1", provider) is None
+    assert price_request(usage, "gpt-4.1", "openai") is not None

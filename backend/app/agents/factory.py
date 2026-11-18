@@ -130,6 +130,7 @@ _AUDIENCE_AWARE = frozenset(
         BROWSER_CAPABILITY_ID,
         MEMORY_FILES_CAPABILITY_ID,
         CONVERSATION_SEARCH_CAPABILITY_ID,
+        "external_acp",
     }
 )
 
