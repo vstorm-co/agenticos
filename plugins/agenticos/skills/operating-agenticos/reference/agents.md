@@ -102,7 +102,7 @@ Copy this checklist and track progress:
 
 ```
 Improve progress:
-- [ ] 1. list_datasets: pick a dataset with can_run true
+- [ ] 1. list_datasets: pick a dataset with can_run true (none: stop, the user creates one in the console)
 - [ ] 2. estimate_improvement: tell the user total_usd, per_round_usd and limit_usd
 - [ ] 3. start_improvement with the agreed budget_usd
 - [ ] 4. get_improvement: reply from summary, offer its next_actions
@@ -113,7 +113,7 @@ Improve progress:
 
 - Start a session, run a step, try again and accept only when the user asked for that step.
 - Build each reply from the session's `summary` and keep every fact in it, warnings above all. Offer exactly its `next_actions`.
-- Pass `total_usd` and `candidate_hash` from the estimate to the step that spends. A session that changed since the estimate is refused: estimate again.
+- The step that spends takes `budget_usd` (the session's limit), the estimate's `total_usd` as `estimate_usd`, and its `candidate_hash`. A session that changed since the estimate is refused: estimate again.
 - Compare attempts by their `change` on held-out questions, not by pass rates in `details`. When `measurement_noise.noisy` is true, the test cannot tell better from worse; say so.
 - `agenticos:use_attempt` picks a finished attempt; `agenticos:estimate_improve_again` and `agenticos:improve_again` start another, with the user's `note`.
 - `agenticos:accept_improvement` with `publish: false` unless the user asked to publish. Link the user to the session's `link` for the full wizard.

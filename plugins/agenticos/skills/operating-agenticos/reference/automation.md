@@ -49,10 +49,11 @@ Points that decide whether it works:
 A watch has a published agent check one of the person's own connected accounts, read-only, and report changes.
 
 1. `agenticos:list_my_connections` for the source `connection_id`. If its status is doubtful, `agenticos:test_my_connection`.
-2. Confirm the agent already binds that personal service. Do not add a capability or swap in another agent to make it fit.
-3. `agenticos:create_watch` with `title`, `instructions`, `every_minutes` and, when the user gave a duration, `ends_at`.
+   With no connection for the service, stop: find its key with `agenticos:search_mcp_servers` and send the user to `/mcp-servers?connect=<key>` to connect it.
+2. Confirm a published agent already binds that personal service: `agenticos:get_agent` shows `draft_spec.mcp_servers` with `account: "personal"` and the service's `catalog_key`. That is the draft, so say that the published version is assumed to match. Do not add a capability or swap in another agent to make it fit.
+3. `agenticos:create_watch` with that `agent_id` and `connection_id`, a `title`, `instructions`, `every_minutes` and, when the user gave a duration, `ends_at`. When the request already supplies all of these, create it without further questions.
 
-- The organization sets the minimum cadence; a shorter `every_minutes` is refused.
+- The organization sets the minimum cadence and whether watches are allowed. Neither can be read; a shorter `every_minutes` or a disabled feature shows as a refusal.
 - `report_mode: "changes"` is quiet until something changes; `every_check` reports each time.
 - Creating and editing a watch needs the person's own authority and the `personal:consent` scope. A refusal on that scope is fixed by reauthorizing the MCP client under **Custom**, not by another route.
 - `agenticos:update_watch` pauses with `active: false`. Set `review_sources` only when the user re-approves the attached knowledge and context. `agenticos:delete_watch` also removes its findings.

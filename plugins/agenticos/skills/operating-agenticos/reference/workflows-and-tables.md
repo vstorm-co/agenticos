@@ -81,7 +81,7 @@ If step 5 or 7 reports an error, fix the graph, save it and return to step 5.
 ```
 
 - Every `id` is a unique UUID generated for this graph. `definition_version` comes from the catalog.
-- Edges connect ports by ID. Most ports are listed in the node definition's `ports`. Branching steps name their own output ports in config, and those do not appear in `ports`: `ai.classify` (`categories[].name`), `logic.switch` (`rules[].name`), `logic.split` and `error.handle` (`branches[].name`), `human.approval` (`choices[].id`). They sit beside the static ports that are listed, such as the `other` port of `ai.classify`. They sit beside the static ports that are listed, such as `ai.classify`'s `other`.
+- Edges connect ports by ID. Most ports are listed in the node definition's `ports`. Branching steps name their own output ports in config, and those do not appear in `ports`: `ai.classify` (`categories[].name`), `logic.switch` (`rules[].name`), `logic.split` and `error.handle` (`branches[].name`), `human.approval` (`choices[].id`). They sit beside the static ports that are listed, such as the `other` port of `ai.classify`.
 - Branches that continue to a shared step rejoin through `logic.merge`. Only one `core.output` may run in a run; the validator refuses a graph where two can.
 - A binding feeds one `target_field` of one node from a `source`: `node_output` (another node's port, narrowed by `field_path`), `template` (text with node outputs in it), `literal`, `table` or `file`.
 - One key of an open object is bound as `field/key`: a record step's column is `values/<Column label>`.
@@ -111,7 +111,7 @@ Use a table for structured state an automation reads and writes. It does not rep
 
 1. `agenticos:list_virtual_tables` (`q` searches name and description) before creating another.
 2. `agenticos:get_virtual_table` for column IDs, types, option IDs and `schema_version`.
-3. `agenticos:query_virtual_table` with `filters` (`column_id`, `op`, `value`), `search`, `sort` and `limit`. Follow `has_more`.
+3. `agenticos:query_virtual_table` with a `query` object holding `filters` (`column_id`, `op`, `value`), `search`, `sort` and `limit`. Follow `has_more`.
 
 `agenticos:create_virtual_table` makes a private table. Publishing an agent or workflow does not share it; sharing is done in the console.
 
@@ -128,6 +128,7 @@ Managed task boards are tables too. Change them with the task tools, not the rec
 | Change some cells | `agenticos:update_virtual_table_record` | `expected_revision`; omitted cells stay, `null` clears |
 | Delete | `agenticos:delete_virtual_table_record` | `expected_revision` |
 
+- The write fields are nested: `update: {expected_revision, values}` on an update, `record: {expected_revision, values}` on an upsert.
 - `agenticos:virtual_table_record_exists` checks an `external_id`. A refusal does not mean the record is absent.
 - An upsert of a record that already exists needs its `expected_revision`, and no tool looks a record up by `external_id`: page `agenticos:query_virtual_table` and match `external_id` in the results to get the ID and revision.
 - Invalid values are refused, never converted. Fix the value to the column's type.

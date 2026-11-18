@@ -29,7 +29,7 @@ Creating one needs an embedding provider, because there is no deployment-wide de
 
 1. `agenticos:list_embedding_models` for providers and models. A `keyless` provider needs an `embedding_endpoint_id`; the others need an `embedding_secret_id`.
 2. Copy the configuration from an existing organization knowledge base when there is one. Do not reuse a personal base's secret: it may belong to another organization.
-3. `agenticos:create_knowledge_base`. With no usable key or endpoint, stop and ask an administrator to add one in the console.
+3. `agenticos:create_knowledge_base`. No tool lists vault secrets or embedding endpoints, so with no knowledge base to copy from, stop and ask the user for the ID of an embedding key or endpoint an administrator added in the console. Do not pass a model profile's `secret_id`.
 
 `agenticos:add_document` adds text. The `filename` extension decides the format (`.md`, `.txt`), and indexing runs in the background, so a search straight after may not find it yet. Search again before reporting the document as loaded.
 
@@ -79,7 +79,7 @@ Every saved change is an immutable version. An agent reads a skill in one of thr
 
 A skill session proposes changes and checks them on every agent of the line before anything is applied. It needs an OAuth connection and runs only when the user asks.
 
-1. `agenticos:estimate_skill_improvement`. Tell the user `total_usd`, `per_round_usd` and `limit_usd`. An estimate with `reason: "no_evidence"` means no recorded run has used the skill yet, so there is nothing to improve from: say so instead of starting.
+1. `agenticos:estimate_skill_improvement`. Tell the user `total_usd`, `per_round_usd` and `limit_usd`. An estimate with `reason: "no_evidence"` means there is nothing to improve from: evidence is runs that used the skill and were rated down, failed or were rated up, and an unrated run that succeeded does not count. Say so instead of starting.
 2. `agenticos:start_skill_improvement` with the agreed `budget_usd`.
 3. `agenticos:get_skill_improvement`. Reply from its `summary`, keeping every fact, a worse agent above all, and end with its `ask` exactly as given.
 4. `agenticos:estimate_next_skill_improvement_step`, then `agenticos:run_next_skill_improvement_step` with its `total_usd` and `candidate_hash`. A failed step is rerun with `agenticos:retry_skill_improvement_step`.

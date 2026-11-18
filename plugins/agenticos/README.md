@@ -76,7 +76,7 @@ The tool chains in the use-case catalogue were run against a live deployment (Ag
 - table upserts, updates, typed queries and deletes, and the task chain with an idempotent retry
 - creating and editing a skill and a context file
 
-Three fresh Claude sessions then used the skill on the scenarios in `evaluations/`, read-only, building the arguments of every write and checking them against the live schemas. What they could not find in the skill was added to it.
+Four fresh Claude sessions then used the skill on the scenarios in `evaluations/` and on requests the test organization could not serve (an Improve session with no dataset, a watch with no connection, a knowledge base with no embedding key), read-only, building the arguments of every write and checking them against the live schemas. What they could not find in the skill was added to it.
 
 ## Maintaining the skill
 
