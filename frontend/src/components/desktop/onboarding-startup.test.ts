@@ -9,7 +9,7 @@ const { resume, refresh, prepare } = vi.hoisted(() => ({
   refresh: vi.fn(async () => {}),
 }));
 vi.mock("../../../../desktop/ui/local-computer.js", () => ({
-  localComputerStep: () => Object.assign(refresh, { resume, prepare }),
+  localComputerStep: () => Object.assign(refresh, { resume, prepare, progress: vi.fn() }),
 }));
 vi.mock("../../../../desktop/ui/permissions.js", () => ({
   permissionStep: () => vi.fn(async () => {}),
@@ -18,6 +18,7 @@ vi.mock("../../../../desktop/ui/permissions.js", () => ({
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
+  window.history.replaceState(null, "", "/");
   document.body.innerHTML = readFileSync(
     resolve(process.cwd(), "../desktop/ui/index.html"),
     "utf8",
@@ -128,4 +129,12 @@ it("retries a failed setup using the instance identity reported by native progre
   expect(invoke).toHaveBeenLastCalledWith("set_up_local", {
     owner: expect.objectContaining({ instance_id: "saved-instance" }),
   });
+});
+
+it("opens local updates from the native menu without resuming or creating a workspace", async () => {
+  window.history.replaceState(null, "", "/?local=update");
+  await start("local", null);
+  await waitFor(() => expect(refresh).toHaveBeenCalled());
+  expect(resume).not.toHaveBeenCalled();
+  expect(document.querySelector('[data-screen="local"]')).not.toHaveAttribute("hidden");
 });

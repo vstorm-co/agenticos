@@ -56,7 +56,7 @@ it("gives immediate connecting feedback, refuses duplicate clicks and permits re
   expect(invoke.mock.calls.filter(([command]) => command === "use_local")).toHaveLength(1);
   rejectConnection?.(new Error("Server unavailable"));
   await waitFor(() => expect(button).toBeEnabled());
-  expect(screen.getByRole("status")).toHaveTextContent("Server unavailable");
+  expect(document.querySelector("[data-local-message]")).toHaveTextContent("Server unavailable");
 });
 it("reports a failed probe and exposes a working check-again action", async () => {
   invoke.mockRejectedValueOnce(new Error("Docker unavailable"));
@@ -218,7 +218,9 @@ it("refuses duplicate preparation and restores a retry after cancellation", asyn
   rejectPreparation?.(new Error("Installation cancelled"));
   await screen.findByText("Setup needs your attention");
   expect(screen.getByRole("button", { name: "Set up this computer" })).toBeEnabled();
-  expect(screen.getByRole("status")).toHaveTextContent("Installation cancelled");
+  expect(document.querySelector("[data-local-message]")).toHaveTextContent(
+    "Installation cancelled",
+  );
 });
 
 it("resumes the saved local workspace without sending owner secrets or creating an instance", async () => {
@@ -235,7 +237,9 @@ it("offers recovery when automatic startup fails", async () => {
   const { refresh } = mount();
   await refresh.resume();
   expect(screen.getByText("Your workspace could not start")).toBeVisible();
-  expect(screen.getByRole("status")).toHaveTextContent("Runtime could not start");
+  expect(document.querySelector("[data-local-message]")).toHaveTextContent(
+    "Runtime could not start",
+  );
   expect(screen.getByRole("button", { name: "New instance" })).toBeEnabled();
 });
 
@@ -245,7 +249,9 @@ it("keeps an explicit continuation for platforms using an external installer", a
   await refresh();
   fireEvent.click(screen.getByRole("button", { name: "Set up this computer" }));
   await waitFor(() =>
-    expect(screen.getByRole("status")).toHaveTextContent("Complete the runtime installation"),
+    expect(document.querySelector("[data-local-message]")).toHaveTextContent(
+      "Complete the runtime installation",
+    ),
   );
   expect(screen.getByRole("button", { name: "Check again" })).toBeEnabled();
 });
@@ -266,4 +272,96 @@ it("leaves unmanaged development stacks to the regular connection flow", async (
   await refresh.resume();
   expect(screen.getByText("Ready to create your workspace")).toBeVisible();
   expect(invoke).not.toHaveBeenCalledWith("set_up_local");
+});
+
+const outdated = {
+  id: "work",
+  name: "Work",
+  url: "http://localhost:3001/",
+  installed: true,
+  running: true,
+  version: "1.80.0",
+  target_version: "1.82.2",
+  can_update: true,
+};
+
+it("shows workspace and target versions and updates only the chosen managed instance", async () => {
+  let finish: ((value: unknown) => void) | undefined;
+  invoke.mockImplementation(async (command) => {
+    if (command === "local_instances") return [outdated];
+    if (command === "update_local")
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    return "running";
+  });
+  const { root, refresh } = mount();
+  await refresh();
+  expect(screen.getByText("Workspace 1.80.0 · Update target 1.82.2")).toBeVisible();
+  const update = screen.getByRole("button", { name: "Update local workspace" });
+  fireEvent.click(update);
+  fireEvent.click(update);
+  expect(invoke.mock.calls.filter(([name]) => name === "update_local")).toEqual([
+    ["update_local", { instanceId: "work" }],
+  ]);
+  expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
+  expect(root.querySelector("[data-local-update-progress]")).toBeVisible();
+  refresh.progress({ step: "backup" });
+  expect(screen.getByText("Backing up the database, files and keys…")).toBeVisible();
+  refresh.progress({ step: "restart" });
+  expect(screen.getByText("Restarting the workspace and checking health…")).toBeVisible();
+  finish?.(true);
+  await screen.findByText("Workspace updated. Connect to continue.");
+  expect(screen.getByRole("button", { name: "Connect" })).toBeEnabled();
+});
+
+it.each([false, "failure"])(
+  "restores update controls after cancellation or failure: %s",
+  async (result) => {
+    invoke.mockImplementation(async (command) => {
+      if (command === "local_instances") return [outdated];
+      if (command === "update_local") {
+        if (result === "failure") throw new Error("Backup failed. Free disk space and retry.");
+        return result;
+      }
+      return "running";
+    });
+    const { refresh } = mount();
+    await refresh();
+    fireEvent.click(screen.getByRole("button", { name: "Update local workspace" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Update local workspace" })).toBeEnabled(),
+    );
+    if (result === "failure")
+      expect(screen.getByRole("alert")).toHaveTextContent("Free disk space and retry");
+    else expect(screen.getByText("Workspace update cancelled.")).toBeVisible();
+  },
+);
+
+it("offers no update on an unfinished or newer workspace", async () => {
+  invoke.mockImplementation(async (command) =>
+    command === "local_instances"
+      ? [
+          { ...outdated, version: "1.99.0", can_update: false },
+          { ...outdated, id: "partial", installed: false },
+        ]
+      : "running",
+  );
+  const { refresh } = mount();
+  await refresh();
+  expect(screen.queryByRole("button", { name: "Update local workspace" })).toBeNull();
+});
+
+it("permits reapplying the current release to recover an interrupted update", async () => {
+  invoke.mockImplementation(async (command) =>
+    command === "local_instances"
+      ? [{ ...outdated, version: outdated.target_version }]
+      : command === "update_local"
+        ? false
+        : "running",
+  );
+  const { refresh } = mount();
+  await refresh();
+  fireEvent.click(screen.getByRole("button", { name: "Reapply workspace update" }));
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith("update_local", { instanceId: "work" }));
 });
