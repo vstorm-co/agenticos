@@ -670,5 +670,8 @@ class EvalComparisonRead(BaseSchema):
     flips_by_tag: dict[str, dict[FlipLiteral, int]]
     criteria: list[CriterionMoveRead] = Field(
         default_factory=list,
-        description="Each criterion graded on both sides, by scorer and name",
+        description=(
+            "Criteria graded on both sides, by scorer and name: at most 200, the ones "
+            "that moved first"
+        ),
     )

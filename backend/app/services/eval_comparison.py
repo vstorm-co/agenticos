@@ -406,11 +406,24 @@ _STATUS_OUTCOME: dict[object, bool] = {"pass": True, "fail": False}
 
 
 def grades(results: Iterable[Mapping[str, object]]) -> dict[Criterion, Outcome]:
-    """A stored score's results as criterion outcomes; a skipped or failed scorer decides none."""
-    return {
-        (str(result["scorer"]), str(result["name"])): _STATUS_OUTCOME.get(result.get("status"))
-        for result in results
-    }
+    """A stored score's required results as criterion outcomes.
+
+    A skipped or failed scorer decides none. An optional result is left out, as
+    `case_passed` leaves it out of the question. Two results under one scorer and
+    name - two schema checks at one path - are told apart by their order, which
+    the same scoring repeats on every answer: the second is `name #2`.
+    """
+    outcomes: dict[Criterion, Outcome] = {}
+    seen: Counter[Criterion] = Counter()
+    for result in results:
+        if result.get("required") is False:
+            continue
+        criterion = (str(result["scorer"]), str(result["name"]))
+        seen[criterion] += 1
+        if seen[criterion] > 1:
+            criterion = (criterion[0], f"{criterion[1]} #{seen[criterion]}")
+        outcomes[criterion] = _STATUS_OUTCOME.get(result.get("status"))
+    return outcomes
 
 
 @dataclass(frozen=True)
@@ -488,8 +501,20 @@ class CriterionMove:
         )
 
 
-def criterion_moves(cases: Iterable[PairedGrades]) -> list[CriterionMove]:
-    """Every criterion graded on both sides of some case, by scorer and then name."""
+MAX_COMPARED_CRITERIA = 200
+"""Criteria a comparison reports. A dataset's per-case checks can name thousands."""
+
+
+def criterion_moves(
+    cases: Iterable[PairedGrades], *, limit: int = MAX_COMPARED_CRITERIA
+) -> list[CriterionMove]:
+    """The criteria graded on both sides of some case, by scorer and then name.
+
+    Past `limit`, the ones that decide a verdict are kept first - every criterion
+    confirmed worse, then confirmed better, then any other that moved, then the
+    ones failing most often - so a verdict read from the kept list is the one
+    the whole list gives.
+    """
     counts: dict[Criterion, Counter[str]] = {}
     for case in cases:
         for criterion, before in case.baseline.items():
@@ -505,7 +530,7 @@ def criterion_moves(cases: Iterable[PairedGrades]) -> list[CriterionMove]:
                 which = "fixed" if flip is Flip.FIXED else "broken"
                 state = "confirmed" if case.confirmed(criterion) else "unconfirmed"
                 row[f"{which}_{state}"] += 1
-    return [
+    moves = [
         CriterionMove(
             scorer=scorer,
             name=name,
@@ -519,3 +544,15 @@ def criterion_moves(cases: Iterable[PairedGrades]) -> list[CriterionMove]:
         )
         for (scorer, name), row in sorted(counts.items())
     ]
+    if len(moves) <= limit:
+        return moves
+    kept = sorted(
+        moves,
+        key=lambda move: (
+            not move.worse,
+            not move.better,
+            not (move.fixed_unconfirmed or move.broken_unconfirmed or move.fixed_confirmed),
+            move.candidate_passed - move.graded,
+        ),
+    )[:limit]
+    return sorted(kept, key=lambda move: (move.scorer, move.name))

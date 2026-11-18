@@ -1,5 +1,5 @@
 ---
-source_sha: "97d893a0101b"
+source_sha: "23666f4eb2b2"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -433,6 +433,9 @@ powtarzany, a `criteria` porównania podaje dla każdego kryterium, na ilu
 przypadkach obie strony je oceniły, ile z nich każda strona spełniła w pierwszej
 odpowiedzi oraz naprawy i zepsucia potwierdzone tak samo jak przy przypadku:
 każda powtórka po obu stronach je powtarza.
+
+Porównanie podaje najwyżej 200 kryteriów: powyżej tej liczby najpierw każde
+kryterium, które się zmieniło, potem te, które najczęściej nie są spełnione.
 
 Werdykt poniżej dotyczy nadal całych
 przypadków; [sesja Improve](authoring.md#the-improve-wizard) i

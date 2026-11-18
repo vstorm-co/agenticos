@@ -405,6 +405,9 @@ graded on it, how many each side passed on its first answer, and the
 fixes and breaks confirmed the same way as a case's: every rerun on both
 sides repeats them.
 
+The comparison lists at most 200 criteria: past that, every criterion
+that moved comes first, then the ones failing most often.
+
 The verdict below stays about whole cases; an
 [Improve session](authoring.md#the-improve-wizard) and a
 [skill check](skills.md#the-rule) read the criteria when no case flipped.

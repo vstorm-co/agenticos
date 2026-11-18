@@ -1,5 +1,5 @@
 ---
-source_sha: "97d893a0101b"
+source_sha: "23666f4eb2b2"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -426,6 +426,9 @@ la comparación indica, por criterio, en cuántos casos lo calificaron ambos
 lados, cuántos aprobó cada lado con su primera respuesta, y los arreglos y
 roturas confirmados igual que los de un caso: cada repetición en ambos lados
 los repite.
+
+La comparación indica como máximo 200 criterios: por encima de esa cifra,
+primero cada criterio que se movió y después los que fallan con más frecuencia.
 
 El veredicto de abajo sigue siendo sobre casos enteros; una
 [sesión de Improve](authoring.md#the-improve-wizard) y una

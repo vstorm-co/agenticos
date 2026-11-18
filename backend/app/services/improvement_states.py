@@ -389,13 +389,14 @@ MAX_CRITERIA = 40
 def criterion_owners(reports: Iterable[Mapping[str, Any] | None]) -> dict[str, str]:
     """Which skill each criterion was put down to by a session's improver, by name.
 
-    The newest report decides a criterion two of them named.
+    `reports` come newest first, and the newest report decides a criterion two of
+    them named.
     """
     owners: dict[str, str] = {}
     for report in reports:
         for problem in (report or {}).get("skill_problems", []):
             for name in problem.get("criteria", []):
-                owners[str(name).casefold()] = str(problem["skill_name"])
+                owners.setdefault(str(name).casefold(), str(problem["skill_name"]))
     return owners
 
 

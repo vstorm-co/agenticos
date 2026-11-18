@@ -209,6 +209,41 @@ def test_stored_results_read_as_criterion_outcomes() -> None:
     }
 
 
+def test_an_optional_result_is_no_criterion_as_it_is_no_part_of_the_question() -> None:
+    stored = [
+        {"scorer": "judge", "name": "price break", "required": True, "status": "pass"},
+        {"scorer": "judge", "name": "tone", "required": False, "status": "fail"},
+    ]
+
+    assert grades(stored) == {("judge", "price break"): True}
+
+
+def test_two_results_under_one_name_stay_two_criteria() -> None:
+    stored = [
+        {"scorer": "check", "name": "json_schema at $.total", "status": "pass"},
+        {"scorer": "check", "name": "json_schema at $.total", "status": "fail"},
+    ]
+
+    assert grades(stored) == {
+        ("check", "json_schema at $.total"): True,
+        ("check", "json_schema at $.total #2"): False,
+    }
+
+
+def test_past_the_limit_the_criteria_that_decide_a_verdict_are_kept() -> None:
+    passing = {("check", f"check {n:03}"): True for n in range(300)}
+    before = {**passing, _PRICE: False, _VALIDITY: True}
+    after = {**passing, _PRICE: True, _VALIDITY: False}
+    case = PairedGrades(
+        baseline=before, candidate=after, baseline_reruns=(before,), candidate_reruns=(after,)
+    )
+
+    moves = criterion_moves([case], limit=3)
+
+    assert [move.name for move in moves] == ["check 000", "price break", "validity"]
+    assert _named(moves, "validity").worse and _named(moves, "price break").better
+
+
 def test_only_a_criterion_graded_both_ways_counts_as_flipped() -> None:
     assert criterion_flipped({_PRICE: False}, {_PRICE: True})
     assert not criterion_flipped({_PRICE: False}, {_PRICE: False})
@@ -244,7 +279,7 @@ def test_the_newest_report_decides_which_skill_a_criterion_is_put_down_to() -> N
         ]
     }
 
-    assert criterion_owners([None, older, {}, newer]) == {
+    assert criterion_owners([newer, {}, older, None]) == {
         "validity": "Quote rules",
         "payment terms": "Quote rules",
     }

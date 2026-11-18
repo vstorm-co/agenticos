@@ -1,5 +1,5 @@
 ---
-source_sha: "97d893a0101b"
+source_sha: "23666f4eb2b2"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -459,6 +459,9 @@ auf wie vielen Fällen beide Seiten es bewertet haben, wie viele davon jede Seit
 mit ihrer ersten Antwort bestanden hat, und die Behebungen und
 Verschlechterungen, die genauso bestätigt werden wie bei einem Fall: Jede
 Wiederholung auf beiden Seiten wiederholt sie.
+
+Der Vergleich nennt höchstens 200 Kriterien: Darüber hinaus zuerst jedes
+Kriterium, das sich bewegt hat, dann die am häufigsten nicht erfüllten.
 
 Das Urteil unten bleibt bei
 ganzen Fällen; eine [Improve-Sitzung](authoring.md#the-improve-wizard) und eine
