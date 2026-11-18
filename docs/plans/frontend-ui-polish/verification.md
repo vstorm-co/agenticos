@@ -315,8 +315,8 @@ motion preferences for tab activation. A captured model menu was inspected at
 
 Every dashboard scope shares the greeting/date/primary-action header. Personal
 activity queries remain confined to Me. Descriptions reserve two lines; scope
-navigation and filters use separate rows, with organization-only arrangement
-controls in the filter row. Empty layouts keep the same header/navigation.
+navigation and filters share a row on wide screens and wrap on phones, with
+organization-only arrangement controls beside the filters. Empty layouts keep the same header/navigation.
 Scope/group changes animate only the content, honoring reduced motion.
 
 All 50 focused dashboard/coding tests passed. Populated Chromium measured the
@@ -324,3 +324,23 @@ scope strip at y=152.5px for Me, Organization, Group and Deployment at 1440px,
 and y=220px for all four at 390px. Reduced-motion scope content had no animation.
 An additional Playwright regression checks wide/narrow geometry, animation
 preferences and the shared greeting.
+
+
+## Compact chat layout review
+
+Development-only `/chat?layout=composer`, `header` and `floating` previews move
+model selection into a compact control. Settings retain connections, coding
+accounts, notification preferences and remembered approvals without repeating
+the approval-mode selector already available through Agent rules. The regular
+chat and production build retain their current layout pending selection.
+
+The research compares eight applications using public product documentation;
+see [chat layout research](chat-layout-research.md) for sources and tradeoffs.
+
+The focused controls/model-picker batch passed 72 tests, including personal-key
+agents, saved model overrides and the production guard. TypeScript passed.
+Populated Chromium opened all three desktop variants and their model/settings
+popovers, checked the editable composer, compact widths and absence of duplicate
+permissions. A 390px floating-layout check found no horizontal overflow or API
+5xx. No messages or paid model calls were submitted. The dashboard inline-filter
+batch passed 39 tests and browser geometry checks in all four scopes.

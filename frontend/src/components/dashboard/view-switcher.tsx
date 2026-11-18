@@ -56,11 +56,14 @@ export function ViewSwitcher({
     // Tabs, not a second pill control: which dashboard this is sits a level
     // above the period it is read over, and two identical pill rows stacked
     // under one another read as two filters of equal weight.
-    <div className="mb-5 space-y-3">
-      <div className="border-border border-b">
+    <div className="border-border mb-5 grid gap-x-4 gap-y-2 md:grid-cols-[minmax(0,1fr)_auto] md:border-b">
+      <div className="border-border min-w-0 border-b md:border-0">
         <div
           ref={strip}
-          className={cn("-mb-px flex max-w-full scrollbar-none gap-5 overflow-x-auto", SCROLL_FADE)}
+          className={cn(
+            "-mb-px flex h-12 max-w-full scrollbar-none items-stretch gap-5 overflow-x-auto",
+            SCROLL_FADE,
+          )}
           role="group"
           aria-label={t("label")}
         >
@@ -74,7 +77,7 @@ export function ViewSwitcher({
                 aria-pressed={active}
                 onClick={() => onViewChange(option)}
                 className={cn(
-                  "touch:min-h-11 flex shrink-0 touch-manipulation items-center gap-1.5 border-b-2 px-0.5 pb-2.5 text-sm font-medium whitespace-nowrap transition-colors",
+                  "touch:min-h-11 flex shrink-0 touch-manipulation items-center gap-1.5 border-b-2 px-0.5 text-sm font-medium whitespace-nowrap transition-colors",
                   active
                     ? "border-foreground text-foreground"
                     : "text-muted-foreground hover:text-foreground border-transparent",
@@ -87,7 +90,7 @@ export function ViewSwitcher({
           })}
         </div>
       </div>
-      <div className="flex min-h-10 flex-wrap items-center justify-end gap-2">
+      <div className="flex min-h-12 min-w-0 flex-wrap items-center justify-end gap-2 pb-2 md:pb-0">
         {view === "group" && groupId !== null ? (
           <Select value={groupId} onValueChange={onGroupChange}>
             <SelectTrigger className="h-8 w-auto min-w-44" aria-label={t("group.pick")}>

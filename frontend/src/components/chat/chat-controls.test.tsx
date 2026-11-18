@@ -1,10 +1,11 @@
 import { useChatControlsStore } from "@/stores/chat-controls-store";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useWorkOnStore } from "@/stores/work-on-store";
 import { ChatControls } from "./chat-controls";
+import { ChatLayoutPreview } from "./chat-layout-preview";
 
 const state = vi.hoisted(() => ({
   desktop: false,
@@ -477,4 +478,63 @@ it("clears a saved model override when switching to a personal-key agent", async
   state.personalModel = true;
   rerender(<ChatControls onModelProfileChange={changed} />);
   expect(changed).toHaveBeenLastCalledWith(null);
+});
+
+describe("development layout alternatives", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each(["composer", "header", "floating"])(
+    "offers one model control without repeated permission choices in %s",
+    async (variant) => {
+      vi.stubEnv("NODE_ENV", "development");
+      render(
+        <ChatLayoutPreview variant={variant}>
+          <ChatControls />
+        </ChatLayoutPreview>,
+      );
+      expect(screen.getAllByRole("button", { name: "Model" })).toHaveLength(1);
+      await userEvent.click(trigger());
+      expect(screen.getByRole("dialog", { name: "Chat controls" })).toBeVisible();
+      expect(screen.queryByRole("group", { name: "Permissions" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("tab", { name: "Model" })).not.toBeInTheDocument();
+    },
+  );
+
+  it("saves model overrides through the existing scoped controls", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const changed = vi.fn();
+    render(
+      <ChatLayoutPreview variant="composer">
+        <ChatControls onModelProfileChange={changed} />
+      </ChatLayoutPreview>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Model" }));
+    await userEvent.click(screen.getByRole("button", { name: "pick a model (none)" }));
+    expect(changed).toHaveBeenCalledWith("p-1");
+  });
+
+  it("keeps personal model connections separate from organization overrides", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    state.personalModel = true;
+    render(
+      <ChatLayoutPreview variant="composer">
+        <ChatControls />
+      </ChatLayoutPreview>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Model" }));
+    expect(screen.getByText("Private model connection form")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /pick a model/ })).not.toBeInTheDocument();
+  });
+
+  it("ignores preview URLs in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    render(
+      <ChatLayoutPreview variant="floating">
+        <ChatControls />
+      </ChatLayoutPreview>,
+    );
+    expect(document.querySelector("[data-chat-layout]")).toBeNull();
+    await userEvent.click(trigger());
+    expect(screen.getByRole("tab", { name: "Model" })).toBeVisible();
+  });
 });

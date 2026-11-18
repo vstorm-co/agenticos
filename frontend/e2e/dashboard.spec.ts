@@ -31,6 +31,15 @@ test.describe("Dashboard", () => {
       const panel = page.locator('[data-dashboard-view="org"]');
       await expect(panel).toBeVisible();
       await expect(panel).toHaveCSS("animation-name", "tab-panel-enter");
+      if (width >= 768) {
+        const period = await page
+          .getByRole("button", { name: "Period", exact: true })
+          .boundingBox();
+        const tabs = await switcher.boundingBox();
+        expect(period).not.toBeNull();
+        expect(period?.y ?? Infinity).toBeLessThan((tabs?.y ?? 0) + (tabs?.height ?? 0));
+        expect((period?.y ?? 0) + (period?.height ?? 0)).toBeGreaterThan(tabs?.y ?? Infinity);
+      }
       await expect
         .poll(async () => Math.abs(((await switcher.boundingBox())?.y ?? -1) - (before?.y ?? 0)))
         .toBeLessThan(1);

@@ -36,6 +36,7 @@ import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
 
 interface ChatModelPickerProps {
+  compact?: boolean;
   /** The model profile this conversation overrides to, or null for the agent's own. */
   value: string | null;
   /** The agent's published model, shown as the current one when there is no override. */
@@ -67,7 +68,12 @@ interface ChatModelPickerProps {
  * likely to want to know (#926) - so the current-model summary renders above the
  * gate, and only the fields that write are withheld.
  */
-export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPickerProps) {
+export function ChatModelPicker({
+  value,
+  agentModel,
+  onChange,
+  compact = false,
+}: ChatModelPickerProps) {
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
   const tErrors = useTranslations("errors");
@@ -214,10 +220,16 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     <>
       <ModelIcon model={current.model} provider={current.provider} />
       <span className="min-w-0 flex-1">
-        <span className="block text-sm leading-5 font-medium break-words whitespace-normal">
+        <span
+          className={
+            compact
+              ? "block truncate text-xs font-medium"
+              : "block text-sm leading-5 font-medium break-words whitespace-normal"
+          }
+        >
           {current.label}
         </span>
-        {currentDetail !== null && (
+        {currentDetail !== null && !compact && (
           <span className="text-muted-foreground mt-1 block truncate font-mono text-[11px]">
             {currentDetail}
           </span>
@@ -250,7 +262,11 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
             type="button"
             variant="outline"
             size="sm"
-            className="h-auto min-h-16 w-full items-start justify-start gap-3 rounded-xl px-3.5 py-3 text-left text-[13px]"
+            className={
+              compact
+                ? "h-auto min-h-10 w-full justify-start gap-2 rounded-lg px-2 py-2 text-left text-xs"
+                : "h-auto min-h-16 w-full items-start justify-start gap-3 rounded-xl px-3.5 py-3 text-left text-[13px]"
+            }
             aria-label={t("changeModel")}
             data-tour="chat-model-picker"
             aria-expanded={expanded}

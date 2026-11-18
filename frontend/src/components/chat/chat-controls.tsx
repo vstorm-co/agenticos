@@ -11,6 +11,7 @@ import { useTranslations } from "next-intl";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
 import { RememberedApprovals } from "./remembered-approvals";
+import { PreviewChatControls, useChatLayoutPreview } from "./chat-layout-preview";
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn, ConversationNotifications } from "./work-on";
 import { YourConnections } from "./your-connections";
@@ -87,6 +88,7 @@ export function ChatControls({
   agentCapabilities = null,
 }: ChatControlsProps) {
   const t = useTranslations("chat.controls");
+  const preview = useChatLayoutPreview();
   const panel = useRef<HTMLDivElement>(null);
   const tCommon = useTranslations("common");
   const waiverHintId = useId();
@@ -143,6 +145,17 @@ export function ChatControls({
     return model === null ? t("label") : t("modelTitle", { model });
   }, [selectedProfile, agentModel, t]);
   const hasOverride = profileId !== null || approvalMode !== "follow_agent";
+
+  if (preview !== null)
+    return (
+      <PreviewChatControls
+        usageSlot={usageSlot}
+        desktop={desktop}
+        harnesses={harnesses}
+        agentCapabilities={agentCapabilities}
+        onModelProfileChange={onModelProfileChange}
+      />
+    );
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

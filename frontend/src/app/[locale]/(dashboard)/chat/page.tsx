@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 
 import { ChatContainer, ConversationSidebar } from "@/components/chat";
+import { ChatLayoutPreview } from "@/components/chat/chat-layout-preview";
 import { PhoneChatBar } from "@/components/chat/phone-chat-bar";
 import { useMcpOAuthOutcome } from "@/hooks";
 import { useChatWith } from "@/hooks/use-chat-with";
@@ -12,8 +13,9 @@ import { startGoal } from "@/lib/onboarding-api";
 import { cn } from "@/lib/utils";
 
 export default function ChatPage() {
-  const example = startGoal(useSearchParams().get("example"));
-  const requestedConversationId = useSearchParams().get("id");
+  const params = useSearchParams();
+  const example = startGoal(params.get("example"));
+  const requestedConversationId = params.get("id");
   // A consent started from the chat comes back here, and the outcome is in the
   // query string exactly as it is on the servers page.
   useMcpOAuthOutcome();
@@ -29,14 +31,16 @@ export default function ChatPage() {
           the buttons floating over it on a phone. */}
       <div className="relative min-w-0 flex-1 max-md:[&_[data-chat-scroller]]:scroll-pt-20 max-md:[&_[data-transcript]]:pt-20">
         <PhoneChatBar />
-        <ChatContainer
-          requestedConversationId={requestedConversationId}
-          emptyState={
-            example
-              ? (onPick) => <StartExample key={example} goal={example} onRun={onPick} />
-              : undefined
-          }
-        />
+        <ChatLayoutPreview variant={params.get("layout")}>
+          <ChatContainer
+            requestedConversationId={requestedConversationId}
+            emptyState={
+              example
+                ? (onPick) => <StartExample key={example} goal={example} onRun={onPick} />
+                : undefined
+            }
+          />
+        </ChatLayoutPreview>
       </div>
     </div>
   );
