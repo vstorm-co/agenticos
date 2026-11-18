@@ -40,6 +40,7 @@ export default function LiveBrowsePage({ params }: PageProps) {
       <EmptyState icon={MonitorPlay} title={t(`${status}Title`)} description={t(`${status}Body`)} />
     );
   }
+  // A protected frame can arrive before the first snapshot, so the loading view can name it.
   if (status === "connecting" || browse === null) {
     return (
       <div
@@ -50,7 +51,7 @@ export default function LiveBrowsePage({ params }: PageProps) {
       >
         <PageHeader
           className="mb-0 md:mb-0"
-          title={t("title")}
+          title={browse?.outputProtected ? credentials("protectedTitle") : t("title")}
           description={
             <span
               aria-hidden

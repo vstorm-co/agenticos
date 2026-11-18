@@ -7,7 +7,10 @@ import { useAuthStore } from "@/stores";
 
 import LiveBrowsePage from "./page";
 
-const live = vi.hoisted(() => ({ browse: null as Browse | null }));
+const live = vi.hoisted(() => ({
+  browse: null as Browse | null,
+  status: "live" as "live" | "connecting",
+}));
 
 vi.mock("@/hooks/use-live-browse", () => ({
   useLiveBrowse: () => ({
@@ -15,7 +18,7 @@ vi.mock("@/hooks/use-live-browse", () => ({
     task: "",
     canControl: false,
     canRemember: false,
-    status: "live",
+    status: live.status,
     send: () => undefined,
     protect: () => undefined,
   }),
@@ -39,8 +42,9 @@ function browse(overrides: Partial<Browse> = {}): Browse {
 }
 
 // The page reads its params with `use()`: the first render suspends until they resolve.
-async function renderPage(value: Browse) {
+async function renderPage(value: Browse, status: "live" | "connecting" = "live") {
   live.browse = value;
+  live.status = status;
   await act(async () => {
     render(
       <Suspense fallback={null}>
@@ -66,5 +70,18 @@ describe("the browse page title", () => {
       await screen.findByRole("heading", { level: 1, name: "Protected browser" }),
     ).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Live browser" })).not.toBeInTheDocument();
+  });
+
+  it("names a protected browse as protected while its output loads", async () => {
+    await renderPage(browse({ outputProtected: true }), "connecting");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Protected browser" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Live browser" })).not.toBeInTheDocument();
+  });
+
+  it("names an unprotected browse as a live browser while it loads", async () => {
+    await renderPage(browse(), "connecting");
+    expect(await screen.findByRole("heading", { level: 1, name: "Live browser" })).toBeVisible();
   });
 });
