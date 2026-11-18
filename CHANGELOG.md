@@ -40,6 +40,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep model selectors and popup anchors stationary when pressed; reserve scale feedback for action buttons so opening a list does not shrink its field or move its anchor.
+
 - Send Mattermost acknowledgement reactions from durable workers using the bot’s current server URL and token instead of relying on a stream process’s in-memory cache.
 - Keep streamed chat steps and expanded work details mounted after their first visit, so folding earlier activity no longer discards in-progress input. Animate disclosures with an intrinsic-size transition and a CSS-grid fallback, while preserving keyboard focus and hiding collapsed content from assistive technology.
 - Show the requested action, a readable subject and the requesting agent in Inbox approvals instead of serialized MCP requests or opaque record IDs. Preserve redacted approval boundaries.

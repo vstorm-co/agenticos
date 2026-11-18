@@ -262,3 +262,14 @@ Verification for the browser/desktop/delegation follow-up:
   Computer use and published-agent discovery; its model, MCP bindings, context
   and pinned delegates were preserved. Browser and sandbox containers are not
   running in this local preview, so no live desktop success is claimed.
+
+## Stationary model picker triggers
+
+Global button press scaling excluded switches and radios but still matched
+comboboxes and popup anchors. Exclude those semantics in both the global rule
+and shared Button/icon press rules. Existing hover/focus/open states remain.
+A real Chromium run on the populated user's Builder reproduced the old
+`scale: 0.97`, then verified the fixed field stayed at 637px with unchanged x
+position. Enter opened the picker and Escape dismissed it. The 12 model-picker
+unit tests passed; a Playwright regression covers model/provider pointer geometry
+and keyboard opening without changing the selected model.

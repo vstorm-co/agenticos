@@ -83,18 +83,21 @@
 }
 
 /* Shared press feedback also covers feature controls that do not use Button.
+ * Fields and popup anchors stay still so their text and positioned panels do not jump.
  * Low specificity lets specialized controls keep their own transitions. */
 :where(
   :root:not([data-motion="reduce"])
-    button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not([role="slider"])
+    button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not([role="slider"]):not(
+      [role="combobox"]
+    ):not([aria-haspopup])
 ) {
   transition: scale 150ms ease-out;
 }
 :where(
   :root:not([data-motion="reduce"])
     button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not([role="slider"]):not(
-      :disabled
-    ):not([aria-disabled="true"]):not([data-loading="true"])
+      [role="combobox"]
+    ):not([aria-haspopup]):not(:disabled):not([aria-disabled="true"]):not([data-loading="true"])
 ):active {
   scale: 0.97;
 }
@@ -3174,9 +3177,9 @@ body .tour-spotlight {
       box-shadow var(--duration-fast),
       scale var(--duration-fast) var(--ease-out);
   }
-  .pressable-control:not(.pressable-icon):not(:disabled):not([aria-disabled="true"]):not(
-      [data-loading="true"]
-    ):active {
+  .pressable-control:not(.pressable-icon):not([role="combobox"]):not([aria-haspopup]):not(
+      :disabled
+    ):not([aria-disabled="true"]):not([data-loading="true"]):active {
     scale: 0.97;
   }
   .pressable-icon {
@@ -3186,7 +3189,7 @@ body .tour-spotlight {
       box-shadow var(--duration-fast),
       scale var(--duration-fast) var(--ease-out);
   }
-  .pressable-icon:active {
+  .pressable-icon:not([role="combobox"]):not([aria-haspopup]):active {
     scale: 0.97;
   }
 }
