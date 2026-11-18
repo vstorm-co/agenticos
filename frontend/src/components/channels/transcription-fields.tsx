@@ -13,7 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ProviderRow } from "@/components/vault/provider-row";
+import { ModelLabel } from "@/components/icons/model-icon";
 import { useSpeechToTextProviders } from "@/hooks/use-model-providers";
 import type { ChannelPlatform, InheritedSpeechToText } from "@/types/channels";
 
@@ -187,10 +188,7 @@ export function TranscriptionFields({
                     : t("transcriptionProviderNoKey", { name: entry.name });
                   return (
                     <SelectItem key={entry.provider} value={entry.provider} textValue={label}>
-                      <span className="flex items-center gap-2">
-                        <ProviderIcon provider={entry.provider} className="h-3.5 w-3.5" />
-                        {label}
-                      </span>
+                      <ProviderRow provider={entry.provider} name={label} />
                     </SelectItem>
                   );
                 })}
@@ -216,7 +214,7 @@ export function TranscriptionFields({
               <SelectContent>
                 {(chosen?.models ?? []).map((model) => (
                   <SelectItem key={model.id} value={model.id} textValue={model.name}>
-                    {model.name}
+                    <ModelLabel model={model.id} provider={chosen?.provider} label={model.name} />
                   </SelectItem>
                 ))}
               </SelectContent>

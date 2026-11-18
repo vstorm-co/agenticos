@@ -5,7 +5,7 @@ import { Command } from "cmdk";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ModelIcon } from "@/components/icons/model-icon";
 import { Badge, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { COMMAND_ITEM_FOCUS, FORM_CONTROL } from "@/components/ui/control-styles";
 import { hasKey, modelDetail, runsAgents, usableForAgents } from "@/lib/model-profiles";
@@ -46,7 +46,7 @@ export function PipelineProfileSelect({
               "flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left text-sm",
             )}
           >
-            {selected && <ProviderIcon provider={selected.provider} />}
+            {selected && <ModelIcon model={selected.model} provider={selected.provider} />}
             <span className={cn("min-w-0 flex-1 truncate", !selected && "text-muted-foreground")}>
               {selected?.label ?? t("pipelineModelPlaceholder")}
             </span>
@@ -82,7 +82,7 @@ export function PipelineProfileSelect({
                     "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm data-[disabled=true]:opacity-50",
                   )}
                 >
-                  <ProviderIcon provider={profile.provider} />
+                  <ModelIcon model={profile.model} provider={profile.provider} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{profile.label}</span>
                     {modelDetail(profile) && (

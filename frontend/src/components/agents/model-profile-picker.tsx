@@ -4,7 +4,7 @@ import { useId, useLayoutEffect, useRef, useState } from "react";
 import { Check, ChevronRight, KeyRound, Trash2 } from "lucide-react";
 
 import { AddModel } from "@/components/agents/add-model";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ModelIcon } from "@/components/icons/model-icon";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
   Select,
@@ -176,6 +176,7 @@ export function ModelProfilePicker({
           title={profile.label}
           subtitle={modelDetail(profile)}
           provider={profile.provider}
+          model={profile.model}
           // A picker that omits this lets somebody publish an agent onto a model
           // that cannot answer. The server's `missing_key`, not `secret_id`
           // alone: a self-hosted model at an endpoint has no key and needs none,
@@ -208,7 +209,7 @@ export function ModelProfilePicker({
       <span id={captionId} className="text-muted-foreground text-xs">
         {t("currentModel")}
       </span>
-      <ProviderIcon provider={selected.provider} />
+      <ModelIcon model={selected.model} provider={selected.provider} />
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{selected.label}</span>
       {/* The badge that decides whether the agent can run at all. In a list of a
           dozen saved models the chosen one's badge is a badge among twelve. */}
@@ -286,7 +287,7 @@ export function ModelProfilePicker({
               {offered.map((profile) => (
                 <SelectItem key={profile.id} value={profile.id} disabled={!usable(profile)}>
                   <span className="flex min-w-0 items-center gap-2">
-                    <ProviderIcon provider={profile.provider} />
+                    <ModelIcon model={profile.model} provider={profile.provider} />
                     <span className="truncate">{profile.label}</span>
                     {requireOrganizationKey && !hasKey(profile) && (
                       <Badge variant="destructive">{t("noKey")}</Badge>
@@ -376,6 +377,7 @@ function ProfileRow({
   title,
   subtitle,
   provider,
+  model,
   noKey,
   notChat,
   selectable = true,
@@ -388,6 +390,7 @@ function ProfileRow({
   /** `null` where the title already names the provider and the model. */
   subtitle: string | null;
   provider: string;
+  model: string;
   noKey?: boolean;
   notChat?: boolean;
   /** False for a non-chat model listed only so it can be removed. */
@@ -415,7 +418,7 @@ function ProfileRow({
           (disabled || !selectable) && "cursor-not-allowed opacity-60",
         )}
       >
-        <ProviderIcon provider={provider} />
+        <ModelIcon model={model} provider={provider} />
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-1.5">
             <span className="truncate text-sm font-medium">{title}</span>

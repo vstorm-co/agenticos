@@ -273,3 +273,54 @@ A real Chromium run on the populated user's Builder reproduced the old
 position. Enter opened the picker and Escape dismissed it. The 12 model-picker
 unit tests passed; a Playwright regression covers model/provider pointer geometry
 and keyboard opening without changing the selected model.
+
+## Model makers and tab transitions
+
+Model pickers show the model maker independently of the API transport. Known
+namespaces (including OpenRouter's Z.AI, Moonshot and Meta aliases) reuse existing
+checked-in brand marks; direct unprefixed models use their maker provider.
+Unknown ownership stays neutral rather than borrowing the routing provider's
+logo. Marks are decorative and do not change model IDs or catalog search.
+
+Shared tab panels enter with opacity and a 4px vertical transform over 160ms.
+Custom draft, authoring, delegation, browser-preview and Quick Ask tabs use the
+same treatment. Quick Ask keeps its mounted sessions; live streamed draft updates
+do not restart the animation. Native desktop browser surfaces remain untransformed.
+Reduced motion leaves the final content visible without animation.
+
+The selected four-file model/tab batch passed 129 tests; the five custom-panel
+files passed 51 tests. Frontend type checking passed. On populated Chromium,
+the selected model and catalog entries displayed Anthropic's mark through
+OpenRouter; Builder panels animated with full motion and stayed static with
+reduced motion. Keyboard tab activation still worked. The Playwright regression
+checks both preferences and keyboard access.
+
+## Shared picker layout
+
+Picker marks use a shared 24px optical box around 16px checked-in logos. Model
+catalog rows start at the logo; the selection check is at the trailing edge,
+matching the shared Select. Builder, chat, saved profiles, eval configuration,
+organization STT/TTS, channel transcription, voice/media capabilities and coding
+settings share maker labels or provider rows. Coding settings preserve arbitrary
+model aliases separately from the inheritance option.
+
+The six-file picker batch passed 115 tests; four voice/schema files passed 155,
+and the final TTS/coding batch passed 12, including the inheritance regression.
+A final four-file batch passed 135 tests (counts overlap). Chromium confirmed
+maker marks in selected and catalog rows, the trailing check position and both
+motion preferences for tab activation. A captured model menu was inspected at
+`/tmp/agenticos-ui-audit/model-picker-polished.png`.
+
+## Stable dashboard scopes
+
+Every dashboard scope shares the greeting/date/primary-action header. Personal
+activity queries remain confined to Me. Descriptions reserve two lines; scope
+navigation and filters use separate rows, with organization-only arrangement
+controls in the filter row. Empty layouts keep the same header/navigation.
+Scope/group changes animate only the content, honoring reduced motion.
+
+All 50 focused dashboard/coding tests passed. Populated Chromium measured the
+scope strip at y=152.5px for Me, Organization, Group and Deployment at 1440px,
+and y=220px for all four at 390px. Reduced-motion scope content had no animation.
+An additional Playwright regression checks wide/narrow geometry, animation
+preferences and the shared greeting.

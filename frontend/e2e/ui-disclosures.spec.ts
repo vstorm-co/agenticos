@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { AUTH_STATE } from "./helpers";
+import { AUTH_STATE, DRAFT_AGENT_NAME, openAgent } from "./helpers";
 
 test.use({ storageState: AUTH_STATE });
 
@@ -48,5 +48,28 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
         )
         .toBeLessThanOrEqual(0.001);
     }
+  });
+}
+
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test(`builder tab transitions respect motion=${reducedMotion}`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion });
+    await openAgent(page, DRAFT_AGENT_NAME);
+    const toolbox = page.getByRole("tab", { name: "Toolbox", exact: true });
+    await toolbox.click();
+    const panel = page.getByRole("tabpanel", { name: "Toolbox", exact: true });
+    await expect(panel).toBeVisible();
+    await expect(panel).toHaveCSS(
+      "animation-name",
+      reducedMotion === "reduce" ? "none" : "tab-panel-enter",
+    );
+    await expect(toolbox).toBeFocused();
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("Enter");
+    const build = page.getByRole("tab", { name: "Build", exact: true });
+    await expect(build).toHaveAttribute("aria-selected", "true");
+    await expect(build).toBeFocused();
+    await expect(page.getByRole("tabpanel", { name: "Build", exact: true })).toBeVisible();
+    await expect(panel).toBeHidden();
   });
 }

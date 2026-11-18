@@ -13,7 +13,7 @@ import { useSuggestions } from "@/hooks/use-suggestions";
 import { DashboardEditor } from "@/components/dashboard/dashboard-editor";
 import { DashboardPresetMenu } from "@/components/dashboard/dashboard-preset-menu";
 import { FilterRow } from "@/components/dashboard/filter-row";
-import { MeHeader } from "@/components/dashboard/me-header";
+import { DashboardHeader, MeHeader } from "@/components/dashboard/me-header";
 import { MeOpening } from "@/components/dashboard/me-opening";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DiscoverTips } from "@/components/dashboard/discover-tips";
@@ -129,7 +129,7 @@ export default function DashboardPage() {
   if (isLoading || layoutLoading || (viewParam === "group" && groupsLoading)) {
     return (
       <div className="space-y-4">
-        <PageHeader title={t("title")} />
+        <DashboardHeader description={t("views.me.description")} />
         <div className="flex min-h-56 items-center justify-center">
           <div role="status" aria-busy="true" aria-label={t("states.loading")}>
             <Spinner className="text-muted-foreground size-5" aria-hidden />
@@ -255,9 +255,8 @@ export default function DashboardPage() {
   // The arrange controls, then the page's one primary action - the position
   // every other page in the product puts its primary in (`New agent` on
   // Agents, `New collection` on Knowledge bases).
-  const headerActions = (
-    // Wrapping, because three buttons are wider than a phone (#2075).
-    <div className="flex flex-wrap items-center gap-2">
+  const arrangeActions = (
+    <>
       {/* Arranging belongs to the organization's view: the others are fixed
           pages, each made of the cards that answer its question. */}
       {arrangeable ? (
@@ -276,6 +275,12 @@ export default function DashboardPage() {
           </Button>
         </div>
       ) : null}
+    </>
+  );
+
+  const headerActions = (
+    // Wrapping, because three buttons are wider than a phone (#2075).
+    <div className="flex flex-wrap items-center gap-2">
       {can(Perm.agentsRun) ? (
         <Button asChild className="gap-1.5">
           <Link href={ROUTES.CHAT}>
@@ -286,23 +291,6 @@ export default function DashboardPage() {
       ) : null}
     </div>
   );
-
-  // Empty is not failed: a person who hid every card sees an offer to reset and
-  // to keep arranging, never a blank page that reads as broken.
-  if (visible.length === 0) {
-    return (
-      <div className="space-y-4">
-        <PageHeader title={t("title")} description={t(`views.${view}.description`)} />
-        <EmptyState
-          icon={LayoutGrid}
-          title={t("edit.emptyTitle")}
-          description={t("edit.emptyDescription")}
-          cta={{ label: t("edit.customize"), onClick: () => openEditor(false) }}
-          secondaryCta={isCustom ? { label: t("edit.reset"), onClick: handleReset } : undefined}
-        />
-      </div>
-    );
-  }
 
   const selectedSections = parseSectionsParam(sectionsParam, visible);
   const sections = applySectionsFilter(visible, selectedSections);
@@ -430,12 +418,7 @@ export default function DashboardPage() {
       {view === "me" ? (
         <MeHeader period={period} canRun={can(Perm.agentsRun)} actions={headerActions} />
       ) : (
-        <PageHeader
-          className="mb-4"
-          title={t("title")}
-          description={t(`views.${view}.description`)}
-          actions={headerActions}
-        />
+        <DashboardHeader description={t(`views.${view}.description`)} actions={headerActions} />
       )}
       <ViewSwitcher
         views={available}
@@ -445,50 +428,76 @@ export default function DashboardPage() {
         groupId={group?.id ?? null}
         onGroupChange={changeGroup}
         actions={
-          <FilterRow
-            period={period}
-            onPeriodChange={changePeriod}
-            sections={visible}
-            selectedSections={selectedSections}
-            onSectionsChange={changeSections}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterRow
+              period={period}
+              onPeriodChange={changePeriod}
+              sections={visible}
+              selectedSections={selectedSections}
+              onSectionsChange={changeSections}
+            />
+            {arrangeActions}
+          </div>
         }
       />
-      {/* Setting the organization up belongs where somebody acts on it - their
+      <div
+        key={`${view}:${view === "group" ? (group?.id ?? "") : ""}`}
+        className="tab-panel"
+        data-state="active"
+        data-dashboard-view={view}
+      >
+        {visible.length === 0 ? (
+          <EmptyState
+            icon={LayoutGrid}
+            title={t("edit.emptyTitle")}
+            description={t("edit.emptyDescription")}
+            cta={{ label: t("edit.customize"), onClick: () => openEditor(false) }}
+            secondaryCta={isCustom ? { label: t("edit.reset"), onClick: handleReset } : undefined}
+          />
+        ) : (
+          <>
+            {/* Setting the organization up belongs where somebody acts on it - their
           own view or the organization's - not beside a group's or the host's
           numbers. */}
-      {activeOrgId && view === "org" && <StartChecklist orgId={activeOrgId} />}
-      {personalSummary && (
-        <div className="mt-6 min-h-64 lg:h-[18.5rem]">
-          <MySummaryWidget
-            title={t(personalSummary.titleKey ?? "widgets.my-summary.title")}
-            hint={t("widgets.my-summary.description")}
-            period={
-              personalSummary.options?.period
-                ? resolvePreset(personalSummary.options.period)
-                : period
-            }
-            options={personalSummary.options}
-            seeAll={WIDGETS["my-summary"].seeAll}
-          />
-        </div>
-      )}
-      {view === "me" && <MeOpening orgId={activeOrgId} period={period} pending={openingLoading} />}
-      {view === "me" && <DiscoverTips />}
-      {/* The bands own a rhythm of their own, four times the gap between two
+            {activeOrgId && view === "org" && <StartChecklist orgId={activeOrgId} />}
+            {personalSummary && (
+              <div className="mt-6 min-h-64 lg:h-[18.5rem]">
+                <MySummaryWidget
+                  title={t(personalSummary.titleKey ?? "widgets.my-summary.title")}
+                  hint={t("widgets.my-summary.description")}
+                  period={
+                    personalSummary.options?.period
+                      ? resolvePreset(personalSummary.options.period)
+                      : period
+                  }
+                  options={personalSummary.options}
+                  seeAll={WIDGETS["my-summary"].seeAll}
+                />
+              </div>
+            )}
+            {view === "me" && (
+              <MeOpening orgId={activeOrgId} period={period} pending={openingLoading} />
+            )}
+            {view === "me" && <DiscoverTips />}
+            {/* The bands own a rhythm of their own, four times the gap between two
           cards, which is what makes a band read as a band. The header and the
           control strip above keep the 24px every other page uses. */}
-      {view === "group" && group !== null ? (
-        <QuietGroup
-          group={group}
-          period={period}
-          onWiden={period.preset === "90d" ? undefined : () => changePeriod(resolvePreset("90d"))}
-        >
-          {bands}
-        </QuietGroup>
-      ) : (
-        bands
-      )}
+            {view === "group" && group !== null ? (
+              <QuietGroup
+                group={group}
+                period={period}
+                onWiden={
+                  period.preset === "90d" ? undefined : () => changePeriod(resolvePreset("90d"))
+                }
+              >
+                {bands}
+              </QuietGroup>
+            ) : (
+              bands
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

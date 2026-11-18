@@ -25,48 +25,22 @@ export function partOfDay(hour: number): "morning" | "afternoon" | "evening" {
   return hour < 18 ? "afternoon" : "evening";
 }
 
-/**
- * A person's own dashboard opens on them: the day, a greeting by name, what
- * happened in the period and everything waiting on them - their tool calls,
- * personal Inbox proposals.
- *
- * "Dashboard" and a description of the page told a person nothing they did not
- * know; this line is the answer they opened it for, before any card. It reads
- * the same queries the cards below do, so beside them it costs no request of
- * its own. The date and greeting are the browser's, not the server's: a
- * greeting rendered for the host's time zone says "good morning" at a reader's
- * midnight.
- */
-export function MeHeader({
-  period,
-  canRun,
+/** One stable greeting and action layout for every dashboard scope. */
+export function DashboardHeader({
+  description,
   actions,
 }: {
-  period: Period;
-  /** Whether the reader runs agents at all - a viewer has no runs to sum up. */
-  canRun: boolean;
+  description: ReactNode;
   actions?: ReactNode;
 }) {
   const t = useTranslations("dashboard.greeting");
-  const tPage = useTranslations("dashboard");
   const locale = useLocale();
   const user = useAuthStore((state) => state.user);
-  const { usage } = useUsageStats(
-    { from: period.from, to: period.to },
-    { scope: "own", enabled: canRun },
-  );
   const now = new Date();
   const name = firstName(user?.full_name, user?.email);
-  const runs = usage?.total_runs ?? 0;
-  const others = useWaitingOnMe();
-  const waiting = waitingOn(usage?.pending_approvals ?? 0, others).map(([kind, count]) =>
-    t(`waiting.${kind}`, { count }),
-  );
-  const bold = (chunks: ReactNode) => <span className="text-foreground font-medium">{chunks}</span>;
-
   return (
     <PageHeader
-      className="mb-4"
+      className="mb-4 [&>div>p]:line-clamp-2 [&>div>p]:min-h-[2lh]"
       descriptionMode="summary"
       title={
         <span className="flex flex-col">
@@ -84,6 +58,37 @@ export function MeHeader({
           </span>
         </span>
       }
+      description={description}
+      actions={actions}
+    />
+  );
+}
+
+/** Personal activity stays scoped to its reader; other views need no personal queries. */
+export function MeHeader({
+  period,
+  canRun,
+  actions,
+}: {
+  period: Period;
+  canRun: boolean;
+  actions?: ReactNode;
+}) {
+  const t = useTranslations("dashboard.greeting");
+  const tPage = useTranslations("dashboard");
+  const locale = useLocale();
+  const { usage } = useUsageStats(
+    { from: period.from, to: period.to },
+    { scope: "own", enabled: canRun },
+  );
+  const runs = usage?.total_runs ?? 0;
+  const others = useWaitingOnMe();
+  const waiting = waitingOn(usage?.pending_approvals ?? 0, others).map(([kind, count]) =>
+    t(`waiting.${kind}`, { count }),
+  );
+  const bold = (chunks: ReactNode) => <span className="text-foreground font-medium">{chunks}</span>;
+  return (
+    <DashboardHeader
       description={
         usage ? (
           <>

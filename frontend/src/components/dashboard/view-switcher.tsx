@@ -56,36 +56,38 @@ export function ViewSwitcher({
     // Tabs, not a second pill control: which dashboard this is sits a level
     // above the period it is read over, and two identical pill rows stacked
     // under one another read as two filters of equal weight.
-    <div className="border-border mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b">
-      <div
-        ref={strip}
-        className={cn("-mb-px flex max-w-full scrollbar-none gap-5 overflow-x-auto", SCROLL_FADE)}
-        role="group"
-        aria-label={t("label")}
-      >
-        {views.map((option) => {
-          const Icon = VIEW_ICONS[option];
-          const active = view === option;
-          return (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onViewChange(option)}
-              className={cn(
-                "touch:min-h-11 flex shrink-0 touch-manipulation items-center gap-1.5 border-b-2 px-0.5 pb-2.5 text-sm font-medium whitespace-nowrap transition-colors",
-                active
-                  ? "border-foreground text-foreground"
-                  : "text-muted-foreground hover:text-foreground border-transparent",
-              )}
-            >
-              <Icon className="size-4" aria-hidden />
-              {t(`${option}.label`)}
-            </button>
-          );
-        })}
+    <div className="mb-5 space-y-3">
+      <div className="border-border border-b">
+        <div
+          ref={strip}
+          className={cn("-mb-px flex max-w-full scrollbar-none gap-5 overflow-x-auto", SCROLL_FADE)}
+          role="group"
+          aria-label={t("label")}
+        >
+          {views.map((option) => {
+            const Icon = VIEW_ICONS[option];
+            const active = view === option;
+            return (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onViewChange(option)}
+                className={cn(
+                  "touch:min-h-11 flex shrink-0 touch-manipulation items-center gap-1.5 border-b-2 px-0.5 pb-2.5 text-sm font-medium whitespace-nowrap transition-colors",
+                  active
+                    ? "border-foreground text-foreground"
+                    : "text-muted-foreground hover:text-foreground border-transparent",
+                )}
+              >
+                <Icon className="size-4" aria-hidden />
+                {t(`${option}.label`)}
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <div className="ms-auto mb-1.5 flex flex-wrap items-center justify-end gap-2">
+      <div className="flex min-h-10 flex-wrap items-center justify-end gap-2">
         {view === "group" && groupId !== null ? (
           <Select value={groupId} onValueChange={onGroupChange}>
             <SelectTrigger className="h-8 w-auto min-w-44" aria-label={t("group.pick")}>

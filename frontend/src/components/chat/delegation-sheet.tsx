@@ -112,7 +112,11 @@ export function DelegationSheet({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 scrollbar-thin space-y-5 overflow-y-auto px-5 py-5">
+        <div
+          key={opened}
+          data-state="active"
+          className="tab-panel min-h-0 flex-1 scrollbar-thin space-y-5 overflow-y-auto px-5 py-5"
+        >
           {(item.inputTokens != null || item.outputTokens != null) && (
             <p className="text-muted-foreground text-xs">
               {t("tokens", { input: item.inputTokens ?? 0, output: item.outputTokens ?? 0 })}

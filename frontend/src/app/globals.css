@@ -3197,3 +3197,18 @@ body .tour-spotlight {
 .console-toasts [data-sonner-toast][data-removed="true"] {
   transition-duration: 150ms;
 }
+
+/* Panels enter without moving their tab strip or changing retained form state. */
+@keyframes tab-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+:root:not([data-motion="reduce"]) .tab-panel[data-state="active"] {
+  animation: tab-panel-enter 160ms var(--ease-out);
+}

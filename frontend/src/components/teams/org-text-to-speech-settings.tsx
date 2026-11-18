@@ -5,6 +5,8 @@ import { Volume2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { ProviderRow } from "@/components/vault/provider-row";
+import { ModelLabel } from "@/components/icons/model-icon";
 import { ServiceCard } from "@/components/settings/service-card";
 import { SpeechKeyField } from "@/components/vault/speech-key-field";
 import {
@@ -164,8 +166,8 @@ export function OrgTextToSpeechSettings({
                   </SelectItem>
                 )}
                 {providers.map((entry) => (
-                  <SelectItem key={entry.provider} value={entry.provider}>
-                    {entry.name}
+                  <SelectItem key={entry.provider} value={entry.provider} textValue={entry.name}>
+                    <ProviderRow provider={entry.provider} name={entry.name} />
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -197,8 +199,8 @@ export function OrgTextToSpeechSettings({
                   </SelectItem>
                 )}
                 {provider?.models.map((entry) => (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    {entry.name}
+                  <SelectItem key={entry.id} value={entry.id} textValue={entry.name}>
+                    <ModelLabel model={entry.id} provider={provider?.provider} label={entry.name} />
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -228,8 +230,8 @@ export function OrgTextToSpeechSettings({
                   </SelectItem>
                 )}
                 {model?.voices.map((entry) => (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    {entry.name}
+                  <SelectItem key={entry.id} value={entry.id} textValue={entry.name}>
+                    <ModelLabel model={entry.id} provider={provider?.provider} label={entry.name} />
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -10,7 +10,8 @@ import {
   type VoiceConversationProps,
 } from "@/components/agents/voice-conversation-fields";
 import { ChoiceGroup } from "@/components/settings/choice-group";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ProviderRow } from "@/components/vault/provider-row";
+import { ModelLabel } from "@/components/icons/model-icon";
 import { SpeechKeyField, useSpeechKeyCheck } from "@/components/vault/speech-key-field";
 import {
   Card,
@@ -373,10 +374,7 @@ function PairFields({
                 : t("voiceProviderNoKey", { name: entry.name });
               return (
                 <SelectItem key={entry.provider} value={entry.provider} textValue={label}>
-                  <span className="flex items-center gap-2">
-                    <ProviderIcon provider={entry.provider} className="h-3.5 w-3.5" />
-                    {label}
-                  </span>
+                  <ProviderRow provider={entry.provider} name={label} />
                 </SelectItem>
               );
             })}
@@ -402,7 +400,7 @@ function PairFields({
             <SelectContent>
               {chosen.models.map((entry) => (
                 <SelectItem key={entry.id} value={entry.id} textValue={entry.name}>
-                  {entry.name}
+                  <ModelLabel model={entry.id} provider={chosen.provider} label={entry.name} />
                 </SelectItem>
               ))}
             </SelectContent>

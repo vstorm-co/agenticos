@@ -10,7 +10,7 @@ import {
 } from "@/components/agents/add-model";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { getErrorMessage } from "@/lib/api-error";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+import { ModelIcon } from "@/components/icons/model-icon";
 import { ProviderRow } from "@/components/vault/provider-row";
 import {
   Button,
@@ -212,9 +212,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
 
   const currentSummary = current ? (
     <>
-      <span className="bg-foreground/[0.05] text-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
-        <ProviderIcon provider={current.provider} className="size-5" />
-      </span>
+      <ModelIcon model={current.model} provider={current.provider} />
       <span className="min-w-0 flex-1">
         <span className="block text-sm leading-5 font-medium break-words whitespace-normal">
           {current.label}
@@ -329,6 +327,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
                 {/* The Builder's own picker: the provider's catalog, searchable, and
                 still able to carry an id that is not in it. */}
                 <ModelCombobox
+                  provider={provider?.id}
                   id="chat-model-id"
                   value={model}
                   onChange={(next) => {

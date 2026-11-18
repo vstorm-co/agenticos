@@ -545,6 +545,24 @@ describe("the app admin's dashboard", () => {
 });
 
 describe("the view switcher", () => {
+  it.each(["me", "org", "group", "deployment"])(
+    "keeps the greeting and scope controls in the %s view",
+    async (view) => {
+      auth.isAppAdmin = true;
+      groupList = { items: [{ id: "g1", name: "Finance", icon: null, member_count: 3 }], total: 1 };
+      params.set("view", view);
+      render(<DashboardPage />, { wrapper });
+      await waitFor(() =>
+        expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull(),
+      );
+      expect(screen.getByRole("heading", { name: /dashboard\.greeting/ })).toBeInTheDocument();
+      expect(screen.getByRole("group", { name: "dashboard.views.label" })).toBeInTheDocument();
+      expect(document.querySelector(`[data-dashboard-view="${view}"]`)).not.toBeNull();
+      if (view !== "me")
+        expect(screen.getByText(`dashboard.views.${view}.description`)).toBeInTheDocument();
+    },
+  );
+
   it("opens a steward on their own view, not the organization's", async () => {
     render(<DashboardPage />, { wrapper });
     await waitFor(() =>

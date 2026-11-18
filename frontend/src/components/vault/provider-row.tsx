@@ -1,5 +1,6 @@
 "use client";
 
+import { PickerMark } from "@/components/icons/picker-mark";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 
 interface ProviderRowProps {
@@ -51,7 +52,9 @@ interface ProviderRowProps {
 export function ProviderRow({ provider, name, hint, brand }: ProviderRowProps) {
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <ProviderIcon provider={provider} brand={brand} />
+      <PickerMark>
+        <ProviderIcon provider={provider} brand={brand} />
+      </PickerMark>
       <span className="truncate">{name}</span>
       {hint && <span className="text-muted-foreground shrink-0 font-mono">····{hint}</span>}
     </span>

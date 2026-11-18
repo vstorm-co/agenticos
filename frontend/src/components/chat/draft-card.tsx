@@ -71,6 +71,9 @@ export function DraftCardView({ card }: { card: DraftCard }) {
         </div>
       )}
       <div
+        key={selected}
+        className={tabbed ? "tab-panel" : undefined}
+        data-state={tabbed ? "active" : undefined}
         id={`${id}-panel`}
         role={tabbed ? "tabpanel" : undefined}
         aria-labelledby={tabbed ? `${id}-tab-${selected}` : undefined}

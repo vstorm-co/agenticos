@@ -613,6 +613,7 @@ export function AddModel({
           error={failure.fields.model}
         >
           <ModelCombobox
+            provider={provider?.id}
             id={`${fieldId}-add-model-id`}
             value={model}
             onChange={(next) => {

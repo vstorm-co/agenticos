@@ -21,6 +21,8 @@ import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { BrandIcon, type BrandName } from "@/components/icons/brand-icon";
 import { useModelProviders } from "@/hooks";
 import { ProviderIcon } from "@/components/vault/provider-icon";
+import { PickerMark } from "@/components/icons/picker-mark";
+import { ModelIcon } from "@/components/icons/model-icon";
 import { useCustomIcons } from "@/components/icons/custom-icons";
 import { BRAND_GLYPHS } from "@/lib/brand-glyphs.generated";
 import type { FieldCopy, FieldCopyFor } from "@/components/agents/capability-field-copy";
@@ -797,7 +799,11 @@ function numberText(value: unknown, fallback: unknown, scale = 1): string {
 
 function CatalogChoiceMark({ name }: { name: string }) {
   const icons = useCustomIcons();
-  return icons.has(name) ? <ProviderIcon provider={name} className="h-3.5 w-3.5 shrink-0" /> : null;
+  return icons.has(name) ? (
+    <PickerMark>
+      <ProviderIcon provider={name} />
+    </PickerMark>
+  ) : null;
 }
 
 /**
@@ -850,12 +856,18 @@ function choiceMark(choice: string, field: string) {
     }
   }
   if (choice in BRAND_GLYPHS) {
-    return <BrandIcon name={choice as BrandName} className="h-3.5 w-3.5 shrink-0" />;
+    return (
+      <PickerMark>
+        <BrandIcon name={choice as BrandName} />
+      </PickerMark>
+    );
   }
   const [head] = choice.split(":");
   const provider = (head ?? "").replace(/-(responses|chat|vertex|gla)$/, "");
   if (provider === choice) return <CatalogChoiceMark name={choice} />;
-  return <ProviderIcon provider={provider} className="h-3.5 w-3.5" />;
+  return (
+    <ModelIcon model={`${provider}:${choice.slice(choice.indexOf(":") + 1)}`} provider={provider} />
+  );
 }
 
 /**
