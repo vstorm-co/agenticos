@@ -15,6 +15,7 @@ import {
   usePublicDataDisclosure,
 } from "./use-artifacts";
 import { ApiError, apiClient } from "@/lib/api-client";
+import { useOrgStore, useAuthStore } from "@/stores";
 import type { ArtifactDetail } from "@/types/artifact";
 
 vi.mock("@/lib/api-client", () => ({
@@ -793,6 +794,61 @@ describe("cached static App previews", () => {
         expect(apiClient.get).toHaveBeenCalledTimes(expectedCalls);
         again.unmount();
       } finally {
+        vi.clearAllTimers();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it.each(["organization", "account"] as const)(
+    "reverts unfinished recovery when the %s changes and can resume on return",
+    async (identity) => {
+      vi.useFakeTimers();
+      const oldOrg = useOrgStore.getState().activeOrgId;
+      const oldUser = useAuthStore.getState().user;
+      try {
+        vi.mocked(apiClient.get).mockResolvedValue({
+          version_id: "v1",
+          state: "unavailable",
+          image: null,
+          retryable: true,
+        });
+        const wrap = cachedWrapper();
+        const first = renderHook(() => useArtifactThumbnail("a", "v1", true), { wrapper: wrap });
+        await act(async () => vi.advanceTimersByTimeAsync(0));
+        expect(apiClient.get).toHaveBeenCalledTimes(1);
+        first.unmount();
+        act(() => {
+          if (identity === "organization") useOrgStore.setState({ activeOrgId: "other-org" });
+          else
+            useAuthStore.setState({
+              user: {
+                id: "other-user",
+                email: "other@example.com",
+                is_active: true,
+                created_at: "2026-11-18T00:00:00Z",
+              },
+            });
+        });
+        await act(async () => vi.advanceTimersByTimeAsync(10000));
+        expect(apiClient.get).toHaveBeenCalledTimes(1);
+        act(() => {
+          useOrgStore.setState({ activeOrgId: oldOrg });
+          useAuthStore.setState({ user: oldUser });
+        });
+        vi.mocked(apiClient.get).mockResolvedValue({
+          version_id: "v1",
+          state: "ready",
+          image: "data:image/jpeg;base64,aA==",
+        });
+        const again = renderHook(() => useArtifactThumbnail("a", "v1", true), { wrapper: wrap });
+        await act(async () => vi.advanceTimersByTimeAsync(0));
+        expect(again.result.current.isSuccess).toBe(true);
+        expect(apiClient.get).toHaveBeenCalledTimes(2);
+        again.unmount();
+      } finally {
+        useOrgStore.setState({ activeOrgId: oldOrg });
+        useAuthStore.setState({ user: oldUser });
         vi.clearAllTimers();
         vi.useRealTimers();
       }

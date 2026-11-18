@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuthStore, useOrgStore } from "@/stores";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CancelledError, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -542,6 +542,15 @@ export function useArtifactThumbnail(
       for (let attempt = 0; attempt < 3; attempt++) {
         if (attempt > 0) {
           await new Promise<void>((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
+        }
+        if (
+          useOrgStore.getState().activeOrgId !== org ||
+          (useAuthStore.getState().user?.id ?? null) !== user
+        ) {
+          // Revert this scope's unfinished fetch so returning can start it
+          // again, rather than caching a refusal from the newly selected scope.
+          await client.cancelQueries({ queryKey: key, exact: true });
+          throw new CancelledError({ revert: true });
         }
         const thumbnail = await apiClient.get<ArtifactThumbnail>(
           `/apps/${artifactId}/thumbnail${versionId ? `?version_id=${encodeURIComponent(versionId)}` : ""}`,
