@@ -171,6 +171,10 @@ def scoring_hash(scoring: DatasetScoring) -> str:
     for criterion in content["judge"]["criteria"]:
         if not criterion["tags"]:
             del criterion["tags"]
+    # A check that names no family scores as it did before families existed.
+    for check in content["checks"]["defaults"]:
+        if check.get("family") is None:
+            check.pop("family", None)
     canonical = json.dumps(content, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
 
