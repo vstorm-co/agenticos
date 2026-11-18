@@ -75,6 +75,7 @@ class NativeRuntimeAvailability(BaseSchema):
     """Operator-enabled primary Desktop runtimes; not account entitlement."""
 
     codex: bool = False
+    claude_code: bool = False
 
 
 class ProviderCatalog(BaseSchema):

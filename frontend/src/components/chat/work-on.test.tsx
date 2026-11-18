@@ -10,7 +10,7 @@ import type { DeviceStatus, LocalGrant, LocalMode } from "@/lib/desktop/commands
 import { WorkOn } from "./work-on";
 
 vi.mock("@/hooks/use-model-providers", () => ({
-  useProviderCatalog: () => ({ data: { native_runtimes: { codex: true } } }),
+  useProviderCatalog: () => ({ data: { native_runtimes: { codex: true, claude_code: true } } }),
 }));
 
 function render(ui: ReactElement, expandFolders = true) {

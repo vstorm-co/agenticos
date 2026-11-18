@@ -13,13 +13,21 @@ const configured: LocalTarget = { ...base, conversation_runtime: runtime };
 
 describe("native primary conversation choice", () => {
   it("keeps an ineligible deployment unavailable without inspecting account credentials", () => {
-    render(<NativeConversationControl codexEnabled={false} target={base} onChange={vi.fn()} />);
+    render(
+      <NativeConversationControl
+        claudeEnabled
+        codexEnabled={false}
+        target={base}
+        onChange={vi.fn()}
+      />,
+    );
     expect(screen.getByRole("option", { name: "Codex · this computer" })).toBeDisabled();
     expect(screen.getByText(/Your operator must enable/)).toBeVisible();
   });
   it("requires full local access before offering a primary runtime", () => {
     const { container } = render(
       <NativeConversationControl
+        claudeEnabled
         codexEnabled
         target={{ ...base, mode: "workspace_write" }}
         onChange={vi.fn()}
@@ -28,10 +36,31 @@ describe("native primary conversation choice", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("selects Claude with independent native identity", () => {
+    const changed = vi.fn<(target: LocalTarget) => void>();
+    render(
+      <NativeConversationControl
+        codexEnabled
+        claudeEnabled
+        target={configured}
+        onChange={changed}
+      />,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Conversation runtime" }), {
+      target: { value: "claude_code" },
+    });
+    expect(changed.mock.lastCall?.[0].conversation_runtime).toMatchObject({
+      harness: "claude_code",
+      access: "read_only",
+    });
+    expect(changed.mock.lastCall?.[0].conversation_runtime?.session_epoch).not.toBe("original");
+  });
+
   it("selects a fresh, read-only Codex primary session and can return to the model provider", () => {
     const changed = vi.fn<(target: LocalTarget) => void>();
     render(
       <NativeConversationControl
+        claudeEnabled
         codexEnabled
         target={{ ...base, model_service: "local-model" }}
         onChange={changed}
@@ -53,7 +82,14 @@ describe("native primary conversation choice", () => {
 
   it("changes native model and tool policy only under a new explicit session epoch", () => {
     const changed = vi.fn<(target: LocalTarget) => void>();
-    render(<NativeConversationControl codexEnabled target={configured} onChange={changed} />);
+    render(
+      <NativeConversationControl
+        claudeEnabled
+        codexEnabled
+        target={configured}
+        onChange={changed}
+      />,
+    );
     fireEvent.change(screen.getByRole("combobox", { name: "Runtime tool access" }), {
       target: { value: "edit" },
     });
@@ -74,6 +110,7 @@ describe("native primary conversation choice", () => {
     render(
       <form onSubmit={submit}>
         <NativeConversationControl
+          claudeEnabled
           codexEnabled
           target={{ ...configured, conversation_runtime: { ...runtime, model_id: "previous-id" } }}
           onChange={changed}

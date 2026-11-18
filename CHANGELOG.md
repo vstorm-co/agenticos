@@ -27,6 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Use Claude Agent as a private Desktop conversation runtime, with an independent eligibility switch, native session recovery and scoped platform tools.
+
 - Choose Codex as the primary Desktop conversation runtime, with native streamed answers, scoped session receipts, platform-tool policy, explicit reset and no cloud credential fallback.
 
 - External Desktop runtimes can opt into run-scoped platform tools through a process-owned local MCP bridge, preserving validation, approvals, budgets and result screening. Pi uses an isolated app-owned extension; Muse uses its official SDK. Live approvals are committed before actions execute.

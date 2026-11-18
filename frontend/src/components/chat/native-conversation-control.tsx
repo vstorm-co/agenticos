@@ -10,9 +10,11 @@ export function NativeConversationControl({
   target,
   onChange,
   codexEnabled,
+  claudeEnabled,
 }: {
   target: LocalTarget;
   codexEnabled: boolean;
+  claudeEnabled: boolean;
   onChange: (target: LocalTarget) => void;
 }) {
   const t = useTranslations("chat.controls.workOn");
@@ -30,8 +32,12 @@ export function NativeConversationControl({
             onChange({
               ...target,
               conversation_runtime:
-                event.target.value === "codex"
-                  ? { harness: "codex", session_epoch: crypto.randomUUID(), access: "read_only" }
+                event.target.value === "codex" || event.target.value === "claude_code"
+                  ? {
+                      harness: event.target.value,
+                      session_epoch: crypto.randomUUID(),
+                      access: "read_only",
+                    }
                   : null,
               model_service: null,
             })
@@ -41,9 +47,12 @@ export function NativeConversationControl({
           <option value="codex" disabled={!codexEnabled}>
             {t("nativeCodex")}
           </option>
+          <option value="claude_code" disabled={!claudeEnabled}>
+            {t("nativeClaude")}
+          </option>
         </NativeSelect>
       </label>
-      {!codexEnabled && (
+      {(!codexEnabled || !claudeEnabled) && (
         <p className="text-muted-foreground text-xs">{t("primaryRuntimeDisabled")}</p>
       )}
       {runtime && (

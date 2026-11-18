@@ -1,5 +1,5 @@
 ---
-source_sha: "44aa10ac83ec"
+source_sha: "d387a7eefc3e"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -1026,3 +1026,5 @@ Inception-Chat-IDs, Kontext-/Ausgabelimits und Preise stammen aus dem aktuellen 
 Private Sitzungsdateien sind auf Person, Agent, Chat, Ordner, Registrierung und Schlüsselrevision beschränkt. Temporäre Konfiguration wird mit dem eigenen Prozess entfernt. Entfernen oder erneutes Registrieren widerruft Fortsetzungen. Echte Schlüsseltests prüfen Streaming, 401/402, Kontingente, Neustart/Wiederaufnahme und Stop. Plattformwerkzeuge sind eine [ausdrückliche Option](#runtime-platform-tools). Siehe [Pi-Anbietererweiterungen](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) und [Inception-Modelle](https://www.inceptionlabs.ai/models).
 
 Der Betreiber darf `CODEX_NATIVE_CONVERSATION_ENABLED=true` nur für eine berechtigte lokale/Open-Source-Bereitstellung oder mit Genehmigung des Anbieters setzen. Der Schalter bestätigt keine Kontoberechtigung. App-Server-Authentifizierung ist ohne entsprechende Genehmigung für kommerzielle oder gehostete Dienste nicht zulässig. Ein Kontowechsel in Desktop beendet die Prozesse dieser Laufzeit und löscht ihre gespeicherten Fortsetzungen; setzen Sie die native Sitzung danach zurück. Auch manuelle Kontowechsel außerhalb von Desktop erfordern einen Reset.
+
+Claude Agent verwendet den vorhandenen Claude-Code-ACP-Adapter als primäre Gesprächslaufzeit. Es gelten dieselben Regeln für private Sitzungen, Streaming, Werkzeuge und Wiederherstellung wie bei Codex. `CLAUDE_NATIVE_CONVERSATION_ENABLED` ist standardmäßig deaktiviert. Der Betreiber muss die Agent-SDK-Berechtigung und die gewählte API-/Cloud-Authentifizierung prüfen. Das Anbieten von claude.ai-Anmeldungen oder Verbraucherkontingenten in einem SDK-Produkt Dritter erfordert eine vorherige Genehmigung von Anthropic; der Schalter ersetzt diese nicht. Anbieterprogramm und Authentifizierungsmethoden bleiben unverändert. Die Oberfläche verwendet den erlaubten Namen „Claude Agent“.

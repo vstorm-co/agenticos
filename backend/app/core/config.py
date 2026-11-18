@@ -50,6 +50,9 @@ def find_env_file() -> Path | None:
 class Settings(BaseSettings):
     """Application settings."""
 
+    CLAUDE_NATIVE_CONVERSATION_ENABLED: bool = False
+    """Enable only after verifying SDK deployment and selected credential eligibility."""
+
     CODEX_NATIVE_CONVERSATION_ENABLED: bool = False
     """Enable only for an eligible local/open-source or provider-approved deployment."""
 

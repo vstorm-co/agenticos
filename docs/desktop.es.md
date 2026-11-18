@@ -1,5 +1,5 @@
 ---
-source_sha: "44aa10ac83ec"
+source_sha: "d387a7eefc3e"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -1011,3 +1011,5 @@ Los identificadores, límites de contexto/salida y precios de chat Inception pro
 Los archivos privados de sesión se limitan a persona, agente, chat, carpeta, registro y revisión de clave. La configuración temporal se elimina con el proceso propio. Elimina o registra de nuevo la entrada para revocar continuaciones. Pruebas con claves reales cubren streaming, 401/402, cuotas, reinicio/reanudación y Stop. Reenviar herramientas es una [opción explícita](#runtime-platform-tools). Consulta [extensiones de proveedor Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) y [modelos Inception](https://www.inceptionlabs.ai/models).
 
 El operador solo debe activar `CODEX_NATIVE_CONVERSATION_ENABLED=true` para una instalación local/de código abierto autorizada o con aprobación del proveedor. El ajuste no acredita derechos de la cuenta. La autenticación de App Server no está permitida para servicios comerciales o alojados sin la aprobación correspondiente. Cambiar la cuenta en Desktop detiene los procesos de ese entorno y borra sus continuaciones guardadas; reinicie la sesión nativa antes de continuar. Los cambios manuales de cuenta fuera de Desktop también requieren un reinicio.
+
+Claude Agent utiliza el adaptador ACP existente de Claude Code como entorno principal de conversación, con las mismas garantías de sesión privada, streaming, herramientas y recuperación que Codex. `CLAUDE_NATIVE_CONVERSATION_ENABLED` está desactivado de forma predeterminada. El operador debe verificar la autorización para desplegar Agent SDK y el método de autenticación API/cloud seleccionado. Ofrecer inicio de sesión claude.ai o límites de consumo en un producto SDK de terceros requiere aprobación previa de Anthropic; activar el ajuste no concede esa aprobación. El programa del proveedor y sus métodos de autenticación permanecen intactos. La interfaz usa el nombre permitido «Claude Agent».

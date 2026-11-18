@@ -4345,9 +4345,13 @@ class AgentRunnerService:
             )
             model_spec = await PersonalModelKeyService(self.db).resolve(models_ctx, profile)
         elif local is not None and local.conversation_runtime is not None:
-            if not settings.CODEX_NATIVE_CONVERSATION_ENABLED:
+            if not (
+                settings.CODEX_NATIVE_CONVERSATION_ENABLED
+                if local.conversation_runtime.harness == "codex"
+                else settings.CLAUDE_NATIVE_CONVERSATION_ENABLED
+            ):
                 raise BadRequestError(
-                    message="The operator has not enabled an eligible Codex primary conversation deployment"
+                    message="The operator has not enabled an eligible deployment for this primary conversation runtime"
                 )
             if (
                 surface != RunSurface.WEB
@@ -4373,7 +4377,11 @@ class AgentRunnerService:
             native_provider = f"native-{local.conversation_runtime.harness}"
             model_spec = NativeModelSpec(
                 profile_id=profile.id,
-                label=f"{LABELS[local.conversation_runtime.harness]} (native conversation)",
+                label=(
+                    "Claude Agent (native conversation)"
+                    if local.conversation_runtime.harness == "claude_code"
+                    else f"{LABELS[local.conversation_runtime.harness]} (native conversation)"
+                ),
                 provider=native_provider,
                 model=native_provider,
                 params={},

@@ -441,6 +441,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
             {target !== null && (
               <NativeConversationControl
                 codexEnabled={nativeRuntimes?.codex === true}
+                claudeEnabled={nativeRuntimes?.claude_code === true}
                 target={target}
                 onChange={(next) => setTarget(conversationId, next)}
               />

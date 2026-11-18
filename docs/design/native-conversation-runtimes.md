@@ -77,3 +77,5 @@ required; account and legal acceptance remain explicit PR follow-up conditions.
 - [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) distinguishes the SDK, CLI and hosted execution.
 - [Claude Code legal conditions](https://code.claude.com/docs/en/legal-and-compliance) require an unmodified binary, user-owned authentication and direct user billing; SDK/deployment eligibility must be verified separately.
 - `desktop/runtime/package.json` and its lockfile record the ACP/SDK versions actually shipped by this implementation.
+
+`CLAUDE_NATIVE_CONVERSATION_ENABLED` also defaults to false and is enforced independently. The SDK documentation requires prior approval to offer claude.ai login or consumer rate limits in a third-party product. Verify API/cloud credential eligibility or obtain that approval before enabling; never disable authentication methods inside the vendor binary. The feature is named “Claude Agent” under the SDK branding rules.

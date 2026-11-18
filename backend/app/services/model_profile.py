@@ -1014,4 +1014,7 @@ def _chatgpt_source(
 
 def native_runtime_availability() -> NativeRuntimeAvailability:
     """Report deployment eligibility switches without inspecting personal credentials."""
-    return NativeRuntimeAvailability(codex=settings.CODEX_NATIVE_CONVERSATION_ENABLED)
+    return NativeRuntimeAvailability(
+        codex=settings.CODEX_NATIVE_CONVERSATION_ENABLED,
+        claude_code=settings.CLAUDE_NATIVE_CONVERSATION_ENABLED,
+    )

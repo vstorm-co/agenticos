@@ -49,7 +49,7 @@ class NativeConversationTarget(BaseModel):
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    harness: Literal["codex"]
+    harness: Literal["codex", "claude_code"]
     session_epoch: UUID = Field(strict=False)
     access: Literal["read_only", "edit"] = "read_only"
     model_id: str | None = Field(default=None, pattern=r"^[^\x00-\x20\x7f]{1,256}$")

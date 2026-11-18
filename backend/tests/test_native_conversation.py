@@ -1,6 +1,7 @@
 """Primary native conversations own their model request, receipt and process lifetime."""
 
 import json
+from typing import Literal
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -19,8 +20,10 @@ from tests.test_runtime_tools import bridge
 pytestmark = pytest.mark.anyio
 
 
+@pytest.mark.parametrize("harness", ["codex", "claude_code"])
 async def test_primary_streaming_resumes_the_exact_native_receipt_and_sends_only_new_context(
     monkeypatch: pytest.MonkeyPatch,
+    harness: Literal["codex", "claude_code"],
 ) -> None:
     context = _ctx(_local_workspace(), [])
     from app.agents.audience import RunAudience
@@ -54,7 +57,7 @@ async def test_primary_streaming_resumes_the_exact_native_receipt_and_sends_only
         await options["remember"](identifier)
         await options["shown"]([Said("Hello"), Said(" world")])
         return CodingReport(
-            harness="codex",
+            harness=harness,
             access="edit",
             outcome="completed",
             answer="Hello world",
@@ -63,7 +66,7 @@ async def test_primary_streaming_resumes_the_exact_native_receipt_and_sends_only
 
     monkeypatch.setattr(native, "DevicePipe", Pipe)
     monkeypatch.setattr(native, "run_task", run)
-    model = NativeConversationModel(harness="codex", epoch=str(uuid4()), access="edit")
+    model = NativeConversationModel(harness=harness, epoch=str(uuid4()), access="edit")
     history = [ModelRequest.user_text_prompt("first", instructions="Instruction one")]
     async with model.request_stream(history, None, ModelRequestParameters(), context) as stream:
         events = [event async for event in stream]

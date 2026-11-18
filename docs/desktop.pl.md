@@ -1,5 +1,5 @@
 ---
-source_sha: "44aa10ac83ec"
+source_sha: "d387a7eefc3e"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -978,3 +978,5 @@ Identyfikatory modeli czatu Inception, limity kontekstu i odpowiedzi oraz ceny p
 Prywatne pliki sesji są ograniczone do osoby, agenta, czatu, folderu, rejestracji i wersji wybranego klucza. Konfiguracja tymczasowa znika wraz z własnym procesem. Usuń lub zarejestruj ponownie wpis natywny, aby cofnąć wznowienia. Testy prawdziwego klucza obejmują strumieniowanie, 401/402, limity, restart/wznowienie i Stop. Przekazywanie narzędzi platformy jest [osobną opcją](#runtime-platform-tools). Zobacz [rozszerzenia dostawców Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) i [modele Inception](https://www.inceptionlabs.ai/models).
 
 Operator może ustawić `CODEX_NATIVE_CONVERSATION_ENABLED=true` wyłącznie dla uprawnionego wdrożenia lokalnego/open source lub po uzyskaniu zgody dostawcy. Przełącznik nie potwierdza uprawnień konta. Uwierzytelnianie App Server nie jest dozwolone w usługach komercyjnych ani hostowanych bez odpowiedniej zgody. Zmiana logowania w aplikacji zatrzymuje procesy tego środowiska i usuwa zapisane wznowienia; przed kontynuacją zresetuj sesję natywną. Ręczna zmiana konta poza aplikacją również wymaga resetu.
+
+Claude Agent korzysta z istniejącego adaptera ACP Claude Code jako głównego środowiska rozmowy. Obowiązują te same zasady prywatnej sesji, strumieniowania, narzędzi i odzyskiwania co dla Codexa. Osobny przełącznik `CLAUDE_NATIVE_CONVERSATION_ENABLED` jest domyślnie wyłączony. Operator musi sprawdzić uprawnienia do wdrożenia Agent SDK oraz wybraną metodę uwierzytelniania API/cloud. Oferowanie logowania claude.ai lub limitów planu konsumenckiego w cudzym produkcie SDK wymaga wcześniejszej zgody Anthropic; przełącznik jej nie zapewnia. Program dostawcy i metody logowania pozostają niezmienione. Interfejs używa dozwolonej nazwy „Claude Agent”.

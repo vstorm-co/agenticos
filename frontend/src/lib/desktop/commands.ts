@@ -381,7 +381,7 @@ export interface LocalTarget {
   coding_model?: string | null;
   coding_effort?: string | null;
   conversation_runtime?: {
-    harness: "codex";
+    harness: "codex" | "claude_code";
     session_epoch: string;
     access: "read_only" | "edit";
     model_id?: string | null;
