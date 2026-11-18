@@ -1,5 +1,5 @@
 ---
-source_sha: "b7bb688ed85d"
+source_sha: "595a1032e554"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -164,7 +164,7 @@ Zwykłe korzystanie z aplikacji nie wymaga Gita, Pythona, uv ani Node.js na hoś
 
 Nowe instancje mają przypiętą wersję platformy dostarczoną z aplikacją. Aktualizacja
 aplikacji desktopowej nie zmienia automatycznie wersji działającej instancji.
-**Update** pobiera pasujące obrazy platformy, wstrzymuje zapis i przed aktualizacją
+**Update local workspace** pobiera pasujące obrazy platformy, wstrzymuje zapis i przed aktualizacją
 tworzy kopię bazy, plików multimedialnych i kluczy wdrożenia w prywatnym katalogu
 `backups/` instancji. Nieudana kopia blokuje aktualizację. Kopie zawierają dane
 osobowe i wymagają ochrony. Błąd migracji jest zgłaszany; baza nie jest automatycznie
@@ -190,9 +190,7 @@ konfiguracja odrzuca starszy obraz przed utworzeniem właściciela i otwarciem s
 
 Ekran lokalny pokazuje zapisane instancje, adresy i stan uruchomienia. **Start and
 connect** uruchamia wybraną instancję; **Finish setup** ponawia przerwaną instalację
-z zachowaniem jej plików i kluczy. Start, Stop i Update w menu dotyczą połączonej,
-zarządzanej instancji. Połączenie do samodzielnie uruchomionego stosu deweloperskiego
-nie przekazuje aplikacji zarządzania nim.
+z zachowaniem jej plików i kluczy. Start i Stop w menu dotyczą połączonej, zarządzanej instancji. **Update local workspace…** otwiera listę lokalnych instancji. Połączenie ze stosem deweloperskim uruchomionym poza aplikacją nie czyni go zarządzanym przez aplikację.
 
 Lokalna instancja uruchamia API, workera, konsolę, bazę danych i Redis, bez
 usługi sandboxa, usługi przeglądarki i magazynu obiektów. Agenci dostają
@@ -207,6 +205,22 @@ do bootstrapu bez zapisywania w tych plikach ani umieszczania w argumentach Dock
 Klucze wdrożenia pozostają w prywatnym `.env` instancji, a klucze dostawców zapisuje
 sejf serwera. Natywny kreator używa neutralnego oznaczenia fokusu klawiatury i nie
 ustawia automatycznie fokusu na przyciskach wyboru.
+
+Aplikacja desktopowa i workspace aktualizują się osobno. W głównym menu macOS
+wybierz **AgenticOS → Update local workspace…**; w Windows i Linuksie użyj menu
+zasobnika. Przycisk jest też przy każdej zainstalowanej instancji w **Change
+server… → On this computer**. Lista pokazuje wersję aplikacji desktopowej,
+skonfigurowaną wersję workspace’u i wersję docelową dołączoną do aplikacji.
+Starszy workspace bez ustalonej wersji pokazuje ją jako niedostępną; updater
+sprawdza ją przed wprowadzeniem zmian. Nie można obniżyć wersji nowszego workspace’u. Dla aktualnej wersji przycisk **Reapply workspace update** pozwala ponowić aktualizację po przerwanym restarcie lub migracji.
+
+Wybierz **Update local workspace** i potwierdź w natywnym oknie utworzenie kopii
+zapasowej oraz restart. Lista pokazuje pobieranie obrazów, backup i restart,
+a potem pozwala ponownie się połączyć. W razie niepowodzenia wyświetla błąd
+i umożliwia ponowienie. Anulowanie pozostawia workspace bez zmian. **Check for
+Updates…** aktualizuje tylko aplikację desktopową i wskazuje osobną akcję dla
+workspace’u, także gdy sama aplikacja jest aktualna. Ta ścieżka działa również
+ze starszą konsolą.
 
 ## Konfiguracja połączenia i gotowość aplikacji { #connection-setup-and-app-readiness }
 
@@ -642,6 +656,8 @@ nadal wymaga wyboru lokalnej przeglądarki.
 Workflow Apps buduje też instalatory deweloperskie i testuje instalację bez automatyzacji interfejsu: kopiowanie aplikacji Mac z DMG, cichą instalację i usunięcie na Windowsie, instalację i usunięcie pakietu Debian oraz rozpakowanie przenośnego AppImage. Sprawdza osadzony widget macOS i podpisy, izolację trwałej sesji oraz odrzucenie zmodyfikowanego pliku aktualizacji. Te kontrole używają buildów ad-hoc lub niepodpisanych i nie potwierdzają publicznej notaryzacji ani akceptacji sklepu.
 
 CI instalatorów i buildy wydań dla Linuksa sprawdzają też rozpakowany AppImage i odrzucają dołączoną bibliotekę klienta Waylanda (`libwayland-client.so*`), która może kolidować z systemowym sterownikiem Mesa i powodować awarię WebKitGTK. Walidacja wydania odbywa się przed wysłaniem instalatorów i podpisów aktualizacji. Ta kontrola bibliotek nie potwierdza zgodności renderowania z każdym kompozytorem Waylanda ani GPU.
+
+Przy ręcznym uruchomieniu dla starszego tagu bez `scripts/build_linux_desktop_release.sh` zadanie linuksowe buduje bezpośrednio przez Tauri i wypisuje ostrzeżenie o braku walidacji AppImage przed wysłaniem plików. Tagi zawierające wrapper zachowują tę walidację; błąd budowania lub walidacji nadal blokuje publikację manifestu aktualizacji.
 
 Workflow **Apps** w GitHub Actions sprawdza natywne crate'y na macOS, Windows i
 Linuksie, buduje debug APK Androida i aplikację symulatora iOS. Pełne sprawdzenia

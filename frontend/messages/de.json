@@ -6525,7 +6525,7 @@
       "modelCredentialMode": "Modellzugriff",
       "organizationModelKey": "Organisationsschlüssel verwenden",
       "personalModelKey": "Jeder Nutzer verbindet seinen eigenen Schlüssel",
-      "personalModelLimits": "Modell und Endpunkt bleiben fest. Nur Web-Chat für angemeldete Nutzer. Deaktiviere vor der Veröffentlichung aktive Kanäle, Widgets, öffentliche Seiten und Routinen. HTTP-API-Läufe, Hintergrundthemen, Sprache, Delegation, Reviewer, separate Schrittmodelle und Ersatzmodelle werden nicht unterstützt.",
+      "personalModelLimits": "Modell und Endpunkt bleiben fest. Nur Web-Chat für angemeldete Nutzer. Deaktiviere vor der Veröffentlichung aktive Kanäle, Widgets, öffentliche Seiten und Routinen. HTTP-API-Läufe, Hintergrundthemen, Sprache, Reviewer, separate Schrittmodelle und Ersatzmodelle werden nicht unterstützt. Bei Delegation im angemeldeten Web-Chat verwendet jeder Agent im persönlichen Modus den Schlüssel des ursprünglichen Aufrufers.",
       "draftChanged": "Dieser Entwurf wurde an anderer Stelle geändert. Deine Eingaben bleiben erhalten, aber das Speichern ist angehalten. Kopiere alles, was du behalten möchtest, und lade dann den neuesten Entwurf.",
       "reloadDraft": "Neuesten Entwurf laden",
       "speechUseOrganizationDefaults": "Organisationsvorgaben verwenden",
@@ -12835,6 +12835,7 @@
     "mappingDeleted": "Zuordnung gelöscht"
   },
   "apiKeys": {
+    "personalMcpWhy": "Die Delegierung persönlicher MCP-Verbindungen ist in keiner Voreinstellung enthalten. Wähle unter Custom mcp:personal:use und agents:run, damit dieser Schlüssel oder diese App deine MCP-Verbindungen in externen Agent-Runs nutzen kann. Wer die Zugangsdaten besitzt, kann diese Verbindungen in deinem Namen nutzen. Persönliche Erinnerungen, Chatverläufe und angemeldete Browsersitzungen bleiben unzugänglich.",
     "title": "API-Schlüssel",
     "why": "Mit Schlüsseln ruft ein Skript, ein HTTP-Client oder ein MCP-Client die API dieser Organisation in Ihrem Namen auf, beschränkt auf das, was Sie auswählen. Ein Schlüssel kann nie mehr als Sie heute.",
     "createTitle": "Schlüssel erstellen",

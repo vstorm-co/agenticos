@@ -7254,7 +7254,7 @@
       "modelCredentialMode": "Model access",
       "organizationModelKey": "Use the organization’s key",
       "personalModelKey": "Each user connects their own key",
-      "personalModelLimits": "The model and endpoint stay fixed. Signed-in web chat only. Disable active channels, widgets, hosted pages and routines before publishing. HTTP API runs, background topics, voice, delegation, reviewers, separate step models and model fallbacks are not supported.",
+      "personalModelLimits": "The model and endpoint stay fixed. Signed-in web chat only. Disable active channels, widgets, hosted pages and routines before publishing. HTTP API runs, background topics, voice, reviewers, separate step models and model fallbacks are not supported. Delegation in signed-in web chat resolves each personal-mode agent for the original caller.",
       "draftChanged": "This draft changed elsewhere. Your edits are still here, but saving is paused. Copy anything you want to keep, then reload the latest draft.",
       "reloadDraft": "Reload latest draft",
       "speechUseOrganizationDefaults": "Use organization defaults",
@@ -13149,6 +13149,7 @@
     "mappingDeleted": "Mapping deleted"
   },
   "apiKeys": {
+    "personalMcpWhy": "Personal MCP delegation is excluded from every preset. Select mcp:personal:use and agents:run under Custom to let this key or app use your own MCP connections in external agent runs. Anyone holding the credential can use those connections as you. It does not open personal memory, chat history or signed-in browser sessions.",
     "title": "API keys",
     "why": "Keys let a script, an HTTP client or an MCP client call this organization's API as you, narrowed to what you pick. A key never does more than you can today.",
     "createTitle": "Create key",

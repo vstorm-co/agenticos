@@ -174,6 +174,17 @@
           A local workspace, managed from your menu bar.
         </p>
         <div class="local-overview" data-local-overview>
+          <p class="hint" data-desktop-version></p>
+          <p class="hint">
+            The desktop app and local workspaces update separately. Updating
+            saves a backup, then restarts the workspace.
+          </p>
+          <progress
+            data-local-update-progress
+            hidden
+            aria-label="Updating local workspace"
+          ></progress>
+          <p data-local-update-status role="status"></p>
           <div
             class="local-instance"
             data-local-instance

@@ -10471,6 +10471,7 @@
     "customKind": "Özel"
   },
   "apiKeys": {
+    "personalMcpWhy": "Kişisel MCP yetkilendirmesi hiçbir hazır izin kümesine dahil değildir. Bu anahtarın veya uygulamanın dış agent çalıştırmalarında kendi MCP bağlantılarınızı kullanabilmesi için Custom altında mcp:personal:use ve agents:run seçin. Kimlik bilgisine sahip herkes bu bağlantıları sizin adınıza kullanabilir. Kişisel bellek, sohbet geçmişi ve oturum açılmış tarayıcı oturumları erişime açılmaz.",
     "title": "API anahtarları",
     "why": "Anahtarlar, bir betiğin, HTTP istemcisinin veya MCP istemcisinin bu kuruluşun API’sini sizin adınıza çağırmasını ve seçtiğiniz izinlerle sınırlandırılmasını sağlar. Anahtar, sizin bugün yapabildiklerinizden fazlasını yapamaz.",
     "createTitle": "Anahtar oluştur",

@@ -590,7 +590,7 @@ async fn arrive(
     retarget_companions(app, &server)?;
     start_companions(app, &server, &settings);
     app.state::<ShellMenu>()
-        .reflect_local_instance(local_instances::selected(app)?.is_some())
+        .reflect_local_instance(app, local_instances::selected(app)?.is_some())
         .map_err(|e| e.to_string())
 }
 
@@ -600,6 +600,7 @@ struct OnboardingState {
     server_url: Option<Url>,
     deployment: Option<Deployment>,
     platform: &'static str,
+    desktop_version: String,
     local_setup_pending: bool,
 }
 
@@ -610,6 +611,7 @@ fn onboarding_state(app: AppHandle) -> OnboardingState {
         server_url: settings.server_url,
         deployment: settings.deployment,
         platform: appearance::platform(),
+        desktop_version: app.package_info().version.to_string(),
         local_setup_pending: runtime_installer::pending_path(&app).is_ok_and(|path| path.is_file()),
     }
 }
@@ -632,24 +634,91 @@ struct LocalInstanceView {
     url: String,
     installed: bool,
     running: bool,
+    version: Option<String>,
+    version_error: Option<String>,
+    target_version: &'static str,
+    can_update: bool,
 }
 #[tauri::command]
 async fn local_instances(app: AppHandle) -> Result<Vec<LocalInstanceView>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        local_instances::load(&app).map(|rows| {
+        local_instances::load(&app).and_then(|rows| {
             rows.into_iter()
-                .map(|row| LocalInstanceView {
-                    running: reachable(&row.url()).is_ok(),
-                    url: row.url().to_string(),
-                    id: row.id,
-                    name: row.name,
-                    installed: row.installed,
+                .map(|row| {
+                    let status = if row.installed {
+                        local_backup::version_status(&row.dir(&app)?)
+                    } else {
+                        local_backup::VersionStatus {
+                            version: None,
+                            error: None,
+                        }
+                    };
+                    let version = status.version;
+                    let target_version = env!("AGENTICOS_PLATFORM_VERSION");
+                    let can_update = row.installed
+                        && status.error.is_none()
+                        && version
+                            .as_deref()
+                            .is_none_or(|current| local_backup::prevent_downgrade(current, target_version).is_ok());
+                    Ok(LocalInstanceView {
+                        running: reachable(&row.url()).is_ok(),
+                        url: row.url().to_string(),
+                        id: row.id,
+                        name: row.name,
+                        installed: row.installed,
+                        version,
+                        version_error: status.error,
+                        target_version,
+                        can_update,
+                    })
                 })
-                .collect()
+                .collect::<Result<Vec<_>, String>>()
         })
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Only the bundled instance picker may request an update, after native consent.
+#[tauri::command]
+async fn update_local(app: AppHandle, instance_id: String) -> Result<bool, String> {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+    let instance = local_instances::find(&app, &instance_id)?;
+    if !instance.installed {
+        return Err("Finish setting up this instance first.".into());
+    }
+    managed::check(&app, &instance.url())?;
+    let (send, receive) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .message(format!(
+            "Update {} to workspace version {}? A backup of the database, files and keys is saved before applying the update. The workspace restarts and is briefly unavailable. Finish any running work first. This does not update the desktop app.",
+            instance.name, env!("AGENTICOS_PLATFORM_VERSION")
+        ))
+        .title("Update local workspace?")
+        .buttons(MessageDialogButtons::OkCancelCustom("Back up and update".into(), "Cancel".into()))
+        .show(move |allowed| { let _ = send.send(allowed); });
+    if !receive.await.map_err(|e| e.to_string())? {
+        return Ok(false);
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        managed::check(&app, &instance.url())?;
+        local_stack::control_instance(&app, &instance, local_stack::Control::Update)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    Ok(true)
+}
+
+/// Open the bundled picker so updates remain available even with an older console.
+fn show_local_updates(app: &AppHandle) -> Result<(), String> {
+    let mut page = connect_page();
+    page.set_query(Some("local=update"));
+    bring_console(app)?;
+    let window = app
+        .get_webview_window(WINDOW)
+        .ok_or("The main window is unavailable.")?;
+    window.navigate(page).map_err(|e| e.to_string())?;
+    raise(&window)
 }
 
 /// Set AgenticOS up on this computer and sign the console in to it.
@@ -1133,6 +1202,7 @@ pub struct ShellMenu {
 impl ShellMenu {
     fn build(app: &AppHandle, settings: &Settings) -> tauri::Result<Self> {
         let local = local_instances::selected(app).is_ok_and(|instance| instance.is_some());
+        let saved = local_instances::load(app).is_ok_and(|rows| rows.iter().any(|row| row.installed));
         Ok(Self {
             blobby: blobby::BlobbyMenu::build(app, &settings.blobby)?,
             open_console: MenuItem::with_id(app, OPEN_CONSOLE, "Open AgenticOS", true, None::<&str>)?,
@@ -1151,7 +1221,7 @@ impl ShellMenu {
             local: [
                 MenuItem::with_id(app, LOCAL_START, "Start", local, None::<&str>)?,
                 MenuItem::with_id(app, LOCAL_STOP, "Stop", local, None::<&str>)?,
-                MenuItem::with_id(app, LOCAL_UPDATE, "Update", local, None::<&str>)?,
+                MenuItem::with_id(app, LOCAL_UPDATE, "Update local workspace…", saved, None::<&str>)?,
             ],
         })
     }
@@ -1171,12 +1241,12 @@ impl ShellMenu {
         Ok(())
     }
 
-    /// The local stack's controls are live only while the app runs one.
-    fn reflect_local_instance(&self, available: bool) -> tauri::Result<()> {
-        for item in &self.local {
+    /// Start and Stop address the selected instance; Update opens the saved-instance picker.
+    fn reflect_local_instance(&self, app: &AppHandle, available: bool) -> tauri::Result<()> {
+        for item in &self.local[..2] {
             item.set_enabled(available)?;
         }
-        Ok(())
+        self.local[2].set_enabled(local_instances::load(app).is_ok_and(|rows| rows.iter().any(|row| row.installed)))
     }
 
     /// The tray's menu, which is also blobby's: everything the shell does, with no window open.
@@ -1234,6 +1304,7 @@ impl ShellMenu {
                 &separator()?,
                 &self.settings,
                 &MenuItem::with_id(app, "check-updates", "Check for Updates…", true, None::<&str>)?,
+                &self.local[2],
                 &self.change_server,
                 &separator()?,
                 &PredefinedMenuItem::services(app, None)?,
@@ -1452,11 +1523,11 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
                 .open_url(DOCUMENTATION_URL, None::<&str>)
                 .map_err(|e| e.to_string()),
             blobby::SHOW_MENU_ID => update_blobby(app, |blobby| blobby.enabled = !blobby.enabled),
-            LOCAL_START | LOCAL_STOP | LOCAL_UPDATE => {
+            LOCAL_UPDATE => show_local_updates(app),
+            LOCAL_START | LOCAL_STOP => {
                 let control = match id {
                     LOCAL_START => local_stack::Control::Start,
-                    LOCAL_STOP => local_stack::Control::Stop,
-                    _ => local_stack::Control::Update,
+                    _ => local_stack::Control::Stop,
                 };
                 control_local(app, control);
                 Ok(())
@@ -1587,6 +1658,7 @@ pub fn run() {
             onboarding_permissions::request_onboarding_permission,
             local_status,
             local_instances,
+            update_local,
             set_up_local,
             use_local,
             resume_local,

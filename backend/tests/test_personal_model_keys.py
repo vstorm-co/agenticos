@@ -112,11 +112,10 @@ def test_personal_keys_fix_the_model_and_refuse_voice_or_local_replacement() -> 
         require_organization_model(chosen)
 
 
-async def test_delegation_and_separate_step_models_are_refused_before_a_run() -> None:
+async def test_delegation_is_allowed_but_separate_step_models_are_refused() -> None:
     chosen = spec().model_copy(update={"capabilities": [CapabilityBindingSpec(id="subagents")]})
-    assert "delegation" in personal_model_problems(chosen)[0]
-    with pytest.raises(BadRequestError, match="delegation"):
-        require_personal_model_run(chosen, context(), RunSurface.WEB)
+    assert personal_model_problems(chosen) == []
+    require_personal_model_run(chosen, context(), RunSurface.WEB)
     chosen = spec().model_copy(
         update={
             "capabilities": [
@@ -127,6 +126,10 @@ async def test_delegation_and_separate_step_models_are_refused_before_a_run() ->
         }
     )
     assert "separate capability models" in personal_model_problems(chosen)[0]
+    with pytest.raises(BadRequestError) as refused:
+        require_personal_model_run(chosen, context(), RunSurface.WEB)
+    assert refused.value.code == "PERSONAL_MODEL_CONFIGURATION"
+    assert "separate capability models" in refused.value.message
 
 
 def test_personal_profile_rejects_non_key_credentials_fallbacks_and_non_chat_models() -> None:
@@ -507,3 +510,10 @@ async def test_personal_copilot_rejects_a_stored_custom_endpoint() -> None:
     held = profile()
     held.provider = "github_copilot"
     assert personal_profile_problem(held) == "Copilot requires the fixed GitHub.com gateway"
+
+
+def test_personal_keys_still_refuse_reviewers() -> None:
+    from app.agents.spec import RunReviewerSpec
+
+    chosen = spec().model_copy(update={"reviewers": [RunReviewerSpec(name="reviewer")]})
+    assert personal_model_problems(chosen) == ["Personal model keys do not support reviewers yet"]

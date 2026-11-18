@@ -61,7 +61,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from functools import partial
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
 from uuid import UUID, uuid4
 
 from pydantic import (
@@ -232,7 +232,12 @@ from app.agents.isolation import (
 )
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.manifest import RunRecorder, as_payload, carried_over, fit
-from app.agents.mcp import PLATFORM_MCP_PREFIX, McpSourceIdentity, unreachable_briefing
+from app.agents.mcp import (
+    PLATFORM_MCP_PREFIX,
+    AuthorityChecked,
+    McpSourceIdentity,
+    unreachable_briefing,
+)
 from app.agents.model_context import ModelContextCheck, checking_model_context
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
@@ -355,7 +360,7 @@ from app.services.agent_registry import (
     delegation_binding,
     models_a_run_reaches,
 )
-from app.services.api_key import mint_for_run
+from app.services.api_key import ApiKeyService, mint_for_run
 from app.services.approvals import ApprovalService, withhold
 from app.services.attachments import (
     UPLOAD_DIR,
@@ -418,7 +423,7 @@ from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.personal_model_key import PersonalModelKeyService
 from app.services.personal_model_policy import (
-    require_organization_model,
+    personal_delegate_problem,
     require_personal_model_run,
 )
 from app.services.project import ProjectService
@@ -999,6 +1004,11 @@ class AdmittedAs(BaseModel):
     can_ask_questions: bool = Field(
         default=False,
         description="Whether the original surface could put questions to its person, preserved across HTTP continuations",
+    )
+    personal_mcp_key_id: UUID | None = Field(
+        default=None,
+        exclude_if=lambda key_id: key_id is None,
+        description="Original external credential delegated only personal MCP; rechecked on resume",
     )
     acts_for_sender: bool = Field(
         default=False,
@@ -3058,6 +3068,28 @@ class _ModelCatalog:
     """Each profile resolved so far, by id - `None` for one that did not resolve."""
 
 
+class _PersonalMcpCheck(Protocol):
+    async def __call__(self, *, delegates: frozenset[UUID] = frozenset()) -> None:
+        """Validate the original credential and every discovered delegate it may reach."""
+
+
+@dataclass
+class _PersonalMcpDelegation:
+    """One original credential, retained only if the assembled tree reaches personal MCP."""
+
+    validate: _PersonalMcpCheck
+    required: bool = False
+    discovered_agents: set[UUID] = field(default_factory=set)
+
+    async def require_for(self, refs: Sequence[McpServerRef]) -> None:
+        self.required = self.required or any(isinstance(ref, PersonalMcpServerRef) for ref in refs)
+        await self.check()
+
+    async def check(self) -> None:
+        if self.required:
+            await self.validate(delegates=frozenset(self.discovered_agents))
+
+
 @dataclass(frozen=True)
 class _Delegation:
     """What every level of one run's delegation tree is resolved against.
@@ -3147,6 +3179,11 @@ class _Delegation:
 
     isolation: RunIsolation | None
     """The run's isolation, when it is an eval, which every level of the tree is under."""
+    personal_model_root: AgentSpec
+    """The model selected in the root chat; delegates cannot widen personal spending."""
+    personal_mcp: _PersonalMcpDelegation | None = None
+    personal_models_blocked: bool = False
+    """Public input, voice or a local model replacement cannot spend personal keys."""
     output_screen: ScreenedStream | None = None
     """The run's own output check, for what every level of the tree streams."""
 
@@ -3175,6 +3212,28 @@ class _Delegation:
     not about a level, and resolving one costs a vault unseal. Two nested levels
     that both allow dynamic specialists would otherwise pay for it twice.
     """
+
+
+def _personal_mcp_check(
+    key_id: UUID, *, user_id: UUID, organization_id: UUID, agent_id: UUID
+) -> _PersonalMcpCheck:
+    async def check(*, delegates: frozenset[UUID] = frozenset()) -> None:
+        async with get_db_context() as db:
+            current = await ApiKeyService(db).personal_mcp_context(
+                key_id, organization_id=organization_id, user_id=user_id
+            )
+            registry = AgentRegistryService(db)
+            root = await registry.get(current, agent_id, perm=Perm.AGENTS_RUN)
+            if root.status != AgentStatus.PUBLISHED.value:
+                raise AuthorizationError(message="The root agent is no longer published")
+            for delegate_id in delegates:
+                delegate = await registry.get(current, delegate_id, perm=Perm.AGENTS_RUN)
+                if delegate.status != AgentStatus.PUBLISHED.value:
+                    raise AuthorizationError(
+                        message="The discovered delegate is no longer published"
+                    )
+
+    return check
 
 
 def _catalog_delegate_access(ctx: AuthContext, agent_id: UUID) -> Callable[[], Awaitable[None]]:
@@ -3324,6 +3383,7 @@ def _dynamic_builder(
     *,
     profiles: Mapping[str, ModelRequestSpec],
     trace_content: TraceContent,
+    personal: bool = False,
 ) -> DynamicSpecialistBuilder:
     """How a specialist a run's model invents becomes an agent of this platform's.
 
@@ -3364,6 +3424,7 @@ def _dynamic_builder(
                 name=name,
                 instructions=instructions,
                 model_profile_id=profiles[model].profile_id,
+                model_credential_mode="personal" if personal else "organization",
                 observability=trace_content_block(trace_content),
             ),
             model=profiles[model],
@@ -4129,6 +4190,7 @@ class AgentRunnerService:
         acts_for_sender: bool = False,
         owner_user_id: UUID | None = None,
         memory_room_key: str | None = None,
+        personal_mcp_key_id: UUID | None = None,
         restored_audience: RunAudience | None = None,
         restored_publisher_fallback: bool | None = None,
         extra_toolsets: list[AbstractToolset[Any]] | None,
@@ -4529,10 +4591,33 @@ class AgentRunnerService:
             if acts_for_sender and not subject_is_publisher_fallback
             else None
         )
+        personal_mcp = None
+        if existing_run is None and surface is RunSurface.API and ctx.may_delegate_personal_mcp:
+            personal_mcp_key_id = ctx.api_key_id
+        if personal_mcp_key_id is not None:
+            person = owner_user_id or ctx.user_id
+            if (
+                surface is not RunSurface.API
+                or person is None
+                or subject_is_publisher_fallback
+                or current_impersonator() is not None
+                or (existing_run is None and not ctx.key_allows(Perm.MCP_PERSONAL_USE))
+            ):
+                raise AuthorizationError(message="This run cannot use delegated personal MCP")
+            personal_mcp = _PersonalMcpDelegation(
+                _personal_mcp_check(
+                    personal_mcp_key_id,
+                    user_id=person,
+                    organization_id=ctx.organization_id,
+                    agent_id=agent.id,
+                )
+            )
+            await personal_mcp.require_for(spec.mcp_servers)
+            personal_mcp_user_id = person
         # Whether a signed-in person is behind this run even where a personal
         # binding may not speak through their account - true on the API, where a
-        # bearer token identifies the caller but their own connections are
-        # deliberately out of reach, and false where nobody wrote the message at
+        # bearer token identifies the caller but their own connections still need
+        # explicit delegation, and false where nobody wrote the message at
         # all. It is what tells the gap briefing to explain the refusal rather
         # than tell a signed-in caller that nobody is signed in (#1445).
         sender_present = (
@@ -4558,6 +4643,7 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             refs=spec.mcp_servers,
             sender_user_id=personal_mcp_user_id,
+            recheck_sources=personal_mcp is not None,
             test_connections=test_connections.mcp,
             personal_sources=personal_sources,
             organization_sources=admitted_mcp_sources,
@@ -4583,6 +4669,10 @@ class AgentRunnerService:
         if model_spec is not None:
             _require_history_provenance(expected_history_provenance, history_provenance)
         spec_toolsets: list[AbstractToolset[object]] = resolved.toolsets
+        if personal_mcp is not None:
+            spec_toolsets = [
+                AuthorityChecked(wrapped=tools, check=personal_mcp.check) for tools in spec_toolsets
+            ]
         if routine is not None and routine.routine_kind == "trigger":
             spec_toolsets = [
                 toolset.filtered(lambda _ctx, tool: routine.allows_tool(tool))
@@ -4640,7 +4730,7 @@ class AgentRunnerService:
             resources,
             ctx,
             spec,
-            person_id=personal_mcp_user_id,
+            person_id=personal_mcp_user_id if acts_for_sender else None,
             authorities=terminal_authorities,
             restoring=mirage_authorities is not None,
         )
@@ -5145,12 +5235,18 @@ class AgentRunnerService:
             ctx,
             request_computer_access=request_computer_access,
             models_ctx=models_ctx,
+            personal_models_blocked=(
+                public_origin
+                or voice is not None
+                or (local is not None and local.model_service is not None)
+            ),
             spec=spec.model_copy(update={"capabilities": delegation_capabilities}),
             agent=agent,
             run=run,
             surface=surface,
             user_name=user_name,
             personal_mcp_user_id=personal_mcp_user_id,
+            personal_mcp=personal_mcp,
             sender_present=sender_present,
             resources=resources,
             approvals=channel,
@@ -5449,6 +5545,9 @@ class AgentRunnerService:
                 approval_mode=approval_mode,
                 local=local,
                 acts_for_sender=acts_for_sender,
+                personal_mcp_key_id=personal_mcp_key_id
+                if personal_mcp is not None and personal_mcp.required
+                else None,
                 audience_user_id=audience.user_id,
                 audience_room_key=audience.room_key,
                 audience_writes_memory=audience.writes_memory,
@@ -5483,6 +5582,7 @@ class AgentRunnerService:
         ctx: AuthContext,
         *,
         models_ctx: AuthContext,
+        personal_models_blocked: bool,
         spec: AgentSpec,
         agent: Agent,
         run: AgentRun,
@@ -5505,6 +5605,7 @@ class AgentRunnerService:
         routine_check: RoutineCheck | None = None,
         routine_action_check: RoutineToolCheck | None = None,
         routine_sources: dict[UUID, McpSourceIdentity] | None = None,
+        personal_mcp: _PersonalMcpDelegation | None = None,
     ) -> SubagentRuntime | None:
         """The delegation tree this run may reach, or `None` if it delegates to none.
 
@@ -5557,6 +5658,8 @@ class AgentRunnerService:
         delegation = _Delegation(
             ctx=ctx,
             models_ctx=models_ctx,
+            personal_models_blocked=personal_models_blocked,
+            personal_model_root=spec,
             run=run,
             surface=surface,
             agent_id=agent.id,
@@ -5566,6 +5669,7 @@ class AgentRunnerService:
             user_id=None if ctx.user_id is None else str(ctx.user_id),
             user_name=user_name,
             personal_mcp_user_id=personal_mcp_user_id,
+            personal_mcp=personal_mcp,
             sender_present=sender_present,
             approvals=approvals,
             budget=budget,
@@ -5615,6 +5719,7 @@ class AgentRunnerService:
                 config,
                 trace_content=spec.trace_content,
                 named=models_a_run_reaches(spec),
+                personal_spec=spec if spec.model_credential_mode == "personal" else None,
             ),
         )
 
@@ -5625,6 +5730,7 @@ class AgentRunnerService:
         *,
         trace_content: TraceContent,
         named: frozenset[UUID],
+        personal_spec: AgentSpec | None = None,
     ) -> DynamicSpecialists | None:
         """Whether one agent in the tree may invent specialists, and how it builds one.
 
@@ -5646,11 +5752,22 @@ class AgentRunnerService:
         """
         if not config.allow_dynamic:
             return None
-        profiles = await self._model_catalog(delegation, named)
+        if personal_spec is not None:
+            # Dynamic specialists may vary instructions, never the personal
+            # agent's approved model or destination.
+            model = await self._delegated_model(delegation, personal_spec)
+            profiles = {model.label: model}
+        else:
+            profiles = await self._model_catalog(delegation, named)
         if not profiles:
             return None
         return DynamicSpecialists(
-            build=_dynamic_builder(delegation, profiles=profiles, trace_content=trace_content),
+            build=_dynamic_builder(
+                delegation,
+                profiles=profiles,
+                trace_content=trace_content,
+                personal=personal_spec is not None,
+            ),
             allowed_models=tuple(profiles),
         )
 
@@ -5814,15 +5931,30 @@ class AgentRunnerService:
             for ref in refs:
                 # A discovered delegate is this person's authority, never a publisher's loan.
                 await self.registry.get(delegation.ctx, ref.agent_id, perm=Perm.AGENTS_RUN)
-                delegate = await self._resolve_delegate(
-                    delegation,
-                    ref=ref,
-                    shared=shared,
-                    resources=resources,
-                    depth_remaining=depth_remaining,
-                    depth=depth,
-                    ancestors=ancestors,
+                personal_mcp = delegation.personal_mcp
+                prior_required = personal_mcp.required if personal_mcp is not None else False
+                prior_discovered = (
+                    personal_mcp.discovered_agents.copy() if personal_mcp is not None else set()
                 )
+                if personal_mcp is not None:
+                    personal_mcp.discovered_agents.add(ref.agent_id)
+                try:
+                    delegate = await self._resolve_delegate(
+                        delegation,
+                        ref=ref,
+                        shared=shared,
+                        resources=resources,
+                        depth_remaining=depth_remaining,
+                        depth=depth,
+                        ancestors=ancestors,
+                    )
+                except BadRequestError as exc:
+                    if exc.code != "PERSONAL_MODEL_CONSENT":
+                        raise
+                    if personal_mcp is not None:
+                        personal_mcp.required = prior_required
+                        personal_mcp.discovered_agents = prior_discovered
+                    continue
                 handle = f"agent-{delegate.name}"
                 # An explicit specialist owns its handle; retain access using the stable UUID.
                 if handle in reserved:
@@ -5882,6 +6014,43 @@ class AgentRunnerService:
             )
         return resolved
 
+    async def _delegated_model(self, delegation: _Delegation, spec: AgentSpec) -> ModelRequestSpec:
+        """Resolve each delegate's destination for the run's original credential owner.
+
+        Rebuilt on resume, so a deleted connection cannot survive an approval
+        park. Organization mode remains an explicit choice on each published
+        delegate; inline specialists inherit their parent's credential mode.
+        """
+        if problem := personal_delegate_problem(delegation.personal_model_root, spec):
+            raise BadRequestError(message=problem, code="PERSONAL_MODEL_CONSENT")
+        require_personal_model_run(
+            spec,
+            delegation.models_ctx,
+            delegation.surface,
+            public_origin=delegation.personal_models_blocked,
+        )
+        if spec.model_credential_mode == "personal":
+            profile = await self.models.profile_for_organization(
+                delegation.models_ctx.organization_id, profile_id=spec.model_profile_id
+            )
+            try:
+                return await PersonalModelKeyService(self.db).resolve(
+                    delegation.models_ctx, profile
+                )
+            except AuthorizationError as exc:
+                if exc.code != "PERSONAL_MODEL_KEY_REQUIRED":
+                    raise
+                raise AuthorizationError(
+                    message=(
+                        f"Connect your own model API key for '{spec.name}' "
+                        f"(model connection '{profile.label}') in that agent's chat settings. "
+                        "Ask its owner for access if the agent is not visible to you."
+                    ),
+                    code=exc.code,
+                    details=exc.details,
+                ) from exc
+        return await self.models.resolve(delegation.models_ctx, profile_id=spec.model_profile_id)
+
     async def _resolve_specialist(
         self,
         delegation: _Delegation,
@@ -5925,6 +6094,7 @@ class AgentRunnerService:
                 shared,
             )
         )
+        spec = spec.model_copy(update={"model_credential_mode": parent.model_credential_mode})
         spec = await TextToSpeechSettingsService(self.db).for_run(
             ctx.organization_id, spec, delegation.run
         )
@@ -5934,7 +6104,7 @@ class AgentRunnerService:
             agent_id=None,
             shared=shared,
             parent_resources=resources,
-            person_id=delegation.personal_mcp_user_id,
+            person_id=delegation.personal_mcp_user_id if delegation.personal_mcp is None else None,
             authorities=delegation.stash.mirage_authorities,
             restoring=delegation.stash.restoring_mirage,
         )
@@ -5944,9 +6114,7 @@ class AgentRunnerService:
             build=_delegate_builder(
                 delegation,
                 spec=spec,
-                model=await self.models.resolve(
-                    delegation.models_ctx, profile_id=spec.model_profile_id
-                ),
+                model=await self._delegated_model(delegation, spec),
                 agent_id=delegation.agent_id,
                 resources=own_resources,
                 secrets=await self.secrets.resolve_for_bindings(ctx, _secret_ids(spec)),
@@ -6061,13 +6229,14 @@ class AgentRunnerService:
         published = AgentSpec.model_validate(version.spec)
         pinned = _with_shared(published, shared)
         pinned = await self.registry.with_assistant_guidance(delegate, pinned)
+        model = await self._delegated_model(delegation, pinned)
         delegate_resources = await self._delegate_resources(
             ctx,
             pinned,
             agent_id=ref.agent_id,
             shared=shared,
             parent_resources=resources,
-            person_id=delegation.personal_mcp_user_id,
+            person_id=delegation.personal_mcp_user_id if delegation.personal_mcp is None else None,
             authorities=delegation.stash.mirage_authorities,
             restoring=delegation.stash.restoring_mirage,
         )
@@ -6118,6 +6287,9 @@ class AgentRunnerService:
                         nested_config,
                         trace_content=pinned.trace_content,
                         named=models_a_run_reaches(published),
+                        personal_spec=pinned
+                        if pinned.model_credential_mode == "personal"
+                        else None,
                     ),
                 )
             else:
@@ -6128,21 +6300,20 @@ class AgentRunnerService:
                 # other.
                 runnable = _without_delegation(pinned)
 
-        require_organization_model(runnable)
         runnable = await TextToSpeechSettingsService(self.db).for_run(
             ctx.organization_id, runnable, delegation.run
-        )
-        model = await self.models.resolve(
-            delegation.models_ctx, profile_id=runnable.model_profile_id
         )
         # Recorded now so the child's run row can name the model that answered.
         delegation.attribution[ref.agent_version_id] = model
         runnable, test_bindings = _with_test_secrets(runnable, delegation.test_connections.secrets)
+        if delegation.personal_mcp is not None:
+            await delegation.personal_mcp.require_for(runnable.mcp_servers)
         resolved = await build_toolsets_for_agent(
             self.db,
             organization_id=ctx.organization_id,
             refs=runnable.mcp_servers,
             sender_user_id=delegation.personal_mcp_user_id,
+            recheck_sources=delegation.personal_mcp is not None,
             test_connections=delegation.test_connections.mcp,
             personal_sources=delegation.routine_sources,
             organization_sources=delegation.routine_sources,
@@ -6151,7 +6322,12 @@ class AgentRunnerService:
             # approver's, and a delegate must not carry their authority either.
             platform_credential=await self._platform_credential(runnable, ctx, delegation.run),
         )
-        toolsets = resolved.toolsets
+        toolsets: list[AbstractToolset[Any]] = resolved.toolsets
+        if delegation.personal_mcp is not None:
+            toolsets = [
+                AuthorityChecked(wrapped=tools, check=delegation.personal_mcp.check)
+                for tools in toolsets
+            ]
         # Briefed like the parent: a delegate may bind a service the parent does
         # not, and one that lost it silently would report failure where the
         # parent could have relayed "connect your Notion" instead.
@@ -7864,6 +8040,7 @@ class AgentRunnerService:
             model_profile_id=state.admitted_as.model_profile_id,
             expected_history_provenance=state.history_provenance,
             acts_for_sender=state.admitted_as.acts_for_sender and run.user_id is not None,
+            personal_mcp_key_id=state.admitted_as.personal_mcp_key_id,
             # Whose run this is, not who is resuming it. An approver is allowed
             # to release somebody else's parked run; they are not the account it
             # speaks through - for personal MCP or for the run's audience.
