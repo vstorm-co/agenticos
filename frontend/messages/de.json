@@ -10643,7 +10643,7 @@
         "qwenSubscription": "Qwen-Abonnement",
         "museApi": "Muse API-Schlüssel",
         "museHelp": "Muse benötigt CLI 1.4.23 und verwendet das festgelegte offizielle SDK mit eigenem MSP-Host. Richte das Konto zuerst in muse ein. Umgebungs- und gespeicherte API-Schlüssel haben Vorrang vor der Browseranmeldung; der Status meldet die tatsächliche Quelle. Der Schlüsselmodus benötigt META_API_KEY in Desktop. Werkzeuge und Erweiterungen behalten lokalen Zugriff; Kosten sind unbekannt.",
-        "piHelp": "Pi verwendet natives RPC mit eigenen Konten, Erweiterungen und Modellen. Starte pi, melde dich an und wähle Anbieter/Modell. Lass External model ID leer. Werkzeuge und Erweiterungen haben vollen lokalen Zugriff. Dialoge erfordern die CLI; Plattformwerkzeuge und Tresorzugangsdaten werden nicht weitergegeben. Kosten bleiben unbekannt.",
+        "piHelp": "Pi verwendet natives RPC mit eigenen Konten, Erweiterungen und Modellen. Starte pi, melde dich an und wähle Anbieter/Modell. Lass External model ID leer. Werkzeuge und Erweiterungen haben vollen lokalen Zugriff. Unterstützte Dialoge erscheinen im Chat; Plattformwerkzeuge und Tresorzugangsdaten werden nicht weitergegeben. Kosten bleiben unbekannt.",
         "devinHelp": "Installieren Sie Devin CLI, führen Sie devin auth login aus und prüfen Sie devin auth status. Wählen Sie den absoluten devin-Pfad. Die Vorlage startet den lokalen ACP-Agenten mit normalen Berechtigungen und verlangt die angebotene Methode devin-browser. Kosten und Unternehmensberechtigungen hängen vom Konto ab. Sie startet weder --cloud noch die Cloud-Aufgaben-API. Lassen Sie External model ID leer und wählen Sie das Modell in Devin. Registrieren Sie nach Kontowechsel erneut.",
         "account": {
           "status": "Konto prüfen",
@@ -10659,7 +10659,8 @@
           "deviceCode": "Gerätecode",
           "waiting": "Warten auf die Anmeldung. Diese Seite geöffnet lassen.",
           "failed": "Kontovorgang nicht abgeschlossen. Native Bestätigung, CLI-Version und Umgebungsschlüssel prüfen und erneut versuchen."
-        }
+        },
+        "piKeyHelp": "Pi 1.5.2 ist erforderlich. Die Vorlage erhält den gewählten Tresor-API-Schlüssel nur mit deinem eigenen Zugriff darauf. Wähle den passenden Pi-Schlüsselanbieter und eine genaue Modell-ID in der Agentenkonfiguration. Pi nutzt eine isolierte Konfiguration ohne gespeicherte Konten oder gefundene Erweiterungen. Der Schlüssel steht weder in Argumenten noch generierten Dateien. Native Werkzeuge haben vollen lokalen Zugriff; API-Kosten bleiben unbepreist."
       }
     },
     "welcome": {
@@ -14047,6 +14048,10 @@
       "model_id": {
         "title": "Externe Modell-ID",
         "description": "Optionale genaue ID aus inspect_acp_agent für dieses Konto. Leer behält das eigene Modell des Programms bei. Dies wählt ein Laufzeitmodell und kein AgenticOS-Modellprofil."
+      },
+      "api_provider": {
+        "title": "Pi-Anbieter mit Tresorschlüssel",
+        "description": "Optionaler Pi-API-Schlüsselmodus: Inception, DeepSeek oder OpenRouter. Benötigt die passende native Vorlage und eigenen Tresorzugriff des startenden Mitglieds. Gespeicherte Pi-Zugangsdaten werden nicht importiert."
       }
     }
   },

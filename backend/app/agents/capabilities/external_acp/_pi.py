@@ -13,6 +13,7 @@ from app.agents.capabilities.coding_agent._harness import (
     CodingReport,
     CodingStep,
     LiveItem,
+    RuntimeCredentials,
     Said,
     StepEnded,
     StepStarted,
@@ -21,6 +22,7 @@ from app.agents.capabilities.coding_agent._harness import (
 )
 from app.agents.capabilities.external_acp._catalog import AcpCatalog, AcpChoice
 from app.agents.model_context import check_model_context
+from app.agents.pi_keys import PiKeyProvider
 from app.agents.runtime_questions import RuntimeQuestionsCallback
 
 
@@ -69,7 +71,7 @@ class _State(BaseModel):
 
 class _Models(BaseModel):
     model_config = ConfigDict(extra="ignore", hide_input_in_errors=True, strict=True)
-    models: list[_Model] = Field(max_length=128)
+    models: list[_Model] = Field(max_length=2048)
 
 
 @dataclass
@@ -232,7 +234,9 @@ async def _ignore(_items: list[LiveItem]) -> None:
     return None
 
 
-async def inspect_pi(pipe: Pipe, *, timeout_seconds: int) -> AcpCatalog:
+async def inspect_pi(
+    pipe: Pipe, *, timeout_seconds: int, key_provider: PiKeyProvider | None = None
+) -> AcpCatalog:
     session = _Session(pipe, _ignore)
     try:
         with anyio.fail_after(timeout_seconds):
@@ -245,13 +249,32 @@ async def inspect_pi(pipe: Pipe, *, timeout_seconds: int) -> AcpCatalog:
                 raise AcpError(
                     "Pi returned an unsupported or excessive model catalog. Narrow its configured models."
                 ) from invalid
-            choices = [AcpChoice(id=model.key, name=model.name) for model in models]
+            choices = [
+                AcpChoice(id=model.key, name=model.name)
+                for model in models
+                if key_provider is None or model.provider == key_provider
+            ]
             if len({choice.id for choice in choices}) != len(choices):
                 raise AcpError("Pi returned duplicate model identities.")
+            if (
+                key_provider is not None
+                and state.model is not None
+                and state.model.provider != key_provider
+            ):
+                raise AcpError("Pi opened another provider in a selected-key session.")
+            current = state.model.key if state.model else None
+            if current is not None:
+                choices = sorted(choices, key=lambda choice: choice.id != current)
             return AcpCatalog(
-                configuration_policy="cli",
+                credentials=RuntimeCredentials(
+                    kind="api_key", source="vault", sign_out_available=False
+                )
+                if key_provider is not None
+                else None,
+                models_truncated=len(choices) > 128,
+                configuration_policy="session" if key_provider is not None else "cli",
                 models_exposed=True,
-                models=choices,
+                models=choices[:128],
                 current_model=state.model.key if state.model else None,
             )
     finally:
@@ -270,6 +293,7 @@ async def run_pi(
     effort: str | None = None,
     remember: Callable[[str], Awaitable[None]] | None = None,
     runtime_questions: RuntimeQuestionsCallback | None = None,
+    key_provider: PiKeyProvider | None = None,
 ) -> CodingReport:
     session = _Session(pipe, shown, runtime_questions=runtime_questions)
     timed_out = False
@@ -279,7 +303,7 @@ async def run_pi(
             async with anyio.create_task_group() as group:
                 session.question_group = group
                 try:
-                    if model is not None or effort is not None:
+                    if (model is not None or effort is not None) and key_provider is None:
                         raise AcpError(
                             "Pi model settings belong to its CLI. Choose the provider/model there and leave the external model ID empty."
                         )
@@ -293,7 +317,35 @@ async def run_pi(
                         raise AcpError(
                             "A Pi extension refused to open the requested session. No prompt was sent."
                         )
+                    if key_provider is not None:
+                        if (
+                            model is None
+                            or not model.startswith(f"{key_provider}/")
+                            or effort is not None
+                        ):
+                            raise AcpError(
+                                "Select an exact model from this Pi key provider without a reasoning override."
+                            )
+                        try:
+                            available = _Models.model_validate(
+                                await session.request("get_available_models")
+                            ).models
+                        except ValidationError as invalid:
+                            raise AcpError("Pi returned an unsupported model catalog.") from invalid
+                        if sum(entry.key == model for entry in available) != 1:
+                            raise AcpError(
+                                "The selected model is not uniquely available from this Pi provider. No prompt was sent."
+                            )
+                        await session.request(
+                            "set_model", provider=key_provider, modelId=model.partition("/")[2]
+                        )
                     state = await session.state()
+                    if key_provider is not None and (
+                        state.model is None or state.model.key != model
+                    ):
+                        raise AcpError(
+                            "Pi did not acknowledge the selected API-key provider and model. No prompt was sent."
+                        )
                     identifier = state.sessionId
                     if state.model is None:
                         raise AcpError(
@@ -336,6 +388,9 @@ async def run_pi(
             else "Pi did not complete this task. Check its CLI account, model and quota; work may already have occurred."
         )
         return CodingReport(
+            credentials=RuntimeCredentials(kind="api_key", source="vault", sign_out_available=False)
+            if key_provider is not None
+            else None,
             harness="custom",
             access="edit",
             outcome=outcome,

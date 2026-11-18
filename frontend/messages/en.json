@@ -10830,7 +10830,7 @@
         "qwenSubscription": "Qwen subscription",
         "museApi": "Muse API key",
         "museHelp": "Muse requires CLI 1.4.23 and uses the pinned official SDK through an owned MSP host. Run muse to set up the account first. Environment and saved API keys take priority over browser sign-in; credential status reports the actual source. API-key mode requires META_API_KEY in Desktop. Native tools and extensions retain local access; charges are unpriced.",
-        "piHelp": "Pi uses native RPC with its own configured accounts, extensions and model. Run pi, sign in and select the provider/model first. Keep External model ID empty. Native tools and extensions have full local access. Human dialogs stop for CLI review; no platform tools or vault credentials are forwarded. Charges remain unpriced.",
+        "piHelp": "Pi uses native RPC with its own configured accounts, extensions and model. Run pi, sign in and select the provider/model first. Keep External model ID empty. Native tools and extensions have full local access. Supported human dialogs appear in live chat; no platform tools or vault credentials are forwarded. Charges remain unpriced.",
         "devinHelp": "Install Devin CLI, run devin auth login and check devin auth status. Choose its absolute devin path. This template launches the local ACP agent with normal permissions and requires the advertised devin-browser method. Billing and enterprise CLI permission depend on your account. It does not launch --cloud or call the cloud task API. Keep External model ID empty and choose the model in Devin. Register again after changing accounts.",
         "account": {
           "status": "Check account",
@@ -10846,7 +10846,8 @@
           "deviceCode": "Device code",
           "waiting": "Waiting for you to complete sign-in. Keep this page open.",
           "failed": "Account operation did not complete. Check the native confirmation, CLI version and environment key, then try again."
-        }
+        },
+        "piKeyHelp": "Pi 1.5.2 is required. This template receives the selected vault API key only when you independently have access to it. Choose the matching Pi vault-key provider and an exact model ID in the agent configuration. Pi uses an isolated configuration; saved logins and discovered extensions are excluded. The key is not stored in arguments or generated files. Native tools have full local access and API charges remain unpriced."
       }
     },
     "quickAsk": {
@@ -14361,6 +14362,10 @@
       "model_id": {
         "title": "External model ID",
         "description": "Optional exact ID from inspect_acp_agent on this account. Empty keeps the program's own model. This selects a runtime model, not an AgenticOS model profile."
+      },
+      "api_provider": {
+        "title": "Pi vault-key provider",
+        "description": "Optional Pi API-key lane: Inception, DeepSeek or OpenRouter. Requires the matching native key template and the initiating member's independent vault visibility. It never imports Pi's saved credentials."
       }
     }
   },

@@ -64,3 +64,12 @@ The contract was checked in [Vibe 3.1.3 source](https://github.com/mistralai/mis
 Remote delegated browser login and a native vendor sign-out control remain separate
 from this device-owned registration; removing an ID revokes its running tasks,
 not a key owned by Vibe or its launch environment.
+
+Selected Pi vault-key modes are optional and separate from CLI-owned login. The
+initiating member must have independent vault visibility, a private audience
+and their own full-access device. Native templates force an isolated Pi 1.5.2
+configuration and fixed provider authentication. Only the exact acknowledged
+provider/model may receive a prompt. Plaintext crosses only the authenticated
+native launch; reports and live tool activity are redacted, and fragmented text
+is retained until the complete answer can be screened. Key rotation changes
+continuation identity. See `docs/desktop.md#pi-vault-key` for setup and limits.

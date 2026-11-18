@@ -23,6 +23,9 @@ pub enum Provider {
     QwenSubscription,
     Devin,
     Pi,
+    PiInception,
+    PiDeepseek,
+    PiOpenrouter,
     Muse,
     MuseApiKey,
     #[serde(rename = "opencode")]
@@ -113,6 +116,21 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
     if input.provider == Provider::Devin && input.args != ["--permission-mode", "normal", "acp"] {
         return Err("Devin requires --permission-mode normal acp without cloud or approval overrides.".into());
     }
+    if matches!(
+        input.provider,
+        Provider::PiInception | Provider::PiDeepseek | Provider::PiOpenrouter
+    ) && input.args
+        != [
+            "--mode",
+            "rpc",
+            "--no-extensions",
+            "--no-skills",
+            "--no-prompt-templates",
+            "--no-mcp",
+        ]
+    {
+        return Err("Pi vault-key templates require the isolated native launch without additional arguments.".into());
+    }
     if input.provider == Provider::Pi && input.args != ["--mode", "rpc"] {
         return Err(
             "Pi requires --mode rpc without startup overrides. Choose its provider and model in Pi itself.".into(),
@@ -148,6 +166,7 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
     let billing = match registration.provider {
         Provider::Muse => "Muse uses the pinned official SDK and your CLI configuration. Run muse and complete its login first. META_API_KEY and stored API keys take priority over a browser account; check the reported credential source. Login does not establish plan entitlement. Native tools and configured extensions retain local access. This is an owned foreground MSP host, not an attached daemon.",
         Provider::MuseApiKey => "Muse uses the required META_API_KEY inherited by Desktop. A missing key refuses launch without falling back to a browser login or stored key. The key stays local. This uses the pinned official SDK with an owned foreground muse serve host.",
+        Provider::PiInception | Provider::PiDeepseek | Provider::PiOpenrouter => "This Pi API-key template receives only the selected vault key from a member independently allowed to view it. The key reaches this local program in memory and an isolated configuration, never in launch arguments or generated files. The registration must match the selected provider. Saved Pi login and discovered extensions are excluded. Pi 1.5.2 is required. API billing belongs to this key, with unpriced usage in AgenticOS. Native tools run with full local access.",
         Provider::Pi => "Pi uses its own saved configuration, extensions, login and API keys through native RPC. Run pi and choose its provider/model before registration. This runs the CLI with full local access; extensions and native tools retain that access. No platform tools or vault credentials are forwarded, and account/model catalogs do not prove subscription entitlement. Supported human extension dialogs appear in the live AgenticOS chat; secret input stays in Pi login. Charges are unpriced.",
         Provider::Devin => "Devin CLI uses its own account and advertised browser login. Complete devin auth login and check devin auth status first. Billing and enterprise CLI permission belong to your Devin account. This launches the local ACP agent, not --cloud or the Devin task API. Keep External model ID empty and choose the model in Devin. CLI-owned tools and account data remain with Devin; AgenticOS forwards no platform tools.",
         Provider::QwenSubscription => "Qwen Code uses its own saved subscription login. Complete /auth in qwen first, choosing Qwen Account with Subscription. The child explicitly selects qwen-subscription and removes inherited OpenAI key, endpoint and model overrides. No authenticate operation or credential import is performed. Keep External model ID empty and choose the subscription model in Qwen. Plan access and quotas require account verification.",
@@ -321,6 +340,35 @@ mod tests {
             ..input()
         })
         .is_err());
+    }
+
+    #[test]
+    fn pi_key_templates_cannot_enable_discovered_extensions_or_override_the_launch() {
+        let args: Vec<String> = [
+            "--mode",
+            "rpc",
+            "--no-extensions",
+            "--no-skills",
+            "--no-prompt-templates",
+            "--no-mcp",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+        for provider in [Provider::PiInception, Provider::PiDeepseek, Provider::PiOpenrouter] {
+            assert!(checked(RegistrationInput {
+                provider,
+                args: args.clone(),
+                ..input()
+            })
+            .is_ok());
+            assert!(checked(RegistrationInput {
+                provider,
+                args: vec!["--mode".into(), "rpc".into()],
+                ..input()
+            })
+            .is_err());
+        }
     }
 
     #[test]

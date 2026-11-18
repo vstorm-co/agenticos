@@ -1,5 +1,5 @@
 ---
-source_sha: "4c21cb3d4ff2"
+source_sha: "ca1da5a4ebfc"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -977,3 +977,15 @@ Antworten erfordern die aktive, berechtigte Verbindung der startenden Person und
 Jede Muse-Registrierung bietet **Konto prüfen**, **Bei Muse anmelden** und **Bei Muse abmelden**. Die Geräteanmeldung nutzt das festgelegte SDK und den eigenen Muse-Ablauf. Bestätige den nativen Dialog, öffne die angezeigte HTTPS-Adresse und gib den Code ein. Einstellungen bis zum Abschluss geöffnet lassen. Abbrechen, Schließen der Steuerung, Registrierungs- oder Serverwechsel beziehungsweise zehn Minuten ohne Abschluss beendet den eigenen Anmeldeprozess. Kontonamen, Schlüssel und Gerätecodes gelangen weder zum Backend noch zum Modell.
 
 Anmelden verlangt ein abgemeldetes Muse-Konto ohne vorrangigen API-Schlüssel. Die Umgebungsschlüssel-Vorlage bietet Status und Abmelden ohne Browseranmeldung. Abmelden entfernt gespeicherte Muse-Zugangsdaten; ein geerbter `META_API_KEY` bleibt aktiv und wird so angezeigt. Ein Kontowechsel stoppt alle Muse-Aufgaben und löscht Fortsetzungen, weil die lokale CLI Zugangsdaten teilt. Neue Muse-Aufgaben warten bis zum Abschluss der Kontoverwaltung. Tarifberechtigung und Geräteanmeldung mit echtem Konto bleiben Abnahmetests.
+
+## Pi mit gewähltem Tresor-API-Schlüssel { #pi-vault-key }
+
+Registriere **Pi · Inception**, **Pi · DeepSeek** oder **Pi · OpenRouter** mit dem absoluten Pfad zur Pi-CLI **1.5.2**. Wähle in External ACP agent denselben **Pi-Anbieter mit Tresorschlüssel**, dessen API-Schlüssel und eine genaue **External model ID** mit Anbieterpräfix, etwa `deepseek/<model-id>`. Diese API-Schlüsselmodi bleiben von gespeicherten Pi-Konten und direkten Pydantic AI-Anbietern getrennt.
+
+Nur der private, ausdrücklich mit Vollzugriff freigegebene Computer des startenden Mitglieds darf den Schlüssel erhalten. Agentenausführungsrechte reichen nicht: aktuelle Mitgliedschaft und eigener Tresorzugriff auf diesen Schlüssel werden vor jedem Start und jeder Inspektion geprüft. Anonyme, gemeinsame Raum- und Identitätswechsel-Durchläufe dürfen ihn nicht exportieren. Die native Registrierung muss vor dem Prompt denselben Anbieter bestätigen. Schlüsselrotation verändert den Fortsetzungsbereich.
+
+Pi nutzt eine temporäre private Konfiguration ohne gespeicherte Konten, gefundene Erweiterungen, Skills, Promptvorlagen oder MCP-Server. Eine schlüsselfreie Erweiterung übernimmt den Schlüssel aus der Kindprozessumgebung, entfernt Startvariablen und überschreibt Anbieter-Authentifizierung einschließlich beider OpenRouter-Header. Der Schlüssel gelangt weder in Argumente, generierte Dateien, Modellwerkzeugparameter noch Berichte. Native Werkzeuge behalten vollen lokalen Zugriff; dies ist keine Betriebssystem-Sandbox. Textfragmente warten auf die redigierbare vollständige Antwort; Werkzeugaktivität bleibt sichtbar.
+
+Inception-Chat-IDs, Kontext-/Ausgabelimits und Preise stammen aus dem aktuellen authentifizierten Chat-Katalog. DeepSeek und OpenRouter nutzen den Katalog und Transport der festgelegten Pi-Version. Modellwechsel benötigen genaue native Bestätigung. Inspektion liefert höchstens 128 Einträge, den aktuellen zuerst, und meldet Kürzung. Ein Katalog beweist weder Kontoberechtigung noch Guthaben. Kosten bleiben in AgenticOS unbepreist. Ungültige Schlüssel, Guthabenfehler und unbekannte Modelle wechseln nicht zu anderen gespeicherten Konten oder Abrechnungen.
+
+Private Sitzungsdateien sind auf Person, Agent, Chat, Ordner, Registrierung und Schlüsselrevision beschränkt. Temporäre Konfiguration wird mit dem eigenen Prozess entfernt. Entfernen oder erneutes Registrieren widerruft Fortsetzungen. Echte Schlüsseltests prüfen Streaming, 401/402, Kontingente, Neustart/Wiederaufnahme und Stop. Plattformwerkzeuge bleiben ein eigener Integrationsvertrag. Siehe [Pi-Anbietererweiterungen](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) und [Inception-Modelle](https://www.inceptionlabs.ai/models).

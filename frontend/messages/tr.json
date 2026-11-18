@@ -5824,6 +5824,10 @@
       "model_id": {
         "title": "Harici model kimliği",
         "description": "Bu hesap için inspect_acp_agent tarafından verilen isteğe bağlı tam kimlik. Boş değer programın modelini korur. AgenticOS model profili yerine çalışma zamanı modelini seçer."
+      },
+      "api_provider": {
+        "title": "Kasa anahtarlı Pi sağlayıcısı",
+        "description": "İsteğe bağlı Pi API anahtarı modu: Inception, DeepSeek veya OpenRouter. Eşleşen yerel şablon ve başlatan üyenin ilgili kasa anahtarına bağımsız erişimi gerekir. Kayıtlı Pi kimlik bilgileri içe aktarılmaz."
       }
     }
   },
@@ -11989,7 +11993,7 @@
         "qwenSubscription": "Qwen aboneliği",
         "museApi": "Muse API anahtarı",
         "museHelp": "Muse, CLI 1.4.23 ve kendi MSP sunucusuyla sabitlenmiş resmi SDK kullanır. Önce muse ile hesabı ayarlayın. Ortam ve kayıtlı API anahtarları tarayıcı girişinden önceliklidir; durum gerçek kaynağı bildirir. Anahtar modu Desktop ortamında META_API_KEY gerektirir. Araçlar ve uzantılar yerel erişimi korur; maliyet bilinmez.",
-        "piHelp": "Pi, kendi hesapları, uzantıları ve modeliyle yerel RPC kullanır. Önce pi çalıştırın, giriş yapın ve sağlayıcı/model seçin. External model ID boş kalmalıdır. Araçlar ve uzantılar tam yerel erişime sahiptir. Diyaloglar CLI incelemesi gerektirir; platform araçları veya kasa kimlik bilgileri aktarılmaz. Maliyet bilinmez.",
+        "piHelp": "Pi, kendi hesapları, uzantıları ve modeliyle yerel RPC kullanır. Önce pi çalıştırın, giriş yapın ve sağlayıcı/model seçin. External model ID boş kalmalıdır. Araçlar ve uzantılar tam yerel erişime sahiptir. Desteklenen diyaloglar canlı sohbette görünür; platform araçları veya kasa kimlik bilgileri aktarılmaz. Maliyet bilinmez.",
         "devinHelp": "Devin CLI kurun, devin auth login çalıştırın ve devin auth status denetleyin. Mutlak devin yolunu seçin. Şablon yerel ACP ajanını normal izinlerle başlatır ve sunulan devin-browser yöntemini ister. Ücretler ve kurumsal CLI izni hesaba bağlıdır. --cloud veya bulut görev API çağrısı başlatmaz. External model ID boş kalsın, modeli Devin içinde seçin. Hesap değişince yeniden kaydedin.",
         "account": {
           "status": "Hesabı kontrol et",
@@ -12005,7 +12009,8 @@
           "deviceCode": "Cihaz kodu",
           "waiting": "Girişin tamamlanması bekleniyor. Bu sayfayı açık tutun.",
           "failed": "Hesap işlemi tamamlanmadı. Yerel onayı, CLI sürümünü ve ortam anahtarını kontrol edip tekrar deneyin."
-        }
+        },
+        "piKeyHelp": "Pi 1.5.2 gereklidir. Şablon seçili kasa API anahtarını yalnızca bağımsız erişiminiz varsa alır. Aracı yapılandırmasında eşleşen Pi sağlayıcısını ve tam model kimliğini seçin. Pi kayıtlı hesaplar ve keşfedilen uzantılar olmadan yalıtılmış yapılandırma kullanır. Anahtar argümanlara veya üretilen dosyalara yazılmaz. Yerel araçlar tam yerel erişime sahiptir; API ücretleri fiyatlandırılamaz."
       }
     },
     "quickAsk": {

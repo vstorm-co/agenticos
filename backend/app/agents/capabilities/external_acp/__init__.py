@@ -1,12 +1,15 @@
 """Delegation to a locally registered ACP program."""
 
+import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.agents.capabilities._registry import CapabilityBuildContext, CapabilityToolInfo, register
 from app.agents.capabilities.external_acp._capability import ExternalAcp
 from app.agents.capabilities.external_acp._toolset import INSPECT_DESCRIPTION, RUN_DESCRIPTION
+from app.agents.pi_keys import PiKeyProvider
+from app.core.secret_kinds import PurposesByValue, SecretCondition, SecretKind, SecretRequirement
 
 
 class ExternalAcpConfig(BaseModel):
@@ -38,6 +41,27 @@ class ExternalAcpConfig(BaseModel):
         max_length=256,
         pattern=r"^\S+$",
     )
+    api_provider: PiKeyProvider | None = Field(
+        default=None,
+        title="Pi vault-key provider",
+        description="Optional Pi API-key lane: Inception, DeepSeek or OpenRouter. Requires the matching native key template and the initiating member's independent vault visibility. It never imports Pi's saved credentials.",
+    )
+
+    @model_validator(mode="after")
+    def selected_key_needs_model(self) -> ExternalAcpConfig:
+        if self.api_provider is not None and (
+            not self.model_id or self.auth_method != "configured"
+        ):
+            raise ValueError(
+                "A Pi vault-key lane requires an exact provider-qualified model ID and configured authentication"
+            )
+        if self.api_provider is not None and (
+            self.model_id is None
+            or not re.fullmatch(rf"{self.api_provider}/[A-Za-z0-9._:/@+\-]+", self.model_id)
+        ):
+            raise ValueError("The Pi model ID must belong to the selected API-key provider")
+        return self
+
     timeout_minutes: int = Field(
         title="Time limit (minutes)",
         description="How long one task may run before it is stopped.",
@@ -60,6 +84,21 @@ class ExternalAcpConfig(BaseModel):
     scopes=("sandbox:execute",),
     side_effecting=True,
     voice="hand_off",
+    secret=SecretRequirement(
+        description="The selected Pi API key, exported only to a member with independent vault visibility and native template consent.",
+        kind=SecretKind.API_KEY,
+        required_when=SecretCondition(
+            field="api_provider", equals=("inception", "deepseek", "openrouter")
+        ),
+        purposes_by=PurposesByValue(
+            field="api_provider",
+            purposes={
+                "inception": ("custom",),
+                "deepseek": ("deepseek",),
+                "openrouter": ("openrouter",),
+            },
+        ),
+    ),
 )
 def _build(ctx: CapabilityBuildContext) -> ExternalAcp:
     # A required registration ID has no implicit or environment default.
@@ -71,4 +110,6 @@ def _build(ctx: CapabilityBuildContext) -> ExternalAcp:
         timeout_seconds=config.timeout_minutes * 60,
         auth_method=None if config.auth_method == "configured" else config.auth_method,
         model_id=config.model_id,
+        api_provider=config.api_provider,
+        secret_id=ctx.binding.secret_id,
     )

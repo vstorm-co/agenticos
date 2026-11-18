@@ -1,5 +1,5 @@
 ---
-source_sha: "4c21cb3d4ff2"
+source_sha: "ca1da5a4ebfc"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -931,3 +931,15 @@ Odpowiedzi wymagają aktywnego, uprawnionego połączenia osoby rozpoczynającej
 Przy rejestracji Muse znajdziesz **Sprawdź konto**, **Zaloguj do Muse** i **Wyloguj z Muse**. Logowanie korzysta z przypiętego SDK i własnego przepływu kodu urządzenia Muse. Potwierdź okno natywne, otwórz pokazany adres HTTPS i wpisz kod. Zostaw Ustawienia otwarte do zakończenia. Anulowanie, zamknięcie kontrolki, zmiana rejestracji lub serwera albo dziesięć minut bez zakończenia zamyka własny proces logowania. Etykiety kont, klucze i kody urządzenia nie trafiają do backendu ani modelu.
 
 Logowanie wymaga wylogowanego konta Muse bez nadrzędnego klucza API. Szablon wymagający klucza środowiskowego oferuje stan i wylogowanie, bez logowania przeglądarkowego. Wylogowanie usuwa zapisane konto lub klucz Muse; odziedziczony `META_API_KEY` pozostaje aktywny i jest tak opisany. Zmiana konta zatrzymuje wszystkie zadania Muse i usuwa ich wznowienia, ponieważ lokalne CLI współdzieli poświadczenia. Nowe zadania Muse czekają na zakończenie zarządzania kontem. Uprawnienia planu oraz logowanie i wylogowanie prawdziwego konta pozostają testami odbiorowymi.
+
+## Pi z wybranym kluczem API ze skarbca { #pi-vault-key }
+
+Zarejestruj **Pi · Inception**, **Pi · DeepSeek** lub **Pi · OpenRouter**, podając bezwzględną ścieżkę do Pi CLI **1.5.2**. W konfiguracji External ACP agent wybierz tego samego **Dostawcę Pi z kluczem ze skarbca**, jego klucz API i dokładny **External model ID** z prefiksem dostawcy, np. `deepseek/<model-id>`. To tryby klucza API, odrębne od zapisanych kont Pi i istniejących bezpośrednich dostawców Pydantic AI.
+
+Klucz może otrzymać tylko prywatny komputer osoby rozpoczynającej zadanie, z zatwierdzonym pełnym dostępem. Samo prawo uruchomienia agenta nie wystarcza: przed uruchomieniem lub inspekcją sprawdzamy aktualne członkostwo i niezależny dostęp do tego klucza w skarbcu. Zadania anonimowe, z pokoju współdzielonego i podszywania się nie mogą go eksportować. Rejestracja natywna musi potwierdzić tego samego dostawcę przed wysłaniem promptu. Rotacja klucza zmienia zakres wznowienia.
+
+Pi korzysta z tymczasowej prywatnej konfiguracji bez zapisanych kont, wykrytych rozszerzeń, umiejętności, szablonów promptów i serwerów MCP. Rozszerzenie bez zapisanego klucza otrzymuje go przez środowisko procesu, usuwa zmienne startowe i wymusza uwierzytelnianie dostawcy, w tym oba warianty nagłówków OpenRouter. Klucz nie trafia do argumentów polecenia, generowanych plików, parametrów narzędzi modelu ani raportów. Narzędzia natywne zachowują pełny dostęp lokalny; to nie sandbox systemowy. Fragmenty tekstu czekają na redakcję pełnej odpowiedzi; aktywność narzędzi pozostaje widoczna.
+
+Identyfikatory modeli czatu Inception, limity kontekstu i odpowiedzi oraz ceny pochodzą z aktualnego katalogu odczytanego z tym kluczem. DeepSeek i OpenRouter używają katalogu i transportu przypiętego Pi. Zmiana modelu wymaga dokładnego potwierdzenia natywnego. Inspekcja zwraca najwyżej 128 opcji, stawia bieżący model na początku i oznacza ucięcie listy. Katalog nie dowodzi uprawnień planu ani kredytów. Koszt w AgenticOS pozostaje nieznany. Błędny klucz, brak kredytów i niedostępny model nie przełączają na inne zapisane konto lub rozliczenie.
+
+Prywatne pliki sesji są ograniczone do osoby, agenta, czatu, folderu, rejestracji i wersji wybranego klucza. Konfiguracja tymczasowa znika wraz z własnym procesem. Usuń lub zarejestruj ponownie wpis natywny, aby cofnąć wznowienia. Testy prawdziwego klucza obejmują strumieniowanie, 401/402, limity, restart/wznowienie i Stop. Przekazywanie narzędzi platformy pozostaje osobnym kontraktem integracji. Zobacz [rozszerzenia dostawców Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) i [modele Inception](https://www.inceptionlabs.ai/models).

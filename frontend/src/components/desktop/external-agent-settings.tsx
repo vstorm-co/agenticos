@@ -97,6 +97,9 @@ export function ExternalAgentSettings() {
                 selected !== "muse" &&
                 selected !== "muse_api_key" &&
                 selected !== "pi" &&
+                selected !== "pi_inception" &&
+                selected !== "pi_deepseek" &&
+                selected !== "pi_openrouter" &&
                 selected !== "devin" &&
                 selected !== "qwen_subscription" &&
                 selected !== "opencode" &&
@@ -119,6 +122,9 @@ export function ExternalAgentSettings() {
                 muse: "Muse",
                 muse_api_key: t("museApi"),
                 pi: "Pi",
+                pi_inception: "Pi · Inception",
+                pi_deepseek: "Pi · DeepSeek",
+                pi_openrouter: "Pi · OpenRouter",
                 devin: "Devin",
                 qwen_subscription: t("qwenSubscription"),
                 opencode: "OpenCode",
@@ -128,19 +134,23 @@ export function ExternalAgentSettings() {
               setArgs(
                 selected === "muse" || selected === "muse_api_key"
                   ? '["serve"]'
-                  : selected === "pi"
-                    ? '["--mode","rpc"]'
-                    : selected === "devin"
-                      ? '["--permission-mode","normal","acp"]'
-                      : selected === "qwen_subscription"
-                        ? '["--acp","--auth-type=qwen-subscription"]'
-                        : selected === "grok"
-                          ? '["--no-auto-update","agent","stdio"]'
-                          : selected === "mistral_vibe"
-                            ? "[]"
-                            : selected === "cline" || selected === "cline_api_key"
-                              ? '["--acp"]'
-                              : '["acp"]',
+                  : selected === "pi_inception" ||
+                      selected === "pi_deepseek" ||
+                      selected === "pi_openrouter"
+                    ? '["--mode","rpc","--no-extensions","--no-skills","--no-prompt-templates","--no-mcp"]'
+                    : selected === "pi"
+                      ? '["--mode","rpc"]'
+                      : selected === "devin"
+                        ? '["--permission-mode","normal","acp"]'
+                        : selected === "qwen_subscription"
+                          ? '["--acp","--auth-type=qwen-subscription"]'
+                          : selected === "grok"
+                            ? '["--no-auto-update","agent","stdio"]'
+                            : selected === "mistral_vibe"
+                              ? "[]"
+                              : selected === "cline" || selected === "cline_api_key"
+                                ? '["--acp"]'
+                                : '["acp"]',
               );
             }}
           >
@@ -153,6 +163,12 @@ export function ExternalAgentSettings() {
             <option value="devin">Devin</option>
             {/* i18n-exempt: product name */}
             <option value="pi">Pi</option>
+            {/* i18n-exempt: product names */}
+            <option value="pi_inception">Pi · Inception</option>
+            {/* i18n-exempt: product names */}
+            <option value="pi_deepseek">Pi · DeepSeek</option>
+            {/* i18n-exempt: product names */}
+            <option value="pi_openrouter">Pi · OpenRouter</option>
             {/* i18n-exempt: product name */}
             <option value="muse">Muse</option>
             <option value="muse_api_key">{t("museApi")}</option>
@@ -184,6 +200,11 @@ export function ExternalAgentSettings() {
         )}
         {(provider === "muse" || provider === "muse_api_key") && (
           <p className="text-muted-foreground text-xs">{t("museHelp")}</p>
+        )}
+        {(provider === "pi_inception" ||
+          provider === "pi_deepseek" ||
+          provider === "pi_openrouter") && (
+          <p className="text-muted-foreground text-xs">{t("piKeyHelp")}</p>
         )}
         {provider === "pi" && <p className="text-muted-foreground text-xs">{t("piHelp")}</p>}
         {provider === "devin" && <p className="text-muted-foreground text-xs">{t("devinHelp")}</p>}

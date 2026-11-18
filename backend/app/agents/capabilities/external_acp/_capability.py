@@ -1,12 +1,14 @@
 """An external agent uses the existing Desktop ACP task lifecycle."""
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities.external_acp._toolset import build_acp_toolset
 from app.agents.deps import AgentDeps
+from app.agents.pi_keys import PiKeyProvider
 
 
 @dataclass
@@ -17,6 +19,8 @@ class ExternalAcp(AbstractCapability[AgentDeps]):
     timeout_seconds: int = 900
     auth_method: str | None = None
     model_id: str | None = None
+    api_provider: PiKeyProvider | None = None
+    secret_id: UUID | None = None
 
     def get_instructions(self) -> str:
         return (
@@ -33,4 +37,6 @@ class ExternalAcp(AbstractCapability[AgentDeps]):
             self.timeout_seconds,
             auth_method=self.auth_method,
             model_id=self.model_id,
+            api_provider=self.api_provider,
+            secret_id=self.secret_id,
         )

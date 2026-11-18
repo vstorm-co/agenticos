@@ -693,6 +693,9 @@ export interface ExternalAgent {
     | "muse"
     | "muse_api_key"
     | "pi"
+    | "pi_inception"
+    | "pi_deepseek"
+    | "pi_openrouter"
     | "devin"
     | "kimi"
     | "grok"
@@ -726,6 +729,9 @@ export function parseExternalAgents(value: unknown): ExternalAgent[] {
       provider !== "muse" &&
       provider !== "muse_api_key" &&
       provider !== "pi" &&
+      provider !== "pi_inception" &&
+      provider !== "pi_deepseek" &&
+      provider !== "pi_openrouter" &&
       provider !== "devin" &&
       provider !== "qwen_subscription" &&
       provider !== "opencode" &&

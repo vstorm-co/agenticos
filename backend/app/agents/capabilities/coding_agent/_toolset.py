@@ -49,6 +49,10 @@ from app.agents.capabilities.coding_agent._harness import (
     AcpHarness,
     CodingReport,
     Harness,
+    LiveItem,
+    Said,
+    StepEnded,
+    StepStarted,
     Usage,
     claude_report,
     codex_auth_file,
@@ -84,6 +88,8 @@ from app.agents.capabilities.sandbox._project import ProjectWorkspacePort
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.deps import AgentDeps
 from app.agents.model_context import check_model_context
+from app.agents.pi_keys import PiRuntimeKey
+from app.agents.runtime_questions import RuntimeQuestionRequest, RuntimeQuestionResponse
 from app.core.exceptions import AppException, BadRequestError
 from app.db.session import get_db_context
 from app.services.coding_task_changes import CodingTaskChangeService
@@ -670,6 +676,7 @@ async def run_local_task(
     custom_agent_id: str | None = None,
     auth_method: str | None = None,
     credential_probe: CredentialProbe | None = None,
+    pi_key: PiRuntimeKey | None = None,
 ) -> str:
     """The task on the person's computer, in the folder they chose, over ACP.
 
@@ -697,6 +704,43 @@ async def run_local_task(
     await assert_ambient_budget()
     narration = Narration.for_call(ctx.deps, ctx.tool_call_id or uuid.uuid4().hex, chosen)
     await narration.started(task)
+    redactions = (pi_key.api_key.get_secret_value(),) if pi_key is not None else ()
+
+    async def shown(items: list[LiveItem]) -> None:
+        if not redactions:
+            await narration.shown(items)
+            return
+        screened: list[LiveItem] = []
+        for item in items:
+            # Native text can split a key across arbitrary chunks; retain only the
+            # complete redacted report rather than leaking a partial credential.
+            if isinstance(item, StepStarted):
+                screened.append(
+                    replace(
+                        item,
+                        key=redact_text(item.key, redactions),
+                        step=item.step.model_copy(
+                            update={"title": redact_text(item.step.title, redactions)}
+                        ),
+                    )
+                )
+            elif isinstance(item, StepEnded):
+                screened.append(replace(item, key=redact_text(item.key, redactions)))
+        if screened:
+            await narration.shown(screened)
+
+    async def questions(request: RuntimeQuestionRequest) -> RuntimeQuestionResponse:
+        if any(json.dumps(value)[1:-1] in request.model_dump_json() for value in redactions):
+            raise AcpError(
+                "The runtime put credential material in a human-input request. No question was shown."
+            )
+        callback = ctx.deps.runtime_questions
+        return (
+            await callback(request)
+            if callback is not None
+            else RuntimeQuestionResponse(cancelled=True)
+        )
+
     identity = ctx.deps
     scope = (
         str(identity.organization_id),
@@ -707,6 +751,7 @@ async def run_local_task(
         access,
         *(() if custom_agent_id is None else (custom_agent_id,)),
         *(() if auth_method is None else (auth_method,)),
+        *(() if pi_key is None else (pi_key.provider, pi_key.revision)),
         # The unnamed session keeps the key every conversation used before names.
         *(() if session == MAIN_SESSION and workspace.is_root(root) else (session, root)),
     )
@@ -722,6 +767,8 @@ async def run_local_task(
         fresh_session=fresh_session,
         root=root if folder else None,
         custom_agent_id=custom_agent_id,
+        pi_key=pi_key,
+        pi_model=model if pi_key is not None else None,
     )
     try:
         await check_model_context()
@@ -739,12 +786,13 @@ async def run_local_task(
                         pipe,
                         task=task,
                         timeout_seconds=timeout_seconds,
-                        shown=narration.shown,
+                        shown=shown,
                         previous_session=pipe.session_id,
                         model=model,
                         effort=effort,
                         remember=pipe.remember,
-                        runtime_questions=ctx.deps.runtime_questions,
+                        runtime_questions=questions if redactions else ctx.deps.runtime_questions,
+                        key_provider=pi_key.provider if pi_key is not None else None,
                     )
                 else:
                     report = await run_task(
@@ -754,7 +802,7 @@ async def run_local_task(
                         root=root,
                         task=task,
                         timeout_seconds=timeout_seconds,
-                        shown=narration.shown,
+                        shown=shown,
                         # A model or reasoning level belongs to the configured harness.
                         model=model,
                         effort=effort,
@@ -765,27 +813,37 @@ async def run_local_task(
                         configuration_policy=pipe.configuration_policy,
                         remember=pipe.remember,
                         steering=steering,
-                        runtime_questions=ctx.deps.runtime_questions,
+                        runtime_questions=questions if redactions else ctx.deps.runtime_questions,
                     )
         finally:
             # Failed and cancelled tasks may have spent subscription tokens too.
             _book(Usage())
     except AcpError as failed:
-        await narration.finished("failed", error=failed.message[:500])
-        return f"{name} could not run on this computer: {failed.message}"
+        error = redact_text(failed.message, redactions)
+        await narration.finished("failed", error=error[:500])
+        return f"{name} could not run on this computer: {error}"
     except _LOCAL_FAILURES as failed:
-        await narration.finished("failed", error=str(failed)[:500])
-        return f"{name} could not run on this computer: {failed}"
+        error = redact_text(str(failed), redactions)
+        await narration.finished("failed", error=error[:500])
+        return f"{name} could not run on this computer: {error}"
     except BaseException:
         with anyio.CancelScope(shield=True):
             await narration.finished("cancelled")
         raise
+    if pi_key is not None:
+        report = redact_report(report, redactions)
+        if report.answer:
+            await narration.shown([Said(report.answer)])
     await narration.finished(
         "completed" if report.outcome == "completed" else "failed",
         error=None if report.outcome == "completed" else report.answer[:500],
     )
     report = _relative_files(report, chat_root).model_copy(
-        update={"runtime_name": pipe.runtime_name}
+        update={
+            "runtime_name": redact_text(pipe.runtime_name, redactions)
+            if pipe.runtime_name
+            else None
+        }
     )
     return json.dumps(
         {"kind": report.kind, **report.model_dump(mode="json", exclude_defaults=True)}

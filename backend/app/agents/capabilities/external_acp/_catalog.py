@@ -29,6 +29,7 @@ class AcpCatalog(BaseModel):
     refresh_pending: bool = False
     model_prefix: str | None = None
     models_exposed: bool = False
+    models_truncated: bool = False
     models: list[AcpChoice] = Field(default_factory=list, max_length=128)
     current_model: str | None = None
     efforts: list[AcpChoice] = Field(default_factory=list, max_length=128)

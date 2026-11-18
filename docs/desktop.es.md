@@ -1,5 +1,5 @@
 ---
-source_sha: "4c21cb3d4ff2"
+source_sha: "ca1da5a4ebfc"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -961,3 +961,15 @@ Las respuestas requieren la conexión activa y autorizada de la persona que inic
 Cada registro Muse ofrece **Comprobar cuenta**, **Iniciar sesión en Muse** y **Cerrar sesión en Muse**. El acceso por dispositivo utiliza el SDK fijado y el flujo propio de Muse. Confirma el diálogo nativo, abre la dirección HTTPS mostrada e introduce el código. Mantén Ajustes abierto hasta finalizar. Cancelar, cerrar el control, cambiar registro o servidor, o diez minutos sin completar termina el proceso de acceso propio. Etiquetas de cuenta, claves y códigos no se envían al backend ni al modelo.
 
 El acceso requiere una cuenta Muse desconectada sin clave API prioritaria. La plantilla con clave de entorno ofrece estado y cierre de sesión sin acceso por navegador. Cerrar sesión elimina la cuenta o clave guardada de Muse; una `META_API_KEY` heredada sigue activa y se indica así. Cambiar de cuenta detiene todas las tareas Muse y borra sus continuaciones porque la CLI local comparte credenciales. Nuevas tareas esperan a que termine la gestión de cuenta. Derechos del plan y acceso real por dispositivo siguen siendo pruebas de aceptación.
+
+## Pi con una clave API elegida de la bóveda { #pi-vault-key }
+
+Registra **Pi · Inception**, **Pi · DeepSeek** o **Pi · OpenRouter** con la ruta absoluta a Pi CLI **1.5.2**. En External ACP agent elige el mismo **proveedor Pi con clave de bóveda**, su clave API y una **External model ID** exacta con prefijo del proveedor, por ejemplo `deepseek/<model-id>`. Estos modos de clave API son distintos de las cuentas guardadas de Pi y de los proveedores directos de Pydantic AI.
+
+Solo el ordenador privado de la persona que inicia la tarea, aprobado con acceso completo, puede recibir la clave. Poder ejecutar el agente no basta: se comprueban membresía actual y visibilidad independiente de esa clave antes de cada inicio o inspección. Ejecuciones anónimas, de sala compartida o por suplantación no pueden exportarla. El registro nativo debe confirmar el mismo proveedor antes de enviar un prompt. Rotar la clave cambia el ámbito de continuación.
+
+Pi usa configuración privada temporal sin cuentas guardadas, extensiones descubiertas, habilidades, plantillas de prompts ni servidores MCP. Una extensión sin clave escrita recibe la clave en el entorno del proceso hijo, elimina variables iniciales y sobrescribe la autenticación, incluidos ambos encabezados de OpenRouter. La clave nunca entra en argumentos, archivos generados, parámetros de herramientas del modelo ni informes. Las herramientas nativas conservan acceso local completo; no hay sandbox del sistema. Los fragmentos de texto esperan a poder redactar la respuesta completa; la actividad de herramientas sigue visible.
+
+Los identificadores, límites de contexto/salida y precios de chat Inception provienen de su catálogo autenticado actual. DeepSeek y OpenRouter usan catálogo y transporte de la versión fijada de Pi. Cambiar modelo requiere confirmación nativa exacta. La inspección devuelve hasta 128 opciones, mantiene primero el modelo actual e indica truncamiento. Un catálogo no prueba derechos ni crédito. Los cargos siguen sin precio calculado en AgenticOS. Claves inválidas, falta de crédito y modelos desconocidos no cambian a otra cuenta o facturación.
+
+Los archivos privados de sesión se limitan a persona, agente, chat, carpeta, registro y revisión de clave. La configuración temporal se elimina con el proceso propio. Elimina o registra de nuevo la entrada para revocar continuaciones. Pruebas con claves reales cubren streaming, 401/402, cuotas, reinicio/reanudación y Stop. Reenviar herramientas de plataforma mantiene un contrato separado. Consulta [extensiones de proveedor Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) y [modelos Inception](https://www.inceptionlabs.ai/models).

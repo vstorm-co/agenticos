@@ -1,5 +1,7 @@
 """The model chooses a task, never a program, arguments or account."""
 
+from uuid import UUID
+
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RequestUsage
@@ -12,6 +14,7 @@ from app.agents.capabilities.coding_agent._task import MAIN_SESSION, SESSION_NAM
 from app.agents.capabilities.coding_agent._toolset import run_local_task
 from app.agents.capabilities.external_acp._catalog import inspect_session
 from app.agents.deps import AgentDeps
+from app.agents.pi_keys import PiKeyProvider
 from app.services.device_hub import (
     DeviceCallFailed,
     DeviceCallTimedOut,
@@ -20,6 +23,7 @@ from app.services.device_hub import (
 )
 
 from ._credentials import probe_credentials
+from ._keys import catalog_json, selected_key
 
 INSPECT_DESCRIPTION = (
     "Read model and reasoning choices from the registered ACP agent on this account."
@@ -34,6 +38,8 @@ def build_acp_toolset(
     *,
     auth_method: str | None = None,
     model_id: str | None = None,
+    api_provider: PiKeyProvider | None = None,
+    secret_id: UUID | None = None,
 ) -> FunctionToolset[AgentDeps]:
     async def run_acp_agent(
         ctx: RunContext[AgentDeps],
@@ -63,6 +69,7 @@ def build_acp_toolset(
                 ctx,
                 "Use a session name of up to 40 lower-case letters, digits, hyphens or underscores, starting with a letter or digit.",
             )
+        key = await selected_key(ctx, api_provider, secret_id)
         return await run_local_task(
             ctx,
             task,
@@ -76,6 +83,7 @@ def build_acp_toolset(
             auth_method=auth_method,
             model=model_id,
             credential_probe=probe_credentials,
+            pi_key=key,
         )
 
     async def inspect_acp_agent(ctx: RunContext[AgentDeps]) -> str:
@@ -95,16 +103,20 @@ def build_acp_toolset(
         if not workspace.local_coding_allowed:
             return "Model discovery starts a native ACP program and requires an approved full-access folder. Choose full access explicitly first."
         await assert_ambient_budget()
-        pipe = DevicePipe(workspace, "custom", custom_agent_id=agent_id)
+        key = await selected_key(ctx, api_provider, secret_id)
+        pipe = DevicePipe(
+            workspace, "custom", custom_agent_id=agent_id, pi_key=key, pi_model=model_id
+        )
         try:
             root = await workspace.working_dir()
             await pipe.open()
             if pipe.protocol == "pi_rpc":
                 from ._pi import inspect_pi
 
-                return (
-                    await inspect_pi(pipe, timeout_seconds=min(timeout_seconds, 60))
-                ).model_dump_json()
+                catalog = await inspect_pi(
+                    pipe, timeout_seconds=min(timeout_seconds, 60), key_provider=api_provider
+                )
+                return catalog_json(catalog, key)
             catalog = await inspect_session(
                 pipe,
                 root=root,

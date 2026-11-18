@@ -32,7 +32,7 @@ jobs:
       - name: Check typed runtime adapters
         run: frontend/node_modules/.bin/tsc -p desktop/runtime/tsconfig.json
       - name: Exercise the SDK boundary
-        run: node --test desktop/runtime/muse.test.mts
+        run: node --test desktop/runtime/muse.test.mts desktop/runtime/pi-key.test.mjs
 
   desktop:
     # Smoke packages exercise installation, not debugger symbols. The Linux RPM

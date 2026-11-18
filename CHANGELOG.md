@@ -25,6 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Run Inception, DeepSeek and OpenRouter through isolated Pi vault-key templates with independent member access checks, fixed credential precedence and scoped native sessions.
+
 - Manage Muse account status, native device sign-in and sign-out from Desktop settings, with account-change session revocation.
 
 - Show supported native runtime questions, complete Cursor plans and Pi editors in live chat with correlated answers and cancellation.

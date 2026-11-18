@@ -14,6 +14,7 @@
 //! the server shows as approvals in the chat.
 
 pub mod accounts;
+mod pi_keys;
 
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
@@ -292,6 +293,17 @@ fn spawn_authenticated(
     path_env: Option<String>,
     provider: crate::external_agents::Provider,
 ) -> Result<Session, Refusal> {
+    spawn_with_pi(program, args, cwd, path_env, provider, None)
+}
+
+fn spawn_with_pi(
+    program: &Path,
+    args: &[String],
+    cwd: &Path,
+    path_env: Option<String>,
+    provider: crate::external_agents::Provider,
+    selected: Option<&pi_keys::Prepared>,
+) -> Result<Session, Refusal> {
     let mut command = tokio::process::Command::new(program);
     command
         .args(args)
@@ -340,13 +352,17 @@ fn spawn_authenticated(
     if let Some(path_env) = path_env {
         command.env("PATH", path_env);
     }
+    if let Some(selected) = selected {
+        selected.apply(&mut command);
+    }
+    let cleanup = selected.map(|selected| selected.agent_dir.clone());
     let mut child = local_work::spawn_tree(command)?;
     let stdin = child.0.stdin().take().expect("piped");
     let stdout = child.0.stdout().take().expect("piped");
     let mut stderr = child.0.stderr().take().expect("piped");
     let output = Arc::new(Output {
         lines: StdMutex::new(Lines {
-            capture_pi_state: provider == crate::external_agents::Provider::Pi,
+            capture_pi_state: provider == crate::external_agents::Provider::Pi || pi_keys::key_template(provider),
             ..Lines::default()
         }),
         changed: Notify::new(),
@@ -402,6 +418,9 @@ fn spawn_authenticated(
         let _ = read_stdout.await;
         let _ = read_stderr.await;
         let code = status.ok().and_then(|status| status.code()).unwrap_or(-1);
+        if let Some(directory) = cleanup {
+            let _ = tokio::fs::remove_dir_all(directory).await;
+        }
         watcher.with(|kept| kept.exit = Some(code));
     });
     Ok(Session {
@@ -440,6 +459,8 @@ struct OpenArgs {
     supports_configuration_policy: bool,
     #[serde(default)]
     accepted_protocols: Vec<String>,
+    #[serde(default)]
+    pi_key: Option<pi_keys::SelectedKey>,
     root: String,
     mode: Mode,
     #[serde(default)]
@@ -583,6 +604,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         supports_model_constraints,
         supports_configuration_policy,
         accepted_protocols,
+        pi_key,
         root,
         mode,
         resume_key,
@@ -664,7 +686,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         ));
     }
     let protocol = external.as_ref().map_or("acp", |item| {
-        if item.provider == crate::external_agents::Provider::Pi {
+        if item.provider == crate::external_agents::Provider::Pi || pi_keys::key_template(item.provider) {
             "pi_rpc"
         } else {
             "acp"
@@ -710,6 +732,19 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
             "Update the AgenticOS server to use Muse credential reporting.",
         ));
     }
+    let key_template = external
+        .as_ref()
+        .is_some_and(|item| pi_keys::key_template(item.provider));
+    if key_template != pi_key.is_some()
+        || pi_key
+            .as_ref()
+            .is_some_and(|selected| !external.as_ref().is_some_and(|item| selected.admits(item.provider)))
+    {
+        return Err(Refusal::new(
+            "denied",
+            "A Pi vault-key launch requires the matching native provider template and a selected vault key.",
+        ));
+    }
     let runtime = if agent.builtin().is_some() || needs_muse {
         Some(
             crate::coding_runtime::prepare(app)
@@ -750,7 +785,36 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         if !crate::settings::current(app).external_agents.contains(external) {
             return Err(Refusal::new("denied", "The ACP registration changed. Start again."));
         }
-        if matches!(
+        if let Some(selected) = pi_key {
+            let prepared = pi_keys::Prepared::new(app, Path::new(&external.program), key.as_ref(), selected)
+                .await
+                .map_err(|message| Refusal::new("denied", message))?;
+            let current = crate::settings::current(app);
+            if current.connection_revision != before.connection_revision || !current.external_agents.contains(external)
+            {
+                let _ = tokio::fs::remove_dir_all(&prepared.agent_dir).await;
+                return Err(Refusal::new(
+                    "denied",
+                    "The connection or Pi registration changed. Start again.",
+                ));
+            }
+            if let Err(error) = authorized_root(app, args, &root.to_string_lossy()) {
+                let _ = tokio::fs::remove_dir_all(&prepared.agent_dir).await;
+                return Err(error);
+            }
+            let spawned = spawn_with_pi(
+                Path::new(&external.program),
+                &external.args,
+                &root,
+                path_with(Path::new(&external.program)),
+                external.provider,
+                Some(&prepared),
+            );
+            if spawned.is_err() {
+                let _ = tokio::fs::remove_dir_all(&prepared.agent_dir).await;
+            }
+            spawned?
+        } else if matches!(
             external.provider,
             crate::external_agents::Provider::Muse | crate::external_agents::Provider::MuseApiKey
         ) {
@@ -829,6 +893,12 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         .as_ref()
         .filter(|item| item.provider == crate::external_agents::Provider::OpenCodeGo)
         .map(|_| "opencode-go/");
+    let pi_provider = external.as_ref().and_then(|item| match item.provider {
+        crate::external_agents::Provider::PiInception => Some("inception"),
+        crate::external_agents::Provider::PiDeepseek => Some("deepseek"),
+        crate::external_agents::Provider::PiOpenrouter => Some("openrouter"),
+        _ => None,
+    });
     let refresh_catalog = external.as_ref().is_some_and(|item| {
         matches!(
             item.provider,
@@ -841,7 +911,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         )
     });
     Ok(object(
-        serde_json::json!({ "id": id, "session_id": resumed, "auth_method": auth_method, "runtime_name": runtime_name, "model_prefix": model_prefix, "refresh_catalog": refresh_catalog, "configuration_policy": configuration_policy, "protocol": protocol }),
+        serde_json::json!({ "id": id, "session_id": resumed, "auth_method": auth_method, "runtime_name": runtime_name, "model_prefix": model_prefix, "refresh_catalog": refresh_catalog, "configuration_policy": configuration_policy, "protocol": protocol, "pi_provider": pi_provider }),
     ))
 }
 

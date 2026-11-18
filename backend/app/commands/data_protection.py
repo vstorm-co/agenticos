@@ -129,7 +129,9 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     "external_acp": (
         "The model provider, gateway and native tools configured in the registered ACP program, "
         "directly from the person's computer, with its task and the files it reads. "
-        "The deployment does not control that program's endpoint or sign-in."
+        "CLI-owned modes use that program's endpoint and sign-in. Selected Pi vault-key modes instead "
+        "use fixed provider endpoints and export the selected key only to its independently authorized "
+        "member's approved computer."
     ),
     "computer_use": "the agent's sandbox connection, or the computerd host on COMPUTER_DAEMON_ALLOWED_HOSTS",
     "image_generation": "the image provider named in the binding",

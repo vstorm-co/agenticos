@@ -344,3 +344,34 @@ it.each(["muse", "muse_api_key"])(
     ]);
   },
 );
+
+it.each([
+  ["pi_inception", "Pi · Inception"],
+  ["pi_deepseek", "Pi · DeepSeek"],
+  ["pi_openrouter", "Pi · OpenRouter"],
+])("registers %s as an explicit isolated vault-key lane", async (provider, name) => {
+  mount();
+  await userEvent.selectOptions(screen.getByLabelText("Setup template"), provider);
+  expect(screen.getByText(/Pi 1.5.2 is required/)).toBeInTheDocument();
+  await userEvent.type(screen.getByLabelText("Absolute executable path"), "/opt/bin/pi");
+  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+      registration: {
+        provider,
+        id: provider.replaceAll("_", "-"),
+        name,
+        program: "/opt/bin/pi",
+        args: [
+          "--mode",
+          "rpc",
+          "--no-extensions",
+          "--no-skills",
+          "--no-prompt-templates",
+          "--no-mcp",
+        ],
+      },
+    }),
+  );
+  expect(parseExternalAgents([{ ...registration, provider }])[0]?.provider).toBe(provider);
+});

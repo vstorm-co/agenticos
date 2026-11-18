@@ -1,0 +1,356 @@
+"""Selected-key Pi lanes keep billing, native ownership and vault access explicit."""
+
+import hashlib
+import json
+from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+import pytest
+from pydantic import SecretStr, ValidationError
+
+from app.agents.audience import RunAudience
+from app.agents.capabilities.coding_agent._acp import AcpError, DevicePipe
+from app.agents.capabilities.external_acp import ExternalAcpConfig
+from app.agents.capabilities.external_acp._catalog import AcpCatalog, AcpChoice
+from app.agents.capabilities.external_acp._keys import catalog_json, selected_key
+from app.agents.capabilities.external_acp._pi import inspect_pi, run_pi
+from app.agents.pi_keys import PiRuntimeKey
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.secret_kinds import ApiKeySecret
+from app.repositories import member_repo, organization_secret_repo
+from app.services.organization_secret import OrganizationSecretService
+from tests.test_coding_agent_acp import FakeDevice, _ctx, _local_workspace
+from tests.test_pi_rpc import MODEL, Pi, ignore
+from tests.test_secrets import _ctx as secret_context
+from tests.test_secrets import _db, _row
+
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
+
+
+def key(provider: str = "deepseek") -> PiRuntimeKey:
+    return PiRuntimeKey.model_validate(
+        {"provider": provider, "api_key": "selected-private-key", "revision": "a" * 64}
+    )
+
+
+def test_keys_are_masked_except_for_the_explicit_native_payload() -> None:
+    selected = key()
+    assert "selected-private-key" not in repr(selected)
+    assert "selected-private-key" not in selected.model_dump_json()
+    assert selected.native_payload("deepseek/native-model") == {
+        "provider": "deepseek",
+        "api_key": "selected-private-key",
+        "model_id": "deepseek/native-model",
+    }
+    for value in ["tinykey", "private\nkey", "private\rkey", "private key"]:
+        with pytest.raises(ValidationError) as invalid:
+            PiRuntimeKey(provider="deepseek", api_key=SecretStr(value), revision="a" * 64)
+        assert value not in str(invalid.value)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"model_id": None},
+        {"model_id": "other/model"},
+        {"model_id": "deepseek/model", "auth_method": "oauth-personal"},
+    ],
+)
+def test_key_configuration_refuses_ambiguous_model_or_oauth(changes: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        ExternalAcpConfig.model_validate(
+            {"agent_id": "pi-key", "api_provider": "deepseek", **changes}
+        )
+
+
+async def test_vault_visibility_and_live_membership_are_checked_before_native_export(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = secret_context()
+    row = _row(context, ApiKeySecret(api_key=SecretStr("selected-private-key")))
+    row.purpose = "deepseek"
+    member = AsyncMock(role="member")
+    monkeypatch.setattr(member_repo, "get", AsyncMock(return_value=member))
+    monkeypatch.setattr(organization_secret_repo, "get", AsyncMock(return_value=row))
+    access = AsyncMock(return_value=True)
+    monkeypatch.setattr("app.services.organization_secret.resolve_access", access)
+    service = OrganizationSecretService(_db())
+    selected = await service.native_pi_key(
+        organization_id=context.organization_id,
+        user_id=context.user_id,
+        secret_id=row.id,
+        provider="deepseek",
+    )
+    assert selected.api_key.get_secret_value() == "selected-private-key"
+    assert selected.revision == hashlib.sha256(row.sealed_secret.encode()).hexdigest()
+    assert access.call_args.args[1].user_id == context.user_id
+    row.purpose = "openrouter"
+    with pytest.raises(BadRequestError):
+        await service.native_pi_key(
+            organization_id=context.organization_id,
+            user_id=context.user_id,
+            secret_id=row.id,
+            provider="deepseek",
+        )
+    row.purpose = "deepseek"
+    access.return_value = False
+    with pytest.raises(NotFoundError):
+        await service.native_pi_key(
+            organization_id=context.organization_id,
+            user_id=context.user_id,
+            secret_id=row.id,
+            provider="deepseek",
+        )
+    monkeypatch.setattr(member_repo, "get", AsyncMock(return_value=None))
+    with pytest.raises(NotFoundError):
+        await service.native_pi_key(
+            organization_id=context.organization_id,
+            user_id=context.user_id,
+            secret_id=row.id,
+            provider="deepseek",
+        )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "impersonated",
+        "missing_person",
+        "missing_org",
+        "audience",
+        "room",
+        "other_computer",
+        "user_id",
+        "no_workspace",
+    ],
+)
+async def test_native_export_requires_the_initiating_members_own_private_computer(
+    change: str,
+) -> None:
+    context = _ctx(_local_workspace(), [])
+    person = context.workspace.backend.owner_id
+    context.deps.run_person = person
+    context.deps.user_id = str(person)
+    context.deps.audience = RunAudience(user_id=person)
+    if change == "impersonated":
+        context.deps.impersonated = True
+    elif change == "missing_person":
+        context.deps.run_person = None
+    elif change == "missing_org":
+        context.deps.organization_id = None
+    elif change == "audience":
+        context.deps.audience = None
+    elif change == "room":
+        context.deps.audience = RunAudience(user_id=person, room_key="room:shared")
+    elif change == "other_computer":
+        context.deps.run_person = uuid4()
+    elif change == "user_id":
+        context.deps.user_id = str(uuid4())
+    elif change == "no_workspace":
+        context = _ctx(None, [])
+    with pytest.raises(AuthorizationError):
+        await selected_key(context, "deepseek", uuid4())
+    assert await selected_key(context, None, None) is None
+
+
+async def test_native_selection_loads_the_current_key_and_requires_a_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _ctx(_local_workspace(), [])
+    person = context.workspace.backend.owner_id
+    context.deps.run_person = person
+    context.deps.user_id = str(person)
+    context.deps.audience = RunAudience(user_id=person)
+    with pytest.raises(BadRequestError):
+        await selected_key(context, "deepseek", None)
+
+    @asynccontextmanager
+    async def database():
+        yield _db()
+
+    monkeypatch.setattr("app.agents.capabilities.external_acp._keys.get_db_context", database)
+    load = AsyncMock(return_value=key())
+    monkeypatch.setattr(OrganizationSecretService, "native_pi_key", load)
+    secret_id = uuid4()
+    assert await selected_key(context, "deepseek", secret_id) == key()
+    assert load.call_args.kwargs["user_id"] == person
+    assert load.call_args.kwargs["secret_id"] == secret_id
+
+
+async def test_a_native_provider_acknowledgement_is_required_before_any_prompt() -> None:
+    for opened in [
+        {"id": "one", "protocol": "pi_rpc"},
+        {"id": "one", "protocol": "acp", "pi_provider": "deepseek"},
+        {"id": "one", "protocol": "pi_rpc", "pi_provider": "openrouter"},
+    ]:
+        device = FakeDevice([], opened=opened)
+        pipe = DevicePipe(
+            device,
+            "custom",
+            custom_agent_id="pi-key",
+            pi_key=key(),
+            pi_model="deepseek/native-model",
+        )
+        with pytest.raises(AcpError, match="exact Pi vault-key provider"):
+            await pipe.open()
+        assert device.calls[-1][0] == "agent.close"
+        assert device.calls[0][1]["pi_key"] == key().native_payload("deepseek/native-model")
+    device = FakeDevice([], opened={"id": "one", "protocol": "pi_rpc", "pi_provider": "deepseek"})
+    await DevicePipe(
+        device, "custom", custom_agent_id="pi-key", pi_key=key(), pi_model="deepseek/native-model"
+    ).open()
+
+
+async def test_selected_model_must_be_acknowledged_by_pi_before_inference() -> None:
+    class SelectedPi(Pi):
+        async def send(self, message: dict[str, object]) -> None:
+            if message.get("type") == "set_model":
+                self.state["model"] = {
+                    **MODEL,
+                    "provider": message["provider"],
+                    "id": message["modelId"],
+                }
+            await super().send(message)
+
+    pi = SelectedPi()
+    pi.models = [{**MODEL, "provider": "deepseek", "id": "native-model"}]
+    report = await run_pi(
+        pi,
+        task="Work",
+        timeout_seconds=1,
+        shown=ignore,
+        key_provider="deepseek",
+        model="deepseek/native-model",
+    )
+    assert report.outcome == "completed"
+    assert report.credentials is not None and report.credentials.source == "vault"
+    assert (
+        next(message for message in pi.seen if message["type"] == "set_model")["modelId"]
+        == "native-model"
+    )
+    for model in [None, "other/native-model", "deepseek/native-model"]:
+        pi = Pi()
+        with pytest.raises(AcpError):
+            await run_pi(
+                pi,
+                task="Work",
+                timeout_seconds=1,
+                shown=ignore,
+                key_provider="deepseek",
+                model=model,
+            )
+        assert not any(message["type"] == "prompt" for message in pi.seen)
+
+
+async def test_catalogs_keep_the_selected_provider_and_report_bounded_results() -> None:
+    pi = Pi()
+    pi.state["model"] = {**MODEL, "provider": "deepseek", "id": "last"}
+    pi.models = [{**MODEL, "provider": "deepseek", "id": f"m-{index}"} for index in range(129)] + [
+        pi.state["model"],
+        MODEL,
+    ]
+    catalog = await inspect_pi(pi, timeout_seconds=1, key_provider="deepseek")
+    assert catalog.models_truncated and len(catalog.models) == 128
+    assert catalog.models[0].id == "deepseek/last"
+    assert all(model.id.startswith("deepseek/") for model in catalog.models)
+    assert catalog.configuration_policy == "session"
+    pi = Pi()
+    with pytest.raises(AcpError, match="another provider"):
+        await inspect_pi(pi, timeout_seconds=1, key_provider="deepseek")
+
+
+def test_a_catalog_never_returns_a_selected_key_even_as_a_model_identity() -> None:
+    catalog = AcpCatalog(models=[AcpChoice(id="selected-private-key", name="Private")])
+    with pytest.raises(AcpError, match="credential material"):
+        catalog_json(catalog, key())
+    assert json.loads(catalog_json(catalog, None))["models"][0]["name"] == "Private"
+
+
+async def test_the_real_native_tool_path_never_streams_or_reports_the_selected_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pydantic_core import to_jsonable_python
+
+    from app.agents.capabilities.external_acp._capability import ExternalAcp
+    from app.services.device_hub import workspace as workspace_module
+    from tests.test_pi_rpc import finished
+
+    class SelectedPi(Pi):
+        async def send(self, message: dict[str, object]) -> None:
+            if message.get("type") == "set_model":
+                self.state["model"] = {
+                    **MODEL,
+                    "provider": message["provider"],
+                    "id": message["modelId"],
+                }
+            await super().send(message)
+
+    pi = SelectedPi(
+        [
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {"type": "text_delta", "delta": "selected-"},
+            },
+            {
+                "type": "message_update",
+                "assistantMessageEvent": {"type": "text_delta", "delta": "private-key"},
+            },
+            {
+                "type": "tool_execution_start",
+                "toolCallId": "selected-private-key",
+                "toolName": "Read selected-private-key",
+            },
+            {"type": "tool_execution_end", "toolCallId": "selected-private-key"},
+            finished("Done with selected-private-key"),
+            {"type": "agent_settled"},
+        ]
+    )
+    pi.models = [{**MODEL, "provider": "deepseek", "id": "native-model"}]
+    launched: dict[str, object] = {}
+    cursor = 0
+
+    async def call(
+        _session_id: object, op: str, args: dict[str, object], *, timeout: float
+    ) -> dict[str, object]:
+        nonlocal cursor
+        if op == "agent.open":
+            launched.update(args)
+            return {
+                "id": "owned",
+                "protocol": "pi_rpc",
+                "pi_provider": "deepseek",
+                "runtime_name": "My Pi",
+            }
+        if op == "agent.send":
+            await pi.send(args["message"])
+        if op == "agent.poll":
+            lines = [json.dumps(message) for message in pi.messages]
+            pi.messages.clear()
+            cursor += len(lines)
+            return {"lines": lines, "cursor": cursor, "exit": None}
+        if op == "agent.close":
+            await pi.close()
+        return {}
+
+    monkeypatch.setattr(workspace_module._hub, "call", call)
+    monkeypatch.setattr(
+        "app.agents.capabilities.external_acp._toolset.selected_key", AsyncMock(return_value=key())
+    )
+    frames = []
+    context = _ctx(_local_workspace(), frames)
+    function = (
+        ExternalAcp(
+            "pi-key", api_provider="deepseek", secret_id=uuid4(), model_id="deepseek/native-model"
+        )
+        .get_toolset()
+        .tools["run_acp_agent"]
+        .function
+    )
+    result = await function(context, task="Work")
+    assert launched["pi_key"] == key().native_payload("deepseek/native-model")
+    assert "selected-private-key" not in result
+    assert json.loads(result)["answer"] == "Done with [redacted]"
+    streamed = json.dumps(to_jsonable_python(frames))
+    assert "selected-" not in streamed and "private-key" not in streamed
+    assert pi.closed

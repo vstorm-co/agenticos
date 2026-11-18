@@ -40,6 +40,7 @@ from app.agents.capabilities.coding_agent._harness import (
     last_steps,
 )
 from app.agents.model_context import check_model_context
+from app.agents.pi_keys import PiRuntimeKey
 from app.agents.runtime_questions import RuntimeQuestionsCallback
 from app.agents.steering import SteeringInbox, screen_steer
 
@@ -138,7 +139,11 @@ class DevicePipe:
         fresh_session: bool = False,
         root: str | None = None,
         custom_agent_id: str | None = None,
+        pi_key: PiRuntimeKey | None = None,
+        pi_model: str | None = None,
     ) -> None:
+        self._pi_model = pi_model
+        self._pi_key = pi_key
         self._custom_agent_id = custom_agent_id
         self._resume_key = resume_key
         self._root = root
@@ -163,6 +168,10 @@ class DevicePipe:
             args["supports_auth_modes"] = True
             args["supports_model_constraints"] = True
             args["supports_configuration_policy"] = True
+        if self._pi_key is not None:
+            if self._pi_model is None:
+                raise AcpError("A Pi selected-key launch requires an exact model ID.")
+            args["pi_key"] = self._pi_key.native_payload(self._pi_model)
         if self._custom_agent_id is not None:
             args["custom_agent_id"] = self._custom_agent_id
         if self._resume_key is not None:
@@ -183,6 +192,14 @@ class DevicePipe:
             await self.close()
             raise AcpError("The Desktop app requires an unsupported runtime protocol.")
         self.protocol = protocol
+        if self._pi_key is not None and (
+            protocol != "pi_rpc" or opened.get("pi_provider") != self._pi_key.provider
+        ):
+            await self.close()
+            raise AcpError(
+                "The Desktop registration did not admit this exact Pi vault-key provider. No prompt was sent."
+            )
+
         label = opened.get("runtime_name")
         if isinstance(label, str) and 0 < len(label) <= 120:
             self.runtime_name = label

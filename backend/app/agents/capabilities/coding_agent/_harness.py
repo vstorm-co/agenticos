@@ -105,7 +105,7 @@ class RuntimeCredentials(BaseModel):
     """Non-secret credential facts reported by the runtime, not plan entitlement."""
 
     kind: Literal["api_key", "oauth"]
-    source: Literal["os_keyring", "cli_file", "environment"]
+    source: Literal["os_keyring", "cli_file", "environment", "vault"]
     sign_out_available: bool
 
 

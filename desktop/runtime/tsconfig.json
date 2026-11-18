@@ -11,7 +11,9 @@
     "erasableSyntaxOnly": true,
     "types": ["node"],
     "typeRoots": ["../../frontend/node_modules/@types"],
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "checkJs": true
   },
-  "include": ["*.mts"]
+  "include": ["*.mts", "pi-key.mjs"]
 }
