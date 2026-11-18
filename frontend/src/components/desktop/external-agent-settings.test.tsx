@@ -98,6 +98,9 @@ it("revokes the named local registration", async () => {
 it("rejects malformed native replies", () => {
   expect(parseExternalAgents([registration])).toEqual([registration]);
   expect(() => parseExternalAgents({})).toThrow("malformed");
+  expect(() => parseExternalAgents([{ ...registration, provider: "unsupported" }])).toThrow(
+    "malformed",
+  );
   expect(() => parseExternalAgents([{ ...registration, args: [1] }])).toThrow("malformed");
   expect(() => parseExternalAgents([{ ...registration, revision: null }])).toThrow("malformed");
 });

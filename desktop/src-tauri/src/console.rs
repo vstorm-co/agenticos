@@ -70,6 +70,9 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-local-revoke",
             "allow-local-files",
             "allow-local-file",
+            "allow-external-agents",
+            "allow-external-save-agent",
+            "allow-external-remove-agent",
             "allow-local-agents",
             "allow-local-agent-prepare",
             "allow-local-agent-options",
@@ -406,6 +409,9 @@ mod tests {
     #[test]
     fn local_agent_and_skill_commands_are_available_only_to_the_main_console() {
         for permission in [
+            "allow-external-agents",
+            "allow-external-save-agent",
+            "allow-external-remove-agent",
             "allow-local-agents",
             "allow-local-agent-prepare",
             "allow-local-agent-options",
