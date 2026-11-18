@@ -96,10 +96,11 @@ async def test_upgrade_delivers_new_skills_and_keeps_edits_and_retired_skills(
             ).values()
         }
         assert required <= names
-        assert (
-            not {"platform-tables", "platform-context", "platform-skills", "agenticos-guide"}
-            & names
-        )
+        assert not {"platform-tables", "platform-skills", "agenticos-guide"} & names
+        if installed.name == "AgenticOS":
+            assert {"code-review", "platform-context", "personal-coding-sessions"} <= names
+        else:
+            assert "personal-coding-sessions" not in names
         assert "visual-design" not in names
     for retained in optional:
         assert (
@@ -526,7 +527,7 @@ async def test_new_console_agent_gets_common_work_tools_without_agenticos_only_a
         "background_tasks",
         "background_tools",
         "tool_search",
-        "conversation_search",
+        "context",
         "subagents",
     } <= bindings.keys()
     assert not (bindings.keys() & {"coding_agent", "computer_use", "browser_use"})
@@ -543,5 +544,7 @@ async def test_new_console_agent_gets_common_work_tools_without_agenticos_only_a
         "durable-work",
         "document-production",
     } <= names
-    assert not {"platform-tables", "platform-context", "platform-skills", "agenticos-guide"} & names
+    assert "platform-context" in names
+    assert "conversation_search" not in bindings
+    assert not {"platform-tables", "platform-skills", "agenticos-guide"} & names
     assert "ask_user_question" in spec.instructions

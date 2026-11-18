@@ -956,7 +956,7 @@ async def test_personal_session_constraints_refuse_cross_tenant_or_shared_rows(
             await db.flush()
 
 
-@pytest.mark.parametrize("operation", ["disconnect", "agent_delete"])
+@pytest.mark.parametrize("operation", ["disconnect", "agent_delete", "discard"])
 async def test_deletion_keeps_remote_cleanup_in_the_same_rollback_boundary(
     engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, operation: str
 ) -> None:
@@ -1015,6 +1015,12 @@ async def test_deletion_keeps_remote_cleanup_in_the_same_rollback_boundary(
         async def remove(db: AsyncSession) -> None:
             if operation == "agent_delete":
                 await AgentRegistryService(db).delete(auth, agent_id)
+            elif operation == "discard":
+                from app.services.sandbox_workspace import SandboxWorkspaceService
+
+                held = await db.get(AgentWorkspace, workspace_id)
+                assert held is not None
+                await SandboxWorkspaceService(db).discard_personal_coding(auth, held)
             else:
                 await CodingAccountService(db).disconnect(auth, account_id)
 
