@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.83.0] - 2026-11-18
+
 ### Added
 
 - Let external agent runs use the API key or OAuth token issuer's personal MCP connections with the explicit `mcp:personal:use` scope. Existing credentials and presets retain organization-only access; resumed runs and subagents retain the original caller, with live credential and connected-account checks before tool calls (#3154).
@@ -22080,7 +22082,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.82.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.83.0...HEAD
+[1.83.0]: https://github.com/vstorm-co/agenticos/compare/v1.82.2...v1.83.0
 [1.82.2]: https://github.com/vstorm-co/agenticos/compare/v1.82.1...v1.82.2
 [1.82.1]: https://github.com/vstorm-co/agenticos/compare/v1.82.0...v1.82.1
 [1.82.0]: https://github.com/vstorm-co/agenticos/compare/v1.81.0...v1.82.0
