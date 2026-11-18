@@ -135,8 +135,11 @@ async def test_invalid_session_steers_while_a_retry_remains() -> None:
         await tool.function(_ctx(None, []), "Do work", session="bad name")
 
 
-@pytest.mark.parametrize("method", ["unrecognized", "gemini-api-key"])
-async def test_a_desktop_authentication_requirement_is_never_silently_ignored(method: str) -> None:
+@pytest.mark.security
+@pytest.mark.parametrize("method", ["unrecognized", "gemini-api-key", [], {}])
+async def test_a_desktop_authentication_requirement_is_never_silently_ignored(
+    method: object,
+) -> None:
     from app.agents.capabilities.coding_agent import _acp as acp
     from tests.test_coding_agent_acp import FakeDevice
 

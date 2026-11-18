@@ -1,5 +1,5 @@
 ---
-source_sha: "a823bbd2edc5"
+source_sha: "3ca2bb3d0b1b"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -941,3 +941,11 @@ Installieren Sie ein aktuelles Qwen Code CLI, starten Sie `qwen` und wählen Sie
 Die Vorlage ruft ACP `authenticate` nicht auf: Diese Operation schreibt Anmeldeeinstellungen, während die angebotenen Methoden kein Abonnementlogin enthalten. Qwen prüft beim Sitzungsstart seine gespeicherten Abonnement-Zugangsdaten. AgenticOS importiert weder Token noch OAuth-Clientidentitäten. Lassen Sie External model ID leer und wählen Sie das Abonnementmodell in Qwen; die Vorlage meldet `configuration_policy=cli` und lehnt Überschreibungen ab.
 
 Qwen Plus/Pro unterscheidet sich von Alibaba Model Studio API-Schlüsseln und Coding/Token-Plan-Endpunkten. Das eingestellte kostenlose OAuth-Kontingent wird nicht angeboten. Tarife, Kontingente, Ablauf und Widerruf, Abbruch, Wiederverbindung und Modelle benötigen Abnahme mit echtem Konto. Registrieren Sie nach Kontowechsel erneut. Plattformwerkzeug-Weitergabe bleibt offen. Siehe [Qwen-Anmeldung](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
+
+## Devin CLI über ACP { #devin-acp }
+
+Installieren Sie Devin CLI, führen Sie `devin auth login` aus und prüfen Sie `devin auth status`. Registrieren Sie den absoluten `devin`-Pfad mit **Devin**. Die Vorlage startet `--permission-mode normal acp`, verlangt die angebotene Methode `devin-browser` und lehnt zusätzliche Cloud- oder Freigabeumgehungsflags ab. Zugangsdaten bleiben im CLI; AgenticOS importiert sie nicht.
+
+Dies delegiert an das lokale CLI, nicht die Devin Cloud-Aufgaben-API. Prüfen Sie Modelle mit `inspect_acp_agent`; lassen Sie External model ID leer und wählen Sie das Modell in Devin. Bis ausschließlich sitzungsbezogene Modelländerungen verifiziert sind, meldet die Vorlage `configuration_policy=cli`. Kontorichtlinien bestimmen Zugriff, Abrechnung und Unternehmensberechtigungen; Tarifansprüche werden nicht zugesagt.
+
+Registrieren Sie nach Kontowechsel erneut. Anmeldung, Ablauf, Widerruf, Kontingente, Modelle, Wiederaufnahme, Abbruch und Kontowechsel benötigen Abnahme mit echtem Konto. Native Rückfragen und begrenzte Plattformwerkzeuge bleiben offen. Siehe [Devin ACP](https://docs.devin.ai/cli/acp/zed) und [Befehle](https://docs.devin.ai/cli/reference/commands).

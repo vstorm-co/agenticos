@@ -14384,7 +14384,8 @@
         "grokHelp": "Zainstaluj Grok Build i wykonaj grok login (grok login --device-auth dla logowania kodem). Podaj bezwzględną ścieżkę grok. Szablon wyłącza aktualizacje w tle i logowanie kluczem API, usuwa odziedziczone klucze xAI i wymaga zapisanego logowania bez interakcji. CLI nadal oferujące logowanie kluczem zostaje odrzucone. Rozliczanie zależy od konta i gatewaya; rejestracja klucza API nie jest obsługiwana. Po zmianie konta zarejestruj program ponownie.",
         "kimiHelp": "Zainstaluj Kimi Code CLI i wykonaj kimi login. Podaj bezwzględną ścieżkę kimi; szablon uruchamia acp i sprawdza zapisane logowanie bez importowania poświadczeń. Konfiguracja CLI może obejmować osobno płatnych dostawców. Zostaw External model ID puste i wybierz model w samym Kimi. Pytania do użytkownika zatrzymują zadanie do sprawdzenia w CLI. Po zmianie konta zarejestruj program ponownie.",
         "qwenHelp": "Zainstaluj Qwen Code i przez /auth w qwen wybierz Qwen Account with Subscription. Podaj bezwzględną ścieżkę qwen. Szablon jawnie wybiera qwen-subscription bez wywołania ACP authenticate i importowania tokenów oraz usuwa odziedziczone nadpisania klucza, endpointu i modelu OpenAI. Zostaw External model ID puste; model subskrypcji wybierz w Qwen. Starsze CLI mogą nie obsługiwać tego trybu. Dostęp i limity zależą od konta. Po zmianie konta zarejestruj program ponownie.",
-        "qwenSubscription": "Subskrypcja Qwen"
+        "qwenSubscription": "Subskrypcja Qwen",
+        "devinHelp": "Zainstaluj Devin CLI, wykonaj devin auth login i sprawdź devin auth status. Podaj bezwzględną ścieżkę devin. Szablon uruchamia lokalnego agenta ACP z normalnymi uprawnieniami i wymaga reklamowanej metody devin-browser. Rozliczanie i firmowe uprawnienie CLI zależą od konta. Nie uruchamia --cloud ani API zadań chmurowych. Zostaw External model ID puste i wybierz model w Devin. Po zmianie konta zarejestruj program ponownie."
       }
     },
     "quickAsk": {

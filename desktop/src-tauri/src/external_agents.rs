@@ -21,6 +21,7 @@ pub enum Provider {
     Grok,
     Kimi,
     QwenSubscription,
+    Devin,
     #[serde(rename = "opencode")]
     OpenCode,
     #[serde(rename = "opencode_go")]
@@ -104,6 +105,9 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
     if input.provider == Provider::QwenSubscription && input.args != ["--acp", "--auth-type=qwen-subscription"] {
         return Err("Qwen subscription requires --acp --auth-type=qwen-subscription without extra launch flags.".into());
     }
+    if input.provider == Provider::Devin && input.args != ["--permission-mode", "normal", "acp"] {
+        return Err("Devin requires --permission-mode normal acp without cloud or approval overrides.".into());
+    }
     Ok(Registration {
         provider: input.provider,
         id: input.id,
@@ -129,6 +133,7 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
     let before = settings::current(&app).connection_revision;
     let (send, receive) = tokio::sync::oneshot::channel();
     let billing = match registration.provider {
+        Provider::Devin => "Devin CLI uses its own account and advertised browser login. Complete devin auth login and check devin auth status first. Billing and enterprise CLI permission belong to your Devin account. This launches the local ACP agent, not --cloud or the Devin task API. Keep External model ID empty and choose the model in Devin. CLI-owned tools and account data remain with Devin; AgenticOS forwards no platform tools.",
         Provider::QwenSubscription => "Qwen Code uses its own saved subscription login. Complete /auth in qwen first, choosing Qwen Account with Subscription. The child explicitly selects qwen-subscription and removes inherited OpenAI key, endpoint and model overrides. No authenticate operation or credential import is performed. Keep External model ID empty and choose the subscription model in Qwen. Plan access and quotas require account verification.",
         Provider::Kimi => "Kimi uses its own configured login and providers. Complete kimi login first. AgenticOS checks login readiness without importing credentials. Custom models can use separately billed APIs; account login alone does not establish subscription billing. Keep External model ID empty and choose the model in Kimi itself. Human questions stop for review in the CLI.",
         Provider::Grok => "Grok uses a cached CLI login. This child removes XAI_API_KEY and GROK_CODE_XAI_API_KEY and disables API-key authentication. The server refuses a runtime still advertising API-key auth. Finish grok login first. Grok account, gateway and plan settings determine billing; no API-key mode is supported by this template.",
@@ -200,6 +205,13 @@ mod tests {
             program: std::env::current_exe().unwrap().to_string_lossy().into_owned(),
             args: vec!["acp".into()],
         }
+    }
+
+    #[test]
+    fn devin_template_refuses_cloud_and_automatic_approval_modes() {
+        assert!(checked(RegistrationInput { provider: Provider::Devin, args: vec!["--permission-mode".into(), "normal".into(), "acp".into()], ..input() }).is_ok());
+        assert!(checked(RegistrationInput { provider: Provider::Devin, args: vec!["--cloud".into(), "acp".into()], ..input() }).is_err());
+        assert!(checked(RegistrationInput { provider: Provider::Devin, args: vec!["--permission-mode".into(), "dangerous".into(), "acp".into()], ..input() }).is_err());
     }
 
     #[test]

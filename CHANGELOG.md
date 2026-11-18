@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Add Devin CLI desktop ACP delegation with negotiated browser login and fixed local launch permissions.
+
 - Add Qwen Code subscription ACP delegation with explicit CLI subscription mode and no API-key authentication fallback.
 
 - Add Kimi Code desktop ACP delegation with CLI-owned login and explicit cancellation of human questions.

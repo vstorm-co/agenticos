@@ -1,5 +1,5 @@
 ---
-source_sha: "a823bbd2edc5"
+source_sha: "3ca2bb3d0b1b"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -895,3 +895,11 @@ Zainstaluj aktualne Qwen Code CLI, uruchom `qwen` i przez `/auth` wybierz **Qwen
 Szablon nie wywołuje ACP `authenticate`: bieżąca operacja zapisuje ustawienia logowania użytkownika, a reklamowane metody nie obejmują logowania subskrypcji. Qwen sprawdza własne zapisane poświadczenia podczas otwierania sesji. AgenticOS nie importuje tokenów ani tożsamości klienta OAuth. Zostaw External model ID puste i wybierz model subskrypcji w Qwen; szablon raportuje `configuration_policy=cli` i odrzuca nadpisania.
 
 Subskrypcje Qwen Plus/Pro są odrębne od kluczy API Alibaba Model Studio i endpointów Coding/Token Plan. Wycofany darmowy limit OAuth nie jest oferowany. Plany, limity, wygasanie i cofnięcie logowania, anulowanie, ponowne połączenie oraz modele wymagają odbioru na prawdziwym koncie. Po zmianie konta zarejestruj program ponownie. Przekazywanie narzędzi platformy pozostaje otwarte. Zobacz [logowanie Qwen](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
+
+## Devin CLI przez ACP { #devin-acp }
+
+Zainstaluj Devin CLI, wykonaj `devin auth login` i sprawdź `devin auth status`. Zarejestruj bezwzględną ścieżkę `devin`, wybierając **Devin**. Szablon uruchamia `--permission-mode normal acp`, wymaga reklamowanej metody `devin-browser` i odrzuca dodatkowe flagi chmurowe lub pomijające zgody. Poświadczenia pozostają w CLI; AgenticOS ich nie importuje.
+
+To delegowanie do lokalnego CLI, nie API zadań Devin Cloud. Modele sprawdzisz przez `inspect_acp_agent`; zostaw External model ID puste i wybierz model w Devin. Szablon raportuje `configuration_policy=cli` do czasu weryfikacji zmian dotyczących wyłącznie sesji. Zasady konta określają dostęp, rozliczanie i firmowe uprawnienie CLI; nie obiecujemy uprawnień konkretnego planu.
+
+Po zmianie konta zarejestruj program ponownie. Logowanie, wygasanie, cofnięcie zgody, limity, modele, wznowienie, anulowanie i zmiana konta wymagają odbioru na prawdziwym koncie. Natywny interfejs pytań i przekazywanie ograniczonych narzędzi platformy pozostają otwarte. Zobacz [Devin ACP](https://docs.devin.ai/cli/acp/zed) i [polecenia](https://docs.devin.ai/cli/reference/commands).

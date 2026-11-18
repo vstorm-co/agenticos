@@ -275,3 +275,25 @@ it("pins Qwen subscription auth without launching its mutating authentication RP
     { ...registration, provider: "qwen_subscription" },
   ]);
 });
+
+it("registers local Devin ACP with normal permissions and no cloud flag", async () => {
+  mount();
+  await userEvent.selectOptions(screen.getByLabelText("Setup template"), "devin");
+  expect(screen.getByText(/requires the advertised devin-browser method/)).toBeInTheDocument();
+  await userEvent.type(screen.getByLabelText("Absolute executable path"), "/opt/bin/devin");
+  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+      registration: {
+        provider: "devin",
+        id: "devin",
+        name: "Devin",
+        program: "/opt/bin/devin",
+        args: ["--permission-mode", "normal", "acp"],
+      },
+    }),
+  );
+  expect(parseExternalAgents([{ ...registration, provider: "devin" }])).toEqual([
+    { ...registration, provider: "devin" },
+  ]);
+});

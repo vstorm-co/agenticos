@@ -572,6 +572,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
                 | crate::external_agents::Provider::Cline
                 | crate::external_agents::Provider::MistralVibe
                 | crate::external_agents::Provider::Grok
+                | crate::external_agents::Provider::Devin
                 | crate::external_agents::Provider::Kimi
                 | crate::external_agents::Provider::QwenSubscription
         )
@@ -594,7 +595,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     }
     if external
         .as_ref()
-        .is_some_and(|item| matches!(item.provider, crate::external_agents::Provider::MistralVibe | crate::external_agents::Provider::Kimi | crate::external_agents::Provider::QwenSubscription))
+        .is_some_and(|item| matches!(item.provider, crate::external_agents::Provider::MistralVibe | crate::external_agents::Provider::Kimi | crate::external_agents::Provider::QwenSubscription | crate::external_agents::Provider::Devin))
         && !supports_configuration_policy
     {
         return Err(Refusal::new(
@@ -695,12 +696,13 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         crate::external_agents::Provider::MistralVibe => Some("browser-auth"),
         crate::external_agents::Provider::Grok => Some("cached_token"),
         crate::external_agents::Provider::Kimi => Some("login"),
+        crate::external_agents::Provider::Devin => Some("devin-browser"),
         _ => None,
     });
     let runtime_name = external.as_ref().map(|item| item.name.as_str());
     let configuration_policy = if external
         .as_ref()
-        .is_some_and(|item| matches!(item.provider, crate::external_agents::Provider::MistralVibe | crate::external_agents::Provider::Kimi | crate::external_agents::Provider::QwenSubscription))
+        .is_some_and(|item| matches!(item.provider, crate::external_agents::Provider::MistralVibe | crate::external_agents::Provider::Kimi | crate::external_agents::Provider::QwenSubscription | crate::external_agents::Provider::Devin))
     {
         "cli"
     } else {
@@ -718,6 +720,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
                 | crate::external_agents::Provider::MistralVibe
                 | crate::external_agents::Provider::Kimi
                 | crate::external_agents::Provider::QwenSubscription
+                | crate::external_agents::Provider::Devin
         )
     });
     Ok(object(

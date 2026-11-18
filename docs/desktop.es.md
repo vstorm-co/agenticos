@@ -1,5 +1,5 @@
 ---
-source_sha: "a823bbd2edc5"
+source_sha: "3ca2bb3d0b1b"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -926,3 +926,11 @@ Instala Qwen Code CLI actualizado, ejecuta `qwen` y elige **Qwen Account with Su
 La plantilla no llama a ACP `authenticate`: la operación actual escribe ajustes de autenticación y los métodos anunciados no incluyen acceso de suscripción. Qwen comprueba sus credenciales guardadas al abrir la sesión. AgenticOS no importa tokens ni identidades de cliente OAuth. Deja External model ID vacío y elige el modelo de suscripción en Qwen; la plantilla informa `configuration_policy=cli` y rechaza sobrescrituras.
 
 Qwen Plus/Pro es distinto de claves API Alibaba Model Studio y endpoints Coding/Token Plan. No se ofrece la antigua cuota OAuth gratuita retirada. Planes, cuotas, caducidad, revocación, cancelación, reconexión y modelos requieren aceptación con cuenta real. Registra de nuevo tras cambiar de cuenta. El reenvío de herramientas de plataforma sigue pendiente. Consulta [autenticación Qwen](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
+
+## Devin CLI mediante ACP { #devin-acp }
+
+Instala Devin CLI, completa `devin auth login` y comprueba `devin auth status`. Registra la ruta absoluta de `devin` con **Devin**. La plantilla ejecuta `--permission-mode normal acp`, exige el método anunciado `devin-browser` y rechaza flags adicionales de nube u omisión de permisos. Las credenciales quedan en el CLI; AgenticOS no las importa.
+
+Delega al CLI local, no a la API de tareas Devin Cloud. Consulta modelos mediante `inspect_acp_agent`; deja External model ID vacío y elige el modelo en Devin. La plantilla informa `configuration_policy=cli` hasta verificar cambios limitados a la sesión. Las políticas de cuenta determinan acceso, facturación y permiso empresarial del CLI; no se promete acceso por plan.
+
+Registra de nuevo tras cambiar de cuenta. Inicio de sesión, caducidad, revocación, cuotas, modelos, reanudación, cancelación y cambio de cuenta requieren aceptación real. La interfaz nativa de preguntas y herramientas de plataforma restringidas siguen pendientes. Consulta [Devin ACP](https://docs.devin.ai/cli/acp/zed) y [comandos](https://docs.devin.ai/cli/reference/commands).

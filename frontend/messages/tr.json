@@ -11981,7 +11981,8 @@
         "grokHelp": "Grok Build kurun ve grok login çalıştırın (cihaz girişi için grok login --device-auth). Mutlak grok yolunu seçin. Şablon arka plan güncellemelerini ve API anahtarı girişini kapatır, devralınan xAI anahtarlarını kaldırır ve kayıtlı etkileşimsiz giriş ister. Hâlâ API anahtarı girişi sunan CLI reddedilir. Ücretleri hesap ve gateway ayarları belirler; API anahtarı kaydı desteklenmez. Hesap değişince yeniden kaydedin.",
         "kimiHelp": "Kimi Code CLI kurun ve kimi login çalıştırın. Mutlak kimi yolunu seçin; şablon acp başlatır ve kimlik bilgisi aktarmadan kayıtlı girişi denetler. CLI yapılandırması ayrıca ücretlendirilen sağlayıcılar içerebilir. External model ID boş kalsın, modeli Kimi içinde seçin. İnsan soruları CLI incelemesi için görevi durdurur. Hesap değişince yeniden kaydedin.",
         "qwenHelp": "Qwen Code kurun ve qwen içindeki /auth ile Qwen Account with Subscription seçin. Mutlak qwen yolunu belirtin. Şablon ACP authenticate çağırmadan veya token aktarmadan qwen-subscription seçer; devralınan OpenAI anahtar, uç nokta ve model ayarlarını kaldırır. External model ID boş kalsın; abonelik modelini Qwen içinde seçin. Eski CLI sürümleri bu modu desteklemeyebilir. Erişim ve kotalar hesaba bağlıdır. Hesap değişince yeniden kaydedin.",
-        "qwenSubscription": "Qwen aboneliği"
+        "qwenSubscription": "Qwen aboneliği",
+        "devinHelp": "Devin CLI kurun, devin auth login çalıştırın ve devin auth status denetleyin. Mutlak devin yolunu seçin. Şablon yerel ACP ajanını normal izinlerle başlatır ve sunulan devin-browser yöntemini ister. Ücretler ve kurumsal CLI izni hesaba bağlıdır. --cloud veya bulut görev API çağrısı başlatmaz. External model ID boş kalsın, modeli Devin içinde seçin. Hesap değişince yeniden kaydedin."
       }
     },
     "quickAsk": {

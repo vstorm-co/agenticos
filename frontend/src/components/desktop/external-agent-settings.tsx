@@ -90,6 +90,7 @@ export function ExternalAgentSettings() {
                 selected !== "mistral_vibe" &&
                 selected !== "grok" &&
                 selected !== "kimi" &&
+                selected !== "devin" &&
                 selected !== "qwen_subscription" &&
                 selected !== "opencode" &&
                 selected !== "opencode_go"
@@ -108,21 +109,24 @@ export function ExternalAgentSettings() {
                 mistral_vibe: "Mistral Vibe",
                 grok: "Grok",
                 kimi: "Kimi Code",
+                devin: "Devin",
                 qwen_subscription: t("qwenSubscription"),
                 opencode: "OpenCode",
                 opencode_go: "OpenCode Go",
               };
               setName(names[selected]);
               setArgs(
-                selected === "qwen_subscription"
-                  ? '["--acp","--auth-type=qwen-subscription"]'
-                  : selected === "grok"
-                    ? '["--no-auto-update","agent","stdio"]'
-                    : selected === "mistral_vibe"
-                      ? "[]"
-                      : selected === "cline" || selected === "cline_api_key"
-                        ? '["--acp"]'
-                        : '["acp"]',
+                selected === "devin"
+                  ? '["--permission-mode","normal","acp"]'
+                  : selected === "qwen_subscription"
+                    ? '["--acp","--auth-type=qwen-subscription"]'
+                    : selected === "grok"
+                      ? '["--no-auto-update","agent","stdio"]'
+                      : selected === "mistral_vibe"
+                        ? "[]"
+                        : selected === "cline" || selected === "cline_api_key"
+                          ? '["--acp"]'
+                          : '["acp"]',
               );
             }}
           >
@@ -131,6 +135,8 @@ export function ExternalAgentSettings() {
             <option value="antigravity">Antigravity</option>
             {/* i18n-exempt: product names */}
             <option value="qwen_subscription">{t("qwenSubscription")}</option>
+            {/* i18n-exempt: product name */}
+            <option value="devin">Devin</option>
             {/* i18n-exempt: product name */}
             <option value="kimi">Kimi Code</option>
             {/* i18n-exempt: product name */}
@@ -157,6 +163,7 @@ export function ExternalAgentSettings() {
         {provider === "qwen_subscription" && (
           <p className="text-muted-foreground text-xs">{t("qwenHelp")}</p>
         )}
+        {provider === "devin" && <p className="text-muted-foreground text-xs">{t("devinHelp")}</p>}
         {provider === "kimi" && <p className="text-muted-foreground text-xs">{t("kimiHelp")}</p>}
         {provider === "grok" && <p className="text-muted-foreground text-xs">{t("grokHelp")}</p>}
         {provider === "cursor" && (

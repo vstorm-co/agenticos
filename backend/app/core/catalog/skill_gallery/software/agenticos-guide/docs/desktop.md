@@ -883,3 +883,11 @@ Install a current Qwen Code CLI, run `qwen`, and use `/auth` to choose **Qwen Ac
 This template does not call ACP `authenticate`: the current operation writes user authentication settings, while the advertised methods do not include subscription login. Qwen checks its own saved subscription credentials when opening the session. AgenticOS imports no tokens or OAuth client identity. Keep External model ID empty and choose the subscription model in Qwen; the template reports `configuration_policy=cli` and refuses overrides.
 
 Qwen Plus/Pro subscription access is distinct from Alibaba Model Studio API keys and Coding/Token Plan endpoints. The discontinued legacy free OAuth allowance is not offered. Plans and quotas require real-account acceptance, alongside expiry/revocation, cancellation, reconnect and available models. Re-register after changing accounts. Platform-tool forwarding remains open. See [Qwen authentication](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
+
+## Devin CLI through ACP { #devin-acp }
+
+Install Devin CLI, complete `devin auth login` and check `devin auth status`. Register its absolute `devin` path with **Devin**. The template launches `--permission-mode normal acp`, requires the advertised `devin-browser` method, and rejects extra cloud or permission-bypass flags. Credentials remain in the CLI; AgenticOS does not import them.
+
+This delegates to the local CLI, not the Devin Cloud task API. Inspect models with `inspect_acp_agent`; keep External model ID empty and choose the model in Devin. The template reports `configuration_policy=cli` until session-only model changes are verified. Account policies determine access, billing and enterprise CLI permission; no plan entitlement is promised.
+
+Re-register after changing accounts. Login/expiry/revocation, quotas, models, multi-turn resume, cancellation and account replacement require real-account acceptance. Native human-input UI and scoped platform-tool forwarding remain open. See [Devin ACP](https://docs.devin.ai/cli/acp/zed) and [commands](https://docs.devin.ai/cli/reference/commands).
