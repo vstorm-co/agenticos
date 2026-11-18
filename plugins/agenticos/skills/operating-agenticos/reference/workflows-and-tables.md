@@ -31,6 +31,7 @@ The node catalog is the source of truth. `agenticos:list_workflow_nodes` returns
 
 Read `agenticos:get_workflow_node` for every step before placing it: its `config_schema`, `input_schema`, `output_schema` and `ports`. Never invent a step, a port or a config key.
 
+- `ai.*` steps take a `model_profile_id`. `decide.*` steps use the organization's decision model: check `decision_capable` in `agenticos:list_models`, and use `ai.classify` or `ai.prompt` when no profile has it.
 - A service with no MCP server and no node is reached with `http.request` and a vault secret reference. Credentials never go in a graph.
 - A schedule's cron is read in the workflow's own time zone setting, which is UTC unless changed.
 - A workflow triggered by table records must not retrigger itself with its own writes.
@@ -52,6 +53,8 @@ Workflow progress:
 ```
 
 For a new automation, `agenticos:prepare_workflow_draft` creates the draft and an optional table in one transaction; a failure leaves neither behind. Use one local UUID as `table_placeholder_id` wherever the graph references the new table, leave `column_ids` unset and bind record values by column label.
+
+A reference to the placeholder table is `{"kind": "table", "table_id": "<placeholder>", "schema_version": 1}`; the server replaces it with the new table. Option UUIDs of a `single_select` column do not exist until the table does, so give a column a step writes free values into the `text` type, or create the table first and read its option IDs.
 
 To change an existing workflow, read `agenticos:get_workflow_definition`, keep the nodes, bindings and notes that are not changing, and save with `agenticos:update_workflow_draft` and the `draft_revision` just read as `expected_revision`. A definition with `can_edit: false`, such as an archived one, cannot be saved.
 
@@ -77,8 +80,10 @@ If step 5 or 7 reports an error, fix the graph, save it and return to step 5.
 ```
 
 - Every `id` is a unique UUID generated for this graph. `definition_version` comes from the catalog.
-- Edges connect ports by the IDs the node definitions declare.
+- Edges connect ports by ID. Most ports are listed in the node definition's `ports`. Branching steps name their own output ports in config, and those do not appear in `ports`: `ai.classify` (`categories[].name`), `logic.switch` (`rules[].name`), `logic.split` and `error.handle` (`branches[].name`), `human.approval` (`choices[].id`).
+- Branches that continue to a shared step rejoin through `logic.merge`. Only one `core.output` may run in a run; the validator refuses a graph where two can.
 - A binding feeds one `target_field` of one node from a `source`: `node_output` (another node's port, narrowed by `field_path`), `template` (text with node outputs in it), `literal`, `table` or `file`.
+- One key of an open object is bound as `field/key`: a record step's column is `values/<Column label>`.
 - Labels are unique in a graph. Space nodes about 300 apart on `x` so the canvas is readable.
 - A node `policy` sets `timeout_seconds`, `retry` and `on_error`; `route` sends a settled failure out of the node's `error` port.
 

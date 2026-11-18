@@ -39,7 +39,7 @@ Do not promise these; send the user to the console instead.
 - Read the Inbox from an external MCP client. `agenticos:list_inbox_cases` and `agenticos:settle_inbox_case` need the person's own chat or console session.
 - Grant desktop folders, browsers or local models. The person selects those in the Desktop app.
 - Approve personal routines or watches unless the connection was authorized with the `personal:consent` scope.
-- Run Improve and eval tools through an organization API key. They need a connection signed in with OAuth.
+- Run Improve and eval tools through an organization API key. They need a connection signed in with OAuth. A harmless probe is `agenticos:list_improvements`: an API key is refused there.
 
 ## Choosing the mechanism
 
@@ -63,7 +63,7 @@ Use the fewest mechanisms that meet the goal, and reuse an existing resource bef
 
 1. `agenticos:list_runs`, newest first. For "my last run", look at the newest run before filtering: it may not be the failed one, and `awaiting_answer` is a run paused on a question, not a failure. Then filter with `status: "failed"`, `agent_id`, `surface` or `started_from`. Each item already carries its `error`.
 2. `agenticos:read_run_transcript` for the turns, then `agenticos:read_run_tool_call` for one call's arguments or result. A transcript holding only the user's message means the run recorded no assistant turn: say that the detail is in the server log, and reason from the error and the token counts.
-3. `agenticos:get_run` gives `prev_run_id`. Compare the failed run with the last one that completed: its `agent_version_id`, and the agent's `current_version_id` and `updated_at` from `agenticos:get_agent`. A failure that starts right after a publish points at that version; a failure on an older version does not prove the published one fails.
+3. `agenticos:get_run` gives `prev_run_id`. Compare the failed run with the last one that completed: its `agent_version_id`, and the agent's `current_version_id` and `updated_at` from `agenticos:get_agent`. `updated_at` also moves on draft edits, so it is a weak signal of when a publish happened. A failure that starts right after a publish points at that version; a failure on an older version does not prove the published one fails.
 
 Reading the error: `ToolLoopStopped` is the loop guard ending a run that repeated the same tool calls, usually with input tokens far above output tokens. Budget, guardrail and usage-limit stops are named the same way in `error`. Mark anything not in the record as an inference.
 

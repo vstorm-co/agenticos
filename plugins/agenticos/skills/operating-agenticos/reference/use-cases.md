@@ -36,7 +36,7 @@ The **Confirmed** column says how far each chain was exercised against a running
 | Value | Meaning |
 |---|---|
 | live | The whole chain ran and returned the expected result. |
-| reads live | Every discovery and read step ran. The write steps were checked against the tool schemas and the server source, and not executed, because their effect cannot be undone over MCP or needs data the test organization lacked. |
+| reads live | Every discovery and read step ran. The write steps were not executed: their exact arguments were built from those reads and checked against the live tool schemas and the server source, because their effect cannot be undone over MCP or needs data the test organization lacked. |
 | contract | Checked against the tool schemas and the server source only. The precondition is named. |
 
 A use case that is not `live` is still valid; start it with its read steps, which show at once whether the organization has what it needs.
@@ -49,7 +49,7 @@ A use case that is not `live` is still valid; start it with its read steps, whic
 | Triage one channel or period | "What failed on Telegram since yesterday?" | `list_runs` with `surface`, `status`, `started_from` | live |
 | Spend report | "What did our agents cost this month?" | `get_spend`, then `list_runs` per agent for the expensive ones | live |
 | Organization snapshot | "Give me a status of this AgenticOS org" | `whoami` → `list_agents` → `list_routines` → `list_workflow_definitions` → `list_improvements` → `list_skills_behind_main` | live |
-| Review a draft before publishing | "What is in this agent's draft?" | `get_agent` for `draft_spec`; the published side shows as `current_version_id` and summary fields, so say when a full diff needs the console's version history | live |
+| Review a draft before publishing | "What is in this agent's draft?" | `get_agent` for `draft_spec`; the published side shows only as `current_version_id` (take summary fields such as `published_capabilities` from `list_agents`, which populates them), so say when a full diff needs the console's version history | live |
 | Reread a past chat | "What did Architect tell me about budgets?" | `list_conversations` (`search`) → `read_conversation` → `read_conversation_tool_call` | reads live |
 
 ## Build agents
@@ -90,8 +90,8 @@ A use case that is not `live` is still valid; start it with its read steps, whic
 | Use case | A prompt that starts it | Tool chain | Confirmed |
 |---|---|---|---|
 | Keep an operational table in sync | "Mirror our open incidents into a table" | `list_virtual_tables` → `create_virtual_table` → `get_virtual_table` → `upsert_virtual_table_record` keyed by `external_id` | reads live |
-| Query records | "Which leads have no owner?" | `list_virtual_tables` → `get_virtual_table` → `query_virtual_table` with typed `filters` | live |
-| Durable follow-ups | "Remind me Friday to check the migration" | `list_task_boards` → `ensure_task_board` → `create_task` → `update_task` | reads live |
+| Query records | "Which leads have no owner?" | `list_virtual_tables` → `get_virtual_table` → `query_virtual_table` with typed `filters` | live, including a `single_select` filter by option UUID |
+| Durable follow-ups | "Remind me Friday to check the migration" | `list_task_boards` → `ensure_task_board` → `create_task` → `update_task` | live: created, re-created with the same `external_id` (returned the same task), updated against its revision, then removed with `delete_virtual_table_record` |
 | Hand a task to an agent | "Have the research agent draft this by Monday" | `create_task` with `assignee_agent_id`, `next_actor: "agent"`, `start_at` | contract |
 
 ## Improve quality
@@ -102,7 +102,7 @@ These need a connection signed in with OAuth, and every step that spends is pric
 |---|---|---|---|
 | Improve an agent against test questions | "Make the support agent better on our test set" | `list_datasets` → `estimate_improvement` → `start_improvement` → `get_improvement` → `estimate_next_improvement_step` → `run_next_improvement_step` → `accept_improvement` | reads live; needs a dataset |
 | Check where improving stands | "How is the Improve session going?" | `list_improvements` → `get_improvement` | live |
-| Improve a shared skill safely | "Fix the refund skill without breaking other agents" | `get_skill` → `estimate_skill_improvement` → `start_skill_improvement` → `get_skill_improvement` → `accept_skill_improvement` | reads live |
+| Improve a shared skill safely | "Fix the refund skill without breaking other agents" | `get_skill` → `estimate_skill_improvement` → `start_skill_improvement` → `get_skill_improvement` → `accept_skill_improvement` | `estimate_skill_improvement` live; starting needs runs that used the skill |
 | Catch pinned agents up | "Which agents are on an old skill version?" | `list_skills_behind_main` → `estimate_skill_update_check` → `start_skill_update_check` → `get_skill_check` → `change_skill_version` | reads live |
 
 ## People and setup
@@ -116,7 +116,7 @@ These need a connection signed in with OAuth, and every step that spends is pric
 
 ## Requests to decline
 
-Say plainly that the MCP connection does not do these, and name the console page instead.
+Say plainly that the MCP connection does not do these and that the console does. Give a console path only when a tool result supplied it.
 
 | Request | Why |
 |---|---|

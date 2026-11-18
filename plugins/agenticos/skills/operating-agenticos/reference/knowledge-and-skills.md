@@ -79,7 +79,7 @@ Every saved change is an immutable version. An agent reads a skill in one of thr
 
 A skill session proposes changes and checks them on every agent of the line before anything is applied. It needs an OAuth connection and runs only when the user asks.
 
-1. `agenticos:estimate_skill_improvement`. Tell the user `total_usd`, `per_round_usd` and `limit_usd`.
+1. `agenticos:estimate_skill_improvement`. Tell the user `total_usd`, `per_round_usd` and `limit_usd`. An estimate with `reason: "no_evidence"` means no recorded run has used the skill yet, so there is nothing to improve from: say so instead of starting.
 2. `agenticos:start_skill_improvement` with the agreed `budget_usd`.
 3. `agenticos:get_skill_improvement`. Reply from its `summary`, keeping every fact, a worse agent above all, and end with its `ask` exactly as given.
 4. `agenticos:estimate_next_skill_improvement_step`, then `agenticos:run_next_skill_improvement_step` with its `total_usd` and `candidate_hash`. A failed step is rerun with `agenticos:retry_skill_improvement_step`.

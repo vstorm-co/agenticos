@@ -32,11 +32,11 @@ A routine runs a published agent on a cadence with a fixed prompt.
 
 Points that decide whether it works:
 
-- **The prompt stands alone.** Each run starts with none of this conversation. Write what to do, from which sources, in which language and what to produce.
+- **The prompt stands alone.** Each run starts with none of this conversation. Write what to do, from which sources, in which language and what to produce. A weekday schedule that reports "yesterday" skips the weekend: ask whether Monday should cover Friday to Sunday.
 - **One cadence.** Either `cron_expression` (five fields, read in `time_zone`, an IANA name) or `every_minutes`. Write the local time as the user said it: 9:00 on weekdays in `Europe/Warsaw` is `0 9 * * 1-5` with that zone.
 - **`result_mode`.** `report` produces a report per run. `inbox` creates one working chat and Inbox case per relevant source item and stays quiet on unchanged ones.
 - **`answer_to`.** `run_log` keeps results in the routine's log, `primary` uses the person's primary conversation, `conversation` uses `delivery_conversation_id`. For a topic thread, find the chat with `agenticos:list_conversations` or open one with `agenticos:create_conversation`.
-- **`runs_as_me`** fires as the creator, with their memory and personal connections.
+- **`runs_as_me`** fires as the creator, with their memory and personal connections. A prompt that reads platform records (runs, spend, tables) needs the agent to bind the platform MCP server (`account: "platform"`) and the routine to fire as a person, because that binding is absent when nobody is behind the run.
 - **Bounds.** `ends_at` (ISO with offset) for time-limited requests; `monthly_budget_usd` as a cap; `pinned_version_id` to hold one published version.
 - **`setup_required: true`** means the routine was saved paused because a source is unavailable. Report that, link `/routines`, and repair that routine. Do not create a second one or retry with another agent.
 
@@ -61,7 +61,7 @@ A task is a durable commitment on a managed task board, shared with the console'
 
 1. `agenticos:list_task_boards` for the board's `table_id`. `agenticos:ensure_task_board` creates the missing board for a scope; `private` is the default.
 2. `agenticos:create_task`. Set `external_id` for a source item so a retry returns the existing task instead of a duplicate.
-3. `agenticos:get_task` for the current `revision`, then `agenticos:update_task` with `expected_revision`. An update replaces the task's fields: send the ones to keep.
+3. `agenticos:get_task` for the current `revision`, then `agenticos:update_task` with `expected_revision`. An update replaces every field of the task: one left out is reset (an omitted `assignee_user_id` clears the assignee), so send all the ones to keep.
 
 - `due_at` is only a deadline. `start_at` schedules the action: an Inbox reminder for a person, one agent run for an agent.
 - `next_actor` says who moves next. A task created with `assignee_agent_id` defaults to the agent.
