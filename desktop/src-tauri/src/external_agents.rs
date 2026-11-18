@@ -15,6 +15,8 @@ pub enum Provider {
     Custom,
     Antigravity,
     Cursor,
+    Cline,
+    ClineApiKey,
     #[serde(rename = "opencode")]
     OpenCode,
     #[serde(rename = "opencode_go")]
@@ -83,6 +85,12 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
                 .into(),
         );
     }
+    if matches!(input.provider, Provider::Cline | Provider::ClineApiKey) && input.args != ["--acp"] {
+        return Err(
+            "The Cline template requires --acp without launch overrides. Register other commands as custom agents."
+                .into(),
+        );
+    }
     Ok(Registration {
         provider: input.provider,
         id: input.id,
@@ -108,6 +116,8 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
     let before = settings::current(&app).connection_revision;
     let (send, receive) = tokio::sync::oneshot::channel();
     let billing = match registration.provider {
+        Provider::Cline => "Cline account login is required. Inherited API keys are removed and provider selection is fixed to Cline. Credit, model availability and any free offerings depend on your Cline account, not on an assumed subscription.",
+        Provider::ClineApiKey => "Only the CLINE_API_KEY inherited by Desktop is used, with the provider fixed to Cline. A missing key refuses launch without using saved account credentials. No key is stored by AgenticOS. Cline account/credit terms determine charges.",
         Provider::Cursor => "Cursor uses its own CLI account login; inherited API keys and auth-token overrides are removed. Account, model and on-demand settings determine charges. Sign in with agent login first. API-key registration is not supported by this template.",
         Provider::Antigravity => "Google personal OAuth is required; inherited Gemini API key variables are removed.",
         Provider::OpenCode => "OpenCode uses its own configured providers and credentials. Its model choices may include free models, Go and paid APIs.",
@@ -172,6 +182,26 @@ mod tests {
             name: "My agent".into(),
             program: std::env::current_exe().unwrap().to_string_lossy().into_owned(),
             args: vec!["acp".into()],
+        }
+    }
+
+    #[test]
+    fn cline_templates_require_foreground_acp_without_auto_approval_flags() {
+        for provider in [Provider::Cline, Provider::ClineApiKey] {
+            assert!(checked(RegistrationInput {
+                provider,
+                args: vec!["--acp".into()],
+                ..input()
+            })
+            .is_ok());
+            for args in [vec!["acp".into()], vec!["--acp".into(), "--yolo".into()]] {
+                assert!(checked(RegistrationInput {
+                    provider,
+                    args,
+                    ..input()
+                })
+                .is_err());
+            }
         }
     }
 

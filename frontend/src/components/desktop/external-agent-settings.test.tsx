@@ -145,3 +145,25 @@ it.each([
     { ...registration, provider },
   ]);
 });
+
+it.each([
+  ["cline", "cline", "Cline"],
+  ["cline_api_key", "cline-api-key", "Cline API key"],
+])(
+  "registers the %s foreground template with the selected credential mode",
+  async (provider, id, name) => {
+    mount();
+    await userEvent.selectOptions(screen.getByLabelText("Setup template"), provider);
+    expect(screen.getByLabelText("Arguments (JSON array)")).toHaveValue('["--acp"]');
+    await userEvent.type(screen.getByLabelText("Absolute executable path"), "/opt/bin/cline");
+    await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+        registration: { provider, id, name, program: "/opt/bin/cline", args: ["--acp"] },
+      }),
+    );
+    expect(parseExternalAgents([{ ...registration, provider }])).toEqual([
+      { ...registration, provider },
+    ]);
+  },
+);

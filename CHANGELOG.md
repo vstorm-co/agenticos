@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Add foreground Cline ACP account and inherited-key templates, with a fixed Cline provider, native missing-key refusal and no saved-account fallback in key mode (#3108).
+
 - Delegate native Cursor CLI account tasks through ACP, with explicit login negotiation, environment credential isolation and refusal of unanswered questions or plan approvals (#3108).
 
 - Add OpenCode and OpenCode Go Desktop ACP templates, delayed model discovery and a Go primary-model namespace restriction, without copying CLI credentials (#3108).

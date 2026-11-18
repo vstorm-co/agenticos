@@ -1,5 +1,5 @@
 ---
-source_sha: "f1e02452ad28"
+source_sha: "a6bcda2e98ba"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -860,3 +860,32 @@ Integration verlangt vollen lokalen Zugriff und leitet keine AgenticOS-Tools
 weiter. Kontoanmeldung, Modellzugriff, Kontingentablehnung und Wiederaufnahme nach
 Neustart bleiben Abnahmetests. Siehe [Cursor ACP](https://cursor.com/docs/cli/acp)
 und [CLI-Anmeldung](https://cursor.com/docs/cli/reference/authentication).
+
+## Cline über ACP { #cline-acp }
+
+Installieren Sie Cline CLI mit direkter ACP-Unterstützung und registrieren Sie
+den absoluten Pfad über **Cline** oder **Cline-API-Schlüssel**. Beide Vorlagen
+starten `cline --acp` ohne automatische Freigabe, erzwingen
+`CLINE_PROVIDER=cline` und nutzen die bestehende Prozess- und Sitzungsverwaltung.
+Sie verbinden sich nicht mit einem gemeinsamen Hintergrund-Hub.
+
+Führen Sie für **Cline** vorher `cline auth` aus. Der native Prozess entfernt
+geerbte `CLINE_API_KEY`-Werte und authentifiziert das Konto mit der angekündigten
+Methode `cline`. Starten Sie für **Cline-API-Schlüssel** Desktop mit
+`CLINE_API_KEY` in seiner Prozessumgebung. Schlüssel werden weder im Spec noch in
+Registrierungsargumenten oder Servernachrichten angenommen. Fehlende oder leere
+Schlüssel verhindern den Start vor der Sitzung. Das CLI erhält diesen Schlüssel;
+AgenticOS wechselt nicht zur gespeicherten Anmeldung. Die Integration speichert
+keine Zugangsdaten dauerhaft.
+
+`inspect_acp_agent` liest den Sitzungskatalog ohne Inferenz. Nutzen Sie eine
+genaue ID unter **Externe Modell-ID** oder behalten Sie die CLI-Auswahl. Guthaben,
+kostenlose Angebote und Kosten hängen von Cline ab; die Integration verspricht
+weder ein kostenloses Modell noch Abonnementberechtigung. Nutzung bleibt
+unbepreist. Entfernen oder registrieren Sie den Eintrag nach einem Wechsel der
+Zugangsdaten erneut, um Prozesse und Fortsetzungen zu löschen. Voller lokaler
+Zugriff ist erforderlich; Plattform-Tools werden nicht weitergeleitet.
+
+Konto- und Schlüsselanmeldung, Guthabenablehnung, Modelle und Wiederaufnahme nach
+Neustart verlangen echte Abnahmetests. Siehe
+[Cline ACP](https://github.com/cline/cline/blob/main/docs/usage/acp.mdx).

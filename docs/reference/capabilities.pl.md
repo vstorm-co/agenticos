@@ -1,5 +1,5 @@
 ---
-source_sha: "c105dec79805"
+source_sha: "e1f846f12f56"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3511,3 +3511,5 @@ nie potwierdza uprawnienia do korzystania z subskrypcji dostawcy.
 Rejestracje OpenCode odczytują opóźnione aktualizacje katalogu sesji. Osobny szablon Go filtruje katalog i ogranicza główny model do `opencode-go/`; modele pomocnicze oraz Extra Usage pozostają ustawieniami CLI i konta. Zobacz [konfigurację OpenCode i Go](../desktop.md#opencode-acp).
 
 Szablon Cursor korzysta z logowania kontem CLI przez `cursor_login`, usuwa odziedziczone przełączniki danych API i anuluje pytania wymagające człowieka. Rejestracja klucza API wymaga potwierdzenia izolacji. Zobacz [konfigurację Cursor](../desktop.md#cursor-acp).
+
+Cline ma osobne szablony konta i odziedziczonego klucza API; oba wymuszają providera Cline i bezpośrednie `--acp`. [Konfiguracja Cline](../desktop.md#cline-acp) opisuje dane logowania, kredyty i warunki odbioru.

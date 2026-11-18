@@ -189,6 +189,28 @@ impl Sessions {
     }
 }
 
+fn cline_environment(
+    command: &mut tokio::process::Command,
+    api_key_mode: bool,
+    key: Option<&std::ffi::OsStr>,
+) -> Result<(), Refusal> {
+    command.env("CLINE_PROVIDER", "cline");
+    if api_key_mode {
+        let key = key
+            .filter(|value| value.to_str().is_some_and(|text| !text.trim().is_empty()))
+            .ok_or_else(|| {
+                Refusal::new(
+                    "denied",
+                    "Start Desktop with CLINE_API_KEY set to use this registration. No saved account was selected.",
+                )
+            })?;
+        command.env("CLINE_API_KEY", key);
+    } else {
+        command.env_remove("CLINE_API_KEY");
+    }
+    Ok(())
+}
+
 fn cursor_account_environment(command: &mut tokio::process::Command) {
     command
         .env_remove("CURSOR_API_KEY")
@@ -225,6 +247,17 @@ fn spawn_authenticated(
             .env_remove("GOOGLE_API_KEY")
             .env_remove("GOOGLE_GENAI_USE_VERTEXAI")
             .env_remove("GOOGLE_GENAI_USE_GCA");
+    }
+    if matches!(
+        provider,
+        crate::external_agents::Provider::Cline | crate::external_agents::Provider::ClineApiKey
+    ) {
+        let key = std::env::var_os("CLINE_API_KEY");
+        cline_environment(
+            &mut command,
+            provider == crate::external_agents::Provider::ClineApiKey,
+            key.as_deref(),
+        )?;
     }
     if provider == crate::external_agents::Provider::Cursor {
         cursor_account_environment(&mut command);
@@ -505,7 +538,9 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     if external.as_ref().is_some_and(|item| {
         matches!(
             item.provider,
-            crate::external_agents::Provider::Antigravity | crate::external_agents::Provider::Cursor
+            crate::external_agents::Provider::Antigravity
+                | crate::external_agents::Provider::Cursor
+                | crate::external_agents::Provider::Cline
         )
     }) && !supports_auth_modes
     {
@@ -613,6 +648,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     let auth_method = external.as_ref().and_then(|item| match item.provider {
         crate::external_agents::Provider::Antigravity => Some("oauth-personal"),
         crate::external_agents::Provider::Cursor => Some("cursor_login"),
+        crate::external_agents::Provider::Cline => Some("cline"),
         _ => None,
     });
     let runtime_name = external.as_ref().map(|item| item.name.as_str());
@@ -928,6 +964,33 @@ mod tests {
         assert!(sessions.contains_key("retained"));
         assert!(drain(&output, 0).await.2.is_some());
         remove_external(&mut sessions, "second");
+    }
+
+    #[test]
+    fn cline_account_and_key_modes_never_share_a_credential_fallback() {
+        use std::ffi::OsStr;
+        let mut account = tokio::process::Command::new("cline");
+        cline_environment(&mut account, false, Some(OsStr::new("inherited-key"))).unwrap();
+        let environment: std::collections::BTreeMap<_, _> = account.as_std().get_envs().collect();
+        assert_eq!(
+            environment.get(OsStr::new("CLINE_PROVIDER")),
+            Some(&Some(OsStr::new("cline")))
+        );
+        assert_eq!(environment.get(OsStr::new("CLINE_API_KEY")), Some(&None));
+        for key in [None, Some(OsStr::new("")), Some(OsStr::new(" "))] {
+            assert!(cline_environment(&mut tokio::process::Command::new("cline"), true, key).is_err());
+        }
+        let mut keyed = tokio::process::Command::new("cline");
+        cline_environment(&mut keyed, true, Some(OsStr::new("explicit-key"))).unwrap();
+        let environment: std::collections::BTreeMap<_, _> = keyed.as_std().get_envs().collect();
+        assert_eq!(
+            environment.get(OsStr::new("CLINE_PROVIDER")),
+            Some(&Some(OsStr::new("cline")))
+        );
+        assert_eq!(
+            environment.get(OsStr::new("CLINE_API_KEY")),
+            Some(&Some(OsStr::new("explicit-key")))
+        );
     }
 
     #[test]

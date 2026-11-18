@@ -1,5 +1,5 @@
 ---
-source_sha: "c105dec79805"
+source_sha: "e1f846f12f56"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3767,3 +3767,5 @@ Fehler. Die Registrierung bestätigt keine Abonnementberechtigung beim Anbieter.
 OpenCode-Registrierungen lesen verzögerte Katalogaktualisierungen. Die separate Go-Vorlage filtert den Katalog und beschränkt das primäre Modell auf `opencode-go/`; Hilfsmodelle und Extra Usage bleiben CLI- und Kontoeinstellungen. Siehe [OpenCode und Go einrichten](../desktop.md#opencode-acp).
 
 Die Cursor-Vorlage nutzt das CLI-Konto mit `cursor_login`, entfernt geerbte API-Zugangsdaten und bricht unbeantwortete menschliche Anfragen ab. Die API-Schlüsselregistrierung wartet auf eine bestätigte Isolierung. Siehe [Cursor einrichten](../desktop.md#cursor-acp).
+
+Cline hat getrennte Vorlagen für Konto und geerbten API-Schlüssel, beide auf den Provider Cline und direktes `--acp` beschränkt. [Cline einrichten](../desktop.md#cline-acp) beschreibt Zugangsdaten, Guthaben und Abnahme.

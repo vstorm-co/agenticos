@@ -183,7 +183,7 @@ class DevicePipe:
         self.refresh_catalog = opened.get("refresh_catalog") is True
         method = opened.get("auth_method")
         if method is not None:
-            if method not in {"oauth-personal", "cursor_login"}:
+            if method not in {"oauth-personal", "cursor_login", "cline"}:
                 await self.close()
                 raise AcpError("The Desktop app requires an unsupported authentication mode.")
             self.auth_method = method

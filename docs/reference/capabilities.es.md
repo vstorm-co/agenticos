@@ -1,5 +1,5 @@
 ---
-source_sha: "c105dec79805"
+source_sha: "e1f846f12f56"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3613,3 +3613,5 @@ producen errores explícitos. El registro no certifica derechos de suscripción.
 Las inscripciones OpenCode leen actualizaciones tardías del catálogo. La plantilla Go filtra los modelos y limita el modelo principal a `opencode-go/`; los modelos auxiliares y Extra Usage dependen del CLI y la cuenta. Consulta la [configuración de OpenCode y Go](../desktop.md#opencode-acp).
 
 La plantilla Cursor usa la cuenta CLI con `cursor_login`, elimina credenciales API heredadas y cancela solicitudes humanas sin respuesta. El registro de claves API espera verificar su aislamiento. Consulta la [configuración Cursor](../desktop.md#cursor-acp).
+
+Cline ofrece plantillas separadas para cuenta y clave API heredada, ambas fijadas al provider Cline y `--acp` directo. La [configuración Cline](../desktop.md#cline-acp) explica credenciales, créditos y aceptación.

@@ -806,3 +806,28 @@ requires full local access and forwards no AgenticOS tools. Real-account login,
 model eligibility, quota refusal and restart/resume remain acceptance follow-ups.
 See [Cursor ACP](https://cursor.com/docs/cli/acp) and
 [CLI authentication](https://cursor.com/docs/cli/reference/authentication).
+
+## Cline through ACP { #cline-acp }
+
+Install a Cline CLI version with direct ACP support and register its absolute
+executable path using **Cline** or **Cline API key**. Both launch `cline --acp`
+without auto-approval flags, fix `CLINE_PROVIDER=cline` and use the existing owned
+process/session lifecycle. They do not connect to a shared background hub.
+
+For **Cline**, complete `cline auth` first. The native child removes inherited
+`CLINE_API_KEY` and authenticates with the advertised `cline` account method.
+For **Cline API key**, start Desktop with `CLINE_API_KEY` in its process environment;
+no key is accepted in the spec, registration arguments or server messages. A
+missing or empty key refuses launch before a session starts. The CLI receives
+that key directly; AgenticOS does not fall back to stored login. No credential is
+persisted by this integration.
+
+`inspect_acp_agent` reads the session catalog without inference. Set **External
+model ID** to an exact ID it returns or keep the CLI selection. Account credits,
+free offerings and charges depend on Cline; this integration promises neither a
+free model nor subscription entitlement. Usage remains unpriced. Re-register or
+remove the entry after changing credentials to stop its processes and clear
+continuation. Full local access is required; platform tools are not forwarded.
+
+Account/key login, credit refusal, available models and restart/resume still need
+real-account acceptance. See [Cline ACP](https://github.com/cline/cline/blob/main/docs/usage/acp.mdx).

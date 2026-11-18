@@ -85,6 +85,8 @@ export function ExternalAgentSettings() {
               if (
                 selected !== "antigravity" &&
                 selected !== "cursor" &&
+                selected !== "cline" &&
+                selected !== "cline_api_key" &&
                 selected !== "opencode" &&
                 selected !== "opencode_go"
               ) {
@@ -97,17 +99,24 @@ export function ExternalAgentSettings() {
               const names = {
                 antigravity: "Antigravity",
                 cursor: "Cursor",
+                cline: "Cline",
+                cline_api_key: t("clineApi"),
                 opencode: "OpenCode",
                 opencode_go: "OpenCode Go",
               };
               setName(names[selected]);
-              setArgs('["acp"]');
+              setArgs(
+                selected === "cline" || selected === "cline_api_key" ? '["--acp"]' : '["acp"]',
+              );
             }}
           >
             <option value="custom">{t("custom")}</option>
             {/* i18n-exempt: product name */}
             <option value="antigravity">Antigravity</option>
             {/* i18n-exempt: product names */}
+            <option value="cline">Cline</option>
+            <option value="cline_api_key">{t("clineApi")}</option>
+            {/* i18n-exempt: product name */}
             <option value="cursor">Cursor</option>
             {/* i18n-exempt: product names */}
             <option value="opencode">OpenCode</option>
@@ -115,6 +124,9 @@ export function ExternalAgentSettings() {
             <option value="opencode_go">OpenCode Go</option>
           </NativeSelect>
         </div>
+        {(provider === "cline" || provider === "cline_api_key") && (
+          <p className="text-muted-foreground text-xs">{t("clineHelp")}</p>
+        )}
         {provider === "cursor" && (
           <p className="text-muted-foreground text-xs">{t("cursorHelp")}</p>
         )}

@@ -1,5 +1,5 @@
 ---
-source_sha: "f1e02452ad28"
+source_sha: "a6bcda2e98ba"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -817,3 +817,30 @@ pełnego dostępu lokalnego i nie przekazuje narzędzi AgenticOS. Logowanie, dos
 do modeli, odmowa po wyczerpaniu limitu i wznowienie po restarcie pozostają testami
 odbiorowymi. Zobacz [Cursor ACP](https://cursor.com/docs/cli/acp) i
 [logowanie CLI](https://cursor.com/docs/cli/reference/authentication).
+
+## Cline przez ACP { #cline-acp }
+
+Zainstaluj Cline CLI z bezpośrednią obsługą ACP i zarejestruj bezwzględną ścieżkę
+programu przez **Cline** lub **Klucz API Cline**. Oba szablony uruchamiają
+`cline --acp` bez flag automatycznej zgody, wymuszają `CLINE_PROVIDER=cline` i
+korzystają z istniejącego zarządzania procesem oraz sesjami. Nie łączą się ze
+współdzielonym hubem w tle.
+
+Dla **Cline** wykonaj wcześniej `cline auth`. Proces usuwa odziedziczony
+`CLINE_API_KEY` i uwierzytelnia konto reklamowaną metodą `cline`. Dla **Klucz API
+Cline** uruchom Desktop z `CLINE_API_KEY` w środowisku procesu; klucza nie można
+przekazać w spec, argumentach rejestracji ani komunikatach serwera. Brak lub pusty
+klucz blokuje uruchomienie przed utworzeniem sesji. CLI otrzymuje wskazany klucz;
+AgenticOS nie przechodzi na zapisane logowanie. Integracja nie utrwala danych
+uwierzytelniających.
+
+`inspect_acp_agent` odczytuje katalog sesji bez inferencji. W **ID modelu
+zewnętrznego** podaj dokładne ID z wyniku albo zachowaj wybór CLI. Kredyty,
+bezpłatne oferty i opłaty zależą od Cline; integracja nie obiecuje darmowego modelu
+ani uprawnień subskrypcji. Użycie pozostaje niewycenione. Po zmianie danych usuń
+wpis lub zarejestruj ponownie, aby zatrzymać procesy i usunąć wznowienia. Wymagany
+jest pełny dostęp lokalny; narzędzia platformy nie są przekazywane.
+
+Logowanie kontem i kluczem, odmowa po wyczerpaniu kredytów, modele i wznowienie
+po restarcie wymagają odbioru na rzeczywistym koncie. Zobacz
+[Cline ACP](https://github.com/cline/cline/blob/main/docs/usage/acp.mdx).

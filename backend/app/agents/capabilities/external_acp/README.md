@@ -44,3 +44,12 @@ the patterns are based on OpenBot's observations of Cursor 2026.10.22-27dcf5f
 ([source](https://github.com/nightly-labs/openbot/blob/82f897328826ad425dd3e2d2ac710340bbdf0cbd/src/backend/acp-flavor.ts#L799)).
 They are not a general parser for error-like prose. API-key registration remains
 pending verification of a supported isolated credential-store contract.
+
+Cline uses direct foreground `cline --acp`, fixes `CLINE_PROVIDER=cline`, and
+separates the `cline` account method from an explicit inherited API key. Key
+mode requires a nonempty Desktop-process `CLINE_API_KEY` before spawning and
+skips account authentication; account mode removes the inherited key. No token
+is stored by AgenticOS or sent through server messages. CLI contract checked at
+[`eff43e19b267`](https://github.com/cline/cline/blob/eff43e19b267e171f597ab03733bfed25090f72d/apps/cli/src/acp/acpAgent.ts):
+provider override cannot change during a session, the environment key wins over
+restored credentials, and the direct ACP process owns its session managers.

@@ -1,5 +1,5 @@
 ---
-source_sha: "f1e02452ad28"
+source_sha: "a6bcda2e98ba"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -848,3 +848,29 @@ de AgenticOS. El inicio de sesión, los modelos, el rechazo por cuota y la
 reanudación tras reiniciar siguen pendientes de pruebas reales. Consulta
 [Cursor ACP](https://cursor.com/docs/cli/acp) y la
 [autenticación CLI](https://cursor.com/docs/cli/reference/authentication).
+
+## Cline mediante ACP { #cline-acp }
+
+Instala Cline CLI con soporte ACP directo y registra su ruta absoluta mediante
+**Cline** o **Clave API Cline**. Ambas plantillas ejecutan `cline --acp` sin
+aprobación automática, fijan `CLINE_PROVIDER=cline` y usan la gestión existente de
+procesos y sesiones. No conectan con un hub compartido en segundo plano.
+
+Para **Cline**, ejecuta antes `cline auth`. El proceso elimina `CLINE_API_KEY`
+heredado y autentica la cuenta con el método anunciado `cline`. Para **Clave API
+Cline**, inicia Desktop con `CLINE_API_KEY` en su entorno. No se aceptan claves en
+el spec, los argumentos de registro ni los mensajes del servidor. Una clave
+ausente o vacía impide iniciar la sesión. El CLI recibe esa clave; AgenticOS no
+recurre al inicio de sesión guardado. La integración no persiste credenciales.
+
+`inspect_acp_agent` consulta el catálogo sin inferencia. Introduce un ID exacto en
+**ID del modelo externo** o conserva la selección del CLI. Los créditos, ofertas
+gratuitas y cargos dependen de Cline; no se promete ningún modelo gratuito ni
+derecho de suscripción. El uso sigue sin valorar. Elimina o registra de nuevo la
+entrada después de cambiar credenciales para detener procesos y borrar
+continuaciones. Se exige acceso local completo; no se reenvían herramientas de
+la plataforma.
+
+El acceso por cuenta o clave, el rechazo por créditos agotados, los modelos y
+la reanudación tras reiniciar requieren pruebas reales. Consulta
+[Cline ACP](https://github.com/cline/cline/blob/main/docs/usage/acp.mdx).
