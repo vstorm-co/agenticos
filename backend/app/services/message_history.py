@@ -32,6 +32,7 @@ from app.schemas.conversation import HistoryCheckpointFrontier, HistoryProvenanc
 MODEL_HISTORY_MESSAGES = 200
 MODEL_HISTORY_BYTES = 2 * 1024 * 1024
 CHANNEL_AUTHORS = "agenticos_channel_authors"
+_LEGACY_SUMMARY_PREFIX = "Summary of previous conversation:\n\n"
 HISTORY_TRIMMED = (
     "Earlier conversation messages and tool results were omitted to keep history within its limits. "
     "Rediscover tools whose discovery is no longer present, and read missing evidence again when needed."
@@ -57,7 +58,7 @@ def without_standing_instructions(
                 for part in message.parts
                 if not isinstance(part, (InstructionBaselinePart, InstructionDeltaPart))
                 if not isinstance(part, SystemPromptPart)
-                or part.content.startswith("Summary of previous conversation:\n\n")
+                or part.content.startswith(_LEGACY_SUMMARY_PREFIX)
             ]
             if parts:
                 metadata = dict(message.metadata or {})
@@ -76,6 +77,35 @@ def without_standing_instructions(
                 )
         else:
             history.append(message)
+    return history
+
+
+def _stored_standing_instruction(part: JsonValue) -> bool:
+    if not isinstance(part, dict):
+        return False
+    if part.get("part_kind") in ("instruction-baseline", "instruction-delta"):
+        return True
+    content = part.get("content")
+    return (
+        part.get("part_kind") == "system-prompt"
+        and isinstance(content, str)
+        and not content.startswith(_LEGACY_SUMMARY_PREFIX)
+    )
+
+
+def without_stored_standing_instructions(
+    messages: Sequence[dict[str, JsonValue]],
+) -> list[dict[str, JsonValue]]:
+    """Clean legacy checkpoints before their byte ceiling, without expanding media references."""
+    history: list[dict[str, JsonValue]] = []
+    for message in messages:
+        parts = message.get("parts")
+        if message.get("kind") != "request" or not isinstance(parts, list):
+            history.append(message)
+            continue
+        kept = [part for part in parts if not _stored_standing_instruction(part)]
+        if kept:
+            history.append({**message, "parts": kept, "instructions": None})
     return history
 
 

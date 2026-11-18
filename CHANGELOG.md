@@ -26,10 +26,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Refuse coding-task undo when either snapshot leaves out oversized, unreadable or unsupported files. Keep the captured diff available without offering an incomplete restore (#3138).
+
 - Preserve original delegated MCP authority on approval resumes without requiring the approver’s key to delegate its own accounts; leave explicitly disabled environment bindings off even when their production account is unavailable.
 
 - Enforce personal-model consent across delegation trees and recheck both test and production MCP account authority on delegated tool calls. Recover organization MCP queries on later page visits without interrupting personal account editing.
-- Exclude repeated agent instructions and SDK instruction baselines and deltas from conversation checkpoints, preserving more conversation and tool evidence within the existing storage limit. Later turns continue with the agent's current instructions (#3141).
+- Exclude repeated agent instructions and SDK instruction baselines and deltas from conversation checkpoints, preserving more conversation and tool evidence within the existing storage limit. Clean legacy checkpoints before applying restored-history limits too. Later turns continue with the agent's current instructions (#3141).
 - Serialize routine edits with agent publication in the same lock order, preventing deadlocks while retaining model checks and creator-consent withdrawal (#3139).
 - Replay earlier assistant answers once when stored content and streamed parts differ only in edge whitespace, include several final text parts, or contain blank fragments. Preserve human reply ordering and the token anchor used for history compaction, including in existing conversations (#3156).
 - Forward agent avatar uploads through the authenticated console proxy, preserving multipart file bytes, the active organization and backend validation errors (#3153).
@@ -44,8 +46,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Publish native Arch Linux x86_64 desktop packages using system WebKitGTK, with pacman-managed updates and CI checks for installation, package revision upgrades, removal and X11/Wayland rendering (#3104).
 
 ### Fixed
-
-- Refuse coding-task undo when either snapshot leaves out oversized, unreadable or unsupported files. Keep the captured diff available without offering an incomplete restore (#3138).
 
 - Use the same icon, heading, description, spacing and disclosure controls for all organization AI & services cards. AI Architect, speech-to-text and text-to-speech now match the background-service cards; switches remain separate from expansion and retain their save behavior.
 

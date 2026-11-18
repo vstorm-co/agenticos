@@ -287,3 +287,46 @@ def test_checkpoint_removes_sdk_instruction_parts_without_mutating_the_request()
     assert cleaned[0].timestamp == request.timestamp
     assert request.parts == [*standing, prompt]
     assert request.instructions == "Old rendered instructions"
+
+
+def test_stored_instruction_cleaning_preserves_media_metadata_and_legacy_summaries() -> None:
+    from pydantic import JsonValue
+
+    from app.services.message_history import without_stored_standing_instructions
+
+    media: dict[str, JsonValue] = {
+        "part_kind": "user-prompt",
+        "content": {"ref": "media+sha256://image"},
+    }
+    summary: dict[str, JsonValue] = {
+        "part_kind": "system-prompt",
+        "content": "Summary of previous conversation:\n\nEvidence",
+    }
+    stored: list[dict[str, JsonValue]] = [
+        {"kind": "request", "parts": [{"part_kind": "instruction-baseline"}]},
+        {
+            "kind": "request",
+            "instructions": "standing",
+            "metadata": {"author": "kept"},
+            "parts": [
+                {"part_kind": "instruction-delta"},
+                {"part_kind": "system-prompt", "content": "standing"},
+                summary,
+                media,
+            ],
+        },
+        {"kind": "response", "parts": [{"part_kind": "text", "content": "answer"}]},
+        {"kind": "request", "parts": "invalid"},
+        {"kind": "request", "parts": [None, {"part_kind": "system-prompt", "content": 1}]},
+    ]
+    cleaned = without_stored_standing_instructions(stored)
+    assert len(cleaned) == 4
+    assert cleaned[0] == {
+        "kind": "request",
+        "instructions": None,
+        "metadata": {"author": "kept"},
+        "parts": [summary, media],
+    }
+    assert cleaned[1:3] == stored[2:4]
+    assert cleaned[3] == {**stored[4], "instructions": None}
+    assert stored[1]["instructions"] == "standing"

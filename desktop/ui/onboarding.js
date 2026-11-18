@@ -1,4 +1,4 @@
-import { startLanguage, translated } from "./language.js";
+import { startLanguage } from "./language.js";
 import { localComputerStep } from "./local-computer.js";
 import { permissionStep } from "./permissions.js";
 

@@ -532,3 +532,71 @@ async def test_replaying_a_compact_checkpoint_restores_large_media_without_evict
         assert "SOURCE_EVIDENCE_42" in encoded
         assert HISTORY_TRIMMED not in encoded and "OLD_AGENT_PROMPT" not in encoded
         assert len(json.dumps(thread.conversation.summary_messages).encode()) < MODEL_HISTORY_BYTES
+
+
+async def test_legacy_checkpoint_instructions_cannot_evict_evidence_when_the_tail_is_added(
+    thread: StoredThread,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from datetime import UTC, datetime
+
+    from pydantic_ai.messages import (
+        InstructionBaselinePart,
+        InstructionDeltaPart,
+        InstructionPart,
+        SystemPromptPart,
+    )
+
+    from app.schemas.conversation import HistoryCheckpoint
+    from app.services import message_history
+
+    standing = "OLD_STANDING_INSTRUCTIONS " * 50
+    raw = dump_messages(
+        [
+            ModelRequest(
+                parts=[
+                    SystemPromptPart(standing),
+                    InstructionBaselinePart(instructions=[InstructionPart(standing)]),
+                    InstructionDeltaPart(id=None, content=standing),
+                    UserPromptPart("Earlier question"),
+                ],
+                instructions=standing,
+            ),
+            ModelResponse(parts=[ToolCallPart("lookup", {}, tool_call_id="kept-call")]),
+            ModelRequest(
+                parts=[ToolReturnPart("lookup", "KEPT_SOURCE_EVIDENCE", tool_call_id="kept-call")],
+                instructions=standing,
+            ),
+            ModelResponse(parts=[TextPart("Earlier answer")]),
+        ]
+    )
+    checkpoint = HistoryCheckpoint(version=1, provenance=_PROVENANCE, messages=raw).model_dump(
+        mode="json"
+    )
+    budget = len(json.dumps(checkpoint, ensure_ascii=False).encode()) + 100
+    monkeypatch.setattr(message_history, "MODEL_HISTORY_BYTES", budget)
+    thread.conversation.summary_messages = checkpoint
+    thread.conversation.summary_ordinal = 2
+    cleaned_size = len(
+        json.dumps(message_history.without_stored_standing_instructions(raw)).encode()
+    )
+    tail = Message(
+        id=uuid4(),
+        ordinal=3,
+        role="user",
+        content="A new question " + "x" * (budget - cleaned_size - 350),
+        created_at=datetime.now(UTC),
+    )
+    monkeypatch.setattr(conversation_repo, "get_messages_after", AsyncMock(return_value=[tail]))
+    old_bounded = message_history.bounded_stored_history(
+        [*raw, *dump_messages([ModelRequest(parts=[UserPromptPart(tail.content)])])]
+    )
+    assert "KEPT_SOURCE_EVIDENCE" not in json.dumps(old_bounded)
+    history = await thread.service.model_history(thread.conversation.id, limit=50)
+    encoded = ModelMessagesTypeAdapter.dump_json(history).decode()
+    assert "KEPT_SOURCE_EVIDENCE" in encoded
+    assert "kept-call" in encoded
+    assert "A new question" in encoded
+    assert "OLD_STANDING_INSTRUCTIONS" not in encoded
+    assert message_history.HISTORY_TRIMMED not in encoded
+    assert thread.conversation.summary_messages["messages"] == raw

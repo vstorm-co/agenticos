@@ -87,6 +87,7 @@ from app.services.message_history import (
     bounded_stored_history,
     build_message_history,
     without_standing_instructions,
+    without_stored_standing_instructions,
 )
 
 logger = logging.getLogger(__name__)
@@ -368,7 +369,9 @@ class ConversationService:
             )
             # Bound stored references, not their expanded bytes. Restoring a valid
             # multi-megabyte image before this storage limit would drop its exchange.
-            summary = bounded_stored_history([*summary, *dump_messages(tail)])
+            summary = bounded_stored_history(
+                without_stored_standing_instructions([*summary, *dump_messages(tail)])
+            )
             if conversation.organization_id is not None:
                 summary = await restore_stored_media(
                     summary,
