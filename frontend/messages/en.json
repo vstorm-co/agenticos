@@ -7250,7 +7250,7 @@
       "modelCredentialMode": "Model access",
       "organizationModelKey": "Use the organization’s key",
       "personalModelKey": "Each user connects their own key",
-      "personalModelLimits": "The model and endpoint stay fixed. Signed-in web chat only. Disable active channels, widgets, hosted pages and routines before publishing. HTTP API runs, background topics, voice, delegation, reviewers, separate step models and model fallbacks are not supported.",
+      "personalModelLimits": "The model and endpoint stay fixed. Signed-in web chat only. Disable active channels, widgets, hosted pages and routines before publishing. HTTP API runs, background topics, voice, reviewers, separate step models and model fallbacks are not supported. Delegation in signed-in web chat resolves each personal-mode agent for the original caller.",
       "draftChanged": "This draft changed elsewhere. Your edits are still here, but saving is paused. Copy anything you want to keep, then reload the latest draft.",
       "reloadDraft": "Reload latest draft",
       "speechUseOrganizationDefaults": "Use organization defaults",

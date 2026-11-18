@@ -422,7 +422,6 @@ from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.personal_model_key import PersonalModelKeyService
 from app.services.personal_model_policy import (
-    require_organization_model,
     require_personal_model_run,
 )
 from app.services.project import ProjectService
@@ -3144,6 +3143,8 @@ class _Delegation:
     isolation: RunIsolation | None
     """The run's isolation, when it is an eval, which every level of the tree is under."""
     personal_mcp_check: Callable[[], Awaitable[None]] | None = None
+    personal_models_blocked: bool = False
+    """Public input, voice or a local model replacement cannot spend personal keys."""
     output_screen: ScreenedStream | None = None
     """The run's own output check, for what every level of the tree streams."""
 
@@ -3334,6 +3335,7 @@ def _dynamic_builder(
     *,
     profiles: Mapping[str, ModelRequestSpec],
     trace_content: TraceContent,
+    personal: bool = False,
 ) -> DynamicSpecialistBuilder:
     """How a specialist a run's model invents becomes an agent of this platform's.
 
@@ -3374,6 +3376,7 @@ def _dynamic_builder(
                 name=name,
                 instructions=instructions,
                 model_profile_id=profiles[model].profile_id,
+                model_credential_mode="personal" if personal else "organization",
                 observability=trace_content_block(trace_content),
             ),
             model=profiles[model],
@@ -5182,6 +5185,11 @@ class AgentRunnerService:
             ctx,
             request_computer_access=request_computer_access,
             models_ctx=models_ctx,
+            personal_models_blocked=(
+                public_origin
+                or voice is not None
+                or (local is not None and local.model_service is not None)
+            ),
             spec=spec.model_copy(update={"capabilities": delegation_capabilities}),
             agent=agent,
             run=run,
@@ -5522,6 +5530,7 @@ class AgentRunnerService:
         ctx: AuthContext,
         *,
         models_ctx: AuthContext,
+        personal_models_blocked: bool,
         spec: AgentSpec,
         agent: Agent,
         run: AgentRun,
@@ -5597,6 +5606,7 @@ class AgentRunnerService:
         delegation = _Delegation(
             ctx=ctx,
             models_ctx=models_ctx,
+            personal_models_blocked=personal_models_blocked,
             run=run,
             surface=surface,
             agent_id=agent.id,
@@ -5656,6 +5666,7 @@ class AgentRunnerService:
                 config,
                 trace_content=spec.trace_content,
                 named=models_a_run_reaches(spec),
+                personal_spec=spec if spec.model_credential_mode == "personal" else None,
             ),
         )
 
@@ -5666,6 +5677,7 @@ class AgentRunnerService:
         *,
         trace_content: TraceContent,
         named: frozenset[UUID],
+        personal_spec: AgentSpec | None = None,
     ) -> DynamicSpecialists | None:
         """Whether one agent in the tree may invent specialists, and how it builds one.
 
@@ -5687,11 +5699,22 @@ class AgentRunnerService:
         """
         if not config.allow_dynamic:
             return None
-        profiles = await self._model_catalog(delegation, named)
+        if personal_spec is not None:
+            # Dynamic specialists may vary instructions, never the personal
+            # agent's approved model or destination.
+            model = await self._delegated_model(delegation, personal_spec)
+            profiles = {model.label: model}
+        else:
+            profiles = await self._model_catalog(delegation, named)
         if not profiles:
             return None
         return DynamicSpecialists(
-            build=_dynamic_builder(delegation, profiles=profiles, trace_content=trace_content),
+            build=_dynamic_builder(
+                delegation,
+                profiles=profiles,
+                trace_content=trace_content,
+                personal=personal_spec is not None,
+            ),
             allowed_models=tuple(profiles),
         )
 
@@ -5923,6 +5946,41 @@ class AgentRunnerService:
             )
         return resolved
 
+    async def _delegated_model(self, delegation: _Delegation, spec: AgentSpec) -> ModelRequestSpec:
+        """Resolve each delegate's destination for the run's original credential owner.
+
+        Rebuilt on resume, so a deleted connection cannot survive an approval
+        park. Organization mode remains an explicit choice on each published
+        delegate; inline specialists inherit their parent's credential mode.
+        """
+        require_personal_model_run(
+            spec,
+            delegation.models_ctx,
+            delegation.surface,
+            public_origin=delegation.personal_models_blocked,
+        )
+        if spec.model_credential_mode == "personal":
+            profile = await self.models.profile_for_organization(
+                delegation.models_ctx.organization_id, profile_id=spec.model_profile_id
+            )
+            try:
+                return await PersonalModelKeyService(self.db).resolve(
+                    delegation.models_ctx, profile
+                )
+            except AuthorizationError as exc:
+                if exc.code != "PERSONAL_MODEL_KEY_REQUIRED":
+                    raise
+                raise AuthorizationError(
+                    message=(
+                        f"Connect your own model API key for '{spec.name}' "
+                        f"(model connection '{profile.label}') in that agent's chat settings. "
+                        "Ask its owner for access if the agent is not visible to you."
+                    ),
+                    code=exc.code,
+                    details=exc.details,
+                ) from exc
+        return await self.models.resolve(delegation.models_ctx, profile_id=spec.model_profile_id)
+
     async def _resolve_specialist(
         self,
         delegation: _Delegation,
@@ -5966,6 +6024,7 @@ class AgentRunnerService:
                 shared,
             )
         )
+        spec = spec.model_copy(update={"model_credential_mode": parent.model_credential_mode})
         spec = await TextToSpeechSettingsService(self.db).for_run(
             ctx.organization_id, spec, delegation.run
         )
@@ -5987,9 +6046,7 @@ class AgentRunnerService:
             build=_delegate_builder(
                 delegation,
                 spec=spec,
-                model=await self.models.resolve(
-                    delegation.models_ctx, profile_id=spec.model_profile_id
-                ),
+                model=await self._delegated_model(delegation, spec),
                 agent_id=delegation.agent_id,
                 resources=own_resources,
                 secrets=await self.secrets.resolve_for_bindings(ctx, _secret_ids(spec)),
@@ -6163,6 +6220,9 @@ class AgentRunnerService:
                         nested_config,
                         trace_content=pinned.trace_content,
                         named=models_a_run_reaches(published),
+                        personal_spec=pinned
+                        if pinned.model_credential_mode == "personal"
+                        else None,
                     ),
                 )
             else:
@@ -6173,13 +6233,10 @@ class AgentRunnerService:
                 # other.
                 runnable = _without_delegation(pinned)
 
-        require_organization_model(runnable)
         runnable = await TextToSpeechSettingsService(self.db).for_run(
             ctx.organization_id, runnable, delegation.run
         )
-        model = await self.models.resolve(
-            delegation.models_ctx, profile_id=runnable.model_profile_id
-        )
+        model = await self._delegated_model(delegation, runnable)
         # Recorded now so the child's run row can name the model that answered.
         delegation.attribution[ref.agent_version_id] = model
         runnable, test_bindings = _with_test_secrets(runnable, delegation.test_connections.secrets)

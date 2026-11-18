@@ -2671,9 +2671,10 @@ class AgentRegistryService:
         agent at no sign-in, because a run under it may spend none
         (`sign_in_person`).
         """
-        if spec.model_credential_mode == "personal":
-            return _SpecProblems()
-        refs = [*_model_refs(spec), *await self._pinned_model_refs(ctx, spec)]
+        refs = [
+            *(_model_refs(spec) if spec.model_credential_mode != "personal" else []),
+            *await self._pinned_model_refs(ctx, spec),
+        ]
         if not refs:
             return _SpecProblems()
         org = ctx.organization_id
@@ -2778,14 +2779,18 @@ class AgentRegistryService:
                 continue
             visited.add(node)
             delegate = pinned.spec
-            reached: list[UUID | None] = [
-                ref.profile_id for ref in _model_refs(delegate, include_inline=False)
-            ]
+            personal = delegate.model_credential_mode == "personal"
+            reached: list[UUID | None] = (
+                []
+                if personal
+                else [ref.profile_id for ref in _model_refs(delegate, include_inline=False)]
+            )
             nested = _subagents_config(delegate)
             if nested is not None and left > 0:
                 below = min(left - 1, nested.max_depth - 1)
-                reached.extend(specialist.model_profile_id for specialist in nested.inline)
-                if nested.allow_dynamic:
+                if not personal:
+                    reached.extend(specialist.model_profile_id for specialist in nested.inline)
+                if nested.allow_dynamic and not personal:
                     reached.extend(models_a_run_reaches(delegate))
                 for ref in delegate.subagents:
                     deeper = await self._resolve_pin(ctx, ref)
@@ -3367,7 +3372,14 @@ class AgentRegistryService:
         ]
         for specialist in config.inline:
             names.append(specialist.name)
-            problems.merge(await self._specialist_problems(ctx, specialist, shared=shared))
+            problems.merge(
+                await self._specialist_problems(
+                    ctx,
+                    specialist,
+                    shared=shared,
+                    personal=spec.model_credential_mode == "personal",
+                )
+            )
         problems.add(_share_problems(spec, config), fix=STOP_SHARING_UNBOUND)
 
         pins = await self._resolve_pins(ctx, spec.subagents)
@@ -3376,6 +3388,7 @@ class AgentRegistryService:
         # bindings; what it is lent here can still leave it a desktop and no
         # desktop sandbox, and the fix is in this agent's share list.
         for delegate in pins.delegates:
+            problems.add(personal_model_problems(_inheriting(delegate.spec, shared)))
             if await _computer_use_sandbox_problems(
                 self.db, ctx, _inheriting(delegate.spec, shared)
             ):
@@ -3446,7 +3459,12 @@ class AgentRegistryService:
         return problems, [found[ref_id].slug for ref_id in ids if ref_id in found]
 
     async def _specialist_problems(
-        self, ctx: AuthContext, specialist: SpecialistSpec, *, shared: list[CapabilityBindingSpec]
+        self,
+        ctx: AuthContext,
+        specialist: SpecialistSpec,
+        *,
+        shared: list[CapabilityBindingSpec],
+        personal: bool = False,
     ) -> _SpecProblems:
         """Everything wrong with a specialist defined inside this agent.
 
@@ -3476,10 +3494,19 @@ class AgentRegistryService:
         # already checked - so only a profile it *did* name is a reference that
         # can be broken, or borrowed from another organization.
         if specialist.model_profile_id is not None:
-            problems.add(await self.model_profile_problems(ctx, specialist.model_profile_id))
+            problems.add(
+                await self.model_profile_problems(
+                    ctx, specialist.model_profile_id, personal=personal
+                )
+            )
         # Its instructions are filled the way the parent's are, so a typo in a
         # variable is refused here too rather than sent to the model as braces.
         as_agent = specialist.to_agent_spec(fallback_model_profile_id=None)
+        if personal:
+            as_agent = _inheriting(as_agent, shared).model_copy(
+                update={"model_credential_mode": "personal"}
+            )
+            problems.add(personal_model_problems(as_agent))
         problems.merge(_variable_problems(as_agent))
         problems.add(
             await _computer_use_sandbox_problems(self.db, ctx, _inheriting(as_agent, shared))
@@ -3535,9 +3562,6 @@ class AgentRegistryService:
                 )
                 continue
             resolved = await self._resolve_pin(ctx, ref)
-            if resolved is not None and resolved.spec.model_credential_mode == "personal":
-                problems.append("Agents using personal model keys cannot be delegated to")
-                continue
             if resolved is None:
                 problems.append(
                     f"Agent '{delegate.name}' has no published version "

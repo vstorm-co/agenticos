@@ -1169,3 +1169,61 @@ class TestAnAgentThatDoesNotDelegate:
             ),
             agent_id=uuid4(),
         )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("separate_model", [False, True])
+async def test_personal_inline_specialists_validate_their_own_profile_without_an_org_key(
+    monkeypatch: pytest.MonkeyPatch,
+    separate_model: bool,
+) -> None:
+    from unittest.mock import patch
+
+    from app.db.models.credential import ModelProfile
+    from app.services.personal_model_key import PersonalModelKeyService
+
+    held = ModelProfile(
+        id=uuid4(),
+        provider="openai",
+        model="gpt-4.1",
+        base_url=None,
+        secret_id=None,
+        fallback_profile_ids=[],
+        api="chat",
+    )
+    monkeypatch.setattr(agent_registry.credential_repo, "get_profile", AsyncMock(return_value=held))
+    _repos(monkeypatch)
+    specialist = _specialist(model_profile_id=str(held.id))
+    if separate_model:
+        specialist["capabilities"] = [
+            {"id": "web_browser", "config": {"step_model_profile_id": str(uuid4())}}
+        ]
+    chosen = _delegating({"inline": [specialist]}).model_copy(
+        update={"model_credential_mode": "personal"}
+    )
+    with patch.object(PersonalModelKeyService, "resolve", AsyncMock()) as key:
+        problems = await AgentRegistryService(_db())._delegation_problems(
+            _ctx(), chosen, agent_id=None
+        )
+    key.assert_not_awaited()  # Publishing never asks for the publisher's private key.
+    if separate_model:
+        assert any("separate capability models" in message for message in problems.messages)
+    else:
+        assert problems.messages == []
+
+
+@pytest.mark.security
+async def test_sharing_a_separate_step_model_with_a_personal_delegate_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ctx = _ctx()
+    delegate = _published(ctx, "Personal")
+    version = _version(delegate.id, spec=_spec(name="Personal", model_credential_mode="personal"))
+    _repos(monkeypatch, agents=_agents(delegate), versions=_versions(version))
+    chosen = _delegating(
+        {"share_with_delegates": ["web_browser"]},
+        subagents=[_pin(delegate.id, version.id)],
+        capabilities=[{"id": "web_browser", "config": {"step_model_profile_id": str(uuid4())}}],
+    )
+    problems = await AgentRegistryService(_db())._delegation_problems(ctx, chosen, agent_id=None)
+    assert any("separate capability models" in message for message in problems.messages)
