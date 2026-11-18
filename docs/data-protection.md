@@ -533,3 +533,7 @@ turn it off with `DIAGNOSTICS_ENABLED=false`.
 The optional iMessage channel sends message text and explicitly attached files through the organization's configured BlueBubbles Mac and Apple Messages. The Mac and its Apple account are additional places where copies can remain. AgenticOS stores linked addresses, channel conversations, runs and uploads under the existing channel retention and erasure rules; deleting them here does not delete copies on the Mac or in Messages. Private notifications require an explicit route; group conversations never inherit private profile memory.
 
 The server password and a separate callback credential are vault-sealed. The HTTP client keeps its password out of client-visible request URLs; the bridge itself still receives its required query credential, so its operator must protect its own logs and network.
+
+## Copilot OAuth { #copilot-oauth-storage }
+
+Personal Copilot OAuth access tokens use the existing user-sealed model credential store; no organization-key fallback occurs. Device authorization state is owner/tenant/agent-bound and expires in Redis; tokens never reach API responses or audit details. New sign-ins, key replacement and disconnection advance a database generation in the same transaction. This metadata survives key deletion to refuse older pending grants, is included in the owner’s personal-data export without the generation value, and is removed with membership or user deletion. Disconnect removes the local credential; revoke the OAuth application separately in GitHub.

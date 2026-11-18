@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
-from app.schemas.personal_model_key import PersonalModelKeyRead
+from app.schemas.personal_model_key import PersonalModelGenerationRead, PersonalModelKeyRead
 from app.schemas.routine_actions import RoutineConsent
 from app.schemas.routine_sources import RoutineSourcePolicy
 from app.schemas.telephony import PhoneContactConfig
@@ -303,6 +303,10 @@ class PersonalDataExport(BaseModel):
     )
     personal_model_keys: list[PersonalModelKeyRead] = Field(
         default_factory=list, description="Personal LLM connection metadata; never API keys."
+    )
+    personal_model_generations: list[PersonalModelGenerationRead] = Field(
+        default_factory=list,
+        description="Connection security metadata retained after disconnection; no grant or authorization generation.",
     )
     coding_accounts: list[dict[str, Any]] = Field(
         default_factory=list,

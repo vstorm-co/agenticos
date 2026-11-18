@@ -19,7 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+- Apply `0342_personal_model_generations.py` before running this version. It adds credential-free connection revisions that prevent an older OAuth sign-in from recreating a deleted personal connection.
+
 ### Added
+
+- Add GitHub Copilot model profiles and personal device sign-in with account-specific Chat Completions catalogs, user-sealed credentials and AgenticOS integration identity.
 
 - Add Devin CLI desktop ACP delegation with negotiated browser login and fixed local launch permissions.
 

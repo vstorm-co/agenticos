@@ -1,5 +1,5 @@
 ---
-source_sha: "33238295f67f"
+source_sha: "eaeb019dad33"
 ---
 
 # Protección de datos { #data-protection }
@@ -570,3 +570,7 @@ retención, cómo apuntarlo a tu propio colector y cómo desactivarlo con
 El canal opcional de iMessage transmite texto y archivos adjuntos explícitos mediante el Mac de BlueBubbles configurado por la organización y Mensajes de Apple. El Mac y su cuenta de Apple son otros lugares donde pueden conservarse copias. AgenticOS guarda direcciones vinculadas, conversaciones, ejecuciones y archivos según las reglas existentes de conservación y borrado de canales; borrar aquí no elimina las copias del Mac ni de Mensajes. Las notificaciones privadas requieren una ruta explícita; los grupos no heredan la memoria privada del perfil.
 
 La contraseña del servidor y la credencial independiente del callback se cifran en la bóveda. El cliente HTTP oculta la contraseña en las direcciones visibles de las solicitudes; el puente sigue recibiendo su parámetro de autenticación obligatorio, por lo que su operador debe proteger sus propios registros y red.
+
+## Copilot OAuth { #copilot-oauth-storage }
+
+Los tokens OAuth personales Copilot usan el almacén existente cifrado para el usuario, sin claves de organización de respaldo. La autorización está vinculada a propietario, tenant y agente y caduca en Redis; los tokens no aparecen en respuestas API ni auditoría. Nuevos accesos, sustitución de clave y desconexión avanzan una generación en la misma transacción. Estos metadatos sobreviven al borrado de la clave para rechazar concesiones antiguas, se exportan sin el valor de generación y se eliminan con la membresía o el usuario. Desconectar elimina la credencial local; revoca la aplicación OAuth por separado en GitHub.

@@ -55,6 +55,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    GITHUB_COPILOT_OAUTH_CLIENT_ID: str = Field(default="", max_length=128)
+
     PROJECT_NAME: str = "agenticos"
     API_V1_STR: str = "/api/v1"
     UPDATE_AGENT_SOCKET: Path | None = None

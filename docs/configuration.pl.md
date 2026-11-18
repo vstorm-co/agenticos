@@ -1,5 +1,5 @@
 ---
-source_sha: "ddd8aae069e6"
+source_sha: "56518dc39bab"
 ---
 
 # Konfiguracja { #configuration }
@@ -1650,3 +1650,7 @@ nie ma automatycznego cofania bazy. Backupy pozostają na hoście do ręcznego u
 i nie zastępują kopii poza serwerem. Najpierw przetestuj odzyskiwanie na środowisku
 jednorazowym. Wiele hostów, własne nakładki Compose i zewnętrzny magazyn plików
 obsługuj pipeline’em: `UPDATE_PIPELINE_URL` pokazuje link HTTPS bez uruchamiania wdrożenia.
+
+## GitHub Copilot OAuth { #github-copilot-oauth }
+
+Ustaw `GITHUB_COPILOT_OAUTH_CLIENT_ID` (domyślnie puste) na identyfikator własnej aplikacji OAuth wdrożenia i włącz w niej device flow. Bez niego osobiste logowanie Copilot jest odrzucane. To ustawienie jest odrębne od GitHub Models i poświadczeń konektora GitHub. Autoryzacja GitHub nie ustala uprawnień Copilot; musi przejść także sprawdzenie modeli czatu dla konta. Wygasające zgody GitHub App i własne bramy Enterprise nie są obsługiwane. Zobacz [konta Copilot](models.md#github-copilot-accounts).

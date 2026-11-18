@@ -380,3 +380,9 @@ with a generated default.
 
 
 External A2A source consent also binds the referenced vault credential’s authorization generation. Replacing its value invalidates a standing review, even when the secret ID stays the same. Renaming it and vault encryption-key maintenance preserve that generation. Existing A2A reviews require re-review after this upgrade.
+
+## Copilot OAuth { #copilot-oauth-storage }
+
+Personal Copilot OAuth access tokens use the existing user-sealed model credential store; no organization-key fallback occurs. Device authorization state is owner/tenant/agent-bound and expires in Redis; tokens never reach API responses or audit details. New sign-ins, key replacement and disconnection advance a database generation in the same transaction. This metadata survives key deletion to refuse older pending grants, is included in the owner’s personal-data export without the generation value, and is removed with membership or user deletion. Disconnect removes the local credential; revoke the OAuth application separately in GitHub.
+
+Before each model request, personal Copilot credentials are checked against the stored connection revision. Disconnecting or replacing the connection stops subsequent requests in an active run; an already submitted request cannot be withdrawn.

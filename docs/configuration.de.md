@@ -1,5 +1,5 @@
 ---
-source_sha: "ddd8aae069e6"
+source_sha: "56518dc39bab"
 ---
 
 # Konfiguration { #configuration }
@@ -1748,3 +1748,7 @@ bleiben bis zur manuellen Entfernung auf dem Host und ersetzen keine externen
 Sicherungen. Testen Sie die Wiederherstellung zunächst auf einer Wegwerf-Installation.
 Mehrere Hosts, eigene Compose-Overlays und externer Dateispeicher benötigen Ihre
 Pipeline: `UPDATE_PIPELINE_URL` zeigt nur deren HTTPS-Link und startet kein Deployment.
+
+## GitHub Copilot OAuth { #github-copilot-oauth }
+
+Setzen Sie `GITHUB_COPILOT_OAUTH_CLIENT_ID` (standardmäßig leer) auf die eigene GitHub OAuth App des Deployments und aktivieren Sie Device Flow. Ohne sie wird persönliche Copilot-Anmeldung abgelehnt. Dies ist getrennt von GitHub Models und GitHub-Konnektoren. GitHub-Autorisierung bestätigt keine Copilot-Berechtigung; zusätzlich muss die kontobezogene Chat-Modellprüfung bestehen. Ablaufende GitHub-App-Freigaben und eigene Enterprise-Gateways werden nicht unterstützt. Siehe [Copilot-Konten](models.md#github-copilot-accounts).

@@ -2504,3 +2504,16 @@ def get_personal_model_key_service(db: DBSession) -> PersonalModelKeyService:
 
 
 PersonalModelKeySvc = Annotated[PersonalModelKeyService, Depends(get_personal_model_key_service)]
+
+
+from app.clients.github_copilot import CopilotAccountClient
+from app.services.copilot_sign_in import CopilotSignInService
+
+
+def get_copilot_sign_in_service(db: DBSession, redis: Redis) -> CopilotSignInService:
+    return CopilotSignInService(
+        db, redis, CopilotAccountClient(), client_id=settings.GITHUB_COPILOT_OAUTH_CLIENT_ID
+    )
+
+
+CopilotSignInSvc = Annotated[CopilotSignInService, Depends(get_copilot_sign_in_service)]

@@ -1,5 +1,5 @@
 ---
-source_sha: "33238295f67f"
+source_sha: "eaeb019dad33"
 ---
 
 # Datenschutz { #data-protection }
@@ -583,3 +583,7 @@ Aufbewahrung, wie Sie ihn auf einen eigenen Kollektor richten und wie Sie ihn mi
 Der optionale iMessage-Kanal überträgt Nachrichtentext und ausdrücklich angehängte Dateien über den konfigurierten BlueBubbles-Mac der Organisation und Apple Nachrichten. Auf dem Mac und im Apple-Konto können weitere Kopien verbleiben. AgenticOS speichert verknüpfte Adressen, Kanalunterhaltungen, Durchläufe und Uploads gemäß den bestehenden Aufbewahrungs- und Löschregeln für Kanäle; eine Löschung hier entfernt keine Kopien auf dem Mac oder in Nachrichten. Private Benachrichtigungen benötigen ein ausdrücklich gewähltes Ziel; Gruppen übernehmen keinen privaten Profilspeicher.
 
 Serverpasswort und separates Callback-Geheimnis liegen verschlüsselt im Tresor. Der HTTP-Client verbirgt das Passwort in sichtbaren Anfrageadressen; die Bridge erhält dennoch ihren erforderlichen Authentifizierungsparameter. Ihr Betreiber muss daher eigene Protokolle und Netzwerk schützen.
+
+## Copilot OAuth { #copilot-oauth-storage }
+
+Persönliche Copilot-OAuth-Token liegen im bestehenden benutzerverschlüsselten Modellspeicher, ohne Organisationsschlüsselersatz. Geräteautorisierung ist an Eigentümer, Mandant und Agent gebunden und läuft in Redis ab; Token erscheinen weder in API-Antworten noch Auditdetails. Neue Anmeldung, Schlüsselwechsel und Trennen ändern eine Datenbankgeneration in derselben Transaktion. Diese Metadaten bleiben nach Schlüssellöschung zur Abwehr älterer Freigaben bestehen, erscheinen ohne Generationswert im persönlichen Datenexport und werden mit Mitgliedschaft oder Benutzer gelöscht. Trennen entfernt lokale Zugangsdaten; widerrufen Sie die OAuth-App separat in GitHub.

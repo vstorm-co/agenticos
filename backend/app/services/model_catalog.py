@@ -33,6 +33,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 import httpx
+import httpx2
 from genai_prices.data_snapshot import get_snapshot
 from pydantic import TypeAdapter
 
@@ -473,6 +474,23 @@ async def models_for(
             authorized by the caller. Its catalog never uses the global curated
             fallback.
     """
+    if provider == "github_copilot":
+        from app.clients.github_copilot import CopilotAccountClient
+        from app.core.exceptions import BadRequestError
+
+        if base_url is not None:
+            raise ValueError("Copilot account models require the fixed GitHub.com gateway")
+        if api_key is None:
+            return [], "unlisted"
+        try:
+            models = await CopilotAccountClient().models(api_key)
+        except BadRequestError, httpx.HTTPError, httpx2.HTTPError:
+            logger.warning("Could not list this Copilot account's supported chat models")
+            return [], "unlisted"
+        return [
+            CatalogModel(id=model.id, name=model.name or model.id, surfaces=("chat",))
+            for model in models
+        ], "live"
     if is_decision_api(provider, api):
         return await _decision_models_for(provider, base_url=base_url)
     if (

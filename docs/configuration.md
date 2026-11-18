@@ -1617,3 +1617,7 @@ operator removes them and do not replace off-host backups. Test restoration on a
 disposable deployment before enabling production updates. Multiple hosts, custom
 Compose overlays and external storage use your own pipeline instead:
 `UPDATE_PIPELINE_URL` exposes its HTTPS link without triggering a deployment.
+
+## GitHub Copilot OAuth { #github-copilot-oauth }
+
+Set `GITHUB_COPILOT_OAUTH_CLIENT_ID` (empty by default) to the deployment’s own GitHub OAuth App client ID and enable device flow in that app. Without it, personal Copilot sign-in is refused. This setting is separate from GitHub Models and GitHub connector credentials. GitHub authorization does not establish Copilot entitlement; the account-specific chat-model check must also pass. Expiring GitHub App grants and custom Enterprise gateways are not supported. See [Copilot accounts](models.md#github-copilot-accounts).

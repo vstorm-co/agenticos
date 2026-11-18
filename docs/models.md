@@ -353,6 +353,7 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | DeepSeek | `deepseek` | API key | |
 | Fireworks AI | `fireworks` | API key | |
 | GitHub Models | `github` | API key | |
+| GitHub Copilot | `github_copilot` | account token / personal sign-in | |
 | Groq | `groq` | API key | |
 | Heroku AI | `heroku` | API key | ✓ |
 | Mistral | `mistral` | API key | |
@@ -791,3 +792,13 @@ Provider references: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/
 ElevenLabs Realtime adds `eleven_realtime_v1_mini` and `eleven_realtime_v1_max` over the 24 kHz PCM relay, using the `brian` default voice and semantic turn detection.
 
 The SDK does not report token charges. Calls with a configured spending budget are refused before connecting; calls without a spending budget retain the time cap and record connected audio as a cost floor, not a full bill. The catalog audio rate is $0.08/minute ($0.16 burst); token charges are additional. The 16k context value is a conservative platform history-seeding budget, not a published vendor context window. The integration is tested offline against SDK construction and controlled transports, not live accounts. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).
+
+## GitHub Copilot accounts { #github-copilot-accounts }
+
+**GitHub Copilot** (`github_copilot`) uses Pydantic AI's Copilot model dialect, distinct from GitHub Models (`github`). It sends explicit vault credentials to the fixed `https://api.githubcopilot.com` gateway, with AgenticOS integration identity and no VS Code editor headers. Request settings cannot override the account or integration identity. Custom and Enterprise gateways are not supported by this integration.
+
+A model administrator can configure an approved profile with a Copilot bearer token in the vault. Do not use a general GitHub API token as evidence of Copilot access. Select personal model credentials on a shared agent to let each member connect their own account through chat settings. A deployment administrator must first set `GITHUB_COPILOT_OAUTH_CLIENT_ID` to AgenticOS's own GitHub OAuth App client ID with device flow enabled. The member opens GitHub's authorization page, approves the code shown in AgenticOS and checks authorization. No device code or token appears in a URL. Reconnect repeats this flow; disconnect removes the private stored token, while OAuth revocation is done separately in GitHub settings.
+
+GitHub authorization alone is insufficient: before saving the personal token, AgenticOS verifies that this account and application advertise the selected model on `/chat/completions`. Catalogs are account-specific, filtered by supported endpoints, and have no global fallback. Copilot's Responses, Messages, embeddings and realtime interfaces are not offered. Personal connections retain the existing signed-in web-chat restriction and cannot fall back to an organization key or another provider.
+
+The device flow accepts non-expiring OAuth App grants. Expiring or refreshable GitHub App grants are explicitly refused; their renewal is not implemented, and refresh tokens are never silently discarded. Missing entitlement, policy, revocation and quota failures require reconnect or account action. Model names alone do not establish a subscription bill: Copilot plan usage is unpriced until a USD billing contract is verified; quota fields are not interpreted as dollars. Real-account acceptance for AgenticOS's own OAuth application and integration identity remains pending. See [Pydantic AI Copilot](https://pydantic.dev/docs/ai/models/github-copilot/) and [GitHub OAuth setup](https://docs.github.com/en/copilot/how-tos/copilot-sdk/setup/github-oauth).

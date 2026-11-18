@@ -20776,6 +20776,20 @@
     "vaultHelp": "Te klucze należą tylko do Ciebie. Podłącz lub wymień je w ustawieniach czatu agenta. Usunięcie blokuje kolejne uruchomienia do czasu ponownego podłączenia.",
     "remove": "Usuń połączenie",
     "loading": "Wczytywanie połączeń…",
-    "defaultEndpoint": "Domyślny adres dostawcy"
+    "defaultEndpoint": "Domyślny adres dostawcy",
+    "copilot": {
+      "title": "Połącz swoje konto Copilot",
+      "destination": "Używaj swojego konta dla {model} w GitHub.com Copilot.",
+      "privacy": "Z połączenia mogą korzystać tylko Twoje zalogowane czaty WWW. Usuń je w osobistych połączeniach modeli; zgodę OAuth cofniesz osobno w ustawieniach GitHub.",
+      "approveOwnCode": "Zatwierdź wyłącznie kod widoczny w tym oknie AgenticOS.",
+      "code": "Kod urządzenia GitHub",
+      "openGitHub": "Otwórz autoryzację urządzenia GitHub",
+      "pending": "Jeszcze nie zatwierdzono. Przed kolejnym sprawdzeniem odczekaj {seconds} sekund.",
+      "check": "Sprawdź autoryzację",
+      "restart": "Rozpocznij nowe logowanie",
+      "reconnect": "Połącz ponownie przez GitHub",
+      "connect": "Zaloguj przez GitHub",
+      "retained": "Bieżące połączenie pozostaje aktywne do weryfikacji nowego konta."
+    }
   }
 }

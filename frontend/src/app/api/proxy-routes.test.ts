@@ -306,8 +306,8 @@ it("coding accounts forwards only credential operations and requires a session",
 
 it("personal model keys require a signed-in session for every exposed verb", async () => {
   const { NextRequest } = await import("next/server");
-  expect(Object.keys(personalModelKeys).sort()).toEqual(["DELETE", "GET", "PUT"]);
-  for (const method of ["GET", "PUT", "DELETE"] as const) {
+  expect(Object.keys(personalModelKeys).sort()).toEqual(["DELETE", "GET", "POST", "PUT"]);
+  for (const method of ["GET", "POST", "PUT", "DELETE"] as const) {
     const response = await personalModelKeys[method](
       new NextRequest("http://localhost:3000/api/personal-model-keys", { method }),
     );

@@ -43,7 +43,7 @@ itself, and a credential without one is refused rather than built to fail on its
 second run.
 """
 
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
@@ -281,6 +281,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
             requires_base_url=True,
         ),
         _api_key("openrouter", "OpenRouter", base_url_param="base_url"),
+        _api_key("github_copilot", "GitHub Copilot", model_prefix="github-copilot"),
         _api_key(
             "otari",
             "Otari",
@@ -434,6 +435,8 @@ class ResolvedCredential:
     credential_id: UUID | None = None
     authorization_generation: UUID | None = None
     routing: Mapping[str, str | None] = field(default_factory=dict)
+    # Personal Copilot calls validate the connection again before each request.
+    token_source: Callable[[], Awaitable[str]] | None = field(default=None, repr=False)
 
 
 def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provider[Any]:
@@ -478,6 +481,17 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
         return _google_cloud_provider(secret)
     if isinstance(secret, OpenAICodexSecret):
         return _openai_codex_provider(spec, credential.credential_source)
+
+    if spec.id == "github_copilot":
+        from app.agents.copilot import AgenticCopilotProvider
+
+        if credential.base_url is not None:
+            raise BadRequestError(message="Copilot requires the fixed GitHub.com gateway")
+        if not isinstance(secret, ApiKeySecret):
+            raise BadRequestError(message="GitHub Copilot requires an explicit account token")
+        return AgenticCopilotProvider(
+            secret.api_key.get_secret_value(), token_source=credential.token_source
+        )
 
     if spec.id == "otari":
         from pydantic_ai_otari import DEFAULT_BASE_URL, OtariProvider

@@ -20689,6 +20689,20 @@
     "vaultHelp": "Diese Schlüssel gehören nur dir. Verbinde oder ersetze sie in den Chat-Einstellungen des Agenten. Nach dem Entfernen sind neue Läufe bis zur erneuten Verbindung gesperrt.",
     "remove": "Verbindung entfernen",
     "loading": "Verbindungen werden geladen…",
-    "defaultEndpoint": "Standardadresse des Anbieters"
+    "defaultEndpoint": "Standardadresse des Anbieters",
+    "copilot": {
+      "title": "Eigenes Copilot-Konto verbinden",
+      "destination": "Verwenden Sie Ihr Konto für {model} bei GitHub.com Copilot.",
+      "privacy": "Nur Ihre angemeldeten Web-Chats nutzen diese Verbindung. Entfernen Sie sie in Ihren persönlichen Modellverbindungen; widerrufen Sie die OAuth-Freigabe separat in GitHub.",
+      "approveOwnCode": "Bestätigen Sie nur den Code in diesem AgenticOS-Fenster.",
+      "code": "GitHub-Gerätecode",
+      "openGitHub": "GitHub-Geräteautorisierung öffnen",
+      "pending": "Noch nicht bestätigt. Warten Sie vor der nächsten Prüfung {seconds} Sekunden.",
+      "check": "Autorisierung prüfen",
+      "restart": "Neue Anmeldung starten",
+      "reconnect": "Erneut mit GitHub verbinden",
+      "connect": "Mit GitHub anmelden",
+      "retained": "Die aktuelle Verbindung bleibt aktiv, bis der Ersatz geprüft ist."
+    }
   }
 }

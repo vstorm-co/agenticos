@@ -1,5 +1,5 @@
 ---
-source_sha: "ddd8aae069e6"
+source_sha: "56518dc39bab"
 ---
 
 # Configuración { #configuration }
@@ -1678,3 +1678,7 @@ permanecen hasta su eliminación manual y no sustituyen copias externas. Prueba 
 restauración en un despliegue desechable antes de producción. Varios hosts,
 superposiciones Compose propias y almacenamiento externo requieren tu pipeline:
 `UPDATE_PIPELINE_URL` muestra su enlace HTTPS sin iniciar el despliegue.
+
+## GitHub Copilot OAuth { #github-copilot-oauth }
+
+Establece `GITHUB_COPILOT_OAUTH_CLIENT_ID` (vacío por defecto) con la aplicación OAuth propia del despliegue y habilita device flow. Sin ella se rechaza el inicio personal Copilot. Es distinto de GitHub Models y las credenciales del conector GitHub. Autorizar GitHub no confirma acceso Copilot; también debe pasar la comprobación de modelos de chat de la cuenta. No se admiten concesiones GitHub App caducables ni gateways Enterprise propios. Consulta [cuentas Copilot](models.md#github-copilot-accounts).

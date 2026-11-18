@@ -1,5 +1,5 @@
 ---
-source_sha: "f0b3009ed75d"
+source_sha: "24f7a7b1655a"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -407,3 +407,9 @@ zanim wejdziesz na żywo z wygenerowaną wartością domyślną.
 
 
 Zgoda na źródło zewnętrznego agenta A2A obejmuje też generację autoryzacji wskazanego sekretu w sejfie. Podmiana wartości unieważnia przegląd mimo zachowania identyfikatora sekretu. Zmiana nazwy i konserwacja klucza szyfrowania zachowują tę generację. Istniejące zgody A2A po aktualizacji wymagają ponownego przeglądu.
+
+## Copilot OAuth { #copilot-oauth-storage }
+
+Osobiste tokeny OAuth Copilot trafiają do istniejącego magazynu poświadczeń modeli szyfrowanego dla użytkownika, bez zastępowania kluczem organizacji. Stan logowania jest związany z właścicielem, tenantem i agentem oraz wygasa w Redis; tokeny nie trafiają do odpowiedzi API ani audytu. Nowe logowanie, zmiana klucza i odłączenie zmieniają rewizję w bazie w tej samej transakcji. Metadane pozostają po usunięciu klucza, aby odrzucać starsze zgody; eksport danych właściciela obejmuje je bez wartości rewizji. Usuwa się je wraz z członkostwem lub użytkownikiem. Odłączenie usuwa lokalne poświadczenie; aplikację OAuth cofa się osobno w GitHub.
+
+Przed każdym żądaniem modelu osobiste dane Copilota są sprawdzane względem zapisanej wersji połączenia. Odłączenie lub zastąpienie połączenia blokuje kolejne żądania aktywnego uruchomienia; wysłanego już żądania nie można wycofać.

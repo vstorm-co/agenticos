@@ -16671,5 +16671,21 @@
     "reviewedSignals": "Diğer incelenmiş test yanıtları",
     "noLearningExamples": "Henüz öğrenilecek bir şey yok: son 30 günde okunabilir kaynak örneği bulunmuyor. Bir yanıtı değerlendirin veya test sorularını çalıştırıp inceleyin.",
     "sessionQuote": "{answers, plural, one {# seçili kaynak örneğini} other {# seçili kaynak örneğini}} sıralamak için en fazla {cost} (tahmini). Sonraki her deneme yaklaşık {minutes, plural, one {# dakika} other {# dakika}} sürer ve yaklaşık {perRound} tutar; başlamadan önce yeniden fiyatlandırılır. {limit} sınırı tüm oturum içindir."
+  },
+  "personalModelKeys": {
+    "copilot": {
+      "title": "Copilot hesabınızı bağlayın",
+      "destination": "GitHub.com Copilot üzerinde {model} için kendi hesabınızı kullanın.",
+      "privacy": "Bağlantıyı yalnızca oturum açtığınız web sohbetleri kullanır. Kişisel model bağlantılarından kaldırın; OAuth iznini ayrıca GitHub ayarlarından iptal edin.",
+      "approveOwnCode": "Yalnızca bu AgenticOS penceresindeki kodu onaylayın.",
+      "code": "GitHub cihaz kodu",
+      "openGitHub": "GitHub cihaz yetkilendirmesini aç",
+      "pending": "Henüz onaylanmadı. Yeniden denetlemeden önce {seconds} saniye bekleyin.",
+      "check": "Yetkilendirmeyi denetle",
+      "restart": "Yeni giriş başlat",
+      "reconnect": "GitHub ile yeniden bağlan",
+      "connect": "GitHub ile giriş yap",
+      "retained": "Yeni bağlantı doğrulanana kadar mevcut bağlantınız etkin kalır."
+    }
   }
 }

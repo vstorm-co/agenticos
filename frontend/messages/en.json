@@ -21003,6 +21003,20 @@
     "vaultHelp": "These keys belong only to you. Connect or replace them in the agent’s chat settings. Removing a key blocks future runs until you reconnect.",
     "remove": "Remove connection",
     "loading": "Loading connections…",
-    "defaultEndpoint": "Provider default"
+    "defaultEndpoint": "Provider default",
+    "copilot": {
+      "title": "Connect your Copilot account",
+      "destination": "Use your account for {model} on GitHub.com Copilot.",
+      "privacy": "Only your signed-in web chats can use this connection. Remove it in your personal model connections; revoke the OAuth grant separately in GitHub settings.",
+      "approveOwnCode": "Approve only the code shown in this AgenticOS window.",
+      "code": "GitHub device code",
+      "openGitHub": "Open GitHub device authorization",
+      "pending": "Not approved yet. Wait {seconds} seconds before checking again.",
+      "check": "Check authorization",
+      "restart": "Start a new sign-in",
+      "reconnect": "Reconnect with GitHub",
+      "connect": "Sign in with GitHub",
+      "retained": "Your current connection stays active until the replacement is verified."
+    }
   }
 }

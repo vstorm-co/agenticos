@@ -143,6 +143,14 @@ async def test_key_envelopes_and_metadata_never_cross_owner_or_tenant(db: AsyncS
     assert "sealed_secret" not in metadata and "vault-personal-private" not in metadata
     exported = await PersonalDataService(db).export(first.user_id, actor_user_id=first.user_id)
     assert len(exported.personal_model_keys) == 1
+    assert len(exported.personal_model_generations) == 1
+    assert set(exported.personal_model_generations[0].model_dump()) == {
+        "organization_id",
+        "provider",
+        "endpoint",
+        "created_at",
+        "updated_at",
+    }
     assert "vault-personal-private" not in exported.model_dump_json()
     assert "sealed_secret" not in exported.personal_model_keys[0].model_dump()
 
