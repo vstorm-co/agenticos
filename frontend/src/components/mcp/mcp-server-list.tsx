@@ -122,6 +122,8 @@ interface McpServerListProps {
   initialServerKey?: string;
   /** The full page bookmarks its selection; an embedded picker keeps its caller’s URL. */
   persistSelection?: boolean;
+  /** Disable only when the enclosing page already owns the initial organization read. */
+  retryOrganizationOnMount?: boolean;
 }
 
 /**
@@ -156,11 +158,14 @@ export function McpServerList({
   canManageOrganization,
   initialServerKey,
   persistSelection = true,
+  retryOrganizationOnMount = true,
 }: McpServerListProps) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
-  const { organization, personal, recordTools } = useMcpServers();
+  const { organization, personal, recordTools } = useMcpServers({
+    retryOnMount: retryOrganizationOnMount,
+  });
   const createdToast = useCreatedToast();
   // The whole curated catalog, for the category filter alone - see below.
   const catalog = useMcpCatalog();

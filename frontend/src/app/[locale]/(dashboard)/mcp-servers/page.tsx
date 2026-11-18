@@ -89,7 +89,10 @@ export default function McpServersPage() {
           />
         </ListCard>
       ) : (
-        <McpServerList canManageOrganization={can(Perm.mcpManage)} />
+        <McpServerList
+          canManageOrganization={can(Perm.mcpManage)}
+          retryOrganizationOnMount={false}
+        />
       )}
     </div>
   );

@@ -17,6 +17,19 @@ def require_organization_model(spec: AgentSpec) -> None:
         raise BadRequestError(message=PERSONAL_MODEL_LIMITS, code="PERSONAL_MODEL_SURFACE")
 
 
+def personal_delegate_problem(root: AgentSpec, delegate: AgentSpec) -> str | None:
+    """A chat's personal-model choice authorizes that exact profile throughout its tree."""
+    if delegate.model_credential_mode == "personal" and (
+        root.model_credential_mode != "personal"
+        or delegate.model_profile_id != root.model_profile_id
+    ):
+        return (
+            "Personal delegates must use the personal model selected for the parent signed-in web chat. "
+            "Choose the same model connection on the parent and delegate, or use organization keys."
+        )
+    return None
+
+
 def personal_model_problems(spec: AgentSpec) -> list[str]:
     if spec.model_credential_mode != "personal":
         return []

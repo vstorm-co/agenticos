@@ -49,7 +49,8 @@ interface UseOrgMcpConnectionsResult {
  */
 export function useOrgMcpConnections({
   enabled = true,
-}: { enabled?: boolean } = {}): UseOrgMcpConnectionsResult {
+  retryOnMount = true,
+}: { enabled?: boolean; retryOnMount?: boolean } = {}): UseOrgMcpConnectionsResult {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
@@ -64,9 +65,7 @@ export function useOrgMcpConnections({
     queryKey: qk.mcpConnections.org(),
     queryFn: listOrgMcpConnections,
     enabled,
-    // The page mounts a list with another observer of this query. Retrying a
-    // refusal on that mount would put the page back into loading and unmount it.
-    retryOnMount: false,
+    retryOnMount,
   });
 
   const error = queryError ? getErrorMessage(queryError, tErrors, t("failedLoadOrgServers")) : null;

@@ -323,6 +323,74 @@ describe("McpServerList", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/mcp-connections");
   });
 
+  it("retries organization connections when an embedded picker reopens", async () => {
+    serve([connection({ name: "recovered-company" })], []);
+    const get = vi.mocked(apiClient.get).getMockImplementation();
+    if (!get) throw new Error("Expected the MCP API fixture");
+    let unavailable = true;
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/mcp-connections" && unavailable) throw new Error("Temporary failure");
+      return get(path);
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const embedded = () => (
+      <QueryClientProvider client={client}>
+        <McpServerList canManageOrganization persistSelection={false} />
+      </QueryClientProvider>
+    );
+    const first = render(embedded());
+    await waitFor(() =>
+      expect(client.getQueryState(qk.mcpConnections.org())?.status).toBe("error"),
+    );
+    first.unmount();
+    unavailable = false;
+    render(embedded());
+    await waitFor(() =>
+      expect(client.getQueryState(qk.mcpConnections.org())?.status).toBe("success"),
+    );
+    await screen.findByRole("group", { name: "GitHub" });
+    const dialog = await openConnections();
+    expect(dialog.getByText("recovered-company")).toBeVisible();
+  });
+
+  it("waits for permissions and organization accounts before opening personal editing", async () => {
+    permissions = [Perm.mcpManage];
+    serve([], [connection({ id: "p1", name: "my-github" })]);
+    const get = vi.mocked(apiClient.get).getMockImplementation();
+    if (!get) throw new Error("Expected the MCP API fixture");
+    let releasePermissions: () => void = () => {};
+    let releaseOrganization: () => void = () => {};
+    const permissionGate = new Promise<void>((resolve) => {
+      releasePermissions = resolve;
+    });
+    const organizationGate = new Promise<void>((resolve) => {
+      releaseOrganization = resolve;
+    });
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/me/permissions") await permissionGate;
+      if (path === "/mcp-connections") await organizationGate;
+      return get(path);
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <McpServersPage />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/mcp-connections"));
+    expect(screen.queryByRole("group", { name: "GitHub" })).toBeNull();
+    await act(async () => releasePermissions());
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/mcp-connections"));
+    expect(screen.queryByRole("group", { name: "GitHub" })).toBeNull();
+    await act(async () => releaseOrganization());
+    await screen.findByRole("group", { name: "GitHub" });
+    const dialog = await openConnections();
+    await userEvent.click(dialog.getByRole("button", { name: "More for my-github" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+    await userEvent.type(screen.getByLabelText("Access token"), "keep-this-draft");
+    expect(screen.getByLabelText("Access token")).toHaveValue("keep-this-draft");
+  });
+
   it("does not expose cached organization accounts to a member", async () => {
     permissions = [Perm.connectionsManage, Perm.agentsView];
     serve([], [connection({ id: "p1", name: "my-github" })]);

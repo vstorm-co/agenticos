@@ -156,6 +156,22 @@ describe("useOrgMcpConnections", () => {
     expect(result.current.connections).toEqual([]);
   });
 
+  it("recovers a transient organization failure on a later mount", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const sharedWrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("Temporarily unavailable"));
+    const first = renderHook(() => useOrgMcpConnections(), { wrapper: sharedWrapper });
+    await waitFor(() => expect(first.result.current.error).toBe("Temporarily unavailable"));
+    first.unmount();
+    const second = renderHook(() => useOrgMcpConnections(), { wrapper: sharedWrapper });
+    await waitFor(() => expect(second.result.current.connections).toHaveLength(1));
+    expect(second.result.current.error).toBeNull();
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+    client.clear();
+  });
+
   it("patches an edited server in place", async () => {
     // The list is the page; a refetch would blank the row somebody is editing.
     vi.mocked(apiClient.patch).mockResolvedValue(record({ is_enabled: false }));

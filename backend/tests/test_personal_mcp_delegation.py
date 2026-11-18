@@ -296,7 +296,14 @@ async def test_cached_mcp_tools_stop_after_account_revocation_or_narrowing(chang
             assert calls == ["read"]
 
 
-async def test_external_runs_attach_live_account_checks_to_the_resolved_connection() -> None:
+@pytest.mark.parametrize("environment", [False, True])
+@pytest.mark.parametrize("changed", ["allowlist", "disabled", "deleted", "generation", "endpoint"])
+@pytest.mark.parametrize("target", ["production", "test"])
+async def test_external_runs_attach_live_account_checks_to_the_resolved_connection(
+    environment: bool,
+    changed: str,
+    target: str,
+) -> None:
     ctx = caller()
     connection = McpConnection(
         id=uuid.uuid4(),
@@ -311,6 +318,19 @@ async def test_external_runs_attach_live_account_checks_to_the_resolved_connecti
         authorization_generation=uuid.uuid4(),
         allowed_tools=["read"],
     )
+    test_connection = McpConnection(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        scope="org",
+        purpose="mcp",
+        is_enabled=True,
+        name="test-company",
+        url="https://test.example.com/mcp",
+        auth_type="none",
+        authorization_generation=uuid.uuid4(),
+        allowed_tools=["read"],
+    )
+    found = {connection.id: connection, test_connection.id: test_connection}
     calls: list[str] = []
     tools = FunctionToolset()
 
@@ -331,13 +351,13 @@ async def test_external_runs_attach_live_account_checks_to_the_resolved_connecti
     with (
         patch(
             "app.services.mcp_connection.mcp_connection_repo.get_org_scoped_by_ids",
-            new=AsyncMock(return_value={connection.id: connection}),
+            new=AsyncMock(return_value=found),
         ),
         patch("app.services.mcp_connection.probe_toolsets", probe),
         patch("app.services.mcp_connection.get_db_context", session),
         patch(
             "app.services.mcp_connection.mcp_connection_repo.get_by_id",
-            new=AsyncMock(return_value=connection),
+            new=AsyncMock(side_effect=lambda db, identifier: found.get(identifier)),
         ),
     ):
         resolved = await build_toolsets_for_agent(
@@ -346,6 +366,7 @@ async def test_external_runs_attach_live_account_checks_to_the_resolved_connecti
             refs=[OrgMcpServerRef(connection_id=connection.id)],
             sender_user_id=ctx.user_id,
             recheck_sources=True,
+            test_connections={connection.id: test_connection.id} if environment else None,
         )
         wrapped = resolved.toolsets[0]
         assert isinstance(wrapped, ToolOrigins)
@@ -353,7 +374,44 @@ async def test_external_runs_attach_live_account_checks_to_the_resolved_connecti
         run_ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
         tool = (await wrapped.get_tools(run_ctx))["read"]
         assert await wrapped.call_tool("read", {}, run_ctx, tool) == "organization account"
-        connection.allowed_tools = ["different_tool"]
-        with pytest.raises(AuthorizationError):
-            await wrapped.call_tool("read", {}, run_ctx, tool)
-        assert calls == ["read"]
+        selected = test_connection if target == "test" else connection
+        if changed == "allowlist":
+            selected.allowed_tools = ["different_tool"]
+        elif changed == "disabled":
+            selected.is_enabled = False
+        elif changed == "deleted":
+            found.pop(selected.id)
+        elif changed == "generation":
+            selected.authorization_generation = uuid.uuid4()
+        elif changed == "endpoint":
+            selected.url = "https://replacement.example.com/mcp"
+        if not environment and target == "test":
+            assert await wrapped.call_tool("read", {}, run_ctx, tool) == "organization account"
+            assert calls == ["read", "read"]
+        else:
+            with pytest.raises(AuthorizationError):
+                await wrapped.call_tool("read", {}, run_ctx, tool)
+            assert calls == ["read"]
+
+
+@pytest.mark.parametrize("missing", [True, False])
+async def test_external_environment_run_refuses_an_unavailable_production_ceiling(
+    missing: bool,
+) -> None:
+    ctx = caller()
+    production_id, test_id = uuid.uuid4(), uuid.uuid4()
+    production = McpConnection(id=production_id, is_enabled=False)
+    with (
+        patch(
+            "app.services.mcp_connection.mcp_connection_repo.get_org_scoped_by_ids",
+            AsyncMock(return_value={} if missing else {production_id: production}),
+        ),
+        pytest.raises(AuthorizationError, match="production MCP account"),
+    ):
+        await build_toolsets_for_agent(
+            MagicMock(),
+            organization_id=ctx.organization_id,
+            refs=[OrgMcpServerRef(connection_id=production_id)],
+            test_connections={production_id: test_id},
+            recheck_sources=True,
+        )

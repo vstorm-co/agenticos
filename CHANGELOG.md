@@ -22,9 +22,11 @@ Two things are versioned separately from this file and worth knowing about:
 ### Added
 
 - Let external agent runs use the API key or OAuth token issuer's personal MCP connections with the explicit `mcp:personal:use` scope. Existing credentials and presets retain organization-only access; resumed runs and subagents retain the original caller, with live credential and connected-account checks before tool calls (#3154).
-- Delegate to subagents using each signed-in web chat caller's personal LLM keys. Each published agent keeps its configured model, endpoint and credential mode; inline specialists inherit their parent's mode. Missing connections stop the run without borrowing an organization key, and approval resumes recheck the original caller's connections (#3155).
+- Delegate to subagents using each signed-in web chat caller's personal LLM keys for the exact model profile selected on a personal-mode root. Organization-mode parents cannot spend personal delegate keys; inline specialists inherit their parent's mode. Missing connections stop the run without borrowing an organization key, and approval resumes recheck the original caller's connections (#3155).
 
 ### Fixed
+
+- Enforce personal-model consent across delegation trees and recheck both test and production MCP account authority on delegated tool calls. Recover organization MCP queries on later page visits without interrupting personal account editing.
 
 - Exclude repeated agent instructions and SDK instruction baselines and deltas from conversation checkpoints, preserving more conversation and tool evidence within the existing storage limit. Later turns continue with the agent's current instructions (#3141).
 - Serialize routine edits with agent publication in the same lock order, preventing deadlocks while retaining model checks and creator-consent withdrawal (#3139).

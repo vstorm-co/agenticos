@@ -189,6 +189,7 @@ from app.services.notifications import NotificationService
 from app.services.personal_model_key import personal_profile_problem
 from app.services.personal_model_policy import (
     PERSONAL_MODEL_LIMITS,
+    personal_delegate_problem,
     personal_model_problems,
     require_organization_model,
 )
@@ -2739,6 +2740,60 @@ class AgentRegistryService:
                     )
         return problems
 
+    async def require_organization_spec(self, ctx: AuthContext, spec: AgentSpec) -> None:
+        """Non-interactive surfaces cannot reach any personal model in a pinned tree."""
+        require_organization_model(spec)
+        if problems := await self.personal_delegation_problems(ctx, spec):
+            raise BadRequestError(
+                message="Personal model delegates require a personal web chat",
+                details={"problems": problems},
+                code="PERSONAL_MODEL_SURFACE",
+            )
+
+    async def personal_delegation_problems(self, ctx: AuthContext, spec: AgentSpec) -> list[str]:
+        """Refuse personal spending outside the root chat's explicitly chosen model.
+
+        Follow frozen pins only while the runtime can reach them. The same check
+        protects publish, promotion and admission of older published versions.
+        """
+        problems: list[str] = []
+        stack = [(spec, 0)]
+        visited: set[tuple[UUID, int]] = set()
+        while stack:
+            parent, left = stack.pop()
+            config = _subagents_config(parent)
+            if config is None:
+                continue
+            for specialist in config.inline:
+                inline = AgentSpec(
+                    name=specialist.name,
+                    model_profile_id=specialist.model_profile_id or parent.model_profile_id,
+                    model_credential_mode=parent.model_credential_mode,
+                )
+                if problem := personal_delegate_problem(spec, inline):
+                    problems.append(f"Specialist '{specialist.name}': {problem}")
+            for ref in parent.subagents:
+                node = (ref.agent_version_id, left)
+                if node in visited:
+                    continue
+                if len(visited) >= _MAX_DELEGATION_NODES:
+                    return [
+                        *problems,
+                        "Too many pinned delegates to validate personal model consent",
+                    ]
+                visited.add(node)
+                pinned = await self._resolve_pin(ctx, ref)
+                if pinned is None:
+                    continue
+                if problem := personal_delegate_problem(spec, pinned.spec):
+                    problems.append(f"Delegate '{pinned.spec.name}': {problem}")
+                remaining = (
+                    config.max_depth - 1 if parent is spec else min(left - 1, config.max_depth - 1)
+                )
+                if remaining > 0:
+                    stack.append((pinned.spec, remaining))
+        return problems
+
     async def _pinned_model_refs(self, ctx: AuthContext, spec: AgentSpec) -> list[_ModelRef]:
         """The models a run of this spec reaches through the delegates it pins (#2546).
 
@@ -2820,6 +2875,12 @@ class AgentRegistryService:
             await self.get(ctx, version.agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
             await self.validate_spec(ctx, spec, agent_id=version.agent_id)
             return
+        if personal_problems := await self.personal_delegation_problems(ctx, spec):
+            raise BadRequestError(
+                message="This version delegates to a personal model without the chat owner's consent",
+                details={"problems": personal_problems, "version_id": version.id},
+                code="PERSONAL_MODEL_CONSENT",
+            )
         problems = await self._sign_in_problems(ctx, spec)
         if problems.messages:
             raise BadRequestError(
@@ -3382,6 +3443,7 @@ class AgentRegistryService:
             )
         problems.add(_share_problems(spec, config), fix=STOP_SHARING_UNBOUND)
 
+        problems.add(await self.personal_delegation_problems(ctx, spec))
         pins = await self._resolve_pins(ctx, spec.subagents)
         problems.add(pins.problems)
         # A pinned version passed this check at its own publish, on its own
@@ -4123,14 +4185,14 @@ class AgentRegistryService:
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
         if enabled:
             refuse_system_agent(agent, action="serving over A2A")
-            require_organization_model(AgentSpec.model_validate(agent.draft_spec))
+            await self.require_organization_spec(ctx, AgentSpec.model_validate(agent.draft_spec))
             if agent.current_version_id is not None:
                 version = await agent_repo.get_version(
                     self.db, agent.current_version_id, organization_id=ctx.organization_id
                 )
                 if version is None:
                     raise NotFoundError(message="Agent version not found")
-                require_organization_model(AgentSpec.model_validate(version.spec))
+                await self.require_organization_spec(ctx, AgentSpec.model_validate(version.spec))
         if enabled and agent.current_version_id is None:
             raise BadRequestError(
                 message="Publish the agent before serving it over A2A",

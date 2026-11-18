@@ -2915,7 +2915,7 @@ async def test_nested_personal_delegates_use_each_members_own_connection(
     first = replace(_ctx(), role=OrgRoleName.MEMBER)
     second = replace(first, user_id=uuid.uuid4())
     parent_profile = personal_models.profile()
-    child_profile = personal_models.profile()
+    child_profile = parent_profile
     child_id, leaf_id = uuid.uuid4(), uuid.uuid4()
     leaf = _version(
         leaf_id,
@@ -2952,13 +2952,16 @@ async def test_nested_personal_delegates_use_each_members_own_connection(
 
 
 @pytest.mark.security
-async def test_personal_delegate_requires_its_own_destination_even_with_a_shared_parent(
+@pytest.mark.parametrize("personal_parent", [False, True])
+async def test_a_saved_delegate_key_does_not_replace_the_chat_models_consent(
     personal_models: _PersonalModels,
+    personal_parent: bool,
 ) -> None:
     ctx = _ctx()
     parent_profile = personal_models.profile()
     child_profile = personal_models.profile("https://other-gateway.example/v1")
-    personal_models.connect(ctx, parent_profile, "never-forward-this")
+    personal_models.connect(ctx, parent_profile, "parent-key")
+    personal_models.connect(ctx, child_profile, "unapproved-delegate-key")
     child_id = uuid.uuid4()
     child = _version(
         child_id,
@@ -2966,16 +2969,15 @@ async def test_personal_delegate_requires_its_own_destination_even_with_a_shared
             name="Specialist", model_profile_id=child_profile.id, model_credential_mode="personal"
         ),
     )
-    parent = _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)])
-    with pytest.raises(AuthorizationError) as refused:
+    parent = _delegating(
+        model_profile_id=parent_profile.id,
+        model_credential_mode="personal" if personal_parent else "organization",
+        subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+    )
+    with pytest.raises(BadRequestError) as refused:
         await _prepare(parent, ctx=ctx, surface=RunSurface.WEB, versions={child.id: child})
-    assert refused.value.code == "PERSONAL_MODEL_KEY_REQUIRED"
-    assert refused.value.details["profile_id"] == str(child_profile.id)
-    assert "never-forward-this" not in str(refused.value)
-    personal_models.connect(ctx, child_profile, "specialist-key")
-    prepared = await _prepare(parent, ctx=ctx, surface=RunSurface.WEB, versions={child.id: child})
-    assert prepared.built("specialist")["model"].credential.base_url == child_profile.base_url
-    assert prepared.resolved.await_count == 1  # Only the explicitly organization-mode parent.
+    assert refused.value.code == "PERSONAL_MODEL_CONSENT"
+    assert "unapproved-delegate-key" not in str(refused.value)
 
 
 async def test_inline_and_dynamic_specialists_keep_the_personal_model_contract(
@@ -3050,7 +3052,11 @@ async def test_resume_rechecks_the_original_owners_delegate_key_not_the_approver
         child_id,
         AgentSpec(name="Personal", model_profile_id=profile.id, model_credential_mode="personal"),
     )
-    spec = _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)])
+    spec = _delegating(
+        model_credential_mode="personal",
+        model_profile_id=profile.id,
+        subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)],
+    )
     run = _parked_run(
         organization_id=owner.organization_id,
         user_id=owner.user_id,
@@ -3141,3 +3147,33 @@ async def test_a_web_parent_cannot_spend_a_personal_delegates_key_without_its_ow
         )
     assert "do-not-spend" not in str(refused.value)
     assert refused.value.code != "PERSONAL_MODEL_KEY_REQUIRED"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("surface", [RunSurface.API, RunSurface.WEB])
+async def test_discovery_skips_personal_models_that_the_root_did_not_authorize(
+    surface: RunSurface,
+) -> None:
+    child_id = uuid.uuid4()
+    child = _version(
+        child_id,
+        AgentSpec(
+            name="Unapproved",
+            model_profile_id=uuid.uuid4(),
+            model_credential_mode="personal",
+        ),
+    )
+    ref = SubagentRef(agent_id=child_id, agent_version_id=child.id)
+    root = _delegating()
+    root.capabilities[0].config["allow_any_agent"] = True
+    with (
+        patch.object(AgentRegistryService, "accessible_delegates", AsyncMock(return_value=[ref])),
+        patch.object(AgentRegistryService, "get", AsyncMock()),
+    ):
+        prepared = await _prepare(
+            root,
+            surface=surface,
+            versions={child.id: child},
+        )
+    assert prepared.runtime.named("agent-unapproved") is None
+    assert prepared.resolved.await_count == 1

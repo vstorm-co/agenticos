@@ -1,5 +1,5 @@
 ---
-source_sha: "0bef9d6aa1e5"
+source_sha: "7b83980dd889"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -35,7 +35,9 @@ Formularz prywatnego klucza przesyła oczekiwany profil, dostawcę, endpoint i m
 
 Tryb osobisty nie obsługuje obecnie kanałów prywatnych ani grupowych, widgetów, stron publicznych, uruchomień przez HTTP API, harmonogramów, triggerów, tematów w tle, głosu, recenzentów ani osobnych modeli funkcji. Przed publikacją wstrzymaj lub usuń aktywne kanały, publiczne udostępnienia i rutyny. Utworzenie lub ponowne włączenie niezgodnego udostępnienia zostaje odrzucone; run sprawdza tę samą zasadę. Strony publiczne i tokeny JWT widgetów nie identyfikują zalogowanego członka instancji.
 
-Delegowanie działa w czacie zalogowanego użytkownika. Każdy opublikowany subagent zachowuje swój model, endpoint i tryb dostępu: osobisty lub organizacyjny. Subagenci w trybie osobistym korzystają z połączenia osoby, która rozpoczęła run, dla dokładnie tego samego dostawcy i endpointu, również przy zagnieżdżaniu i wznowieniu po zatwierdzeniu. Specjaliści inline dziedziczą tryb rodzica, a specjaliści dynamiczni w trybie osobistym pozostają przy skonfigurowanym modelu rodzica. Zasady dostępu do osobistych połączeń MCP pozostają takie same.
+Delegowanie działa w czacie zalogowanego użytkownika. Subagent w trybie osobistym musi używać dokładnie tego profilu modelu, który wybrano w głównym agencie działającym w trybie osobistym. Agent organizacyjny nie może korzystać z osobistych kluczy przez delegację, a osobisty subagent nie może wybrać innego modelu ani endpointu. Zasady obowiązują przy publikacji, udostępnianiu, promocji wersji i wykonaniu, także w zagnieżdżonych delegacjach i po wznowieniu.
+
+Subagenci organizacyjni zachowują własne klucze. Specjaliści inline dziedziczą tryb rodzica, a dynamiczni w trybie osobistym pozostają przy jego modelu. Zasady osobistego dostępu MCP pozostają bez zmian.
 
 Komunikat o brakującym połączeniu subagenta podaje nazwę agenta i połączenia z modelem. Otwórz ustawienia czatu tego agenta i podłącz klucz; jeśli agent nie jest widoczny, poproś właściciela o dostęp. Runner sprawdza drzewo delegacji przed zapytaniami do modeli i ponownie przy wznowieniu. Klucz innego endpointu, innej osoby ani osoby zatwierdzającej nie zastępuje brakującego połączenia użytkownika.
 

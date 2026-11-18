@@ -422,6 +422,7 @@ from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.personal_model_key import PersonalModelKeyService
 from app.services.personal_model_policy import (
+    personal_delegate_problem,
     require_personal_model_run,
 )
 from app.services.project import ProjectService
@@ -3142,6 +3143,8 @@ class _Delegation:
 
     isolation: RunIsolation | None
     """The run's isolation, when it is an eval, which every level of the tree is under."""
+    personal_model_root: AgentSpec
+    """The model selected in the root chat; delegates cannot widen personal spending."""
     personal_mcp_check: Callable[[], Awaitable[None]] | None = None
     personal_models_blocked: bool = False
     """Public input, voice or a local model replacement cannot spend personal keys."""
@@ -5607,6 +5610,7 @@ class AgentRunnerService:
             ctx=ctx,
             models_ctx=models_ctx,
             personal_models_blocked=personal_models_blocked,
+            personal_model_root=spec,
             run=run,
             surface=surface,
             agent_id=agent.id,
@@ -5878,15 +5882,20 @@ class AgentRunnerService:
             for ref in refs:
                 # A discovered delegate is this person's authority, never a publisher's loan.
                 await self.registry.get(delegation.ctx, ref.agent_id, perm=Perm.AGENTS_RUN)
-                delegate = await self._resolve_delegate(
-                    delegation,
-                    ref=ref,
-                    shared=shared,
-                    resources=resources,
-                    depth_remaining=depth_remaining,
-                    depth=depth,
-                    ancestors=ancestors,
-                )
+                try:
+                    delegate = await self._resolve_delegate(
+                        delegation,
+                        ref=ref,
+                        shared=shared,
+                        resources=resources,
+                        depth_remaining=depth_remaining,
+                        depth=depth,
+                        ancestors=ancestors,
+                    )
+                except BadRequestError as exc:
+                    if exc.code != "PERSONAL_MODEL_CONSENT":
+                        raise
+                    continue
                 handle = f"agent-{delegate.name}"
                 # An explicit specialist owns its handle; retain access using the stable UUID.
                 if handle in reserved:
@@ -5953,6 +5962,8 @@ class AgentRunnerService:
         park. Organization mode remains an explicit choice on each published
         delegate; inline specialists inherit their parent's credential mode.
         """
+        if problem := personal_delegate_problem(delegation.personal_model_root, spec):
+            raise BadRequestError(message=problem, code="PERSONAL_MODEL_CONSENT")
         require_personal_model_run(
             spec,
             delegation.models_ctx,

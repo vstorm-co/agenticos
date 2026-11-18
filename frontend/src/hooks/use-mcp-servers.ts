@@ -133,14 +133,14 @@ export type { McpServerRow };
  * check somebody asked for. The lists, which a check does change server-side,
  * are refetched by the hook that owns them.
  */
-export function useMcpServers() {
-  const { can } = usePermissions();
+export function useMcpServers({ retryOnMount = true }: { retryOnMount?: boolean } = {}) {
+  const { can, isLoading: permissionsLoading } = usePermissions();
   const catalog = useQuery({
     queryKey: qk.mcpServers.catalog(),
     queryFn: () => apiClient.get<McpCatalog>("/agents/mcp-catalog"),
     staleTime: Infinity,
   });
-  const organization = useOrgMcpConnections({ enabled: can(Perm.mcpManage) });
+  const organization = useOrgMcpConnections({ enabled: can(Perm.mcpManage), retryOnMount });
   const personal = useMcpConnections();
 
   const [toolsByConnection, setToolsByConnection] = useState<Record<string, McpToolInfo[]>>({});
@@ -152,7 +152,8 @@ export function useMcpServers() {
 
   return {
     rows,
-    isLoading: catalog.isLoading || organization.isLoading || personal.isLoading,
+    isLoading:
+      permissionsLoading || catalog.isLoading || organization.isLoading || personal.isLoading,
     /**
      * A failure everybody's view depends on is reported — the catalog and the
      * caller's own connections. The organization list's is not: its failure

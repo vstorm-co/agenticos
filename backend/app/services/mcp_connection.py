@@ -3103,6 +3103,11 @@ async def build_toolsets_for_agent(
                 unavailable.append(UnavailablePersonalService(ref.catalog_key, gap))
             continue
         if ref.connection_id in overrides:
+            production = found.get(ref.connection_id)
+            if recheck_sources and (production is None or not production.is_enabled):
+                raise AuthorizationError(
+                    message="The production MCP account is no longer available"
+                )
             spec = await _test_spec(
                 ref,
                 production=found.get(ref.connection_id),
@@ -3289,6 +3294,28 @@ def _delegated_source_check(
                 raise AuthorizationError(
                     message="An MCP account changed or was disconnected. Reconnect it and start a new run."
                 )
+            if spec.ceiling_source is not None:
+                ceiling_id, identity = spec.ceiling_source
+                ceiling = await mcp_connection_repo.get_by_id(db, ceiling_id)
+                if (
+                    ceiling is None
+                    or not ceiling.is_enabled
+                    or ceiling.purpose != "mcp"
+                    or ceiling.scope != "org"
+                    or ceiling.organization_id != organization_id
+                    or hashlib.sha256(ceiling.url.encode()).hexdigest() != identity.endpoint_hash
+                    or ceiling.authorization_generation != identity.authorization_generation
+                    or (
+                        ceiling.allowed_tools is not None
+                        and (
+                            spec.allowed_tools is None
+                            or not set(spec.allowed_tools).issubset(ceiling.allowed_tools)
+                        )
+                    )
+                ):
+                    raise AuthorizationError(
+                        message="The production MCP account changed. Start a new run."
+                    )
 
     return check
 
@@ -3358,6 +3385,17 @@ async def _test_spec(
         include_instructions=test.include_instructions,
         account=test.label,
         connection_id=test.id,
+        source_connection_id=test.id,
+        authorization_generation=test.authorization_generation,
+        ceiling_source=(
+            production.id,
+            McpSourceIdentity(
+                endpoint_hash=hashlib.sha256(production.url.encode()).hexdigest(),
+                authorization_generation=production.authorization_generation,
+            ),
+        )
+        if production is not None
+        else None,
     )
 
 

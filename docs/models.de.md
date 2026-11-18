@@ -1,5 +1,5 @@
 ---
-source_sha: "0bef9d6aa1e5"
+source_sha: "7b83980dd889"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -36,7 +36,9 @@ Das private Schlüsselformular übermittelt das erwartete Profil, den Anbieter, 
 
 Der persönliche Modus unterstützt derzeit keine privaten oder Gruppenkanäle, Widgets, öffentlichen Seiten, HTTP-API-Läufe, Zeitpläne, Trigger, Hintergrundthemen, Sprache, Reviewer oder separate Modelle für Fähigkeiten. Pausiere oder entferne aktive Kanäle, öffentliche Freigaben und Routinen vor der Veröffentlichung. Das Erstellen oder erneute Aktivieren einer unvereinbaren Freigabe wird abgelehnt; dieselbe Regel gilt zur Laufzeit. Öffentliche Seiten und Widget-JWTs identifizieren kein angemeldetes Mitglied der Instanz.
 
-Delegation wird im angemeldeten Web-Chat unterstützt. Jeder veröffentlichte Subagent behält sein konfiguriertes Modell, seinen Endpunkt und seinen persönlichen oder organisatorischen Anmeldemodus. Agenten im persönlichen Modus verwenden die Verbindung des ursprünglichen Aufrufers für genau diesen Anbieter und Endpunkt, auch bei verschachtelter Delegation und nach Freigaben. Inline-Spezialisten erben den Modus ihres Elternagenten; dynamische Spezialisten im persönlichen Modus bleiben auf dessen konfiguriertem Modell. Die bestehenden Zugriffsgrenzen für persönliche MCP-Verbindungen gelten weiterhin.
+Delegation funktioniert im angemeldeten Webchat. Ein persönlicher Subagent muss dasselbe Modellprofil wie der persönliche Hauptagent verwenden. Ein Hauptagent mit Organisationsschlüssel darf keine persönlichen Schlüssel über Delegation nutzen; persönliche Subagenten dürfen kein anderes Modell oder Ziel wählen. Veröffentlichung, Freigabe für Oberflächen, Promotion und Laufzeit prüfen diese Regeln auch für verschachtelte Delegationen und nach einer Fortsetzung.
+
+Subagenten im Organisationsmodus behalten ihre eigenen Zugangsdaten. Inline-Spezialisten übernehmen den Modus ihres Elternagenten; dynamische Spezialisten im persönlichen Modus bleiben bei dessen Modell. Die Regeln für persönlichen MCP-Zugriff bleiben unverändert.
 
 Bei einer fehlenden Subagent-Verbindung nennt die Meldung den Agenten und die Modellverbindung. Öffne dessen Chat-Einstellungen, um deinen Schlüssel zu verbinden; bitte den Eigentümer um Zugriff, falls der Agent nicht sichtbar ist. Der Runner prüft den Delegationsbaum vor Modellanfragen und erneut beim Fortsetzen. Schlüssel für andere Endpunkte, andere Mitglieder oder die freigebende Person ersetzen keine fehlende Verbindung des Aufrufers.
 

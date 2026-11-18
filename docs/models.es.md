@@ -1,5 +1,5 @@
 ---
-source_sha: "0bef9d6aa1e5"
+source_sha: "7b83980dd889"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -35,7 +35,9 @@ Un miembro con sesión iniciada conecta su clave en el formulario privado sobre 
 
 El modo personal no admite canales privados ni grupales, widgets, páginas públicas, ejecuciones por HTTP API, horarios, triggers, temas en segundo plano, voz, revisores ni modelos separados para capacidades. Pausa o elimina canales, superficies públicas y rutinas activos antes de publicar. Se rechaza crear o reactivar una superficie incompatible; la misma regla se aplica al ejecutar. Las páginas públicas y los JWT de widgets no identifican a un miembro con sesión iniciada en la instancia.
 
-La delegación funciona en el chat web con sesión iniciada. Cada subagente publicado conserva su modelo, endpoint y modo de credenciales personal o de organización. Los agentes en modo personal usan la conexión del usuario que inició el run para ese proveedor y endpoint exactos, también en delegaciones anidadas y al reanudar después de una aprobación. Los especialistas inline heredan el modo del padre; los especialistas dinámicos en modo personal mantienen el modelo configurado del padre. Se conservan los límites de acceso existentes para las conexiones MCP personales.
+La delegación funciona en el chat web con sesión iniciada. Un subagente personal debe usar el mismo perfil de modelo que el agente principal en modo personal. Un agente principal con claves de organización no puede gastar claves personales mediante delegación; los subagentes personales no pueden elegir otro modelo ni endpoint. Estas reglas se comprueban al publicar, habilitar superficies, promover versiones y ejecutar, incluidas las delegaciones anidadas y las reanudaciones.
+
+Los subagentes de organización conservan sus credenciales. Los especialistas inline heredan el modo del padre; los dinámicos en modo personal mantienen su modelo. Los límites de acceso MCP personal no cambian.
 
 Si falta la conexión de un subagente, el mensaje identifica el agente y la conexión del modelo. Abre la configuración de chat de ese agente para conectar tu clave; pide acceso a su propietario si no aparece. El runner comprueba el árbol de delegación antes de llamar a los modelos y de nuevo al reanudar. Nunca sustituye una conexión ausente por la clave de otro endpoint, otro miembro o la persona que aprueba.
 
