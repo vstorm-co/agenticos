@@ -439,3 +439,44 @@ async def test_external_environment_can_disable_a_binding_with_no_live_productio
             recheck_sources=True,
         )
     assert result.toolsets == []
+
+
+@pytest.mark.parametrize("change", ["grant-revoked", "unpublished"])
+async def test_personal_tool_guard_rechecks_discovered_access_as_the_original_key_owner(
+    change: str,
+) -> None:
+    owner = caller()
+    root_id, delegate_id = uuid.uuid4(), uuid.uuid4()
+    changed = False
+
+    @asynccontextmanager
+    async def session() -> AsyncIterator[AsyncSession]:
+        yield MagicMock()
+
+    async def get(ctx: AuthContext, agent_id: uuid.UUID, *, perm: Perm) -> MagicMock:
+        assert ctx == owner
+        assert perm == Perm.AGENTS_RUN
+        if agent_id == delegate_id and changed:
+            if change == "grant-revoked":
+                raise AuthorizationError(message="Delegate grant revoked")
+            return MagicMock(status="archived")
+        return MagicMock(status="published")
+
+    with (
+        patch("app.services.agent_runner.get_db_context", session),
+        patch(
+            "app.services.agent_runner.ApiKeyService.personal_mcp_context",
+            AsyncMock(return_value=owner),
+        ),
+        patch("app.services.agent_runner.AgentRegistryService.get", AsyncMock(side_effect=get)),
+    ):
+        guard = _personal_mcp_check(
+            owner.api_key_id,
+            user_id=owner.user_id,
+            organization_id=owner.organization_id,
+            agent_id=root_id,
+        )
+        await guard(delegates=frozenset({delegate_id}))
+        changed = True
+        with pytest.raises(AuthorizationError):
+            await guard(delegates=frozenset({delegate_id}))

@@ -3235,6 +3235,13 @@ async def test_a_web_parent_cannot_spend_a_personal_delegates_key_without_its_ow
 async def test_discovery_skips_personal_models_that_the_root_did_not_authorize(
     surface: RunSurface,
 ) -> None:
+    ctx = _ctx()
+    if surface is RunSurface.API:
+        ctx = replace(
+            ctx,
+            api_key_id=uuid.uuid4(),
+            key_scopes=frozenset({Perm.AGENTS_RUN, Perm.MCP_PERSONAL_USE}),
+        )
     child_id = uuid.uuid4()
     child = _version(
         child_id,
@@ -3253,6 +3260,7 @@ async def test_discovery_skips_personal_models_that_the_root_did_not_authorize(
     ):
         prepared = await _prepare(
             root,
+            ctx=ctx,
             surface=surface,
             versions={child.id: child},
         )
@@ -3274,3 +3282,110 @@ async def test_discovery_does_not_hide_other_model_configuration_errors() -> Non
         pytest.raises(BadRequestError, match="no key configured"),
     ):
         await _prepare(root, versions={child.id: child}, profiles=[profile])
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("owner_access", [True, False])
+async def test_api_resume_does_not_borrow_the_approvers_discovered_delegate_grant(
+    owner_access: bool,
+) -> None:
+    from collections.abc import AsyncIterator
+    from contextlib import asynccontextmanager
+
+    from app.services.agent_runner import ApiKeyService
+    from tests.test_agent_runner import _parked_run
+
+    owner = replace(
+        _ctx(),
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.AGENTS_RUN, Perm.MCP_PERSONAL_USE}),
+    )
+    approver = replace(_ctx(), organization_id=owner.organization_id)
+    child_id = uuid.uuid4()
+    child = _version(
+        child_id,
+        AgentSpec(
+            name="Private reader",
+            mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
+        ),
+    )
+    spec = AgentSpec(
+        name="Parent",
+        capabilities=[
+            CapabilityBindingSpec(id=DELEGATION_CAPABILITY_ID, config={"allow_any_agent": True})
+        ],
+    )
+    run = _parked_run(
+        organization_id=owner.organization_id,
+        user_id=owner.user_id,
+        initiated_by_publisher_fallback=False,
+        key_scopes=[Perm.AGENTS_RUN.value, Perm.MCP_PERSONAL_USE.value],
+    )
+    run.paused_state = {
+        "messages": [],
+        "tool_call_ids": {},
+        "admitted_as": {"personal_mcp_key_id": str(owner.api_key_id)},
+        "discovered_delegates": {
+            str(run.agent_id): [
+                {
+                    "agent_id": str(child_id),
+                    "agent_version_id": str(child.id),
+                }
+            ]
+        },
+    }
+    version = _version(run.agent_id, spec)
+    service = AgentRunnerService(_db())
+    accesses: list[tuple[uuid.UUID | None, uuid.UUID]] = []
+
+    async def get(context: AuthContext, agent_id: uuid.UUID, *, perm: Perm) -> MagicMock:
+        accesses.append((context.user_id, agent_id))
+        if context.user_id == owner.user_id and agent_id == child_id and not owner_access:
+            raise AuthorizationError(message="Original owner's delegate grant revoked")
+        return _agent_row(agent_id, slug="private-reader" if agent_id == child_id else "parent")
+
+    async def get_version(
+        db: object, version_id: uuid.UUID, *, organization_id: uuid.UUID
+    ) -> MagicMock:
+        return child if version_id == child.id else version
+
+    @asynccontextmanager
+    async def session() -> AsyncIterator[MagicMock]:
+        yield _db()
+
+    with (
+        patch(f"{RUNNER}.get_db_context", session),
+        patch.object(ApiKeyService, "personal_mcp_context", AsyncMock(return_value=owner)),
+        patch.object(AgentRegistryService, "get", AsyncMock(side_effect=get)),
+        patch(f"{RUNNER}.agent_run_repo.claim_parked_run", AsyncMock(return_value=run)),
+        patch(f"{RUNNER}.agent_run_repo.list_approvals_for_run", AsyncMock(return_value=[])),
+        patch(f"{RUNNER}.agent_run_repo.mark_running", AsyncMock()),
+        patch(f"{RUNNER}.agent_run_repo.finish_run", AsyncMock()),
+        patch(f"{RUNNER}.agent_repo.get_version", AsyncMock(side_effect=get_version)),
+        patch(
+            f"{RUNNER}.agent_repo.get",
+            AsyncMock(return_value=_agent_row(child_id, slug="private-reader")),
+        ),
+        patch.object(service.models, "resolve", AsyncMock(return_value=_resolved_model())),
+        patch.object(service.skills, "resolve_for_agent", AsyncMock(return_value=[])),
+        patch.object(service.secrets, "resolve_for_bindings", AsyncMock(return_value={})),
+        patch.object(service.workspaces, "open", AsyncMock(return_value=None)),
+        patch(
+            f"{RUNNER}.build_toolsets_for_agent",
+            AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+        ) as tools,
+        patch(f"{RUNNER}.build_agent") as build,
+    ):
+        build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="continued"))
+        if owner_access:
+            result = await service.resume(approver, run.id)
+            assert result.output == "continued"
+            assert tools.await_args.kwargs["sender_user_id"] == owner.user_id
+        else:
+            with pytest.raises(AuthorizationError, match="Original owner's delegate grant revoked"):
+                await service.resume(approver, run.id)
+            # The root has no personal tools; the delegate must fail before opening any.
+            assert tools.await_count == 1
+            build.assert_not_called()
+    assert (approver.user_id, child_id) in accesses
+    assert (owner.user_id, child_id) in accesses

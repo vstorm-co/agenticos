@@ -1,5 +1,5 @@
 ---
-source_sha: "107659f9bab3"
+source_sha: "0ec0a9a4159f"
 ---
 
 # Permisos { #permissions }
@@ -100,7 +100,9 @@ Dos clases de permiso, y se comportan de forma distinta.
 Los permisos **globales** son binarios y valen para toda la organización:
 `members:view`, `members:manage`, `roles:manage`, `org:settings`, `org:delete`,
 `budgets:manage`, `approvals:decide`, `promotions:override`, `connections:view`, `connections:manage`,
-`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`, `mcp:personal:use`.
+
+El scope explícito `mcp:personal:use` permite que las ejecuciones externas por API u OAuth usen las conexiones MCP personales del emisor de la credencial. Selecciónelo en **Custom** y confirme la delegación; ningún ajuste predefinido, incluido **Full access**, lo contiene, y las credenciales existentes conservan solo el acceso de la organización. No concede memoria personal, búsqueda de conversaciones ni consentimiento para rutinas. Las reanudaciones tras una aprobación conservan el propietario y la credencial originales; antes de invocar herramientas personales se comprueban de nuevo las cuentas conectadas, los scopes actuales de la clave y el acceso al agente principal y a los subagentes seleccionados automáticamente.
 
 Aprobar rutinas y watches personales requiere el scope explícito `personal:consent`, seleccionado en **Custom** al emitir una clave o autorizar un cliente MCP. Se excluye de todos los preajustes, incluido **Full access**. La confirmación permite a la credencial aprobar rutinas y watches persistentes que usan tus conexiones y datos personales; los scopes habituales `agents:run` y `runs:view` no lo permiten. Las claves y autorizaciones MCP existentes no obtienen consentimiento personal automáticamente.
 

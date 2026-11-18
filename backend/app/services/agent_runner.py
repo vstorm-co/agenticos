@@ -61,7 +61,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from functools import partial
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
 from uuid import UUID, uuid4
 
 from pydantic import (
@@ -3054,12 +3054,17 @@ class _ModelCatalog:
     """Each profile resolved so far, by id - `None` for one that did not resolve."""
 
 
+class _PersonalMcpCheck(Protocol):
+    async def __call__(self, *, delegates: frozenset[UUID] = frozenset()) -> None: ...
+
+
 @dataclass
 class _PersonalMcpDelegation:
     """One original credential, retained only if the assembled tree reaches personal MCP."""
 
-    validate: Callable[[], Awaitable[None]]
+    validate: _PersonalMcpCheck
     required: bool = False
+    discovered_agents: set[UUID] = field(default_factory=set)
 
     async def require_for(self, refs: Sequence[McpServerRef]) -> None:
         self.required = self.required or any(isinstance(ref, PersonalMcpServerRef) for ref in refs)
@@ -3067,7 +3072,7 @@ class _PersonalMcpDelegation:
 
     async def check(self) -> None:
         if self.required:
-            await self.validate()
+            await self.validate(delegates=frozenset(self.discovered_agents))
 
 
 @dataclass(frozen=True)
@@ -3196,13 +3201,20 @@ class _Delegation:
 
 def _personal_mcp_check(
     key_id: UUID, *, user_id: UUID, organization_id: UUID, agent_id: UUID
-) -> Callable[[], Awaitable[None]]:
-    async def check() -> None:
+) -> _PersonalMcpCheck:
+    async def check(*, delegates: frozenset[UUID] = frozenset()) -> None:
         async with get_db_context() as db:
             current = await ApiKeyService(db).personal_mcp_context(
                 key_id, organization_id=organization_id, user_id=user_id
             )
-            await AgentRegistryService(db).get(current, agent_id, perm=Perm.AGENTS_RUN)
+            registry = AgentRegistryService(db)
+            await registry.get(current, agent_id, perm=Perm.AGENTS_RUN)
+            for delegate_id in delegates:
+                delegate = await registry.get(current, delegate_id, perm=Perm.AGENTS_RUN)
+                if delegate.status != AgentStatus.PUBLISHED.value:
+                    raise AuthorizationError(
+                        message="The discovered delegate is no longer published"
+                    )
 
     return check
 
@@ -5902,6 +5914,8 @@ class AgentRunnerService:
             for ref in refs:
                 # A discovered delegate is this person's authority, never a publisher's loan.
                 await self.registry.get(delegation.ctx, ref.agent_id, perm=Perm.AGENTS_RUN)
+                if delegation.personal_mcp is not None:
+                    delegation.personal_mcp.discovered_agents.add(ref.agent_id)
                 try:
                     delegate = await self._resolve_delegate(
                         delegation,
@@ -5915,6 +5929,8 @@ class AgentRunnerService:
                 except BadRequestError as exc:
                     if exc.code != "PERSONAL_MODEL_CONSENT":
                         raise
+                    if delegation.personal_mcp is not None:
+                        delegation.personal_mcp.discovered_agents.discard(ref.agent_id)
                     continue
                 handle = f"agent-{delegate.name}"
                 # An explicit specialist owns its handle; retain access using the stable UUID.
