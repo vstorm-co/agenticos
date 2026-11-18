@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Delegate to subagents using each signed-in web chat caller's personal LLM keys. Each published agent keeps its configured model, endpoint and credential mode; inline specialists inherit their parent's mode. Missing connections stop the run without borrowing an organization key, and approval resumes recheck the original caller's connections (#3155).
+
 ## [1.82.2] - 2026-11-18
 
 ### Added

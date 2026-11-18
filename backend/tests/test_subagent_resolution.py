@@ -67,6 +67,8 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import RunStatus, RunSurface
+from app.db.models.credential import ModelProfile
+from app.db.models.personal_model_key import PersonalModelKey
 from app.schemas.local_target import LocalTarget
 from app.services.agent_registry import DELEGATION_CAPABILITY_ID, AgentRegistryService
 from app.services.agent_runner import (
@@ -324,6 +326,7 @@ async def _prepare(
     isolation: RunIsolation | None = None,
     voice: VoiceRun | None = None,
     surface: RunSurface = RunSurface.API,
+    public_origin: bool = False,
     acts_for_sender: bool = False,
     request_computer_access: ComputerAccessCallback | None = None,
 ) -> _Prepared:
@@ -432,6 +435,7 @@ async def _prepare(
             isolation=isolation,
             voice=voice,
             surface=surface,
+            public_origin=public_origin,
             acts_for_sender=acts_for_sender,
             request_computer_access=request_computer_access,
             local=local,
@@ -2795,3 +2799,307 @@ async def test_nested_delegates_retain_an_inherited_shared_computer_requirement(
     built = prepared.built("middle", "summariser")
     assert not built["spec"].capabilities
     assert any(isinstance(cap, RequestComputerOnUse) for cap in built["extra_capabilities"])
+
+
+@dataclass
+class _PersonalModels:
+    profiles: dict[uuid.UUID, ModelProfile]
+    keys: dict[tuple[uuid.UUID, uuid.UUID, str, str], PersonalModelKey]
+
+    def profile(self, endpoint: str = "https://gateway.example/v1") -> ModelProfile:
+        from app.db.models.credential import ModelProfile
+
+        profile = ModelProfile(
+            id=uuid.uuid4(),
+            label=f"Personal {len(self.profiles)}",
+            provider="openai",
+            model="gpt-4.1",
+            base_url=endpoint,
+            params={},
+            fallback_profile_ids=[],
+            api="chat",
+            region=None,
+            context_length=128000,
+        )
+        self.profiles[profile.id] = profile
+        return profile
+
+    def connect(self, ctx: AuthContext, profile: ModelProfile, value: str) -> None:
+        from app.core.secret_kinds import ApiKeySecret, seal_secret
+        from app.core.vault import VaultScope
+        from app.db.models.personal_model_key import PersonalModelKey
+
+        assert ctx.user_id is not None
+        sealed = seal_secret(ApiKeySecret(api_key=value), scope=VaultScope.user(ctx.user_id))
+        self.keys[(ctx.organization_id, ctx.user_id, profile.provider, profile.base_url or "")] = (
+            PersonalModelKey(
+                id=uuid.uuid4(), sealed_secret=sealed.ciphertext, key_version=sealed.key_version
+            )
+        )
+
+
+@pytest.fixture
+def personal_models(monkeypatch: pytest.MonkeyPatch) -> _PersonalModels:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    held = _PersonalModels({}, {})
+
+    async def profile_for_organization(
+        organization_id: uuid.UUID, *, profile_id: uuid.UUID | None
+    ) -> ModelProfile:
+        assert profile_id is not None
+        return held.profiles[profile_id]
+
+    async def key(
+        db: AsyncSession,
+        *,
+        organization_id: uuid.UUID,
+        user_id: uuid.UUID,
+        provider: str,
+        endpoint: str,
+    ) -> PersonalModelKey | None:
+        return held.keys.get((organization_id, user_id, provider, endpoint))
+
+    monkeypatch.setattr(
+        "app.services.model_profile.ModelProfileService.profile_for_organization",
+        AsyncMock(side_effect=profile_for_organization),
+    )
+    monkeypatch.setattr("app.services.personal_model_key.key_repo.get", AsyncMock(side_effect=key))
+    return held
+
+
+@pytest.mark.security
+async def test_nested_personal_delegates_use_each_members_own_connection(
+    personal_models: _PersonalModels,
+) -> None:
+    from app.core.secret_kinds import ApiKeySecret
+
+    first = replace(_ctx(), role=OrgRoleName.MEMBER)
+    second = replace(first, user_id=uuid.uuid4())
+    parent_profile = personal_models.profile()
+    child_profile = personal_models.profile()
+    child_id, leaf_id = uuid.uuid4(), uuid.uuid4()
+    leaf = _version(
+        leaf_id,
+        AgentSpec(name="Leaf", model_profile_id=child_profile.id, model_credential_mode="personal"),
+    )
+    middle = _version(
+        child_id,
+        _delegating(
+            name="Middle",
+            model_profile_id=child_profile.id,
+            model_credential_mode="personal",
+            subagents=[SubagentRef(agent_id=leaf_id, agent_version_id=leaf.id)],
+        ),
+    )
+    parent = _delegating(
+        model_profile_id=parent_profile.id,
+        model_credential_mode="personal",
+        max_depth=2,
+        subagents=[SubagentRef(agent_id=child_id, agent_version_id=middle.id)],
+    )
+    for ctx, value in [(first, "first-private-key"), (second, "second-private-key")]:
+        personal_models.connect(ctx, parent_profile, value)
+        prepared = await _prepare(
+            parent, ctx=ctx, surface=RunSurface.WEB, versions={middle.id: middle, leaf.id: leaf}
+        )
+        for path in [("middle",), ("middle", "leaf")]:
+            model = prepared.built(*path)["model"]
+            assert isinstance(model.credential.secret, ApiKeySecret)
+            assert model.credential.secret.api_key.get_secret_value() == value
+            assert model.profile_id == child_profile.id
+            assert model.credential.base_url == child_profile.base_url
+            assert model.fallbacks == []
+        prepared.resolved.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_personal_delegate_requires_its_own_destination_even_with_a_shared_parent(
+    personal_models: _PersonalModels,
+) -> None:
+    ctx = _ctx()
+    parent_profile = personal_models.profile()
+    child_profile = personal_models.profile("https://other-gateway.example/v1")
+    personal_models.connect(ctx, parent_profile, "never-forward-this")
+    child_id = uuid.uuid4()
+    child = _version(
+        child_id,
+        AgentSpec(
+            name="Specialist", model_profile_id=child_profile.id, model_credential_mode="personal"
+        ),
+    )
+    parent = _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)])
+    with pytest.raises(AuthorizationError) as refused:
+        await _prepare(parent, ctx=ctx, surface=RunSurface.WEB, versions={child.id: child})
+    assert refused.value.code == "PERSONAL_MODEL_KEY_REQUIRED"
+    assert refused.value.details["profile_id"] == str(child_profile.id)
+    assert "never-forward-this" not in str(refused.value)
+    personal_models.connect(ctx, child_profile, "specialist-key")
+    prepared = await _prepare(parent, ctx=ctx, surface=RunSurface.WEB, versions={child.id: child})
+    assert prepared.built("specialist")["model"].credential.base_url == child_profile.base_url
+    assert prepared.resolved.await_count == 1  # Only the explicitly organization-mode parent.
+
+
+async def test_inline_and_dynamic_specialists_keep_the_personal_model_contract(
+    personal_models: _PersonalModels,
+) -> None:
+    from app.core.secret_kinds import ApiKeySecret
+
+    ctx = _ctx()
+    profile = personal_models.profile()
+    personal_models.connect(ctx, profile, "specialists-private")
+    prepared = await _prepare(
+        _delegating(
+            model_profile_id=profile.id,
+            model_credential_mode="personal",
+            inline=[_specialist()],
+            allow_dynamic=True,
+        ),
+        ctx=ctx,
+        surface=RunSurface.WEB,
+    )
+    assert prepared.runtime.dynamic is not None
+    assert prepared.runtime.dynamic.allowed_models == (profile.label,)
+    for built in [prepared.built("summariser"), prepared.invented(model=profile.label)]:
+        assert built["spec"].model_credential_mode == "personal"
+        secret = built["model"].credential.secret
+        assert isinstance(secret, ApiKeySecret)
+        assert secret.api_key.get_secret_value() == "specialists-private"
+        assert built["model"].profile_id == profile.id
+    prepared.resolved.assert_not_awaited()
+    prepared.list_profiles.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("surface", [RunSurface.API, RunSurface.SLACK, RunSurface.SCHEDULE])
+async def test_organization_parent_cannot_lend_a_personal_delegate_to_another_surface(
+    personal_models: _PersonalModels,
+    surface: RunSurface,
+) -> None:
+    ctx = _ctx()
+    profile = personal_models.profile()
+    personal_models.connect(ctx, profile, "web-only")
+    child_id = uuid.uuid4()
+    child = _version(
+        child_id,
+        AgentSpec(name="Personal", model_profile_id=profile.id, model_credential_mode="personal"),
+    )
+    with pytest.raises(BadRequestError, match="signed-in web chat"):
+        await _prepare(
+            _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)]),
+            ctx=ctx,
+            surface=surface,
+            versions={child.id: child},
+        )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("revoked", [False, True])
+async def test_resume_rechecks_the_original_owners_delegate_key_not_the_approvers(
+    personal_models: _PersonalModels,
+    revoked: bool,
+) -> None:
+    from app.core.secret_kinds import ApiKeySecret
+    from tests.test_agent_runner import _parked_run
+
+    owner = _ctx()
+    approver = replace(owner, user_id=uuid.uuid4())
+    profile = personal_models.profile()
+    personal_models.connect(owner, profile, "original-owner-key")
+    personal_models.connect(approver, profile, "never-borrow-approver-key")
+    child_id = uuid.uuid4()
+    child = _version(
+        child_id,
+        AgentSpec(name="Personal", model_profile_id=profile.id, model_credential_mode="personal"),
+    )
+    spec = _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)])
+    run = _parked_run(
+        organization_id=owner.organization_id,
+        user_id=owner.user_id,
+        initiated_by_publisher_fallback=False,
+        surface=RunSurface.WEB.value,
+        paused_state={
+            "messages": [],
+            "tool_call_ids": {},
+            "admitted_as": {"audience_user_id": str(owner.user_id)},
+        },
+    )
+    version = _version(run.agent_id, spec)
+    if revoked:
+        personal_models.keys.pop(
+            (owner.organization_id, owner.user_id, profile.provider, profile.base_url or "")
+        )
+    service = AgentRunnerService(_db())
+
+    async def get_version(
+        db: object, version_id: uuid.UUID, *, organization_id: uuid.UUID
+    ) -> MagicMock:
+        return child if version_id == child.id else version
+
+    with (
+        patch(f"{RUNNER}.agent_run_repo.claim_parked_run", AsyncMock(return_value=run)),
+        patch(f"{RUNNER}.agent_run_repo.list_approvals_for_run", AsyncMock(return_value=[])),
+        patch(f"{RUNNER}.agent_run_repo.mark_running", AsyncMock()),
+        patch(f"{RUNNER}.agent_run_repo.finish_run", AsyncMock()),
+        patch(f"{RUNNER}.agent_repo.get_version", AsyncMock(side_effect=get_version)),
+        patch(
+            f"{RUNNER}.agent_repo.get",
+            AsyncMock(return_value=_agent_row(child_id, slug="personal")),
+        ),
+        patch.object(
+            service.registry, "get", AsyncMock(return_value=_agent_row(run.agent_id, slug="parent"))
+        ),
+        patch.object(service.models, "resolve", AsyncMock(return_value=_resolved_model())),
+        patch.object(service.skills, "resolve_for_agent", AsyncMock(return_value=[])),
+        patch.object(service.secrets, "resolve_for_bindings", AsyncMock(return_value={})),
+        patch.object(service.workspaces, "open", AsyncMock(return_value=None)),
+        patch(f"{RUNNER}.build_agent") as build,
+    ):
+        build.return_value.agent.run = AsyncMock(return_value=MagicMock(output="continued"))
+        if revoked:
+            with pytest.raises(AuthorizationError) as refused:
+                await service.resume(approver, run.id)
+            assert refused.value.code == "PERSONAL_MODEL_KEY_REQUIRED"
+            build.assert_not_called()
+        else:
+            segment = await service.resume(approver, run.id)
+            assert segment.output == "continued"
+            runtime = build.call_args_list[0].kwargs["resources"][SUBAGENT_RUNTIME_RESOURCE]
+            entry = runtime.named("personal")
+            assert entry is not None
+            entry.build()
+            model = build.call_args.args[1]
+            assert isinstance(model.credential.secret, ApiKeySecret)
+            assert model.credential.secret.api_key.get_secret_value() == "original-owner-key"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("reason", ["public_input", "impersonation"])
+async def test_a_web_parent_cannot_spend_a_personal_delegates_key_without_its_owner(
+    personal_models: _PersonalModels,
+    reason: str,
+) -> None:
+    from app.agents.audience import acting_impersonated
+
+    ctx = _ctx()
+    profile = personal_models.profile()
+    personal_models.connect(ctx, profile, "do-not-spend")
+    child_id = uuid.uuid4()
+    child = _version(
+        child_id,
+        AgentSpec(name="Personal", model_profile_id=profile.id, model_credential_mode="personal"),
+    )
+    parent = _delegating(subagents=[SubagentRef(agent_id=child_id, agent_version_id=child.id)])
+    with (
+        acting_impersonated(reason == "impersonation"),
+        pytest.raises((AuthorizationError, BadRequestError)) as refused,
+    ):
+        await _prepare(
+            parent,
+            ctx=ctx,
+            surface=RunSurface.WEB,
+            public_origin=reason == "public_input",
+            versions={child.id: child},
+        )
+    assert "do-not-spend" not in str(refused.value)
+    assert refused.value.code != "PERSONAL_MODEL_KEY_REQUIRED"

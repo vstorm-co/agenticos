@@ -112,11 +112,10 @@ def test_personal_keys_fix_the_model_and_refuse_voice_or_local_replacement() -> 
         require_organization_model(chosen)
 
 
-async def test_delegation_and_separate_step_models_are_refused_before_a_run() -> None:
+async def test_delegation_is_allowed_but_separate_step_models_are_refused() -> None:
     chosen = spec().model_copy(update={"capabilities": [CapabilityBindingSpec(id="subagents")]})
-    assert "delegation" in personal_model_problems(chosen)[0]
-    with pytest.raises(BadRequestError, match="delegation"):
-        require_personal_model_run(chosen, context(), RunSurface.WEB)
+    assert personal_model_problems(chosen) == []
+    require_personal_model_run(chosen, context(), RunSurface.WEB)
     chosen = spec().model_copy(
         update={
             "capabilities": [
@@ -472,3 +471,10 @@ async def test_personal_resolution_records_its_connection_identity_without_secre
     assert resolved.credential.authorization_generation is None
     assert resolved.credential.routing == {"credential_updated_at": None}
     assert resolved.credential.base_url == held.base_url
+
+
+def test_personal_keys_still_refuse_reviewers() -> None:
+    from app.agents.spec import RunReviewerSpec
+
+    chosen = spec().model_copy(update={"reviewers": [RunReviewerSpec(name="reviewer")]})
+    assert personal_model_problems(chosen) == ["Personal model keys do not support reviewers yet"]

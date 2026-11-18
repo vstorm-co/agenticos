@@ -1,4 +1,4 @@
-"""The single-model, interactive-only contract for personal LLM credentials."""
+"""The fixed-destination, interactive-only contract for personal LLM credentials."""
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import BadRequestError
@@ -7,7 +7,7 @@ from app.db.models.agent_run import RunSurface
 
 PERSONAL_MODEL_LIMITS = (
     "Personal model keys require a signed-in web chat with the configured model. "
-    "Channels, widgets, hosted pages, HTTP API runs, schedules, triggers, background topics, voice and delegation "
+    "Channels, widgets, hosted pages, HTTP API runs, schedules, triggers, background topics and voice "
     "are not supported. Use the organization's key for these."
 )
 
@@ -21,12 +21,8 @@ def personal_model_problems(spec: AgentSpec) -> list[str]:
     if spec.model_credential_mode != "personal":
         return []
     problems: list[str] = []
-    if (
-        spec.reviewers
-        or spec.subagents
-        or any(b.id == "subagents" and b.enabled for b in spec.capabilities)
-    ):
-        problems.append("Personal model keys do not support reviewers or delegation yet")
+    if spec.reviewers:
+        problems.append("Personal model keys do not support reviewers yet")
     if any(binding.id == "background_tasks" and binding.enabled for binding in spec.capabilities):
         problems.append("Personal model keys do not support background topics yet")
     if spec.voice is not None:

@@ -1,5 +1,5 @@
 ---
-source_sha: "52615751a50c"
+source_sha: "0bef9d6aa1e5"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -33,7 +33,11 @@ El modo personal mantiene fijos el modelo y el destino del administrador. Admite
 
 Un miembro con sesión iniciada conecta su clave en el formulario privado sobre el campo de mensajes o en los ajustes del chat. Las claves nunca entran en mensajes, prompts ni instrucciones del agente. La conexión se reutiliza entre agentes de esta organización con el mismo proveedor y destino. Sin clave, la ejecución se bloquea antes de solicitar el modelo; los fallos de autenticación nunca cambian a la clave de la organización. Sustituye la clave en los ajustes del chat o elimina la conexión en **Vault → Your model connection**. Guardar la clave no la comprueba con el proveedor.
 
-El modo personal no admite canales privados ni grupales, widgets, páginas públicas, ejecuciones por HTTP API, horarios, triggers, temas en segundo plano, voz, revisores, delegación ni modelos separados para capacidades. Pausa o elimina canales, superficies públicas y rutinas activos antes de publicar. Se rechaza crear o reactivar una superficie incompatible; la misma regla se aplica al ejecutar. Las páginas públicas y los JWT de widgets no identifican a un miembro con sesión iniciada en la instancia.
+El modo personal no admite canales privados ni grupales, widgets, páginas públicas, ejecuciones por HTTP API, horarios, triggers, temas en segundo plano, voz, revisores ni modelos separados para capacidades. Pausa o elimina canales, superficies públicas y rutinas activos antes de publicar. Se rechaza crear o reactivar una superficie incompatible; la misma regla se aplica al ejecutar. Las páginas públicas y los JWT de widgets no identifican a un miembro con sesión iniciada en la instancia.
+
+La delegación funciona en el chat web con sesión iniciada. Cada subagente publicado conserva su modelo, endpoint y modo de credenciales personal o de organización. Los agentes en modo personal usan la conexión del usuario que inició el run para ese proveedor y endpoint exactos, también en delegaciones anidadas y al reanudar después de una aprobación. Los especialistas inline heredan el modo del padre; los especialistas dinámicos en modo personal mantienen el modelo configurado del padre. Se conservan los límites de acceso existentes para las conexiones MCP personales.
+
+Si falta la conexión de un subagente, el mensaje identifica el agente y la conexión del modelo. Abre la configuración de chat de ese agente para conectar tu clave; pide acceso a su propietario si no aparece. El runner comprueba el árbol de delegación antes de llamar a los modelos y de nuevo al reanudar. Nunca sustituye una conexión ausente por la clave de otro endpoint, otro miembro o la persona que aprueba.
 
 Las claves se cifran para su propietario en el almacén y se eliminan al borrar su membresía o cuenta. Cambiar el destino aprobado requiere una nueva conexión. Rotar la clave de un miembro no cambia las claves de otros ni el perfil de modelo compartido.
 
