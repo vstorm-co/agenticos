@@ -36,6 +36,10 @@
 </p>
 
 <p>
+  <a href="https://trendshift.io/repositories/220030?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-220030" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/220030" alt="vstorm-co/agenticos | Trendshift" width="250" height="55"></a>
+</p>
+
+<p>
   <b>English</b> &middot;
   <a href="README.pl.md">Polski</a> &middot;
   <a href="README.de.md">Deutsch</a> &middot;
