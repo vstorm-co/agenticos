@@ -13,6 +13,8 @@
 //! What the agent does inside is gated by its own permission requests, which
 //! the server shows as approvals in the chat.
 
+pub mod accounts;
+
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -752,6 +754,12 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
             external.provider,
             crate::external_agents::Provider::Muse | crate::external_agents::Provider::MuseApiKey
         ) {
+            if app.state::<accounts::AccountFlows>().is_busy() {
+                return Err(Refusal::new(
+                    "denied",
+                    "Finish the Muse account operation before starting a task.",
+                ));
+            }
             let runtime = runtime
                 .as_ref()
                 .ok_or_else(|| Refusal::new("io", "Prepare the managed SDK runtime first."))?;

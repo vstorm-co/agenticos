@@ -11990,7 +11990,22 @@
         "museApi": "Muse API anahtarı",
         "museHelp": "Muse, CLI 1.4.23 ve kendi MSP sunucusuyla sabitlenmiş resmi SDK kullanır. Önce muse ile hesabı ayarlayın. Ortam ve kayıtlı API anahtarları tarayıcı girişinden önceliklidir; durum gerçek kaynağı bildirir. Anahtar modu Desktop ortamında META_API_KEY gerektirir. Araçlar ve uzantılar yerel erişimi korur; maliyet bilinmez.",
         "piHelp": "Pi, kendi hesapları, uzantıları ve modeliyle yerel RPC kullanır. Önce pi çalıştırın, giriş yapın ve sağlayıcı/model seçin. External model ID boş kalmalıdır. Araçlar ve uzantılar tam yerel erişime sahiptir. Diyaloglar CLI incelemesi gerektirir; platform araçları veya kasa kimlik bilgileri aktarılmaz. Maliyet bilinmez.",
-        "devinHelp": "Devin CLI kurun, devin auth login çalıştırın ve devin auth status denetleyin. Mutlak devin yolunu seçin. Şablon yerel ACP ajanını normal izinlerle başlatır ve sunulan devin-browser yöntemini ister. Ücretler ve kurumsal CLI izni hesaba bağlıdır. --cloud veya bulut görev API çağrısı başlatmaz. External model ID boş kalsın, modeli Devin içinde seçin. Hesap değişince yeniden kaydedin."
+        "devinHelp": "Devin CLI kurun, devin auth login çalıştırın ve devin auth status denetleyin. Mutlak devin yolunu seçin. Şablon yerel ACP ajanını normal izinlerle başlatır ve sunulan devin-browser yöntemini ister. Ücretler ve kurumsal CLI izni hesaba bağlıdır. --cloud veya bulut görev API çağrısı başlatmaz. External model ID boş kalsın, modeli Devin içinde seçin. Hesap değişince yeniden kaydedin.",
+        "account": {
+          "status": "Hesabı kontrol et",
+          "signIn": "Muse hesabına giriş yap",
+          "signOut": "Muse hesabından çıkış yap",
+          "cancel": "İptal",
+          "envKey": "Ortam API anahtarı etkin; çıkış yapmak bunu kaldırmaz.",
+          "apiKey": "Kayıtlı API anahtarı etkin.",
+          "accountLogin": "Muse hesabına giriş yapıldı.",
+          "loggedOut": "Muse oturumu kapalı.",
+          "keyless": "Bu uç nokta kimlik bilgisi gerektirmez",
+          "openSignIn": "Muse girişini aç",
+          "deviceCode": "Cihaz kodu",
+          "waiting": "Girişin tamamlanması bekleniyor. Bu sayfayı açık tutun.",
+          "failed": "Hesap işlemi tamamlanmadı. Yerel onayı, CLI sürümünü ve ortam anahtarını kontrol edip tekrar deneyin."
+        }
       }
     },
     "quickAsk": {

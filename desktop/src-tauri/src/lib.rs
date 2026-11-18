@@ -1525,6 +1525,7 @@ pub fn run() {
         }))
         .manage(local_browser::Browsers::default())
         .manage(agent_session::Sessions::default())
+        .manage(agent_session::accounts::AccountFlows::default())
         .manage(native_browser::NativeBrowsers::default())
         .plugin({
             let builder = tauri_plugin_updater::Builder::new();
@@ -1618,6 +1619,8 @@ pub fn run() {
             routine_access::routine_revoke,
             local_work::local_files,
             local_work::local_file,
+            agent_session::accounts::external_muse_account,
+            agent_session::accounts::external_cancel_muse_account,
             external_agents::external_agents,
             external_agents::external_save_agent,
             external_agents::external_remove_agent,

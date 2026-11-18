@@ -14393,7 +14393,22 @@
         "museApi": "Muse — klucz API",
         "museHelp": "Muse wymaga CLI 1.4.23 i używa przypiętego oficjalnego SDK z własnym hostem MSP. Najpierw skonfiguruj konto w muse. Klucze API ze środowiska i zapisane mają pierwszeństwo przed logowaniem przeglądarkowym; status wskazuje faktyczne źródło. Tryb klucza wymaga META_API_KEY w Desktop. Narzędzia i rozszerzenia zachowują dostęp lokalny; koszt jest nieznany.",
         "piHelp": "Pi używa natywnego RPC oraz własnych kont, rozszerzeń i modelu. Uruchom pi, zaloguj się i wybierz dostawcę/model. Pozostaw External model ID puste. Narzędzia i rozszerzenia mają pełny dostęp lokalny. Pytania wymagają obsługi w CLI; narzędzia platformy i dane z sejfu nie są przekazywane. Koszt pozostaje nieznany.",
-        "devinHelp": "Zainstaluj Devin CLI, wykonaj devin auth login i sprawdź devin auth status. Podaj bezwzględną ścieżkę devin. Szablon uruchamia lokalnego agenta ACP z normalnymi uprawnieniami i wymaga reklamowanej metody devin-browser. Rozliczanie i firmowe uprawnienie CLI zależą od konta. Nie uruchamia --cloud ani API zadań chmurowych. Zostaw External model ID puste i wybierz model w Devin. Po zmianie konta zarejestruj program ponownie."
+        "devinHelp": "Zainstaluj Devin CLI, wykonaj devin auth login i sprawdź devin auth status. Podaj bezwzględną ścieżkę devin. Szablon uruchamia lokalnego agenta ACP z normalnymi uprawnieniami i wymaga reklamowanej metody devin-browser. Rozliczanie i firmowe uprawnienie CLI zależą od konta. Nie uruchamia --cloud ani API zadań chmurowych. Zostaw External model ID puste i wybierz model w Devin. Po zmianie konta zarejestruj program ponownie.",
+        "account": {
+          "status": "Sprawdź konto",
+          "signIn": "Zaloguj do Muse",
+          "signOut": "Wyloguj z Muse",
+          "cancel": "Anuluj",
+          "envKey": "Aktywny jest klucz API ze środowiska; wylogowanie go nie usuwa.",
+          "apiKey": "Aktywny jest zapisany klucz API.",
+          "accountLogin": "Konto Muse jest zalogowane.",
+          "loggedOut": "Muse jest wylogowane.",
+          "keyless": "Ten endpoint nie wymaga poświadczeń",
+          "openSignIn": "Otwórz logowanie Muse",
+          "deviceCode": "Kod urządzenia",
+          "waiting": "Czekam na zakończenie logowania. Zostaw tę stronę otwartą.",
+          "failed": "Operacja konta nie została ukończona. Sprawdź potwierdzenie natywne, wersję CLI i klucz środowiskowy, a następnie spróbuj ponownie."
+        }
       }
     },
     "quickAsk": {

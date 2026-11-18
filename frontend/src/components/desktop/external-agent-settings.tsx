@@ -1,5 +1,6 @@
 "use client";
 
+import { MuseAccountControls } from "./muse-account-controls";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
@@ -25,11 +26,14 @@ export function ExternalAgentSettings() {
     <SectionCard title={t("title")} description={t("description")}>
       <ul className="mb-4 space-y-2">
         {(state.data ?? []).map((agent) => (
-          <li key={agent.id} className="flex items-center justify-between gap-3 text-sm">
+          <li key={agent.id} className="flex flex-wrap items-center justify-between gap-3 text-sm">
             <span className="min-w-0">
               <span className="block truncate font-medium">{agent.name}</span>
               <code className="text-muted-foreground block truncate text-xs">{agent.id}</code>
             </span>
+            {(agent.provider === "muse" || agent.provider === "muse_api_key") && (
+              <MuseAccountControls id={agent.id} keyOnly={agent.provider === "muse_api_key"} />
+            )}
             <Button
               variant="outline"
               size="sm"

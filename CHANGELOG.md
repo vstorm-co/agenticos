@@ -25,6 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Manage Muse account status, native device sign-in and sign-out from Desktop settings, with account-change session revocation.
+
 - Show supported native runtime questions, complete Cursor plans and Pi editors in live chat with correlated answers and cancellation.
 
 - Add Muse native SDK delegation with pinned CLI compatibility, effective credential-source reporting and explicit API-key mode.

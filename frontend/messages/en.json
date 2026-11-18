@@ -10831,7 +10831,22 @@
         "museApi": "Muse API key",
         "museHelp": "Muse requires CLI 1.4.23 and uses the pinned official SDK through an owned MSP host. Run muse to set up the account first. Environment and saved API keys take priority over browser sign-in; credential status reports the actual source. API-key mode requires META_API_KEY in Desktop. Native tools and extensions retain local access; charges are unpriced.",
         "piHelp": "Pi uses native RPC with its own configured accounts, extensions and model. Run pi, sign in and select the provider/model first. Keep External model ID empty. Native tools and extensions have full local access. Human dialogs stop for CLI review; no platform tools or vault credentials are forwarded. Charges remain unpriced.",
-        "devinHelp": "Install Devin CLI, run devin auth login and check devin auth status. Choose its absolute devin path. This template launches the local ACP agent with normal permissions and requires the advertised devin-browser method. Billing and enterprise CLI permission depend on your account. It does not launch --cloud or call the cloud task API. Keep External model ID empty and choose the model in Devin. Register again after changing accounts."
+        "devinHelp": "Install Devin CLI, run devin auth login and check devin auth status. Choose its absolute devin path. This template launches the local ACP agent with normal permissions and requires the advertised devin-browser method. Billing and enterprise CLI permission depend on your account. It does not launch --cloud or call the cloud task API. Keep External model ID empty and choose the model in Devin. Register again after changing accounts.",
+        "account": {
+          "status": "Check account",
+          "signIn": "Sign in to Muse",
+          "signOut": "Sign out of Muse",
+          "cancel": "Cancel",
+          "envKey": "Environment API key is active; sign-out cannot remove it.",
+          "apiKey": "Stored API key is active.",
+          "accountLogin": "Muse account is signed in.",
+          "loggedOut": "Muse is signed out.",
+          "keyless": "This endpoint requires no credential",
+          "openSignIn": "Open Muse sign-in",
+          "deviceCode": "Device code",
+          "waiting": "Waiting for you to complete sign-in. Keep this page open.",
+          "failed": "Account operation did not complete. Check the native confirmation, CLI version and environment key, then try again."
+        }
       }
     },
     "quickAsk": {

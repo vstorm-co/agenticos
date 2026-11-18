@@ -753,3 +753,59 @@ export async function saveExternalAgent(
 export async function removeExternalAgent(id: string): Promise<ExternalAgent[]> {
   return parseExternalAgents(await invokeShell("external_remove_agent", { id }));
 }
+
+export type MuseCredentialState = "envKey" | "apiKey" | "accountLogin" | "loggedOut";
+export interface MuseAccountStatus {
+  state: MuseCredentialState;
+  credentialRequired: boolean;
+}
+export interface MuseAccountProgress {
+  requestId: string;
+  verificationUrl: string;
+  userCode: string;
+}
+
+export function parseMuseAccountStatus(value: unknown): MuseAccountStatus {
+  // i18n-exempt: internal schema diagnostic; the UI renders a translated failure
+  const fields = record(value, "Muse account status");
+  const state = fields.state;
+  if (state !== "envKey" && state !== "apiKey" && state !== "accountLogin" && state !== "loggedOut")
+    // i18n-exempt: internal schema diagnostic; the UI renders a translated failure
+    throw new ShellError("malformed", "Muse credential source");
+  return { state, credentialRequired: field(fields, "credentialRequired", isBoolean) };
+}
+
+export function parseMuseAccountProgress(value: unknown): MuseAccountProgress {
+  // i18n-exempt: internal schema diagnostic; the UI renders a translated failure
+  const fields = record(value, "Muse account progress");
+  const verificationUrl = field(fields, "verificationUrl", isString);
+  const userCode = field(fields, "userCode", isString);
+  const requestId = field(fields, "requestId", isString);
+  const url = new URL(verificationUrl);
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    verificationUrl.length > 2048 ||
+    !userCode.trim() ||
+    userCode.length > 128 ||
+    /\p{C}/u.test(userCode)
+  )
+    // i18n-exempt: internal schema diagnostic; the UI renders a translated failure
+    throw new ShellError("malformed", "Muse device sign-in");
+  return { requestId, verificationUrl: url.href, userCode };
+}
+
+export async function manageMuseAccount(
+  id: string,
+  requestId: string,
+  action: "status" | "sign_in" | "sign_out",
+): Promise<MuseAccountStatus> {
+  return parseMuseAccountStatus(
+    await invokeShell("external_muse_account", { id, requestId, action }),
+  );
+}
+
+export async function cancelMuseAccount(requestId: string): Promise<void> {
+  await invokeShell("external_cancel_muse_account", { requestId });
+}

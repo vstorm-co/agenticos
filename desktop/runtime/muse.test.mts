@@ -21,6 +21,7 @@ import { EventEmitter } from 'node:events';
 import { appendFileSync, watchFile, unwatchFile } from 'node:fs';
 const options = ${JSON.stringify(options)};
 let selected = 'native-model';
+let accountState=options.state??'accountLogin';
 let cursor = 0;
 const expireFile = ${JSON.stringify(join(root, "expire"))};
 if(options.expireQuestion)watchFile(expireFile,{interval:10},stat=>{
@@ -42,7 +43,14 @@ lines.on('line',line=>{
  appendFileSync(${JSON.stringify(trace)},JSON.stringify(frame)+'\\n');
  const reply=result=>send({jsonrpc:'2.0',id:frame.id,result:{...result,...(p.commandId?{commandId:p.commandId}:{})}});
  if(frame.method==='initialize') return reply({experimentalApi:true,grantedCapabilities:['sessionMcp'],museHome:'/private/native-home',platformFamily:'unix',platformOs:'linux',schema:{fingerprint:${JSON.stringify(EXPECTED_SCHEMA_FINGERPRINT)},version:1},serverInfo:{name:'fixture',version:options.version??${JSON.stringify(SDK_VERSION)}},sessionDurability:options.durability??'durable',userAgent:'fixture'});
- if(frame.method==='account/read') return reply({state:options.state??'accountLogin',credentialRequired:options.credentialRequired??true,label:'private@example.test',apiKey:'never-export-this'});
+ if(frame.method==='account/read') return reply({state:accountState,credentialRequired:options.credentialRequired??true,label:'private@example.test',apiKey:'never-export-this'});
+ if(frame.method==='account/loginStart'){
+  if(p.type!=='deviceCode')throw new Error('unsupported login');
+  if(options.completeLogin)accountState='accountLogin';
+  return reply({verificationUrl:options.verificationUrl??'https://login.example.test/device',userCode:'DEVICE-CODE'});
+ }
+ if(frame.method==='account/loginCancel')return reply({});
+ if(frame.method==='account/logout'){if(accountState!=='envKey')accountState='loggedOut';return reply({});}
  if(frame.method==='session/start') return reply({session:{sessionId:'native-session',status:'idle'},viewCursor:'c-0'});
  if(frame.method==='session/resume') return reply({session:{sessionId:p.sessionId,status:'idle'},history:{mode:'none',items:[]},pendingRequests:[],viewCursor:'c-0'});
  if(frame.method==='model/list') return reply({providerId:'meta',profileId:null,source:'providerCatalog',models:(options.duplicate?[selected,selected]:['native-model','other-model']).map(modelId=>({modelId,providerId:'meta',profileId:null,displayLabel:modelId,isActive:modelId===selected,isDefault:false,description:null,cost:null,contextLimit:null,outputLimit:null,releaseDate:null}))});
@@ -80,49 +88,55 @@ lines.on('close',()=>process.exit(0));
   );
   await chmod(program, 0o700);
   const frames: Frame[] = [];
-  const adapter = new MuseAdapter(program, async (frame) => {
-    frames.push(frame);
-    if (
-      frame.method === "_agenticos/request_questions" &&
-      options.expireQuestion
-    ) {
-      await writeFile(join(root, "expire"), "settle");
-    }
-    if (
-      frame.method === "_agenticos/request_questions" &&
-      !options.holdQuestion
-    ) {
-      await adapter.accept({
-        jsonrpc: "2.0",
-        id: frame.id,
-        result: options.humanResponse,
-      });
-    }
-    if (frame.method === "session/request_permission") {
-      const params = frame.params;
-      assert.ok(
-        typeof params === "object" && params !== null && "options" in params,
-      );
-      const choices = params.options;
-      assert.ok(Array.isArray(choices));
-      const chosen: unknown =
-        choices.find(
-          (choice: unknown) =>
-            typeof choice === "object" &&
-            choice !== null &&
-            "kind" in choice &&
-            choice.kind === "allow_once",
-        ) ?? choices[0];
-      assert.ok(
-        typeof chosen === "object" && chosen !== null && "optionId" in chosen,
-      );
-      await adapter.accept({
-        jsonrpc: "2.0",
-        id: frame.id,
-        result: { outcome: { outcome: "selected", optionId: chosen.optionId } },
-      });
-    }
-  });
+  const adapter = new MuseAdapter(
+    program,
+    async (frame) => {
+      frames.push(frame);
+      if (
+        frame.method === "_agenticos/request_questions" &&
+        options.expireQuestion
+      ) {
+        await writeFile(join(root, "expire"), "settle");
+      }
+      if (
+        frame.method === "_agenticos/request_questions" &&
+        !options.holdQuestion
+      ) {
+        await adapter.accept({
+          jsonrpc: "2.0",
+          id: frame.id,
+          result: options.humanResponse,
+        });
+      }
+      if (frame.method === "session/request_permission") {
+        const params = frame.params;
+        assert.ok(
+          typeof params === "object" && params !== null && "options" in params,
+        );
+        const choices = params.options;
+        assert.ok(Array.isArray(choices));
+        const chosen: unknown =
+          choices.find(
+            (choice: unknown) =>
+              typeof choice === "object" &&
+              choice !== null &&
+              "kind" in choice &&
+              choice.kind === "allow_once",
+          ) ?? choices[0];
+        assert.ok(
+          typeof chosen === "object" && chosen !== null && "optionId" in chosen,
+        );
+        await adapter.accept({
+          jsonrpc: "2.0",
+          id: frame.id,
+          result: {
+            outcome: { outcome: "selected", optionId: chosen.optionId },
+          },
+        });
+      }
+    },
+    options.accountControl === true,
+  );
   let id = 0;
   async function request(method: string, params: Frame = {}) {
     const requestId = ++id;
@@ -633,3 +647,101 @@ test(
     }
   },
 );
+
+for (const accountControl of [false, true]) {
+  test(
+    `native-only account control is ${accountControl ? "admitted" : "refused in task mode"}`,
+    { timeout: 5000 },
+    async () => {
+      const f = await fixture({
+        accountControl,
+        state: "loggedOut",
+        completeLogin: true,
+      });
+      try {
+        await f.initialize();
+        const started = await f.request("_auth/login_start");
+        if (!accountControl) {
+          assert.ok(started.error);
+          assert.ok(
+            !(await f.sent()).some(
+              (frame) => frame.method === "account/loginStart",
+            ),
+          );
+          assert.ok((await f.request("_auth/logout")).error);
+          assert.ok((await f.request("_auth/login_cancel")).error);
+          return;
+        }
+        assert.deepEqual(started.result, {
+          verificationUrl: "https://login.example.test/device",
+          userCode: "DEVICE-CODE",
+        });
+        assert.deepEqual((await f.request("_auth/status")).result, {
+          state: "accountLogin",
+          credentialRequired: true,
+        });
+        assert.deepEqual((await f.request("_auth/logout")).result, {
+          state: "loggedOut",
+          credentialRequired: true,
+        });
+        assert.deepEqual((await f.request("_auth/login_cancel")).result, {
+          state: "loggedOut",
+          credentialRequired: true,
+        });
+        assert.ok(!JSON.stringify(f.frames).includes("private@example"));
+      } finally {
+        await f.close();
+      }
+    },
+  );
+}
+
+for (const state of ["envKey", "apiKey", "accountLogin"]) {
+  test(
+    `device login cannot silently replace ${state}`,
+    { timeout: 5000 },
+    async () => {
+      const f = await fixture({ accountControl: true, state });
+      try {
+        await f.initialize();
+        assert.ok((await f.request("_auth/login_start")).error);
+        assert.ok(
+          !(await f.sent()).some(
+            (frame) => frame.method === "account/loginStart",
+          ),
+        );
+        const result = await f.request("_auth/logout");
+        assert.deepEqual(result.result, {
+          state: state === "envKey" ? "envKey" : "loggedOut",
+          credentialRequired: true,
+        });
+      } finally {
+        await f.close();
+      }
+    },
+  );
+}
+
+for (const verificationUrl of [
+  "http://login.example.test",
+  "https://user:password@login.example.test",
+  "javascript:alert(1)",
+]) {
+  test(
+    `invalid device address ${verificationUrl.split(":")[0]} is refused`,
+    { timeout: 5000 },
+    async () => {
+      const f = await fixture({
+        accountControl: true,
+        state: "loggedOut",
+        verificationUrl,
+      });
+      try {
+        await f.initialize();
+        assert.ok((await f.request("_auth/login_start")).error);
+      } finally {
+        await f.close();
+      }
+    },
+  );
+}

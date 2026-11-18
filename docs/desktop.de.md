@@ -1,5 +1,5 @@
 ---
-source_sha: "5a83c6400b56"
+source_sha: "4c21cb3d4ff2"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -971,3 +971,9 @@ Aufgaben benötigen ausdrückliche Ordnerfreigabe mit Vollzugriff. Muse behält 
 Cursor-Fragen und vollständige Pläne, Grok-Fragen, Kimis Fragen über Berechtigungen, Pis select/confirm/input/editor-Dialoge und Muse-SDK-Eingaben erscheinen in der bestehenden Chat-Karte. Auswahlgrenzen, Optionsidentitäten und native Vorschauen bleiben erhalten. Pi-Editoren bewahren Einrückungen, Zeilenumbrüche und ausdrücklich leeren Ersatztext. Passwörter gehören in die Anmeldung des Anbieters.
 
 Antworten erfordern die aktive, berechtigte Verbindung der startenden Person und die aktuelle Frage-ID. Stop, Verbindungsabbruch, natives Ablaufen oder Abschluss schließt die Karte; verspätete Antworten können keine spätere Frage beantworten. Ohne aktive Frageschnittstelle werden Anfragen ausdrücklich abgebrochen. Dialoge erteilen keine Werkzeugrechte und lockern keine Delegationsrichtlinie. Fragen und angenommene Antworten erscheinen im bestehenden Gesprächsverlauf.
+
+### Muse-Konto in Desktop verwalten { #muse-account }
+
+Jede Muse-Registrierung bietet **Konto prüfen**, **Bei Muse anmelden** und **Bei Muse abmelden**. Die Geräteanmeldung nutzt das festgelegte SDK und den eigenen Muse-Ablauf. Bestätige den nativen Dialog, öffne die angezeigte HTTPS-Adresse und gib den Code ein. Einstellungen bis zum Abschluss geöffnet lassen. Abbrechen, Schließen der Steuerung, Registrierungs- oder Serverwechsel beziehungsweise zehn Minuten ohne Abschluss beendet den eigenen Anmeldeprozess. Kontonamen, Schlüssel und Gerätecodes gelangen weder zum Backend noch zum Modell.
+
+Anmelden verlangt ein abgemeldetes Muse-Konto ohne vorrangigen API-Schlüssel. Die Umgebungsschlüssel-Vorlage bietet Status und Abmelden ohne Browseranmeldung. Abmelden entfernt gespeicherte Muse-Zugangsdaten; ein geerbter `META_API_KEY` bleibt aktiv und wird so angezeigt. Ein Kontowechsel stoppt alle Muse-Aufgaben und löscht Fortsetzungen, weil die lokale CLI Zugangsdaten teilt. Neue Muse-Aufgaben warten bis zum Abschluss der Kontoverwaltung. Tarifberechtigung und Geräteanmeldung mit echtem Konto bleiben Abnahmetests.

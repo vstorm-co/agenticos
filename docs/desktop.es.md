@@ -1,5 +1,5 @@
 ---
-source_sha: "5a83c6400b56"
+source_sha: "4c21cb3d4ff2"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -955,3 +955,9 @@ Las tareas requieren consentimiento expreso para una carpeta con acceso completo
 Las preguntas y planes completos de Cursor, preguntas de Grok, preguntas de Kimi mediante permisos, diálogos select/confirm/input/editor de Pi y entradas del SDK Muse aparecen en la tarjeta de chat existente. Se conservan límites de selección, identidad de opciones y vistas previas nativas. El editor de Pi conserva sangría, saltos de línea y un reemplazo vacío explícito. Las contraseñas se introducen en el inicio de sesión del proveedor.
 
 Las respuestas requieren la conexión activa y autorizada de la persona que inició la tarea y la identidad de la pregunta actual. Stop, desconexión, caducidad nativa o finalización cierra la tarjeta; una respuesta tardía no puede contestar otra pregunta. Sin una interfaz activa, las solicitudes se cancelan explícitamente. Estos diálogos no conceden permisos de herramientas ni debilitan la política de delegación. Preguntas y respuestas aceptadas se guardan en la cronología existente.
+
+### Gestionar la cuenta Muse en Desktop { #muse-account }
+
+Cada registro Muse ofrece **Comprobar cuenta**, **Iniciar sesión en Muse** y **Cerrar sesión en Muse**. El acceso por dispositivo utiliza el SDK fijado y el flujo propio de Muse. Confirma el diálogo nativo, abre la dirección HTTPS mostrada e introduce el código. Mantén Ajustes abierto hasta finalizar. Cancelar, cerrar el control, cambiar registro o servidor, o diez minutos sin completar termina el proceso de acceso propio. Etiquetas de cuenta, claves y códigos no se envían al backend ni al modelo.
+
+El acceso requiere una cuenta Muse desconectada sin clave API prioritaria. La plantilla con clave de entorno ofrece estado y cierre de sesión sin acceso por navegador. Cerrar sesión elimina la cuenta o clave guardada de Muse; una `META_API_KEY` heredada sigue activa y se indica así. Cambiar de cuenta detiene todas las tareas Muse y borra sus continuaciones porque la CLI local comparte credenciales. Nuevas tareas esperan a que termine la gestión de cuenta. Derechos del plan y acceso real por dispositivo siguen siendo pruebas de aceptación.

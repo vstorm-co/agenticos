@@ -52,10 +52,12 @@ export class MuseAdapter {
 
   private readonly program: string;
   private readonly emit: Emit;
+  private readonly accountControl: boolean;
 
-  constructor(program: string, emit: Emit) {
+  constructor(program: string, emit: Emit, accountControl = false) {
     this.program = program;
     this.emit = emit;
+    this.accountControl = accountControl;
   }
 
   async accept(value: unknown): Promise<void> {
@@ -540,6 +542,50 @@ export class MuseAdapter {
         throw new Error("Required environment key was not confirmed");
       return {};
     }
+    if (
+      ["_auth/login_start", "_auth/login_cancel", "_auth/logout"].includes(
+        method,
+      )
+    ) {
+      if (!this.accountControl || this.session)
+        throw new Error("Account control is native-only");
+      if (method === "_auth/login_start") {
+        const state = await client.request("account/read");
+        if (state.state !== "loggedOut" || state.credentialRequired !== true)
+          throw new Error(
+            "Log out or remove the overriding environment key first",
+          );
+        const started = await client.command("account/loginStart", {
+          type: "deviceCode",
+        });
+        if (
+          typeof started.verificationUrl !== "string" ||
+          typeof started.userCode !== "string" ||
+          !started.userCode.trim() ||
+          /\p{C}/u.test(started.userCode) ||
+          started.userCode.length > 128
+        )
+          throw new Error("Invalid device sign-in response");
+        const url = new URL(started.verificationUrl);
+        if (
+          url.protocol !== "https:" ||
+          url.username ||
+          url.password ||
+          started.verificationUrl.length > 2048
+        )
+          throw new Error("Invalid device sign-in URL");
+        return { verificationUrl: url.href, userCode: started.userCode };
+      }
+      await client.command(
+        method === "_auth/logout" ? "account/logout" : "account/loginCancel",
+        {},
+      );
+      const state = await client.request("account/read");
+      return {
+        state: state.state,
+        credentialRequired: state.credentialRequired,
+      };
+    }
     if (method === "_auth/status") {
       const state = await client.request("account/read");
       return {
@@ -655,7 +701,11 @@ export async function main(): Promise<void> {
       throw new Error("Excessive output frame");
     if (!process.stdout.write(line)) await once(process.stdout, "drain");
   };
-  const adapter = new MuseAdapter(program, emit);
+  const adapter = new MuseAdapter(
+    program,
+    emit,
+    process.argv[3] === "--native-account-control",
+  );
   const pending = new Set<Promise<void>>();
   let buffer = Buffer.alloc(0);
   try {

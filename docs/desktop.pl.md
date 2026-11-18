@@ -1,5 +1,5 @@
 ---
-source_sha: "5a83c6400b56"
+source_sha: "4c21cb3d4ff2"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -925,3 +925,9 @@ Zadania wymagają jawnej zgody na folder z pełnym dostępem. Muse zachowuje nat
 Pytania i pełne plany Cursor, pytania Grok, wariant pytań Kimi przez uprawnienia, dialogi select/confirm/input/editor Pi i pytania Muse SDK pojawiają się w istniejącej karcie czatu. Zachowane są limity wyboru, tożsamość opcji i natywne podglądy. Edytor Pi zachowuje wcięcia, nowe linie i jawną pustą odpowiedź. Hasła wpisuje się w logowaniu dostawcy.
 
 Odpowiedzi wymagają aktywnego, uprawnionego połączenia osoby rozpoczynającej zadanie oraz identyfikatora bieżącego pytania. Stop, rozłączenie, wygaśnięcie lub zakończenie runtime’u zamyka kartę; spóźniona odpowiedź nie odpowie na kolejne pytanie. Bez aktywnej obsługi pytań żądanie zostaje jawnie anulowane. Dialogi nie udzielają uprawnień narzędziom ani nie osłabiają zasad delegacji. Pytania i przyjęte odpowiedzi trafiają na istniejącą oś rozmowy.
+
+### Zarządzanie kontem Muse w Desktop { #muse-account }
+
+Przy rejestracji Muse znajdziesz **Sprawdź konto**, **Zaloguj do Muse** i **Wyloguj z Muse**. Logowanie korzysta z przypiętego SDK i własnego przepływu kodu urządzenia Muse. Potwierdź okno natywne, otwórz pokazany adres HTTPS i wpisz kod. Zostaw Ustawienia otwarte do zakończenia. Anulowanie, zamknięcie kontrolki, zmiana rejestracji lub serwera albo dziesięć minut bez zakończenia zamyka własny proces logowania. Etykiety kont, klucze i kody urządzenia nie trafiają do backendu ani modelu.
+
+Logowanie wymaga wylogowanego konta Muse bez nadrzędnego klucza API. Szablon wymagający klucza środowiskowego oferuje stan i wylogowanie, bez logowania przeglądarkowego. Wylogowanie usuwa zapisane konto lub klucz Muse; odziedziczony `META_API_KEY` pozostaje aktywny i jest tak opisany. Zmiana konta zatrzymuje wszystkie zadania Muse i usuwa ich wznowienia, ponieważ lokalne CLI współdzieli poświadczenia. Nowe zadania Muse czekają na zakończenie zarządzania kontem. Uprawnienia planu oraz logowanie i wylogowanie prawdziwego konta pozostają testami odbiorowymi.
