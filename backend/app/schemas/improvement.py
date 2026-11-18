@@ -88,6 +88,28 @@ class VerdictCriterion(BaseSchema):
     )
 
 
+class VerdictFamily(BaseSchema):
+    """One family of criteria on an attempt's held-out questions, counted case by case.
+
+    `fixed` and `broken` count the cases that hold: every flipped one when `settled`
+    by the family's own spread, else those the check confirmed by asking again.
+    """
+
+    family: str
+    criteria: int = Field(description="How many criteria are counted in it")
+    cases: int
+    before: int
+    after: int
+    fixed: int
+    broken: int
+    settled: bool
+    better: bool
+    worse: bool
+    skill: str | None = Field(
+        default=None, description="The skill the session's improver put this family down to"
+    )
+
+
 class ImprovementIterationRead(BaseSchema):
     id: UUID
     number: int
@@ -104,7 +126,9 @@ class ImprovementIterationRead(BaseSchema):
     dropped_hunk_ids: list[UUID]
     dropped: list[DroppedHunk] = Field(default_factory=list)
     verdict: ImprovementVerdict | None
-    verdict_detail: dict[str, int | float | str | list[VerdictCriterion] | None] | None
+    verdict_detail: (
+        dict[str, int | float | str | list[VerdictCriterion] | list[VerdictFamily] | None] | None
+    )
     held_out: int | None = Field(
         default=None,
         description="How many questions the attempt is measured on - kept aside, and no copy "

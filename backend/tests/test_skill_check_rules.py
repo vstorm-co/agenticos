@@ -9,7 +9,7 @@ from decimal import Decimal
 import pytest
 
 from app.db.models.skill_check import AgentState, CheckOutcome, CheckVerdict
-from app.services.eval_comparison import CriterionMove
+from app.services.eval_comparison import CriterionMove, FamilyMove, mcnemar_p
 from app.services.improvement_states import CheckResult
 from app.services.skill_check_rules import (
     EXPECTED_RERUN_SHARE,
@@ -28,6 +28,8 @@ from app.services.skill_check_rules import (
     total,
     verdict,
 )
+
+ALPHA = 0.05
 
 
 def _stage(
@@ -119,14 +121,16 @@ class TestPooled:
         sample = _compared(held_out=4, fixed=1, candidate=0.75, baseline=0.5)
         skill_set = _compared(held_out=2, candidate=0.5, baseline=0.5)
 
-        result = pooled([sample, skill_set], minimum=5)
+        result = pooled([sample, skill_set], minimum=5, alpha=ALPHA)
 
         assert result.check.comparable and result.compared == 6
         assert result.check.candidate_pass_rate == pytest.approx((0.75 * 4 + 0.5 * 2) / 6)
         assert stage_state(result) is AgentState.BETTER
 
     def test_too_few_held_out_questions_in_all_is_unknown(self) -> None:
-        result = pooled([_compared(held_out=2, broken=1), _compared(held_out=2)], minimum=5)
+        result = pooled(
+            [_compared(held_out=2, broken=1), _compared(held_out=2)], minimum=5, alpha=ALPHA
+        )
 
         assert stage_state(result) is AgentState.UNKNOWN
 
@@ -134,6 +138,7 @@ class TestPooled:
         result = pooled(
             [_compared(held_out=4, fixed=1, candidate=0.75), _compared(held_out=6, broken=4)],
             minimum=5,
+            alpha=ALPHA,
         )
 
         assert stage_state(result) is AgentState.WORSE
@@ -143,6 +148,7 @@ class TestPooled:
         result = pooled(
             [_compared(held_out=10, fixed=2), _compared(held_out=4, comparable=False)],
             minimum=5,
+            alpha=ALPHA,
         )
 
         assert stage_state(result) is AgentState.UNKNOWN
@@ -163,40 +169,50 @@ class TestPooled:
         found = _compared(held_out=6, broken=2)
         beside = replace(_compared(held_out=4), **unmeasured)
 
-        assert agent_state([found, beside], minimum=5) is AgentState.WORSE
-        assert stage_state(pooled([found, beside], minimum=5)) is AgentState.UNKNOWN
+        assert agent_state([found, beside], minimum=5, alpha=ALPHA) is AgentState.WORSE
+        assert stage_state(pooled([found, beside], minimum=5, alpha=ALPHA)) is AgentState.UNKNOWN
 
     def test_a_confirmed_regression_blocks_below_the_held_out_minimum(self) -> None:
         """Nobody may get confirmed worse: blocking on few questions errs on the safe side,
         while getting better still needs the minimum."""
-        assert agent_state([_compared(held_out=2, broken=1)], minimum=5) is AgentState.WORSE
-        assert agent_state([_compared(held_out=2, fixed=1, candidate=1.0)], minimum=5) is (
-            AgentState.UNKNOWN
+        assert (
+            agent_state([_compared(held_out=2, broken=1)], minimum=5, alpha=ALPHA)
+            is AgentState.WORSE
         )
+        assert agent_state(
+            [_compared(held_out=2, fixed=1, candidate=1.0)], minimum=5, alpha=ALPHA
+        ) is (AgentState.UNKNOWN)
 
     def test_a_regression_in_a_stage_not_measured_completely_waits_for_the_pool(self) -> None:
         partial = replace(_compared(held_out=6, broken=2), incomplete=1)
 
-        assert agent_state([partial, _compared(held_out=4)], minimum=5) is AgentState.UNKNOWN
+        assert (
+            agent_state([partial, _compared(held_out=4)], minimum=5, alpha=ALPHA)
+            is AgentState.UNKNOWN
+        )
 
     def test_without_a_regression_the_pool_decides(self) -> None:
         assert (
             agent_state(
-                [_compared(held_out=3, fixed=1, candidate=0.75), _compared(held_out=3)], minimum=5
+                [_compared(held_out=3, fixed=1, candidate=0.75), _compared(held_out=3)],
+                minimum=5,
+                alpha=ALPHA,
             )
             is AgentState.BETTER
         )
 
     def test_unconfirmed_flips_anywhere_make_the_agent_noisy(self) -> None:
         result = pooled(
-            [_compared(held_out=6), _compared(held_out=4, broken_unconfirmed=1)], minimum=5
+            [_compared(held_out=6), _compared(held_out=4, broken_unconfirmed=1)],
+            minimum=5,
+            alpha=ALPHA,
         )
 
         assert stage_state(result) is AgentState.WITHIN_NOISE and noisy(result)
 
     def test_no_stage_or_no_pass_rate_measures_nothing(self) -> None:
-        assert stage_state(pooled([], minimum=5)) is AgentState.UNKNOWN
-        result = pooled([_compared(held_out=6, fixed=1, baseline=None)], minimum=5)
+        assert stage_state(pooled([], minimum=5, alpha=ALPHA)) is AgentState.UNKNOWN
+        result = pooled([_compared(held_out=6, fixed=1, baseline=None)], minimum=5, alpha=ALPHA)
         assert result.check.baseline_pass_rate is None
         assert stage_state(result) is AgentState.UNKNOWN
 
@@ -335,29 +351,64 @@ def test_money_adds_up_without_floats() -> None:
     assert total([]) == Decimal(0)
 
 
-class TestCriteria:
-    """An agent no whole question moved for is read criterion by criterion."""
+def _family(
+    cases: int, before: int, after: int, fixed: int, *, broken: int = 0, name: str = "price break"
+) -> FamilyMove:
+    """A family's first-answer counts in one stage, settled as that stage alone would be."""
+    p = mcnemar_p(broken, fixed)
+    return FamilyMove(
+        family=name,
+        criteria=(name,),
+        cases=cases,
+        baseline_passed=before,
+        candidate_passed=after,
+        fixed=fixed,
+        broken=broken,
+        fixed_confirmed=0,
+        broken_confirmed=0,
+        p_value=p,
+        settled=fixed + broken >= 2 and p < ALPHA,
+    )
 
-    def test_two_stages_add_up_each_criterion_and_the_agent_is_better_on_it(self) -> None:
+
+class TestCriteria:
+    """An agent no whole question moved for is read family by family."""
+
+    def test_two_stages_add_up_each_family_and_the_agent_is_better_on_it(self) -> None:
         price = CriterionMove("judge", "price break", 4, 1, 4, 3, 0)
-        sample = replace(_compared(held_out=4), criteria=(price,))
+        sample = replace(_compared(held_out=4), criteria=(price,), families=(_family(4, 1, 4, 3),))
         skill_set = replace(
             _compared(held_out=6),
             criteria=(CriterionMove("judge", "price break", 6, 2, 6, 4, 0),),
+            families=(_family(6, 2, 6, 4),),
         )
 
-        result = pooled([sample, skill_set], minimum=5)
+        result = pooled([sample, skill_set], minimum=5, alpha=ALPHA)
 
         assert result.check.criteria == (
             CriterionMove("judge", "price break", 10, 3, 10, 7, 0, 0, 0),
         )
-        assert agent_state([sample, skill_set], minimum=5) is AgentState.CRITERIA_BETTER
+        [family] = result.check.families
+        assert (family.cases, family.baseline_passed, family.candidate_passed) == (10, 3, 10)
+        assert (family.fixed, family.settled) == (7, True)
+        assert agent_state([sample, skill_set], minimum=5, alpha=ALPHA) is (
+            AgentState.CRITERIA_BETTER
+        )
 
-    def test_a_criterion_that_got_worse_makes_the_agent_criteria_worse(self) -> None:
-        worse = CriterionMove("check", "under 200 words", 10, 10, 8, 0, 2)
-        stage = replace(_compared(held_out=10), criteria=(worse,))
+    def test_neither_stage_alone_settles_a_family_their_sum_does(self) -> None:
+        stages = [
+            replace(_compared(held_out=5), families=(_family(5, 0, 3, 3),)),
+            replace(_compared(held_out=5), families=(_family(5, 0, 3, 3),)),
+        ]
 
-        assert agent_state([stage], minimum=5) is AgentState.CRITERIA_WORSE
+        assert not stages[0].families[0].settled
+        assert pooled(stages, minimum=5, alpha=ALPHA).check.families[0].settled
+
+    def test_a_family_that_got_worse_makes_the_agent_criteria_worse(self) -> None:
+        worse = _family(10, 10, 2, 0, broken=8, name="under 200 words")
+        stage = replace(_compared(held_out=10), families=(worse,))
+
+        assert agent_state([stage], minimum=5, alpha=ALPHA) is AgentState.CRITERIA_WORSE
 
     def test_criteria_alone_do_not_pass_the_change(self) -> None:
         assert verdict([AgentState.CRITERIA_BETTER]) is CheckVerdict.NO_BETTER

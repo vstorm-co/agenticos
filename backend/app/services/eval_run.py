@@ -353,6 +353,23 @@ def _family_read(move: FamilyMove) -> FamilyMoveRead:
     )
 
 
+def family_move(read: FamilyMoveRead) -> FamilyMove:
+    """A family as a comparison returned it, back as the rules read it."""
+    return FamilyMove(
+        family=read.family,
+        criteria=tuple(read.criteria),
+        cases=read.cases,
+        baseline_passed=read.baseline_passed,
+        candidate_passed=read.candidate_passed,
+        fixed=read.fixed,
+        broken=read.broken,
+        fixed_confirmed=read.fixed_confirmed,
+        broken_confirmed=read.broken_confirmed,
+        p_value=read.p_value,
+        settled=read.settled,
+    )
+
+
 @dataclass(frozen=True)
 class ArmGrades:
     """Each case's criterion outcomes on one arm, and the families its scores named.

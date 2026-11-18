@@ -17,8 +17,10 @@ from app.db.models.improvement import (
 )
 from app.services.eval_comparison import (
     CriterionMove,
+    FamilyMove,
     PairedGrades,
     criterion_moves,
+    family_moves,
     grades,
 )
 from app.services.improvement_states import (
@@ -29,6 +31,8 @@ from app.services.improvement_states import (
     best_round,
     criterion_details,
     criterion_owners,
+    family_details,
+    family_skills,
     judge,
 )
 
@@ -66,7 +70,11 @@ def _named(moves: list[CriterionMove], name: str) -> CriterionMove:
     return next(move for move in moves if move.name == name)
 
 
-def _no_question_flipped(*moves: CriterionMove) -> CheckResult:
+def _experiment_cases() -> list[PairedGrades]:
+    return [_quote(price=True) for _ in range(31)] + [_held_steady()] * 9
+
+
+def _no_question_flipped(*moves: FamilyMove, skills: dict[str, str] | None = None) -> CheckResult:
     return CheckResult(
         comparable=True,
         incomplete=0,
@@ -75,8 +83,17 @@ def _no_question_flipped(*moves: CriterionMove) -> CheckResult:
         fixed_confirmed=0,
         candidate_pass_rate=1 / 3,
         baseline_pass_rate=1 / 3,
-        criteria=moves,
+        families=moves,
+        family_skills=skills or {},
     )
+
+
+def _families() -> list[FamilyMove]:
+    return family_moves(_experiment_cases(), {}, alpha=0.05)
+
+
+def _worse_family() -> FamilyMove:
+    return FamilyMove("under 200 words", ("under 200 words",), 40, 40, 9, 0, 31, 0, 0, 0.0, True)
 
 
 def test_a_criterion_fixed_on_every_quote_is_counted_before_and_after() -> None:
@@ -89,8 +106,8 @@ def test_a_criterion_fixed_on_every_quote_is_counted_before_and_after() -> None:
     assert not _named(moves, "validity").better
 
 
-def test_a_criterion_fixed_with_no_question_flipped_is_criteria_better() -> None:
-    assert judge(_no_question_flipped(*_experiment())) is ImprovementVerdict.CRITERIA_BETTER
+def test_a_family_fixed_with_no_question_flipped_is_criteria_better() -> None:
+    assert judge(_no_question_flipped(*_families())) is ImprovementVerdict.CRITERIA_BETTER
 
 
 def test_the_criterion_that_moved_is_named_and_the_ones_still_failing_follow_it() -> None:
@@ -111,20 +128,74 @@ def test_the_criterion_that_moved_is_named_and_the_ones_still_failing_follow_it(
     ]
 
 
-def test_a_criterion_that_got_worse_is_criteria_worse_whatever_else_improved() -> None:
-    worse = CriterionMove("check", "under 200 words", 40, 40, 9, 0, 31)
-    assert worse.worse
+def test_a_family_the_agent_owns_that_got_worse_is_criteria_worse_whatever_else_improved() -> None:
+    result = _no_question_flipped(*_families(), _worse_family())
 
-    assert judge(_no_question_flipped(*_experiment(), worse)) is ImprovementVerdict.CRITERIA_WORSE
+    assert judge(result) is ImprovementVerdict.CRITERIA_WORSE
 
 
-def test_a_criterion_move_the_reruns_did_not_repeat_is_no_change() -> None:
-    wobbling = replace(_quote(price=True), candidate_reruns=({_PRICE: False},))
-    moves = criterion_moves([wobbling])
-    price = _named(moves, "price break")
+def test_a_family_put_down_to_a_skill_that_got_worse_decides_no_worse() -> None:
+    result = _no_question_flipped(
+        *_families(), _worse_family(), skills={"under 200 words": "Quote rules"}
+    )
 
-    assert price.fixed_unconfirmed == 1 and price.fixed_confirmed == 0
+    assert judge(result) is ImprovementVerdict.CRITERIA_BETTER
+
+
+def test_a_criterion_move_on_one_case_is_no_change() -> None:
+    moves = family_moves([_quote(price=True)], {}, alpha=0.05)
+
     assert judge(_no_question_flipped(*moves)) is ImprovementVerdict.NO_CHANGE
+
+
+def test_a_family_is_put_down_to_the_skill_named_for_it_or_for_a_criterion_in_it() -> None:
+    vat = FamilyMove("total including VAT", ("regex '£913.68'",), 9, 4, 1, 0, 3, 0, 0, 0.25, False)
+    terms = FamilyMove("payment terms", ("payment terms",), 9, 0, 0, 0, 0, 0, 0, 1.0, False)
+    price = _families()[1]
+
+    owners = criterion_owners(
+        [{"skill_problems": [{"skill_name": "Quote rules", "criteria": ["REGEX '£913.68'"]}]}]
+    ) | {"payment terms": "Quote rules"}
+
+    assert family_skills([vat, terms, price], owners) == {
+        "total including VAT": "Quote rules",
+        "payment terms": "Quote rules",
+    }
+
+
+def test_a_verdict_keeps_each_family_s_counts_and_its_skill() -> None:
+    [price] = [move for move in _families() if move.family == "price break"]
+    worse = replace(_worse_family(), settled=False, broken_confirmed=3)
+
+    details = family_details([price, worse], {"under 200 words": "Quote rules"})
+
+    assert details == [
+        {
+            "family": "price break",
+            "criteria": 1,
+            "cases": 40,
+            "before": 9,
+            "after": 40,
+            "fixed": 31,
+            "broken": 0,
+            "settled": True,
+            "better": True,
+            "worse": False,
+        },
+        {
+            "family": "under 200 words",
+            "criteria": 1,
+            "cases": 40,
+            "before": 40,
+            "after": 9,
+            "fixed": 0,
+            "broken": 3,
+            "settled": False,
+            "better": False,
+            "worse": True,
+            "skill": "Quote rules",
+        },
+    ]
 
 
 def test_a_criterion_flip_the_baseline_was_never_rerun_on_is_unconfirmed() -> None:
@@ -139,10 +210,9 @@ def test_a_criterion_fixed_on_fewer_passes_than_before_is_not_better() -> None:
     assert not CriterionMove("judge", "tone", 10, 6, 5, 1, 0).better
 
 
-def test_a_whole_question_fixed_stays_better_beside_a_criterion_that_got_worse() -> None:
-    worse = CriterionMove("check", "under 200 words", 40, 40, 39, 0, 1)
+def test_a_whole_question_fixed_stays_better_beside_a_family_that_got_worse() -> None:
     result = replace(
-        _no_question_flipped(worse),
+        _no_question_flipped(_worse_family()),
         fixed_confirmed=2,
         candidate_pass_rate=0.5,
     )
@@ -151,7 +221,7 @@ def test_a_whole_question_fixed_stays_better_beside_a_criterion_that_got_worse()
 
 
 def test_a_question_broken_is_a_regression_whatever_the_criteria_say() -> None:
-    result = replace(_no_question_flipped(*_experiment()), regressions_confirmed=1)
+    result = replace(_no_question_flipped(*_families()), regressions_confirmed=1)
 
     assert judge(result) is ImprovementVerdict.REGRESSION
 

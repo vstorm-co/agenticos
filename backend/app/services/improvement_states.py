@@ -13,7 +13,7 @@ filtering what was proposed, so each paid step after those is one somebody took.
 
 import math
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
@@ -25,6 +25,7 @@ from app.db.models.background_job import JobStatus
 from app.db.models.eval_run import EvalRunStatus
 from app.db.models.improvement import (
     CriterionDetail,
+    FamilyDetail,
     ImprovementStage,
     ImprovementStatus,
     ImprovementVerdict,
@@ -36,7 +37,7 @@ from app.schemas.improvement import (
     NoisyAttempt,
     NoisyQuestion,
 )
-from app.services.eval_comparison import CriterionMove
+from app.services.eval_comparison import CriterionMove, FamilyMove
 
 MIN_GRADABLE_CASES = 5
 """Gradable cases the check needs outside the evidence before a change is measured."""
@@ -341,9 +342,12 @@ class CheckResult:
     suite: SuiteOutcome | None = None
     crashed: int = 0
     held_out: int | None = None
-    criterion_change: float = 0.0
     criteria: tuple[CriterionMove, ...] = ()
     """Each criterion graded on both sides of the held-out questions, confirmed as flips are."""
+    families: tuple[FamilyMove, ...] = ()
+    """Each family of criteria graded on both sides of the held-out questions."""
+    family_skills: Mapping[str, str] = field(default_factory=dict)
+    """The skill each family was put down to, by family; such a family decides no `worse`."""
 
 
 def judge(result: CheckResult) -> ImprovementVerdict:
@@ -354,9 +358,11 @@ def judge(result: CheckResult) -> ImprovementVerdict:
     was measured. An ordinary suite may fail on partial evidence independently.
 
     `better` and `regression` are about whole questions. Short of those, the
-    criteria decide: a question that fails on several criteria passes only once
-    all of them do, so a change that fixes one of them is `criteria_better`
-    rather than no change, and one that breaks a criterion is `criteria_worse`.
+    families of criteria decide: a question that fails on several passes only
+    once all of them do, so a change that fixes one family is `criteria_better`
+    rather than no change. A family the agent owns that got worse is
+    `criteria_worse`. One put down to a skill is not: the agent following a
+    faulty skill more closely shows there, and the fix is the skill's.
     """
     if result.incomplete or result.ungraded:
         return ImprovementVerdict.INCONCLUSIVE
@@ -374,15 +380,11 @@ def judge(result: CheckResult) -> ImprovementVerdict:
         or result.suite is SuiteOutcome.INCONCLUSIVE
     ):
         return ImprovementVerdict.INCONCLUSIVE
-    if result.fixed_confirmed:
-        return (
-            ImprovementVerdict.BETTER
-            if result.candidate_pass_rate >= result.baseline_pass_rate
-            else ImprovementVerdict.NO_CHANGE
-        )
-    if any(move.worse for move in result.criteria):
+    if result.fixed_confirmed and result.candidate_pass_rate >= result.baseline_pass_rate:
+        return ImprovementVerdict.BETTER
+    if any(move.worse and move.family not in result.family_skills for move in result.families):
         return ImprovementVerdict.CRITERIA_WORSE
-    if any(move.better for move in result.criteria):
+    if any(move.better for move in result.families):
         return ImprovementVerdict.CRITERIA_BETTER
     return ImprovementVerdict.NO_CHANGE
 
@@ -405,42 +407,50 @@ def criterion_owners(reports: Iterable[Mapping[str, Any] | None]) -> dict[str, s
     return owners
 
 
-def criterion_skill_ids(reports: Iterable[Mapping[str, object] | None]) -> dict[str, str]:
-    """Original source identities from the same newest report that supplies each name.
+def family_skills(families: Iterable[FamilyMove], owners: Mapping[str, str]) -> dict[str, str]:
+    """The skill each family was put down to: the one named for it, or for a criterion in it.
 
-    Historical reports without a valid ID remain name-only; readers fail closed
-    for their attributed evidence rather than resolving a reused display name.
+    `owners` is `criterion_owners`, keyed by case-folded name.
     """
-    ids: dict[str, str] = {}
-    seen: set[str] = set()
-    for report in reports:
-        problems = (report or {}).get("skill_problems", [])
-        if not isinstance(problems, list):
-            continue
-        for problem in problems:
-            if not isinstance(problem, dict):
-                continue
-            names = problem.get("criteria", [])
-            if not isinstance(names, list):
-                continue
-            for name in names:
-                if not isinstance(name, str):
-                    continue
-                key = name.casefold()
-                if key in seen:
-                    continue
-                seen.add(key)
-                try:
-                    ids[key] = str(UUID(str(problem.get("skill_id"))))
-                except ValueError:
-                    continue
-    return ids
+    found: dict[str, str] = {}
+    for move in families:
+        owner = next(
+            (
+                owners[name.casefold()]
+                for name in (move.family, *move.criteria)
+                if name.casefold() in owners
+            ),
+            None,
+        )
+        if owner is not None:
+            found[move.family] = owner
+    return found
+
+
+def family_details(families: Sequence[FamilyMove], skills: Mapping[str, str]) -> list[FamilyDetail]:
+    """What a verdict keeps of its families: counts and names, never a question's text."""
+    details: list[FamilyDetail] = []
+    for move in families:
+        detail: FamilyDetail = {
+            "family": move.family,
+            "criteria": len(move.criteria),
+            "cases": move.cases,
+            "before": move.baseline_passed,
+            "after": move.candidate_passed,
+            "fixed": move.fixed_held,
+            "broken": move.broken_held,
+            "settled": move.settled,
+            "better": move.better,
+            "worse": move.worse,
+        }
+        if move.family in skills:
+            detail["skill"] = skills[move.family]
+        details.append(detail)
+    return details
 
 
 def criterion_details(
-    moves: Sequence[CriterionMove],
-    owners: Mapping[str, str],
-    owner_ids: Mapping[str, str] | None = None,
+    moves: Sequence[CriterionMove], owners: Mapping[str, str]
 ) -> list[CriterionDetail]:
     """What a verdict keeps of its criteria: counts and names, never a question's text.
 
@@ -450,8 +460,6 @@ def criterion_details(
     ranked = sorted(
         moves,
         key=lambda move: (
-            not move.worse,
-            not move.better,
             not (move.fixed_confirmed or move.broken_confirmed),
             move.candidate_passed - move.graded,
             move.scorer,
@@ -469,11 +477,9 @@ def criterion_details(
             "fixed": move.fixed_confirmed,
             "broken": move.broken_confirmed,
         }
-        owner = owners.get(move.name.casefold()) if move.scorer == "judge" else None
+        owner = owners.get(move.name.casefold())
         if owner is not None and move.candidate_passed < move.graded:
             detail["skill"] = owner
-            if (source_id := (owner_ids or {}).get(move.name.casefold())) is not None:
-                detail["skill_id"] = source_id
         details.append(detail)
     return details
 
@@ -516,7 +522,6 @@ class RoundResult:
     fixed: int
     broken: int
     held_out: int
-    criterion_change: float = 0.0
 
     @property
     def change(self) -> float:
@@ -542,12 +547,7 @@ def best_round(rounds: list[RoundResult]) -> int | None:
     }
     best = max(
         measured,
-        key=lambda item: (
-            order[item.verdict],
-            item.change,
-            item.criterion_change if item.verdict == ImprovementVerdict.CRITERIA_BETTER else 0.0,
-            -item.number,
-        ),
+        key=lambda item: (order[item.verdict], item.change, -item.number),
         default=None,
     )
     return None if best is None else best.number

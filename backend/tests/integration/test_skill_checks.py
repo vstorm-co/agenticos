@@ -49,7 +49,7 @@ from app.repositories import (
     skill_proposal_repo,
     skill_usage_repo,
 )
-from app.schemas.eval_run import CriterionMoveRead
+from app.schemas.eval_run import CriterionMoveRead, FamilyMoveRead
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
     CandidateText,
@@ -84,6 +84,7 @@ class Outcome:
     unconfirmed_broken: int = 0
     incomplete: int = 0
     criteria: tuple[CriterionMoveRead, ...] = ()
+    families: tuple[FamilyMoveRead, ...] = ()
 
 
 def _flips(outcome: Outcome, held_out: int) -> list[SimpleNamespace]:
@@ -209,6 +210,7 @@ class FakeEvals:
                 gradable_holdout=held_out,
                 cases=_flips(outcome, held_out),
                 criteria=list(outcome.criteria),
+                families=list(outcome.families),
             )
 
         async def cancel(_self, _ctx, run_id):
@@ -791,7 +793,22 @@ class TestAPersonsVerdict:
             fixed_unconfirmed=0,
             broken_unconfirmed=0,
         )
-        evals.outcomes = {lab.a.id: Outcome(criteria=(validity,))}
+        family = FamilyMoveRead(
+            family="validity",
+            criteria=["validity"],
+            cases=5,
+            baseline_passed=0,
+            candidate_passed=5,
+            fixed=5,
+            broken=0,
+            fixed_confirmed=5,
+            broken_confirmed=0,
+            p_value=0.0625,
+            settled=False,
+            better=False,
+            worse=False,
+        )
+        evals.outcomes = {lab.a.id: Outcome(criteria=(validity,), families=(family,))}
 
         read = await _run_to_end(service, evals, lab, check.id)
 
