@@ -20,6 +20,29 @@ vi.mock("@/components/sharing/audience-search", () => ({
 }));
 
 describe("CreateTableDialog", () => {
+  it("clears recipients when the caller closes a successfully created table", async () => {
+    const props = { onOpenChange: vi.fn(), onCreate: vi.fn(), isCreating: false, error: null };
+    const { rerender } = render(<CreateTableDialog {...props} open />);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Finance plan" } });
+    await userEvent.click(screen.getByRole("radio", { name: /Some people/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose Finance" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create table" }));
+    expect(props.onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ group_ids: ["finance"] }),
+      null,
+    );
+    rerender(<CreateTableDialog {...props} open={false} />);
+    rerender(<CreateTableDialog {...props} open />);
+    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.getByRole("radio", { name: /Only me/ })).toHaveAttribute("aria-checked", "true");
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Private plan" } });
+    await userEvent.click(screen.getByRole("button", { name: "Create table" }));
+    expect(props.onCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ visibility: "private", group_ids: [], user_ids: [] }),
+      null,
+    );
+  });
+
   it("submit is disabled until a name is typed", () => {
     render(
       <CreateTableDialog

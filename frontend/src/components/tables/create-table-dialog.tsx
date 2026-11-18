@@ -176,6 +176,12 @@ export function CreateTableDialog({
     setCsvError(null);
   }
 
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (!open) reset();
+  }
+
   async function startFrom(file: File) {
     const read = await readCsvFile(file);
     if (

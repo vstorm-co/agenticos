@@ -510,7 +510,10 @@ class WorkflowRegistryService:
             graph = data.graph
             if data.table is not None:
                 table = await VirtualTableService(self.db).create_table(
-                    ctx, data.table.model_copy(update={"visibility": Visibility.PRIVATE})
+                    ctx,
+                    data.table.model_copy(
+                        update={"visibility": Visibility.PRIVATE, "group_ids": [], "user_ids": []}
+                    ),
                 )
                 ref = TableIORef(table_id=table.id, schema_version=table.schema_version)
                 nodes = []
