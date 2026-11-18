@@ -1,4 +1,8 @@
 existingSecret: agenticos-smoke
+frontend:
+  extraEnv:
+    OAUTH_PROVIDERS: oidc
+    OIDC_DISPLAY_NAME: Kubernetes smoke SSO
 public:
   siteUrl: http://localhost:13000
   apiUrl: http://localhost:18000

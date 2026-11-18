@@ -1,13 +1,13 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { ArrowRight, Loader2, TriangleAlert } from "lucide-react";
+import { ArrowRight, Loader2, Mic, TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { SetupIndicator } from "@/components/settings/setup-indicator";
 import { voiceSetupHints } from "@/lib/setup-hints";
-import { SettingsSection } from "@/components/settings/settings-section";
+import { ServiceCard } from "@/components/settings/service-card";
 import { OrgTextToSpeechSettings } from "./org-text-to-speech-settings";
 import { OrgVoiceUsage } from "@/components/teams/org-voice-usage";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -221,7 +221,8 @@ function VoiceForm({ org, collapsible }: { org: Organization; collapsible: boole
 
   return (
     <div id="org-voice" data-tour="org-voice">
-      <SettingsSection
+      <ServiceCard
+        icon={Mic}
         collapsible={collapsible}
         open={forceOpen}
         onOpenChange={setForceOpen}
@@ -248,7 +249,6 @@ function VoiceForm({ org, collapsible }: { org: Organization; collapsible: boole
         }
         status={<SetupIndicator hints={voiceSetupHints(org)} />}
         title={t("voice.sttTitle")}
-        className="bg-card rounded-xl border p-4 sm:p-5"
         description={t(collapsible ? "voice.summary" : "voice.description")}
       >
         <p className="text-muted-foreground mt-0.5 mb-4 text-sm">{t("voice.sttDescription")}</p>
@@ -276,7 +276,7 @@ function VoiceForm({ org, collapsible }: { org: Organization; collapsible: boole
             {t("voice.save")}
           </Button>
         </div>
-      </SettingsSection>
+      </ServiceCard>
     </div>
   );
 }

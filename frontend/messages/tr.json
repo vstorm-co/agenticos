@@ -16594,5 +16594,13 @@
         }
       }
     }
+  },
+  "improvement": {
+    "signalWindow": "Son 30 günden {count, plural, one {# seçili kaynak örneği} other {# seçili kaynak örneği}}, en fazla {limit}. Önceki ajan sürümleri ve incelenmiş test yanıtları dahildir.",
+    "likedSignals": "Olumlu değerlendirilen yanıtlar",
+    "failedSignals": "Değerlendirilmemiş başarısız çalıştırmalar",
+    "reviewedSignals": "Diğer incelenmiş test yanıtları",
+    "noLearningExamples": "Henüz öğrenilecek bir şey yok: son 30 günde okunabilir kaynak örneği bulunmuyor. Bir yanıtı değerlendirin veya test sorularını çalıştırıp inceleyin.",
+    "sessionQuote": "{answers, plural, one {# seçili kaynak örneğini} other {# seçili kaynak örneğini}} sıralamak için en fazla {cost} (tahmini). Sonraki her deneme yaklaşık {minutes, plural, one {# dakika} other {# dakika}} sürer ve yaklaşık {perRound} tutar; başlamadan önce yeniden fiyatlandırılır. {limit} sınırı tüm oturum içindir."
   }
 }

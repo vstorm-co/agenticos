@@ -41,6 +41,8 @@ mod local_stack;
 mod local_work;
 mod managed;
 mod native_browser;
+#[cfg(all(target_os = "linux", feature = "arch-package"))]
+mod native_browser_smoke;
 mod notify;
 mod onboarding_permissions;
 mod pinned;
@@ -1500,6 +1502,12 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(all(target_os = "linux", feature = "arch-package"))]
+    if std::env::args().any(|arg| arg == "--installation-smoke") {
+        tls::initialize();
+        native_browser_smoke::run();
+        return;
+    }
     tls::initialize();
     tauri::Builder::default()
         // First, and it has to be: on Windows and Linux opening a registered

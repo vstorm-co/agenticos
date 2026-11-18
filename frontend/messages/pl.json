@@ -16331,10 +16331,10 @@
     "trainQuestion": "Posłużyło do pisania zmian",
     "holdoutQuestion": "Nie posłużyło do pisania zmian",
     "sourceSignals": "Źródła do nauki",
-    "signalWindow": "Feedback i nieudane runy z ostatnich 30 dni oraz błędy z ostatniego testu.",
+    "signalWindow": "{count, plural, one {# wybrany przykład źródłowy} few {# wybrane przykłady źródłowe} many {# wybranych przykładów źródłowych} other {# przykładu źródłowego}} z ostatnich 30 dni, maksymalnie {limit}. Uwzględnia wcześniejsze wersje agenta i sprawdzone odpowiedzi testowe.",
     "ratedSignals": "Odpowiedzi ocenione negatywnie",
-    "failedSignals": "Nieudane runy",
-    "noLearningExamples": "Na razie nie ma z czego się uczyć: nikt nie ocenił odpowiedzi w ostatnich 30 dniach. Najpierw oceń odpowiedź albo napisz pytania testowe.",
+    "failedSignals": "Nieudane runy bez oceny",
+    "noLearningExamples": "Na razie nie ma z czego się uczyć: brak dostępnych przykładów źródłowych z ostatnich 30 dni. Oceń odpowiedź albo uruchom i sprawdź pytania testowe.",
     "evidenceSample": "Wybrano {count} przykładów, maksymalnie {limit}. Pomijamy źródła usunięte lub już niedostępne.",
     "unknownCauses": "Część odpowiedzi nie ma zapisanej przyczyny błędu. Pozostają niesklasyfikowane i są pokazane z przykładami agenta do przeglądu.",
     "cause": {
@@ -16367,7 +16367,7 @@
     "baseline": "Sprawdź, jak agent odpowiada dzisiaj",
     "estimate": "Oszacuj ponownie",
     "estimating": "Szacowanie czasu i kosztu…",
-    "sessionQuote": "Do {cost} (szacunkowo) za posortowanie {answers, plural, one {# odpowiedzi} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}} z oceną. Każda kolejna próba trwa ok. {minutes, plural, one {# minuty} few {# minut} many {# minut} other {# minuty}} i kosztuje mniej więcej {perRound}; jest wyceniana ponownie, zanim ją naciśniesz, a limit {limit} obejmuje całą sesję.",
+    "sessionQuote": "Do {cost} (szacunkowo) za posortowanie {answers, plural, one {# wybranego przykładu źródłowego} few {# wybranych przykładów źródłowych} many {# wybranych przykładów źródłowych} other {# wybranego przykładu źródłowego}}. Każda kolejna próba trwa ok. {minutes, plural, one {# minuty} few {# minut} many {# minut} other {# minuty}} i kosztuje mniej więcej {perRound}; jest wyceniana ponownie, zanim ją naciśniesz, a limit {limit} obejmuje całą sesję.",
     "evidence": "Na podstawie {count, plural, one {# odpowiedzi} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}} z informacją zwrotną.",
     "budget": "Limit wydatków sesji (USD)",
     "start": "Zacznij poprawianie",
@@ -16906,7 +16906,9 @@
     "evidenceOnly": {
       "body": "Każde pytanie tego datasetu pochodzi z rozmów, z których ta zmiana się uczyła, więc żadne nie może jej sprawdzić.",
       "addQuestions": "Dodaj pytania z innych rozmów"
-    }
+    },
+    "likedSignals": "Odpowiedzi ocenione pozytywnie",
+    "reviewedSignals": "Pozostałe sprawdzone odpowiedzi testowe"
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",
