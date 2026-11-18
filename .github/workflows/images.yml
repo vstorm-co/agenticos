@@ -1,0 +1,102 @@
+# Build the t3 backend and frontend images on the Armada runners and push them
+# to GHCR. Manual only (no push, PR or schedule trigger): the user starts each run.
+#
+#   ghcr.io/t3grp/agenticos-backend:<tag>   API, worker and migrations
+#   ghcr.io/t3grp/agenticos-frontend:<tag>  console
+#
+# <tag> is the ref name with "/" replaced by "-", plus sha-<short>.
+# Nothing secret goes into an image: no build args or secrets are passed, and
+# this repository is public. Runtime config comes from the deploy host.
+# Armada runners only allow host-network egress, so every build uses
+# `--network host` (see t3grp/cloudflare-ci-bridge NATIVE-RUNNER.md).
+name: Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag, branch or commit to build"
+        required: true
+        default: "v1.76.1-t3.1"
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: images-${{ inputs.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_PREFIX: ghcr.io/t3grp/agenticos
+
+jobs:
+  build:
+    name: Build and push (${{ matrix.image }})
+    runs-on:
+      group: Armada
+      labels: [armada, armada-docker]
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [backend, frontend]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Work out tags
+        id: tags
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          short="$(git rev-parse --short=12 HEAD)"
+          safe="$(printf '%s' "$REF" | tr '/' '-' | tr -cd 'A-Za-z0-9._-')"
+          echo "short=$short" >> "$GITHUB_OUTPUT"
+          echo "safe=$safe" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Sign in to GHCR
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: printf '%s' "$TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+
+      - name: Build
+        env:
+          IMAGE: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
+          CONTEXT: ${{ matrix.image }}
+          SAFE: ${{ steps.tags.outputs.safe }}
+          SHORT: ${{ steps.tags.outputs.short }}
+          SHA: ${{ steps.tags.outputs.sha }}
+          SOURCE: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          docker build --network host \
+            --label "org.opencontainers.image.source=$SOURCE" \
+            --label "org.opencontainers.image.revision=$SHA" \
+            --label "org.opencontainers.image.version=$SAFE" \
+            -t "$IMAGE:$SAFE" -t "$IMAGE:sha-$SHORT" \
+            "$CONTEXT"
+
+      - name: Push
+        env:
+          IMAGE: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
+          SAFE: ${{ steps.tags.outputs.safe }}
+          SHORT: ${{ steps.tags.outputs.short }}
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE:$SAFE"
+          docker push "$IMAGE:sha-$SHORT"
+          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$SAFE")"
+          echo "### $IMAGE" >> "$GITHUB_STEP_SUMMARY"
+          echo "- tags: \`$SAFE\`, \`sha-$SHORT\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- digest: \`$digest\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Sign out
+        if: always()
+        run: docker logout ghcr.io || true
