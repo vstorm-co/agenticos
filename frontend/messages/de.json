@@ -14568,8 +14568,7 @@
       "open": "Freigaben öffnen",
       "fromWorkflow": "Workflow {workflow}",
       "fromAgent": "Agent {agent}",
-      "anAgent": "Ein Agent",
-      "actionBy": "{source} · {action}"
+      "anAgent": "Ein Agent"
     }
   },
   "datasets": {

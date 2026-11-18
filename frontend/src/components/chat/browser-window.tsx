@@ -139,8 +139,8 @@ export function AgentCursor({ pointer }: { pointer: { x: number; y: number; step
     <span
       aria-hidden
       data-testid="agent-cursor"
-      className="pointer-events-none absolute z-10 transition-[left,top] duration-500 ease-out motion-reduce:transition-none"
-      style={{ left: `${pointer.x * 100}%`, top: `${pointer.y * 100}%` }}
+      className="pointer-events-none absolute inset-0 z-10 transition-transform duration-500 ease-out motion-reduce:transition-none"
+      style={{ transform: `translate(${pointer.x * 100}%, ${pointer.y * 100}%)` }}
     >
       <span
         key={pointer.step}

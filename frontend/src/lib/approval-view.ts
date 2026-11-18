@@ -106,23 +106,63 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function summaryValue(args: Record<string, unknown>, depth: number): string | null {
+function summaryText(value: string, depth: number): string | null {
+  const text = value.trim();
+  if (!text || /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(text)) return null;
+  if (!/^[\[{]/.test(text)) return text;
+  // Some MCP schemas carry the entire search request as a JSON string.
+  // Decode only bounded objects; opaque requests belong in the full details.
+  if (depth >= 2 || text.length > 8192) return null;
+  try {
+    const decoded: unknown = JSON.parse(text);
+    return isRecord(decoded) ? summaryValue(decoded, depth + 1, false) : null;
+  } catch {
+    return null;
+  }
+}
+
+function summaryValue(
+  args: Record<string, unknown>,
+  depth: number,
+  allowFallback = true,
+): string | null {
   const strings = Object.entries(args).filter(
     (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim() !== "",
   );
-  const telling = TELLING.map((key) => strings.find(([name]) => name === key)).find(Boolean);
-  if (telling !== undefined) return telling[1];
+  for (const key of TELLING) {
+    const telling = strings.find(([name]) => name === key);
+    if (telling === undefined) continue;
+    const subject = summaryText(telling[1], depth);
+    if (subject !== null) return subject;
+  }
+  if (Array.isArray(args.filterGroups)) {
+    const subjects = args.filterGroups.flatMap((group: unknown) => {
+      if (!isRecord(group) || !Array.isArray(group.filters)) return [];
+      return group.filters.flatMap((filter: unknown) => {
+        if (!isRecord(filter) || typeof filter.value !== "string") return [];
+        const subject = summaryText(filter.value, 2);
+        return subject === null ? [] : [subject];
+      });
+    });
+    if (subjects.length > 0) return [...new Set(subjects)].slice(0, 3).join(" · ");
+  }
   // Platform writes wrap their subject in a typed payload. Prefer its title
   // over a top-level table UUID, and keep arbitrary nested schemas out of view.
   if (depth < 2) {
     for (const key of ["task", "record", "data", "draft", "payload", "values"]) {
       const nested = args[key];
       if (!isRecord(nested)) continue;
-      const subject = summaryValue(nested, depth + 1);
+      const subject = summaryValue(nested, depth + 1, allowFallback);
       if (subject !== null) return subject;
     }
   }
-  return strings[0]?.[1] ?? null;
+  if (allowFallback) {
+    for (const [, value] of strings) {
+      const subject = summaryText(value, depth);
+      if (subject !== null) return subject;
+    }
+  }
+  return null;
 }
 
 /** Whether a value says nothing: an empty string, list or object, or no value. */

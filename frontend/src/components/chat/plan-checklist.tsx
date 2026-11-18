@@ -95,8 +95,8 @@ function TaskCheck({ timing }: { timing: (t: Transition) => Transition }) {
         r="12"
         fill="currentColor"
         style={{ transformBox: "view-box", transformOrigin: "12px 12px" }}
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
+        initial={{ scale: 0.97, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
         transition={timing(FILL)}
       />
       <motion.path
@@ -226,8 +226,8 @@ export function PlanMeter({
         className="bg-foreground/10 h-1 w-16 shrink-0 overflow-hidden rounded-full"
       >
         <span
-          className="bg-brand block h-full rounded-full transition-[width] duration-500 ease-out"
-          style={{ width: `${percent}%` }}
+          className="bg-brand block h-full w-full origin-left rounded-full transition-transform duration-500 ease-out"
+          style={{ transform: `scaleX(${percent / 100})` }}
         />
       </span>
       <span className="text-muted-foreground shrink-0 font-mono text-xs tracking-wider">

@@ -12,6 +12,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
+import { DisclosureContent } from "@/components/ui/disclosure-content";
 import { formatElapsed } from "@/lib/elapsed";
 import { cn } from "@/lib/utils";
 
@@ -213,7 +214,7 @@ export function WorkFold({
           </span>
         )}
       </button>
-      {open && (
+      <DisclosureContent open={open} triggerId={toggleId}>
         <div
           id={historyId}
           role="region"
@@ -228,7 +229,7 @@ export function WorkFold({
         >
           <div className="space-y-2">{children}</div>
         </div>
-      )}
+      </DisclosureContent>
     </div>
   );
 }

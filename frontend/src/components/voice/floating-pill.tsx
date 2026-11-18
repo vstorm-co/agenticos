@@ -36,9 +36,9 @@ export function FloatingPill({ pill }: { pill: FloatingPillContent | null }) {
             data-testid="floating-pill"
             data-floating-pill
             className="pointer-events-auto"
-            initial={{ opacity: 0, y: 10, scale: 0.94 }}
+            initial={{ opacity: 0, y: 10, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.96 }}
+            exit={{ opacity: 0, y: 6, scale: 0.97 }}
             transition={transition}
           >
             {pill.node}

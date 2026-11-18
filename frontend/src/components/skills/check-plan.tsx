@@ -75,8 +75,10 @@ export function CheckProgress({ agents }: { agents: SkillCheckAgent[] }) {
         className="bg-muted h-1.5 overflow-hidden rounded-full"
       >
         <div
-          className="bg-primary h-full animate-pulse transition-[width] duration-500 motion-reduce:animate-none"
-          style={{ width: `${Math.max(4, (done / agents.length) * 100)}%` }}
+          className="bg-primary h-full w-full origin-left animate-pulse transition-transform duration-500 motion-reduce:animate-none"
+          style={{
+            transform: `scaleX(${agents.length > 0 ? Math.max(0.04, done / agents.length) : 0})`,
+          }}
         />
       </div>
     </div>

@@ -8,6 +8,7 @@ import { logoDataUri } from "@/lib/mcp-catalog";
 import { cn } from "@/lib/utils";
 import styles from "./agent-step.module.css";
 import { STEP_ICONS } from "@/lib/step-icons";
+import { DisclosureContent } from "@/components/ui/disclosure-content";
 import type { StepKind } from "@/lib/tool-catalog";
 
 interface AgentStepsProps {
@@ -42,29 +43,40 @@ interface AgentStepsProps {
 export function AgentSteps({ children, showAll = false, done = false }: AgentStepsProps) {
   const t = useTranslations("chat.steps");
   const [opened, setOpened] = useState(false);
+  const toggleId = useId();
   const steps = Children.toArray(children);
   const earlier = steps.slice(0, -1);
-  const current = steps.at(-1);
   const folded = !showAll && !opened && earlier.length >= 2;
 
   return (
-    <div className={`${styles.steps} relative space-y-0.5`}>
-      {folded ? (
+    <div className={`${styles.steps} relative`}>
+      {!showAll && earlier.length >= 2 && (
         <button
           type="button"
-          onClick={() => setOpened(true)}
-          aria-expanded={false}
+          id={toggleId}
+          onClick={() => setOpened(!opened)}
+          aria-expanded={opened}
           className="text-muted-foreground hover:text-foreground relative flex min-h-8 items-center gap-2 rounded-md px-1.5 py-1 text-[13px]"
         >
           <span className="bg-background relative flex size-5 shrink-0 items-center justify-center">
-            <ChevronRight className="size-3.5" aria-hidden />
+            <ChevronRight
+              className={cn("size-3.5 transition-transform", opened && "rotate-90")}
+              aria-hidden
+            />
           </span>
           {t("earlierSteps", { count: earlier.length })}
         </button>
-      ) : (
-        earlier
       )}
-      {current}
+      {steps.map((child, index) => (
+        <DisclosureContent
+          key={typeof child === "object" && "key" in child ? child.key : index}
+          open={!folded || index === steps.length - 1}
+          triggerId={toggleId}
+          className="relative"
+        >
+          {child}
+        </DisclosureContent>
+      ))}
       {done && <StepsDone />}
     </div>
   );
@@ -195,6 +207,7 @@ export function AgentStep({
         {openable ? (
           <button
             type="button"
+            id={`${detailsId}-toggle`}
             onClick={onToggle}
             aria-expanded={expanded}
             aria-controls={expanded ? detailsId : undefined}
@@ -216,13 +229,12 @@ export function AgentStep({
         {expanded && actions}
       </div>
 
-      {expanded && children !== undefined && (
-        <div
-          id={detailsId}
-          className="border-border/60 bg-muted/15 mt-1 mb-2 ml-9 min-w-0 overflow-hidden rounded-lg border p-3"
-        >
-          {children}
-        </div>
+      {children !== undefined && (
+        <DisclosureContent open={expanded} id={detailsId} triggerId={`${detailsId}-toggle`}>
+          <div className="border-border/60 bg-muted/15 mt-1 mb-2 ml-9 min-w-0 overflow-hidden rounded-lg border p-3">
+            {children}
+          </div>
+        </DisclosureContent>
       )}
     </div>
   );

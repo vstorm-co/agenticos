@@ -30,6 +30,47 @@ describe("serviceAction", () => {
 });
 
 describe("callSummary", () => {
+  it("summarizes structured CRM searches instead of exposing serialized requests", () => {
+    const request = { filterGroups: [{ filters: [{ propertyName: "name", value: "Oasis*" }] }] };
+    expect(callSummary({ query: JSON.stringify(request) })).toBe("Oasis*");
+    expect(callSummary(request)).toBe("Oasis*");
+    expect(callSummary({ request: JSON.stringify(request) })).toBe("Oasis*");
+  });
+
+  it("leaves opaque IDs and uninterpretable serialized requests to the details", () => {
+    expect(callSummary({ record_id: "ed7b79b6-02bf-4303-a08c-9b95e37af56f" })).toBeNull();
+    for (const query of ["{broken", "[]", '{"token":"private"}', "{".repeat(8193)]) {
+      expect(callSummary({ query })).toBeNull();
+    }
+    expect(callSummary({ payload: { payload: { query: '{"query":"too deep"}' } } })).toBeNull();
+  });
+
+  it("keeps a bounded, distinct set of meaningful search terms", () => {
+    expect(
+      callSummary({
+        filterGroups: [
+          null,
+          {},
+          {
+            filters: [
+              null,
+              {},
+              { value: 4 },
+              { value: "" },
+              { value: "A" },
+              { value: "A" },
+              { value: "B" },
+              { value: "C" },
+              { value: "D" },
+            ],
+          },
+        ],
+      }),
+    ).toBe("A · B · C");
+    expect(callSummary({ filterGroups: [{}] })).toBeNull();
+    expect(callSummary({ query: "", title: "Readable title" })).toBe("Readable title");
+  });
+
   it("picks the argument that says what the call is about", () => {
     expect(callSummary({ page_url: "", query: "what's new", sort: "relevance" })).toBe(
       "what's new",

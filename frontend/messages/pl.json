@@ -14111,8 +14111,7 @@
       "open": "Otwórz zatwierdzenia",
       "fromWorkflow": "Workflow {workflow}",
       "fromAgent": "Agent {agent}",
-      "anAgent": "Agent",
-      "actionBy": "{source} · {action}"
+      "anAgent": "Agent"
     }
   },
   "agentLimit": {

@@ -347,7 +347,7 @@ export const MessageItem = memo(function MessageItem({
                       type="button"
                       key={att.file.id}
                       onClick={() => openPreview(att.file)}
-                      className="hover:ring-foreground/30 block overflow-hidden rounded-xl border ring-2 ring-transparent transition-all"
+                      className="hover:ring-foreground/30 block overflow-hidden rounded-xl border ring-2 ring-transparent transition-shadow"
                       title={t("openFile", { name: att.file.filename })}
                     >
                       <KeptImage

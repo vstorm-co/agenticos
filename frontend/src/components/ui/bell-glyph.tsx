@@ -266,9 +266,9 @@ function CountBadge({
             paddingInline: dot ? 0 : size * PAD,
             fontSize: size * FONT,
           }}
-          initial={{ scale: 0, opacity: 0 }}
+          initial={{ scale: 0.97, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0, opacity: 0 }}
+          exit={{ scale: 0.97, opacity: 0 }}
           transition={reduced ? FADE : ENTER_SPRING}
         >
           {!dot && (

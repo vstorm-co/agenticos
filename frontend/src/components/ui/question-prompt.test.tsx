@@ -73,10 +73,17 @@ describe("QuestionPrompt", () => {
     await userEvent.type(screen.getByPlaceholderText("Type your answer…"), "Soon");
     await userEvent.click(screen.getByRole("button", { name: "Use this" }));
     expect(screen.getByText("Question 2 of 2")).toBeInTheDocument();
+    expect(screen.getByText("Who will use it?").closest("[data-direction]")).toHaveAttribute(
+      "data-direction",
+      "forward",
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "Previous question" }));
 
     expect(screen.getByPlaceholderText("Type your answer…")).toHaveValue("Soon");
+    expect(
+      screen.getByPlaceholderText("Type your answer…").closest("[data-direction]"),
+    ).toHaveAttribute("data-direction", "backward");
     await userEvent.click(screen.getByRole("button", { name: "Go to question 2" }));
     expect(screen.getByText("Who will use it?")).toBeInTheDocument();
   });

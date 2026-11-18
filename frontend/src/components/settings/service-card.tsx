@@ -2,6 +2,7 @@
 
 import { useId, useState, type ReactNode } from "react";
 import { ChevronDown, type LucideIcon } from "lucide-react";
+import { DisclosureContent } from "@/components/ui/disclosure-content";
 import { useChanged } from "@/hooks/use-changed";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +64,7 @@ export function ServiceCard({
           <h2 aria-label={title} className="min-w-0 flex-1 text-sm font-semibold">
             {expandable ? (
               <button
+                id={`${panelId}-toggle`}
                 type="button"
                 aria-label={title}
                 aria-describedby={`${panelId}-description`}
@@ -73,7 +75,10 @@ export function ServiceCard({
               >
                 <ChevronDown
                   aria-hidden
-                  className={cn("mt-0.5 size-4 shrink-0", !open && "-rotate-90")}
+                  className={cn(
+                    "mt-0.5 size-4 shrink-0 transition-transform",
+                    !open && "-rotate-90",
+                  )}
                 />
                 <span className="min-w-0">
                   <span className="block">{title}</span>
@@ -99,13 +104,14 @@ export function ServiceCard({
         <div className="shrink-0">{action}</div>
       </header>
       {children && (
-        <div
+        <DisclosureContent
           id={panelId}
-          hidden={expandable && !open}
-          className="space-y-4 border-t px-4 py-4 sm:px-5"
+          open={!expandable || open}
+          triggerId={`${panelId}-toggle`}
+          mountOnOpen={false}
         >
-          {children}
-        </div>
+          <div className="space-y-4 border-t px-4 py-4 sm:px-5">{children}</div>
+        </DisclosureContent>
       )}
     </section>
   );

@@ -13096,8 +13096,7 @@
       "open": "Onayları aç",
       "fromWorkflow": "Workflow {workflow}",
       "fromAgent": "Agent {agent}",
-      "anAgent": "Bir agent",
-      "actionBy": "{source} · {action}"
+      "anAgent": "Bir agent"
     }
   },
   "agentLimit": {

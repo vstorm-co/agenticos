@@ -310,6 +310,31 @@ describe("approvals waiting on the reader", () => {
     expect(section).not.toHaveTextContent("Private run content");
   });
 
+  it("leads approvals with the action and keeps JSON and record IDs out of the preview", () => {
+    pending.tools = [
+      {
+        id: "crm",
+        tool_id: "hubspot_search-crm-objects",
+        agent_name: "Sales bro",
+        tool_args: {
+          request: JSON.stringify({ filterGroups: [{ filters: [{ value: "Oasis*" }] }] }),
+        },
+      },
+      {
+        id: "record",
+        tool_id: "agenticos_update_record",
+        tool_args: { record_id: "ed7b79b6-02bf-4303-a08c-9b95e37af56f" },
+      },
+    ];
+    render(<InboxPage />);
+    const section = screen.getByRole("region", { name: "Approval requests" });
+    expect(section).toHaveTextContent("Oasis*");
+    expect(section).toHaveTextContent("Sales bro");
+    expect(section).not.toHaveTextContent("filterGroups");
+    expect(section).not.toHaveTextContent("ed7b79b6");
+    expect(section.querySelector("li .font-medium")).not.toHaveTextContent("Oasis*");
+  });
+
   it("keeps the preview bounded and leaves every request reachable in the queue", () => {
     pending.steps = Array.from({ length: 7 }, (_, index) => ({
       id: `s${index}`,

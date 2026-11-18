@@ -194,3 +194,30 @@ describe("signing in with a directory account", () => {
     expect(screen.getByRole("button", { name: "Continue with Active Directory" })).toBeVisible();
   });
 });
+
+describe("credential refusal feedback", () => {
+  it.each([false, true])(
+    "marks only rejected credentials, including directory=%s",
+    async (directory) => {
+      vi.mocked(apiClient.post).mockRejectedValue(new ApiError(401, "Invalid credentials"));
+      mount();
+      if (directory) await openDirectoryForm();
+      await userEvent.type(
+        screen.getByLabelText(directory ? "Active Directory username" : "Email"),
+        directory ? "jdoe" : "ada@example.com",
+      );
+      const password = screen.getByLabelText("Password");
+      await userEvent.type(password, "retained-password");
+      await userEvent.click(screen.getByRole("button", { name: "Login" }));
+      await waitFor(() => expect(password).toHaveAttribute("aria-invalid", "true"));
+      expect(password).toHaveValue("retained-password");
+      expect(password).toHaveAccessibleDescription();
+      await userEvent.type(password, "1");
+      expect(password).toHaveAttribute("aria-invalid", "false");
+      vi.mocked(apiClient.post).mockRejectedValue(new ApiError(503, "Unavailable"));
+      await userEvent.click(screen.getByRole("button", { name: "Login" }));
+      await screen.findByRole("alert");
+      expect(password).toHaveAttribute("aria-invalid", "false");
+    },
+  );
+});

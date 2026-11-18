@@ -23,6 +23,7 @@ export function ApprovalsWaiting() {
     ...steps.map((step) => ({
       id: `step:${step.id}`,
       title: step.title,
+      detail: null,
       source: t("fromWorkflow", { workflow: step.workflow_name }),
       mark: (
         <span className="bg-muted/50 flex size-8 shrink-0 items-center justify-center rounded-lg">
@@ -38,11 +39,9 @@ export function ApprovalsWaiting() {
           callSummary(call.tool_args));
       return {
         id: `tool:${call.id}`,
-        title: summary ?? action,
-        source: t("actionBy", {
-          source: call.agent_name ? t("fromAgent", { agent: call.agent_name }) : t("anAgent"),
-          action,
-        }),
+        title: action,
+        detail: summary,
+        source: call.agent_name ? t("fromAgent", { agent: call.agent_name }) : t("anAgent"),
         mark: <ToolMark toolName={call.tool_id} className="bg-muted/50 border-0" />,
       };
     }),
@@ -61,20 +60,25 @@ export function ApprovalsWaiting() {
           <ChevronRight className="size-3.5" aria-hidden />
         </Link>
       </div>
-      <ul className="pb-2">
+      <ul className="space-y-1 px-2 pb-3 sm:px-3">
         {rows.map((row) => (
           <li key={row.id}>
             <Link
               href={queue}
-              className="group hover:bg-muted/40 focus-visible:bg-muted/40 flex min-h-16 items-center gap-3 px-4 py-2.5 outline-offset-[-2px] sm:px-5"
+              className="group hover:bg-muted/40 focus-visible:bg-muted/40 flex min-h-16 items-start gap-3 rounded-xl px-2 py-3 outline-offset-[-2px] transition-colors motion-reduce:transition-none"
             >
               {row.mark}
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-sm font-medium wrap-anywhere">{row.title}</span>
+                <span className="text-sm leading-5 font-medium wrap-anywhere">{row.title}</span>
+                {row.detail && (
+                  <span className="text-foreground/80 line-clamp-2 text-sm leading-5 wrap-anywhere">
+                    {row.detail}
+                  </span>
+                )}
                 <span className="text-muted-foreground text-xs wrap-anywhere">{row.source}</span>
               </span>
               <ChevronRight
-                className="text-muted-foreground/60 group-hover:text-foreground size-4 shrink-0"
+                className="text-muted-foreground/60 group-hover:text-foreground mt-1 size-4 shrink-0"
                 aria-hidden
               />
             </Link>

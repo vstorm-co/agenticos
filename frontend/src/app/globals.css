@@ -26,6 +26,81 @@
 @custom-variant motion-reduce (&:where([data-motion="reduce"], [data-motion="reduce"] *));
 @custom-variant motion-safe (&:where(:root:not([data-motion="reduce"]) *));
 
+:root {
+  interpolate-size: allow-keywords;
+}
+
+/* Theme changes replace a palette; component color fades must not trail it. */
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
+/* Grid is the cross-browser fallback; intrinsic sizing enhances supporting engines. */
+.disclosure-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  opacity: 0;
+}
+.disclosure-content[data-open="true"] {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  opacity: 1;
+}
+@supports (interpolate-size: allow-keywords) {
+  .disclosure-content {
+    display: block;
+    block-size: 0;
+    overflow: clip;
+  }
+  .disclosure-content[data-open="true"] {
+    block-size: auto;
+  }
+}
+:root:not([data-motion="reduce"]) .disclosure-content {
+  transition:
+    grid-template-rows var(--duration-base) var(--ease-out),
+    block-size var(--duration-base) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out),
+    visibility 0s var(--duration-base);
+}
+:root:not([data-motion="reduce"]) .disclosure-content[data-open="true"] {
+  transition-delay: 0s;
+}
+
+@starting-style {
+  :root:not([data-motion="reduce"]) .disclosure-content[data-open="true"] {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+@supports (interpolate-size: allow-keywords) {
+  @starting-style {
+    :root:not([data-motion="reduce"]) .disclosure-content[data-open="true"] {
+      block-size: 0;
+    }
+  }
+}
+
+/* Shared press feedback also covers feature controls that do not use Button.
+ * Low specificity lets specialized controls keep their own transitions. */
+:where(
+  :root:not([data-motion="reduce"])
+    button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not([role="slider"])
+) {
+  transition: scale 150ms ease-out;
+}
+:where(
+  :root:not([data-motion="reduce"])
+    button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not([role="slider"]):not(
+      :disabled
+    ):not([aria-disabled="true"]):not([data-loading="true"])
+):active {
+  scale: 0.97;
+}
+
 /* =========================================================================
    Design tokens.
 
@@ -885,7 +960,7 @@
   @keyframes dash-pop {
     from {
       opacity: 0;
-      transform: scale(0.94);
+      transform: scale(0.97);
     }
     to {
       opacity: 1;
@@ -1059,7 +1134,7 @@
 @keyframes step-card-in {
   0% {
     opacity: 0;
-    transform: translateY(10px) scale(0.94);
+    transform: translateY(6px) scale(0.97);
   }
   60% {
     opacity: 1;
@@ -1110,7 +1185,7 @@
 @keyframes bubble-rise {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.98);
+    transform: translateY(6px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -1238,7 +1313,7 @@
 @keyframes pop-in {
   from {
     opacity: 0;
-    transform: scale(0.6);
+    transform: scale(0.97);
   }
   to {
     opacity: 1;
@@ -2550,7 +2625,7 @@ body .tour-spotlight {
 @keyframes wizard-step-in {
   from {
     opacity: 0;
-    transform: translateX(10px);
+    transform: translateX(var(--wizard-step-offset, 10px));
   }
   to {
     opacity: 1;
@@ -2558,7 +2633,10 @@ body .tour-spotlight {
   }
 }
 .wizard-step-in {
-  animation: wizard-step-in 320ms var(--ease-out) both;
+  animation: wizard-step-in var(--duration-base) var(--ease-out) both;
+}
+.wizard-step-in[data-direction="backward"] {
+  --wizard-step-offset: -10px;
 }
 
 /* =========================================================================
@@ -3049,9 +3127,11 @@ body .tour-spotlight {
 @keyframes soft-enter {
   from {
     opacity: 0;
+    scale: 0.97;
   }
   to {
     opacity: 1;
+    scale: 1;
   }
 }
 .soft-enter {
@@ -3079,41 +3159,37 @@ body .tour-spotlight {
 .pressable-icon:active {
   background-color: var(--color-control-active);
 }
-@media (prefers-reduced-motion: no-preference) {
-  :root:not([data-motion="reduce"]) {
-    .sidebar-width-motion {
-      transition: width var(--duration-base) var(--ease-out);
-    }
-    .sidebar-group-content {
-      transition:
-        grid-template-rows var(--duration-base) var(--ease-out),
-        visibility var(--duration-base);
-    }
-    .pressable-control:not(.pressable-icon) {
-      transition:
-        background-color var(--duration-fast),
-        border-color var(--duration-fast),
-        color var(--duration-fast),
-        box-shadow var(--duration-fast),
-        translate var(--duration-fast) var(--ease-out);
-    }
-    .pressable-control:not(.pressable-icon):not(:disabled):not([aria-disabled="true"]):not(
-        [data-loading="true"]
-      ):active {
-      translate: 0 1px;
-      transition-duration: 70ms;
-    }
-    .pressable-icon {
-      transition:
-        background-color var(--duration-fast),
-        color var(--duration-fast),
-        box-shadow var(--duration-fast),
-        scale var(--duration-fast) var(--ease-out);
-    }
-    .pressable-icon:active {
-      scale: 0.94;
-      transition-duration: 70ms;
-    }
+:root:not([data-motion="reduce"]) {
+  .sidebar-width-motion {
+    transition: width var(--duration-base) var(--ease-out);
+  }
+  .sidebar-group-content {
+    transition:
+      grid-template-rows var(--duration-base) var(--ease-out),
+      visibility var(--duration-base);
+  }
+  .pressable-control:not(.pressable-icon) {
+    transition:
+      background-color var(--duration-fast),
+      border-color var(--duration-fast),
+      color var(--duration-fast),
+      box-shadow var(--duration-fast),
+      scale var(--duration-fast) var(--ease-out);
+  }
+  .pressable-control:not(.pressable-icon):not(:disabled):not([aria-disabled="true"]):not(
+      [data-loading="true"]
+    ):active {
+    scale: 0.97;
+  }
+  .pressable-icon {
+    transition:
+      background-color var(--duration-fast),
+      color var(--duration-fast),
+      box-shadow var(--duration-fast),
+      scale var(--duration-fast) var(--ease-out);
+  }
+  .pressable-icon:active {
+    scale: 0.97;
   }
 }
 

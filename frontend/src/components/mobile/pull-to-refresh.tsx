@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { animate, motion, useMotionValue, useTransform } from "motion/react";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { RefreshCw } from "lucide-react";
 
 import { useMounted } from "@/hooks/use-mounted";
@@ -46,7 +48,17 @@ export function PullToRefresh() {
   const mounted = useMounted();
   const enabled = mounted && pullable();
   const queryClient = useQueryClient();
-  const [pull, setPull] = useState(0);
+  const [visible, setVisible] = useState(false);
+  const distance = useMotionValue(0);
+  const y = useTransform(distance, (value) => value - PULL_THRESHOLD / 2);
+  const opacity = useTransform(distance, (value) => Math.min(1, value / PULL_THRESHOLD));
+  const rotate = useTransform(distance, (value) => value * 4);
+  const reduced = useReducedMotion();
+  const reducedRef = useRef(reduced);
+  useEffect(() => {
+    reducedRef.current = reduced;
+    if (reduced) distance.jump(0);
+  }, [reduced, distance]);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -55,15 +67,39 @@ export function PullToRefresh() {
     let start: { x: number; y: number } | null = null;
     let pulling = false;
     let past = false;
+    let busy = false;
+    let active = true;
+    const settle = () => {
+      distance.stop();
+      if (reducedRef.current) {
+        distance.jump(0);
+        setVisible(false);
+      } else {
+        animate(distance, 0, {
+          type: "spring",
+          duration: 0.5,
+          bounce: 0,
+          velocity: distance.getVelocity(),
+          onComplete: () => setVisible(false),
+        });
+      }
+    };
 
     const onStart = (event: TouchEvent) => {
-      if (event.touches.length !== 1 || !atTop(event.target, scroller)) return;
+      if (busy || event.touches.length !== 1 || !atTop(event.target, scroller)) return;
+      distance.stop();
       start = { x: event.touches[0]!.clientX, y: event.touches[0]!.clientY };
       pulling = false;
       past = false;
     };
     const onMove = (event: TouchEvent) => {
       if (start === null) return;
+      if (event.touches.length !== 1) {
+        start = null;
+        past = false;
+        settle();
+        return;
+      }
       const dx = event.touches[0]!.clientX - start.x;
       const dy = event.touches[0]!.clientY - start.y;
       if (!pulling) {
@@ -75,9 +111,13 @@ export function PullToRefresh() {
         }
         pulling = true;
       }
-      const distance = Math.min(Math.max(0, dy * DAMPING), PULL_MAX);
-      setPull(distance);
-      const beyond = distance >= PULL_THRESHOLD;
+      const damped = Math.max(0, dy * DAMPING);
+      const over = Math.max(0, damped - PULL_THRESHOLD);
+      const remaining = PULL_MAX - PULL_THRESHOLD;
+      const pulled = Math.min(damped, PULL_THRESHOLD) + (remaining * over) / (remaining + over);
+      setVisible(pulled > 0);
+      distance.set(pulled);
+      const beyond = pulled >= PULL_THRESHOLD;
       if (beyond !== past) {
         past = beyond;
         if (beyond) haptic("threshold");
@@ -86,11 +126,20 @@ export function PullToRefresh() {
     const onEnd = () => {
       if (start === null) return;
       start = null;
-      setPull(0);
-      if (!past) return;
+      if (!past) {
+        settle();
+        return;
+      }
       past = false;
+      busy = true;
       setRefreshing(true);
-      void queryClient.refetchQueries({ type: "active" }).finally(() => setRefreshing(false));
+      distance.jump(PULL_THRESHOLD);
+      void queryClient.refetchQueries({ type: "active" }).finally(() => {
+        if (!active) return;
+        busy = false;
+        setRefreshing(false);
+        settle();
+      });
     };
 
     const onCancel = () => {
@@ -103,33 +152,30 @@ export function PullToRefresh() {
     scroller.addEventListener("touchend", onEnd);
     scroller.addEventListener("touchcancel", onCancel);
     return () => {
+      active = false;
+      distance.stop();
       scroller.removeEventListener("touchstart", onStart);
       scroller.removeEventListener("touchmove", onMove);
       scroller.removeEventListener("touchend", onEnd);
       scroller.removeEventListener("touchcancel", onCancel);
     };
-  }, [enabled, queryClient]);
+  }, [enabled, queryClient, distance]);
 
-  if (!enabled || (pull === 0 && !refreshing)) return null;
-  const shown = refreshing ? PULL_THRESHOLD : pull;
+  if (!enabled || (!visible && !refreshing)) return null;
   return (
     <div
       aria-hidden
       data-testid="pull-to-refresh"
       className="pointer-events-none fixed inset-x-0 top-[var(--shell-inset-top,0px)] z-50 flex justify-center"
     >
-      <span
+      <motion.span
         className="bg-card text-foreground mt-2 rounded-full border p-2 shadow-sm"
-        style={{
-          transform: `translateY(${shown - PULL_THRESHOLD / 2}px)`,
-          opacity: shown / PULL_THRESHOLD,
-        }}
+        style={{ y, opacity }}
       >
-        <RefreshCw
-          className={cn("h-4 w-4", refreshing && "animate-spin")}
-          style={refreshing ? undefined : { transform: `rotate(${pull * 4}deg)` }}
-        />
-      </span>
+        <motion.span className="block" style={{ rotate: refreshing ? 0 : rotate }}>
+          <RefreshCw className={cn("h-4 w-4", refreshing && "motion-safe:animate-spin")} />
+        </motion.span>
+      </motion.span>
     </div>
   );
 }

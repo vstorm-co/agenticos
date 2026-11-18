@@ -4,7 +4,19 @@ import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { cn } from "@/lib/utils";
 
-const TooltipProvider = TooltipPrimitive.Provider;
+function TooltipProvider({
+  delayDuration = 350,
+  skipDelayDuration = 600,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  return (
+    <TooltipPrimitive.Provider
+      delayDuration={delayDuration}
+      skipDelayDuration={skipDelayDuration}
+      {...props}
+    />
+  );
+}
 const Tooltip = TooltipPrimitive.Root;
 const TooltipTrigger = TooltipPrimitive.Trigger;
 
@@ -20,7 +32,7 @@ const TooltipContent = React.forwardRef<
         // Deliberately NOT the accent. A tooltip is a neutral inverse surface:
         // it labels whatever it points at, so tinting it would imply the
         // labelled thing is the primary action.
-        "bg-foreground text-background data-[state=delayed-open]:animate-in data-[state=instant-open]:animate-in data-[state=closed]:animate-out fade-in-0 fade-out-0 zoom-in-98 zoom-out-98 z-50 max-w-[min(20rem,calc(100vw-1.5rem))] origin-[var(--radix-tooltip-content-transform-origin)] rounded-lg px-3 py-2 text-xs leading-relaxed break-words",
+        "bg-foreground text-background data-[state=delayed-open]:animate-in data-[state=instant-open]:animate-in data-[state=closed]:animate-out fade-in-0 fade-out-0 zoom-in-97 zoom-out-97 z-50 max-w-[min(20rem,calc(100vw-1.5rem))] origin-[var(--radix-tooltip-content-transform-origin)] rounded-lg px-3 py-2 text-xs leading-relaxed break-words",
         className,
       )}
       {...props}

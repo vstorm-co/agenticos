@@ -96,7 +96,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (checking && !isAuthenticated) {
     return (
-      <div className="flex h-screen items-center justify-center" role="status" aria-live="polite">
+      <div className="flex h-dvh items-center justify-center" role="status" aria-live="polite">
         <Spinner className="text-muted-foreground h-6 w-6" />
         <span className="sr-only">{t("checkingAuthentication")}</span>
       </div>
@@ -105,7 +105,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (unavailable && !isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex min-h-dvh items-center justify-center p-4">
         <ErrorState
           className="w-full max-w-md"
           title={t("sessionUnavailable")}
@@ -126,7 +126,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (unstagedToken && !isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex min-h-dvh items-center justify-center p-4">
         <ErrorState
           className="w-full max-w-md"
           title={t("invitationNotStaged")}

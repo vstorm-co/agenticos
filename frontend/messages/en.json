@@ -14882,8 +14882,7 @@
       "open": "Open approvals",
       "fromWorkflow": "Workflow {workflow}",
       "fromAgent": "Agent {agent}",
-      "anAgent": "An agent",
-      "actionBy": "{source} · {action}"
+      "anAgent": "An agent"
     }
   },
   "datasets": {

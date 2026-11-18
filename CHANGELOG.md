@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep streamed chat steps and expanded work details mounted after their first visit, so folding earlier activity no longer discards in-progress input. Animate disclosures with an intrinsic-size transition and a CSS-grid fallback, while preserving keyboard focus and hiding collapsed content from assistive technology.
+- Show the requested action, a readable subject and the requesting agent in Inbox approvals instead of serialized MCP requests or opaque record IDs. Preserve redacted approval boundaries.
+- Give chat drafts a dedicated action row, readable field spacing and stable version selection when streamed revisions change.
+- Apply consistent press feedback, restrained overlay entrances, grouped tooltip delays and direction-aware wizard transitions across the console. Suppress component transitions during theme changes and honor live reduced-motion preferences in dashboard tips and mobile gestures.
+- Move browser cursors and progress fills with transforms, and return interrupted mobile swipes and pull-to-refresh indicators with velocity-aware springs. Preserve native horizontal scrolling and its platform inertia.
+- Associate rejected sign-in credentials with the password field and provide repeatable motion feedback without clearing input. Server failures do not mark credentials invalid, and reduced motion keeps the inline error without shaking.
+
 ## [1.82.2] - 2026-11-18
 
 ### Added

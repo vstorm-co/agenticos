@@ -137,9 +137,9 @@ export function VoiceApprovalCard({
         className="bg-muted -mt-1 h-[3px] overflow-hidden rounded-full"
       >
         <div
-          className="bg-warning h-full motion-safe:transition-[width] motion-safe:duration-1000 motion-safe:ease-linear"
+          className="bg-warning h-full w-full origin-left motion-safe:transition-transform motion-safe:duration-1000 motion-safe:ease-linear"
           style={{
-            width: `${approval.timeoutSeconds > 0 ? Math.min(100, (left / approval.timeoutSeconds) * 100) : 0}%`,
+            transform: `scaleX(${approval.timeoutSeconds > 0 ? Math.min(1, left / approval.timeoutSeconds) : 0})`,
           }}
         />
       </div>
