@@ -3177,3 +3177,19 @@ async def test_discovery_skips_personal_models_that_the_root_did_not_authorize(
         )
     assert prepared.runtime.named("agent-unapproved") is None
     assert prepared.resolved.await_count == 1
+
+
+@pytest.mark.security
+async def test_discovery_does_not_hide_other_model_configuration_errors() -> None:
+    child_id = uuid.uuid4()
+    profile = _profile(UNUSABLE_PROFILE)
+    child = _version(child_id, AgentSpec(name="Broken", model_profile_id=profile.id))
+    ref = SubagentRef(agent_id=child_id, agent_version_id=child.id)
+    root = _delegating()
+    root.capabilities[0].config["allow_any_agent"] = True
+    with (
+        patch.object(AgentRegistryService, "accessible_delegates", AsyncMock(return_value=[ref])),
+        patch.object(AgentRegistryService, "get", AsyncMock()),
+        pytest.raises(BadRequestError, match="no key configured"),
+    ):
+        await _prepare(root, versions={child.id: child}, profiles=[profile])

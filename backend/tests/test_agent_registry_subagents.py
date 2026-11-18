@@ -1308,3 +1308,14 @@ async def test_promotion_refuses_a_legacy_organization_root_with_personal_delega
     with pytest.raises(BadRequestError) as refused:
         await AgentRegistryService(_db()).refuse_borrowed_sign_ins(ctx, root)
     assert refused.value.code == "PERSONAL_MODEL_CONSENT"
+
+
+@pytest.mark.security
+async def test_personal_inline_specialist_cannot_select_an_unapproved_profile() -> None:
+    root = _delegating({"inline": [_specialist(model_profile_id=str(uuid4()))]}).model_copy(
+        update={"model_credential_mode": "personal"}
+    )
+    problems = await AgentRegistryService(_db()).personal_delegation_problems(_ctx(), root)
+    assert len(problems) == 1
+    assert "Specialist 'summariser'" in problems[0]
+    assert "same model connection" in problems[0]
