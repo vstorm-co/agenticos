@@ -198,3 +198,9 @@ changes were applied only to that disposable copy, retaining its data and legacy
 columns. This preview is not evidence of an upgrade from that old branch; the
 canonical migration round-trip above uses the separate current-schema QA database.
 The preview's API does not run a worker or submit scheduled/model work.
+
+Native-history state is checked independently of container retention: a pruned
+CLI conversation that restarts successfully is reported as new, while a real
+continuation remains marked continued. Seven focused regressions cover that
+state and its propagation into the personal result; the related 154-test coding
+batch passed. Four native-state cases reproduced the missing state before the fix.

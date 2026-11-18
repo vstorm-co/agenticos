@@ -359,7 +359,11 @@ def build_coding_toolset(
                                 "base_revision": personal.base_revision,
                                 "result_archive": personal.result_archive,
                                 "session_name": session,
-                                "session_resumed": personal.resumed and not fresh_session,
+                                "session_resumed": (
+                                    report.session_resumed
+                                    if report.session_resumed is not None
+                                    else personal.resumed and not fresh_session
+                                ),
                             }
                         ).model_dump_json(exclude_defaults=True)
                     finally:
@@ -652,6 +656,7 @@ def build_coding_toolset(
     ) -> CodingReport | str:
         session_id = None if fresh_session else await remembered_session(ctx, harness, session)
         report = await attempt(ctx, task, session_id, narration, home=home)
+        continued_history = session_id is not None
         if (
             isinstance(report, CodingReport)
             and session_id
@@ -661,6 +666,9 @@ def build_coding_toolset(
             # A session the sandbox no longer holds - a fresh container, a session
             # the harness pruned - fails before any step. Once, from nothing.
             report = await attempt(ctx, task, None, narration, home=home)
+            continued_history = False
+        if personal_isolated and isinstance(report, CodingReport):
+            report = report.model_copy(update={"session_resumed": continued_history})
         if isinstance(report, CodingReport) and report.session_id:
             await remember_session(ctx, harness, report.session_id, session)
         return report
