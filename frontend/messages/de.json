@@ -12765,6 +12765,7 @@
     "mappingDeleted": "Zuordnung gelöscht"
   },
   "apiKeys": {
+    "personalMcpWhy": "Die Delegierung persönlicher MCP-Verbindungen ist in keiner Voreinstellung enthalten. Wähle unter Custom mcp:personal:use und agents:run, damit dieser Schlüssel oder diese App deine MCP-Verbindungen in externen Agent-Runs nutzen kann. Wer die Zugangsdaten besitzt, kann diese Verbindungen in deinem Namen nutzen. Persönliche Erinnerungen, Chatverläufe und angemeldete Browsersitzungen bleiben unzugänglich.",
     "title": "API-Schlüssel",
     "why": "Mit Schlüsseln ruft ein Skript, ein HTTP-Client oder ein MCP-Client die API dieser Organisation in Ihrem Namen auf, beschränkt auf das, was Sie auswählen. Ein Schlüssel kann nie mehr als Sie heute.",
     "createTitle": "Schlüssel erstellen",

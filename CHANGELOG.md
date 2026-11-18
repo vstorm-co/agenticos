@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Let external agent runs use the API key or OAuth token issuer's personal MCP connections with the explicit `mcp:personal:use` scope. Existing credentials and presets retain organization-only access; resumed runs and subagents retain the original caller, with live credential and connected-account checks before tool calls (#3154).
+
 ## [1.82.2] - 2026-11-18
 
 ### Added

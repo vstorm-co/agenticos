@@ -2795,3 +2795,41 @@ async def test_nested_delegates_retain_an_inherited_shared_computer_requirement(
     built = prepared.built("middle", "summariser")
     assert not built["spec"].capabilities
     assert any(isinstance(cap, RequestComputerOnUse) for cap in built["extra_capabilities"])
+
+
+@pytest.mark.security
+async def test_personal_mcp_delegation_keeps_the_same_subject_and_call_guard_in_a_delegate():
+    from pydantic_ai.toolsets import FunctionToolset
+
+    from app.agents.mcp import AuthorityChecked
+
+    ctx = replace(
+        _ctx(),
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.AGENTS_RUN, Perm.MCP_PERSONAL_USE}),
+    )
+    delegate_id = uuid.uuid4()
+    pinned = _version(
+        delegate_id,
+        AgentSpec(
+            name="personal-reader",
+            mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
+        ),
+    )
+    spec = _delegating(subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)])
+    check = AsyncMock()
+    with (
+        patch(f"{RUNNER}._personal_mcp_check", return_value=check),
+        patch(
+            f"{RUNNER}.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets([FunctionToolset()], [])),
+        ) as tools,
+        patch.object(AgentRunnerService, "_add_mirage_terminal", new=AsyncMock()) as terminal,
+    ):
+        prepared = await _prepare(spec, ctx=ctx, versions={pinned.id: pinned})
+        built = prepared.built("personal-reader")
+    assert all(call.kwargs["sender_user_id"] == ctx.user_id for call in tools.await_args_list)
+    wrapped = built["extra_toolsets"][0]
+    assert isinstance(wrapped, AuthorityChecked)
+    assert wrapped.check is check
+    assert all(call.kwargs["person_id"] is None for call in terminal.await_args_list)
