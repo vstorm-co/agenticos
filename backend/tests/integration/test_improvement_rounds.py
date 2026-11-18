@@ -215,6 +215,42 @@ async def test_regression_starts_a_blind_second_round_and_best_is_selectable(db)
     assert current is not None and current.id == ready.iterations[0].batch_id
 
 
+async def test_a_session_ending_on_a_kept_attempt_notifies_about_that_attempt(db):
+    """The kept attempt can be older than the latest; the notice describes the one kept."""
+    ctx, agent, started, _, _ = await _two_rounds(db)
+    one, two = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=started.id
+    )
+    one.verdict = "criteria_better"
+    one.verdict_detail = {
+        **(one.verdict_detail or {}),
+        "criteria": [
+            {
+                "scorer": "judge",
+                "name": "price break",
+                "graded": 5,
+                "before": 1,
+                "after": 5,
+                "fixed": 4,
+                "broken": 0,
+            }
+        ],
+    }
+    assert two.verdict == "better"
+    run = await db.get(ImprovementRun, started.id)
+    assert run is not None
+    run.best_iteration_id = one.id
+    await db.flush()
+
+    await ImprovementPipelineService(db)._notify_end(run, end="kept")
+
+    notice = await db.scalar(
+        select(Notification).where(Notification.occurrence_id == f"{started.id}:kept")
+    )
+    assert notice is not None
+    assert [item["name"] for item in notice.render_context["criteria"]] == ["price break"]
+
+
 async def test_an_attempt_whose_draw_would_leave_too_few_to_measure_is_never_written(db):
     ctx, agent, _ = await _setup(db)
     dataset, _ = await _marked_dataset(db, ctx, share=Decimal("0.5"))

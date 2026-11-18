@@ -1693,8 +1693,9 @@ class NotificationService:
         ready. `end` names which end this is, so the next one is not taken for a
         repeat of the last. No evidence text is put in the notification.
         `next_step_blocked` says why a stop's next step cannot be taken.
-        `verdict` and `criteria` are the latest attempt's: the criteria it
-        moved are named when no whole question decided it.
+        `verdict` and `criteria` are the kept attempt's once one is offered or
+        decided, the latest attempt's before: the criteria it moved are named
+        when no whole question decided it.
         """
         moved = moved_criteria(verdict, criteria)
         if user_id is None:

@@ -240,6 +240,10 @@ class ContinuationPlan:
     quote: ContinuationEstimate
 
 
+_DECIDING_ON_BEST = frozenset({Status.READY, Status.ACCEPTED, Status.PUBLISHED, Status.REJECTED})
+"""Ends that offer or decide the kept attempt, which is not always the latest one."""
+
+
 def blocked_next_step(
     run: ImprovementRun, iteration: ImprovementIteration | None
 ) -> NextStepBlocked | None:
@@ -2199,6 +2203,12 @@ class ImprovementPipelineService:
         current = await improvement_repo.get_iteration(
             self.db, organization_id=run.organization_id, run_id=run.id, number=run.iteration
         )
+        described = current
+        if run.status in _DECIDING_ON_BEST and run.best_iteration_id is not None:
+            rounds = await improvement_repo.list_iterations(
+                self.db, organization_id=run.organization_id, run_id=run.id
+            )
+            described = next((item for item in rounds if item.id == run.best_iteration_id), current)
         await NotificationService(self.db).improvement_finished(
             agent=agent,
             run_id=run.id,
@@ -2207,8 +2217,10 @@ class ImprovementPipelineService:
             reason=reason or (run.stage if run.status == Status.WAITING else run.stop_reason),
             end=end,
             next_step_blocked=blocked_next_step(run, current),
-            verdict=None if current is None else current.verdict,
-            criteria=[] if current is None else (current.verdict_detail or {}).get("criteria", []),
+            verdict=None if described is None else described.verdict,
+            criteria=[]
+            if described is None
+            else (described.verdict_detail or {}).get("criteria", []),
         )
 
     async def check_finished(self, check: EvalRun) -> None:
