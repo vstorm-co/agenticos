@@ -531,7 +531,8 @@ async def test_new_console_agent_gets_common_work_tools_without_agenticos_only_a
         "subagents",
     } <= bindings.keys()
     assert not (bindings.keys() & {"coding_agent", "computer_use", "browser_use"})
-    assert bindings["subagents"].config["allow_dynamic"] is True
+    assert bindings["subagents"].config["allow_dynamic"] is False
+    assert bindings["subagents"].config["allow_any_agent"] is True
     names = {
         skill.name
         for skill in (

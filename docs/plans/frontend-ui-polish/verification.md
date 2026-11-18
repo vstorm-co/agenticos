@@ -247,3 +247,18 @@ enabled for this starter and shown beside Delegates in the Builder. Existing
 backend rules preserve tenant/run permissions, pinned versions, ancestor
 exclusion, revocation checks and unattended-routine restrictions. The prompt
 policy does not claim to enforce user intent with a runtime keyword filter.
+
+Verification for the browser/desktop/delegation follow-up:
+
+- 510 selected browser, route, template and delegate-resolution tests passed;
+  415 catalog/registry/browser/security tests and the final 47-test regression
+  batch also passed (these counts overlap).
+- 80 selected frontend tests passed, followed by the 29-test Delegates file with
+  the additional read-only case. Type checking and translation checks passed.
+- Backend lint passed. All 14 shipped-agent integration tests passed on isolated
+  PostgreSQL, including inherited delegation defaults and preservation of edits.
+- The populated preview's AgenticOS was published as version 5. The stored
+  version was checked for Built in / 100 browser steps, desktop sandbox,
+  Computer use and published-agent discovery; its model, MCP bindings, context
+  and pinned delegates were preserved. Browser and sandbox containers are not
+  running in this local preview, so no live desktop success is claimed.
