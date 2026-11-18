@@ -326,6 +326,7 @@ async def test_only_the_answers_the_infrastructure_lost_are_asked_again() -> Non
     assert forgotten == {timed_out.agent_run_id}
 
 
+@pytest.mark.security
 @pytest.mark.parametrize(
     ("status", "linked", "session", "budget"),
     [
@@ -352,6 +353,7 @@ async def test_lost_answers_are_left_when_the_check_or_its_session_cannot_pay_fo
     assert (asked, queued, forgotten) == (False, [], set())
 
 
+@pytest.mark.security
 async def test_lost_answers_are_asked_again_when_the_budget_just_covers_them() -> None:
     lost = [_attempt(status="failed", fault=AttemptFault.INFRASTRUCTURE.value) for _ in range(2)]
 
