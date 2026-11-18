@@ -5680,12 +5680,18 @@ class TestReusableSourcePrompt:
                 assert repo.update.await_args.kwargs["update_data"]["prompt"] == "{{broken"
 
     @pytest.mark.parametrize("result_mode", ["inbox", "report"])
-    async def test_preview_and_live_execution_use_identical_unclipped_message(self, result_mode):
+    async def test_preview_and_live_execution_use_identical_unclipped_message(
+        self, result_mode, monkeypatch
+    ):
         from app.schemas.agent_trigger import TriggerPromptPreviewCreate
 
         agent = _agent()
         service = _service(agent)
+        source_id = uuid.uuid4()
+        use_source = AsyncMock(return_value=SimpleNamespace(is_active=True))
+        monkeypatch.setattr("app.services.event_sources.EventSourceService.require_use", use_source)
         trigger = _event_trigger(
+            source_id=source_id,
             agent_id=agent.id,
             prompt_mode="template",
             prompt="Review {{issue.title}}",
@@ -5696,7 +5702,7 @@ class TestReusableSourcePrompt:
             _ctx(),
             agent.id,
             TriggerPromptPreviewCreate(
-                prompt=trigger.prompt, payload=body, result_mode=result_mode
+                prompt=trigger.prompt, payload=body, result_mode=result_mode, source_id=source_id
             ),
         )
         with (
@@ -5712,7 +5718,13 @@ class TestReusableSourcePrompt:
             runner.return_value.execute = AsyncMock(
                 return_value=("done", MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED.value))
             )
-            await service.fire(trigger.id, event_body=body, event_context="clipped context")
+            await service.fire(
+                trigger.id,
+                event_body=body,
+                event_context="clipped context",
+                event_source_id=source_id,
+            )
+        assert [call.args[1] for call in use_source.await_args_list] == [source_id, source_id]
         assert runner.return_value.execute.await_args.args[2] == preview.resolved_prompt
         assert "clipped context" not in preview.resolved_prompt
         assert "y" * 3000 in preview.resolved_prompt

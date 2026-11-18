@@ -49,11 +49,16 @@ describe("useWorkflowExposure", () => {
       () => [
         useWorkflowExposure("wf", "trigger.webhook", 0),
         useWorkflowExposure("wf", "trigger.webhook", 1),
+        useWorkflowExposure("wf", "trigger.webhook", 2),
       ],
       { wrapper },
     );
     await waitFor(() =>
-      expect(result.current.map(({ exposure }) => exposure?.id)).toEqual(["dedicated", "shared"]),
+      expect(result.current.map(({ exposure }) => exposure && exposure.id)).toEqual([
+        "dedicated",
+        "shared",
+        null,
+      ]),
     );
   });
 
