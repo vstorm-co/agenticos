@@ -6,6 +6,24 @@ background execution come from
 what lives here is who an agent may delegate to, under which ceilings, and what
 every delegation is recorded as having cost.
 
+## Personal model credentials
+
+In signed-in web chat, the runner resolves each published delegate's configured
+credential mode for the original caller. Personal-mode delegates require that
+caller's connection and the exact model profile selected on a personal-mode root.
+An organization-mode root cannot spend a personal delegate's key, and a personal
+root cannot select another personal model through delegation. These restrictions
+are checked at publish, surface admission, promotion and runtime. No key is forwarded
+from the parent and no organization key substitutes for a missing connection.
+The tree is resolved again after an approval park, using the original owner
+rather than the approver. Personal MCP authority follows its existing rules.
+
+Inline specialists inherit their parent's credential mode. Dynamic specialists
+in personal mode are restricted to the parent's configured model, so an invented
+specialist cannot select a different destination or spend an organization key.
+Other surfaces still refuse personal-mode delegates. See
+[personal model keys](../../../../../docs/models.md#personal-model-keys).
+
 ## Why an adapter rather than registering the library's capability
 
 `thinking` registers Pydantic AI's own class and has no `_capability.py` at all,

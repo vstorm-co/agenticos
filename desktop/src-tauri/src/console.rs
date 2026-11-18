@@ -352,6 +352,7 @@ mod tests {
             "allow-download-docker",
             "allow-open-docker",
             "allow-local-instances",
+            "allow-update-local",
             "allow-set-up-local",
         ] {
             assert!(permissions.iter().any(|value| value.as_str() == Some(permission)));

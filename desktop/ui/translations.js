@@ -1,4 +1,71 @@
 export const TRANSLATIONS = {
+  "Reapply workspace update": {
+    pl: "Zastosuj aktualizację ponownie",
+    de: "Workspace-Update erneut anwenden",
+    tr: "Çalışma alanı güncellemesini yeniden uygula",
+  },
+  "The desktop app and local workspaces update separately. Updating saves a backup, then restarts the workspace.":
+    {
+      pl: "Aplikacja desktopowa i lokalne workspace’y aktualizują się osobno. Aktualizacja zapisuje kopię zapasową, a następnie uruchamia workspace ponownie.",
+      de: "Desktop-App und lokale Workspaces werden separat aktualisiert. Das Update sichert die Daten und startet den Workspace neu.",
+      tr: "Masaüstü uygulaması ve yerel çalışma alanları ayrı güncellenir. Güncelleme bir yedek kaydeder, ardından çalışma alanını yeniden başlatır.",
+    },
+  "Desktop app": {
+    pl: "Aplikacja desktopowa",
+    de: "Desktop-App",
+    tr: "Masaüstü uygulaması",
+  },
+  "Update target": {
+    pl: "Wersja docelowa",
+    de: "Zielversion",
+    tr: "Hedef sürüm",
+  },
+  "Workspace version unavailable; target": {
+    pl: "Wersja workspace’u niedostępna; wersja docelowa",
+    de: "Workspace-Version unbekannt; Zielversion",
+    tr: "Çalışma alanı sürümü bilinmiyor; hedef",
+  },
+  "Update local workspace": {
+    pl: "Zaktualizuj lokalny workspace",
+    de: "Lokalen Workspace aktualisieren",
+    tr: "Yerel çalışma alanını güncelle",
+  },
+  "Waiting for update confirmation…": {
+    pl: "Czekam na potwierdzenie aktualizacji…",
+    de: "Warten auf die Update-Bestätigung…",
+    tr: "Güncelleme onayı bekleniyor…",
+  },
+  "Workspace updated. Connect to continue.": {
+    pl: "Workspace zaktualizowany. Połącz się, aby kontynuować.",
+    de: "Workspace aktualisiert. Verbinden Sie sich, um fortzufahren.",
+    tr: "Çalışma alanı güncellendi. Devam etmek için bağlanın.",
+  },
+  "Workspace update cancelled.": {
+    pl: "Anulowano aktualizację workspace’u.",
+    de: "Workspace-Update abgebrochen.",
+    tr: "Çalışma alanı güncellemesi iptal edildi.",
+  },
+  "Workspace update failed. Resolve the error and retry.": {
+    pl: "Aktualizacja workspace’u nie powiodła się. Usuń przyczynę błędu i spróbuj ponownie.",
+    de: "Workspace-Update fehlgeschlagen. Beheben Sie den Fehler und versuchen Sie es erneut.",
+    tr: "Çalışma alanı güncellenemedi. Hatayı giderip yeniden deneyin.",
+  },
+  "Downloading workspace images…": {
+    pl: "Pobieram obrazy workspace’u…",
+    de: "Workspace-Images werden heruntergeladen…",
+    tr: "Çalışma alanı imajları indiriliyor…",
+  },
+  "Backing up the database, files and keys…": {
+    pl: "Tworzę kopię zapasową bazy danych, plików i kluczy…",
+    de: "Datenbank, Dateien und Schlüssel werden gesichert…",
+    tr: "Veritabanı, dosyalar ve anahtarlar yedekleniyor…",
+  },
+  "Restarting the workspace and checking health…": {
+    pl: "Uruchamiam workspace ponownie i sprawdzam stan usług…",
+    de: "Workspace wird neu gestartet und geprüft…",
+    tr: "Çalışma alanı yeniden başlatılıyor ve durumu denetleniyor…",
+  },
+
   "Welcome to AgenticOS": {
     pl: "Witaj w AgenticOS",
     de: "Willkommen bei AgenticOS",

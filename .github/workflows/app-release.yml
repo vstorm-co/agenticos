@@ -201,6 +201,19 @@ jobs:
             Remove-Item $file
           }
           $config | ConvertTo-Json -Depth 4 | Set-Content desktop/src-tauri/tauri.windows.release.conf.json
+      - name: Select the Linux release build command
+        id: linux-build
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Older release trees predate the pre-upload AppImage validator.
+          if [ -f scripts/build_linux_desktop_release.sh ]; then
+            echo 'command=bash ../scripts/build_linux_desktop_release.sh' >> "$GITHUB_OUTPUT"
+          else
+            echo '::warning::This release predates the Linux build wrapper; building directly with Tauri without pre-upload AppImage validation.'
+            echo 'command=bunx tauri' >> "$GITHUB_OUTPUT"
+          fi
       - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -210,7 +223,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: desktop
-          tauriScript: ${{ runner.os == 'Linux' && 'bash ../scripts/build_linux_desktop_release.sh' || '' }}
+          tauriScript: ${{ steps.linux-build.outputs.command }}
           releaseId: ${{ needs.resolve.outputs.id }}
           tagName: ${{ needs.resolve.outputs.tag }}
           args: --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json ${{ runner.os == 'Windows' && '--config src-tauri/tauri.windows.release.conf.json' || '' }} -- --locked

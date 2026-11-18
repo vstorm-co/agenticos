@@ -1,5 +1,5 @@
 ---
-source_sha: "d8ab63f0a753"
+source_sha: "f35b4353727e"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -195,6 +195,36 @@ Arbeit, mit einem Grund am Run oder an der Anfrage.
 
 Der Ablauf begrenzt nur, was ein Schlüssel starten kann: Arbeit, die er gültig gestartet
 hat, läuft nach seinem Ablauf weiter.
+
+### Persönliche MCP-Verbindungen ausdrücklich delegieren { #explicit-personal-mcp-delegation }
+
+Wähle unter **Settings → API → Create key → Custom** `agents:run` und
+`mcp:personal:use`, damit externe Runs die MCP-Konten des Schlüsselausstellers
+nutzen. OAuth-Clients erfordern dieselbe ausdrückliche Auswahl. Keine
+Voreinstellung, auch Full access nicht, enthält diesen Scope. Bestehende
+Zugangsdaten erhalten ihn nicht automatisch.
+
+Dies betrifft nur veröffentlichte MCP-Bindungen mit `account: personal`.
+Organisationsbindungen behalten ihr konfiguriertes Konto. Eine fehlende
+persönliche Verbindung fällt nie auf ein Organisations- oder Herausgeberkonto
+zurück. Verbinde oder repariere das Konto vor dem erneuten API-Aufruf in der
+Konsole. Persönliche Erinnerungen, alte Chats, angemeldete Browsersitzungen,
+persönliche Terminals und benutzerbezogene Workspaces bleiben geschlossen.
+Interne Agent-Zugangsdaten dürfen die Berechtigung nicht weiterdelegieren.
+
+Ursprüngliche Zugangsdaten, Aussteller und Agent-Zugriff werden bei Zulassung,
+Fortsetzung und vor MCP-Aufrufen geprüft, auch für Delegaten. Ablauf oder Widerruf
+verhindert weitere Aufrufe; eine bereits laufende Anfrage an die Quelle wird nicht
+abgebrochen. Trennen, Ersetzen oder Einschränken eines MCP-Kontos sperrt auch
+seine zwischengespeicherten Tools; verbinde es erneut und starte einen neuen Run.
+
+Ein pausierter Run bleibt an die ursprünglichen Zugangsdaten gebunden,
+auch an den Ablauf des OAuth-Tokens, und kann keine Konten der genehmigenden Person
+nutzen. Mit neuen Zugangsdaten kann der Client einen neuen Run starten. Alte pausierte
+Runs erhalten keine MCP-Delegierung. Die bestehende Zuordnung von Benutzer, Schlüssel
+und Verbindungskennungen bleibt im Audit erhalten; Geheimnisse gelangen weder in
+Prompts noch ins Audit.
+
 
 ## Der Organisations-Header { #the-organization-header }
 

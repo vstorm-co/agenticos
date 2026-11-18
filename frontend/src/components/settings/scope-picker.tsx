@@ -89,6 +89,11 @@ export function ScopePicker({
           </SelectContent>
         </Select>
       </div>
+      {catalog.scopes.includes(Perm.mcpPersonalUse) && (
+        <p id={`${id}-personal-mcp`} className="text-muted-foreground text-xs">
+          {t("personalMcpWhy")}
+        </p>
+      )}
       {custom ? (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
@@ -117,6 +122,9 @@ export function ScopePicker({
               >
                 <Checkbox
                   disabled={disabled}
+                  aria-describedby={
+                    scope === Perm.mcpPersonalUse ? `${id}-personal-mcp` : undefined
+                  }
                   checked={choice.custom.includes(scope)}
                   onCheckedChange={(on) => choice.toggle(scope, on === true)}
                 />
