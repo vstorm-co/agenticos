@@ -27,6 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **Improve proposals on Anthropic models through OpenRouter.** The Improve helper's **Changes** step failed with HTTP 400, because the answer tool was sent strict and a proposal's free JSON value has no type in its schema. An answer schema a strict tool cannot express (a free JSON value, numeric or length bounds, `minItems` above one) now goes through a non-strict tool, still checked against the schema and sent back when it breaks it; any other schema keeps the provider's default, so Gemini still validates every call (#3146).
 
+- **Adding a capability in an Improve proposal.** A helper that named an addition `capabilities/<id>`, the way the prompt lists a bound capability, had it refused as not a target; it is now read as adding that capability.
+
 ### Upgrading
 
 - Migration `0342_criterion_verdicts` widens the improvement verdict, stop reason and skill-check agent state constraints and adds `skill_check_agents.criteria`. Its downgrade reads the new verdicts and states as `no_change`.
