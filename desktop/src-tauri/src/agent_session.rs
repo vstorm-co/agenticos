@@ -282,7 +282,7 @@ fn cursor_account_environment(command: &mut tokio::process::Command) {
 }
 
 /// Start `program` in `cwd` and begin collecting what it writes.
-#[cfg(test)]
+#[cfg(all(test, unix))]
 fn spawn(program: &Path, args: &[String], cwd: &Path, path_env: Option<String>) -> Result<Session, Refusal> {
     spawn_authenticated(program, args, cwd, path_env, crate::external_agents::Provider::Custom)
 }
