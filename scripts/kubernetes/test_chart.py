@@ -1,12 +1,19 @@
 """Render the real chart and enforce deployment and refusal contracts."""
 
+import base64
 import json
 import os
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import yaml
+from local_integrations import Cluster, keycloak
+from model_fixture import sandbox_message
+from opensandbox_ports import render as render_ports
+from openshift_fixtures import fixtures
 
 ROOT = Path(__file__).resolve().parents[2]
 HELM = os.environ.get("HELM", "helm")
@@ -49,6 +56,171 @@ def render(*arguments: str) -> list[dict[str, object]]:
 
 
 class ChartTest(unittest.TestCase):
+    def test_oidc_upgrade_preserves_the_installed_candidate_images(self) -> None:
+        for digest in ("", "sha256:" + "a" * 64):
+            with self.subTest(digest=digest):
+                self._assert_oidc_preserves_images(digest)
+
+    def _assert_oidc_preserves_images(self, digest: str) -> None:
+        values = {
+            "image": {
+                "backend": "example/backend",
+                "frontend": "example/console",
+                "tag": "candidate-1.82.2",
+                "frontendTag": "candidate-console",
+                "backendDigest": digest,
+                "frontendDigest": digest,
+            },
+            "frontend": {"extraEnv": {"OIDC_PROVIDER_NAME": "Local SSO"}},
+            "extraEnv": {"PUBLIC_API_URL": "https://api.candidate.test"},
+        }
+        cluster = Mock(spec=Cluster)
+        cluster.optional.side_effect = [
+            None,
+            {"data": {"existing": "preserved"}},
+        ]
+        upgrades: list[tuple[str, ...]] = []
+        submitted: list[dict[str, object]] = []
+
+        def run(*args: str) -> str:
+            if args[:3] == ("helm", "get", "values"):
+                return json.dumps(values)
+            if args[:2] == ("helm", "upgrade"):
+                upgrades.append(args)
+                submitted.append(obj(yaml.safe_load(Path(args[args.index("-f") + 1]).read_text())))
+                return "Upgraded"
+            if "router-ca" in args:
+                return base64.b64encode(b"local-test-certificate").decode()
+            return "Ready"
+
+        cluster.run.side_effect = run
+        keycloak(cluster)
+        self.assertEqual(len(upgrades), 1)
+        self.assertNotIn("--set", upgrades[0])
+        self.assertEqual(submitted[0]["image"], values["image"])
+        self.assertEqual(submitted[0]["frontend"], values["frontend"])
+        self.assertEqual(
+            at(submitted[0], "extraEnv", "PUBLIC_API_URL"),
+            "https://api.candidate.test",
+        )
+        self.assertEqual(at(submitted[0], "extraEnv", "OIDC_CLIENT_ID"), "agenticos")
+        cluster.probe.assert_called_once_with("oidc_probe.py", certificate="local-test-certificate")
+
+    def test_local_integrations_refuse_other_clusters_before_any_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            kubeconfig = Path(temporary) / "kubeconfig"
+            kubeconfig.touch()
+            with patch.object(Cluster, "run", return_value="https://production.example.com") as run:
+                with self.assertRaisesRegex(ValueError, "refuse a cluster other than CRC"):
+                    Cluster(kubeconfig)
+                run.assert_called_once_with("oc", "whoami", "--show-server")
+
+    def test_local_integrations_refuse_namespaces_without_validation_ownership(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            kubeconfig = Path(temporary) / "kubeconfig"
+            kubeconfig.touch()
+            with (
+                patch.object(
+                    Cluster, "run", side_effect=["https://api.crc.testing:6443", '{"metadata": {}}']
+                ),
+                self.assertRaisesRegex(ValueError, "Refusing namespace not owned"),
+            ):
+                Cluster(kubeconfig)
+
+    def test_vendor_server_uses_an_unprivileged_named_http_port(self) -> None:
+        source = yaml.safe_dump(
+            {
+                "apiVersion": "apps/v1",
+                "kind": "Deployment",
+                "metadata": {"name": "opensandbox-server"},
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": [
+                                {
+                                    "name": "server",
+                                    "ports": [{"name": "http", "containerPort": 80}],
+                                    "readinessProbe": {
+                                        "httpGet": {"port": "http", "path": "/health"}
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                },
+            }
+        )
+        document = obj(yaml.safe_load(render_ports(source)))
+        container = array(at(document, "spec", "template", "spec", "containers"))[0]
+        self.assertEqual(at(array(at(container, "ports"))[0], "containerPort"), 8080)
+        self.assertEqual(at(container, "readinessProbe", "httpGet", "port"), "http")
+        with self.assertRaisesRegex(ValueError, "upstream HTTP port changed"):
+            render_ports(source.replace("containerPort: 80", "containerPort: 8080"))
+
+    def test_openshift_data_fixtures_leave_identity_to_scc(self) -> None:
+        for resource in array(fixtures()["items"]):
+            if at(resource, "kind") != "Deployment":
+                continue
+            pod = at(resource, "spec", "template", "spec")
+            security = obj(at(pod, "securityContext"))
+            self.assertNotIn("fsGroup", security)
+            self.assertNotIn("runAsUser", security)
+            for container in array(at(pod, "containers")):
+                self.assertNotIn("runAsUser", obj(at(container, "securityContext")))
+                self.assertFalse(at(container, "securityContext", "allowPrivilegeEscalation"))
+                self.assertTrue(at(container, "securityContext", "readOnlyRootFilesystem"))
+            for volume in array(at(pod, "volumes")):
+                self.assertNotIn("hostPath", obj(volume))
+
+    def test_sandbox_model_fixture_calls_the_exposed_tool_name(self) -> None:
+        message, finish = sandbox_message(
+            {
+                "messages": [{"role": "user", "content": "OPENSHIFT-SANDBOX-WRITE"}],
+                "tools": [{"function": {"name": "sandbox__write_file"}}],
+            }
+        )
+        self.assertEqual(finish, "tool_calls")
+        call = obj(array(message["tool_calls"])[0])
+        self.assertEqual(at(call, "function", "name"), "sandbox__write_file")
+
+    def test_sandbox_model_fixture_preserves_tool_errors(self) -> None:
+        message, finish = sandbox_message(
+            {"messages": [{"role": "tool", "content": "Error: permission denied"}]}
+        )
+        self.assertEqual(finish, "stop")
+        self.assertEqual(message["content"], "Error: permission denied")
+
+    def test_sandbox_model_fixture_refuses_missing_tools(self) -> None:
+        with self.assertRaisesRegex(ValueError, "not exposed"):
+            sandbox_message(
+                {"messages": [{"role": "user", "content": "OPENSHIFT-SANDBOX-READ"}], "tools": []}
+            )
+
+    def test_frontend_receives_oidc_display_settings_without_backend_secrets(
+        self,
+    ) -> None:
+        documents = render(
+            "--set-string",
+            "frontend.extraEnv.OAUTH_PROVIDERS=oidc",
+            "--set-string",
+            "frontend.extraEnv.OIDC_DISPLAY_NAME=Company SSO",
+            "--set-string",
+            "frontend.extraEnv.BACKEND_URL=https://wrong.example.com",
+        )
+        frontend = next(
+            doc
+            for doc in documents
+            if doc["kind"] == "Deployment"
+            and str(at(doc, "metadata", "name")).endswith("-frontend")
+        )
+        container = obj(array(at(frontend, "spec", "template", "spec", "containers"))[0])
+        env = {str(at(item, "name")): at(item, "value") for item in array(container["env"])}
+        self.assertEqual(env["OAUTH_PROVIDERS"], "oidc")
+        self.assertEqual(env["OIDC_DISPLAY_NAME"], "Company SSO")
+        self.assertEqual(env["BACKEND_URL"], "http://smoke-agenticos-api:8000")
+        self.assertNotIn("envFrom", container)
+        self.assertNotIn("OIDC_CLIENT_SECRET", env)
+
     def test_workloads_and_migration(self) -> None:
         documents = render()
         self.assertEqual([doc["kind"] for doc in documents].count("Deployment"), 3)

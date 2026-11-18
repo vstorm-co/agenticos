@@ -279,6 +279,22 @@ async def get_conversation_by_id(
     return await db.get(Conversation, conversation_id, options=summary_options)
 
 
+async def lock_for_deletion(
+    db: AsyncSession, *, conversation_id: UUID, organization_id: UUID
+) -> Conversation | None:
+    """Lock the authorized tenant's parent before workspace deletion takes child locks.
+
+    Refresh the identity-map row so authorization after the wait sees current ownership.
+    """
+    return await db.scalar(
+        select(Conversation)
+        .where(Conversation.id == conversation_id, Conversation.organization_id == organization_id)
+        .options(defer(Conversation.summary_messages, raiseload=True))
+        .execution_options(populate_existing=True)
+        .with_for_update()
+    )
+
+
 async def get_guardrail_revision(db: AsyncSession, conversation_id: UUID) -> int | None:
     """The current refusal revision, independent of the session's identity map."""
     return await db.scalar(

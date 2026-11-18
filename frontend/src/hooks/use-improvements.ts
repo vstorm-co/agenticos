@@ -302,6 +302,7 @@ export function useImprovementEvidence(
   return {
     evidence: query.data,
     isLoading: query.isLoading,
+    isFetching: query.isFetching,
     error: query.error,
     refetch: query.refetch,
   };

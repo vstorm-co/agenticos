@@ -1,10 +1,10 @@
 name: Apps
 on:
   pull_request:
-    paths: ["desktop/**", "mobile/**", "scripts/check_desktop_installation.py", "scripts/build_linux_desktop_release.sh", ".github/workflows/apps.yml", ".github/workflows/app-release.yml"]
+    paths: ["desktop/**", "mobile/**", "packaging/arch/**", "scripts/build_arch_package.sh", "scripts/check_arch_package.sh", "scripts/arch_render_smoke.sh", ".github/workflows/arch-package.yml", "scripts/check_desktop_installation.py", "scripts/build_linux_desktop_release.sh", ".github/workflows/apps.yml", ".github/workflows/app-release.yml"]
   push:
     branches: [main]
-    paths: ["desktop/**", "mobile/**", "scripts/check_desktop_installation.py", "scripts/build_linux_desktop_release.sh", ".github/workflows/apps.yml"]
+    paths: ["desktop/**", "mobile/**", "packaging/arch/**", "scripts/build_arch_package.sh", "scripts/check_arch_package.sh", "scripts/arch_render_smoke.sh", ".github/workflows/arch-package.yml", "scripts/check_desktop_installation.py", "scripts/build_linux_desktop_release.sh", ".github/workflows/apps.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,6 +12,9 @@ concurrency:
   group: apps-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  arch:
+    uses: ./.github/workflows/arch-package.yml
+
   desktop:
     # Smoke packages exercise installation, not debugger symbols. The Linux RPM
     # step stalled for 32 minutes; avoid its unnecessary debug-symbol payload.

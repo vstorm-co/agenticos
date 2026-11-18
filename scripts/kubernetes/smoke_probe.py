@@ -81,6 +81,17 @@ class Client:
 
 
 def main() -> None:
+    connection = HTTPConnection("127.0.0.1", 13000, timeout=30)
+    try:
+        connection.request("GET", "/login")
+        response = connection.getresponse()
+        page = response.read().decode()
+        assert response.status == 200, response.status
+        assert "Kubernetes smoke SSO" in page, "Console did not render its OIDC settings"
+    finally:
+        connection.close()
+    print("PASS console OIDC display configuration (not an identity-provider sign-in)", flush=True)
+
     stamp = uuid4().hex[:8]
     client = Client()
     login = mapping(

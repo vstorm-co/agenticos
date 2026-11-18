@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AssistantState } from "@/types/assistant";
@@ -69,6 +70,7 @@ describe("OrgAssistant", () => {
   it("links the agent itself to the Builder", () => {
     render(<OrgAssistant orgId="o1" />);
 
+    fireEvent.click(screen.getByRole("button", { name: "AI Architect" }));
     expect(screen.getByRole("link", { name: "Open in Agent Builder" })).toHaveAttribute(
       "href",
       "/agents/a1",
@@ -91,11 +93,20 @@ describe("OrgAssistant", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("keeps its switch and Builder link visible without an expansion step", () => {
+  it("keeps the switch separate from its keyboard-operated disclosure and preserves the Builder link", async () => {
     render(<OrgAssistant orgId="o1" />);
+    const heading = screen.getByRole("button", { name: "AI Architect" });
+    expect(heading).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByRole("switch", { name: "Switched on" })).toBeVisible();
+    await userEvent.click(screen.getByRole("switch", { name: "Switched on" }));
+    expect(heading).toHaveAttribute("aria-expanded", "false");
+    expect(state.mutate).toHaveBeenCalledWith({ enabled: false });
+    heading.focus();
+    await userEvent.keyboard("{Enter}");
     expect(screen.getByRole("link", { name: "Open in Agent Builder" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "AI Architect" })).not.toBeInTheDocument();
+    await userEvent.keyboard(" ");
+    expect(heading).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Open in Agent Builder" })).not.toBeInTheDocument();
   });
 
   it("says where to give it a model when it has none", () => {

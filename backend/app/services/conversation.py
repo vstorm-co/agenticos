@@ -1841,6 +1841,39 @@ class ConversationService:
         )
         return await conversation_repo.archive_conversation(self.db, db_conversation=conversation)
 
+    async def lock_for_deletion(
+        self,
+        conversation_id: UUID,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        ctx: AuthContext,
+    ) -> Conversation:
+        """Authorize, lock the tenant-scoped parent, then reauthorize before purging children."""
+        await self.get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            for_write=True,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        locked = await conversation_repo.lock_for_deletion(
+            self.db, conversation_id=conversation_id, organization_id=organization_id
+        )
+        if locked is None:
+            raise NotFoundError(
+                message="Conversation not found", details={"conversation_id": str(conversation_id)}
+            )
+        return await self.get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            for_write=True,
+            include_favourite=False,
+            ctx=ctx,
+        )
+
     async def delete_conversation(
         self,
         conversation_id: UUID,

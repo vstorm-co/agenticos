@@ -31,6 +31,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Migration `0342_criterion_verdicts` widens the improvement verdict, stop reason and skill-check agent state constraints and adds `skill_check_agents.criteria`. Its downgrade reads the new verdicts and states as `no_change`.
 
+## [1.82.2] - 2026-11-18
+
+### Added
+
+- Publish native Arch Linux x86_64 desktop packages using system WebKitGTK, with pacman-managed updates and CI checks for installation, package revision upgrades, removal and X11/Wayland rendering (#3104).
+
+### Fixed
+
+- Use the same icon, heading, description, spacing and disclosure controls for all organization AI & services cards. AI Architect, speech-to-text and text-to-speech now match the background-service cards; switches remain separate from expansion and retain their save behavior.
+
+- Count Improve’s source cards from the selected evidence sample, including positive feedback and reviewed test answers, and keep empty-state messages hidden while the preview refreshes or its test set is still loading (#2555).
+
+- Lock and reauthorize a conversation before queuing sandbox cleanup and deleting its workspace references. Preserve post-commit remote destruction and the durable retry queue, including rollback on a final authorization refusal.
+
+- Let Helm deployments configure the console's SSO button through `frontend.extraEnv`, separately from backend OIDC credentials. Preserve installed image tags and digests during local OIDC setup, report resolved images in installation notes, and document OpenShift, Argo CD and sandbox validation limits (discussion #2853).
+
 ## [1.82.1] - 2026-11-17
 
 ### Fixed
@@ -22056,7 +22072,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.82.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.82.2...HEAD
+[1.82.2]: https://github.com/vstorm-co/agenticos/compare/v1.82.1...v1.82.2
 [1.82.1]: https://github.com/vstorm-co/agenticos/compare/v1.82.0...v1.82.1
 [1.82.0]: https://github.com/vstorm-co/agenticos/compare/v1.81.0...v1.82.0
 [1.81.0]: https://github.com/vstorm-co/agenticos/compare/v1.80.0...v1.81.0
