@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Microsoft Entra and GitHub console sign-in, with PKCE, verified email checks,
+  tenant-bound Microsoft identities and the existing invitation/session policies.
+
 - Prepare native change-trigger routines from the terminal, inspect accessible
   accounts and explicitly create paused routines with source review required.
 

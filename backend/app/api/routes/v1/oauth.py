@@ -1,9 +1,8 @@
 """Signing somebody in through an identity provider.
 
-One pair of routes for every provider, because the flow is one flow: OpenID
-Connect's authorization-code exchange, ending in a single-use code the frontend
-swaps for the token pair. `google` and a deployment's own `oidc` differ in their
-discovery document and in nothing this module does (#1419).
+One pair of routes for Google, Microsoft, GitHub and generic OIDC. The shared
+authorization-code flow ends in a single-use code the frontend swaps for the
+local token pair. Provider identity normalization lives outside these handlers.
 """
 
 import logging
@@ -193,7 +192,7 @@ async def provider_callback(
     frontend = settings.FRONTEND_URL.rstrip("/")
     try:
         token = await client.authorize_access_token(request)
-        claims = await claims_for(client, token)
+        claims = await claims_for(client, token, provider=provider)
         identity = verified_identity(claims)
 
         if identity is None:

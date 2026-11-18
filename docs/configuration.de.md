@@ -1,5 +1,5 @@
 ---
-source_sha: "9cea9cf537ab"
+source_sha: "56831f51be08"
 ---
 
 # Konfiguration { #configuration }
@@ -184,6 +184,31 @@ im `Referer` der nächsten Anfrage derselben Origin, und das Refresh Token gilt
 eine Woche. Das Frontend tauscht den Code Server zu Server unter
 `POST /api/v1/oauth/exchange` gegen das Token-Paar, und diese Route löst ihn
 genau einmal ein.
+
+### Anmeldung mit Microsoft und GitHub { #microsoft-and-github-sign-in }
+
+Nach der Backend-Konfiguration ergänzen Sie `microsoft,github` neben `google`
+in `OAUTH_PROVIDERS` des Frontends. Verwenden Sie eigene Anmelde-Apps, getrennt
+von nativen Integrationen und Bridge-Zugangsdaten. Die Anmeldung gibt Agenten
+keinen Zugriff auf E-Mails, Dateien, Repositorys oder Teams.
+
+| Backend-Einstellung | Zweck |
+| --- | --- |
+| `MICROSOFT_TENANT_ID` | Erforderliche Entra-Mandanten-UUID; Microsoft meldet über diesen Mandanten an |
+| `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | Zugangsdaten einer vertraulichen Entra-Webanwendung |
+| `MICROSOFT_REDIRECT_URI` | Standard: `http://localhost:8000/api/v1/oauth/microsoft/callback` |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Zugangsdaten einer GitHub OAuth App |
+| `GITHUB_REDIRECT_URI` | Standard: `http://localhost:8000/api/v1/oauth/github/callback` |
+
+Registrieren Sie den genauen Callback bei jedem Anbieter. Microsoft fordert nur
+`openid email profile` an. Aktivieren Sie den optionalen ID-Token-Claim `xms_edov`
+und stellen Sie den Claim `email` bereit. Ein fehlender oder falscher
+Verifizierungsclaim verweigert die Anmeldung. GitHub fordert nur `user:email`
+an und verwendet die verifizierte primäre Adresse aus `/user/emails`, auch wenn
+sie privat ist. Eine öffentliche Profiladresse beweist keinen Besitz. Beide
+Abläufe nutzen PKCE und die bestehenden Einladungs-, Registrierungs- und
+Sitzungsregeln. Nicht konfigurierte Anbieter antworten mit 404; Anbietertoken
+werden nicht gespeichert.
 
 ### Single Sign-on (generisches OIDC) { #single-sign-on-generic-oidc }
 

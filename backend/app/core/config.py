@@ -6,6 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from pydantic import (
     SecretStr,
@@ -514,6 +515,17 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/oauth/google/callback"
+
+    GITHUB_CLIENT_ID: str = ""
+    GITHUB_CLIENT_SECRET: SecretStr = SecretStr("")
+    GITHUB_REDIRECT_URI: str = "http://localhost:8000/api/v1/oauth/github/callback"
+
+    # Tenant-specific discovery validates the token's exact issuer. These are
+    # console sign-in credentials, separate from connected-account OAuth apps.
+    MICROSOFT_TENANT_ID: UUID | None = None
+    MICROSOFT_CLIENT_ID: str = ""
+    MICROSOFT_CLIENT_SECRET: SecretStr = SecretStr("")
+    MICROSOFT_REDIRECT_URI: str = "http://localhost:8000/api/v1/oauth/microsoft/callback"
 
     # A generic OpenID Connect provider - Entra ID, Okta, Keycloak, anything that
     # publishes a discovery document. A company deploying this on its own

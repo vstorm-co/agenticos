@@ -1,5 +1,5 @@
 ---
-source_sha: "9cea9cf537ab"
+source_sha: "56831f51be08"
 ---
 
 # Konfiguracja { #configuration }
@@ -178,6 +178,29 @@ tokenami sesji: token w URL-u przekierowania trafia do paska adresu, do logu
 dostępu serwera frontendu i do `Referer` następnego żądania same-origin, a refresh
 token jest ważny przez tydzień. Frontend wymienia kod na parę tokenów
 serwer–serwer pod `POST /api/v1/oauth/exchange`, które realizuje go dokładnie raz.
+
+### Logowanie przez Microsoft i GitHub { #microsoft-and-github-sign-in }
+
+Po skonfigurowaniu poświadczeń backendu dodaj `microsoft,github` obok `google`
+w `OAUTH_PROVIDERS` frontendu. Używaj osobnych aplikacji do logowania, niezależnych
+od integracji natywnych i poświadczeń Bridge. Logowanie nie daje agentom dostępu
+do poczty, plików, repozytoriów ani Teams.
+
+| Ustawienie backendu | Przeznaczenie |
+| --- | --- |
+| `MICROSOFT_TENANT_ID` | Wymagany UUID tenanta Entra; przycisk Microsoft loguje przez ten tenant |
+| `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | Poświadczenia poufnej aplikacji Web w Entra |
+| `MICROSOFT_REDIRECT_URI` | Domyślnie: `http://localhost:8000/api/v1/oauth/microsoft/callback` |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Poświadczenia GitHub OAuth App |
+| `GITHUB_REDIRECT_URI` | Domyślnie: `http://localhost:8000/api/v1/oauth/github/callback` |
+
+Zarejestruj dokładny callback u każdego dostawcy. Microsoft żąda tylko `openid
+email profile`; włącz opcjonalny claim `xms_edov` w ID tokenie i zapewnij zwracanie
+claimu `email`. Brak potwierdzenia adresu lub wartość false blokuje logowanie.
+GitHub żąda tylko `user:email` i używa potwierdzonego głównego adresu z
+`/user/emails`, również prywatnego. Publiczny adres w profilu nie dowodzi jego
+własności. Oba przepływy używają PKCE i istniejących zasad zaproszeń, rejestracji
+i sesji. Nieskonfigurowany dostawca zwraca 404; tokeny dostawcy nie są zapisywane.
 
 ### Logowanie jednokrotne (generyczne OIDC) { #single-sign-on-generic-oidc }
 

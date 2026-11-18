@@ -1,13 +1,11 @@
 """The identity providers this deployment can sign somebody in with.
 
-Two, and they are the same protocol. `google` is registered unconditionally
-because its discovery document is a constant and the button is hidden by the
-frontend's own `OAUTH_PROVIDERS`; `oidc` is a *generic* OpenID Connect provider
-the deployment points at its own issuer - Entra ID, Okta, Keycloak - and is
-registered only when one is configured, so an unset issuer answers 404 rather
-than redirecting a browser at an empty URL (#1419).
+Google and Microsoft use OpenID Connect; GitHub uses OAuth with a separate
+verified-email lookup. The generic `oidc` provider remains available for a
+company's own identity provider and directory group mappings. Microsoft uses a
+configured tenant's discovery document so issuer validation stays exact.
 
-Discovery is the whole of the configuration. A deployment gives the issuer and
+For OIDC, discovery supplies the endpoints. A deployment gives the issuer and
 the client pair; the authorization, token, userinfo and JWKS endpoints come from
 `<issuer>/.well-known/openid-configuration`, which is the document the provider
 itself keeps correct across a key rotation or an endpoint move.
@@ -21,16 +19,16 @@ sign-in is not this issue's to do.
 """
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Literal
 
-from authlib.integrations.starlette_client import OAuth
+from authlib.integrations.starlette_client import OAuth, StarletteOAuth2App
 
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError, NotFoundError
 
 #: The provider a route may name. Not every one is configured - `sign_in_client`
 #: answers that - but a name outside this tuple never reaches authlib at all.
-SIGN_IN_PROVIDERS: tuple[str, ...] = ("google", "oidc")
+SIGN_IN_PROVIDERS: tuple[str, ...] = ("google", "microsoft", "github", "oidc")
 
 oauth = OAuth()
 
@@ -50,6 +48,62 @@ oauth.register(
 #: the issuer in a test gets a new client, while an unchanged one keeps the
 #: metadata and the JWKS authlib has already cached on it.
 _oidc_client: tuple[tuple[str, str], Any] | None = None
+
+_branded_clients: dict[str, tuple[tuple[str, ...], StarletteOAuth2App]] = {}
+
+
+def _branded(provider: Literal["microsoft", "github"]) -> StarletteOAuth2App | None:
+    """Build a configured sign-in client, retaining Authlib's discovery/JWKS cache."""
+    if provider == "microsoft":
+        if settings.MICROSOFT_TENANT_ID is None:
+            return None
+        key = (
+            str(settings.MICROSOFT_TENANT_ID),
+            settings.MICROSOFT_CLIENT_ID,
+            settings.MICROSOFT_CLIENT_SECRET.get_secret_value(),
+        )
+    else:
+        key = (settings.GITHUB_CLIENT_ID, settings.GITHUB_CLIENT_SECRET.get_secret_value())
+    if not all(key):
+        return None
+    cached = _branded_clients.get(provider)
+    if cached is not None and cached[0] == key:
+        return cached[1]
+    registry = OAuth()
+    if provider == "microsoft":
+        registered = registry.register(
+            name=provider,
+            overwrite=True,
+            client_id=settings.MICROSOFT_CLIENT_ID,
+            client_secret=settings.MICROSOFT_CLIENT_SECRET.get_secret_value(),
+            server_metadata_url=(
+                f"https://login.microsoftonline.com/{settings.MICROSOFT_TENANT_ID}"
+                "/v2.0/.well-known/openid-configuration"
+            ),
+            client_kwargs={
+                "scope": "openid email profile",
+                "code_challenge_method": "S256",
+                "timeout": 10,
+            },
+        )
+    else:
+        registered = registry.register(
+            name=provider,
+            overwrite=True,
+            client_id=settings.GITHUB_CLIENT_ID,
+            client_secret=settings.GITHUB_CLIENT_SECRET.get_secret_value(),
+            authorize_url="https://github.com/login/oauth/authorize",
+            access_token_url="https://github.com/login/oauth/access_token",
+            client_kwargs={
+                "scope": "user:email",
+                "code_challenge_method": "S256",
+                "token_endpoint_auth_method": "client_secret_post",
+                "headers": {"Accept": "application/json"},
+                "timeout": 10,
+            },
+        )
+    _branded_clients[provider] = (key, registered)
+    return registered
 
 
 def _oidc() -> Any | None:
@@ -96,7 +150,10 @@ def sign_in_client(provider: str) -> Any:
             identity provider a company runs is not a fact a stranger gets to
             enumerate by guessing paths.
     """
-    client = _oidc() if provider == "oidc" else oauth.google if provider == "google" else None
+    if provider in {"microsoft", "github"}:
+        client = _branded("microsoft" if provider == "microsoft" else "github")
+    else:
+        client = _oidc() if provider == "oidc" else oauth.google if provider == "google" else None
     if client is None:
         raise NotFoundError(message="Unknown sign-in provider")
     return client
@@ -110,7 +167,12 @@ def redirect_uri_for(provider: str) -> str:
     rewrites the scheme or the host would otherwise build a URI the provider
     refuses.
     """
-    return settings.GOOGLE_REDIRECT_URI if provider == "google" else settings.OIDC_REDIRECT_URI
+    return {
+        "google": settings.GOOGLE_REDIRECT_URI,
+        "microsoft": settings.MICROSOFT_REDIRECT_URI,
+        "github": settings.GITHUB_REDIRECT_URI,
+        "oidc": settings.OIDC_REDIRECT_URI,
+    }[provider]
 
 
 #: The claims a provider may use to say an address is confirmed.
@@ -243,6 +305,8 @@ def identity_key(provider: str, subject: str) -> str:
     `google` keeps its bare subject: its issuer is a constant, and rewriting the
     key would orphan every account that has signed in with it.
     """
+    if provider == "microsoft":
+        return f"https://login.microsoftonline.com/{settings.MICROSOFT_TENANT_ID}/v2.0#{subject}"
     if provider != "oidc":
         return subject
     return f"{settings.OIDC_ISSUER.rstrip('/')}#{subject}"

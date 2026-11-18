@@ -176,6 +176,29 @@ and the refresh token is good for a week. The frontend swaps the code for the
 token pair server to server at `POST /api/v1/oauth/exchange`, which redeems it
 exactly once.
 
+### Microsoft and GitHub sign-in
+
+Enable `microsoft,github` alongside `google` in the frontend's `OAUTH_PROVIDERS`
+after configuring the corresponding backend credentials. Keep sign-in apps
+separate from native integration apps and Bridge credentials. Sign-in grants no
+mail, file, repository or Teams access to agents.
+
+| Backend setting | Purpose |
+| --- | --- |
+| `MICROSOFT_TENANT_ID` | Required Entra tenant UUID; the Microsoft button signs in through this tenant |
+| `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | Confidential Entra Web application credentials |
+| `MICROSOFT_REDIRECT_URI` | Default: `http://localhost:8000/api/v1/oauth/microsoft/callback` |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub OAuth App credentials |
+| `GITHUB_REDIRECT_URI` | Default: `http://localhost:8000/api/v1/oauth/github/callback` |
+
+Register the exact callback at each provider. Microsoft requests only `openid
+email profile`; enable the optional ID-token claim `xms_edov` and ensure an
+`email` claim is returned. An absent or false verification claim refuses sign-in.
+GitHub requests only `user:email` and uses the verified primary address from
+`/user/emails`, including private addresses. A public profile email is not proof
+of ownership. Both flows use PKCE and the existing invitation, registration and
+session rules. Unconfigured providers answer 404; provider tokens are not saved.
+
 ### Single sign-on (generic OIDC)
 
 Any identity provider that publishes a discovery document: Microsoft Entra ID,

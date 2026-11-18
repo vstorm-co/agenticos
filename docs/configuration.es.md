@@ -1,5 +1,5 @@
 ---
-source_sha: "9cea9cf537ab"
+source_sha: "56831f51be08"
 ---
 
 # Configuración { #configuration }
@@ -182,6 +182,30 @@ direcciones, al log de acceso del servidor del frontend y al `Referer` de la
 siguiente petición del mismo origen, y el refresh token vale una semana. El
 frontend canjea el código por el par de tokens de servidor a servidor en
 `POST /api/v1/oauth/exchange`, que lo redime exactamente una vez.
+
+### Inicio de sesión con Microsoft y GitHub { #microsoft-and-github-sign-in }
+
+Tras configurar las credenciales del backend, añade `microsoft,github` junto a
+`google` en `OAUTH_PROVIDERS` del frontend. Usa aplicaciones de inicio de sesión
+separadas de las integraciones nativas y las credenciales de Bridge. Iniciar
+sesión no concede a los agentes acceso al correo, archivos, repositorios o Teams.
+
+| Ajuste del backend | Propósito |
+| --- | --- |
+| `MICROSOFT_TENANT_ID` | UUID obligatorio del tenant Entra; Microsoft autentica mediante este tenant |
+| `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | Credenciales de una aplicación Web confidencial de Entra |
+| `MICROSOFT_REDIRECT_URI` | Predeterminado: `http://localhost:8000/api/v1/oauth/microsoft/callback` |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Credenciales de una GitHub OAuth App |
+| `GITHUB_REDIRECT_URI` | Predeterminado: `http://localhost:8000/api/v1/oauth/github/callback` |
+
+Registra el callback exacto en cada proveedor. Microsoft solicita solo `openid
+email profile`; habilita el claim opcional `xms_edov` del ID token y asegura que
+se devuelva `email`. La ausencia de verificación o un valor false impide el
+acceso. GitHub solicita solo `user:email` y usa la dirección principal verificada
+de `/user/emails`, incluidas las privadas. Una dirección pública del perfil no
+prueba su propiedad. Ambos flujos usan PKCE y las reglas existentes de
+invitaciones, registro y sesiones. Los proveedores sin configurar responden 404;
+los tokens del proveedor no se guardan.
 
 ### Inicio de sesión único (OIDC genérico) { #single-sign-on-generic-oidc }
 
