@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e6baca79ef"
+source_sha: "26c768f37399"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -239,7 +239,9 @@ vínculos con este servidor imponen al menos `writes`, incluso con `none`, porqu
 las herramientas actúan con los permisos de quien llama. Las lecturas, incluidas
 `get_project` y `read_conversation`, se ejecutan automáticamente con `writes`.
 Crear, actualizar, eliminar y otras operaciones que cambian el estado requieren
-aprobación. Usa `all` para exigir aprobación también en las lecturas.
+aprobación. Usa `all` para exigir aprobación también en las lecturas. Ese mínimo
+es solo el valor por defecto del vínculo: una herramienta concreta puede seguir
+ejecutándose sin preguntar, como en cualquier otro servidor.
 
 En el Builder, los ajustes de un servidor lo dicen por
 grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin
@@ -1409,8 +1411,18 @@ con los propios registros de la plataforma. En el Builder es la primera tarjeta 
   confirmación de una automatización persistente. `set_my_profile` también espera
   porque su contenido llega a futuras ejecuciones de agentes.
 
-- **Las herramientas se pueden acotar** en los ajustes de la tarjeta, que listan
-  cada herramienta y marcan las que cambian algo.
+- **Las herramientas se pueden acotar** en los ajustes de la tarjeta, que las
+  agrupan según sobre qué trabajan - tablas, tareas, workflows, agents, bases de
+  conocimiento, skills, proyectos, automatizaciones, apps, runs, conexiones y la
+  cuenta - y marcan cada herramienta que cambia algo con un icono que lo dice al
+  pasar el cursor.
+- **Cada herramienta se ejecuta libremente o pregunta antes.** El control de un
+  grupo fija todas sus herramientas, y el escudo junto a una herramienta fija solo
+  esa. La spec guarda el ajuste propio de una herramienta en el `tool_approval`
+  del vínculo, con el nombre de la herramienta; publicar rechaza un nombre que la
+  plataforma no ofrece. Dejar que un cambio se ejecute sin preguntar es una
+  decisión sobre esa herramienta sola: el valor por defecto del vínculo sigue
+  siendo `writes`.
 
 La plantilla **AgenticOS** lo enlaza así, igual que cada agent creado desde cero,
 de modo que un agent consulta la plataforma desde el principio - y configura una

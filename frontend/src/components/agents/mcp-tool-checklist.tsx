@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, ShieldCheck, ShieldOff } from "lucide-react";
+import { PencilLine, Search, ShieldCheck, ShieldOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -13,6 +13,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from "@/components/ui";
 import type { McpToolInfo } from "@/lib/mcp-connections-api";
 import type { McpApproval, McpToolApproval } from "@/types/agents";
@@ -53,7 +56,7 @@ export function asksFirst(
 }
 
 /** What a group's select says: one answer for all of its tools, or each their own. */
-type GroupApproval = "ask" | "run" | "mixed";
+export type GroupApproval = "ask" | "run" | "mixed";
 
 /**
  * Which of a server's tools the agent may call, and which wait for a person -
@@ -198,7 +201,15 @@ export function McpToolChecklist({
   );
 }
 
-function ToolGroup({
+/**
+ * One group of a server's tools: a tick for all of them, one approval for all of
+ * them, and each tool on its own row.
+ *
+ * `changes` marks a tool that changes something, for a group that mixes reads
+ * and changes; `fixed` names why a tool's approval cannot be changed, for a tool
+ * that never asks whatever the binding says.
+ */
+export function ToolGroup({
   label,
   tools,
   shown,
@@ -209,6 +220,8 @@ function ToolGroup({
   onToolAsk,
   onToggle,
   prefix,
+  changes,
+  fixed,
   disabled,
 }: {
   label: string;
@@ -221,6 +234,8 @@ function ToolGroup({
   onToolAsk: (tool: McpToolInfo, ask: boolean) => void;
   onToggle: (names: string[], on: boolean) => void;
   prefix: string | null;
+  changes?: (tool: McpToolInfo) => boolean;
+  fixed?: (tool: McpToolInfo) => string | null;
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
@@ -276,6 +291,8 @@ function ToolGroup({
             onToggle={(on) => onToggle([tool.name], on)}
             onAsk={(ask) => onToolAsk(tool, ask)}
             prefix={prefix}
+            changes={changes?.(tool) ?? false}
+            fixed={fixed?.(tool) ?? null}
             disabled={disabled}
           />
         ))}
@@ -292,6 +309,8 @@ function ToolRow({
   onToggle,
   onAsk,
   prefix,
+  changes,
+  fixed,
   disabled,
 }: {
   tool: McpToolInfo;
@@ -300,6 +319,8 @@ function ToolRow({
   onToggle: (on: boolean) => void;
   onAsk: (ask: boolean) => void;
   prefix: string | null;
+  changes: boolean;
+  fixed: string | null;
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
@@ -319,12 +340,26 @@ function ToolRow({
           {readableToolName(tool.name, prefix)}
         </span>
       </label>
+      {changes && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              role="img"
+              aria-label={t("toolChangesSomething")}
+              className="text-muted-foreground grid size-6 shrink-0 place-items-center"
+            >
+              <PencilLine className="size-3.5" aria-hidden />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{t("toolChangesSomething")}</TooltipContent>
+        </Tooltip>
+      )}
       {/* Beside the label rather than in it, so pressing it is never a tick. */}
       <IconButton
         aria-label={t("approvalForTool", { tool: tool.name })}
         aria-pressed={asks}
-        title={asks ? t("approvalAskFirst") : t("approvalRunFreely")}
-        disabled={disabled}
+        title={fixed ?? (asks ? t("approvalAskFirst") : t("approvalRunFreely"))}
+        disabled={disabled || fixed !== null}
         onClick={() => onAsk(!asks)}
         className={asks ? "text-foreground" : "text-muted-foreground/60"}
       >

@@ -1258,6 +1258,24 @@ _WORKFLOW_PERMS: dict[Perm, Perm] = {
 permission is a change, which only the step makes."""
 
 
+def _platform_tool_approval_problems(ref: PlatformMcpServerRef) -> list[str]:
+    """A per-tool approval naming a tool this platform's server does not offer.
+
+    The same silence as a capability's mistyped `tool_approval`: the tool the
+    author meant to gate, or to let run, behaves as the binding's default and
+    nobody is told.
+    """
+    # Imported here: the platform's tools reach workflow execution, whose node
+    # handlers import this module back.
+    from app.services.platform_mcp import platform_tool_catalog
+
+    offered = {tool.name for tool in platform_tool_catalog()}
+    unknown = sorted(set(ref.tool_approval) - offered)
+    if not unknown:
+        return []
+    return [f"This platform's server has no tool named {', '.join(unknown)} to set approval for"]
+
+
 class AgentRegistryService:
     """Manage an organization's agents."""
 
@@ -3004,6 +3022,7 @@ class AgentRegistryService:
         for ref in refs:
             if isinstance(ref, PlatformMcpServerRef):
                 prefixed.append((PLATFORM_MCP_PREFIX, "this platform's own server"))
+                problems.extend(_platform_tool_approval_problems(ref))
                 continue
             if isinstance(ref, PersonalMcpServerRef):
                 if mcp_catalog.get_entry(ref.catalog_key) is None:

@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Group the AgenticOS server's tools in the agent Builder by what they work on - tables, tasks, workflows, agents, knowledge bases, skills, projects, automations, apps, runs, connections and the account - with an icon on each tool that changes something. Each group and each tool runs freely or asks first, as on other MCP servers; the spec keeps a tool's own setting in the platform binding's new `tool_approval`, and publishing refuses a name the platform does not offer. The binding's default stays at `writes`.
+
 ## [1.82.2] - 2026-11-18
 
 ### Added

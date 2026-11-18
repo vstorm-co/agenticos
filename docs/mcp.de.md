@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e6baca79ef"
+source_sha: "26c768f37399"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -240,7 +240,9 @@ an diesen Server erzwingen mindestens `writes`, auch bei `none`, da Tools mit de
 Berechtigungen des Aufrufers handeln. Lesezugriffe einschließlich `get_project`
 und `read_conversation` laufen unter `writes` automatisch. Erstellen, Aktualisieren,
 Löschen und andere zustandsändernde Aktionen benötigen eine Freigabe. Mit `all`
-benötigen auch Lesezugriffe eine Freigabe.
+benötigen auch Lesezugriffe eine Freigabe. Diese Untergrenze gilt nur für die
+Voreinstellung des Bindings: Ein einzelnes, benanntes Tool kann weiterhin ohne
+Rückfrage laufen, wie bei jedem anderen Server.
 
 Im Builder sagen die Einstellungen eines Servers das je
 Gruppe: **Lesen** und **Ändern** laufen jeweils ohne Rückfrage oder fragen erst.
@@ -1427,7 +1429,16 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
   wartet ebenfalls, weil sein Inhalt spätere Agentenläufe erreicht.
 
 - **Die Werkzeuge lassen sich einschränken** in den Einstellungen der Karte, die
-  jedes Werkzeug auflisten und die ändernden markieren.
+  sie danach gruppieren, woran sie arbeiten - Tabellen, Aufgaben, Workflows,
+  Agenten, Wissensdatenbanken, Skills, Projekte, Automatisierungen, Apps, Runs,
+  Verbindungen und das Konto - und jedes ändernde Werkzeug mit einem Symbol
+  markieren, das es beim Überfahren sagt.
+- **Jedes Werkzeug läuft ohne Rückfrage oder fragt erst.** Die Einstellung einer
+  Gruppe setzt alle ihre Werkzeuge, das Schild neben einem Werkzeug nur dieses.
+  Die Spec speichert die eigene Einstellung eines Werkzeugs im `tool_approval` des
+  Bindings, unter dem Namen des Werkzeugs; das Veröffentlichen lehnt einen Namen
+  ab, den die Plattform nicht anbietet. Eine Änderung ohne Rückfrage zuzulassen
+  betrifft nur dieses Werkzeug: Die Voreinstellung des Bindings bleibt `writes`.
 
 Die Vorlage **AgenticOS** bindet ihn genau so, ebenso jeder von Grund auf
 angelegte Agent, sodass ein Agent die Plattform sofort nachschlagen kann - und eine

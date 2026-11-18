@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e6baca79ef"
+source_sha: "26c768f37399"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -234,6 +234,8 @@ wymuszają co najmniej `writes`, także przy `none`, ponieważ narzędzia dział
 z uprawnieniami pytającej osoby. Odczyty, w tym `get_project` i `read_conversation`,
 działają automatycznie przy `writes`. Tworzenie, aktualizacja, usuwanie i inne
 operacje zmieniające stan wymagają akceptacji. Wybierz `all`, aby pytać również o odczyty.
+To minimum dotyczy tylko domyślnego ustawienia powiązania: pojedyncze, wskazane
+narzędzie nadal może działać bez pytania, jak na każdym innym serwerze.
 
 W Builderze
 ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez
@@ -1366,8 +1368,16 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
   pozostają wymagane, ale nie zastępują zatwierdzenia trwałej automatyzacji.
   `set_my_profile` też czeka, bo jego treść trafia do przyszłych uruchomień agentów.
 
-- **Narzędzia można zawęzić** w ustawieniach karty, które pokazują każde narzędzie
-  i oznaczają te, które coś zmieniają.
+- **Narzędzia można zawęzić** w ustawieniach karty, które grupują je według tego,
+  na czym działają - tabele, zadania, workflowy, agenci, bazy wiedzy, skille,
+  projekty, automatyzacje, aplikacje, runy, połączenia i konto - a każde narzędzie,
+  które coś zmienia, oznaczają ikoną, która mówi o tym po najechaniu.
+- **Każde narzędzie działa bez pytania albo najpierw pyta.** Ustawienie grupy
+  zmienia wszystkie jej narzędzia, a tarcza obok narzędzia zmienia tylko je. Spec
+  przechowuje własne ustawienie narzędzia w `tool_approval` powiązania, pod nazwą
+  narzędzia; publikacja odrzuca nazwę, której platforma nie oferuje. Zgoda na
+  zmianę bez pytania dotyczy tylko tego narzędzia: domyślne ustawienie powiązania
+  pozostaje `writes`.
 
 Szablon **AgenticOS** wiąże go właśnie tak, podobnie jak każdy agent tworzony od
 zera, więc agent od razu sięga do platformy - i ustawia rutynę albo przełącza język

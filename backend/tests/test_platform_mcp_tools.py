@@ -13,6 +13,7 @@ from fastmcp.exceptions import ValidationError as MCPValidationError
 from fastmcp.server.auth import AccessToken
 from pydantic import JsonValue
 
+from app.schemas.agent import PlatformToolGroup
 from app.services.platform_mcp import _unreachable, platform_tool_catalog
 from app.services.platform_mcp._api import PlatformApi
 from app.services.platform_mcp._oauth import PlatformOAuthProvider
@@ -1342,6 +1343,27 @@ class TestRemovingARoutine:
         tool = {t.name: t for t in platform_tools(api)}["delete_routine"]
 
         assert await tool.function(agent_id=AGENT, routine_id=RUN) == refused
+
+
+class TestHowTheBuilderGroupsTheTools:
+    def test_each_table_write_is_grouped_with_the_tables(self) -> None:
+        tools = {tool.name: tool for tool in platform_tool_catalog()}
+
+        for name in (
+            "add_virtual_table_record",
+            "update_virtual_table_record",
+            "upsert_virtual_table_record",
+            "delete_virtual_table_record",
+            "query_virtual_table",
+        ):
+            assert tools[name].group is PlatformToolGroup.TABLES
+        assert tools["run_workflow"].group is PlatformToolGroup.WORKFLOWS
+        assert tools["publish_agent"].group is PlatformToolGroup.AGENTS
+        assert tools["search_knowledge"].group is PlatformToolGroup.KNOWLEDGE
+
+    def test_every_group_holds_a_tool(self) -> None:
+        """A group with nothing in it would be an empty heading in the Builder."""
+        assert {tool.group for tool in platform_tool_catalog()} == set(PlatformToolGroup)
 
 
 class TestWhatNeverWaitsForApproval:

@@ -254,6 +254,7 @@ async def list_platform_mcp_tools() -> Any:
         PlatformMcpTool(
             name=tool.name,
             description=tool.summary,
+            group=tool.group,
             writes=tool.writes,
             ungated=tool.ungated,
         )

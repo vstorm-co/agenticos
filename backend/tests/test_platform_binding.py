@@ -147,6 +147,54 @@ class TestPublishing:
         assert len(clashing) == 1
         assert "'agenticos'" in clashing[0]
 
+    @pytest.mark.security
+    async def test_a_tool_approval_naming_no_platform_tool_is_refused(self) -> None:
+        """A mistyped name would leave the tool on the binding's default, silently."""
+        registry = AgentRegistryService(MagicMock())
+
+        known = await registry._mcp_problems(
+            CTX,
+            [
+                PlatformMcpServerRef(
+                    account="platform", tool_approval={"add_virtual_table_record": "never"}
+                )
+            ],
+            taken={},
+        )
+        unknown = await registry._mcp_problems(
+            CTX,
+            [PlatformMcpServerRef(account="platform", tool_approval={"add_table_row": "never"})],
+            taken={},
+        )
+
+        assert known == []
+        assert unknown == [
+            "This platform's server has no tool named add_table_row to set approval for"
+        ]
+
+
+class TestTheStoredBinding:
+    def test_a_binding_with_no_tool_of_its_own_stores_as_before(self) -> None:
+        """Published agents' stored specs do not change shape."""
+        stored = {"account": "platform", "allowed_tools": None, "approval": "writes"}
+
+        assert PlatformMcpServerRef.model_validate(stored).model_dump(mode="json") == stored
+
+    def test_each_tool_s_own_approval_survives_the_yaml_round_trip(self) -> None:
+        spec = AgentSpec(
+            name="Ops",
+            mcp_servers=[
+                PlatformMcpServerRef(
+                    account="platform",
+                    tool_approval={"run_workflow": "never", "default_tool": "default"},
+                )
+            ],
+        )
+
+        (platform,) = AgentSpec.from_yaml(spec.to_yaml()).mcp_servers
+        assert isinstance(platform, PlatformMcpServerRef)
+        assert platform.tool_approval == {"run_workflow": "never"}
+
 
 @pytest.mark.parametrize(
     "surface",

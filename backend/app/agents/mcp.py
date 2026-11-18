@@ -844,7 +844,11 @@ PLATFORM_MCP_URL = "http://agenticos/mcp"
 
 
 def platform_spec(
-    credential: str, *, allowed_tools: list[str] | None, approval: McpApproval
+    credential: str,
+    *,
+    allowed_tools: list[str] | None,
+    approval: McpApproval,
+    tool_approval: Mapping[str, ApprovalMode] | None = None,
 ) -> McpServerSpec:
     """This deployment's own MCP server, as the holder of `credential`."""
     return McpServerSpec(
@@ -853,6 +857,7 @@ def platform_spec(
         headers={"Authorization": f"Bearer {credential}"},
         allowed_tools=allowed_tools,
         approval=approval,
+        tool_approval=dict(tool_approval or {}),
         in_process=True,
         ungated=PLATFORM_UNGATED_TOOLS,
     )
