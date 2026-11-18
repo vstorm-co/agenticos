@@ -15,6 +15,8 @@ from uuid import UUID
 
 from pydantic import JsonValue
 from pydantic_ai.messages import (
+    InstructionBaselinePart,
+    InstructionDeltaPart,
     ModelMessage,
     ModelRequest,
     ModelResponse,
@@ -41,8 +43,11 @@ def without_standing_instructions(
 ) -> list[ModelMessage]:
     """Keep turn evidence before offloading media or after restoring stored references.
 
-    The next run supplies its current instructions and capabilities. Legacy harness
-    summaries used a system part; retain those until a new compaction replaces them.
+    The next run supplies its current instructions and capabilities. Drop rendered
+    request instructions and SDK instruction baselines/deltas as well as system
+    prompts, so repeated instructions cannot evict evidence at the storage ceiling.
+    Legacy harness summaries used a system part; retain those until a new
+    compaction replaces them.
     """
     history: list[ModelMessage] = []
     for message in messages:
@@ -50,6 +55,7 @@ def without_standing_instructions(
             parts = [
                 part
                 for part in message.parts
+                if not isinstance(part, (InstructionBaselinePart, InstructionDeltaPart))
                 if not isinstance(part, SystemPromptPart)
                 or part.content.startswith("Summary of previous conversation:\n\n")
             ]
@@ -65,7 +71,9 @@ def without_standing_instructions(
                     }
                     if references:
                         metadata[CHANNEL_AUTHORS] = references
-                history.append(replace(message, parts=parts, metadata=metadata or None))
+                history.append(
+                    replace(message, parts=parts, instructions=None, metadata=metadata or None)
+                )
         else:
             history.append(message)
     return history

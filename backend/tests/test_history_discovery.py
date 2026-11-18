@@ -224,14 +224,18 @@ async def test_remembered_discovery_does_not_bypass_current_access_or_approval(
     )
 
 
-async def test_discovery_uses_the_current_schema_and_instructions(thread: StoredThread) -> None:
+@pytest.mark.parametrize("use_system_prompt", [False, True])
+async def test_discovery_uses_the_current_schema_and_instructions(
+    thread: StoredThread, use_system_prompt: bool
+) -> None:
     def lookup_record() -> str:
         """Old schema."""
         return "old"
 
     first = await Agent(
         FunctionModel(discover),
-        system_prompt="OLD_INSTRUCTIONS",
+        system_prompt="OLD_INSTRUCTIONS" if use_system_prompt else (),
+        instructions=None if use_system_prompt else "OLD_INSTRUCTIONS",
         tools=[Tool(lookup_record, defer_loading=True)],
         capabilities=[ToolSearch(strategy="keywords")],
     ).run("Find it")

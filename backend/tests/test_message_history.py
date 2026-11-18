@@ -206,3 +206,84 @@ def test_bounding_a_legacy_checkpoint_does_not_reinterpret_invalid_parts(parts) 
     bounded = message_history.bounded_stored_history([oversized, legacy])
     assert bounded[1:] == [legacy]
     assert bounded[0]["parts"][0]["content"] == message_history.HISTORY_TRIMMED
+
+
+def test_repeated_instructions_do_not_evict_tool_evidence_from_a_checkpoint() -> None:
+    from pydantic_ai.messages import (
+        ModelMessage,
+        ModelMessagesTypeAdapter,
+        ToolCallPart,
+        ToolReturnPart,
+    )
+
+    from app.agents.ephemeral_media import dump_messages
+    from app.services.message_history import (
+        MODEL_HISTORY_BYTES,
+        bounded_stored_history,
+        without_standing_instructions,
+    )
+
+    instructions = "standing instructions " * 6000
+    messages: list[ModelMessage] = []
+    for index in range(20):
+        messages.append(
+            ModelRequest(
+                parts=[UserPromptPart("Find the record")]
+                if index == 0
+                else [
+                    ToolReturnPart("lookup", f"Evidence {index}", tool_call_id=f"call-{index - 1}")
+                ],
+                instructions=instructions,
+            )
+        )
+        messages.append(
+            ModelResponse(
+                parts=[ToolCallPart("lookup", {"index": index}, tool_call_id=f"call-{index}")]
+                if index < 19
+                else [TextPart("Done")]
+            )
+        )
+
+    assert len(ModelMessagesTypeAdapter.dump_json(messages)) > MODEL_HISTORY_BYTES
+    assert len(bounded_stored_history(dump_messages(messages))) < len(messages)
+    cleaned = without_standing_instructions(messages)
+    checkpoint = bounded_stored_history(dump_messages(cleaned))
+    assert len(checkpoint) == len(messages)
+    assert len(ModelMessagesTypeAdapter.dump_json(cleaned)) < MODEL_HISTORY_BYTES
+    restored = ModelMessagesTypeAdapter.validate_python(checkpoint)
+    assert [message.parts for message in restored] == [message.parts for message in messages]
+    assert all(
+        message.instructions is None for message in restored if isinstance(message, ModelRequest)
+    )
+    assert all(
+        message.instructions == instructions
+        for message in messages
+        if isinstance(message, ModelRequest)
+    )
+
+
+def test_checkpoint_removes_sdk_instruction_parts_without_mutating_the_request() -> None:
+    from pydantic_ai.messages import InstructionBaselinePart, InstructionDeltaPart, InstructionPart
+
+    from app.services.message_history import without_standing_instructions
+
+    standing = [
+        InstructionBaselinePart(instructions=[InstructionPart("Old baseline")]),
+        InstructionDeltaPart(id=None, content="Old replacement"),
+        InstructionDeltaPart(id=None, content=None),
+    ]
+    prompt = UserPromptPart("Continue")
+    request = ModelRequest(
+        parts=[*standing, prompt],
+        instructions="Old rendered instructions",
+        metadata={"trace": "kept"},
+    )
+    cleaned = without_standing_instructions([ModelRequest(parts=standing), request])
+    assert len(cleaned) == 1
+    assert isinstance(cleaned[0], ModelRequest)
+    assert cleaned[0].parts == [prompt]
+    assert cleaned[0].instructions is None
+    assert cleaned[0].metadata == request.metadata
+    assert cleaned[0].timestamp == request.timestamp
+    assert request.parts == [*standing, prompt]
+    assert request.instructions == "Old rendered instructions"
