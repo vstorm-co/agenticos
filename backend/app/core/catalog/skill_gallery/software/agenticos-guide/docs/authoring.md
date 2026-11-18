@@ -151,6 +151,8 @@ Copies of training questions or source evidence are excluded using normalized in
 
 An improvement session pins its dataset version and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats and new dataset cases cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
 
+A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke.
+
 A check counts as the draft's test once the draft is exactly what it checked -
 every checked suggestion accepted and nothing else changed - so the publish
 dialog reports its verdict; after a further edit it says that test is out of
@@ -332,7 +334,9 @@ visible even after cancellation.
 
 The test runs on its own: the agent as it is and the changed one answer the same
 questions, and an inconclusive comparison is asked once more within the test's
-price. It ends at the result: `ready` when the attempt made the agent better, its
+price. An answer the model provider timed out on or failed is first asked again on
+its own, once, in the same test, when what is left of the budget covers it, so a
+few lost answers do not repeat the whole test. It ends at the result: `ready` when the attempt made the agent better, its
 changes then the waiting suggestion batch, and `stopped`, with the verdict as the
 reason, otherwise.
 

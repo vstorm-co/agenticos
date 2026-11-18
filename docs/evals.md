@@ -182,6 +182,8 @@ Copies of training questions or source evidence are excluded using normalized in
 
 An improvement session pins its dataset version and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats and new dataset cases cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
 
+A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke.
+
 A human decision and **Undo** invalidate dependent run comparisons and recompute the stored suite results in the same transaction. The run, suite, environment guard and promotion dialog show the corrected verdict and who reviewed it. Audit entries record previous and new statuses and counts; a changed suite verdict sends a new notification. Reviewer names are resolved from current organization membership rather than copied into retained results.
 
 A pass obtained through review permits an explicit promotion. It never promotes or moves a following environment automatically, including during the periodic reconciliation. The environment row shows the actual failed or corrected guard result and links to its check. An earlier result on different questions, grading, thresholds or a different serving baseline stays visible as **Out of date**, with its run link, rather than becoming **Not checked**.

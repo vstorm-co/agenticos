@@ -1,5 +1,5 @@
 ---
-source_sha: "d53a21382c3e"
+source_sha: "0bdc72a26249"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -155,6 +155,8 @@ Każdy przypadek ma stałe przypisanie do treningu albo kontroli, zachowane mię
 Kopie pytań treningowych lub materiału źródłowego są wykluczane według znormalizowanej treści i identyfikatora runu, także po ręcznym wpisaniu lub wygenerowaniu. Poniżej minimum sesja zatrzymuje się z `no_data` albo odrzuca krok, który testowałby za mało pytań, i podaje liczbę brakujących pytań. Widok runu oznacza obie części i wykluczone kopie. Zwykłe suity i bramki promocji nadal liczą wszystkie przypadki.
 
 Sesja poprawy przypina wersję datasetu i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy i przypadki nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
+
+Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła.
 
 Sprawdzenie liczy się jako test wersji roboczej, gdy wersja robocza jest
 dokładnie tym, co sprawdzało - każda sprawdzona sugestia przyjęta i nic poza tym
@@ -343,6 +345,9 @@ koszty pozostają widoczne także po anulowaniu.
 
 Test biegnie sam: obecna i zmieniona wersja agenta odpowiadają na te same
 pytania, a nierozstrzygnięte porównanie jest zadawane jeszcze raz w cenie testu.
+Odpowiedź, na której dostawca modelu przekroczył czas lub zawiódł, jest najpierw
+zadawana ponownie sama, raz, w tym samym teście, jeśli reszta budżetu to pokrywa,
+więc kilka utraconych odpowiedzi nie powtarza całego testu.
 Kończy się wynikiem: `ready`, gdy próba poprawiła agenta - jej zmiany stają się
 wtedy oczekującym pakietem sugestii - a w przeciwnym razie `stopped`, z
 werdyktem jako powodem.

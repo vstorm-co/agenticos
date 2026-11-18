@@ -1,5 +1,5 @@
 ---
-source_sha: "d53a21382c3e"
+source_sha: "0bdc72a26249"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -156,6 +156,8 @@ Cada caso tiene una asignación fija a entrenamiento o control, conservada entre
 Se excluyen copias de preguntas de entrenamiento o evidencia mediante el texto normalizado y la identidad del run de origen, incluso si se introducen a mano o se generan. Bajo el mínimo, la sesión se detiene con `no_data` o rechaza el paso que probaría demasiado pocas, e indica cuántas preguntas añadir. El run identifica ambas partes y las copias excluidas. Las suites normales y las puertas de promoción siguen contando todos los casos.
 
 Una sesión de mejora fija la versión del dataset y las identidades de los chats fuente. Un intento posterior aprende de los resultados de entrenamiento de su propio reparto, así que una pregunta que un intento apartó puede ayudar a escribir el siguiente; nuevos chats y casos no cambian lo que mide la sesión. Los intentos medidos con preguntas distintas se comparan por lo que cambió cada uno frente a su propia base, no por su tasa de aprobados.
+
+Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de la versión propuesta por un intento anterior, que el borrador no contiene. También lee lo que cambió cada intento anterior: su veredicto, los criterios que se movieron en las preguntas de las que aprendió, y solo cuántas preguntas apartadas arregló y rompió.
 
 Una comprobación cuenta como la prueba del draft en cuanto el draft es
 exactamente lo que comprobó - cada sugerencia comprobada aceptada y nada más
@@ -349,7 +351,10 @@ terminar; el coste real sigue visible incluso tras cancelar.
 
 La prueba avanza sola: el agente tal como está y el cambiado responden a las
 mismas preguntas, y una comparación inconclusa se pregunta una vez más dentro del
-precio de la prueba. Termina en el resultado: `ready` cuando el intento mejoró el
+precio de la prueba. Una respuesta en la que el proveedor del modelo agotó el tiempo
+o falló se pregunta antes otra vez por separado, una vez, en la misma prueba, si lo
+que queda del presupuesto lo cubre, así que unas pocas respuestas perdidas no repiten
+toda la prueba. Termina en el resultado: `ready` cuando el intento mejoró el
 agente - sus cambios pasan a ser el paquete de sugerencias pendiente - y
 `stopped`, con el veredicto como motivo, en otro caso.
 

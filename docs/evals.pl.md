@@ -1,5 +1,5 @@
 ---
-source_sha: "23666f4eb2b2"
+source_sha: "596476c5fd30"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -198,6 +198,8 @@ Każdy przypadek ma stałe przypisanie do treningu albo kontroli, zachowane mię
 Kopie pytań treningowych lub materiału źródłowego są wykluczane według znormalizowanej treści i identyfikatora runu, także po ręcznym wpisaniu lub wygenerowaniu. Poniżej minimum sesja zatrzymuje się z `no_data` albo odrzuca krok, który testowałby za mało pytań, i podaje liczbę brakujących pytań. Widok runu oznacza obie części i wykluczone kopie. Zwykłe suity i bramki promocji nadal liczą wszystkie przypadki.
 
 Sesja poprawy przypina wersję datasetu i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy i przypadki nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
+
+Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła.
 
 Decyzja człowieka i **Wycofaj decyzję** unieważniają zależne porównania runów i przeliczają zapisane wyniki suit w tej samej transakcji. Run, suita, bramka środowiska i dialog promocji pokazują poprawiony werdykt oraz osobę, która go przejrzała. Audyt zapisuje poprzednie i nowe statusy oraz liczby; zmiana werdyktu suity wysyła nowe powiadomienie. Nazwy osób są odczytywane z aktualnego członkostwa organizacji, bez kopiowania do zachowanych wyników.
 
