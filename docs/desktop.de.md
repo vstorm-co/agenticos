@@ -1,5 +1,5 @@
 ---
-source_sha: "595a1032e554"
+source_sha: "44aa10ac83ec"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -789,6 +789,16 @@ Die Korrektur `[session:api] Verwende die EU-Zahlen` erreicht die Sitzung `api`.
 
 Eigene installierte ACP-Programme lassen sich unter **Externe ACP-Agenten** registrieren. [Externer ACP-Agent](reference/capabilities.md#external-acp) beschreibt Registrierung, Berechtigungen, Sitzungsidentität und Abrechnungsgrenzen.
 
+## Codex als Gesprächslaufzeit { #codex-conversation }
+
+Wählen Sie im Desktop-Chat einen genehmigten Ordner mit **Vollzugriff**, dann **Gesprächslaufzeit → Codex · dieser Computer**. Codex erzeugt die Gesprächsantwort; kein gehostetes Modell delegiert den Prompt. Melden Sie sich über die vorhandenen nativen Programmierkonten an. Die CLI verwaltet Konto, Modell und Kosten; weder Tresor-OAuth noch ein Cloud-Profil-Schlüssel werden importiert. Eine optionale genaue native Modell-ID muss vor dem Prompt bestätigt werden. Das normale Modellprofil dient der Zuordnung, nicht einer zweiten Inferenz.
+
+Werkzeugzugriff ist standardmäßig nur lesend. Native Schreibvorgänge und Befehle werden abgelehnt; Plattformwerkzeuge benötigen die Read-only-Einstufung des vorhandenen Klassifikators. Bearbeitung behält Agentenrechte, Freigaben und Budgets. Die CLI besitzt weiterhin die OS-Rechte des lokalen Kontos, ohne Betriebssystem-Sandbox. Aktivität und Antwortstream erscheinen im Chat; weitergegebene Aufrufe unterliegen dem Schritt-/Werkzeuglimit. Native interne Anfragen, Tokens und Abonnement-/API-Kosten bleiben unbekannt und unbepreist.
+
+Abgeschlossene Durchläufe speichern einen nativen Sitzungsbeleg. Weitere Nachrichten und Neustarts müssen Sitzung und sichtbare Historie vor neuem Kontext abgleichen. Laufzeit-, Modell- oder Richtlinienwechsel wählen einen anderen Bereich. **Native Sitzung zurücksetzen** behält den Chat und startet neuen nativen Kontext. Fehlende Belege führen niemals zu automatischer Wiederaufnahme oder erneuter Einreichung. Nach Stop, Trennung oder unklarer Zustellung vor dem Fortsetzen die Auswirkungen prüfen; es gibt keine automatische Wiederholung oder Rücknahme.
+
+Unterstützt wird nur der private, nicht geteilte Text-Webchat des initiierenden Mitglieds. Strukturierte Ausgabe, multimodale Prompts, Modellparameter-Überschreibungen, Code Mode, Reviewer und Plattformkompaktierung müssen deaktiviert sein; Kontext gehört der CLI. Zusätzliche Modellaufrufe brauchen einen eigenen unterstützten Anbieter statt rekursivem Zugriff auf die primäre Sitzung. API, Sprache, Zeitpläne und andere Personen dürfen das Desktop-Konto nicht ausleihen. Codex-Modellprofile und delegierte Programmieraufgaben bleiben getrennte Optionen. Anmeldung, Berechtigung, Werkzeugwirkungen, Kontingente und Wiederaufnahme benötigen echte Kontotests.
+
 ## Plattformwerkzeuge weitergeben { #runtime-platform-tools }
 
 **External ACP agent → Forward platform tools** ist standardmäßig ausgeschaltet. Die Option lässt das registrierte Programm Werkzeuge aufrufen, die für diesen AgenticOS-Durchlauf bereits zugelassen sind. Erforderlich sind ein privates, nicht geteiltes Gespräch des Mitglieds und dessen freigegebener Computer. Desktop verlangt eine eigene native Zustimmung; eine bestehende Ordnerfreigabe aktiviert die Brücke nicht. Die folgenden Anbieterbeschreibungen gelten für die Standardeinstellungen, sofern diese Option nicht aktiviert ist.
@@ -1014,3 +1024,5 @@ Pi nutzt eine temporäre private Konfiguration ohne gespeicherte Konten, gefunde
 Inception-Chat-IDs, Kontext-/Ausgabelimits und Preise stammen aus dem aktuellen authentifizierten Chat-Katalog. DeepSeek und OpenRouter nutzen den Katalog und Transport der festgelegten Pi-Version. Modellwechsel benötigen genaue native Bestätigung. Inspektion liefert höchstens 128 Einträge, den aktuellen zuerst, und meldet Kürzung. Ein Katalog beweist weder Kontoberechtigung noch Guthaben. Kosten bleiben in AgenticOS unbepreist. Ungültige Schlüssel, Guthabenfehler und unbekannte Modelle wechseln nicht zu anderen gespeicherten Konten oder Abrechnungen.
 
 Private Sitzungsdateien sind auf Person, Agent, Chat, Ordner, Registrierung und Schlüsselrevision beschränkt. Temporäre Konfiguration wird mit dem eigenen Prozess entfernt. Entfernen oder erneutes Registrieren widerruft Fortsetzungen. Echte Schlüsseltests prüfen Streaming, 401/402, Kontingente, Neustart/Wiederaufnahme und Stop. Plattformwerkzeuge sind eine [ausdrückliche Option](#runtime-platform-tools). Siehe [Pi-Anbietererweiterungen](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) und [Inception-Modelle](https://www.inceptionlabs.ai/models).
+
+Der Betreiber darf `CODEX_NATIVE_CONVERSATION_ENABLED=true` nur für eine berechtigte lokale/Open-Source-Bereitstellung oder mit Genehmigung des Anbieters setzen. Der Schalter bestätigt keine Kontoberechtigung. App-Server-Authentifizierung ist ohne entsprechende Genehmigung für kommerzielle oder gehostete Dienste nicht zulässig. Ein Kontowechsel in Desktop beendet die Prozesse dieser Laufzeit und löscht ihre gespeicherten Fortsetzungen; setzen Sie die native Sitzung danach zurück. Auch manuelle Kontowechsel außerhalb von Desktop erfordern einen Reset.

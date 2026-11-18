@@ -1420,7 +1420,16 @@
         "off": "Aus",
         "asksFirst": "Fragt bei der ersten Nachricht",
         "noCloud": "Dieser Agent arbeitet auf deinem Computer und hat daher keinen Cloud-Arbeitsbereich. Wähle einen Ordner oder den ganzen Computer.",
-        "agentComputerConsent": "Für {agent} in jeder Unterhaltung auf diesem Computer erlaubt. Befehle laufen ohne einzelne native Rückfragen. Du kannst den Zugriff hier widerrufen; Betriebssystemberechtigungen gelten weiterhin."
+        "agentComputerConsent": "Für {agent} in jeder Unterhaltung auf diesem Computer erlaubt. Befehle laufen ohne einzelne native Rückfragen. Du kannst den Zugriff hier widerrufen; Betriebssystemberechtigungen gelten weiterhin.",
+        "primaryRuntimeDisabled": "Ihr Betreiber muss diese Integration für eine berechtigte Bereitstellung aktivieren. Eine Anmeldung bestätigt keine Anbieterberechtigung.",
+        "primaryRuntime": "Gesprächslaufzeit",
+        "nativeCodex": "Codex · dieser Computer",
+        "primaryRuntimeHelp": "Codex beantwortet das Gespräch mit eigener CLI-Anmeldung und Modelleinstellung. AgenticOS-Werkzeugrechte und Freigaben gelten weiterhin. Nur Text; Modellparameter-Überschreibungen, Code Mode, Reviewer und Plattformkompaktierung deaktivieren. Native Nutzung bleibt unbepreist.",
+        "primaryRuntimeAccess": "Werkzeugzugriff der Laufzeit",
+        "primaryRuntimeEdit": "Änderungen gemäß Agentenrichtlinien erlauben",
+        "primaryRuntimeModel": "Native Modell-ID (optional)",
+        "primaryRuntimeReset": "Native Sitzung zurücksetzen",
+        "primaryRuntimeResetHelp": "Behält den Chat und startet einen neuen nativen Kontext. Nach Stop oder Verbindungsfehler ausgeführte und unklare Aktionen vor dem Fortsetzen prüfen."
       },
       "modelSection": "Modell",
       "permissionsSection": "Berechtigungen",

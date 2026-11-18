@@ -50,7 +50,11 @@ from app.services import realtime_models
 from app.services.image_models import image_providers
 from app.services.model_catalog import CUSTOM_LISTINGS, models_for
 from app.services.model_outputs import stated_outputs
-from app.services.model_profile import provider_catalog, validate_endpoint_url
+from app.services.model_profile import (
+    native_runtime_availability,
+    provider_catalog,
+    validate_endpoint_url,
+)
 from app.services.speech_to_text import LANGUAGES as SPEECH_TO_TEXT_LANGUAGES
 from app.services.speech_to_text import providers as speech_to_text_providers
 from app.services.text_to_speech_models import providers as text_to_speech_providers
@@ -86,7 +90,9 @@ async def list_provider_catalog() -> Any:
         )
         for spec in provider_catalog()
     ]
-    return ProviderCatalog(items=items, total=len(items))
+    return ProviderCatalog(
+        items=items, total=len(items), native_runtimes=native_runtime_availability()
+    )
 
 
 @router.get(

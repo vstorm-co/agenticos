@@ -1,5 +1,5 @@
 ---
-source_sha: "595a1032e554"
+source_sha: "44aa10ac83ec"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -779,6 +779,16 @@ La corrección `[session:api] Usa las cifras de la UE` llega a la sesión `api`.
 
 Los programas ACP instalados se pueden registrar en **Agentes ACP externos**. [Agente ACP externo](reference/capabilities.md#external-acp) explica el registro, los permisos, la identidad de sesión y los límites de facturación.
 
+## Codex como entorno principal de conversación { #codex-conversation }
+
+En el chat Desktop, elige una carpeta autorizada con **Acceso completo** y **Entorno de conversación → Codex · este ordenador**. Codex genera la respuesta; ningún modelo alojado delega el prompt. Inicia sesión mediante los controles nativos de cuentas de programación. El CLI controla cuenta, modelo y cargos; no se importa OAuth de la bóveda ni una clave de perfil cloud. Un ID nativo exacto opcional debe confirmarse antes del prompt. El perfil normal sirve como atribución, no como segundo proveedor de inferencia.
+
+El acceso a herramientas es de solo lectura por defecto. Se rechazan escrituras y comandos nativos; las herramientas de plataforma necesitan clasificación de solo lectura. Editar conserva permisos, aprobaciones y presupuestos del agente. El CLI conserva los permisos del usuario local, sin aislamiento del sistema operativo. Actividad y respuesta en streaming aparecen en el chat; las llamadas reenviadas respetan el límite de pasos/herramientas. Solicitudes internas, tokens y cargos de suscripción/API quedan desconocidos y sin valorar.
+
+Las respuestas finalizadas guardan un comprobante de sesión nativa. Turnos posteriores y reinicios deben comprobar sesión e historial visible antes de enviar contexto nuevo. Cambiar entorno, modelo o política selecciona otro ámbito. **Restablecer sesión nativa** conserva el chat y crea contexto nativo nuevo. La falta de comprobante nunca reanuda ni reenvía automáticamente. Tras Stop, desconexión o entrega incierta, revisa los efectos antes de continuar; no hay reintentos ni reversión automáticos.
+
+Solo se admite el chat web de texto privado y no compartido del miembro iniciador. Desactiva salida estructurada, prompts multimodales, sobrescrituras de modelo, Code Mode, revisores y compactación de plataforma; el CLI gestiona su contexto. La inferencia auxiliar necesita un proveedor compatible separado, no acceso recursivo a la sesión principal. API, voz, programación y otros usuarios no pueden usar la cuenta Desktop. Los perfiles de modelo Codex y las tareas delegadas siguen separados. Inicio de sesión, derechos, efectos de herramientas, cuotas y reanudación requieren aceptación con cuenta real.
+
 ## Reenviar herramientas de plataforma { #runtime-platform-tools }
 
 **External ACP agent → Forward platform tools** está desactivado de forma predeterminada. Permite al programa registrado llamar a herramientas ya admitidas en esta ejecución de AgenticOS. Requiere una conversación privada, no compartida, del miembro y su ordenador autorizado. Desktop solicita un consentimiento nativo separado; autorizar una carpeta no activa el puente. Las descripciones de proveedores siguientes se refieren a la configuración predeterminada salvo que se active esta opción.
@@ -999,3 +1009,5 @@ Pi usa configuración privada temporal sin cuentas guardadas, extensiones descub
 Los identificadores, límites de contexto/salida y precios de chat Inception provienen de su catálogo autenticado actual. DeepSeek y OpenRouter usan catálogo y transporte de la versión fijada de Pi. Cambiar modelo requiere confirmación nativa exacta. La inspección devuelve hasta 128 opciones, mantiene primero el modelo actual e indica truncamiento. Un catálogo no prueba derechos ni crédito. Los cargos siguen sin precio calculado en AgenticOS. Claves inválidas, falta de crédito y modelos desconocidos no cambian a otra cuenta o facturación.
 
 Los archivos privados de sesión se limitan a persona, agente, chat, carpeta, registro y revisión de clave. La configuración temporal se elimina con el proceso propio. Elimina o registra de nuevo la entrada para revocar continuaciones. Pruebas con claves reales cubren streaming, 401/402, cuotas, reinicio/reanudación y Stop. Reenviar herramientas es una [opción explícita](#runtime-platform-tools). Consulta [extensiones de proveedor Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) y [modelos Inception](https://www.inceptionlabs.ai/models).
+
+El operador solo debe activar `CODEX_NATIVE_CONVERSATION_ENABLED=true` para una instalación local/de código abierto autorizada o con aprobación del proveedor. El ajuste no acredita derechos de la cuenta. La autenticación de App Server no está permitida para servicios comerciales o alojados sin la aprobación correspondiente. Cambiar la cuenta en Desktop detiene los procesos de ese entorno y borra sus continuaciones guardadas; reinicie la sesión nativa antes de continuar. Los cambios manuales de cuenta fuera de Desktop también requieren un reinicio.

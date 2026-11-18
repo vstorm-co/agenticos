@@ -1,5 +1,5 @@
 ---
-source_sha: "595a1032e554"
+source_sha: "44aa10ac83ec"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -750,6 +750,16 @@ Korekta `[session:api] Użyj danych z UE` trafia do sesji `api`. Przy jednej akt
 
 Własne zainstalowane programy ACP można zarejestrować w sekcji **Zewnętrzni agenci ACP**. [Zewnętrzny agent ACP](reference/capabilities.md#external-acp) opisuje rejestrację, uprawnienia, tożsamość sesji i ograniczenia rozliczania.
 
+## Codex prowadzący rozmowę { #codex-conversation }
+
+W czacie Desktop wybierz zatwierdzony folder z **Pełnym dostępem**, a następnie **Środowisko prowadzące rozmowę → Codex · ten komputer**. Codex tworzy odpowiedź w rozmowie; model hostowany nie deleguje mu promptu. Zaloguj się przez istniejące natywne ustawienia kont programistycznych. CLI zarządza kontem, modelem i opłatami; token OAuth z sejfu ani klucz profilu chmurowego nie są importowane. Opcjonalne dokładne ID modelu natywnego wymaga potwierdzenia przed promptem. Zwykły profil modelu służy do opisu uruchomienia, nie do drugiej inferencji.
+
+Dostęp narzędzi jest domyślnie tylko do odczytu. Natywne zapisy i polecenia są odrzucane; narzędzia platformy są udostępniane tylko po potwierdzeniu odczytu przez istniejący klasyfikator. Tryb zmian zachowuje uprawnienia, zgody i budżety agenta. CLI nadal ma uprawnienia lokalnego konta, bez izolacji systemowej. Aktywność i strumień odpowiedzi trafiają do czatu; wywołania platformy ogranicza limit kroków/narzędzi uruchomienia. Wewnętrzne żądania, tokeny oraz opłaty subskrypcji/API pozostają nieznane i niewycenione.
+
+Zakończona tura zapisuje potwierdzenie sesji natywnej. Kolejne tury i restarty muszą dopasować sesję i widoczną historię, zanim wyślą nowy kontekst. Zmiana środowiska, modelu lub zasad tworzy osobny zakres. **Zresetuj sesję natywną** zachowuje czat i tworzy nowy kontekst natywny. Brak potwierdzenia nie uruchamia automatycznego wznowienia ani kolejnego zadania. Po Stop, rozłączeniu lub niepewnym dostarczeniu sprawdź skutki przed resetem lub kontynuacją; nie ma automatycznych ponowień ani wycofywania zmian.
+
+Tryb obsługuje tylko prywatny, nieudostępniony tekstowy czat webowy osoby rozpoczynającej pracę. Wyłącz wynik strukturalny, multimodalne prompty, nadpisania ustawień modelu, Code Mode, recenzentów i kompakcję platformy; kontekstem zarządza CLI. Dodatkowa inferencja wymaga osobnego obsługiwanego dostawcy, nie rekurencyjnego użycia głównej sesji. API, głos, harmonogramy i inni użytkownicy nie mogą pożyczać konta Desktop. Profile modeli Codex i delegowane zadania programistyczne pozostają osobnymi opcjami. Logowanie, uprawnienia planu, skutki narzędzi, limity i wznowienia wymagają testów na koncie.
+
 ## Przekazywanie narzędzi platformy { #runtime-platform-tools }
 
 Opcja **External ACP agent → Forward platform tools** jest domyślnie wyłączona. Pozwala zarejestrowanemu programowi wywoływać narzędzia dopuszczone do tego uruchomienia AgenticOS. Wymaga prywatnej, nieudostępnionej rozmowy członka organizacji i jego zatwierdzonego komputera. Desktop pyta o osobną zgodę; wcześniejsza zgoda na folder nie włącza przekazywania narzędzi. Poniższe opisy dostawców dotyczą ustawień domyślnych, chyba że włączysz tę opcję.
@@ -966,3 +976,5 @@ Pi korzysta z tymczasowej prywatnej konfiguracji bez zapisanych kont, wykrytych 
 Identyfikatory modeli czatu Inception, limity kontekstu i odpowiedzi oraz ceny pochodzą z aktualnego katalogu odczytanego z tym kluczem. DeepSeek i OpenRouter używają katalogu i transportu przypiętego Pi. Zmiana modelu wymaga dokładnego potwierdzenia natywnego. Inspekcja zwraca najwyżej 128 opcji, stawia bieżący model na początku i oznacza ucięcie listy. Katalog nie dowodzi uprawnień planu ani kredytów. Koszt w AgenticOS pozostaje nieznany. Błędny klucz, brak kredytów i niedostępny model nie przełączają na inne zapisane konto lub rozliczenie.
 
 Prywatne pliki sesji są ograniczone do osoby, agenta, czatu, folderu, rejestracji i wersji wybranego klucza. Konfiguracja tymczasowa znika wraz z własnym procesem. Usuń lub zarejestruj ponownie wpis natywny, aby cofnąć wznowienia. Testy prawdziwego klucza obejmują strumieniowanie, 401/402, limity, restart/wznowienie i Stop. Przekazywanie narzędzi platformy jest [osobną opcją](#runtime-platform-tools). Zobacz [rozszerzenia dostawców Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) i [modele Inception](https://www.inceptionlabs.ai/models).
+
+Operator może ustawić `CODEX_NATIVE_CONVERSATION_ENABLED=true` wyłącznie dla uprawnionego wdrożenia lokalnego/open source lub po uzyskaniu zgody dostawcy. Przełącznik nie potwierdza uprawnień konta. Uwierzytelnianie App Server nie jest dozwolone w usługach komercyjnych ani hostowanych bez odpowiedniej zgody. Zmiana logowania w aplikacji zatrzymuje procesy tego środowiska i usuwa zapisane wznowienia; przed kontynuacją zresetuj sesję natywną. Ręczna zmiana konta poza aplikacją również wymaga resetu.

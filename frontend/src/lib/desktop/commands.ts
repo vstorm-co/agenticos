@@ -380,6 +380,12 @@ export interface LocalTarget {
   coding_agent?: "claude_code" | "codex";
   coding_model?: string | null;
   coding_effort?: string | null;
+  conversation_runtime?: {
+    harness: "codex";
+    session_epoch: string;
+    access: "read_only" | "edit";
+    model_id?: string | null;
+  } | null;
   model_service?: string | null;
   mcp_services?: string[];
 }

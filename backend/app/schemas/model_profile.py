@@ -71,9 +71,16 @@ class ProviderInfo(BaseSchema):
     )
 
 
+class NativeRuntimeAvailability(BaseSchema):
+    """Operator-enabled primary Desktop runtimes; not account entitlement."""
+
+    codex: bool = False
+
+
 class ProviderCatalog(BaseSchema):
     items: list[ProviderInfo]
     total: int
+    native_runtimes: NativeRuntimeAvailability = Field(default_factory=NativeRuntimeAvailability)
 
 
 class ModelProfileCreate(BaseSchema):

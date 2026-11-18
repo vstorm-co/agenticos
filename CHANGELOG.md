@@ -27,6 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Choose Codex as the primary Desktop conversation runtime, with native streamed answers, scoped session receipts, platform-tool policy, explicit reset and no cloud credential fallback.
+
 - External Desktop runtimes can opt into run-scoped platform tools through a process-owned local MCP bridge, preserving validation, approvals, budgets and result screening. Pi uses an isolated app-owned extension; Muse uses its official SDK. Live approvals are committed before actions execute.
 
 - Connect official ChatGPT plan usage separately from Codex, with durable client registration, explicit plan consent, account-specific models and generation-checked vault refresh.

@@ -28,6 +28,7 @@ from app.agents.model_resolver import (
     lacks_key,
 )
 from app.core.audit import record_audit
+from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -61,7 +62,7 @@ from app.repositories import (
     organization_secret_repo,
     system_agent_repo,
 )
-from app.schemas.model_profile import ModelProfileUpdate
+from app.schemas.model_profile import ModelProfileUpdate, NativeRuntimeAvailability
 from app.services.access import AGENT, SECRET, accessible_ids, resolve_access
 from app.services.model_catalog import CUSTOM_LISTINGS, CatalogModel, models_for
 from app.services.model_outputs import model_outputs, not_chat_refusal
@@ -1009,3 +1010,8 @@ def _chatgpt_source(
     return VaultChatGPTCredentials(
         organization_id=organization_id, secret_id=secret_id, generation=generation
     )
+
+
+def native_runtime_availability() -> NativeRuntimeAvailability:
+    """Report deployment eligibility switches without inspecting personal credentials."""
+    return NativeRuntimeAvailability(codex=settings.CODEX_NATIVE_CONVERSATION_ENABLED)

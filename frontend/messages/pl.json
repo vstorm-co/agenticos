@@ -437,7 +437,16 @@
         "off": "Wyłączone",
         "asksFirst": "Zapyta przy pierwszej wiadomości",
         "noCloud": "Ten agent pracuje na Twoim komputerze, więc nie ma przestrzeni w chmurze. Wybierz folder albo cały komputer.",
-        "agentComputerConsent": "Dozwolone dla {agent} w każdej rozmowie na tym komputerze. Polecenia działają bez osobnych natywnych pytań. Możesz cofnąć dostęp tutaj; uprawnienia systemu nadal obowiązują."
+        "agentComputerConsent": "Dozwolone dla {agent} w każdej rozmowie na tym komputerze. Polecenia działają bez osobnych natywnych pytań. Możesz cofnąć dostęp tutaj; uprawnienia systemu nadal obowiązują.",
+        "primaryRuntimeDisabled": "Operator musi włączyć tę integrację dla uprawnionego wdrożenia. Samo zalogowanie nie potwierdza uprawnień u dostawcy.",
+        "primaryRuntime": "Środowisko prowadzące rozmowę",
+        "nativeCodex": "Codex · ten komputer",
+        "primaryRuntimeHelp": "Codex odpowiada w rozmowie, korzystając z własnego logowania CLI i ustawień modelu. Nadal obowiązują uprawnienia i zgody narzędzi AgenticOS. Tylko tekst; wyłącz nadpisania ustawień modelu, Code Mode, recenzentów i kompakcję platformy. Koszt użycia natywnego pozostaje nieznany.",
+        "primaryRuntimeAccess": "Dostęp narzędzi środowiska",
+        "primaryRuntimeEdit": "Zmiany zgodne z zasadami agenta",
+        "primaryRuntimeModel": "ID modelu natywnego (opcjonalnie)",
+        "primaryRuntimeReset": "Zresetuj sesję natywną",
+        "primaryRuntimeResetHelp": "Zachowuje czat i tworzy nowy kontekst natywny. Po Stop lub utracie połączenia sprawdź wykonane i niepewne akcje, zanim będziesz kontynuować."
       },
       "modelSection": "Model",
       "permissionsSection": "Uprawnienia",

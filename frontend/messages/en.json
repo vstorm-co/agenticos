@@ -1420,7 +1420,16 @@
         "off": "Off",
         "asksFirst": "Asks on first message",
         "noCloud": "This agent works on your computer, so it has no cloud workspace. Choose a folder or the whole computer.",
-        "agentComputerConsent": "Allowed for {agent} in every conversation on this computer. Commands run without individual native prompts. You can revoke access here; operating system permissions still apply."
+        "agentComputerConsent": "Allowed for {agent} in every conversation on this computer. Commands run without individual native prompts. You can revoke access here; operating system permissions still apply.",
+        "primaryRuntimeDisabled": "Your operator must enable an eligible deployment before this runtime can be selected. Signing in does not establish provider eligibility.",
+        "primaryRuntime": "Conversation runtime",
+        "nativeCodex": "Codex · this computer",
+        "primaryRuntimeHelp": "Codex answers the conversation using its own CLI login and model settings. AgenticOS tool permissions and approvals still apply. Text only; disable model setting overrides, Code Mode, reviewers and platform compaction. Native usage remains unpriced.",
+        "primaryRuntimeAccess": "Runtime tool access",
+        "primaryRuntimeEdit": "Allow changes under the agent’s policies",
+        "primaryRuntimeModel": "Native model ID (optional)",
+        "primaryRuntimeReset": "Reset native session",
+        "primaryRuntimeResetHelp": "Keeps this chat and starts a fresh native context. Check completed or uncertain actions before continuing after Stop or a connection failure."
       },
       "modelSection": "Model",
       "permissionsSection": "Permissions",

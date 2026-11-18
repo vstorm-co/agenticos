@@ -44,6 +44,18 @@ class RoutineLocalScope(BaseModel):
     operations: LocalOperations
 
 
+class NativeConversationTarget(BaseModel):
+    """An explicitly chosen primary runtime; independent from coding delegation."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    harness: Literal["codex"]
+    session_epoch: UUID = Field(strict=False)
+    access: Literal["read_only", "edit"] = "read_only"
+    model_id: str | None = Field(default=None, pattern=r"^[^\x00-\x20\x7f]{1,256}$")
+    timeout_minutes: int = Field(default=15, ge=1, le=60)
+
+
 class LocalTarget(BaseModel):
     """Where a run works: a folder on one of the person's computers."""
 
@@ -64,6 +76,9 @@ class LocalTarget(BaseModel):
 
     operations: LocalOperations | None = None
     """Explicit operation ceiling for a routine grant; interactive targets retain their modes."""
+
+    conversation_runtime: NativeConversationTarget | None = None
+    """The CLI owns the conversation; its sign-in is never imported as a model key."""
 
     model_service: Annotated[str, StringConstraints(pattern=r"^[a-zA-Z0-9_]{1,48}$")] | None = None
     """An approved model service on this computer; no cloud fallback."""
@@ -102,6 +117,7 @@ class LocalTarget(BaseModel):
                 or self.computer_grant is not None
                 or self.computer
                 or self.browser
+                or self.conversation_runtime is not None
                 or self.model_service is not None
                 or self.mcp_services
                 or self.mode != ("workspace_write" if self.operations.write else "read_only")
@@ -112,6 +128,12 @@ class LocalTarget(BaseModel):
         elif self.operations is not None:
             raise ValueError("Routine operations require native routine consent")
 
+        if self.conversation_runtime is not None and (
+            self.folder is None or self.mode != "full_access" or self.model_service is not None
+        ):
+            raise ValueError(
+                "A native primary conversation needs a full-access folder and cannot also select a local model service"
+            )
         if self.coding_agent is None and (
             self.coding_model is not None or self.coding_effort is not None
         ):
@@ -152,9 +174,10 @@ class LocalTarget(BaseModel):
         )
 
     def fingerprint(self) -> str:
-        return hashlib.sha256(
-            json.dumps(self.model_dump(mode="json"), sort_keys=True).encode()
-        ).hexdigest()
+        value = self.model_dump(mode="json")
+        if self.conversation_runtime is None:
+            value.pop("conversation_runtime", None)
+        return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
 
 
 def target_fingerprint(value: object) -> str | None:

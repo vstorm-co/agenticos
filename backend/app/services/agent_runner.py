@@ -239,7 +239,8 @@ from app.agents.mcp import (
     unreachable_briefing,
 )
 from app.agents.model_context import ModelContextCheck, checking_model_context
-from app.agents.model_resolver import ModelRequestSpec
+from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
+from app.agents.native_model_spec import NativeModelSpec
 from app.agents.observability import current_trace_id
 from app.agents.person_briefing import Person, with_person
 from app.agents.routine_actions import RoutineToolCheck
@@ -2378,6 +2379,10 @@ def _with_execution_environment(spec: AgentSpec, local: LocalTarget | None) -> A
             selected.append(
                 f"Coding tasks use {local.coding_agent} in the approved folder on this computer."
             )
+        if local.conversation_runtime is not None:
+            selected.append(
+                f"The primary conversation runs in {local.conversation_runtime.harness} on this computer. Its CLI owns login, native context and opaque charges; this is not a delegated coding task."
+            )
         if local.model_service is not None:
             selected.append(
                 "Inference uses the selected local model service; do not claim it runs in the cloud."
@@ -4324,7 +4329,8 @@ class AgentRunnerService:
             models_ctx,
             surface,
             override=model_profile_id,
-            local_model=local is not None and local.model_service is not None,
+            local_model=local is not None
+            and (local.model_service is not None or local.conversation_runtime is not None),
             voice=voice is not None,
             public_origin=public_origin,
         )
@@ -4338,6 +4344,52 @@ class AgentRunnerService:
                 models_ctx.organization_id, profile_id=spec.model_profile_id
             )
             model_spec = await PersonalModelKeyService(self.db).resolve(models_ctx, profile)
+        elif local is not None and local.conversation_runtime is not None:
+            if not settings.CODEX_NATIVE_CONVERSATION_ENABLED:
+                raise BadRequestError(
+                    message="The operator has not enabled an eligible Codex primary conversation deployment"
+                )
+            if (
+                surface != RunSurface.WEB
+                or voice is not None
+                or public_origin
+                or spec.output_schema is not None
+                or spec.reviewers
+                or spec.code_mode.enabled
+                or bool(spec.model_settings.model_dump())
+                or any(
+                    binding.id == "compaction" and binding.enabled for binding in spec.capabilities
+                )
+            ):
+                raise BadRequestError(
+                    message="Native primary conversations require private text web chat, plain text output and native context management; disable model setting overrides, reviewers, Code Mode and platform compaction for this run"
+                )
+            profile = await self.models.profile_for_organization(
+                models_ctx.organization_id, profile_id=model_profile_id or spec.model_profile_id
+            )
+            from app.agents.capabilities.coding_agent._harness import LABELS
+            from app.core.secret_kinds import NoSecret
+
+            native_provider = f"native-{local.conversation_runtime.harness}"
+            model_spec = NativeModelSpec(
+                profile_id=profile.id,
+                label=f"{LABELS[local.conversation_runtime.harness]} (native conversation)",
+                provider=native_provider,
+                model=native_provider,
+                params={},
+                credential=ResolvedCredential(
+                    provider=native_provider,
+                    secret=NoSecret(),
+                    routing={
+                        "native_epoch": str(local.conversation_runtime.session_epoch),
+                        "access": local.conversation_runtime.access,
+                        "native_model": local.conversation_runtime.model_id,
+                    },
+                ),
+                fallbacks=[],
+                target=local.conversation_runtime,
+                readonly_tools=capability_tools(spec),
+            )
         elif local is not None and local.model_service is not None:
             if voice is not None:
                 raise BadRequestError(message="Local models are available for text conversations")
@@ -4901,7 +4953,11 @@ class AgentRunnerService:
         # instructions, whichever agent answers - see `_in_project`.
         if project is not None:
             spec = _in_project(spec, project)
-        if answer_only and local_model_choice is None:
+        if (
+            answer_only
+            and local_model_choice is None
+            and not isinstance(model_spec, NativeModelSpec)
+        ):
             spec = _answer_only(spec)
 
         # Opened after the run row, because a run-scoped workspace keys on it,
@@ -5238,7 +5294,10 @@ class AgentRunnerService:
             personal_models_blocked=(
                 public_origin
                 or voice is not None
-                or (local is not None and local.model_service is not None)
+                or (
+                    local is not None
+                    and (local.model_service is not None or local.conversation_runtime is not None)
+                )
             ),
             spec=spec.model_copy(update={"capabilities": delegation_capabilities}),
             agent=agent,

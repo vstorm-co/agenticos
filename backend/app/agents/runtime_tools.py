@@ -21,6 +21,7 @@ from app.agents.approval import ApprovalDecision, ApprovalGranted, ApprovalRejec
 from app.agents.ask_user import answers_to_response, wire_questions
 from app.agents.capabilities.budget import assert_ambient_budget
 from app.agents.deps import AgentDeps
+from app.agents.isolation import ToolClass, classify
 from app.agents.mcp import ACCOUNT
 from app.agents.model_context import check_model_context
 from app.agents.runtime_questions import (
@@ -56,7 +57,13 @@ class RuntimeTools:
     runtime delegation itself is excluded to prevent recursive native launches.
     """
 
-    def __init__(self, ctx: RunContext[AgentDeps], *, secrets: tuple[str, ...] = ()) -> None:
+    def __init__(
+        self,
+        ctx: RunContext[AgentDeps],
+        *,
+        secrets: tuple[str, ...] = (),
+        readonly_tools: Mapping[str, ToolClass] | None = None,
+    ) -> None:
         parent = ctx.tool_manager
         if parent is None or parent.tools is None:
             raise ValueError("The native tool bridge requires a prepared run tool manager")
@@ -70,6 +77,7 @@ class RuntimeTools:
             if tool.tool_def.kind in {"function", "unapproved"}
             and tool.tool_def.capability_id not in _EXCLUDED
             and name != ctx.tool_name
+            and (readonly_tools is None or classify(tool.tool_def, readonly_tools).read_only)
         }
 
     def _screen(self, value: JsonValue) -> None:

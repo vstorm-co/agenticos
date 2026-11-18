@@ -166,7 +166,14 @@ def price_request(
             back to another provider reports a model this hint does not match,
             so resolution is retried without it rather than mispricing.
     """
-    if provider in {"github_copilot", "github-copilot", "openai_chatgpt", "openai-chatgpt"}:
+    if provider in {
+        "github_copilot",
+        "github-copilot",
+        "openai_chatgpt",
+        "openai-chatgpt",
+        "native-codex",
+        "native-claude_code",
+    }:
         # Subscription allowances have no verified per-token USD contract.
         return None
     if (reported := _provider_reported_cost(usage)) is not None:

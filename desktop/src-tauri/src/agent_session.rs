@@ -193,6 +193,7 @@ struct Session {
     opening_call: Option<String>,
     workspace_root: Option<std::path::PathBuf>,
     external_id: Option<String>,
+    builtin_id: Option<crate::local_agents::AgentId>,
 }
 
 /// Every running agent, by the id the server uses.
@@ -461,6 +462,7 @@ fn spawn_with_bridge(
         opening_call: None,
         workspace_root: None,
         external_id: None,
+        builtin_id: None,
     })
 }
 
@@ -907,6 +909,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     } else {
         return Err(Refusal::new("denied", "The agent has no launch configuration."));
     };
+    session.builtin_id = agent.builtin();
     session.external_id = external.as_ref().map(|item| item.id.clone());
     session.workspace_root = Some(root);
     session.resume_key = key;
@@ -1115,6 +1118,41 @@ fn remove_for_folder(map: &mut HashMap<String, Session>, root: &Path) {
     });
 }
 
+/// Account mutation holds CHANGING, so no native launch can race credential replacement.
+pub async fn close_builtin(app: &AppHandle, id: crate::local_agents::AgentId) -> Result<(), String> {
+    let sessions = app.state::<Sessions>();
+    let stopped = take_builtin(&mut *sessions.map.lock().await, id);
+    for output in stopped {
+        tokio::time::timeout(Duration::from_secs(15), async {
+            loop {
+                let changed = output.changed.notified();
+                if output.with(|kept| kept.exit.is_some()) { break; }
+                changed.await;
+            }
+        }).await.map_err(|_| "The previous agent has not stopped; credentials were not changed.".to_owned())?;
+    }
+    let agent = match id {
+        crate::local_agents::AgentId::Codex => AgentId::Codex,
+        crate::local_agents::AgentId::ClaudeCode => AgentId::ClaudeCode,
+    };
+    crate::settings::update(app, |settings| {
+        settings.coding_sessions.retain(|item| item.key.agent != agent);
+        settings.coding_consents.retain(|item| item.agent != agent);
+    })?;
+    Ok(())
+}
+
+fn take_builtin(map: &mut HashMap<String, Session>, id: crate::local_agents::AgentId) -> Vec<Arc<Output>> {
+    let mut stopped = Vec::new();
+    map.retain(|_, session| {
+        if session.builtin_id != Some(id) { return true; }
+        if let Some(kill) = session.kill.take() { let _ = kill.send(()); }
+        stopped.push(session.output.clone());
+        false
+    });
+    stopped
+}
+
 /// Revocation or replacement discards every process using this local registration.
 pub async fn close_external(app: &AppHandle, id: &str) {
     let sessions = app.state::<Sessions>();
@@ -1235,6 +1273,23 @@ mod tests {
             selected.map(|(_, value)| value),
             Some(Some(std::ffi::OsStr::new("test-key")))
         );
+    }
+
+    #[tokio::test]
+    async fn an_account_change_stops_only_its_builtin_sessions() {
+        let mut codex = shell("sleep 60");
+        codex.builtin_id = Some(crate::local_agents::AgentId::Codex);
+        let mut claude = shell("sleep 60");
+        claude.builtin_id = Some(crate::local_agents::AgentId::ClaudeCode);
+        let custom = shell("sleep 60");
+        let mut map = HashMap::from([("codex".into(), codex), ("claude".into(), claude), ("custom".into(), custom)]);
+        let stopped = take_builtin(&mut map, crate::local_agents::AgentId::Codex);
+        assert_eq!(stopped.len(), 1);
+        assert!(!map.contains_key("codex"));
+        assert!(map.contains_key("claude") && map.contains_key("custom"));
+        let (_, _, exit) = drain(&stopped[0], 0).await;
+        assert!(exit.is_some());
+        for (_, mut session) in map { let _ = session.kill.take().unwrap().send(()); }
     }
 
     #[tokio::test]

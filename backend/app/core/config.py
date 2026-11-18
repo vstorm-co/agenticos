@@ -50,6 +50,9 @@ def find_env_file() -> Path | None:
 class Settings(BaseSettings):
     """Application settings."""
 
+    CODEX_NATIVE_CONVERSATION_ENABLED: bool = False
+    """Enable only for an eligible local/open-source or provider-approved deployment."""
+
     OPENAI_CHATGPT_PLAN_USAGE_ENABLED: bool = False
     OPENAI_CHATGPT_HOST_ID: UUID | None = None
     """Operator attestation that this deployment is eligible for official ChatGPT plan usage."""
