@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Forward agent avatar uploads through the authenticated console proxy, preserving multipart file bytes, the active organization and backend validation errors (#3153).
+
 ## [1.82.2] - 2026-11-18
 
 ### Added
