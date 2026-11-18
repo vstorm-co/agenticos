@@ -147,6 +147,30 @@ def _replays_content(texts: Sequence[str], content: str) -> bool:
     return False
 
 
+def _preserve_blank_text(ordered: list[HistoryMessage]) -> list[HistoryMessage]:
+    """Attach blank fragments to neighboring text without crossing human turns.
+
+    A blank model response is rejected by some providers. Buffer its fragments
+    and join once so highly fragmented stored timelines remain linear to replay.
+    """
+    result: list[HistoryMessage] = []
+    blanks: list[str] = []
+    for entry in ordered:
+        if entry["role"] == "assistant" and not entry["content"].strip():
+            blanks.append(entry["content"])
+            continue
+        if blanks:
+            if entry["role"] == "assistant":
+                entry["content"] = "".join(blanks) + entry["content"]
+            elif result and result[-1]["role"] == "assistant":
+                result[-1]["content"] += "".join(blanks)
+            blanks.clear()
+        result.append(entry)
+    if blanks and result and result[-1]["role"] == "assistant":
+        result[-1]["content"] += "".join(blanks)
+    return result
+
+
 def _anchor_replayed_answer(ordered: list[HistoryMessage], used: int | None) -> None:
     """Keep usage on the response that survives adjacent-response normalization."""
     anchor: HistoryMessage | None = None
@@ -194,14 +218,7 @@ def _as_history(
                     and isinstance(text := part.get("text"), str)
                 ):
                     texts.append(text)
-                    if (
-                        ordered
-                        and ordered[-1]["role"] == "assistant"
-                        and (not text.strip() or not ordered[-1]["content"].strip())
-                    ):
-                        ordered[-1]["content"] += text
-                    else:
-                        ordered.append({"role": "assistant", "content": text})
+                    ordered.append({"role": "assistant", "content": text})
                 elif kind == "steer" and isinstance(text := part.get("text"), str):
                     ordered.append({"role": "user", "content": f"{STEER_PREFIX}\n\n{text}"})
                 elif (
@@ -214,7 +231,7 @@ def _as_history(
                     ordered.append(
                         {"role": "user", "content": f"Question: {question}\nAnswer: {answer}"}
                     )
-        ordered = [entry for entry in ordered if entry["content"].strip()]
+        ordered = _preserve_blank_text(ordered)
         if _replays_content(texts, row.content):
             _anchor_replayed_answer(ordered, row.context_used_tokens)
             history.extend(ordered)

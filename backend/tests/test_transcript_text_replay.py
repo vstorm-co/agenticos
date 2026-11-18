@@ -19,7 +19,7 @@ from app.services.message_history import build_message_history
         (["The answer. \t\n"], "The answer. \t\n", ["The answer. \t\n"]),
         (["\u2003The answer.\u2003"], "The answer.", ["\u2003The answer.\u2003"]),
         (["Earlier.", "Final ", "answer."], "Final answer.", ["Earlier.", "Final ", "answer."]),
-        (["Before", " \n", "after"], "Before \nafter", ["Before \n", "after"]),
+        (["Before", " \n", "after"], "Before \nafter", ["Before", " \nafter"]),
         (["First.", "Second."], "First.Second.", ["First.", "Second."]),
         (["First.", "Second."], "Second.", ["First.", "Second."]),
         (["Draft."], "Final.", ["Draft.", "Final."]),
@@ -29,8 +29,9 @@ from app.services.message_history import build_message_history
         (["Partial.", ""], "Partial.", ["Partial."]),
         ([" \n", "Answer."], "Answer.", [" \nAnswer."]),
         ([" \n", "\t", "Answer."], "Answer.", [" \n\tAnswer."]),
-        (["Prefix", " \n", "Answer."], "Answer.", ["Prefix \n", "Answer."]),
+        (["Prefix", " \n", "Answer."], "Answer.", ["Prefix", " \nAnswer."]),
         (["A"] * 20_000, "A" * 20_000, ["A"] * 20_000),
+        ([" " * 200] * 20_000 + ["A"], "A", [" " * 4_000_000 + "A"]),
     ],
 )
 def test_stored_answer_is_replayed_once(
@@ -117,3 +118,34 @@ def test_an_empty_legacy_answer_adds_no_model_message_or_token_anchor() -> None:
         context_used_tokens=56_000,
     )
     assert build_message_history(_as_history([row], None)) == []
+
+
+@pytest.mark.parametrize("has_text", [True, False])
+def test_blank_fragments_do_not_cross_a_human_reply(has_text: bool) -> None:
+    row = Message(
+        id=uuid4(),
+        role="assistant",
+        content="Before. \nAfter." if has_text else "After.",
+        parts=([{"type": "text", "text": "Before."}] if has_text else [])
+        + [
+            {"type": "text", "text": " \n"},
+            {"type": "ask_user", "question": "Which?", "answer": "A"},
+            {"type": "text", "text": "After."},
+            {"type": "text", "text": " \n"},
+        ],
+        guardrail_refused=False,
+    )
+    replay = _as_history([row], None)
+    expected = (["Before. \n"] if has_text else []) + ["Question: Which?\nAnswer: A", "After. \n"]
+    assert [entry["content"] for entry in replay] == expected
+
+
+def test_a_wholly_blank_timeline_is_not_sent_as_an_empty_model_response() -> None:
+    row = Message(
+        id=uuid4(),
+        role="assistant",
+        content="",
+        parts=[{"type": "text", "text": " \n"}],
+        guardrail_refused=False,
+    )
+    assert _as_history([row], None) == []
