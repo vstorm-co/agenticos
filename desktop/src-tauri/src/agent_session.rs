@@ -95,10 +95,44 @@ struct Lines {
     exit: Option<i32>,
     stderr: Vec<u8>,
     overflowed: bool,
+    capture_pi_state: bool,
+    pi_session_file: Option<String>,
 }
 
 impl Lines {
+    fn accepts_reference(&self, value: &str) -> bool {
+        if self.capture_pi_state {
+            self.pi_session_file.as_deref() == Some(value)
+        } else {
+            !value.is_empty()
+                && value.len() <= 128
+                && value
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        }
+    }
+
     fn push(&mut self, line: String) {
+        if self.capture_pi_state {
+            if let Ok(record) = serde_json::from_str::<Value>(&line) {
+                if record.get("type").and_then(Value::as_str) == Some("response")
+                    && record.get("command").and_then(Value::as_str) == Some("get_state")
+                {
+                    self.pi_session_file = record
+                        .get("success")
+                        .and_then(Value::as_bool)
+                        .filter(|success| *success)
+                        .and_then(|_| record.get("data")?.get("sessionFile")?.as_str())
+                        .filter(|path| {
+                            !path.is_empty()
+                                && path.len() <= 4096
+                                && !path.chars().any(char::is_control)
+                                && Path::new(path).is_absolute()
+                        })
+                        .map(str::to_owned);
+                }
+            }
+        }
         self.bytes += line.len();
         self.items.push_back(line);
         while self.bytes > BUFFER_LIMIT {
@@ -309,7 +343,10 @@ fn spawn_authenticated(
     let stdout = child.0.stdout().take().expect("piped");
     let mut stderr = child.0.stderr().take().expect("piped");
     let output = Arc::new(Output {
-        lines: StdMutex::default(),
+        lines: StdMutex::new(Lines {
+            capture_pi_state: provider == crate::external_agents::Provider::Pi,
+            ..Lines::default()
+        }),
         changed: Notify::new(),
     });
 
@@ -805,15 +842,20 @@ async fn remember_running(app: &AppHandle, args: &Map<String, Value>) -> Result<
     let session_id = args
         .get("session_id")
         .and_then(Value::as_str)
-        .filter(|id| {
-            !id.is_empty() && id.len() <= 128 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-        })
         .ok_or_else(|| Refusal::new("denied", "That session identifier is not valid."))?;
     let sessions = app.state::<Sessions>();
     let map = sessions.map.lock().await;
     let session = map
         .get(id)
         .ok_or_else(|| Refusal::new("not_found", "That agent is not running."))?;
+    // Pi resumes by file path, not the ACP identifier grammar. Only a reference
+    // observed in this owned child's successful state reply can enter history.
+    if !session.output.with(|lines| lines.accepts_reference(session_id)) {
+        return Err(Refusal::new(
+            "denied",
+            "That session reference was not admitted by this runtime.",
+        ));
+    }
     if let Some(key) = &session.resume_key {
         crate::settings::update(app, |settings| {
             remember(&mut settings.coding_sessions, key.clone(), session_id.to_owned())
@@ -1015,6 +1057,42 @@ mod tests {
             .map(|l| l.as_str().unwrap().to_owned())
             .collect();
         (lines, answer["cursor"].as_u64().unwrap(), answer["exit"].as_i64())
+    }
+
+    #[test]
+    fn pi_continuation_only_accepts_a_file_observed_from_its_owned_child() {
+        let file = std::env::temp_dir()
+            .join("pi-zażółć-session.jsonl")
+            .to_string_lossy()
+            .into_owned();
+        let mut lines = Lines {
+            capture_pi_state: true,
+            ..Lines::default()
+        };
+        assert!(!lines.accepts_reference(&file));
+        lines.push(
+            serde_json::json!({"type":"response","command":"get_state","success":true,"data":{"sessionFile":file}})
+                .to_string(),
+        );
+        assert!(lines.accepts_reference(&file));
+        assert!(!lines.accepts_reference("/other/account/session.jsonl"));
+        assert!(!Lines::default().accepts_reference(&file));
+        assert!(Lines::default().accepts_reference("acp-native_123"));
+        for value in [
+            Value::Null,
+            Value::String("relative.jsonl".into()),
+            Value::String("/bad\npath".into()),
+            Value::String("x".repeat(4097)),
+        ] {
+            lines.push(serde_json::json!({"type":"response","command":"get_state","success":true,"data":{"sessionFile":value}}).to_string());
+            assert!(!lines.accepts_reference(&file));
+        }
+        lines.push(
+            serde_json::json!({"type":"response","command":"get_state","success":true,"data":{"sessionFile":file}})
+                .to_string(),
+        );
+        lines.push(serde_json::json!({"type":"response","command":"get_state","success":false}).to_string());
+        assert!(!lines.accepts_reference(&file));
     }
 
     #[test]
