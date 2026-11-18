@@ -68,6 +68,7 @@ def _graph(placeholder: UUID) -> WorkflowGraph:
     )
 
 
+@pytest.mark.security
 async def test_atomic_preparation_preserves_required_fields_and_binds_the_new_table(
     db: AsyncSession,
 ):

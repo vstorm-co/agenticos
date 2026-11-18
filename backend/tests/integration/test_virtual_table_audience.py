@@ -5,6 +5,7 @@ people creates it private and shares it with each, in the same request.
 """
 
 import uuid
+from typing import Literal
 
 import pytest
 from sqlalchemy import select
@@ -38,6 +39,7 @@ async def _names(db: AsyncSession, ctx: AuthContext) -> list[str]:
     return [item.name for item in listed.items]
 
 
+@pytest.mark.security
 async def test_a_table_for_a_group_is_private_and_shared_with_it(db: AsyncSession) -> None:
     owner = await make_user(db)
     org = await make_org(db, owner=owner)
@@ -81,6 +83,7 @@ async def test_a_table_shared_with_a_person_reaches_them(db: AsyncSession) -> No
     assert await _names(db, ctx_for(colleague, org, "member")) == ["Leads"]
 
 
+@pytest.mark.security
 async def test_creation_replays_a_pre_audience_receipt_but_refuses_new_recipients(
     db: AsyncSession,
 ) -> None:
@@ -122,17 +125,28 @@ async def test_creation_replays_a_pre_audience_receipt_but_refuses_new_recipient
         )
 
 
-async def test_a_group_from_another_organization_is_refused(db: AsyncSession) -> None:
+@pytest.mark.security
+@pytest.mark.parametrize("recipient", ["group", "person"])
+async def test_an_audience_from_another_organization_is_refused(
+    db: AsyncSession, recipient: Literal["group", "person"]
+) -> None:
     owner = await make_user(db)
     org = await make_org(db, owner=owner)
     other = await make_org(db, owner=await make_user(db))
     foreign = Group(organization_id=other.id, name="Elsewhere")
     db.add(foreign)
     await db.flush()
+    foreign_user = await _member(db, other)
+    body = (
+        TableCreate(name="Leak", group_ids=[foreign.id])
+        if recipient == "group"
+        else TableCreate(name="Leak", user_ids=[foreign_user.id])
+    )
 
     with pytest.raises(BadRequestError) as refused:
-        await VirtualTableService(db).create_table(
-            ctx_for(owner, org), TableCreate(name="Leak", group_ids=[foreign.id])
-        )
+        await VirtualTableService(db).create_table(ctx_for(owner, org), body)
 
-    assert refused.value.details["fields"][0]["field"] == "group_ids"
+    assert refused.value.details["fields"][0]["field"] == (
+        "group_ids" if recipient == "group" else "user_ids"
+    )
+    assert await _names(db, ctx_for(owner, org)) == []
