@@ -585,6 +585,10 @@ error-on-warning = true
 
 [tool.ty.environment]
 python-version = "3.15"
+# Production runs on Linux (backend/Dockerfile, CI on ubuntu-latest). Without this,
+# ty resolves POSIX-only APIs (resource, signal.SIGKILL, os.killpg) for the host OS,
+# which breaks `ty check` on Windows.
+python-platform = "linux"
 
 [tool.ty.src]
 # `app/commands/` used to be here, which quietly took `app/commands/bootstrap.py`

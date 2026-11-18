@@ -154,9 +154,7 @@ v1_router.include_router(embed_widget.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(embed_generated_media.router, prefix="/embed", tags=["embed"])
 v1_router.include_router(agent_runs.router, tags=["runs"])
 v1_router.include_router(browser_credentials.router, tags=["browser-credentials"])
-v1_router.include_router(
-    browser_procedure_teaching.router, tags=["browser-procedure-teaching"]
-)
+v1_router.include_router(browser_procedure_teaching.router, tags=["browser-procedure-teaching"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(skill_checks.router, prefix="/skills", tags=["skills:checks"])
