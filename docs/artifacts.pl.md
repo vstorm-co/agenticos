@@ -1,5 +1,5 @@
 ---
-source_sha: "bbe82e47bf65"
+source_sha: "9d709767d4eb"
 ---
 
 # Aplikacje { #artifacts }
@@ -1427,6 +1427,8 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
 ## Ładowanie podglądów i udostępnianie { #preview-loading-and-sharing }
 
 Podglądy w chacie rezerwują miejsce podczas ładowania renderera wizualizacji lub miniatury Apps. Pojawiają się płynnie po zakończeniu renderowania lub dekodowania obrazu; preferencja ograniczonego ruchu wyłącza animację. Lista Apps używa buforowanych, statycznych miniatur przypisanych do wersji, zamiast ponownie uruchamiać każdą aplikację po powrocie do listy.
+
+Przejściowe błędy renderera i przekroczenia czasu otrzymują najwyżej dwie automatyczne próby ponowienia z rosnącym opóźnieniem. Brak konfiguracji renderera i odmowa dostępu nie uruchamiają ponowień. Powrót do karty ani zmiana jej widoczności nie odnawiają wyczerpanego limitu prób. Gotowe obrazy pozostają w buforze dla wersji, do której czytelnik ma dostęp.
 
 Skill Apps zawiera interaktywne prezentacje HTML, style wydruku PDF i przykłady gotowych komponentów. Eksport PDF wymaga skonfigurowanego renderera; sama walidacja podglądu nie dowodzi wykonania skryptu. Wykresy, tabele i treści interaktywne sprawdzaj w wyrenderowanym podglądzie. Eksport PowerPoint nie jest dostępny.
 
