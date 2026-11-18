@@ -62,6 +62,12 @@ class ExternalAcpConfig(BaseModel):
             raise ValueError("The Pi model ID must belong to the selected API-key provider")
         return self
 
+    platform_tools: bool = Field(
+        default=False,
+        title="Forward platform tools",
+        description="Allow this native runtime to call the tools already admitted to this AgenticOS run. Platform permissions, budgets, approvals and result screening still apply. Requires the initiating member's private approved computer.",
+    )
+
     timeout_minutes: int = Field(
         title="Time limit (minutes)",
         description="How long one task may run before it is stopped.",
@@ -112,4 +118,5 @@ def _build(ctx: CapabilityBuildContext) -> ExternalAcp:
         model_id=config.model_id,
         api_provider=config.api_provider,
         secret_id=ctx.binding.secret_id,
+        platform_tools=config.platform_tools,
     )

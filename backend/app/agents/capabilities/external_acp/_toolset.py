@@ -40,6 +40,7 @@ def build_acp_toolset(
     model_id: str | None = None,
     api_provider: PiKeyProvider | None = None,
     secret_id: UUID | None = None,
+    platform_tools: bool = False,
 ) -> FunctionToolset[AgentDeps]:
     async def run_acp_agent(
         ctx: RunContext[AgentDeps],
@@ -69,6 +70,23 @@ def build_acp_toolset(
                 ctx,
                 "Use a session name of up to 40 lower-case letters, digits, hyphens or underscores, starting with a letter or digit.",
             )
+        if platform_tools:
+            audience = ctx.deps.audience
+            workspace = ctx.workspace.backend if ctx.workspace.attached else None
+            if (
+                audience is None
+                or audience.room_key is not None
+                or audience.shared_transcript
+                or audience.user_id != ctx.deps.run_person
+                or ctx.deps.run_person is None
+                or ctx.deps.impersonated
+                or not isinstance(workspace, DeviceWorkspace)
+                or workspace.owner_id != ctx.deps.run_person
+                or ctx.deps.user_id != str(ctx.deps.run_person)
+            ):
+                return steer(
+                    ctx, "Platform tools require the initiating member's private approved computer"
+                )
         key = await selected_key(ctx, api_provider, secret_id)
         return await run_local_task(
             ctx,
@@ -84,6 +102,7 @@ def build_acp_toolset(
             model=model_id,
             credential_probe=probe_credentials,
             pi_key=key,
+            platform_tools=platform_tools,
         )
 
     async def inspect_acp_agent(ctx: RunContext[AgentDeps]) -> str:
@@ -142,4 +161,7 @@ def build_acp_toolset(
         finally:
             record_ambient_usage("external-acp:discovery", RequestUsage())
 
-    return FunctionToolset([run_acp_agent, inspect_acp_agent])
+    toolset = FunctionToolset([run_acp_agent, inspect_acp_agent])
+    if platform_tools:
+        toolset.tools["run_acp_agent"].sequential = True
+    return toolset

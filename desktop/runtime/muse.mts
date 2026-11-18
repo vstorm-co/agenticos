@@ -1,6 +1,6 @@
 import { once } from "node:events";
 import { realpath } from "node:fs/promises";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   MuseClient,
   readSessionDurability,
@@ -318,6 +318,64 @@ export class MuseAdapter {
     });
   }
 
+  private platformConfiguration(
+    servers: unknown,
+  ): NonNullable<Parameters<MuseClient["startSession"]>[0]>["config"] {
+    if (!Array.isArray(servers))
+      throw new Error("Unadmitted MCP configuration");
+    const endpoint = process.env.AGENTICOS_BRIDGE_URL;
+    const token = process.env.AGENTICOS_BRIDGE_TOKEN;
+    if (!endpoint && !token && servers.length === 0) return undefined;
+    if (
+      !endpoint ||
+      !/^http:\/\/127\.0\.0\.1:[0-9]+\/mcp$/.test(endpoint) ||
+      !token ||
+      !/^[a-f0-9]{64}$/.test(token) ||
+      servers.length !== 1
+    )
+      throw new Error("Unadmitted platform bridge");
+    const server: unknown = servers[0];
+    if (
+      !object(server) ||
+      server.name !== "agenticos_platform" ||
+      server.command !== process.execPath ||
+      !Array.isArray(server.args) ||
+      server.args.length !== 2 ||
+      server.args[0] !==
+        fileURLToPath(new URL("platform-bridge.mts", import.meta.url)) ||
+      server.args[1] !== "client" ||
+      !Array.isArray(server.env) ||
+      server.env.length !== 2
+    )
+      throw new Error("Unadmitted platform bridge");
+    const env = new Map<string, string>();
+    for (const entry of server.env) {
+      if (
+        !object(entry) ||
+        typeof entry.name !== "string" ||
+        typeof entry.value !== "string" ||
+        env.has(entry.name)
+      )
+        throw new Error("Invalid bridge environment");
+      env.set(entry.name, entry.value);
+    }
+    if (
+      env.get("AGENTICOS_BRIDGE_URL") !== endpoint ||
+      env.get("AGENTICOS_BRIDGE_TOKEN") !== token
+    )
+      throw new Error("Wrong bridge authority");
+    return {
+      mcpServers: {
+        agenticos_platform: {
+          transport: "streamableHttp",
+          url: endpoint,
+          headers: { Authorization: `Bearer ${token}` },
+          mode: "required",
+        },
+      },
+    };
+  }
+
   private async catalog(): Promise<JsonObject> {
     if (!this.client || !this.session) throw new Error("No owned session");
     const catalog = await this.client.listModels({
@@ -599,19 +657,22 @@ export class MuseAdapter {
         (await realpath(text(params.cwd))) !== (await realpath(process.cwd()))
       )
         throw new Error("Unapproved workspace");
-      if (!Array.isArray(params.mcpServers) || params.mcpServers.length)
-        throw new Error("Unadmitted MCP configuration");
+      const config = this.platformConfiguration(params.mcpServers);
       const session =
         method === "session/load"
           ? await client.resumeSession({
               sessionId: text(params.sessionId),
+              ...(config ? { config } : {}),
               onApproval: (request) => this.approval(request),
               onApprovalError: () => {
                 this.approvalFailed = true;
                 this.active?.abort();
               },
             })
-          : await client.startSession({ workspaceRoot: process.cwd() });
+          : await client.startSession({
+              workspaceRoot: process.cwd(),
+              ...(config ? { config } : {}),
+            });
       return this.opened(session);
     }
     const session = this.session;

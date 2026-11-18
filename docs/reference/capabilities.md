@@ -3362,13 +3362,13 @@ coding accounts), register a stable ID, display name, absolute executable path
 and JSON array of arguments, such as `["acp"]`. Log in with the program's own
 command first. Do not put credentials in arguments. Native confirmation reviews
 the command. In the Builder, enable **External ACP agent** and enter the same ID.
-The published spec carries only that ID and a 1–60 minute timeout (default 15).
+The published spec stores the ID, a 1–60 minute timeout (default 15), optional authentication/model choices, an optional Pi provider/key reference and the forwarding flag. Executables, command arguments and raw credentials stay outside the spec.
 
 Start chat work on this computer with an approved full-access folder. Launch needs
 native consent for this connection, folder and registration. The program runs as
 your local account without an OS sandbox and owns its tools, model and login;
 read-only confinement is not promised. Human approval can require a separate
-confirmation before each delegated task. Platform tools are not forwarded.
+confirmation before each delegated task. Platform tools are off by default. Enable the [run-scoped bridge](../desktop.md#runtime-platform-tools) explicitly.
 
 Tasks stream their steps and answer through the existing delegation panel. Named
 sessions resume only if the program advertises `loadSession`; otherwise start a

@@ -42,6 +42,7 @@ from app.agents.capabilities.coding_agent._harness import (
 from app.agents.model_context import check_model_context
 from app.agents.pi_keys import PiRuntimeKey
 from app.agents.runtime_questions import RuntimeQuestionsCallback
+from app.agents.runtime_tools import RuntimeTools
 from app.agents.steering import SteeringInbox, screen_steer
 
 logger = logging.getLogger(__name__)
@@ -141,7 +142,9 @@ class DevicePipe:
         custom_agent_id: str | None = None,
         pi_key: PiRuntimeKey | None = None,
         pi_model: str | None = None,
+        platform_tools: bool = False,
     ) -> None:
+        self._platform_tools = platform_tools
         self._pi_model = pi_model
         self._pi_key = pi_key
         self._custom_agent_id = custom_agent_id
@@ -163,6 +166,8 @@ class DevicePipe:
 
     async def open(self) -> None:
         args: dict[str, Any] = {"agent": self._harness}
+        if self._platform_tools:
+            args["platform_tools"] = True
         if self._harness == "custom":
             args["accepted_protocols"] = ["acp", "pi_rpc"]
             args["supports_auth_modes"] = True
@@ -187,6 +192,11 @@ class DevicePipe:
         if not isinstance(identifier, str):
             raise AcpError("The computer's app did not start the agent.")
         self._id = identifier
+        if self._platform_tools and opened.get("platform_tools_version") != 1:
+            await self.close()
+            raise AcpError(
+                "Update Desktop to admit this run-scoped platform tool bridge. No prompt was sent."
+            )
         protocol = opened.get("protocol", "acp")
         if not isinstance(protocol, str) or protocol not in {"acp", "pi_rpc"}:
             await self.close()
@@ -446,11 +456,13 @@ class Conversation:
         collector: _Collector,
         shown: Shown,
         runtime_questions: RuntimeQuestionsCallback | None = None,
+        platform_tools: RuntimeTools | None = None,
     ) -> None:
         self._pipe = pipe
         self._access = access
         self._collector = collector
         self._shown = shown
+        self._platform_tools = platform_tools
         self._runtime_questions = runtime_questions
         self._human_scopes: dict[str | int, anyio.CancelScope] = {}
         self._ids = itertools.count(1)
@@ -469,7 +481,7 @@ class Conversation:
         )
         if sent is not None:
             sent.set()
-        if self._runtime_questions is None:
+        if self._runtime_questions is None and self._platform_tools is None:
             return await self._receive_result(identifier)
         try:
             async with anyio.create_task_group() as group:
@@ -490,6 +502,8 @@ class Conversation:
             "cursor/create_plan",
             "x.ai/ask_user_question",
             "_agenticos/request_questions",
+            "_agenticos/tools/list",
+            "_agenticos/tools/call",
         ):
             return True
         raw = message.get("params")
@@ -647,6 +661,12 @@ class Conversation:
                     await self._shown(items)
             return
         if "id" not in message:
+            return
+        if method in {"_agenticos/tools/list", "_agenticos/tools/call"}:
+            if self._platform_tools is None:
+                raise AcpError("This run has not enabled platform tools for the native runtime")
+            result = await self._platform_tools.dispatch(method, params)
+            await self._pipe.send({"jsonrpc": "2.0", "id": message["id"], "result": result})
             return
         human_permission = (
             method == "session/request_permission"
@@ -859,6 +879,7 @@ async def run_task(
     remember: Callable[[str], Awaitable[None]] | None = None,
     steering: SteeringInbox | None = None,
     runtime_questions: RuntimeQuestionsCallback | None = None,
+    platform_tools: RuntimeTools | None = None,
 ) -> CodingReport:
     """One task as one ACP session, ended however the task ends.
 
@@ -867,7 +888,12 @@ async def run_task(
     """
     collector = _Collector(cursor_account=auth_method == "cursor_login")
     conversation = Conversation(
-        pipe, access=access, collector=collector, shown=shown, runtime_questions=runtime_questions
+        pipe,
+        access=access,
+        collector=collector,
+        shown=shown,
+        runtime_questions=runtime_questions,
+        platform_tools=platform_tools,
     )
     session_id: str | None = None
     try:

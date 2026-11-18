@@ -1361,6 +1361,18 @@ class ApprovalChannel:
     query per parked call to recover what this object already had in hand.
     """
 
+    async def live(
+        self,
+        request: ApprovalRequest,
+        *,
+        user_id: UUID,
+        questions: RuntimeQuestionsCallback,
+    ) -> ApprovalDecision:
+        """Resolve a native action without detaching its running process."""
+        from app.services.runtime_tool_approvals import decide_live
+
+        return await decide_live(self, request, user_id=user_id, questions=questions)
+
     async def __call__(self, request: ApprovalRequest) -> ApprovalDecision:
         decision = self.decided.pop(request.tool_call_id, None)
         if decision is not None:

@@ -1,5 +1,5 @@
 ---
-source_sha: "9bed93fe921e"
+source_sha: "afea57af5bd6"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3740,15 +3740,14 @@ den Programmierkonten im Profil) eine feste ID, einen Namen, den absoluten
 Programmpfad und ein JSON-Array mit Argumenten, etwa `["acp"]`. Melde dich zuerst
 über den Befehl des Programms an. Keine Zugangsdaten in Argumente eintragen. Die
 native Bestätigung zeigt den Befehl. Aktiviere im Builder **Externer ACP-Agent**
-mit derselben ID. Die veröffentlichte Spezifikation enthält nur diese ID und ein
-Zeitlimit von 1–60 Minuten (Standard 15).
+mit derselben ID. Die Spezifikation speichert die ID, ein Zeitlimit von 1–60 Minuten (Standard 15), optionale Anmelde-/Modellwahl, einen optionalen Pi-Anbieter-/Schlüsselverweis und die Weitergabeflagge. Programm, Befehlsargumente und rohe Zugangsdaten bleiben außerhalb der Spezifikation.
 
 Wähle im Chat diesen Computer und einen Ordner mit genehmigtem Vollzugriff.
 Der Start benötigt eine native Zustimmung für Verbindung, Ordner und Registrierung.
 Das Programm läuft mit deinem lokalen Konto ohne Betriebssystem-Sandbox und
 verwaltet Werkzeuge, Modell und Anmeldung selbst. Nur-Lese-Isolierung wird nicht
 zugesichert. Menschliche Genehmigung kann jede Aufgabe separat bestätigen lassen.
-Plattformwerkzeuge werden nicht weitergeleitet.
+Plattformwerkzeuge sind standardmäßig ausgeschaltet. Aktivieren Sie die [durchlaufbezogene Brücke](../desktop.md#runtime-platform-tools) ausdrücklich.
 
 Schritte und Antwort erscheinen im vorhandenen Delegationsbereich. Benannte
 Sitzungen werden nur bei angekündigtem `loadSession` fortgesetzt; andernfalls

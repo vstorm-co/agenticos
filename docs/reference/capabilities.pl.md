@@ -1,5 +1,5 @@
 ---
-source_sha: "9bed93fe921e"
+source_sha: "afea57af5bd6"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3485,14 +3485,14 @@ programistycznych w profilu) zarejestruj stałe ID, nazwę, bezwzględną ście�
 programu i tablicę JSON argumentów, np. `["acp"]`. Najpierw zaloguj się poleceniem
 programu. Nie umieszczaj danych logowania w argumentach. Natywne potwierdzenie
 pokazuje polecenie. W Builderze włącz **Zewnętrzny agent ACP** i podaj to samo ID.
-Opublikowana specyfikacja zawiera tylko ID i limit 1–60 minut (domyślnie 15).
+Specyfikacja zapisuje ID, limit 1–60 minut (domyślnie 15), opcjonalny wybór logowania/modelu, opcjonalne odwołanie do dostawcy i klucza Pi oraz flagę przekazywania narzędzi. Program, argumenty polecenia i jawne dane logowania pozostają poza specyfikacją.
 
 W czacie wybierz pracę na tym komputerze z folderem o zatwierdzonym pełnym
 dostępie. Start wymaga natywnej zgody dla połączenia, folderu i rejestracji.
 Program działa na Twoim koncie lokalnym bez izolacji systemowej i sam zarządza
 narzędziami, modelem i logowaniem; nie gwarantujemy trybu tylko do odczytu.
 Zatwierdzanie przez człowieka może wymagać zgody przed każdym zadaniem.
-Narzędzia platformy nie są przekazywane.
+Narzędzia platformy są domyślnie wyłączone. Jawnie włącz [przekazywanie dla tego uruchomienia](../desktop.md#runtime-platform-tools).
 
 Kroki i odpowiedź trafiają do istniejącego panelu delegacji. Nazwane sesje są
 wznawiane tylko przy zadeklarowanym `loadSession`; w przeciwnym razie jawnie

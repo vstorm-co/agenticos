@@ -1,5 +1,5 @@
 ---
-source_sha: "9bed93fe921e"
+source_sha: "afea57af5bd6"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3586,15 +3586,14 @@ de programación del perfil), registra un ID estable, nombre, ruta absoluta del
 ejecutable y matriz JSON de argumentos, como `["acp"]`. Inicia sesión primero con
 el comando del programa. No incluyas credenciales en los argumentos. La confirmación
 nativa muestra el comando. Activa **Agente ACP externo** en el Builder con ese ID.
-La especificación publicada solo contiene el ID y un límite de 1–60 minutos
-(15 por defecto).
+La especificación guarda el ID, un límite de 1–60 minutos (15 por defecto), selección opcional de autenticación/modelo, referencia opcional de proveedor/clave Pi y la opción de reenvío. Ejecutable, argumentos y credenciales sin cifrar quedan fuera de la especificación.
 
 En el chat, elige trabajar en este equipo con una carpeta de acceso completo
 aprobado. El inicio requiere consentimiento nativo para la conexión, carpeta y
 registro. El programa se ejecuta con tu cuenta local sin aislamiento del sistema
 y gestiona sus herramientas, modelo y sesión. No se garantiza el aislamiento de
 solo lectura. La aprobación humana puede solicitar confirmación para cada tarea.
-Las herramientas de la plataforma no se transfieren.
+Las herramientas de plataforma están desactivadas de forma predeterminada. Activa expresamente el [puente limitado a esta ejecución](../desktop.md#runtime-platform-tools).
 
 Los pasos y la respuesta aparecen en el panel de delegación existente. Las sesiones
 con nombre solo continúan si el programa anuncia `loadSession`; de lo contrario,

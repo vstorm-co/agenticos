@@ -723,6 +723,14 @@ While local coding sessions run, `[session:api] Use the EU numbers` redirects th
 
 Custom installed ACP programs can be registered under **External ACP agents**. See [External ACP agent](https://vstorm-co.github.io/agenticos/reference/capabilities/#external-acp) for registration, permissions, session identity and billing limits.
 
+## Forward platform tools { #runtime-platform-tools }
+
+**External ACP agent → Forward platform tools** is off by default. Enable it to let the registered runtime call the tools already admitted to this AgenticOS run. It requires the initiating member's private, unshared conversation and approved computer. Desktop asks for separate native consent; existing folder consent alone does not enable the bridge. The provider sections below describe defaults unless this option is enabled.
+
+A process-owned loopback MCP endpoint carries requests through the prepared Pydantic AI tool manager. Pi uses an app-owned extension; Muse uses its SDK's per-session MCP configuration. Validation, resource permissions, budget checks, approval policy and result screening still apply. Runtime-delegation tools are excluded, and forwarded calls run sequentially. A runtime that does not discover the scoped catalog is refused before an ACP prompt. No platform bearer token is given to the program.
+
+Actions needing approval show their complete arguments in the live chat. The approval is committed before the action executes and authority is checked again when the answer arrives. Missing authority, oversized cards, rejection, expiry or disconnection never invent consent or park the live RPC. Cancellation, uncertain delivery and oversized or unsupported results are explicit failures; actions are never retried automatically. The local bridge's credentials expire with its process. Vendor-native tools retain their existing privileges and account billing.
+
 ## Antigravity through ACP { #antigravity-acp }
 
 Install Google's Antigravity CLI and run `agy acp --login` in a terminal. Under
@@ -743,7 +751,7 @@ to an exact returned ID to choose a runtime model; leaving it empty keeps the CL
 setting. An unsupported model setting fails explicitly.
 
 This runs delegated tasks using Antigravity's native tools. It is separate from
-Gemini API model profiles and does not yet forward AgenticOS platform tools or
+Gemini API model profiles and does not forward AgenticOS platform tools by default or
 replace the main conversation runtime. Subscription spend is unpriced. Google
 restricts some third-party models to named clients; AgenticOS identifies itself
 as AgenticOS and promises no access beyond its own advertised catalog.
@@ -760,7 +768,7 @@ absolute executable path with the **OpenCode** template under **External ACP
 agents**. The template launches `opencode acp`. Provider credentials, custom
 endpoints and project settings stay in OpenCode; AgenticOS does not copy keys or
 rewrite its configuration. This delegates native tasks and does not forward
-AgenticOS tools or replace the main conversation runtime.
+AgenticOS tools by default or replace the main conversation runtime.
 
 Use `inspect_acp_agent` for a session snapshot of configured model choices. It
 waits briefly for delayed ACP catalog updates; `refresh_pending` means no model
@@ -802,7 +810,7 @@ of account; changing CLI credentials alone does not revoke a running process.
 Native questions and complete plan reviews appear in the live chat; only your
 explicit answer is returned. See [runtime questions](#runtime-questions).
 Standard ACP tool permissions use the existing delegation policy. This integration
-requires full local access and forwards no AgenticOS tools. Real-account login,
+requires full local access and forwards no AgenticOS tools by default. Real-account login,
 model eligibility, quota refusal and restart/resume remain acceptance follow-ups.
 See [Cursor ACP](https://cursor.com/docs/cli/acp) and
 [CLI authentication](https://cursor.com/docs/cli/reference/authentication).
@@ -827,7 +835,7 @@ model ID** to an exact ID it returns or keep the CLI selection. Account credits,
 free offerings and charges depend on Cline; this integration promises neither a
 free model nor subscription entitlement. Usage remains unpriced. Re-register or
 remove the entry after changing credentials to stop its processes and clear
-continuation. Full local access is required; platform tools are not forwarded.
+continuation. Full local access is required; platform tools are not forwarded by default.
 
 Account/key login, credit refusal, available models and restart/resume still need
 real-account acceptance. See [Cline ACP](https://github.com/cline/cline/blob/main/docs/usage/acp.mdx).
@@ -854,7 +862,7 @@ is unpriced. Inherited keys remain with the CLI and cannot be revoked by removin
 a registration. Use Vibe's own setup/account controls, then remove or re-register
 the Desktop entry to stop owned processes and clear continuation. This supports
 local browser authentication, not delegated browser login on a remote host.
-Full local access is required; platform-tool forwarding remains separate work.
+Full local access is required; platform-tool forwarding is an explicit option described [above](#runtime-platform-tools).
 Real account login, credit limits, sign-out and restart/resume need acceptance
 tests. See [Vibe ACP setup](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).
 
@@ -874,7 +882,7 @@ Install Kimi Code CLI, complete `kimi login`, and register the absolute `kimi` p
 
 Inspect choices with `inspect_acp_agent`. Keep External model ID empty and choose the model in Kimi itself; this template reports `configuration_policy=cli` and refuses model overrides. CLI settings can include custom providers with separate API billing, so a successful login does not establish which subscription pays for the selected model. Human questions, including Kimi's `AskUserQuestion` permission fallback, use the live chat card rather than tool approval.
 
-Re-register after changing accounts. Real-account entitlement, quota, reconnect, cancellation and available models remain acceptance checks. This is delegated local execution; it forwards no AgenticOS platform tools. See [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
+Re-register after changing accounts. Real-account entitlement, quota, reconnect, cancellation and available models remain acceptance checks. This is delegated local execution; it forwards no AgenticOS platform tools by default. See [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
 
 ## Qwen subscription through ACP { #qwen-subscription-acp }
 
@@ -882,7 +890,7 @@ Install a current Qwen Code CLI, run `qwen`, and use `/auth` to choose **Qwen Ac
 
 This template does not call ACP `authenticate`: the current operation writes user authentication settings, while the advertised methods do not include subscription login. Qwen checks its own saved subscription credentials when opening the session. AgenticOS imports no tokens or OAuth client identity. Keep External model ID empty and choose the subscription model in Qwen; the template reports `configuration_policy=cli` and refuses overrides.
 
-Qwen Plus/Pro subscription access is distinct from Alibaba Model Studio API keys and Coding/Token Plan endpoints. The discontinued legacy free OAuth allowance is not offered. Plans and quotas require real-account acceptance, alongside expiry/revocation, cancellation, reconnect and available models. Re-register after changing accounts. Platform-tool forwarding remains open. See [Qwen authentication](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
+Qwen Plus/Pro subscription access is distinct from Alibaba Model Studio API keys and Coding/Token Plan endpoints. The discontinued legacy free OAuth allowance is not offered. Plans and quotas require real-account acceptance, alongside expiry/revocation, cancellation, reconnect and available models. Re-register after changing accounts. Platform-tool forwarding is an explicit option described [above](#runtime-platform-tools). See [Qwen authentication](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
 
 ## Devin CLI through ACP { #devin-acp }
 
@@ -890,11 +898,11 @@ Install Devin CLI, complete `devin auth login` and check `devin auth status`. Re
 
 This delegates to the local CLI, not the Devin Cloud task API. Inspect models with `inspect_acp_agent`; keep External model ID empty and choose the model in Devin. The template reports `configuration_policy=cli` until session-only model changes are verified. Account policies determine access, billing and enterprise CLI permission; no plan entitlement is promised.
 
-Re-register after changing accounts. Login/expiry/revocation, quotas, models, multi-turn resume, cancellation and account replacement require real-account acceptance. Native human-input UI and scoped platform-tool forwarding remain open. See [Devin ACP](https://docs.devin.ai/cli/acp/zed) and [commands](https://docs.devin.ai/cli/reference/commands).
+Re-register after changing accounts. Login/expiry/revocation, quotas, models, multi-turn resume, cancellation and account replacement require real-account acceptance. Native human-input UI remains unverified. Scoped platform-tool forwarding is an explicit option described [above](#runtime-platform-tools). See [Devin ACP](https://docs.devin.ai/cli/acp/zed) and [commands](https://docs.devin.ai/cli/reference/commands).
 
 ## Pi through native RPC { #pi-rpc }
 
-Register **Pi** in Settings → Desktop app with the absolute path of `pi`. The template launches exactly `--mode rpc`, using Pi's own provider, model, accounts and extensions. Complete login and select the model in Pi first; keep External model ID empty. This is delegated execution in an explicitly approved full-access folder, with no OS sandbox and no forwarded platform tools or vault keys. Pi's local tools and extensions retain their own privileges. Subscription or API billing follows its selected account and remains unpriced.
+Register **Pi** in Settings → Desktop app with the absolute path of `pi`. The template launches exactly `--mode rpc`, using Pi's own provider, model, accounts and extensions. Complete login and select the model in Pi first; keep External model ID empty. This is delegated execution in an explicitly approved full-access folder, with no OS sandbox. Platform tools are off by default; this template never exports vault keys. Pi's local tools and extensions retain their own privileges. Subscription or API billing follows its selected account and remains unpriced.
 
 Use `inspect_acp_agent` to discover provider-qualified model IDs from the configured Pi catalog. The tool name is retained for compatibility; the transport is Pi RPC, not ACP. A listing does not establish authentication, entitlement or credits. Named tasks remember the native session file under the existing tenant/person/chat/folder/registration revision scope. Re-register after changing accounts. Failed resume is refused rather than silently starting a different session.
 
@@ -906,7 +914,7 @@ Choose **Muse** or **Muse API key** in Settings → Desktop app, with the absolu
 
 Complete first-run setup in `muse`. Muse gives environment keys precedence over stored keys, then browser sign-in. Inspect the runtime to see the effective API-key or OAuth source, without copying tokens or account labels into the report. API-key mode requires `META_API_KEY` in Desktop and confirmation of the environment-key lane; a saved key or browser session cannot silently replace it. Browser sign-in does not establish entitlement or billing. Managed Meta accounts may require API keys. Usage remains unpriced.
 
-Tasks require explicit full-access folder consent. Muse retains its native tools and configured extensions; platform tools are not forwarded and tool-free execution is not offered. Discover the current provider-qualified model catalog with `inspect_acp_agent`; model changes require a catalog match and server acknowledgement. Durable sessions use the existing scoped resume history; unsupported persistence or SDK/CLI mismatch refuses execution. Cancellation reaches the SDK turn and closes the owned process tree. Failed and unknown terminal outcomes never become completion. Real-account entitlement, quota, restart/resume, stop and installed-extension compatibility remain acceptance tests. See [Muse SDK](https://github.com/meta-models/muse-code-sdk) and [authentication](https://www.musemuse.dev/docs/muse-code/auth).
+Tasks require explicit full-access folder consent. Muse retains its native tools and configured extensions; platform tools are not forwarded by default and tool-free execution is not offered. Discover the current provider-qualified model catalog with `inspect_acp_agent`; model changes require a catalog match and server acknowledgement. Durable sessions use the existing scoped resume history; unsupported persistence or SDK/CLI mismatch refuses execution. Cancellation reaches the SDK turn and closes the owned process tree. Failed and unknown terminal outcomes never become completion. Real-account entitlement, quota, restart/resume, stop and installed-extension compatibility remain acceptance tests. See [Muse SDK](https://github.com/meta-models/muse-code-sdk) and [authentication](https://www.musemuse.dev/docs/muse-code/auth).
 
 ## Runtime questions { #runtime-questions }
 
@@ -930,4 +938,4 @@ Pi uses a temporary private configuration with no saved login or discovered exte
 
 Inception chat model IDs, context/output limits and prices come from its current authenticated chat catalog. DeepSeek and OpenRouter use the pinned Pi catalog and transport. Exact model changes require a matching native acknowledgement. Inspection returns at most 128 choices, keeps the current model first and reports truncation; a model listing proves neither account entitlement nor remaining credit. Charges remain unpriced in AgenticOS. Invalid keys, credit refusal and unsupported models fail without another saved account or billing fallback.
 
-Private native session files remain scoped to the caller, agent, chat, folder, registration and selected-key revision. Temporary configuration is removed with the owned process. Remove or re-register the native entry to revoke its continuations. Account/key smoke tests cover streamed work, 401/402, quotas, restart/resume and Stop. Platform-tool forwarding remains a separate integration contract. See [Pi provider extensions](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) and [Inception models](https://www.inceptionlabs.ai/models).
+Private native session files remain scoped to the caller, agent, chat, folder, registration and selected-key revision. Temporary configuration is removed with the owned process. Remove or re-register the native entry to revoke its continuations. Account/key smoke tests cover streamed work, 401/402, quotas, restart/resume and Stop. Platform-tool forwarding is an explicit option described [above](#runtime-platform-tools). See [Pi provider extensions](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) and [Inception models](https://www.inceptionlabs.ai/models).

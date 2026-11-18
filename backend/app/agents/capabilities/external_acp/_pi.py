@@ -24,6 +24,7 @@ from app.agents.capabilities.external_acp._catalog import AcpCatalog, AcpChoice
 from app.agents.model_context import check_model_context
 from app.agents.pi_keys import PiKeyProvider
 from app.agents.runtime_questions import RuntimeQuestionsCallback
+from app.agents.runtime_tools import RuntimeTools
 
 
 class _Record(BaseModel):
@@ -79,6 +80,9 @@ class _Session:
     pipe: Pipe
     shown: Shown
     runtime_questions: RuntimeQuestionsCallback | None = None
+    platform_tools: RuntimeTools | None = None
+    tool_scopes: dict[str, anyio.CancelScope] = field(default_factory=dict)
+    retired_tools: set[str] = field(default_factory=set)
     question_group: TaskGroup | None = None
     pending_questions: set[str] = field(default_factory=set)
     settled: bool = False
@@ -93,8 +97,37 @@ class _Session:
         self.received += 1
         if self.received > 16384:
             raise AcpError("Pi exceeded the task event limit. Narrow the task before retrying.")
+        raw = await self.pipe.receive()
+        if raw.get("method") == "_agenticos/cancel_request":
+            params = raw.get("params")
+            identifier = params.get("id") if isinstance(params, dict) else None
+            if (
+                isinstance(identifier, str)
+                and (scope := self.tool_scopes.get(identifier)) is not None
+            ):
+                scope.cancel()
+            return _Record(type="agenticos_bridge")
+        if raw.get("method") in {"_agenticos/tools/list", "_agenticos/tools/call"}:
+            identifier = raw.get("id")
+            if (
+                not isinstance(identifier, str)
+                or len(identifier) > 256
+                or identifier in self.tool_scopes
+                or identifier in self.retired_tools
+                or len(self.tool_scopes) >= 8
+                or len(self.retired_tools) >= 4096
+                or self.question_group is None
+                or self.platform_tools is None
+            ):
+                raise AcpError(
+                    "This Pi platform request is unadmitted or exceeded its lifetime limits"
+                )
+            scope = anyio.CancelScope()
+            self.tool_scopes[identifier] = scope
+            self.question_group.start_soon(self.answer_tool, raw, identifier, scope)
+            return _Record(type="agenticos_bridge")
         try:
-            record = _Record.model_validate(await self.pipe.receive())
+            record = _Record.model_validate(raw)
         except ValidationError as invalid:
             raise AcpError(
                 "Pi returned an unsupported RPC record. Check the installed Pi version."
@@ -120,6 +153,25 @@ class _Session:
         elif record.type == "extension_error":
             raise AcpError("A Pi extension failed. Review the extension in Pi before continuing.")
         return record
+
+    async def answer_tool(
+        self, message: dict[str, object], identifier: str, scope: anyio.CancelScope
+    ) -> None:
+        try:
+            with scope:
+                params = message.get("params")
+                method = message.get("method")
+                if (
+                    not isinstance(params, dict)
+                    or not isinstance(method, str)
+                    or self.platform_tools is None
+                ):
+                    raise AcpError("Malformed Pi platform tool request")
+                result = await self.platform_tools.dispatch(method, params)
+                await self.pipe.send({"jsonrpc": "2.0", "id": identifier, "result": result})
+        finally:
+            self.tool_scopes.pop(identifier, None)
+            self.retired_tools.add(identifier)
 
     async def answer_dialog(self, record: _Record) -> None:
         from ._human import pi_dialog
@@ -294,8 +346,11 @@ async def run_pi(
     remember: Callable[[str], Awaitable[None]] | None = None,
     runtime_questions: RuntimeQuestionsCallback | None = None,
     key_provider: PiKeyProvider | None = None,
+    platform_tools: RuntimeTools | None = None,
 ) -> CodingReport:
-    session = _Session(pipe, shown, runtime_questions=runtime_questions)
+    session = _Session(
+        pipe, shown, runtime_questions=runtime_questions, platform_tools=platform_tools
+    )
     timed_out = False
     identifier: str | None = None
     try:

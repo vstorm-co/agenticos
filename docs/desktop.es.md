@@ -1,5 +1,5 @@
 ---
-source_sha: "ca1da5a4ebfc"
+source_sha: "b7bb688ed85d"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -761,6 +761,14 @@ La corrección `[session:api] Usa las cifras de la UE` llega a la sesión `api`.
 
 Los programas ACP instalados se pueden registrar en **Agentes ACP externos**. [Agente ACP externo](reference/capabilities.md#external-acp) explica el registro, los permisos, la identidad de sesión y los límites de facturación.
 
+## Reenviar herramientas de plataforma { #runtime-platform-tools }
+
+**External ACP agent → Forward platform tools** está desactivado de forma predeterminada. Permite al programa registrado llamar a herramientas ya admitidas en esta ejecución de AgenticOS. Requiere una conversación privada, no compartida, del miembro y su ordenador autorizado. Desktop solicita un consentimiento nativo separado; autorizar una carpeta no activa el puente. Las descripciones de proveedores siguientes se refieren a la configuración predeterminada salvo que se active esta opción.
+
+Un endpoint MCP de bucle local, propiedad del proceso, envía solicitudes mediante el gestor de herramientas preparado de Pydantic AI. Pi usa una extensión de la aplicación; Muse, la configuración MCP de sesión de su SDK. Se mantienen validación, permisos de recursos, presupuestos, aprobaciones y revisión de resultados. Se excluyen herramientas de delegación a runtimes y las llamadas se ejecutan de forma secuencial. Sin descubrir el catálogo limitado se rechaza el prompt ACP. El programa no recibe un token de acceso a la plataforma.
+
+Las acciones que requieren aprobación muestran sus argumentos completos en el chat. La decisión se confirma antes de ejecutar y se comprueban otra vez los permisos al recibir la respuesta. La falta de permisos, tarjetas demasiado grandes, rechazo, caducidad o desconexión no inventan consentimiento ni aparcan el RPC activo. Cancelación, entrega incierta y resultados demasiado grandes o incompatibles son errores explícitos; nunca se repiten acciones automáticamente. Las credenciales MCP locales terminan con el proceso. Las herramientas nativas conservan sus permisos y facturación propios.
+
 ## Antigravity mediante ACP { #antigravity-acp }
 
 Instala Antigravity CLI de Google y ejecuta `agy acp --login` en un terminal.
@@ -896,7 +904,7 @@ Eliminar una inscripción no revoca una clave heredada del CLI. Usa los controle
 de cuenta y configuración de Vibe y después elimina o registra de nuevo la
 entrada Desktop para detener procesos y borrar continuaciones. Se admite acceso
 local por navegador, no acceso delegado en hosts remotos. Se exige acceso local
-completo; reenviar herramientas de la plataforma sigue siendo trabajo separado.
+completo; reenviar herramientas es una [opción explícita](#runtime-platform-tools).
 Inicio de sesión, límites, cierre y reanudación requieren pruebas reales. Consulta
 [configuración ACP de Vibe](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).
 
@@ -916,7 +924,7 @@ Instala Kimi Code CLI, completa `kimi login` y registra la ruta absoluta de `kim
 
 Consulta opciones con `inspect_acp_agent`. Deja External model ID vacío y elige el modelo en Kimi; la plantilla informa `configuration_policy=cli` y rechaza sobrescrituras. El CLI puede configurar proveedores propios con facturación API separada, por lo que iniciar sesión no determina qué suscripción paga el modelo. Las preguntas humanas, incluido el mecanismo de permisos `AskUserQuestion`, aparecen como tarjeta de chat y no se responden mediante aprobación de herramientas.
 
-Registra de nuevo tras cambiar de cuenta. Permisos, cuotas, reconexión, cancelación y modelos con cuenta real siguen como criterios de aceptación. Es ejecución local delegada sin herramientas de plataforma AgenticOS. Consulta [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
+Registra de nuevo tras cambiar de cuenta. Permisos, cuotas, reconexión, cancelación y modelos con cuenta real siguen como criterios de aceptación. Es ejecución local delegada sin herramientas de plataforma AgenticOS de forma predeterminada. Consulta [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
 
 ## Suscripción Qwen mediante ACP { #qwen-subscription-acp }
 
@@ -924,7 +932,7 @@ Instala Qwen Code CLI actualizado, ejecuta `qwen` y elige **Qwen Account with Su
 
 La plantilla no llama a ACP `authenticate`: la operación actual escribe ajustes de autenticación y los métodos anunciados no incluyen acceso de suscripción. Qwen comprueba sus credenciales guardadas al abrir la sesión. AgenticOS no importa tokens ni identidades de cliente OAuth. Deja External model ID vacío y elige el modelo de suscripción en Qwen; la plantilla informa `configuration_policy=cli` y rechaza sobrescrituras.
 
-Qwen Plus/Pro es distinto de claves API Alibaba Model Studio y endpoints Coding/Token Plan. No se ofrece la antigua cuota OAuth gratuita retirada. Planes, cuotas, caducidad, revocación, cancelación, reconexión y modelos requieren aceptación con cuenta real. Registra de nuevo tras cambiar de cuenta. El reenvío de herramientas de plataforma sigue pendiente. Consulta [autenticación Qwen](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
+Qwen Plus/Pro es distinto de claves API Alibaba Model Studio y endpoints Coding/Token Plan. No se ofrece la antigua cuota OAuth gratuita retirada. Planes, cuotas, caducidad, revocación, cancelación, reconexión y modelos requieren aceptación con cuenta real. Registra de nuevo tras cambiar de cuenta. Reenviar herramientas es una [opción explícita](#runtime-platform-tools). Consulta [autenticación Qwen](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
 
 ## Devin CLI mediante ACP { #devin-acp }
 
@@ -932,11 +940,11 @@ Instala Devin CLI, completa `devin auth login` y comprueba `devin auth status`. 
 
 Delega al CLI local, no a la API de tareas Devin Cloud. Consulta modelos mediante `inspect_acp_agent`; deja External model ID vacío y elige el modelo en Devin. La plantilla informa `configuration_policy=cli` hasta verificar cambios limitados a la sesión. Las políticas de cuenta determinan acceso, facturación y permiso empresarial del CLI; no se promete acceso por plan.
 
-Registra de nuevo tras cambiar de cuenta. Inicio de sesión, caducidad, revocación, cuotas, modelos, reanudación, cancelación y cambio de cuenta requieren aceptación real. La interfaz nativa de preguntas y herramientas de plataforma restringidas siguen pendientes. Consulta [Devin ACP](https://docs.devin.ai/cli/acp/zed) y [comandos](https://docs.devin.ai/cli/reference/commands).
+Registra de nuevo tras cambiar de cuenta. Inicio de sesión, caducidad, revocación, cuotas, modelos, reanudación, cancelación y cambio de cuenta requieren aceptación real. La interfaz nativa de preguntas sigue sin verificar. Reenviar herramientas es una [opción explícita](#runtime-platform-tools). Consulta [Devin ACP](https://docs.devin.ai/cli/acp/zed) y [comandos](https://docs.devin.ai/cli/reference/commands).
 
 ## Pi mediante RPC nativo { #pi-rpc }
 
-Registra **Pi** en Ajustes → Aplicación Desktop con la ruta absoluta de `pi`. La plantilla inicia exactamente `--mode rpc` con los proveedores, modelos, cuentas y extensiones propios de Pi. Inicia sesión y elige el modelo en Pi primero; deja External model ID vacío. La ejecución delegada requiere una carpeta con acceso completo aprobado expresamente. No hay aislamiento del sistema operativo ni transferencia de herramientas de la plataforma o claves de la bóveda. Las herramientas y extensiones de Pi conservan sus permisos. La facturación de suscripción o API depende de la cuenta elegida; el coste permanece desconocido.
+Registra **Pi** en Ajustes → Aplicación Desktop con la ruta absoluta de `pi`. La plantilla inicia exactamente `--mode rpc` con los proveedores, modelos, cuentas y extensiones propios de Pi. Inicia sesión y elige el modelo en Pi primero; deja External model ID vacío. La ejecución delegada requiere una carpeta con acceso completo aprobado expresamente. No hay aislamiento del sistema operativo. Las herramientas de plataforma están desactivadas de forma predeterminada; esta plantilla nunca exporta claves de la bóveda. Las herramientas y extensiones de Pi conservan sus permisos. La facturación de suscripción o API depende de la cuenta elegida; el coste permanece desconocido.
 
 Usa `inspect_acp_agent` para descubrir identificadores de modelo con su proveedor en el catálogo de Pi configurado. El nombre de la herramienta se conserva por compatibilidad; el transporte es Pi RPC, no ACP. El catálogo no demuestra autenticación, derechos del plan ni crédito. Las tareas con nombre guardan el archivo nativo de sesión en el ámbito existente de organización, persona, chat, carpeta y versión de registro. Registra de nuevo tras cambiar de cuenta. Una reanudación fallida se rechaza en lugar de iniciar otra sesión silenciosamente.
 
@@ -948,7 +956,7 @@ Elige **Muse** o **Muse API key** en Ajustes → Aplicación Desktop con la ruta
 
 Configura la cuenta primero en `muse`. Muse prioriza claves del entorno, luego claves guardadas y finalmente el inicio de sesión del navegador. La inspección muestra la fuente efectiva de clave API u OAuth sin copiar tokens ni etiquetas de cuenta al informe. El modo de clave requiere `META_API_KEY` en Desktop y confirmación de esa fuente; una clave guardada o sesión del navegador no puede sustituirla silenciosamente. El acceso del navegador no demuestra derechos ni facturación. Las cuentas Meta administradas pueden requerir claves API. El coste permanece desconocido.
 
-Las tareas requieren consentimiento expreso para una carpeta con acceso completo. Muse conserva sus herramientas y extensiones; no se transfieren herramientas de la plataforma ni se ofrece ejecución sin herramientas. `inspect_acp_agent` consulta el catálogo actual con identificadores de proveedor; los cambios requieren coincidencia y confirmación del servidor. Las sesiones duraderas usan el historial de reanudación existente. La falta de persistencia o versiones SDK/CLI incompatibles provocan rechazo. Cancelar alcanza el turno SDK y cierra el árbol de procesos propio. Los resultados fallidos o desconocidos nunca se convierten en éxito. Derechos, cuotas, reanudación, Stop y compatibilidad de extensiones siguen siendo pruebas con cuentas reales. Consulta [Muse SDK](https://github.com/meta-models/muse-code-sdk) y [autenticación](https://www.musemuse.dev/docs/muse-code/auth).
+Las tareas requieren consentimiento expreso para una carpeta con acceso completo. Muse conserva sus herramientas y extensiones; no se transfieren herramientas de la plataforma de forma predeterminada ni se ofrece ejecución sin herramientas. `inspect_acp_agent` consulta el catálogo actual con identificadores de proveedor; los cambios requieren coincidencia y confirmación del servidor. Las sesiones duraderas usan el historial de reanudación existente. La falta de persistencia o versiones SDK/CLI incompatibles provocan rechazo. Cancelar alcanza el turno SDK y cierra el árbol de procesos propio. Los resultados fallidos o desconocidos nunca se convierten en éxito. Derechos, cuotas, reanudación, Stop y compatibilidad de extensiones siguen siendo pruebas con cuentas reales. Consulta [Muse SDK](https://github.com/meta-models/muse-code-sdk) y [autenticación](https://www.musemuse.dev/docs/muse-code/auth).
 
 ## Preguntas del runtime { #runtime-questions }
 
@@ -972,4 +980,4 @@ Pi usa configuración privada temporal sin cuentas guardadas, extensiones descub
 
 Los identificadores, límites de contexto/salida y precios de chat Inception provienen de su catálogo autenticado actual. DeepSeek y OpenRouter usan catálogo y transporte de la versión fijada de Pi. Cambiar modelo requiere confirmación nativa exacta. La inspección devuelve hasta 128 opciones, mantiene primero el modelo actual e indica truncamiento. Un catálogo no prueba derechos ni crédito. Los cargos siguen sin precio calculado en AgenticOS. Claves inválidas, falta de crédito y modelos desconocidos no cambian a otra cuenta o facturación.
 
-Los archivos privados de sesión se limitan a persona, agente, chat, carpeta, registro y revisión de clave. La configuración temporal se elimina con el proceso propio. Elimina o registra de nuevo la entrada para revocar continuaciones. Pruebas con claves reales cubren streaming, 401/402, cuotas, reinicio/reanudación y Stop. Reenviar herramientas de plataforma mantiene un contrato separado. Consulta [extensiones de proveedor Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) y [modelos Inception](https://www.inceptionlabs.ai/models).
+Los archivos privados de sesión se limitan a persona, agente, chat, carpeta, registro y revisión de clave. La configuración temporal se elimina con el proceso propio. Elimina o registra de nuevo la entrada para revocar continuaciones. Pruebas con claves reales cubren streaming, 401/402, cuotas, reinicio/reanudación y Stop. Reenviar herramientas es una [opción explícita](#runtime-platform-tools). Consulta [extensiones de proveedor Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/custom-provider.md) y [modelos Inception](https://www.inceptionlabs.ai/models).

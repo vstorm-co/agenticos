@@ -745,3 +745,58 @@ for (const verificationUrl of [
     },
   );
 }
+
+test("only the native owner's exact scoped bridge reaches Muse per-session MCP configuration", async () => {
+  const { PlatformBridge } = await import("./platform-bridge.mts");
+  const bridge = new PlatformBridge(async () => {});
+  await bridge.listen();
+  const previousUrl = process.env.AGENTICOS_BRIDGE_URL;
+  const previousToken = process.env.AGENTICOS_BRIDGE_TOKEN;
+  Object.assign(process.env, bridge.environment());
+  try {
+    for (const admitted of [false, true]) {
+      const f = await fixture();
+      try {
+        await f.initialize();
+        await f.request("authenticate", { methodId: "muse-cli" });
+        const server = bridge.serverDefinition();
+        if (!admitted) server.command = "untrusted-program";
+        const opened = await f.request("session/new", {
+          cwd: process.cwd(),
+          mcpServers: [server],
+        });
+        const starts = (await f.sent()).filter(
+          (frame) => frame.method === "session/start",
+        );
+        if (!admitted) {
+          assert.ok(opened.error);
+          assert.equal(starts.length, 0);
+        } else {
+          assert.ok(opened.result);
+          assert.equal(starts.length, 1);
+          const params = starts[0]?.params;
+          assert.ok(
+            object(params) &&
+              object(params.config) &&
+              object(params.config.mcpServers),
+          );
+          const configured = params.config.mcpServers.agenticos_platform;
+          assert.ok(object(configured));
+          assert.equal(configured.transport, "streamableHttp");
+          assert.equal(configured.url, bridge.url);
+          assert.deepEqual(configured.headers, {
+            Authorization: `Bearer ${bridge.environment().AGENTICOS_BRIDGE_TOKEN}`,
+          });
+        }
+      } finally {
+        await f.close();
+      }
+    }
+  } finally {
+    if (previousUrl === undefined) delete process.env.AGENTICOS_BRIDGE_URL;
+    else process.env.AGENTICOS_BRIDGE_URL = previousUrl;
+    if (previousToken === undefined) delete process.env.AGENTICOS_BRIDGE_TOKEN;
+    else process.env.AGENTICOS_BRIDGE_TOKEN = previousToken;
+    await bridge.close();
+  }
+});

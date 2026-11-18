@@ -677,6 +677,7 @@ async def run_local_task(
     auth_method: str | None = None,
     credential_probe: CredentialProbe | None = None,
     pi_key: PiRuntimeKey | None = None,
+    platform_tools: bool = False,
 ) -> str:
     """The task on the person's computer, in the folder they chose, over ACP.
 
@@ -741,6 +742,12 @@ async def run_local_task(
             else RuntimeQuestionResponse(cancelled=True)
         )
 
+    native_tools = None
+    if platform_tools:
+        from app.agents.runtime_tools import RuntimeTools
+
+        native_tools = RuntimeTools(ctx, secrets=redactions)
+
     identity = ctx.deps
     scope = (
         str(identity.organization_id),
@@ -748,6 +755,7 @@ async def run_local_task(
         str(identity.agent_id),
         str(identity.conversation_id),
         chosen,
+        *(("platform-tools",) if platform_tools else ()),
         access,
         *(() if custom_agent_id is None else (custom_agent_id,)),
         *(() if auth_method is None else (auth_method,)),
@@ -769,6 +777,7 @@ async def run_local_task(
         custom_agent_id=custom_agent_id,
         pi_key=pi_key,
         pi_model=model if pi_key is not None else None,
+        platform_tools=platform_tools,
     )
     try:
         await check_model_context()
@@ -793,6 +802,7 @@ async def run_local_task(
                         remember=pipe.remember,
                         runtime_questions=questions if redactions else ctx.deps.runtime_questions,
                         key_provider=pi_key.provider if pi_key is not None else None,
+                        platform_tools=native_tools,
                     )
                 else:
                     report = await run_task(
@@ -811,6 +821,7 @@ async def run_local_task(
                         model_prefix=pipe.model_prefix,
                         credential_probe=credential_probe,
                         configuration_policy=pipe.configuration_policy,
+                        platform_tools=native_tools,
                         remember=pipe.remember,
                         steering=steering,
                         runtime_questions=questions if redactions else ctx.deps.runtime_questions,

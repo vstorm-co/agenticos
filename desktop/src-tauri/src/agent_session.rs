@@ -282,6 +282,7 @@ fn cursor_account_environment(command: &mut tokio::process::Command) {
 }
 
 /// Start `program` in `cwd` and begin collecting what it writes.
+#[cfg(test)]
 fn spawn(program: &Path, args: &[String], cwd: &Path, path_env: Option<String>) -> Result<Session, Refusal> {
     spawn_authenticated(program, args, cwd, path_env, crate::external_agents::Provider::Custom)
 }
@@ -304,13 +305,42 @@ fn spawn_with_pi(
     provider: crate::external_agents::Provider,
     selected: Option<&pi_keys::Prepared>,
 ) -> Result<Session, Refusal> {
-    let mut command = tokio::process::Command::new(program);
+    spawn_with_bridge(program, args, cwd, path_env, provider, selected, None)
+}
+
+fn spawn_with_bridge(
+    program: &Path,
+    args: &[String],
+    cwd: &Path,
+    path_env: Option<String>,
+    provider: crate::external_agents::Provider,
+    selected: Option<&pi_keys::Prepared>,
+    bridge: Option<&crate::coding_runtime::Runtime>,
+) -> Result<Session, Refusal> {
+    let mut command = if let Some(runtime) = bridge {
+        let mut command = tokio::process::Command::new(&runtime.node);
+        command
+            .arg(runtime.platform_bridge())
+            .arg(
+                if provider == crate::external_agents::Provider::Pi || pi_keys::key_template(provider) {
+                    "pi"
+                } else {
+                    "acp"
+                },
+            )
+            .arg(program);
+        command
+    } else {
+        tokio::process::Command::new(program)
+    };
     command
         .args(args)
         .current_dir(cwd)
         // The adapter must use the same managed CLI that supplied its options.
         .env_remove("CLAUDE_CODE_EXECUTABLE")
         .env_remove("CODEX_PATH")
+        .env_remove("AGENTICOS_BRIDGE_URL")
+        .env_remove("AGENTICOS_BRIDGE_TOKEN")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -461,6 +491,8 @@ struct OpenArgs {
     accepted_protocols: Vec<String>,
     #[serde(default)]
     pi_key: Option<pi_keys::SelectedKey>,
+    #[serde(default)]
+    platform_tools: bool,
     root: String,
     mode: Mode,
     #[serde(default)]
@@ -516,6 +548,8 @@ pub struct Consent {
     adapter: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     external: Option<ExternalIdentity>,
+    #[serde(default)]
+    platform_tools: bool,
 }
 
 impl Consent {
@@ -526,6 +560,7 @@ impl Consent {
             agent,
             adapter: package(agent).to_owned(),
             external: None,
+            platform_tools: false,
         }
     }
     pub fn is_for_external(&self, id: &str) -> bool {
@@ -541,6 +576,7 @@ async fn confirm(
     agent: AgentId,
     root: &Path,
     external: Option<&crate::external_agents::Registration>,
+    platform_tools: bool,
 ) -> bool {
     let name = external
         .map(|item| item.name.as_str())
@@ -550,11 +586,16 @@ async fn confirm(
     } else {
         "AgenticOS applies the task's read-only or editing policy to the agent's tools."
     };
+    let platform = if platform_tools {
+        "This also lets the program use this run's AgenticOS platform tools and receive their data. Platform permissions, budgets, approvals and output screening still apply."
+    } else {
+        ""
+    };
     let (answered, answer) = oneshot::channel();
     app.dialog()
         .message(format!(
             "{name} starts in {} and runs as your account, without an operating-system sandbox. \
-             It can reach other files and the network as your account can. {policy} \
+             It can reach other files and the network as your account can. {policy} {platform} \
              Remember this permission for this agent and folder on the current connection. \
              Remove the folder in Settings to revoke it. Tool approvals and macOS permissions still apply.",
             root.display()
@@ -605,6 +646,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         supports_configuration_policy,
         accepted_protocols,
         pi_key,
+        platform_tools,
         root,
         mode,
         resume_key,
@@ -700,8 +742,9 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     }
     let mut consent = Consent::new(&root, &before.connection_revision, agent);
     consent.external = external.as_ref().map(ExternalIdentity::from);
+    consent.platform_tools = platform_tools;
     if !before.coding_consents.contains(&consent) {
-        if !confirm(app, agent, &root, external.as_ref()).await {
+        if !confirm(app, agent, &root, external.as_ref(), platform_tools).await {
             return Err(Refusal::new("denied", "You did not allow the agent to start."));
         }
         authorized_root(app, args, &root.to_string_lossy())?;
@@ -745,7 +788,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
             "A Pi vault-key launch requires the matching native provider template and a selected vault key.",
         ));
     }
-    let runtime = if agent.builtin().is_some() || needs_muse {
+    let runtime = if agent.builtin().is_some() || needs_muse || platform_tools {
         Some(
             crate::coding_runtime::prepare(app)
                 .await
@@ -802,13 +845,14 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
                 let _ = tokio::fs::remove_dir_all(&prepared.agent_dir).await;
                 return Err(error);
             }
-            let spawned = spawn_with_pi(
+            let spawned = spawn_with_bridge(
                 Path::new(&external.program),
                 &external.args,
                 &root,
                 path_with(Path::new(&external.program)),
                 external.provider,
                 Some(&prepared),
+                runtime.as_ref().filter(|_| platform_tools),
             );
             if spawned.is_err() {
                 let _ = tokio::fs::remove_dir_all(&prepared.agent_dir).await;
@@ -827,7 +871,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
             let runtime = runtime
                 .as_ref()
                 .ok_or_else(|| Refusal::new("io", "Prepare the managed SDK runtime first."))?;
-            spawn_authenticated(
+            spawn_with_bridge(
                 &runtime.node,
                 &[
                     runtime.muse_adapter().to_string_lossy().into_owned(),
@@ -836,22 +880,29 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
                 &root,
                 path_with(&runtime.node),
                 external.provider,
+                None,
+                platform_tools.then_some(runtime),
             )?
         } else {
-            spawn_authenticated(
+            spawn_with_bridge(
                 Path::new(&external.program),
                 &external.args,
                 &root,
                 path_with(Path::new(&external.program)),
                 external.provider,
+                None,
+                runtime.as_ref().filter(|_| platform_tools),
             )?
         }
     } else if let (Some(runtime), Some(builtin)) = (&runtime, agent.builtin()) {
-        spawn(
+        spawn_with_bridge(
             &runtime.node,
             &[runtime.adapter(builtin).to_string_lossy().into_owned()],
             &runtime.directory,
             path_with(&runtime.node),
+            crate::external_agents::Provider::Custom,
+            None,
+            platform_tools.then_some(runtime),
         )?
     } else {
         return Err(Refusal::new("denied", "The agent has no launch configuration."));
@@ -911,7 +962,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         )
     });
     Ok(object(
-        serde_json::json!({ "id": id, "session_id": resumed, "auth_method": auth_method, "runtime_name": runtime_name, "model_prefix": model_prefix, "refresh_catalog": refresh_catalog, "configuration_policy": configuration_policy, "protocol": protocol, "pi_provider": pi_provider }),
+        serde_json::json!({ "id": id, "session_id": resumed, "auth_method": auth_method, "runtime_name": runtime_name, "model_prefix": model_prefix, "refresh_catalog": refresh_catalog, "configuration_policy": configuration_policy, "protocol": protocol, "pi_provider": pi_provider, "platform_tools_version": if platform_tools { 1 } else { 0 } }),
     ))
 }
 
@@ -1489,6 +1540,10 @@ mod tests {
             Consent::new(Path::new("/other"), "account-1", AgentId::ClaudeCode),
             Consent::new(Path::new("/work"), "account-2", AgentId::ClaudeCode),
             Consent::new(Path::new("/work"), "account-1", AgentId::Codex),
+            Consent {
+                platform_tools: true,
+                ..consent.clone()
+            },
             Consent {
                 adapter: "changed-version".into(),
                 ..consent.clone()
