@@ -180,6 +180,7 @@ class TestTheStoredBinding:
 
         assert PlatformMcpServerRef.model_validate(stored).model_dump(mode="json") == stored
 
+    @pytest.mark.security
     def test_each_tool_s_own_approval_survives_the_yaml_round_trip(self) -> None:
         spec = AgentSpec(
             name="Ops",

@@ -611,6 +611,7 @@ class TestApprovalMarks:
             f"agenticos_{name}" for name in PLATFORM_UNGATED_TOOLS
         )
 
+    @pytest.mark.security
     def test_a_platform_tool_s_own_approval_is_read_by_the_name_the_model_calls(self):
         from app.agents.mcp import _make_toolset, platform_spec
 

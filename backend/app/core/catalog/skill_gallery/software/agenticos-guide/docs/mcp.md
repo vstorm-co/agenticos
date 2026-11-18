@@ -218,7 +218,8 @@ server enforce at least `writes`, including when configured as `none`, because
 tools act with the caller's permissions. Read-only tools, including `get_project`
 and `read_conversation`, run automatically under `writes`. Creating, updating,
 deleting and other state-changing operations require approval. Use `all` to
-require approval for reads as well.
+require approval for reads as well. The floor is the binding's default only: one
+named tool can still be set to run freely, as on any other server.
 
 In the Builder, a server's settings say this
 per group: its **Reads** and the tools that **Change things** each run freely
@@ -1317,8 +1318,15 @@ named after this deployment; switching it on binds it as
   but do not replace confirmation of a persistent automation call.
   `set_my_profile` also waits because its content reaches future agent runs.
 
-- **The tools can be narrowed** in the card's settings, which list every tool and
-  mark the ones that change something.
+- **The tools can be narrowed** in the card's settings, which group them by what
+  they work on - tables, tasks, workflows, agents, knowledge bases, skills,
+  projects, automations, apps, runs, connections and the account - and mark each
+  tool that changes something with an icon that says so on hover.
+- **Each tool runs freely or asks first.** A group's control sets all of its
+  tools, and the shield beside a tool sets that one. The spec keeps a tool's own
+  setting in the binding's `tool_approval`, keyed by the tool's name; publishing
+  refuses a name the platform does not offer. Letting a change run freely is a
+  decision about that tool alone: the binding's default stays at `writes`.
 
 The **AgenticOS** template binds it this way, and so does every agent created from
 scratch, so an agent can look the platform up - and set up a routine, or switch the

@@ -147,15 +147,18 @@ describe("the platform's tools, grouped by what they work on", () => {
     expect(within(group("Tables")).getByRole("combobox")).toHaveTextContent("Per tool");
   });
 
-  it("narrows to the tools a search names, and drops a group with none", async () => {
+  it("narrows to the tools a search names or describes, and drops a group with none", async () => {
     render(<Harness onChange={vi.fn()} />);
+    const shown = () =>
+      screen.getAllByRole("checkbox", { name: /_/ }).map((box) => box.getAttribute("aria-label"));
 
-    await userEvent.type(screen.getByRole("textbox", { name: "Search tools" }), "record");
+    // In a description only: "Query records." - no tool's name says "records".
+    await userEvent.type(screen.getByRole("textbox", { name: "Search tools" }), "records");
 
     expect(screen.getAllByRole("heading").map((heading) => heading.textContent)).toEqual([
       "Tables",
     ]);
-    expect(screen.getAllByRole("checkbox", { name: /_/ })).toHaveLength(1);
+    expect(shown()).toEqual(["query_virtual_table"]);
   });
 
   it("narrows by ticking, and every tool chosen again is no limit", async () => {
