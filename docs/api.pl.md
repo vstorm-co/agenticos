@@ -1,5 +1,5 @@
 ---
-source_sha: "d8ab63f0a753"
+source_sha: "f35b4353727e"
 ---
 
 # API HTTP { #the-http-api }
@@ -182,6 +182,34 @@ runie albo żądaniu.
 
 Wygaśnięcie ogranicza tylko to, co klucz może rozpocząć: praca rozpoczęta, gdy był
 ważny, trwa dalej po jego wygaśnięciu.
+
+### Jawne delegowanie osobistych połączeń MCP { #explicit-personal-mcp-delegation }
+
+W **Settings → API → Create key → Custom** wybierz `agents:run` i
+`mcp:personal:use`, aby zewnętrzny run korzystał z kont MCP właściciela klucza.
+Klient OAuth wymaga tego samego jawnego wyboru. Żaden zestaw uprawnień, również
+Full access, nie zawiera tego zakresu. Istniejące dane dostępowe nie zyskują go automatycznie.
+
+Dotyczy to tylko opublikowanych powiązań MCP `account: personal`. Powiązania
+organizacji zachowują swoje konto. Brak osobistego połączenia nigdy nie powoduje
+użycia konta organizacji lub wydawcy. Przed ponowieniem żądania połącz lub napraw
+konto w konsoli. Zakres nie otwiera osobistej pamięci, dawnych czatów, zalogowanych
+sesji przeglądarki, osobistych terminali ani przestrzeni użytkownika. Wewnętrzne
+dane dostępowe agenta nie mogą przekazać tego uprawnienia dalej.
+
+Oryginalny klucz, jego właściciel i dostęp do agenta są sprawdzane przy przyjęciu,
+wznowieniu i przed wywołaniami MCP, również u delegatów. Wygaśnięcie lub odwołanie
+blokuje kolejne wywołania; trwające żądanie do źródła nie jest anulowane. Odłączenie, podmiana lub zawężenie
+konta MCP blokuje też jego wcześniej przygotowane narzędzia; połącz konto ponownie
+i rozpocznij nowy run.
+
+Wstrzymany
+run pozostaje związany z pierwotnymi danymi dostępowymi, także terminem ważności
+tokenu OAuth, i nie może użyć kont osoby zatwierdzającej. Klient może rozpocząć
+nowy run z nowymi danymi. Stare wstrzymane runy nie zyskują delegowania MCP.
+Dotychczasowy audyt zachowuje użytkownika, klucz i identyfikatory połączeń;
+sekrety nie trafiają do promptów ani audytu.
+
 
 ## Nagłówek organizacji { #the-organization-header }
 

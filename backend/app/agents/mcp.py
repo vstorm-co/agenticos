@@ -26,7 +26,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncGenerator, Iterable, Mapping, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
@@ -251,6 +251,19 @@ class McpToolOrigin:
 def tool_origin(tool: ToolDefinition) -> McpToolOrigin | None:
     origin = (tool.metadata or {}).get(MCP_ORIGIN)
     return origin if isinstance(origin, McpToolOrigin) else None
+
+
+@dataclass
+class AuthorityChecked(WrapperToolset[Any]):
+    """Recheck a delegated credential before contacting an MCP tool."""
+
+    check: Callable[[], Awaitable[None]]
+
+    async def call_tool(
+        self, name: str, tool_args: dict[str, Any], ctx: RunContext[Any], tool: ToolsetTool[Any]
+    ) -> Any:
+        await self.check()
+        return await super().call_tool(name, tool_args, ctx, tool)
 
 
 @dataclass

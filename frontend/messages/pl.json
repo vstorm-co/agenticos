@@ -13278,6 +13278,7 @@
     "mappingDeleted": "Mapowanie usunięte"
   },
   "apiKeys": {
+    "personalMcpWhy": "Delegowanie osobistych połączeń MCP jest wyłączone ze wszystkich zestawów uprawnień. Wybierz mcp:personal:use i agents:run w Custom, aby ten klucz lub aplikacja mogły korzystać z Twoich połączeń MCP w zewnętrznych runach agentów. Każdy posiadacz danych dostępowych może korzystać z tych połączeń jako Ty. Nie otwiera to osobistej pamięci, historii czatów ani zalogowanych sesji przeglądarki.",
     "title": "Klucze API",
     "why": "Klucze pozwalają skryptowi, klientowi HTTP albo klientowi MCP wywoływać API tej organizacji w twoim imieniu, z zawężonym zakresem. Klucz nigdy nie zrobi więcej niż ty dzisiaj.",
     "createTitle": "Utwórz klucz",

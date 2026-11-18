@@ -13079,6 +13079,7 @@
     "mappingDeleted": "Mapping deleted"
   },
   "apiKeys": {
+    "personalMcpWhy": "Personal MCP delegation is excluded from every preset. Select mcp:personal:use and agents:run under Custom to let this key or app use your own MCP connections in external agent runs. Anyone holding the credential can use those connections as you. It does not open personal memory, chat history or signed-in browser sessions.",
     "title": "API keys",
     "why": "Keys let a script, an HTTP client or an MCP client call this organization's API as you, narrowed to what you pick. A key never does more than you can today.",
     "createTitle": "Create key",
