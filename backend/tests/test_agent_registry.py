@@ -4806,8 +4806,21 @@ class TestBrowserRefusedAtPublish:
         return problems
 
     @pytest.mark.anyio
-    async def test_an_agent_with_no_endpoint_is_refused_in_words(self):
-        assert any("needs a cdp_url" in problem for problem in await self._problems({}))
+    async def test_a_builtin_browser_without_an_endpoint_does_not_prevent_publish(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "")
+        spec = _spec(
+            capabilities=[{"id": "browser_use", "config": {}}], model_profile_id=uuid.uuid4()
+        )
+        await _publishes(spec)
+
+    @pytest.mark.anyio
+    async def test_a_proxy_browser_still_requires_its_cdp_endpoint(self):
+        assert any(
+            "needs a cdp_url" in problem
+            for problem in await self._problems({"connection": "proxy"})
+        )
 
     @pytest.mark.anyio
     async def test_a_host_the_operator_has_not_vetted_is_refused(self):

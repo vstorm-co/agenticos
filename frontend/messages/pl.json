@@ -9381,6 +9381,8 @@
     "delegateUnreachable": "Agent, którego nie widzisz",
     "delegateUnreachableDetail": "Ta organizacja już go nie ma albo nie możesz go zobaczyć. Publikowanie i tak go odrzuci - usuń go albo poproś o dostęp do niego.",
     "delegatesDetail": "Opublikowani agenci, którym ten może przekazać pracę, każdy zamrożony na wersji.",
+    "allPublishedDelegates": "Wszyscy dostępni opublikowani agenci",
+    "allPublishedDelegatesDetail": "Udostępnij opublikowanych agentów, których osoba prowadząca rozmowę może uruchamiać w tej organizacji, bez wybierania każdego osobno. Agenci wybrani poniżej zachowują przypięte wersje. Rutyny działające bez użytkownika korzystają tylko z jawnie wybranych agentów.",
     "delegatesHeading": "Delegaty",
     "delegatingNeedsRunPermission": "Delegowanie wymaga uprawnienia do uruchamiania agentów, którego tutaj nie masz. Publikowanie sprawdza każdego delegata względem własnego dostępu publikującego, więc to ta sama odmowa, tylko wcześniej.",
     "delegation": "Subagenci",

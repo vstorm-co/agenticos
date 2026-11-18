@@ -322,6 +322,8 @@ export interface SpecialistSpec {
  */
 export interface SubagentsConfig {
   inline: SpecialistSpec[];
+  /** Discover current published agents the person running this conversation may use. */
+  allow_any_agent: boolean;
   mode: DelegationMode;
   /** Whether the model may invent a specialist mid-run. Off by default. */
   allow_dynamic: boolean;

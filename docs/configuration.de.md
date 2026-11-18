@@ -1,5 +1,5 @@
 ---
-source_sha: "ddd8aae069e6"
+source_sha: "fcb5c608867b"
 ---
 
 # Konfiguration { #configuration }
@@ -88,7 +88,11 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 
 Für Bilder in Produktionskanälen setzen Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` und `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` in `backend/.env`. `scripts/deploy.sh` aktiviert dann das Profil `visuals` in `docker-compose-prod.yml`; beim manuellen Start ergänzen Sie `--profile visuals`.
 
-Öffentliches Browsen benötigt einen separaten Browser: setzen Sie `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` und `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Das Deployment aktiviert das Profil `browser`. Setzen Sie `browser_use.cdp_url` des Agents auf `http://browser:9222` und veröffentlichen Sie seinen Entwurf. Nur der Proxy erlaubt ausgehenden Verkehr; Squid verweigert private und Metadaten-Adressen. Behalten Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` für isoliertes Zeichnen. Ohne Domain-Einschränkung sind öffentliche Seiten erlaubt; eine ausdrückliche Domain-Liste gilt weiterhin.
+Öffentliches Browsen benötigt einen separaten Browser: setzen Sie `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` und `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Das Deployment aktiviert das Profil `browser`. Agents mit **Built in** verwenden `BROWSER_SIGN_IN_CDP_URL`, wenn ihr eigenes `cdp_url` leer ist. Nur der Proxy erlaubt ausgehenden Verkehr; Squid verweigert private und Metadaten-Adressen. Behalten Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` für isoliertes Zeichnen. Ohne Domain-Einschränkung sind öffentliche Seiten erlaubt; eine ausdrückliche Domain-Liste gilt weiterhin.
+
+AgenticOS verwendet standardmäßig **Built in** mit bis zu 100 Schritten pro Aufruf und **Computer use → Docker / Sandbox** mit der Laufzeit `desktop`. Diese enthält auch die Workbench-Werkzeuge für Code und Dokumente. Ohne Container-Verbindung bleiben Desktop und persönliche Cloud-Coding-Werkzeuge deaktiviert. Ein fehlender Browser-Endpunkt oder unerreichbarer Browser-Container betrifft nur Browser-Aufrufe; der Agent kann weiterhin veröffentlicht werden und mit seinen anderen Werkzeugen antworten. Konfigurierte Endpunkte benötigen weiterhin die Host-Freigabe des Betreibers.
+
+AgenticOS arbeitet selbstständig, sofern der Nutzer nicht ausdrücklich Subagents oder parallele Agent-Arbeit verlangt. Unter Delegates ist der Zugriff auf alle zugänglichen veröffentlichten Agents der aktuellen Organisation aktiviert. Berechtigungen gelten weiterhin, ausdrücklich festgelegte Versionen bleiben erhalten und unbeaufsichtigte Routinen erhalten diesen Katalog nicht. Dynamische Spezialisten sind deaktiviert.
 
 Der Renderer veröffentlicht keinen Port, hat keinen Internetzugang, bedient API und Worker und ist auf 1 CPU und 1 GiB RAM begrenzt. Veröffentlichte Backend-Images enthalten das Extra `browser`; eigene Images benötigen `EXTRAS="--extra browser"`. Schlägt das Rendern fehl, erklärt die Kanalantwort ausdrücklich, dass das Bild nicht angehängt werden konnte. Jeder Rendervorgang erlaubt höchstens 256 Anfragen und 32 ausstehende Antworten; Kartenkacheln teilen zusätzlich `RATE_LIMIT_MAP_TILES_PER_MINUTE` zwischen Renderern.
 

@@ -204,6 +204,8 @@
     "delegateUnreachable": "An agent you cannot see",
     "delegateUnreachableDetail": "This organization no longer has it, or you may not see it. Publishing will refuse it either way - remove it, or ask for access to it.",
     "delegatesDetail": "Published agents this one may hand work to, each frozen at a version.",
+    "allPublishedDelegates": "All accessible published agents",
+    "allPublishedDelegatesDetail": "Offer published agents this person may run in this organization, without selecting them one by one. Explicit delegates below keep their pinned versions. Unattended routines use only explicit delegates.",
     "delegatesHeading": "Delegates",
     "delegatingNeedsRunPermission": "Delegating needs permission to run agents, which you do not have here. Publishing checks each delegate against the publisher's own access, so this is the same refusal, earlier.",
     "delegation": "Subagents",

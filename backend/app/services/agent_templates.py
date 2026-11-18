@@ -143,13 +143,21 @@ def starter_capabilities(*, container_workspace: bool | None = None) -> dict[str
     starter = get(STARTER_TEMPLATE)
     if starter is None:
         return {}
-    return {
+    bindings = {
         binding["id"]: binding
         for binding in for_this_deployment(
             starter.capabilities, container_workspace=container_workspace
         )
         if binding["id"] not in AGENTICOS_ONLY
     }
+    # Ordinary new agents do not inherit Computer use, so keep their lighter
+    # default workspace instead of provisioning a desktop they cannot drive.
+    sandbox = bindings.get("sandbox")
+    if sandbox is not None and sandbox.get("config", {}).get("runtime") == "desktop":
+        sandbox["config"] = {
+            key: value for key, value in sandbox["config"].items() if key != "runtime"
+        }
+    return bindings
 
 
 BROWSER = "browser_use"
@@ -170,10 +178,10 @@ def for_this_deployment(
 
     The web browser is the one a template cannot finish: its `cdp_url` names the
     browser service this deployment runs, which a folder in the image cannot know
-    and publish refuses without. The deployment's own browser - the one people
+    at runtime. The deployment's own browser - the one people
     sign in to sites with, `BROWSER_SIGN_IN_CDP_URL` - fills a binding that names
-    none. A deployment running no browser leaves the capability out rather than
-    handing every new agent a switch that refuses at publish.
+    none. Without that endpoint the capability stays available; its tools report
+    the missing browser instead of preventing the agent from running.
     """
     if container_workspace is None:
         container_workspace = bool(settings.SANDBOXD_TOKEN)
@@ -188,17 +196,22 @@ def for_this_deployment(
             # Keep the chosen execution policy visible without offering an unusable
             # cloud task or falling back to somebody else's credential.
             binding["enabled"] = False
+        if (
+            binding["id"] == "computer_use"
+            and (binding.get("config") or {}).get("desktop") == "sandbox"
+            and not container_workspace
+        ):
+            binding["enabled"] = False
         if binding["id"] == SANDBOX and not container_workspace:
             config = {**(binding.get("config") or {}), "backend": "state"}
             config.pop("include_execute", None)
+            config.pop("runtime", None)
             binding = {**binding, "config": config}
         if (
             binding["id"] == BROWSER
             and (binding.get("config") or {}).get("connection") != "local"
             and not (binding.get("config") or {}).get("cdp_url")
         ):
-            if not settings.BROWSER_SIGN_IN_CDP_URL:
-                continue
             binding = {
                 **binding,
                 "config": {

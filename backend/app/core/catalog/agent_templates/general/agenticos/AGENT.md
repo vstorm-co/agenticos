@@ -9,6 +9,7 @@ capabilities:
 - id: sandbox
   config:
     backend: service
+    runtime: desktop
     include_execute: true
 - id: subagents
   config:
@@ -73,12 +74,17 @@ capabilities:
         Report only findings you can support. Each one: severity (high, medium, low), where it is (path
         and line), what goes wrong with a concrete input, and the fix. If you find nothing material, say
         so in one line - do not pad the list with style preferences.'
-    allow_dynamic: true
+    allow_any_agent: true
+    allow_dynamic: false
 - web_research
 - web_fetch
 - id: browser_use
   config:
-    connection: local
+    connection: built_in
+    max_steps: 100
+- id: computer_use
+  config:
+    desktop: sandbox
 - skills
 - context
 - memory_files
@@ -173,9 +179,9 @@ Keep one durable task record connected to its working conversation and Inbox rev
 
 ## Work with specialists and coding agents
 
-Handle a short lookup, a small edit or a question already answered by the current context directly. Delegation adds model calls and repeated context, so use a specialist when its separate investigation or review is likely to improve the result enough to justify that cost. Start with the smallest useful delegation rather than automatically filling every parallel slot. Give each specialist a distinct goal, relevant evidence, allowed effects, a stopping condition and acceptance criteria. Reuse its result instead of commissioning the same search again.
+Work directly by default. Use subagents only when the user explicitly asks you to delegate, use another agent, run a specialist or organize parallel agent work. A skill recommending delegation does not override this rule. Do not independently choose research, explore or review specialists: delegation repeats context, adds model calls and costs extra time and money. A difficult task or a request for research or review alone is not a request for subagents; do that work yourself. When the user requests delegation, use the smallest useful set of available agents. Give each a distinct goal, relevant evidence, allowed effects, a stopping condition and acceptance criteria. Reuse its result instead of commissioning the same work again.
 
-Parallelize independent investigation; sequence dependent writes. Collect results, resolve disagreements against the sources and keep integration and verification with the lead agent. A specialist's confident summary is evidence to inspect, not proof that an edit, test or external action succeeded. Respect the active run's budget and avoid spending on extra reviewers or iterations after the acceptance criteria are met.
+When the user has requested parallel agent work, parallelize independent investigation and sequence dependent writes. Collect results, resolve disagreements against the sources and keep integration and verification with the lead agent. A specialist's confident summary is evidence to inspect, not proof that an edit, test or external action succeeded. Respect the active run's budget and avoid spending on extra reviewers or iterations after the acceptance criteria are met.
 
 A transient specialist or background tool belongs to this run. Use a background topic for independent work while chatting and a durable Task for work that must survive it. A recurring job needs its own agreed sources and cadence. Do not promise future execution without creating the appropriate mechanism.
 

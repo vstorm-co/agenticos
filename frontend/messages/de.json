@@ -204,6 +204,8 @@
     "delegateUnreachable": "Ein Agent, den Sie nicht sehen können",
     "delegateUnreachableDetail": "Diese Organisation hat ihn nicht mehr, oder Sie dürfen ihn nicht sehen. Das Veröffentlichen lehnt ihn so oder so ab – entfernen Sie ihn, oder bitten Sie um Zugriff.",
     "delegatesDetail": "Veröffentlichte Agents, an die dieser Arbeit übergeben darf, jeder auf einer Version festgesetzt.",
+    "allPublishedDelegates": "Alle zugänglichen veröffentlichten Agents",
+    "allPublishedDelegatesDetail": "Veröffentlichte Agents anbieten, die diese Person in der Organisation ausführen darf, ohne sie einzeln auszuwählen. Unten ausgewählte Delegates behalten ihre festgelegten Versionen. Unbeaufsichtigte Routinen verwenden nur ausdrücklich ausgewählte Delegates.",
     "delegatesHeading": "Delegaten",
     "delegatingNeedsRunPermission": "Zu delegieren braucht die Berechtigung, Agents auszuführen, die Sie hier nicht haben. Das Veröffentlichen prüft jeden Delegaten gegen den Zugriff des Veröffentlichenden, dies ist also dieselbe Ablehnung, nur früher.",
     "delegation": "Subagents",

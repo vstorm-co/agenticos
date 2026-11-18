@@ -6211,6 +6211,8 @@
     "delegateUnreachable": "Göremediğiniz bir Agent",
     "delegateUnreachableDetail": "Bu kuruluşta artık bulunmuyor veya onu göremiyor olabilirsiniz. Her iki durumda da yayınlama reddedilir - kaldırın veya erişim isteyin.",
     "delegatesDetail": "Bu Agent'ın işi devredebileceği yayınlanmış Agent'lar; her biri belirli bir sürüme sabitlenmiştir.",
+    "allPublishedDelegates": "Erişilebilir tüm yayımlanmış agentlar",
+    "allPublishedDelegatesDetail": "Bu kişinin kuruluşta çalıştırabileceği yayımlanmış agentları tek tek seçmeden sunar. Aşağıda seçilen delegeler sabitlenmiş sürümlerini korur. Gözetimsiz rutinler yalnızca açıkça seçilen delegeleri kullanır.",
     "delegatesHeading": "Delegate'ler",
     "delegatingNeedsRunPermission": "Delegation için burada sahip olmadığınız Agent çalıştırma izni gerekir. Yayınlama her delegate'i yayınlayanın kendi erişimine göre denetler; bu nedenle aynı engelle karşılaşırsınız, yalnızca daha erken.",
     "delegation": "Subagent'lar",

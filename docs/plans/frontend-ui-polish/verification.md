@@ -158,7 +158,7 @@ behavior rather than adding a second JavaScript drag implementation.
 
 ## Default assistant and personal coding sessions
 
-The selected 22 capabilities are now explicit in the shipped AgenticOS template.
+The selected capabilities, extended with sandbox Computer use, are now explicit in the shipped AgenticOS template.
 Personal coding defaults to the initiating person's enabled cloud account without
 an organization credential. Both Claude Code and Codex are selectable per task;
 model/effort choices stay with their configured coding agent. The starter-agent
@@ -223,3 +223,27 @@ All four findings on `ae53c04` were confirmed and addressed with regressions:
 The related seven-file backend batch passed 513 tests. The two real-database
 cleanup regressions passed independently. Four static-analysis comments about
 Alembic's dynamic revision metadata were explained and resolved as false positives.
+
+
+## Browser availability, desktop and delegation defaults
+
+The AgenticOS browser uses Built in and 100 steps per browse call. An empty
+built-in endpoint resolves the operator's configured browser; if none exists,
+publication succeeds and a browser call reports that it is unavailable. A
+configured endpoint still requires the host allowlist. FunctionModel regressions
+cover no browser use, unconfigured endpoints and refused connections, then
+independent tool use and a successful final response without paid calls.
+
+Computer use targets the existing sandbox desktop runtime. That runtime now
+retains the workbench CLI and document packages; Compose values are regenerated
+from the catalog. Without a container connection, Computer use and personal
+cloud coding stay disabled while other tools remain. Ordinary new agents retain
+the lighter workbench default. The actual enlarged desktop image has not been
+built or exercised as part of these offline checks.
+
+AgenticOS instructions now require an explicit user request for subagents;
+dynamic specialists are off. The existing published-agent discovery feature is
+enabled for this starter and shown beside Delegates in the Builder. Existing
+backend rules preserve tenant/run permissions, pinned versions, ancestor
+exclusion, revocation checks and unattended-routine restrictions. The prompt
+policy does not claim to enforce user intent with a runtime keyword filter.

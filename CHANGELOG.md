@@ -21,12 +21,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Show the accessible published-agent toggle beside Delegates and enable it in AgenticOS. Keep delegation to explicit user requests in its default instructions, and disable dynamic specialist creation. Existing permissions and unattended-routine restrictions still apply.
+
+- Default AgenticOS to Built in browsing with 100 steps per call and Docker / Sandbox Computer use. Include workbench coding and document tools in the desktop runtime. Missing browser configuration or an unavailable browser container does not block the rest of an agent.
+
 - Keep named private cloud coding sessions with native CLI history and separate files. Queue tasks using the same personal account, allow Claude Code and Codex through different accounts concurrently, and show whether a session is new or continued. Clean up retained containers when account consent or ownership ends.
 - Let private cloud coding tasks choose Claude Code or Codex per task through one agent, using the initiating person’s own enabled account and an isolated container. Show both account connections in chat while preserving per-account exclusivity, read-only policy and organization-sandbox credentials.
 
 ### Changed
 
-- Align the shipped AgenticOS toolbox with the selected 22 capabilities, add Context and default personal cloud coding without a shared account. Include code-review and context-design skills; preserve customized agent specs during normal default refreshes. Cloud coding stays disabled on deployments that cannot provide a container.
+- Align the shipped AgenticOS toolbox with the selected toolbox, including container Computer use, add Context and default personal cloud coding without a shared account. Include code-review and context-design skills; preserve customized agent specs during normal default refreshes. Cloud coding stays disabled on deployments that cannot provide a container.
 
 - Refine the default AgenticOS assistant’s guidance for economical specialist delegation, safe tool-error recovery, editable drafts and artifact verification. Keep media generation tied to available configured tools and preserve personal model, budget and prompt choices during normal default refreshes.
 
