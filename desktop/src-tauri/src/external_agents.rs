@@ -22,6 +22,7 @@ pub enum Provider {
     Kimi,
     QwenSubscription,
     Devin,
+    Pi,
     #[serde(rename = "opencode")]
     OpenCode,
     #[serde(rename = "opencode_go")]
@@ -103,10 +104,17 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
         return Err("Grok requires --no-auto-update agent stdio without extra launch flags.".into());
     }
     if input.provider == Provider::QwenSubscription && input.args != ["--acp", "--auth-type=qwen-subscription"] {
-        return Err("Qwen subscription requires --acp --auth-type=qwen-subscription without extra launch flags.".into());
+        return Err(
+            "Qwen subscription requires --acp --auth-type=qwen-subscription without extra launch flags.".into(),
+        );
     }
     if input.provider == Provider::Devin && input.args != ["--permission-mode", "normal", "acp"] {
         return Err("Devin requires --permission-mode normal acp without cloud or approval overrides.".into());
+    }
+    if input.provider == Provider::Pi && input.args != ["--mode", "rpc"] {
+        return Err(
+            "Pi requires --mode rpc without startup overrides. Choose its provider and model in Pi itself.".into(),
+        );
     }
     Ok(Registration {
         provider: input.provider,
@@ -133,6 +141,7 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
     let before = settings::current(&app).connection_revision;
     let (send, receive) = tokio::sync::oneshot::channel();
     let billing = match registration.provider {
+        Provider::Pi => "Pi uses its own saved configuration, extensions, login and API keys through native RPC. Run pi and choose its provider/model before registration. This runs the CLI with full local access; extensions and native tools retain that access. No platform tools or vault credentials are forwarded, and account/model catalogs do not prove subscription entitlement. Human extension dialogs stop for review in Pi. Charges are unpriced.",
         Provider::Devin => "Devin CLI uses its own account and advertised browser login. Complete devin auth login and check devin auth status first. Billing and enterprise CLI permission belong to your Devin account. This launches the local ACP agent, not --cloud or the Devin task API. Keep External model ID empty and choose the model in Devin. CLI-owned tools and account data remain with Devin; AgenticOS forwards no platform tools.",
         Provider::QwenSubscription => "Qwen Code uses its own saved subscription login. Complete /auth in qwen first, choosing Qwen Account with Subscription. The child explicitly selects qwen-subscription and removes inherited OpenAI key, endpoint and model overrides. No authenticate operation or credential import is performed. Keep External model ID empty and choose the subscription model in Qwen. Plan access and quotas require account verification.",
         Provider::Kimi => "Kimi uses its own configured login and providers. Complete kimi login first. AgenticOS checks login readiness without importing credentials. Custom models can use separately billed APIs; account login alone does not establish subscription billing. Keep External model ID empty and choose the model in Kimi itself. Human questions stop for review in the CLI.",
@@ -208,29 +217,99 @@ mod tests {
     }
 
     #[test]
+    fn pi_template_requires_native_rpc_without_launch_overrides() {
+        assert!(checked(RegistrationInput {
+            provider: Provider::Pi,
+            args: vec!["--mode".into(), "rpc".into()],
+            ..input()
+        })
+        .is_ok());
+        assert!(checked(RegistrationInput {
+            provider: Provider::Pi,
+            args: vec!["--mode".into(), "rpc".into(), "--continue".into()],
+            ..input()
+        })
+        .is_err());
+        assert!(checked(RegistrationInput {
+            provider: Provider::Pi,
+            ..input()
+        })
+        .is_err());
+    }
+
+    #[test]
     fn devin_template_refuses_cloud_and_automatic_approval_modes() {
-        assert!(checked(RegistrationInput { provider: Provider::Devin, args: vec!["--permission-mode".into(), "normal".into(), "acp".into()], ..input() }).is_ok());
-        assert!(checked(RegistrationInput { provider: Provider::Devin, args: vec!["--cloud".into(), "acp".into()], ..input() }).is_err());
-        assert!(checked(RegistrationInput { provider: Provider::Devin, args: vec!["--permission-mode".into(), "dangerous".into(), "acp".into()], ..input() }).is_err());
+        assert!(checked(RegistrationInput {
+            provider: Provider::Devin,
+            args: vec!["--permission-mode".into(), "normal".into(), "acp".into()],
+            ..input()
+        })
+        .is_ok());
+        assert!(checked(RegistrationInput {
+            provider: Provider::Devin,
+            args: vec!["--cloud".into(), "acp".into()],
+            ..input()
+        })
+        .is_err());
+        assert!(checked(RegistrationInput {
+            provider: Provider::Devin,
+            args: vec!["--permission-mode".into(), "dangerous".into(), "acp".into()],
+            ..input()
+        })
+        .is_err());
     }
 
     #[test]
     fn qwen_subscription_pins_auth_type_instead_of_inheriting_api_auth() {
-        assert!(checked(RegistrationInput { provider: Provider::QwenSubscription, args: vec!["--acp".into(), "--auth-type=qwen-subscription".into()], ..input() }).is_ok());
-        assert!(checked(RegistrationInput { provider: Provider::QwenSubscription, args: vec!["--acp".into()], ..input() }).is_err());
-        assert!(checked(RegistrationInput { provider: Provider::QwenSubscription, args: vec!["--acp".into(), "--auth-type=openai".into()], ..input() }).is_err());
+        assert!(checked(RegistrationInput {
+            provider: Provider::QwenSubscription,
+            args: vec!["--acp".into(), "--auth-type=qwen-subscription".into()],
+            ..input()
+        })
+        .is_ok());
+        assert!(checked(RegistrationInput {
+            provider: Provider::QwenSubscription,
+            args: vec!["--acp".into()],
+            ..input()
+        })
+        .is_err());
+        assert!(checked(RegistrationInput {
+            provider: Provider::QwenSubscription,
+            args: vec!["--acp".into(), "--auth-type=openai".into()],
+            ..input()
+        })
+        .is_err());
     }
 
     #[test]
     fn kimi_template_refuses_config_and_auto_approval_overrides() {
-        assert!(checked(RegistrationInput { provider: Provider::Kimi, args: vec!["acp".into()], ..input() }).is_ok());
-        assert!(checked(RegistrationInput { provider: Provider::Kimi, args: vec!["acp".into(), "--yolo".into()], ..input() }).is_err());
+        assert!(checked(RegistrationInput {
+            provider: Provider::Kimi,
+            args: vec!["acp".into()],
+            ..input()
+        })
+        .is_ok());
+        assert!(checked(RegistrationInput {
+            provider: Provider::Kimi,
+            args: vec!["acp".into(), "--yolo".into()],
+            ..input()
+        })
+        .is_err());
     }
 
     #[test]
     fn grok_template_requires_stdio_and_disabled_updates() {
-        assert!(checked(RegistrationInput { provider: Provider::Grok, args: vec!["--no-auto-update".into(), "agent".into(), "stdio".into()], ..input() }).is_ok());
-        assert!(checked(RegistrationInput { provider: Provider::Grok, ..input() }).is_err());
+        assert!(checked(RegistrationInput {
+            provider: Provider::Grok,
+            args: vec!["--no-auto-update".into(), "agent".into(), "stdio".into()],
+            ..input()
+        })
+        .is_ok());
+        assert!(checked(RegistrationInput {
+            provider: Provider::Grok,
+            ..input()
+        })
+        .is_err());
     }
 
     #[test]

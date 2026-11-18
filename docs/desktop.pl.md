@@ -1,5 +1,5 @@
 ---
-source_sha: "3ca2bb3d0b1b"
+source_sha: "df225624e97c"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -903,3 +903,11 @@ Zainstaluj Devin CLI, wykonaj `devin auth login` i sprawdź `devin auth status`.
 To delegowanie do lokalnego CLI, nie API zadań Devin Cloud. Modele sprawdzisz przez `inspect_acp_agent`; zostaw External model ID puste i wybierz model w Devin. Szablon raportuje `configuration_policy=cli` do czasu weryfikacji zmian dotyczących wyłącznie sesji. Zasady konta określają dostęp, rozliczanie i firmowe uprawnienie CLI; nie obiecujemy uprawnień konkretnego planu.
 
 Po zmianie konta zarejestruj program ponownie. Logowanie, wygasanie, cofnięcie zgody, limity, modele, wznowienie, anulowanie i zmiana konta wymagają odbioru na prawdziwym koncie. Natywny interfejs pytań i przekazywanie ograniczonych narzędzi platformy pozostają otwarte. Zobacz [Devin ACP](https://docs.devin.ai/cli/acp/zed) i [polecenia](https://docs.devin.ai/cli/reference/commands).
+
+## Pi przez natywne RPC { #pi-rpc }
+
+Zarejestruj **Pi** w Ustawienia → Aplikacja Desktop, podając bezwzględną ścieżkę do `pi`. Szablon uruchamia dokładnie `--mode rpc`, korzystając z dostawcy, modelu, kont i rozszerzeń Pi. Najpierw zaloguj się i wybierz model w Pi; pozostaw External model ID puste. To delegowane wykonanie w folderze z jawnie zatwierdzonym pełnym dostępem, bez izolacji systemowej oraz bez przekazywania narzędzi platformy i kluczy z sejfu. Narzędzia i rozszerzenia Pi zachowują własne uprawnienia. Rozliczenie subskrypcji lub API wynika z wybranego konta; koszt pozostaje nieznany.
+
+Użyj `inspect_acp_agent`, aby odczytać identyfikatory modeli z nazwą dostawcy z katalogu skonfigurowanego Pi. Nazwa narzędzia pozostaje dla zgodności; transportem jest Pi RPC, nie ACP. Katalog nie potwierdza logowania, uprawnień planu ani kredytów. Nazwane zadania zapamiętują natywny plik sesji w istniejącym zakresie organizacji, osoby, czatu, folderu i wersji rejestracji. Po zmianie konta zarejestruj program ponownie. Nieudane wznowienie powoduje odmowę zamiast cichego rozpoczęcia innej sesji.
+
+Zakończenie wymaga `agent_settled`, również po automatycznych ponowieniach i kompakcji następujących po `agent_end`. Prompt błędny, anulowany, zakolejkowany lub przejęty przez rozszerzenie nie jest raportowany jako ukończony. Stop czyści kolejkę, przerywa aktywną turę i zamyka własne drzewo procesów. Dialogi rozszerzeń są anulowane do obsługi w CLI Pi; system nie wymyśla odpowiedzi człowieka. Strumieniowanie, wznowienie po restarcie, limity, anulowanie i zgodność rozszerzeń na prawdziwym koncie pozostają testami odbiorowymi. Zobacz [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).

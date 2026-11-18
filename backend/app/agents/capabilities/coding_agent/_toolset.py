@@ -732,25 +732,39 @@ async def run_local_task(
                 if ctx.deps.steering is not None
                 else nullcontext(None) as steering
             ):
-                report = await run_task(
-                    pipe,
-                    harness=chosen,
-                    access=access,
-                    root=root,
-                    task=task,
-                    timeout_seconds=timeout_seconds,
-                    shown=narration.shown,
-                    # A model or reasoning level belongs to the configured harness.
-                    model=model,
-                    effort=effort,
-                    previous_session=pipe.session_id,
-                    auth_method=pipe.auth_method or auth_method,
-                    model_prefix=pipe.model_prefix,
-                    credential_probe=credential_probe,
-                    configuration_policy=pipe.configuration_policy,
-                    remember=pipe.remember,
-                    steering=steering,
-                )
+                if pipe.protocol == "pi_rpc":
+                    from app.agents.capabilities.external_acp._pi import run_pi
+
+                    report = await run_pi(
+                        pipe,
+                        task=task,
+                        timeout_seconds=timeout_seconds,
+                        shown=narration.shown,
+                        previous_session=pipe.session_id,
+                        model=model,
+                        effort=effort,
+                        remember=pipe.remember,
+                    )
+                else:
+                    report = await run_task(
+                        pipe,
+                        harness=chosen,
+                        access=access,
+                        root=root,
+                        task=task,
+                        timeout_seconds=timeout_seconds,
+                        shown=narration.shown,
+                        # A model or reasoning level belongs to the configured harness.
+                        model=model,
+                        effort=effort,
+                        previous_session=pipe.session_id,
+                        auth_method=pipe.auth_method or auth_method,
+                        model_prefix=pipe.model_prefix,
+                        credential_probe=credential_probe,
+                        configuration_policy=pipe.configuration_policy,
+                        remember=pipe.remember,
+                        steering=steering,
+                    )
         finally:
             # Failed and cancelled tasks may have spent subscription tokens too.
             _book(Usage())

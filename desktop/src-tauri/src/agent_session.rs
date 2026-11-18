@@ -196,7 +196,9 @@ fn qwen_subscription_environment(command: &mut tokio::process::Command) {
 }
 
 fn grok_account_environment(command: &mut tokio::process::Command) {
-    command.env_remove("XAI_API_KEY").env_remove("GROK_CODE_XAI_API_KEY")
+    command
+        .env_remove("XAI_API_KEY")
+        .env_remove("GROK_CODE_XAI_API_KEY")
         .env("GROK_DISABLE_API_KEY_AUTH", "true");
 }
 
@@ -386,6 +388,8 @@ struct OpenArgs {
     supports_model_constraints: bool,
     #[serde(default)]
     supports_configuration_policy: bool,
+    #[serde(default)]
+    accepted_protocols: Vec<String>,
     root: String,
     mode: Mode,
     #[serde(default)]
@@ -528,6 +532,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         supports_auth_modes,
         supports_model_constraints,
         supports_configuration_policy,
+        accepted_protocols,
         root,
         mode,
         resume_key,
@@ -593,14 +598,32 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
             "Update the AgenticOS server to use OpenCode Go model constraints.",
         ));
     }
-    if external
-        .as_ref()
-        .is_some_and(|item| matches!(item.provider, crate::external_agents::Provider::MistralVibe | crate::external_agents::Provider::Kimi | crate::external_agents::Provider::QwenSubscription | crate::external_agents::Provider::Devin))
-        && !supports_configuration_policy
+    if external.as_ref().is_some_and(|item| {
+        matches!(
+            item.provider,
+            crate::external_agents::Provider::MistralVibe
+                | crate::external_agents::Provider::Kimi
+                | crate::external_agents::Provider::QwenSubscription
+                | crate::external_agents::Provider::Devin
+        )
+    }) && !supports_configuration_policy
     {
         return Err(Refusal::new(
             "denied",
             "Update the AgenticOS server to preserve this CLI's model configuration.",
+        ));
+    }
+    let protocol = external.as_ref().map_or("acp", |item| {
+        if item.provider == crate::external_agents::Provider::Pi {
+            "pi_rpc"
+        } else {
+            "acp"
+        }
+    });
+    if protocol != "acp" && !accepted_protocols.iter().any(|accepted| accepted == protocol) {
+        return Err(Refusal::new(
+            "denied",
+            "Update the AgenticOS server to support this runtime protocol.",
         ));
     }
     let mut consent = Consent::new(&root, &before.connection_revision, agent);
@@ -700,10 +723,15 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         _ => None,
     });
     let runtime_name = external.as_ref().map(|item| item.name.as_str());
-    let configuration_policy = if external
-        .as_ref()
-        .is_some_and(|item| matches!(item.provider, crate::external_agents::Provider::MistralVibe | crate::external_agents::Provider::Kimi | crate::external_agents::Provider::QwenSubscription | crate::external_agents::Provider::Devin))
-    {
+    let configuration_policy = if external.as_ref().is_some_and(|item| {
+        matches!(
+            item.provider,
+            crate::external_agents::Provider::MistralVibe
+                | crate::external_agents::Provider::Kimi
+                | crate::external_agents::Provider::QwenSubscription
+                | crate::external_agents::Provider::Devin
+        )
+    }) {
         "cli"
     } else {
         "session"
@@ -724,7 +752,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         )
     });
     Ok(object(
-        serde_json::json!({ "id": id, "session_id": resumed, "auth_method": auth_method, "runtime_name": runtime_name, "model_prefix": model_prefix, "refresh_catalog": refresh_catalog, "configuration_policy": configuration_policy }),
+        serde_json::json!({ "id": id, "session_id": resumed, "auth_method": auth_method, "runtime_name": runtime_name, "model_prefix": model_prefix, "refresh_catalog": refresh_catalog, "configuration_policy": configuration_policy, "protocol": protocol }),
     ))
 }
 
@@ -1046,7 +1074,10 @@ mod tests {
         let environment: std::collections::BTreeMap<_, _> = command.as_std().get_envs().collect();
         assert_eq!(environment.get(OsStr::new("XAI_API_KEY")), Some(&None));
         assert_eq!(environment.get(OsStr::new("GROK_CODE_XAI_API_KEY")), Some(&None));
-        assert_eq!(environment.get(OsStr::new("GROK_DISABLE_API_KEY_AUTH")), Some(&Some(OsStr::new("true"))));
+        assert_eq!(
+            environment.get(OsStr::new("GROK_DISABLE_API_KEY_AUTH")),
+            Some(&Some(OsStr::new("true")))
+        );
     }
 
     #[test]

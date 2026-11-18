@@ -99,6 +99,12 @@ def build_acp_toolset(
         try:
             root = await workspace.working_dir()
             await pipe.open()
+            if pipe.protocol == "pi_rpc":
+                from ._pi import inspect_pi
+
+                return (
+                    await inspect_pi(pipe, timeout_seconds=min(timeout_seconds, 60))
+                ).model_dump_json()
             catalog = await inspect_session(
                 pipe,
                 root=root,

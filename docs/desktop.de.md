@@ -1,5 +1,5 @@
 ---
-source_sha: "3ca2bb3d0b1b"
+source_sha: "df225624e97c"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -949,3 +949,11 @@ Installieren Sie Devin CLI, führen Sie `devin auth login` aus und prüfen Sie `
 Dies delegiert an das lokale CLI, nicht die Devin Cloud-Aufgaben-API. Prüfen Sie Modelle mit `inspect_acp_agent`; lassen Sie External model ID leer und wählen Sie das Modell in Devin. Bis ausschließlich sitzungsbezogene Modelländerungen verifiziert sind, meldet die Vorlage `configuration_policy=cli`. Kontorichtlinien bestimmen Zugriff, Abrechnung und Unternehmensberechtigungen; Tarifansprüche werden nicht zugesagt.
 
 Registrieren Sie nach Kontowechsel erneut. Anmeldung, Ablauf, Widerruf, Kontingente, Modelle, Wiederaufnahme, Abbruch und Kontowechsel benötigen Abnahme mit echtem Konto. Native Rückfragen und begrenzte Plattformwerkzeuge bleiben offen. Siehe [Devin ACP](https://docs.devin.ai/cli/acp/zed) und [Befehle](https://docs.devin.ai/cli/reference/commands).
+
+## Pi über natives RPC { #pi-rpc }
+
+Registriere **Pi** unter Einstellungen → Desktop-App mit dem absoluten Pfad zu `pi`. Die Vorlage startet genau `--mode rpc` mit den eigenen Anbietern, Modellen, Konten und Erweiterungen von Pi. Melde dich zuerst in Pi an und wähle das Modell; lass External model ID leer. Die delegierte Ausführung benötigt einen ausdrücklich freigegebenen Ordner mit Vollzugriff. Es gibt keine Betriebssystem-Sandbox; Plattformwerkzeuge und Tresorschlüssel werden nicht weitergegeben. Pi-Werkzeuge und Erweiterungen behalten ihre eigenen Rechte. Abonnement- oder API-Abrechnung folgt dem ausgewählten Konto; Kosten bleiben unbekannt.
+
+`inspect_acp_agent` liest mit Anbietern qualifizierte Modell-IDs aus dem konfigurierten Pi-Katalog. Der Werkzeugname bleibt aus Kompatibilitätsgründen; der Transport ist Pi RPC, nicht ACP. Ein Katalog belegt weder Anmeldung noch Berechtigung oder Guthaben. Benannte Aufgaben speichern die native Sitzungsdatei im bestehenden Geltungsbereich von Organisation, Person, Chat, Ordner und Registrierungsversion. Nach einem Kontowechsel erneut registrieren. Ein fehlgeschlagener Wiederaufnahmeversuch wird abgelehnt, statt still eine andere Sitzung zu starten.
+
+Der Abschluss wartet auf `agent_settled`, auch nach automatischen Wiederholungen und Kompaktierung nach `agent_end`. Fehlgeschlagene, abgebrochene, eingereihte oder von Erweiterungen behandelte Prompts gelten nie als abgeschlossen. Stop leert die Warteschlange, bricht den aktiven Durchlauf ab und beendet den eigenen Prozessbaum. Erweiterungsdialoge werden zur Bearbeitung in der Pi-CLI abgebrochen; menschliche Antworten werden nicht erfunden. Streaming, Wiederaufnahme nach Neustart, Kontingente, Abbruch und Erweiterungskompatibilität mit einem echten Konto bleiben Abnahmetests. Siehe [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).

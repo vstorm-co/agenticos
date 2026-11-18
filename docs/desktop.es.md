@@ -1,5 +1,5 @@
 ---
-source_sha: "3ca2bb3d0b1b"
+source_sha: "df225624e97c"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -934,3 +934,11 @@ Instala Devin CLI, completa `devin auth login` y comprueba `devin auth status`. 
 Delega al CLI local, no a la API de tareas Devin Cloud. Consulta modelos mediante `inspect_acp_agent`; deja External model ID vacío y elige el modelo en Devin. La plantilla informa `configuration_policy=cli` hasta verificar cambios limitados a la sesión. Las políticas de cuenta determinan acceso, facturación y permiso empresarial del CLI; no se promete acceso por plan.
 
 Registra de nuevo tras cambiar de cuenta. Inicio de sesión, caducidad, revocación, cuotas, modelos, reanudación, cancelación y cambio de cuenta requieren aceptación real. La interfaz nativa de preguntas y herramientas de plataforma restringidas siguen pendientes. Consulta [Devin ACP](https://docs.devin.ai/cli/acp/zed) y [comandos](https://docs.devin.ai/cli/reference/commands).
+
+## Pi mediante RPC nativo { #pi-rpc }
+
+Registra **Pi** en Ajustes → Aplicación Desktop con la ruta absoluta de `pi`. La plantilla inicia exactamente `--mode rpc` con los proveedores, modelos, cuentas y extensiones propios de Pi. Inicia sesión y elige el modelo en Pi primero; deja External model ID vacío. La ejecución delegada requiere una carpeta con acceso completo aprobado expresamente. No hay aislamiento del sistema operativo ni transferencia de herramientas de la plataforma o claves de la bóveda. Las herramientas y extensiones de Pi conservan sus permisos. La facturación de suscripción o API depende de la cuenta elegida; el coste permanece desconocido.
+
+Usa `inspect_acp_agent` para descubrir identificadores de modelo con su proveedor en el catálogo de Pi configurado. El nombre de la herramienta se conserva por compatibilidad; el transporte es Pi RPC, no ACP. El catálogo no demuestra autenticación, derechos del plan ni crédito. Las tareas con nombre guardan el archivo nativo de sesión en el ámbito existente de organización, persona, chat, carpeta y versión de registro. Registra de nuevo tras cambiar de cuenta. Una reanudación fallida se rechaza en lugar de iniciar otra sesión silenciosamente.
+
+La finalización espera a `agent_settled`, incluidos los reintentos y la compactación automáticos posteriores a `agent_end`. Un prompt fallido, cancelado, en cola o procesado por una extensión nunca se informa como completado. Stop vacía la cola, cancela el turno activo y cierra el árbol de procesos propio. Los diálogos de extensiones se cancelan para atenderlos en la CLI de Pi; no se inventan respuestas humanas. Streaming, reanudación tras reinicio, cuotas, cancelación y compatibilidad de extensiones con una cuenta real siguen siendo pruebas de aceptación. Consulta [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).

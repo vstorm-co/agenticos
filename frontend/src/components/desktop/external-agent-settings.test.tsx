@@ -297,3 +297,25 @@ it("registers local Devin ACP with normal permissions and no cloud flag", async 
     { ...registration, provider: "devin" },
   ]);
 });
+
+it("registers Pi with native RPC and preserves its CLI model configuration", async () => {
+  mount();
+  await userEvent.selectOptions(screen.getByLabelText("Setup template"), "pi");
+  expect(screen.getByText(/Pi uses native RPC/)).toBeInTheDocument();
+  await userEvent.type(screen.getByLabelText("Absolute executable path"), "/opt/bin/pi");
+  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+      registration: {
+        provider: "pi",
+        id: "pi",
+        name: "Pi",
+        program: "/opt/bin/pi",
+        args: ["--mode", "rpc"],
+      },
+    }),
+  );
+  expect(parseExternalAgents([{ ...registration, provider: "pi" }])).toEqual([
+    { ...registration, provider: "pi" },
+  ]);
+});

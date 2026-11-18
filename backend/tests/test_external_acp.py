@@ -74,6 +74,7 @@ async def test_custom_task_uses_shared_acp_lifecycle_with_only_registration_id(
         assert set(launch) == {
             "agent",
             "custom_agent_id",
+            "accepted_protocols",
             "supports_auth_modes",
             "supports_model_constraints",
             "supports_configuration_policy",

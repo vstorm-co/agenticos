@@ -146,6 +146,7 @@ class DevicePipe:
         self.runtime_name: str | None = None
         self.model_prefix: str | None = None
         self.configuration_policy: Literal["session", "cli"] = "session"
+        self.protocol: Literal["acp", "pi_rpc"] = "acp"
         self.refresh_catalog: bool = False
         self._device = device
         self._harness = harness
@@ -156,6 +157,7 @@ class DevicePipe:
     async def open(self) -> None:
         args: dict[str, Any] = {"agent": self._harness}
         if self._harness == "custom":
+            args["accepted_protocols"] = ["acp", "pi_rpc"]
             args["supports_auth_modes"] = True
             args["supports_model_constraints"] = True
             args["supports_configuration_policy"] = True
@@ -174,6 +176,11 @@ class DevicePipe:
         if not isinstance(identifier, str):
             raise AcpError("The computer's app did not start the agent.")
         self._id = identifier
+        protocol = opened.get("protocol", "acp")
+        if not isinstance(protocol, str) or protocol not in {"acp", "pi_rpc"}:
+            await self.close()
+            raise AcpError("The Desktop app requires an unsupported runtime protocol.")
+        self.protocol = protocol
         label = opened.get("runtime_name")
         if isinstance(label, str) and 0 < len(label) <= 120:
             self.runtime_name = label
