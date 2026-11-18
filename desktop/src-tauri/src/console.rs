@@ -72,6 +72,8 @@ pub const GRANTS: &[(&str, &[&str])] = &[
             "allow-local-file",
             "allow-external-agents",
             "allow-external-save-agent",
+            "allow-external-muse-account",
+            "allow-external-cancel-muse-account",
             "allow-external-remove-agent",
             "allow-local-agents",
             "allow-local-agent-prepare",
@@ -411,6 +413,8 @@ mod tests {
         for permission in [
             "allow-external-agents",
             "allow-external-save-agent",
+            "allow-external-muse-account",
+            "allow-external-cancel-muse-account",
             "allow-external-remove-agent",
             "allow-local-agents",
             "allow-local-agent-prepare",

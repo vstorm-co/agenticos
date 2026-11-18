@@ -70,6 +70,8 @@ const COMMANDS: &[&str] = &[
     "local_file",
     "external_agents",
     "external_save_agent",
+    "external_muse_account",
+    "external_cancel_muse_account",
     "external_remove_agent",
     "local_agents",
     "local_agent_prepare",
