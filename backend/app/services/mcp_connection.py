@@ -3282,6 +3282,8 @@ def _delegated_source_check(
                 or connection.purpose != "mcp"
                 or connection.url != spec.url
                 or connection.authorization_generation != spec.authorization_generation
+                or (spec.include_instructions and not connection.include_instructions)
+                or (spec.trust_read_only_hints and not connection.trust_read_only_hints)
                 or (
                     connection.scope == "user"
                     and (user_id is None or connection.user_id != user_id)

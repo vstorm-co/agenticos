@@ -3389,3 +3389,90 @@ async def test_api_resume_does_not_borrow_the_approvers_discovered_delegate_gran
             build.assert_not_called()
     assert (approver.user_id, child_id) in accesses
     assert (owner.user_id, child_id) in accesses
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("root_personal", [False, True])
+@pytest.mark.parametrize("nested_rejection", [False, True])
+async def test_skipped_discovery_restores_personal_mcp_authority_for_the_remaining_tree(
+    root_personal: bool,
+    nested_rejection: bool,
+) -> None:
+    from pydantic_ai.toolsets import FunctionToolset
+
+    ctx = replace(
+        _ctx(),
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.AGENTS_RUN, Perm.MCP_PERSONAL_USE}),
+    )
+    candidate_id, leaf_id = uuid.uuid4(), uuid.uuid4()
+    leaf = _version(
+        leaf_id,
+        AgentSpec(
+            name="Unreachable MCP",
+            mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")],
+        ),
+    )
+    candidate_spec = _delegating(
+        name="Unapproved", model_credential_mode="personal", model_profile_id=uuid.uuid4()
+    )
+    candidate_spec.capabilities[0].config["allow_any_agent"] = True
+    versions = {leaf.id: leaf}
+    if nested_rejection:
+        middle_id, refused_id = uuid.uuid4(), uuid.uuid4()
+        middle_spec = _delegating(name="Middle")
+        middle_spec.capabilities[0].config["allow_any_agent"] = True
+        middle = _version(middle_id, middle_spec)
+        refused = _version(
+            refused_id,
+            AgentSpec(
+                name="Unapproved leaf",
+                model_credential_mode="personal",
+                model_profile_id=uuid.uuid4(),
+            ),
+        )
+        versions.update({middle.id: middle, refused.id: refused})
+        candidate_spec = _delegating(
+            name="Unapproved",
+            max_depth=2,
+            subagents=[
+                SubagentRef(agent_id=middle_id, agent_version_id=middle.id),
+                SubagentRef(agent_id=refused_id, agent_version_id=refused.id),
+            ],
+        )
+    candidate = _version(candidate_id, candidate_spec)
+    versions[candidate.id] = candidate
+    root = _delegating(max_depth=3)
+    root.capabilities[0].config["allow_any_agent"] = True
+    if root_personal:
+        root.mcp_servers = [PersonalMcpServerRef(account="personal", catalog_key="notion")]
+
+    async def accessible(
+        context: AuthContext, *, exclude: frozenset[uuid.UUID]
+    ) -> list[SubagentRef]:
+        target = leaf if candidate_id in exclude else candidate
+        return [SubagentRef(agent_id=target.agent_id, agent_version_id=target.id)]
+
+    check = AsyncMock()
+    with (
+        patch(f"{RUNNER}._personal_mcp_check", return_value=check),
+        patch.object(
+            AgentRegistryService, "accessible_delegates", AsyncMock(side_effect=accessible)
+        ),
+        patch.object(AgentRegistryService, "get", AsyncMock()),
+        patch(
+            f"{RUNNER}.build_toolsets_for_agent",
+            AsyncMock(return_value=ResolvedMcpToolsets([FunctionToolset()], [])),
+        ),
+    ):
+        prepared = await _prepare(root, ctx=ctx, versions=versions)
+        assert prepared.runtime.named("agent-unapproved") is None
+        assert prepared.prepared.admitted_as.personal_mcp_key_id == (
+            ctx.api_key_id if root_personal else None
+        )
+        check.reset_mock()
+        await prepared.build.call_args_list[0].kwargs["extra_toolsets"][0].check()
+        if root_personal:
+            check.assert_awaited_once_with(delegates=frozenset())
+        else:
+            check.assert_not_awaited()

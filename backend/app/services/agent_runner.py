@@ -3055,7 +3055,8 @@ class _ModelCatalog:
 
 
 class _PersonalMcpCheck(Protocol):
-    async def __call__(self, *, delegates: frozenset[UUID] = frozenset()) -> None: ...
+    async def __call__(self, *, delegates: frozenset[UUID] = frozenset()) -> None:
+        """Validate the original credential and every discovered delegate it may reach."""
 
 
 @dataclass
@@ -3208,7 +3209,9 @@ def _personal_mcp_check(
                 key_id, organization_id=organization_id, user_id=user_id
             )
             registry = AgentRegistryService(db)
-            await registry.get(current, agent_id, perm=Perm.AGENTS_RUN)
+            root = await registry.get(current, agent_id, perm=Perm.AGENTS_RUN)
+            if root.status != AgentStatus.PUBLISHED.value:
+                raise AuthorizationError(message="The root agent is no longer published")
             for delegate_id in delegates:
                 delegate = await registry.get(current, delegate_id, perm=Perm.AGENTS_RUN)
                 if delegate.status != AgentStatus.PUBLISHED.value:
@@ -5914,8 +5917,13 @@ class AgentRunnerService:
             for ref in refs:
                 # A discovered delegate is this person's authority, never a publisher's loan.
                 await self.registry.get(delegation.ctx, ref.agent_id, perm=Perm.AGENTS_RUN)
-                if delegation.personal_mcp is not None:
-                    delegation.personal_mcp.discovered_agents.add(ref.agent_id)
+                personal_mcp = delegation.personal_mcp
+                prior_required = personal_mcp.required if personal_mcp is not None else False
+                prior_discovered = (
+                    personal_mcp.discovered_agents.copy() if personal_mcp is not None else set()
+                )
+                if personal_mcp is not None:
+                    personal_mcp.discovered_agents.add(ref.agent_id)
                 try:
                     delegate = await self._resolve_delegate(
                         delegation,
@@ -5929,8 +5937,9 @@ class AgentRunnerService:
                 except BadRequestError as exc:
                     if exc.code != "PERSONAL_MODEL_CONSENT":
                         raise
-                    if delegation.personal_mcp is not None:
-                        delegation.personal_mcp.discovered_agents.discard(ref.agent_id)
+                    if personal_mcp is not None:
+                        personal_mcp.required = prior_required
+                        personal_mcp.discovered_agents = prior_discovered
                     continue
                 handle = f"agent-{delegate.name}"
                 # An explicit specialist owns its handle; retain access using the stable UUID.
@@ -6206,6 +6215,7 @@ class AgentRunnerService:
         published = AgentSpec.model_validate(version.spec)
         pinned = _with_shared(published, shared)
         pinned = await self.registry.with_assistant_guidance(delegate, pinned)
+        model = await self._delegated_model(delegation, pinned)
         delegate_resources = await self._delegate_resources(
             ctx,
             pinned,
@@ -6279,7 +6289,6 @@ class AgentRunnerService:
         runnable = await TextToSpeechSettingsService(self.db).for_run(
             ctx.organization_id, runnable, delegation.run
         )
-        model = await self._delegated_model(delegation, runnable)
         # Recorded now so the child's run row can name the model that answered.
         delegation.attribution[ref.agent_version_id] = model
         runnable, test_bindings = _with_test_secrets(runnable, delegation.test_connections.secrets)

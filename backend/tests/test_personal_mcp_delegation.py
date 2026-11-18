@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai import RunContext
+from pydantic_ai.messages import InstructionPart
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RunUsage
@@ -168,10 +169,11 @@ async def test_each_mcp_call_rechecks_authority_and_does_not_call_after_revocati
         calls.append("read")
         return "permitted record"
 
-    check = AsyncMock(side_effect=[None, AuthenticationError(message="Revoked")])
+    check = AsyncMock()
     wrapped = AuthorityChecked(wrapped=tools, check=check)
     ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
     tool = (await wrapped.get_tools(ctx))["read_record"]
+    check.side_effect = [None, AuthenticationError(message="Revoked")]
     assert await wrapped.call_tool("read_record", {}, ctx, tool) == "permitted record"
     with pytest.raises(AuthenticationError):
         await wrapped.call_tool("read_record", {}, ctx, tool)
@@ -192,7 +194,10 @@ async def test_delegated_mcp_rechecks_agent_access_with_the_original_subject() -
             "app.services.agent_runner.ApiKeyService.personal_mcp_context",
             new=AsyncMock(return_value=ctx),
         ) as personal,
-        patch("app.services.agent_runner.AgentRegistryService.get", new=AsyncMock()) as agent,
+        patch(
+            "app.services.agent_runner.AgentRegistryService.get",
+            new=AsyncMock(return_value=MagicMock(status="published")),
+        ) as agent,
     ):
         await _personal_mcp_check(
             ctx.api_key_id,
@@ -220,6 +225,8 @@ async def test_delegated_mcp_rechecks_agent_access_with_the_original_subject() -
         "owner",
         "tenant",
         "allowlist",
+        "instructions",
+        "trust",
     ],
 )
 async def test_cached_mcp_tools_stop_after_account_revocation_or_narrowing(change: str) -> None:
@@ -235,9 +242,13 @@ async def test_cached_mcp_tools_stop_after_account_revocation_or_narrowing(chang
         url="https://example.com/mcp",
         authorization_generation=uuid.uuid4(),
         allowed_tools=None,
+        include_instructions=True,
+        trust_read_only_hints=True,
     )
     spec = McpServerSpec(
         name="notion",
+        include_instructions=True,
+        trust_read_only_hints=True,
         url=connection.url,
         source_connection_id=connection.id,
         authorization_generation=connection.authorization_generation,
@@ -261,7 +272,6 @@ async def test_cached_mcp_tools_stop_after_account_revocation_or_narrowing(chang
         ),
     )
     run_ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
-    tool = (await wrapped.get_tools(run_ctx))["read_record"]
     with (
         patch("app.services.mcp_connection.get_db_context", session),
         patch(
@@ -269,6 +279,7 @@ async def test_cached_mcp_tools_stop_after_account_revocation_or_narrowing(chang
             new=AsyncMock(return_value=connection),
         ) as get,
     ):
+        tool = (await wrapped.get_tools(run_ctx))["read_record"]
         assert await wrapped.call_tool("read_record", {}, run_ctx, tool) == "record"
         if change == "disabled":
             connection.is_enabled = False
@@ -287,6 +298,10 @@ async def test_cached_mcp_tools_stop_after_account_revocation_or_narrowing(chang
             connection.organization_id = uuid.uuid4()
         elif change == "allowlist":
             connection.allowed_tools = ["another_tool"]
+        elif change == "instructions":
+            connection.include_instructions = False
+        elif change == "trust":
+            connection.trust_read_only_hints = False
         if change == "none":
             assert await wrapped.call_tool("read_record", {}, run_ctx, tool) == "record"
             assert calls == ["read", "read"]
@@ -441,9 +456,11 @@ async def test_external_environment_can_disable_a_binding_with_no_live_productio
     assert result.toolsets == []
 
 
+@pytest.mark.parametrize("target", ["root", "delegate"])
 @pytest.mark.parametrize("change", ["grant-revoked", "unpublished"])
 async def test_personal_tool_guard_rechecks_discovered_access_as_the_original_key_owner(
     change: str,
+    target: str,
 ) -> None:
     owner = caller()
     root_id, delegate_id = uuid.uuid4(), uuid.uuid4()
@@ -456,7 +473,7 @@ async def test_personal_tool_guard_rechecks_discovered_access_as_the_original_ke
     async def get(ctx: AuthContext, agent_id: uuid.UUID, *, perm: Perm) -> MagicMock:
         assert ctx == owner
         assert perm == Perm.AGENTS_RUN
-        if agent_id == delegate_id and changed:
+        if agent_id == (root_id if target == "root" else delegate_id) and changed:
             if change == "grant-revoked":
                 raise AuthorizationError(message="Delegate grant revoked")
             return MagicMock(status="archived")
@@ -480,3 +497,41 @@ async def test_personal_tool_guard_rechecks_discovered_access_as_the_original_ke
         changed = True
         with pytest.raises(AuthorizationError):
             await guard(delegates=frozenset({delegate_id}))
+
+
+@pytest.mark.parametrize("boundary", ["entry", "tools", "instructions"])
+async def test_revocation_prevents_reconnection_and_discovery(boundary: str) -> None:
+    tools = FunctionToolset(instructions="Trusted server instructions")
+    check = AsyncMock(side_effect=AuthorizationError(message="Authority revoked"))
+    wrapped = AuthorityChecked(wrapped=tools, check=check)
+    ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
+    with (
+        patch.object(FunctionToolset, "__aenter__", AsyncMock()) as enter,
+        patch.object(FunctionToolset, "get_tools", AsyncMock()) as discover,
+        patch.object(FunctionToolset, "get_instructions", AsyncMock()) as instructions,
+        pytest.raises(AuthorizationError, match="Authority revoked"),
+    ):
+        if boundary == "entry":
+            async with wrapped:
+                pytest.fail("A revoked connection must never enter")
+        elif boundary == "tools":
+            await wrapped.get_tools(ctx)
+        else:
+            await wrapped.get_instructions(ctx)
+    enter.assert_not_awaited()
+    discover.assert_not_awaited()
+    instructions.assert_not_awaited()
+
+
+async def test_live_authority_allows_entry_discovery_and_instructions() -> None:
+    tools = FunctionToolset(instructions="Current server instructions")
+    check = AsyncMock()
+    wrapped = AuthorityChecked(wrapped=tools, check=check)
+    ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
+    async with wrapped as entered:
+        assert entered is wrapped
+        assert await wrapped.get_tools(ctx) == {}
+        assert await wrapped.get_instructions(ctx) == [
+            InstructionPart(content="Current server instructions")
+        ]
+    assert check.await_count == 3

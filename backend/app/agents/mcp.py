@@ -29,7 +29,7 @@ import time
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 from uuid import UUID
 
 import httpx2
@@ -257,9 +257,24 @@ def tool_origin(tool: ToolDefinition) -> McpToolOrigin | None:
 
 @dataclass
 class AuthorityChecked(WrapperToolset[Any]):
-    """Recheck a delegated credential before contacting an MCP tool."""
+    """Recheck delegated authority before connecting, discovery and tool execution."""
 
     check: Callable[[], Awaitable[None]]
+
+    async def __aenter__(self) -> Self:
+        await self.check()
+        await super().__aenter__()
+        return self
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        await self.check()
+        return await super().get_tools(ctx)
+
+    async def get_instructions(
+        self, ctx: RunContext[Any]
+    ) -> str | InstructionPart | Sequence[str | InstructionPart] | None:
+        await self.check()
+        return await super().get_instructions(ctx)
 
     async def call_tool(
         self, name: str, tool_args: dict[str, Any], ctx: RunContext[Any], tool: ToolsetTool[Any]
