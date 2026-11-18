@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.84.0] - 2026-11-18
+
 ### Added
 
 - Choose who can see a new table in the **New table** dialog itself - only you, everyone, or chosen groups and people - as an agent's create dialog does. `POST /tables` accepts `group_ids` and `user_ids`, and shares the new table with each at `read`.
@@ -22090,7 +22092,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.83.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.84.0...HEAD
+[1.84.0]: https://github.com/vstorm-co/agenticos/compare/v1.83.0...v1.84.0
 [1.83.0]: https://github.com/vstorm-co/agenticos/compare/v1.82.2...v1.83.0
 [1.82.2]: https://github.com/vstorm-co/agenticos/compare/v1.82.1...v1.82.2
 [1.82.1]: https://github.com/vstorm-co/agenticos/compare/v1.82.0...v1.82.1
