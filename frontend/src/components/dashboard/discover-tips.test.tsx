@@ -152,6 +152,36 @@ describe("the dashboard's discover tips", () => {
     vi.useRealTimers();
   });
 
+  it.each(["touchEnd", "touchCancel"] as const)(
+    "pauses during touch and resumes after %s only once focus leaves too",
+    (release) => {
+      vi.useFakeTimers();
+      Element.prototype.scrollTo = vi.fn();
+      render(<DiscoverTips />);
+      const first = screen.getAllByRole("article")[0]!;
+      const strip = first.parentElement!;
+      const link = within(first).getByRole("link");
+      fireEvent.touchStart(strip);
+      act(() => vi.advanceTimersByTime(ADVANCE_MS * 2));
+      expect(first).toHaveAttribute("data-lit", "true");
+      fireEvent.focus(link);
+      fireEvent[release](strip);
+      fireEvent.mouseEnter(strip);
+      fireEvent.mouseLeave(strip);
+      act(() => vi.advanceTimersByTime(ADVANCE_MS * 2));
+      expect(first).toHaveAttribute("data-lit", "true");
+      const nextLink = within(screen.getAllByRole("article")[1]!).getByRole("link");
+      fireEvent.blur(link, { relatedTarget: nextLink });
+      fireEvent.focus(nextLink);
+      act(() => vi.advanceTimersByTime(ADVANCE_MS));
+      expect(first).toHaveAttribute("data-lit", "true");
+      fireEvent.blur(nextLink);
+      act(() => vi.advanceTimersByTime(ADVANCE_MS));
+      expect(screen.getAllByRole("article")[1]).toHaveAttribute("data-lit", "true");
+      vi.useRealTimers();
+    },
+  );
+
   it("does not move for a reader who asked for less motion", () => {
     vi.useFakeTimers();
     useMotionStore.setState({ motion: "reduce" });

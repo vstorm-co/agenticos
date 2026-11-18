@@ -8,8 +8,9 @@ This change applies shared interaction rules throughout the existing console,
 then fixes concrete exceptions in chat, Inbox, authentication, organization
 services, setup wizards, dashboard tips and mobile gestures. It retains the
 console's neutral palette, typography, permissions and existing save behavior.
-Default AgenticOS instructions and capabilities are a separate final phase;
-this patch does not change them or cut a release.
+The default AgenticOS prompt also clarifies economical delegation, safe recovery
+from tool failures, drafts and artifact verification. Capability activation is
+awaiting the maintainer’s tool list. This patch does not cut a release.
 
 ## Interaction contracts
 
@@ -72,6 +73,18 @@ this patch does not change them or cut a release.
   retained drafts, programmatic-close focus return, the CSS Grid fallback,
   normalized cursor coordinates after movement, compact streamed-step folding,
   markdown preview and reduced motion.
+- The email-login proxy also reached 100% statement, branch, function and line
+  coverage in its session-route tests.
+- After switching the preview to the existing local database, eight populated
+  views and an existing Northwind Labs chat were checked at both widths, without
+  API 5xx responses or document overflow. This uses the existing local API; the
+  isolated-stack auth and service-form journeys above exercise the PR backend.
+- The dashboard tips pause across overlapping focus, hover and touch; release or
+  cancellation does not move a tile while its link still has focus. Fourteen
+  focused tests reached 100% statements, branches, functions and lines.
+- Forty-four template/default-refresh and security-inventory tests passed after
+  the prompt edits. These verify catalog and preservation contracts, not model
+  response quality; no paid prompt evaluation was performed.
 - Shared primitives are demonstrated in the existing development-only component
   gallery. It stays unavailable in production.
 

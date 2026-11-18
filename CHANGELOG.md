@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- Refine the default AgenticOS assistant’s guidance for economical specialist delegation, safe tool-error recovery, editable drafts and artifact verification. Keep media generation tied to available configured tools and preserve personal model, budget and prompt choices during normal default refreshes.
+
 ### Fixed
 
 - Keep streamed chat steps and expanded work details mounted after their first visit, so folding earlier activity no longer discards in-progress input. Animate disclosures with an intrinsic-size transition and a CSS-grid fallback, while preserving keyboard focus and hiding collapsed content from assistive technology.

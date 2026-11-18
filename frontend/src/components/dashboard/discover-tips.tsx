@@ -101,7 +101,10 @@ export function DiscoverTips() {
   useScrollFade(strip);
   // Held while the reader is on the strip: a tile moving out from under the
   // pointer, or from under the focus, is a tile they cannot read or close.
-  const [held, setHeld] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [touching, setTouching] = useState(false);
+  const held = hovered || focused || touching;
 
   const tips = TIPS.filter((tip) => !dismissed.has(tip.id) && (!tip.gate || can(tip.gate)));
 
@@ -188,15 +191,15 @@ export function DiscoverTips() {
         </div>
         <div
           ref={strip}
-          onMouseEnter={() => setHeld(true)}
-          onMouseLeave={() => setHeld(false)}
-          onFocus={() => setHeld(true)}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          onFocus={() => setFocused(true)}
           onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) setHeld(false);
+            if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
           }}
-          onTouchStart={() => setHeld(true)}
-          onTouchEnd={() => setHeld(false)}
-          onTouchCancel={() => setHeld(false)}
+          onTouchStart={() => setTouching(true)}
+          onTouchEnd={() => setTouching(false)}
+          onTouchCancel={() => setTouching(false)}
           className={cn(
             "-mx-1 flex snap-x snap-mandatory scrollbar-none gap-3 overflow-x-auto px-1 pt-1 pb-1.5",
             SCROLL_FADE,
