@@ -522,6 +522,8 @@ export function usePublicArtifactUnlock(publicKey: string) {
   });
 }
 
+class RetryableThumbnailError extends Error {}
+
 /** Static, data-free previews survive navigation and are replaced only with a new version. */
 export function useArtifactThumbnail(
   artifactId: string,
@@ -536,16 +538,22 @@ export function useArtifactThumbnail(
     queryKey: key,
     // Let an already-started static preview finish into this scoped cache when
     // navigating away. Cancelling it would restart its isolated render on Back.
-    queryFn: () =>
-      apiClient.get<ArtifactThumbnail>(
+    queryFn: async () => {
+      const thumbnail = await apiClient.get<ArtifactThumbnail>(
         `/apps/${artifactId}/thumbnail${versionId ? `?version_id=${encodeURIComponent(versionId)}` : ""}`,
-      ),
+      );
+      if (thumbnail.state === "unavailable" && thumbnail.retryable === true) {
+        throw new RetryableThumbnailError("ARTIFACT_THUMBNAIL_UNAVAILABLE");
+      }
+      return thumbnail;
+    },
     // Visibility toggles enabled after mount. Keep a failed immutable version
     // failed instead of treating each visibility change as a fresh render.
     enabled: enabled && client.getQueryState(key)?.status !== "error",
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
-    retry: false,
+    retry: (failures, error) => error instanceof RetryableThumbnailError && failures < 2,
+    retryDelay: (failures) => Math.min(1000 * 2 ** failures, 5000),
     retryOnMount: false,
     refetchOnMount: false,
     refetchOnWindowFocus: false,

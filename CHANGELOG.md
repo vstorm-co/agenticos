@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Recover App thumbnails after temporary renderer failures or timeouts with two bounded retries. Keep missing configuration and refused access terminal, preserve versioned image caching, and report transient failures in server logs.
+
 ## [1.83.0] - 2026-11-18
 
 ### Added
