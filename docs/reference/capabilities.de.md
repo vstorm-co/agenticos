@@ -1,5 +1,5 @@
 ---
-source_sha: "2bc3e7bad49a"
+source_sha: "9a9b600834b2"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1889,6 +1889,11 @@ enthalten können. Du brauchst aktuellen Bearbeitungszugriff; kein Run darf im
 Workspace schreiben. Inhalt und Ausführungsmodus jeder Datei müssen dem Zustand
 nach der Aufgabe entsprechen. Ein Konflikt lehnt die gesamte Aktion ab und nennt
 die Dateien. Andere Dateien sowie Git-Index und Git-Verlauf bleiben unverändert.
+
+Die Rücknahme ist nicht verfügbar, wenn einer der Snapshots eine nicht erfasste
+übergroße Datei, einen unlesbaren Pfad oder einen nicht unterstützten Dateityp
+findet, auch wenn der Pfad unverändert erscheint. Der erfasste Diff bleibt lesbar.
+Plattform- und Werkzeugordner bleiben bewusst außerhalb der Snapshot-Abdeckung.
 
 Die Aktion reiht einen dauerhaften Job ein und reserviert den Workspace. Das
 Panel zeigt Fortschritt und eindeutige Ablehnungen. Bei unbekanntem Ergebnis

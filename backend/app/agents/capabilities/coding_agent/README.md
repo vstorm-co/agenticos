@@ -118,6 +118,14 @@ overlapping runs, and the recording wrapper keeps other tools outside the coding
 task's whole snapshot interval. Project-, agent-, channel- and user-scoped
 snapshots remain readable without undo: a diff can include another chat's work.
 
+Both snapshots must cover every regular file in their scope. An oversized file
+not already in the private index, an unreadable path or an unsupported file type
+makes undo unavailable, even when that path appears unchanged. The exclusion
+marker survives from the first snapshot to the second, so deleting or shrinking
+an excluded file cannot turn a partial capture into an undoable task. Failed
+traversal cannot supply a partial discovery list. The captured diff remains
+readable; platform and toolchain folders are deliberately outside this scope.
+
 The request requires current conversation edit access and queues its job and
 workspace reservation in one transaction. New runs and other reverts cannot
 enter the reserved workspace. The worker rechecks current membership and access,

@@ -16,7 +16,8 @@ time changed are read again. The store is removed once the diff is read.
 
 Left out, and so never in a diff: `.agenticos/` (the task's own files), the
 folders a toolchain fills (`TOOLING_DIRS`, `.git` among them), and any file past
-`MAX_FILE_BYTES`. Coding tasks within one toolset queue around their snapshots and execution.
+`MAX_FILE_BYTES`. An incomplete snapshot keeps its display diff but cannot offer undo.
+Coding tasks within one toolset queue around their snapshots and execution.
 Other writers in a shared sandbox can still appear in the diff: a snapshot
 records the workspace, not one process's writes.
 """
@@ -107,18 +108,33 @@ _SETUP = (
     # process of that user writes here, `parse` bounds.
     "GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false "
     "GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null; "
-    # GNU find's `-readable`, where there is one: a file the sandbox user cannot
-    # read would otherwise fail `update-index`, and with it every snapshot of
-    # that workspace.
-    "readable=; find . -maxdepth 0 -readable > /dev/null 2>&1 && readable=-readable; "
+    # GNU find avoids a process per path; BSD find uses the same effective-user check.
+    "readable='-exec test -r {} ;'; "
+    "if find . -maxdepth 0 -readable > /dev/null 2>&1; then readable=-readable; fi; "
 )
 
 # `find`'s `-size -N` counts 512-byte blocks rounded up, so N is one past the ceiling's.
-# `$readable` is unquoted on purpose: empty, it must be no argument at all.
+# `$readable` expands to find arguments, including the portable `-exec` terminator.
 _SNAPSHOT = (
-    "{ git ls-files -z; "
+    # Remember exclusions from BOTH snapshots, including a file the task removes
+    # or shrinks into the captured range. Unchanged excluded files also refuse
+    # undo: without their bytes we cannot establish that they stayed unchanged.
+    f"find . \\( {_PRUNED} \\) -prune -o "
+    f"\\( ! -type d ! -type f ! -type l -o ! $readable \\) "
+    f'-print0 > "${STORE_ENV}/unreadable" && '
+    f'{{ [ ! -s "${STORE_ENV}/unreadable" ] || touch "${STORE_ENV}/incomplete"; }} && '
+    # An already indexed file remains captured when it grows. Only oversized
+    # paths absent from the index make this snapshot incomplete. Literal paths
+    # matter: an oversized name containing glob syntax must not match another file.
+    f"{{ if ! find . \\( {_PRUNED} \\) -prune -o \\( -type l -o -type f \\) "
+    f"! -size -{MAX_FILE_BYTES // 512 + 1} "
+    "-exec git --literal-pathspecs ls-files --error-unmatch -- {} + > /dev/null 2>&1; "
+    f'then touch "${STORE_ENV}/incomplete"; fi; }} && '
+    # Write the discovery list first so a traversal failure cannot disappear in
+    # the update-index pipeline and turn an unvisited directory into deletions.
     f"find . \\( {_PRUNED} \\) -prune -o \\( -type l -o -type f $readable \\) "
-    f"-size -{MAX_FILE_BYTES // 512 + 1} -print0; }} "
+    f'-size -{MAX_FILE_BYTES // 512 + 1} -print0 > "${STORE_ENV}/discovered" && '
+    f'{{ git ls-files -z; cat "${STORE_ENV}/discovered"; }} '
     "| git -c core.looseCompression=1 update-index -z --add --remove --stdin "
     "&& git write-tree"
 )
@@ -154,15 +170,16 @@ FINISH = (
     f"head -c {MAX_PATCH_BYTES} \"${STORE_ENV}/patch\" | base64 | tr -d '\\n'; echo; "
     # Count both blob states, including mode-only changes and repeated blobs.
     # A small compressed patch need not mean a small verification workload.
+    f'if [ -e "${STORE_ENV}/incomplete" ]; then echo 0; else '
     f"{_DIFF} --no-renames --raw "
     "| awk '/^:/ {if ($3 !~ /^0+$/) print $3; if ($4 !~ /^0+$/) print $4}' "
     "| git cat-file --batch-check='%(objectsize)' "
     f"| awk '{{total += $1; if ($0 !~ /^[0-9]+$/ || $1 > {MAX_REVERT_FILE_BYTES}) bad=1}} "
-    f"END {{print (bad || total > {MAX_REVERT_BYTES}) ? 0 : 1}}'"
+    f"END {{print (bad || total > {MAX_REVERT_BYTES}) ? 0 : 1}}'; fi"
 )
 """Snapshot again and print the change, a line each: the sizes of the `--raw` list, the
 `--numstat` list and the patch, the file count, each list's head (base64), the patch,
-and whether its before/after blobs fit the revert verification limits.
+and whether both snapshots are complete and their before/after blobs fit the revert verification limits.
 
 The lists are written to the store first, so `set -e` sees `diff-tree` fail -
 piped straight out, a failing one printed nothing and read as a task that

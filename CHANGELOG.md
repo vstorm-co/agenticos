@@ -27,6 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Refuse coding-task undo when either snapshot leaves out oversized, unreadable or unsupported files. Keep the captured diff available without offering an incomplete restore (#3138).
+
 - Use the same icon, heading, description, spacing and disclosure controls for all organization AI & services cards. AI Architect, speech-to-text and text-to-speech now match the background-service cards; switches remain separate from expansion and retain their save behavior.
 
 - Count Improve’s source cards from the selected evidence sample, including positive feedback and reviewed test answers, and keep empty-state messages hidden while the preview refreshes or its test set is still loading (#2555).
