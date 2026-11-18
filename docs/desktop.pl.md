@@ -1,5 +1,5 @@
 ---
-source_sha: "62891c2c8105"
+source_sha: "3bd968e04155"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -869,3 +869,5 @@ logowanie przeglądarkowe, a nie delegowane logowanie na zdalnym hoście. Wymaga
 jest pełny dostęp lokalny; przekazywanie narzędzi platformy pozostaje osobną
 pracą. Logowanie, limity, wylogowanie i wznowienie wymagają odbioru na koncie.
 Zobacz [konfigurację Vibe ACP](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).
+
+Mistral Vibe zgłasza `configuration_policy=cli`: pozostaw puste ID modelu zewnętrznego i wybierz model w Vibe. AgenticOS odmawia zmiany przed rozpoczęciem protokołu, ponieważ runtime może zapisać ją jako ustawienie domyślne użytkownika.

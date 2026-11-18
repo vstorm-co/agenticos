@@ -747,6 +747,7 @@ async def run_local_task(
                     auth_method=pipe.auth_method or auth_method,
                     model_prefix=pipe.model_prefix,
                     credential_probe=credential_probe,
+                    configuration_policy=pipe.configuration_policy,
                     remember=pipe.remember,
                     steering=steering,
                 )

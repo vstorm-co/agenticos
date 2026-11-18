@@ -1,5 +1,5 @@
 ---
-source_sha: "62891c2c8105"
+source_sha: "3bd968e04155"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -900,3 +900,5 @@ local por navegador, no acceso delegado en hosts remotos. Se exige acceso local
 completo; reenviar herramientas de la plataforma sigue siendo trabajo separado.
 Inicio de sesión, límites, cierre y reanudación requieren pruebas reales. Consulta
 [configuración ACP de Vibe](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).
+
+Mistral Vibe indica `configuration_policy=cli`: deja vacío ID del modelo externo y elige el modelo en Vibe. AgenticOS rechaza cambios antes de iniciar el protocolo porque el runtime puede guardarlos como valores predeterminados del usuario.

@@ -1,5 +1,5 @@
 ---
-source_sha: "b5aa3a975b63"
+source_sha: "9bed93fe921e"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3515,3 +3515,5 @@ Szablon Cursor korzysta z logowania kontem CLI przez `cursor_login`, usuwa odzie
 Cline ma osobne szablony konta i odziedziczonego klucza API; oba wymuszają providera Cline i bezpośrednie `--acp`. [Konfiguracja Cline](../desktop.md#cline-acp) opisuje dane logowania, kredyty i warunki odbioru.
 
 Mistral Vibe korzysta z własnej konfiguracji przeglądarkowej i kluczy; katalog i raport zadania podają oczyszczone źródło klucza. [Konfiguracja Vibe](../desktop.md#mistral-vibe-acp) opisuje rozliczanie i weryfikację konta.
+
+Mistral Vibe zgłasza `configuration_policy=cli`: pozostaw puste ID modelu zewnętrznego i wybierz model w Vibe. AgenticOS odmawia zmiany przed rozpoczęciem protokołu, ponieważ runtime może zapisać ją jako ustawienie domyślne użytkownika.

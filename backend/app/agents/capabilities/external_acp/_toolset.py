@@ -108,6 +108,7 @@ def build_acp_toolset(
                 credential_probe=probe_credentials,
                 timeout_seconds=min(timeout_seconds, 60),
             )
+            catalog.configuration_policy = pipe.configuration_policy
             return catalog.model_dump_json()
         except AcpError as error:
             return f"ACP model discovery failed: {error.message} Check the program's own login and model access. For Antigravity, run agy acp --login. No alternate billing mode was selected."

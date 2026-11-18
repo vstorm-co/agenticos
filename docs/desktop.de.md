@@ -1,5 +1,5 @@
 ---
-source_sha: "62891c2c8105"
+source_sha: "3bd968e04155"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -915,3 +915,5 @@ delegierte Anmeldung auf entfernten Hosts. Voller lokaler Zugriff ist erforderli
 Plattform-Tools bleiben separate Arbeit. Anmeldung, Guthabenlimits, Abmeldung und
 Wiederaufnahme benötigen echte Abnahmetests. Siehe
 [Vibe ACP einrichten](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).
+
+Mistral Vibe meldet `configuration_policy=cli`: Lassen Sie Externe Modell-ID leer und wählen Sie das Modell in Vibe selbst. AgenticOS lehnt Änderungen vor dem Protokollaufbau ab, da die Laufzeit sie als Benutzervorgabe speichern kann.

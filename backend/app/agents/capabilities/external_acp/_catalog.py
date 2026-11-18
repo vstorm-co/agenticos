@@ -1,6 +1,7 @@
 """Bounded model choices advertised by the current ACP session, never a static catalog."""
 
 from collections.abc import Mapping
+from typing import Literal
 
 import anyio
 from pydantic import BaseModel, ConfigDict, Field
@@ -23,6 +24,7 @@ class AcpChoice(BaseModel):
 
 
 class AcpCatalog(BaseModel):
+    configuration_policy: Literal["session", "cli"] = "session"
     credentials: RuntimeCredentials | None = None
     refresh_pending: bool = False
     model_prefix: str | None = None

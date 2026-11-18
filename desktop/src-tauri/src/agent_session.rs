@@ -367,6 +367,8 @@ struct OpenArgs {
     supports_auth_modes: bool,
     #[serde(default)]
     supports_model_constraints: bool,
+    #[serde(default)]
+    supports_configuration_policy: bool,
     root: String,
     mode: Mode,
     #[serde(default)]
@@ -508,6 +510,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         custom_agent_id,
         supports_auth_modes,
         supports_model_constraints,
+        supports_configuration_policy,
         root,
         mode,
         resume_key,
@@ -567,6 +570,16 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         return Err(Refusal::new(
             "denied",
             "Update the AgenticOS server to use OpenCode Go model constraints.",
+        ));
+    }
+    if external
+        .as_ref()
+        .is_some_and(|item| item.provider == crate::external_agents::Provider::MistralVibe)
+        && !supports_configuration_policy
+    {
+        return Err(Refusal::new(
+            "denied",
+            "Update the AgenticOS server to preserve this CLI's model configuration.",
         ));
     }
     let mut consent = Consent::new(&root, &before.connection_revision, agent);
@@ -663,6 +676,14 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         _ => None,
     });
     let runtime_name = external.as_ref().map(|item| item.name.as_str());
+    let configuration_policy = if external
+        .as_ref()
+        .is_some_and(|item| item.provider == crate::external_agents::Provider::MistralVibe)
+    {
+        "cli"
+    } else {
+        "session"
+    };
     let model_prefix = external
         .as_ref()
         .filter(|item| item.provider == crate::external_agents::Provider::OpenCodeGo)
@@ -676,7 +697,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         )
     });
     Ok(object(
-        serde_json::json!({ "id": id, "session_id": resumed, "auth_method": auth_method, "runtime_name": runtime_name, "model_prefix": model_prefix, "refresh_catalog": refresh_catalog }),
+        serde_json::json!({ "id": id, "session_id": resumed, "auth_method": auth_method, "runtime_name": runtime_name, "model_prefix": model_prefix, "refresh_catalog": refresh_catalog, "configuration_policy": configuration_policy }),
     ))
 }
 

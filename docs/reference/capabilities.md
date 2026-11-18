@@ -3391,3 +3391,5 @@ The Cursor template uses CLI account login with `cursor_login`, removes inherite
 Cline has separate account and inherited-API-key templates, both locked to the Cline provider and foreground `--acp`. See [Cline setup](../desktop.md#cline-acp) for credential, credit and acceptance boundaries.
 
 Mistral Vibe uses its own browser/key setup, with sanitized credential-source status in discovery and task reports. See [Vibe setup](../desktop.md#mistral-vibe-acp) for billing and account verification.
+
+Mistral Vibe reports `configuration_policy=cli`: keep External model ID empty and choose the model through Vibe itself. AgenticOS refuses model overrides before protocol setup because the runtime may persist them as user defaults.

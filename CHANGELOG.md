@@ -36,6 +36,10 @@ Two things are versioned separately from this file and worth knowing about:
 - MiniMax models accept vault API or M Plan keys through a separate OpenAI-compatible provider identity, with explicit regional endpoints and tool calling.
 - Z.AI model profiles accept explicit GLM Coding Plan endpoints, with authenticated model catalogs isolated from the ordinary API and other accounts.
 
+### Fixed
+
+- Refuse external model overrides for CLIs that persist session picker changes as user defaults, including safe behavior with older Mistral Vibe Desktop replies (#3108).
+
 ## [1.82.2] - 2026-11-18
 
 ### Added

@@ -1,5 +1,5 @@
 ---
-source_sha: "b5aa3a975b63"
+source_sha: "9bed93fe921e"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3771,3 +3771,5 @@ Die Cursor-Vorlage nutzt das CLI-Konto mit `cursor_login`, entfernt geerbte API-
 Cline hat getrennte Vorlagen für Konto und geerbten API-Schlüssel, beide auf den Provider Cline und direktes `--acp` beschränkt. [Cline einrichten](../desktop.md#cline-acp) beschreibt Zugangsdaten, Guthaben und Abnahme.
 
 Mistral Vibe nutzt eigene Browser- und Schlüsseleinrichtung; Katalog und Aufgabenbericht nennen bereinigte Quellenangaben. [Vibe einrichten](../desktop.md#mistral-vibe-acp) beschreibt Kosten und Kontoprüfung.
+
+Mistral Vibe meldet `configuration_policy=cli`: Lassen Sie Externe Modell-ID leer und wählen Sie das Modell in Vibe selbst. AgenticOS lehnt Änderungen vor dem Protokollaufbau ab, da die Laufzeit sie als Benutzervorgabe speichern kann.

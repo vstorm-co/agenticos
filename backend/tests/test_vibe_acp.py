@@ -4,9 +4,10 @@ import json
 
 import pytest
 
+from app.agents.capabilities.coding_agent import _acp as acp
 from app.agents.capabilities.external_acp._capability import ExternalAcp
 from app.services.device_hub import workspace as workspace_module
-from tests.test_coding_agent_acp import Computer, _ctx, _local_workspace
+from tests.test_coding_agent_acp import Computer, ScriptedPipe, _ctx, _local_workspace, _nothing
 from tests.test_cursor_acp import CursorAgent
 
 pytestmark = pytest.mark.anyio
@@ -42,7 +43,9 @@ class VibeComputer(Computer):
     ) -> dict[str, object]:
         result = await super().call(session_id, op, args, timeout=timeout)
         if op == "agent.open":
-            result.update(auth_method="browser-auth", runtime_name="Mistral Vibe")
+            result.update(
+                auth_method="browser-auth", runtime_name="Mistral Vibe", configuration_policy="cli"
+            )
         return result
 
 
@@ -78,6 +81,7 @@ async def test_vibe_reports_actual_key_source_without_exposing_identity_or_secre
         .function(_ctx(_local_workspace(), []))
     )
     catalog = json.loads(result)
+    assert catalog["configuration_policy"] == "cli"
     assert catalog["credentials"] == {
         "kind": "api_key",
         "source": source,
@@ -149,3 +153,85 @@ async def test_vibe_without_its_status_contract_fails_instead_of_guessing_billin
         .function(_ctx(_local_workspace(), []))
     )
     assert "refused" in result and computer.ops[-1] == "agent.close"
+
+
+async def test_vibe_model_selection_cannot_rewrite_the_native_cli_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    computer = VibeComputer(VibeAgent())
+    monkeypatch.setattr(workspace_module._hub, "call", computer.call)
+    result = (
+        await ExternalAcp("vibe", model_id="account-model")
+        .get_toolset()
+        .tools["run_acp_agent"]
+        .function(_ctx(_local_workspace(), []), "Fix the test")
+    )
+    assert "persists model settings" in result
+    assert not computer.agent.seen
+    assert computer.ops[-1] == "agent.close"
+
+
+async def test_older_vibe_desktop_replies_still_preserve_cli_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Older(VibeComputer):
+        async def call(
+            self, session_id: object, op: str, args: dict[str, object], *, timeout: float
+        ) -> dict[str, object]:
+            result = await super().call(session_id, op, args, timeout=timeout)
+            if op == "agent.open":
+                result.pop("configuration_policy")
+            return result
+
+    computer = Older(VibeAgent())
+    monkeypatch.setattr(workspace_module._hub, "call", computer.call)
+    result = (
+        await ExternalAcp("vibe", model_id="account-model")
+        .get_toolset()
+        .tools["run_acp_agent"]
+        .function(_ctx(_local_workspace(), []), "Fix the test")
+    )
+    assert "persists model settings" in result and not computer.agent.seen
+    assert computer.ops[-1] == "agent.close"
+
+
+@pytest.mark.parametrize("policy", ["unknown", [], None])
+async def test_an_unknown_native_configuration_policy_refuses_discovery(
+    monkeypatch: pytest.MonkeyPatch, policy: object
+) -> None:
+    class Unknown(VibeComputer):
+        async def call(
+            self, session_id: object, op: str, args: dict[str, object], *, timeout: float
+        ) -> dict[str, object]:
+            result = await super().call(session_id, op, args, timeout=timeout)
+            if op == "agent.open":
+                result["configuration_policy"] = policy
+            return result
+
+    computer = Unknown(VibeAgent())
+    monkeypatch.setattr(workspace_module._hub, "call", computer.call)
+    result = (
+        await ExternalAcp("vibe")
+        .get_toolset()
+        .tools["inspect_acp_agent"]
+        .function(_ctx(_local_workspace(), []))
+    )
+    assert "unsupported configuration policy" in result and computer.ops[-1] == "agent.close"
+
+
+async def test_cli_configuration_policy_also_refuses_reasoning_overrides() -> None:
+    agent = VibeAgent()
+    pipe = ScriptedPipe(agent)
+    with pytest.raises(acp.AcpError, match="persists model settings"):
+        await acp.run_task(
+            pipe,
+            harness="custom",
+            access="edit",
+            root="/w",
+            task="Fix the test",
+            timeout_seconds=1,
+            shown=_nothing,
+            effort="high",
+            configuration_policy="cli",
+        )
+    assert not agent.seen and pipe.closed

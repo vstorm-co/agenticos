@@ -19,7 +19,7 @@ import logging
 from collections import deque
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 import anyio
 
@@ -145,6 +145,7 @@ class DevicePipe:
         self.auth_method: str | None = None
         self.runtime_name: str | None = None
         self.model_prefix: str | None = None
+        self.configuration_policy: Literal["session", "cli"] = "session"
         self.refresh_catalog: bool = False
         self._device = device
         self._harness = harness
@@ -157,6 +158,7 @@ class DevicePipe:
         if self._harness == "custom":
             args["supports_auth_modes"] = True
             args["supports_model_constraints"] = True
+            args["supports_configuration_policy"] = True
         if self._custom_agent_id is not None:
             args["custom_agent_id"] = self._custom_agent_id
         if self._resume_key is not None:
@@ -181,6 +183,14 @@ class DevicePipe:
                 await self.close()
                 raise AcpError("The Desktop app requires unsupported model constraints.")
             self.model_prefix = prefix
+        policy = opened.get(
+            "configuration_policy",
+            "cli" if opened.get("auth_method") == "browser-auth" else "session",
+        )
+        if not isinstance(policy, str) or policy not in {"session", "cli"}:
+            await self.close()
+            raise AcpError("The Desktop app requires unsupported configuration policy.")
+        self.configuration_policy = policy
         self.refresh_catalog = opened.get("refresh_catalog") is True
         method = opened.get("auth_method")
         if method is not None:
@@ -658,6 +668,7 @@ async def run_task(
     auth_method: str | None = None,
     model_prefix: str | None = None,
     credential_probe: CredentialProbe | None = None,
+    configuration_policy: Literal["session", "cli"] = "session",
     remember: Callable[[str], Awaitable[None]] | None = None,
     steering: SteeringInbox | None = None,
 ) -> CodingReport:
@@ -674,6 +685,10 @@ async def run_task(
         # One deadline from the first request: an adapter that never answers `initialize`
         # or `session/new` ends the task like one that never finishes the prompt.
         with anyio.move_on_after(timeout_seconds):
+            if configuration_policy == "cli" and (model is not None or effort is not None):
+                raise AcpError(
+                    "This runtime persists model settings in its CLI configuration. Choose its model in the CLI and leave the external model ID empty; no configuration or prompt was sent."
+                )
             initialized = await initialize_session(
                 conversation, require_version=harness == "custom", auth_method=auth_method
             )

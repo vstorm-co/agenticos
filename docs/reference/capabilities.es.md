@@ -1,5 +1,5 @@
 ---
-source_sha: "b5aa3a975b63"
+source_sha: "9bed93fe921e"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3617,3 +3617,5 @@ La plantilla Cursor usa la cuenta CLI con `cursor_login`, elimina credenciales A
 Cline ofrece plantillas separadas para cuenta y clave API heredada, ambas fijadas al provider Cline y `--acp` directo. La [configuración Cline](../desktop.md#cline-acp) explica credenciales, créditos y aceptación.
 
 Mistral Vibe usa su configuración de navegador y claves; catálogo e informes indican el origen saneado. La [configuración Vibe](../desktop.md#mistral-vibe-acp) explica facturación y verificación de cuenta.
+
+Mistral Vibe indica `configuration_policy=cli`: deja vacío ID del modelo externo y elige el modelo en Vibe. AgenticOS rechaza cambios antes de iniciar el protocolo porque el runtime puede guardarlos como valores predeterminados del usuario.

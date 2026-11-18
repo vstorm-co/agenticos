@@ -857,3 +857,5 @@ local browser authentication, not delegated browser login on a remote host.
 Full local access is required; platform-tool forwarding remains separate work.
 Real account login, credit limits, sign-out and restart/resume need acceptance
 tests. See [Vibe ACP setup](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).
+
+Mistral Vibe reports `configuration_policy=cli`: keep External model ID empty and choose the model through Vibe itself. AgenticOS refuses model overrides before protocol setup because the runtime may persist them as user defaults.
