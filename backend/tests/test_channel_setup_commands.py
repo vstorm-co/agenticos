@@ -200,3 +200,67 @@ def test_sms_webhook_default_is_offline(monkeypatch: pytest.MonkeyPatch) -> None
     assert result.exit_code == 0, result.output
     configure.assert_not_awaited()
     assert "No provider request sent" in result.output
+
+
+@pytest.mark.parametrize("inspect", [False, True])
+def test_imessage_inspection_never_sends_messages_or_exposes_credentials(
+    monkeypatch: pytest.MonkeyPatch, inspect: bool
+) -> None:
+    service = fake_service(monkeypatch)
+    service.get = AsyncMock(return_value=SimpleNamespace(platform="imessage"))
+    monkeypatch.setattr(
+        "app.services.channel_bot.unseal_bot_token", lambda bot: "hidden-bridge-credential"
+    )
+    adapter = SimpleNamespace(
+        inspect_setup=AsyncMock(
+            return_value=SimpleNamespace(matching_webhooks=1, authenticated_webhooks=1)
+        ),
+        aclose=AsyncMock(),
+    )
+    monkeypatch.setattr(command, "ImessageAdapter", lambda: adapter)
+    args = ["--bot-id", str(uuid4())] + (["--inspect"] if inspect else [])
+    result = CliRunner().invoke(command.channel_imessage_check, args)
+    assert result.exit_code == 0, result.output
+    assert "hidden-bridge-credential" not in result.output
+    if inspect:
+        adapter.inspect_setup.assert_awaited_once_with("hidden-bridge-credential")
+        adapter.aclose.assert_awaited_once()
+        assert "Live inbound delivery" in result.output
+    else:
+        adapter.inspect_setup.assert_not_awaited()
+        adapter.aclose.assert_not_awaited()
+        assert "No provider request sent" in result.output
+
+
+def test_imessage_inspection_closes_transport_and_reports_safe_provider_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.exceptions import ExternalServiceError
+
+    service = fake_service(monkeypatch)
+    service.get = AsyncMock(return_value=SimpleNamespace(platform="imessage"))
+    monkeypatch.setattr(
+        "app.services.channel_bot.unseal_bot_token", lambda bot: "hidden-credential"
+    )
+    adapter = SimpleNamespace(
+        inspect_setup=AsyncMock(side_effect=ExternalServiceError(message="secret-provider-error")),
+        aclose=AsyncMock(),
+    )
+    monkeypatch.setattr(command, "ImessageAdapter", lambda: adapter)
+    result = CliRunner().invoke(
+        command.channel_imessage_check, ["--bot-id", str(uuid4()), "--inspect"]
+    )
+    assert result.exit_code != 0
+    assert "secret-provider-error" not in result.output
+    assert "hidden-credential" not in result.output
+    adapter.aclose.assert_awaited_once()
+
+
+def test_imessage_inspection_refuses_a_different_channel_platform(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = fake_service(monkeypatch)
+    service.get = AsyncMock(return_value=SimpleNamespace(platform="slack"))
+    result = CliRunner().invoke(command.channel_imessage_check, ["--bot-id", str(uuid4())])
+    assert result.exit_code != 0
+    assert "Choose an iMessage bot" in result.output

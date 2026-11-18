@@ -1,5 +1,5 @@
 ---
-source_sha: "a5254a7d132b"
+source_sha: "16526de9a1b6"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -3392,6 +3392,21 @@ Przychodzący e-mail jest odczytywany strumieniowo z limitem 25 MiB przed sprawd
 
 
 Przed trwałym zapisaniem e-maila organizację obowiązuje limit 4096 zachowanych zadań dostarczenia i 256 MiB treści, również zakończonych i nieudanych. Przyjęcia są serializowane między workerami; powtórzone Message-ID pozostają idempotentne. Przekroczenie limitu zwraca HTTP 429 przed zapisaniem kolejnej treści; retencja lub usunięcie zachowanych zadań zwalnia miejsce.
+
+Sprawdź konfigurację w terminalu backendu bez wysyłania wiadomości:
+
+```bash
+uv run agenticos cmd channel-imessage-check --bot-id <uuid> --org <uuid>
+uv run agenticos cmd channel-imessage-check --bot-id <uuid> --org <uuid> --inspect
+```
+
+Domyślnie polecenie wyświetla wskazówki bez łączenia się z Makiem. `--inspect`
+sprawdza uwierzytelnienie REST i metadane webhooków dla dokładnego callbacku
+tego bota. Wykrywa brak, nieaktualne uwierzytelnienie i duplikaty bez ujawniania
+haseł ani czytania rozmów. Zgodny callback nie dowodzi dostarczenia wiadomości
+ani powiązania agenta. Rejestracja webhooka pozostaje osobną, jawną operacją
+`channel-webhook-register`; polecenie nie zmienia uprawnień macOS ani Private API.
+
 
 ## Starsza historia i uwierzytelnione podglądy { #history-pages-and-live-views }
 

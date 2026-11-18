@@ -1,5 +1,5 @@
 ---
-source_sha: "a5254a7d132b"
+source_sha: "16526de9a1b6"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -3440,6 +3440,21 @@ El correo entrante se lee como un flujo limitado a 25 MiB antes de verificar la 
 
 
 Antes de aceptar correo de forma duradera, cada organización tiene un máximo de 4096 trabajos de entrega retenidos y 256 MiB de contenido, incluidas entregas completadas y fallidas. La admisión se serializa entre workers; los Message-ID duplicados siguen siendo idempotentes. Al alcanzar la cuota se devuelve HTTP 429 antes de almacenar otro contenido; la limpieza de retención o la eliminación de trabajos libera capacidad.
+
+Comprueba la configuración desde el terminal del backend sin enviar mensajes:
+
+```bash
+uv run agenticos cmd channel-imessage-check --bot-id <uuid> --org <uuid>
+uv run agenticos cmd channel-imessage-check --bot-id <uuid> --org <uuid> --inspect
+```
+
+Por defecto muestra instrucciones sin contactar con el Mac. `--inspect` comprueba
+la autenticación REST y los metadatos de webhooks del callback exacto de este bot.
+Detecta callbacks ausentes, duplicados o con autenticación antigua sin mostrar
+contraseñas ni leer conversaciones. Un callback correcto no demuestra entrega ni
+vinculación del agente. El registro sigue siendo una acción explícita y separada
+con `channel-webhook-register`; no cambia permisos de macOS ni Private API.
+
 
 ## Historial anterior y vistas autenticadas { #history-pages-and-live-views }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "a5254a7d132b"
+source_sha: "16526de9a1b6"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -3626,6 +3626,21 @@ Eingehende E-Mails werden vor der Signaturprüfung als begrenzter Stream mit hö
 
 
 Vor der dauerhaften E-Mail-Annahme gelten je Organisation höchstens 4.096 aufbewahrte Zustellaufträge und 256 MiB Nachrichtentext, einschließlich abgeschlossener und fehlgeschlagener Zustellungen. Die Annahme ist workerübergreifend serialisiert; doppelte Message-IDs bleiben idempotent. Bei voller Quote folgt HTTP 429, bevor weiterer Inhalt gespeichert wird. Aufbewahrungsbereinigung oder Löschen gespeicherter Aufträge gibt Kapazität frei.
+
+Prüfen Sie die Einrichtung im Backend-Terminal, ohne eine Nachricht zu senden:
+
+```bash
+uv run agenticos cmd channel-imessage-check --bot-id <uuid> --org <uuid>
+uv run agenticos cmd channel-imessage-check --bot-id <uuid> --org <uuid> --inspect
+```
+
+Standardmäßig erscheinen Hinweise ohne Verbindung zum Mac. `--inspect` prüft
+die REST-Authentifizierung und Webhook-Metadaten für den genauen Callback dieses
+Bots. Fehlende, veraltete oder doppelte Callbacks werden ohne Passwörter oder
+Zugriff auf Gespräche gemeldet. Ein passender Callback beweist weder Zustellung
+noch Agentenbindung. Die Registrierung bleibt eine separate, explizite Aktion
+mit `channel-webhook-register`; macOS-Rechte und Private API bleiben unverändert.
+
 
 ## Älterer Verlauf und authentifizierte Vorschauen { #history-pages-and-live-views }
 

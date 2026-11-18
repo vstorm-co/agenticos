@@ -110,6 +110,7 @@ uv run agenticos cmd channel-add-bot \
     --platform telegram --name "Support" --mode jwt_linked
 uv run agenticos cmd channel-list-bots [--platform telegram]
 uv run agenticos cmd channel-test-message --bot-id <uuid> --chat-id <chat> --text ping
+uv run agenticos cmd channel-imessage-check --bot-id <uuid> [--inspect]  # BlueBubbles setup/read-only check
 uv run agenticos cmd channel-webhook-register --bot-id <uuid>
 uv run agenticos cmd channel-webhook-delete --bot-id <uuid>   # back to polling
 uv run agenticos cmd channel-public-line --bot-id <uuid> [--on|--off]   # WhatsApp public line

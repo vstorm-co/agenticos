@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Inspect BlueBubbles authentication and bot callback configuration from the
+  terminal without sending messages, exposing passwords or reading conversations.
+
 - Microsoft Entra and GitHub console sign-in, with PKCE, verified email checks,
   tenant-bound Microsoft identities and the existing invitation/session policies.
 

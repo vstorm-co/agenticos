@@ -37,6 +37,7 @@ from app.services.channels.email import (
     is_address,
     sign,
 )
+from app.services.channels.imessage import ImessageAdapter
 from app.services.email import get_email_provider
 
 
@@ -62,6 +63,66 @@ class EmailRelayConfig(BaseModel):
         ):
             raise ValueError("Use the generated HTTPS email relay configuration")
         return self
+
+
+@command(
+    "channel-imessage-check",
+    help="Show BlueBubbles setup instructions; inspect the bridge only with --inspect",
+)
+@click.option("--bot-id", required=True, type=click.UUID)
+@click.option(
+    "--inspect", is_flag=True, help="Authenticate and inspect callbacks; never send a message."
+)
+@_org_option
+def channel_imessage_check(bot_id: UUID, inspect: bool, org_id: str | None) -> None:
+    """Diagnose an organization's existing iMessage bot without reading conversations."""
+    from app.services.channel_bot import unseal_bot_token
+
+    async def run() -> None:
+        async with _channel_service(org_id) as service:
+            bot = await service.get(bot_id)
+            if bot.platform != "imessage":
+                raise click.UsageError("Choose an iMessage bot.")
+            callback = inbound_webhook_url("imessage", bot_id)
+            click.echo(f"Expected incoming-message callback: {callback}")
+            click.echo(
+                "Keep your Mac signed into Messages and BlueBubbles online, with its REST API enabled."
+            )
+            click.echo(
+                "BlueBubbles must reach the callback; localhost on the Mac is not a remote AgenticOS instance."
+            )
+            if not inspect:
+                click.echo(
+                    "No provider request sent. Use --inspect to check authentication and webhook configuration."
+                )
+                return
+            token = unseal_bot_token(bot)
+        adapter = ImessageAdapter()
+        try:
+            result = await adapter.inspect_setup(token)
+        finally:
+            await adapter.aclose()
+        click.echo("Bridge authentication confirmed. No messages or chat history were accessed.")
+        click.echo(
+            f"Callbacks for this bot: {result.matching_webhooks}; with current authentication: {result.authenticated_webhooks}."
+        )
+        if result.matching_webhooks == 1 and result.authenticated_webhooks == 1:
+            click.echo(
+                "Callback configuration matches. Live inbound delivery and agent binding still need verification."
+            )
+        else:
+            click.echo(
+                "Callback setup needs attention. Remove stale/duplicate callbacks for this bot and register its webhook again."
+            )
+        click.echo("Webhook registration is explicit: channel-webhook-register --bot-id <bot-id>.")
+        click.echo("No macOS permissions, Private API or security settings were changed.")
+
+    try:
+        asyncio.run(run())
+    except AppException:
+        raise click.ClickException(
+            "BlueBubbles inspection failed. Check the endpoint, REST API, server password and reachability; no credential is shown."
+        ) from None
 
 
 def _require_https_webhook(platform: str, bot_id: UUID) -> str:

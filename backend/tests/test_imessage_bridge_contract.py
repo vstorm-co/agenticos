@@ -346,3 +346,65 @@ async def test_download_honors_a_smaller_caller_byte_limit() -> None:
             )
     finally:
         await adapter.aclose()
+
+
+@pytest.mark.parametrize("kind", ["correct", "missing", "stale", "duplicate", "other-bot"])
+async def test_setup_inspection_authenticates_and_checks_only_own_callbacks(kind: str) -> None:
+    credentials = credential()
+    target = inbound_webhook_url("imessage", credentials.bot_id)
+    authenticated = target.replace("://", "://agenticos:callback-secret@", 1)
+    callbacks = {
+        "correct": [authenticated],
+        "missing": [],
+        "stale": [target.replace("://", "://agenticos:old-secret@", 1)],
+        "duplicate": [authenticated, authenticated],
+        "other-bot": [authenticated.replace(str(credentials.bot_id), str(uuid4()))],
+    }[kind]
+    paths: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.params["password"] == "bridge-password"
+        paths.append(request.url.path)
+        if request.url.path.endswith("/ping"):
+            return httpx.Response(200, json={"status": 200, "message": "pong"})
+        assert request.url.path.endswith("/webhook")
+        return httpx.Response(
+            200,
+            json={
+                "status": 200,
+                "data": [{"id": i + 1, "url": url} for i, url in enumerate(callbacks)],
+            },
+        )
+
+    adapter = ImessageAdapter(httpx.MockTransport(handler))
+    try:
+        result = await adapter.inspect_setup(credentials.encode())
+    finally:
+        await adapter.aclose()
+    expected = {
+        "correct": (1, 1),
+        "missing": (0, 0),
+        "stale": (1, 0),
+        "duplicate": (2, 2),
+        "other-bot": (0, 0),
+    }[kind]
+    assert (result.matching_webhooks, result.authenticated_webhooks) == expected
+    assert paths == ["/prefix/api/v1/ping", "/prefix/api/v1/webhook"]
+    assert "callback-secret" not in repr(result)
+
+
+@pytest.mark.security
+async def test_setup_inspection_without_callback_secret_does_not_claim_authentication() -> None:
+    credentials = credential().model_copy(update={"webhook_secret": None})
+    target = inbound_webhook_url("imessage", credentials.bot_id)
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"status": 200, "data": [{"id": 1, "url": target}]})
+
+    adapter = ImessageAdapter(httpx.MockTransport(handler))
+    try:
+        result = await adapter.inspect_setup(credentials.encode())
+    finally:
+        await adapter.aclose()
+    assert result.matching_webhooks == 1 and result.authenticated_webhooks == 0

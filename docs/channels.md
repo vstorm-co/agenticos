@@ -3276,6 +3276,22 @@ Inbound email is read as a bounded stream (25 MiB maximum) before signature veri
 
 Before durable email admission, each organization is limited to 4,096 retained delivery jobs and 256 MiB of retained bodies, including completed and failed deliveries. Admission is serialized across workers; duplicate Message-IDs remain idempotent. A full quota returns HTTP 429 before retaining another body; retention cleanup or deletion of retained jobs releases capacity.
 
+Inspect setup from the backend terminal without sending a message:
+
+```bash
+uv run agenticos cmd channel-imessage-check --bot-id <uuid> --org <uuid>
+uv run agenticos cmd channel-imessage-check --bot-id <uuid> --org <uuid> --inspect
+```
+
+The default prints setup guidance without contacting the Mac. `--inspect` checks
+REST authentication and lists webhook metadata for this bot's exact callback.
+It reports missing, stale-authentication or duplicate callbacks without showing
+passwords or reading conversations. A matching callback does not prove inbound
+delivery or agent binding. Webhook registration remains a separate explicit
+`channel-webhook-register` action; no macOS permissions or Private API settings
+are changed.
+
+
 ## Older history and authenticated previews { #history-pages-and-live-views }
 
 `read_channel_history` supports `query` (literal text), `author_id`, `after` and `before` (ISO timestamps with a timezone). Time bounds are exclusive. Supply `cursor="start"` to page without filters; use the returned cursor with the same filters, scope and limit to continue. A page can have no matches and still have a continuation. Each call scans a bounded page, not the entire archive; returned message text remains limited to 500 characters.

@@ -2,6 +2,7 @@
 
 import base64
 import secrets
+from dataclasses import dataclass
 from typing import Literal
 from urllib.parse import quote, urlsplit, urlunsplit
 from uuid import uuid4
@@ -126,6 +127,14 @@ class _WebhooksResponse(_Accepted):
     data: list[_Webhook] = Field(max_length=1000)
 
 
+@dataclass(frozen=True)
+class ImessageSetupStatus:
+    """Read-only bridge authentication and this bot's callback configuration."""
+
+    matching_webhooks: int
+    authenticated_webhooks: int
+
+
 class _ChatResponse(_Accepted):
     data: _Chat
 
@@ -172,6 +181,35 @@ class ImessageAdapter(ChannelAdapter):
 
     async def aclose(self) -> None:
         await self._bridge.close()
+
+    async def inspect_setup(self, bot_token: str) -> ImessageSetupStatus:
+        """Authenticate without sending messages or changing the Mac's configuration.
+
+        A successful ping proves server/password access, not message delivery.
+        Inspect only webhook metadata; never read the Mac's chat history.
+        """
+        credentials = self._credentials(bot_token)
+        await self._bridge.json_request(credentials, "GET", "/api/v1/ping", _Accepted)
+        hooks = await self._bridge.json_request(
+            credentials, "GET", "/api/v1/webhook", _WebhooksResponse
+        )
+        callback = inbound_webhook_url(PLATFORM, credentials.bot_id)
+        expected = (
+            _callback_target(callback, credentials.webhook_secret.get_secret_value())
+            if credentials.webhook_secret is not None
+            else None
+        )
+        matching = [
+            hook.url.get_secret_value()
+            for hook in hooks.data
+            if _same_callback(hook.url.get_secret_value(), callback)
+        ]
+        return ImessageSetupStatus(
+            matching_webhooks=len(matching),
+            authenticated_webhooks=sum(
+                expected is not None and secrets.compare_digest(url, expected) for url in matching
+            ),
+        )
 
     @staticmethod
     def _credentials(token: str, endpoint: str | None = None) -> BridgeCredentials:
