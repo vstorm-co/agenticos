@@ -62,7 +62,12 @@ from app.repositories import authoring_repo, eval_run_repo, skill_check_repo
 from app.schemas.agent_environment import EnvironmentCreate
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCaseUpdate, DatasetCreate
-from app.schemas.eval_run import EvalComparisonRead, EvalRunRequest, ProposalCheckRecord
+from app.schemas.eval_run import (
+    EvalComparisonRead,
+    EvalRunRead,
+    EvalRunRequest,
+    ProposalCheckRecord,
+)
 from app.schemas.scoring import CaseVerdict, RescoreRequest
 from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import (
@@ -3050,6 +3055,62 @@ async def test_cases_from_a_proposals_evidence_are_left_out_and_listed(db) -> No
     assert started.cases == 2
     assert started.paired is True
     assert all(arm.reused_from_arm_id is None for arm in started.arms)
+
+
+async def test_an_unchanged_draft_baseline_is_answered_once_across_checks(db) -> None:
+    """An improvement session measures each attempt against the same draft and leaves
+    out the same evidence; the second check reuses the first one's baseline answers."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    evidence = uuid.uuid4()
+    db.add(Conversation(id=evidence, organization_id=ctx.organization_id))
+    first_case = (
+        (
+            await db.execute(
+                select(DatasetCase)
+                .where(DatasetCase.dataset_id == dataset.id)
+                .order_by(DatasetCase.input)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert first_case is not None
+    first_case.source_conversation_id = evidence
+    await db.flush()
+    service = EvalRunService(db)
+    draft = AgentSpec(name="Clerk", instructions="Draft")
+
+    async def check(instructions: str, baseline: AgentSpec = draft) -> tuple[EvalRunRead, Model]:
+        started = await service.start(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id, paired_baseline=True),
+            candidate_spec=AgentSpec(name="Clerk", instructions=instructions),
+            baseline_spec=baseline,
+            exclude_conversations=[evidence],
+        )
+        model = Model(db)
+        await _run_to_end(db, model, started.id, ctx)
+        return await service.get(ctx, started.id), model
+
+    first, first_model = await check("Attempt 1")
+    second, second_model = await check("Attempt 2")
+    changed, changed_model = await check(
+        "Attempt 3", AgentSpec(name="Clerk", instructions="Edited draft")
+    )
+
+    assert all(arm.reused_from_arm_id is None for arm in first.arms)
+    assert len(first_model.calls) == 4
+    [reused] = [arm for arm in second.arms if arm.role == "baseline"]
+    [answered] = [arm for arm in first.arms if arm.role == "baseline"]
+    assert reused.reused_from_arm_id == answered.id
+    # Only the candidate answers the two cases outside the evidence.
+    assert len(second_model.calls) == 2
+    assert (await service.compare(ctx, second.id)).compared == 2
+    assert all(arm.reused_from_arm_id is None for arm in changed.arms)
+    assert len(changed_model.calls) == 4
 
 
 async def test_a_dataset_made_wholly_of_the_evidence_is_refused(db) -> None:

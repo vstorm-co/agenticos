@@ -756,12 +756,7 @@ class EvalRunService:
             # context file's stored body is live, so neither side is taken from the cache.
             cached = (
                 None
-                if excluded
-                or candidate_skills
-                or candidate_contexts
-                or baseline_skills
-                or baseline_contexts
-                or baseline_version is None
+                if candidate_skills or candidate_contexts or baseline_skills or baseline_contexts
                 else await self._cached(
                     ctx,
                     agent=agent,
@@ -778,6 +773,7 @@ class EvalRunService:
                     judge_id=config.judge.agent_id,
                     judge_version_id=judge_version_id,
                     judge_pinned=judge_pinned,
+                    excluded=excluded,
                 )
             )
             arms.append(baseline if cached is None else replace(baseline, cached=cached))
@@ -1173,33 +1169,55 @@ class EvalRunService:
         judge_id: UUID | None,
         judge_version_id: UUID | None = None,
         judge_pinned: bool = False,
+        excluded: Collection[UUID] = (),
     ) -> tuple[EvalRunArm, EvalRun] | None:
         """A completed baseline arm that may stand in for running this one.
 
         Only one that matches on everything the comparison holds constant: the
-        version and the skill versions it was served, the dataset version, the
-        model, the scoring, the environment
-        whose test connections answered and whether recordings did - and the judge,
-        whose published version and prompt must be the ones that graded every
-        case, or no judge at all when none would grade now. Every first answer
-        must be in and scored: a reused arm's cases are never asked again, so a
-        hole in it would read as a case nobody changed.
+        version - or for a draft, its exact fingerprint - and the skill versions
+        it was served, the dataset version, the cases left out, the model, the
+        scoring, the environment whose test connections answered and whether
+        recordings did - and the judge, whose published version and prompt must
+        be the ones that graded every case, or no judge at all when none would
+        grade now. Every first answer must be in and scored: a reused arm's cases
+        are never asked again, so a hole in it would read as a case nobody changed.
+
+        A draft baseline is what an improvement session measures each attempt
+        against; while the draft is unchanged, its answers from the session's
+        previous check serve the next one.
         """
-        assert arm.version is not None
         since = datetime.now(UTC) - timedelta(hours=settings.EVAL_BASELINE_CACHE_HOURS)
-        found = await eval_run_repo.latest_arm(
-            self.db,
-            organization_id=ctx.organization_id,
-            agent_id=agent.id,
-            dataset_id=dataset.id,
-            agent_version_id=arm.version.id,
-            dataset_version_id=dataset_version.id,
-            model_profile_id=arm.model_profile_id,
-            scoring_hash=scoring_hash,
-            skill_versions=arm.skill_versions,
-            execution=execution,
-            since=since,
-        )
+        if arm.version is None:
+            found = await eval_run_repo.latest_draft_arm(
+                self.db,
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                dataset_id=dataset.id,
+                spec_hash=spec_hash(arm.spec),
+                dataset_version_id=dataset_version.id,
+                model_profile_id=arm.model_profile_id,
+                scoring_hash=scoring_hash,
+                skill_versions=arm.skill_versions,
+                execution=execution,
+                since=since,
+                excluded_case_ids=excluded,
+            )
+        elif excluded:
+            return None
+        else:
+            found = await eval_run_repo.latest_arm(
+                self.db,
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                dataset_id=dataset.id,
+                agent_version_id=arm.version.id,
+                dataset_version_id=dataset_version.id,
+                model_profile_id=arm.model_profile_id,
+                scoring_hash=scoring_hash,
+                skill_versions=arm.skill_versions,
+                execution=execution,
+                since=since,
+            )
         if found is None:
             return None
         attempts = await eval_run_repo.list_arm_cases(
