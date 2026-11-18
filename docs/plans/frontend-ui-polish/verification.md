@@ -344,3 +344,26 @@ popovers, checked the editable composer, compact widths and absence of duplicate
 permissions. A 390px floating-layout check found no horizontal overflow or API
 5xx. No messages or paid model calls were submitted. The dashboard inline-filter
 batch passed 39 tests and browser geometry checks in all four scopes.
+
+
+## Second chat design review
+
+The maintainer rejected the first placement-only options and requested complete
+control compositions. Studio, Canvas, Command and Focus replace those temporary
+options, with distinct grid arrangements and palettes. All retain the real file
+menu, agent selection, Agent rules, model picker, direct context usage, settings,
+dictation and the call/Send position. The normal chat and production remain
+unchanged. The preview palette also reaches portal controls and restores on exit;
+switching designs preserves conversation query parameters.
+
+The first focused two-file batch passed 73 tests; further regressions cover direct
+usage, preserved query parameters and palette cleanup. Chromium checked all nine
+visible composer controls in each desktop composition without overlaps, opened
+all four model/settings popovers and checked the phone + sheet at 390px. No
+horizontal overflow or API 5xx was observed, and no messages or paid calls were
+sent. An initial cold-start attempt timed out; the completed browser journey used
+the warmed local server. An initial local typecheck was interrupted under workstation load; the final
+commit hooks passed TypeScript, ESLint, formatting and copy guards. The final
+controls file passed 41 tests, including palette cleanup. Full CI remains a
+separate gate for the new commit. These remain review compositions,
+with DOM/keyboard order to consolidate after selecting a final arrangement.

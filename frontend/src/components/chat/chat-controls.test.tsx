@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
   orgAllowsWaiving: true,
   orgLoaded: true,
   pathname: "/chat",
+  query: "",
   openPage: vi.fn(),
   personalHarness: null as "claude_code" | "codex" | null,
 }));
@@ -35,7 +36,10 @@ vi.mock("./work-on", () => ({
     ) : null,
   ConversationNotifications: () => (state.desktop ? <p>Conversation notifications</p> : null),
 }));
-vi.mock("next/navigation", () => ({ usePathname: () => state.pathname }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => state.pathname,
+  useSearchParams: () => new URLSearchParams(state.query),
+}));
 vi.mock("@/stores/onboarding-store", () => ({
   useOnboardingStore: (pick: (store: unknown) => unknown) => pick({ openPage: state.openPage }),
 }));
@@ -118,6 +122,7 @@ beforeEach(() => {
   state.orgAllowsWaiving = true;
   state.orgLoaded = true;
   state.pathname = "/chat";
+  state.query = "";
   state.openPage = vi.fn();
   state.personalHarness = null;
 });
@@ -483,7 +488,7 @@ it("clears a saved model override when switching to a personal-key agent", async
 describe("development layout alternatives", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it.each(["composer", "header", "floating"])(
+  it.each(["studio", "canvas", "command", "focus"])(
     "offers one model control without repeated permission choices in %s",
     async (variant) => {
       vi.stubEnv("NODE_ENV", "development");
@@ -500,11 +505,49 @@ describe("development layout alternatives", () => {
     },
   );
 
+  it("preserves the open conversation when switching preview designs", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    state.query = "id=conversation-1&layout=studio";
+    render(
+      <ChatLayoutPreview variant="studio">
+        <ChatControls />
+      </ChatLayoutPreview>,
+    );
+    expect(screen.getByRole("link", { name: "Canvas" })).toHaveAttribute(
+      "href",
+      "/chat?id=conversation-1&layout=canvas",
+    );
+    expect(screen.getByRole("link", { name: "Studio" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("keeps actual context usage directly reachable outside the settings popover", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    render(
+      <ChatLayoutPreview variant="command">
+        <ChatControls usageSlot={<button type="button">Current context usage</button>} />
+      </ChatLayoutPreview>,
+    );
+    expect(screen.getByRole("button", { name: "Current context usage" })).toBeVisible();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("restores the account palette when leaving a preview", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const view = render(
+      <ChatLayoutPreview variant="command">
+        <ChatControls />
+      </ChatLayoutPreview>,
+    );
+    expect(document.documentElement).toHaveAttribute("data-chat-preview", "command");
+    view.unmount();
+    expect(document.documentElement).not.toHaveAttribute("data-chat-preview");
+  });
+
   it("saves model overrides through the existing scoped controls", async () => {
     vi.stubEnv("NODE_ENV", "development");
     const changed = vi.fn();
     render(
-      <ChatLayoutPreview variant="composer">
+      <ChatLayoutPreview variant="studio">
         <ChatControls onModelProfileChange={changed} />
       </ChatLayoutPreview>,
     );
@@ -517,7 +560,7 @@ describe("development layout alternatives", () => {
     vi.stubEnv("NODE_ENV", "development");
     state.personalModel = true;
     render(
-      <ChatLayoutPreview variant="composer">
+      <ChatLayoutPreview variant="studio">
         <ChatControls />
       </ChatLayoutPreview>,
     );
@@ -529,7 +572,7 @@ describe("development layout alternatives", () => {
   it("ignores preview URLs in production", async () => {
     vi.stubEnv("NODE_ENV", "production");
     render(
-      <ChatLayoutPreview variant="floating">
+      <ChatLayoutPreview variant="focus">
         <ChatControls />
       </ChatLayoutPreview>,
     );

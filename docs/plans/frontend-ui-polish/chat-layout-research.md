@@ -19,24 +19,26 @@ Model names and plan limits are outside this comparison.
 
 ## Application to AgenticOS
 
-The recurring composer placement supports variant A below. Variants B and C are
-our alternatives for evaluation, not claims about the current layouts of those
-products. AgenticOS also has responsibilities these examples do not establish:
-organization model profiles, personal credentials, standing tool consent and
-private coding accounts must retain their existing authority checks.
+The first three placement-only alternatives were rejected after hands-on review:
+they moved the model without considering the whole control surface. The second
+round compares complete compositions and palettes, using the real editor, file
+menu, agent and approval selectors, model picker, context usage, settings,
+dictation and voice-call/Send controls. The call retains its real readiness and
+permission behavior; an unavailable call is never simulated as enabled.
 
-The three previews reuse the existing model editor and connection forms. They
-remove the second permissions selector from Chat controls; Agent rules remains
-its single visible entry point. Remembered grants remain reachable separately.
-No models are run automatically and no new approval authority is introduced.
-
-| Variant | Development preview | Tradeoff |
+| Variant | Development preview | Composition |
 | --- | --- | --- |
-| A: composer | `/chat?layout=composer` | Model beside composing, compact connection menu. Frequent actions stay together; less width for long agent names. |
-| B: header | `/chat?layout=header` | Model in a quiet fixed header, minimal composer. More writing space, but attention moves farther to change models. |
-| C: floating | `/chat?layout=floating` | Small model pill floats at the top-right of the chat. No permanent header row, but overlay placement needs care on narrow screens. |
+| Studio | `/chat?layout=studio` | Cool light workspace; agent/model metadata above the editor, file and voice actions below. |
+| Canvas | `/chat?layout=canvas` | Warm paper palette; a left identity/model column beside a larger editor, with utilities underneath. |
+| Command | `/chat?layout=command` | Dark graphite/green palette and monospace controls; model/usage above the prompt, execution controls below. |
+| Focus | `/chat?layout=focus` | Mint palette, rounded input and separate identity/model capsules; lighter visual grouping and more whitespace. |
 
-Preview URLs are development-only. The regular `/chat` and production retain
-the existing layout until the maintainer chooses a variant. Remove unchosen
-alternatives after that decision. Mobile, existing conversations and account
-connection flows must be checked before promoting a preview to the default.
+All four retain working account connections and standing-consent rules. Usage
+is reachable directly beside the model rather than buried in settings.
+Narrow screens retain the existing + sheet for secondary controls. The preview
+switcher preserves the conversation query parameters when changing designs.
+
+Preview URLs remain development-only; regular `/chat` and production retain the
+current layout until a new choice. These are review compositions: before promoting
+one, consolidate the chosen tokens and DOM/keyboard order, remove discarded
+alternatives and verify populated conversations and mobile flows.

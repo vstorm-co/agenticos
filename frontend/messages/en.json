@@ -1260,6 +1260,13 @@
     "title": "Billing"
   },
   "chat": {
+    "layoutPreview": {
+      "label": "Chat design previews",
+      "studio": "Studio",
+      "canvas": "Canvas",
+      "command": "Command",
+      "focus": "Focus"
+    },
     "loadEarlierMessages": "Load earlier messages",
     "accessLevel": "Access level",
     "accessRevoked": "Access revoked",

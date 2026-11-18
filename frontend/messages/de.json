@@ -1260,6 +1260,13 @@
     "title": "Abrechnung"
   },
   "chat": {
+    "layoutPreview": {
+      "label": "Chat-Layout-Vorschauen",
+      "studio": "Studio",
+      "canvas": "Canvas",
+      "command": "Command",
+      "focus": "Focus"
+    },
     "loadEarlierMessages": "Ältere Nachrichten laden",
     "accessLevel": "Zugriffsstufe",
     "accessRevoked": "Zugriff widerrufen",

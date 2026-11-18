@@ -275,6 +275,13 @@
     "deleteAccount": "Usuń konto"
   },
   "chat": {
+    "layoutPreview": {
+      "label": "Podglądy układu czatu",
+      "studio": "Studio",
+      "canvas": "Canvas",
+      "command": "Command",
+      "focus": "Focus"
+    },
     "loadEarlierMessages": "Wczytaj wcześniejsze wiadomości",
     "accessLevel": "Poziom dostępu",
     "accessRevoked": "Dostęp cofnięty",

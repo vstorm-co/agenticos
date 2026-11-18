@@ -1,6 +1,9 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
+import "./chat-layout-preview.css";
 import { ChevronDown, SlidersHorizontal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
@@ -17,7 +20,8 @@ import { ConversationNotifications, WorkOn } from "./work-on";
 import { YourConnections } from "./your-connections";
 import { RememberedApprovals } from "./remembered-approvals";
 
-export type ChatLayoutVariant = "composer" | "header" | "floating";
+export type ChatLayoutVariant = "studio" | "canvas" | "command" | "focus";
+const DESIGNS: readonly ChatLayoutVariant[] = ["studio", "canvas", "command", "focus"];
 const PreviewContext = createContext<ChatLayoutVariant | null>(null);
 export const useChatLayoutPreview = () => useContext(PreviewContext);
 
@@ -29,32 +33,54 @@ export function ChatLayoutPreview({
   variant: string | null;
   children: ReactNode;
 }) {
+  const t = useTranslations("chat.layoutPreview");
+  const pathname = usePathname();
+  const params = useSearchParams();
   const layout =
-    process.env.NODE_ENV === "development" &&
-    (variant === "composer" || variant === "header" || variant === "floating")
-      ? variant
+    process.env.NODE_ENV === "development"
+      ? (DESIGNS.find((entry) => entry === variant) ?? null)
       : null;
+  // Portaled controls inherit the preview palette too; leaving chat restores it.
+  useEffect(() => {
+    if (layout === null) return;
+    const root = document.documentElement;
+    const previous = root.getAttribute("data-chat-preview");
+    root.setAttribute("data-chat-preview", layout);
+    return () => {
+      if (previous === null) root.removeAttribute("data-chat-preview");
+      else root.setAttribute("data-chat-preview", previous);
+    };
+  }, [layout]);
   if (layout === null) return children;
   return (
     <PreviewContext.Provider value={layout}>
-      <div className="relative flex h-full min-h-0 flex-1 flex-col" data-chat-layout={layout}>
-        {layout === "header" && (
-          <div className="border-border flex h-12 shrink-0 items-center justify-end border-b px-4">
-            <PreviewModelControl />
-          </div>
-        )}
-        {layout === "floating" && (
-          <div className="bg-background/95 ring-border/60 absolute top-16 right-4 z-20 rounded-full shadow-sm ring-1 md:top-4">
-            <PreviewModelControl />
-          </div>
-        )}
-        {children}
+      <div
+        className="chat-design relative flex h-full min-h-0 flex-1 flex-col"
+        data-chat-layout={layout}
+      >
+        <nav className="chat-design-switcher" aria-label={t("label")}>
+          {DESIGNS.map((design) => {
+            const query = new URLSearchParams(params.toString());
+            query.set("layout", design);
+            return (
+              <Link
+                key={design}
+                href={`${pathname}?${query}`}
+                aria-current={design === layout ? "page" : undefined}
+              >
+                {t(design)}
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="chat-design-surface min-h-0 flex-1">{children}</div>
       </div>
     </PreviewContext.Provider>
   );
 }
 
 function PreviewModelControl({ onChange }: { onChange?: (id: string | null) => void }) {
+  const layout = useChatLayoutPreview();
   const t = useTranslations("chat.controls");
   const common = useTranslations("common");
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
@@ -76,6 +102,7 @@ function PreviewModelControl({ onChange }: { onChange?: (id: string | null) => v
         <button
           type="button"
           aria-label={t("modelSection")}
+          data-design-model
           title={model?.label ?? t("modelSection")}
           className="focus-visible:ring-ring hover:bg-muted inline-flex h-9 max-w-52 min-w-0 items-center gap-2 rounded-full px-2.5 text-xs outline-none focus-visible:ring-2"
         >
@@ -85,6 +112,7 @@ function PreviewModelControl({ onChange }: { onChange?: (id: string | null) => v
         </button>
       </PopoverTrigger>
       <PopoverContent
+        data-chat-design={layout ?? undefined}
         aria-label={t("modelSection")}
         side="top"
         align="end"
@@ -146,14 +174,16 @@ export function PreviewChatControls({
   const { can } = usePermissions();
   const [open, setOpen] = useState(false);
   return (
-    <div className="flex min-w-0 items-center gap-1">
-      {layout === "composer" && <PreviewModelControl onChange={onModelProfileChange} />}
+    <div className="chat-design-controls flex min-w-0 items-center gap-1">
+      <PreviewModelControl onChange={onModelProfileChange} />
+      {usageSlot && <div data-design-usage>{usageSlot}</div>}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
             type="button"
             aria-label={t("label")}
             title={t("label")}
+            data-design-settings
             data-chat-settings-trigger
             data-tour="chat-settings"
             className="focus-visible:ring-ring text-muted-foreground hover:bg-muted grid size-9 shrink-0 place-items-center rounded-lg outline-none focus-visible:ring-2"
@@ -162,6 +192,7 @@ export function PreviewChatControls({
           </button>
         </PopoverTrigger>
         <PopoverContent
+          data-chat-design={layout ?? undefined}
           onInteractOutside={(event) => {
             if (
               document.querySelector(".driver-popover") ||
@@ -210,7 +241,6 @@ export function PreviewChatControls({
                 </div>
               </details>
             )}
-            {usageSlot && <div className="border-t pt-3">{usageSlot}</div>}
           </div>
         </PopoverContent>
       </Popover>

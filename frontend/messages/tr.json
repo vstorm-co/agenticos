@@ -4123,6 +4123,13 @@
           "description": "Editörden veya run sayfasındaki Run düğmesiyle kendiniz başlatın."
         },
         "chat": {
+          "layoutPreview": {
+            "label": "Sohbet düzeni önizlemeleri",
+            "studio": "Studio",
+            "canvas": "Canvas",
+            "command": "Command",
+            "focus": "Focus"
+          },
           "name": "Sohbet mesajı",
           "description": "Üyeler workflowu sohbette seçer; her mesaj orada yanıt veren bir run başlatır."
         },

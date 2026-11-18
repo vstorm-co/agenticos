@@ -1940,8 +1940,12 @@ function ChatUI({
                             actionsSlot={
                               <span className="contents max-md:hidden">
                                 {/* Wide screens only, as is the panel it opens. */}
-                                <span ref={setFilesSlot} className="hidden lg:contents" />
-                                <div>
+                                <span
+                                  data-design-files
+                                  ref={setFilesSlot}
+                                  className="hidden lg:contents"
+                                />
+                                <div data-design-actions>
                                   <ChatControls
                                     usageSlot={
                                       <div className="text-muted-foreground flex items-center gap-2 text-xs">
