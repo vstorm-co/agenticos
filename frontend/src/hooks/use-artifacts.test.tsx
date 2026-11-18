@@ -724,4 +724,149 @@ describe("cached static App previews", () => {
       expect(apiClient.get).toHaveBeenCalledWith("/apps/a/thumbnail?version_id=v2"),
     );
   });
+
+  it("recovers a temporary renderer failure without reopening the chat", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(apiClient.get)
+        .mockResolvedValueOnce({
+          version_id: "v1",
+          state: "unavailable",
+          image: null,
+          retryable: true,
+        })
+        .mockResolvedValue({
+          version_id: "v1",
+          state: "ready",
+          image: "data:image/jpeg;base64,aA==",
+        });
+      const preview = renderHook(() => useArtifactThumbnail("a", "v1", true), {
+        wrapper: cachedWrapper(),
+      });
+      await act(async () => vi.advanceTimersByTimeAsync(10000));
+      expect(preview.result.current.data?.image).toBe("data:image/jpeg;base64,aA==");
+      expect(apiClient.get).toHaveBeenCalledTimes(2);
+      preview.unmount();
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(["ready", "unavailable"] as const)(
+    "finishes bounded recovery after unmounting before the first response (%s)",
+    async (finalState) => {
+      vi.useFakeTimers();
+      try {
+        let complete!: (value: {
+          version_id: string;
+          state: string;
+          image: null;
+          retryable: boolean;
+        }) => void;
+        vi.mocked(apiClient.get)
+          .mockImplementationOnce(() => new Promise((resolve) => (complete = resolve)))
+          .mockResolvedValue({
+            version_id: "v1",
+            state: finalState,
+            image: finalState === "ready" ? "data:image/jpeg;base64,aA==" : null,
+            retryable: true,
+          });
+        const wrap = cachedWrapper();
+        const first = renderHook(() => useArtifactThumbnail("a", "v1", true), { wrapper: wrap });
+        expect(apiClient.get).toHaveBeenCalledTimes(1);
+        first.unmount();
+        await act(async () => {
+          complete({ version_id: "v1", state: "unavailable", image: null, retryable: true });
+          await vi.advanceTimersByTimeAsync(10000);
+        });
+        const expectedCalls = finalState === "ready" ? 2 : 3;
+        expect(apiClient.get).toHaveBeenCalledTimes(expectedCalls);
+        const again = renderHook(({ seen }) => useArtifactThumbnail("a", "v1", seen), {
+          initialProps: { seen: false },
+          wrapper: wrap,
+        });
+        again.rerender({ seen: true });
+        await act(async () => vi.advanceTimersByTimeAsync(60000));
+        expect(again.result.current.isSuccess).toBe(finalState === "ready");
+        expect(again.result.current.isError).toBe(finalState === "unavailable");
+        expect(apiClient.get).toHaveBeenCalledTimes(expectedCalls);
+        again.unmount();
+      } finally {
+        vi.clearAllTimers();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it("bounds temporary retries across visibility changes and remounts", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(apiClient.get).mockResolvedValue({
+        version_id: "v1",
+        state: "unavailable",
+        image: null,
+        retryable: true,
+      });
+      const wrap = cachedWrapper();
+      const preview = renderHook(() => useArtifactThumbnail("a", "v1", true), { wrapper: wrap });
+      await act(async () => vi.advanceTimersByTimeAsync(10000));
+      expect(preview.result.current.isError).toBe(true);
+      expect(apiClient.get).toHaveBeenCalledTimes(3);
+      preview.unmount();
+      const remount = renderHook(({ seen }) => useArtifactThumbnail("a", "v1", seen), {
+        initialProps: { seen: false },
+        wrapper: wrap,
+      });
+      remount.rerender({ seen: true });
+      await act(async () => vi.advanceTimersByTimeAsync(60000));
+      expect(apiClient.get).toHaveBeenCalledTimes(3);
+      remount.unmount();
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([false, undefined])(
+    "does not retry unconfigured or older responses (%s)",
+    async (retryable) => {
+      vi.useFakeTimers();
+      try {
+        vi.mocked(apiClient.get).mockResolvedValue({
+          version_id: "v1",
+          state: "unavailable",
+          image: null,
+          retryable,
+        });
+        const preview = renderHook(() => useArtifactThumbnail("a", "v1", true), {
+          wrapper: cachedWrapper(),
+        });
+        await act(async () => vi.advanceTimersByTimeAsync(60000));
+        expect(preview.result.current.isSuccess).toBe(true);
+        expect(apiClient.get).toHaveBeenCalledTimes(1);
+        preview.unmount();
+      } finally {
+        vi.clearAllTimers();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it.each([401, 403, 404])("never retries refused thumbnail access (%s)", async (status) => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(apiClient.get).mockRejectedValue(new ApiError(status, "Refused"));
+      const preview = renderHook(() => useArtifactThumbnail("a", "v1", true), {
+        wrapper: cachedWrapper(),
+      });
+      await act(async () => vi.advanceTimersByTimeAsync(60000));
+      expect(preview.result.current.isError).toBe(true);
+      expect(apiClient.get).toHaveBeenCalledTimes(1);
+      preview.unmount();
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
 });

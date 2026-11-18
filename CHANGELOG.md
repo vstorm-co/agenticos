@@ -23,6 +23,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Choose who can see a new table in the **New table** dialog itself - only you, everyone, or chosen groups and people - as an agent's create dialog does. `POST /tables` accepts `group_ids` and `user_ids`, and shares the new table with each at `read`.
 
+### Fixed
+
+- Recover App thumbnails after temporary renderer failures or timeouts with two bounded retries. Keep missing configuration and refused access terminal, preserve versioned image caching, and report transient failures in server logs.
+
 ## [1.83.0] - 2026-11-18
 
 ### Added
