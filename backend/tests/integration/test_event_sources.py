@@ -29,13 +29,15 @@ from app.db.models.user import User
 from app.db.models.workflow_run import WorkflowRun
 from app.schemas.agent_trigger import TriggerCreate
 from app.schemas.event_source import EventSourceCreate, SourceAuth, SourceCredentials
-from app.schemas.workflow import WorkflowPublish
+from app.schemas.workflow import WorkflowPublish, WorkflowSettings
 from app.services import event_sources as module
 from app.services import rate_limit
 from app.services.agent_trigger import AgentTriggerService
 from app.services.event_sources import EventSourceService
 from app.services.workflow_registry import WorkflowRegistryService
-from app.worker.jobs import DispatchSourceEvent
+from app.worker.executors import Succeeded, run_handler
+from app.worker.jobs import DISPATCH_SOURCE_EVENT, DispatchSourceEvent
+from app.worker.registry import Handler, by_kind
 from app.worker.tasks import event_source_tasks
 from app.workflows.graph.model import WorkflowGraph
 from tests.integration.test_routine_sources import world
@@ -162,6 +164,54 @@ async def test_concurrent_duplicate_admission_persists_one_receipt_and_dispatch(
     assert sorted(admitted) == [False, True]
     assert await _count(db, EventDelivery) == 1
     assert await _count(db, EventDispatch) == 1
+
+
+@pytest.mark.parametrize(
+    "age,delay", [(timedelta(), timedelta(minutes=1)), (timedelta(days=1), timedelta(minutes=15))]
+)
+async def test_subscriber_at_capacity_retries_and_admits_the_waiting_delivery_once(
+    db, source_world, age, delay
+):
+    ctx, _, _, source = source_world
+    workflow, _ = await _subscribed(db, source_world)
+    await WorkflowRegistryService(db).update_settings(
+        ctx, workflow.id, WorkflowSettings(max_concurrent_runs=1)
+    )
+    _, first, _ = await _receive(db, source.id, "first")
+    _, waiting, _ = await _receive(db, source.id, "waiting")
+    active = await db.scalar(select(EventDispatch).where(EventDispatch.delivery_id == first.id))
+    pending = await db.scalar(select(EventDispatch).where(EventDispatch.delivery_id == waiting.id))
+    pending.created_at -= age
+    await EventSourceService(db).dispatch(ctx.organization_id, active.id)
+    running = await db.scalar(select(WorkflowRun))
+    await db.commit()
+
+    handlers = by_kind([Handler(DISPATCH_SOURCE_EVENT, event_source_tasks.dispatch_source_event)])
+    payload = DispatchSourceEvent(organization_id=ctx.organization_id, dispatch_id=pending.id)
+    raw = DISPATCH_SOURCE_EVENT.dump(payload)
+    for _replay in range(2):
+        assert isinstance(await run_handler(handlers, DISPATCH_SOURCE_EVENT.kind, raw), Succeeded)
+    await db.refresh(pending)
+    assert pending.status == "pending" and pending.completed_at is None
+    assert await _count(db, WorkflowRun) == 1
+    retries = list(
+        await db.scalars(
+            select(BackgroundJob).where(BackgroundJob.dedupe_key == f"event-dispatch:{pending.id}")
+        )
+    )
+    assert len(retries) == 1
+    retry = retries[0]
+    assert retry.status == "queued"
+    assert abs(retry.run_after - retry.created_at - delay) < timedelta(seconds=5)
+    running.status = "succeeded"
+    await db.commit()
+
+    for _attempt in range(2):
+        assert isinstance(await run_handler(handlers, retry.kind, retry.payload), Succeeded)
+    await db.refresh(pending)
+    assert pending.status == "admitted"
+    runs = list(await db.scalars(select(WorkflowRun).where(WorkflowRun.id != running.id)))
+    assert [run.input for run in runs] == [{"body": waiting.body, "delivery_id": "waiting"}]
 
 
 @pytest.mark.parametrize("second_target", ["routine", "workflow"])

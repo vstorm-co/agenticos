@@ -4,6 +4,7 @@ from dataclasses import replace
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
+import anyio
 import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
 
@@ -42,17 +43,16 @@ def cache():
             mapping.pop(field, None)
         values[key] = json.dumps(mapping)
 
-    async def getdel(key):
-        return values.pop(key, None)
-
-    async def exists(key):
-        return key in values
+    async def replace_if_equal(key, *, expected, value, ttl):
+        if values.get(key) != expected:
+            return False
+        await set_(key, value, ttl=ttl)
+        return True
 
     client.get.side_effect = get
     client.set.side_effect = set_
     client.update_mapping.side_effect = update
-    client.getdel.side_effect = getdel
-    client.exists.side_effect = exists
+    client.replace_if_equal.side_effect = replace_if_equal
     return client, values
 
 
@@ -90,9 +90,50 @@ async def test_listening_expiry_does_not_turn_into_a_capture(ctx, cache, access)
     source_id = uuid4()
     listener = await service.listen(ctx, source_id)
     assert (await service.caught(ctx, source_id, listener.listener_id)).state == "listening"
-    values.pop(f"source:listener:{listener.listener_id}:open")
+    values.pop(f"source:listener:{listener.listener_id}:state")
     await capture_source_sample(redis, source_id, body={}, delivery_id="late")
     assert (await service.caught(ctx, source_id, listener.listener_id)).state == "expired"
+
+
+async def test_poll_overlapping_capture_never_reports_expired(ctx, cache, access):
+    redis, _ = cache
+    service = EventSourceSampleService(AsyncMock(), redis)
+    source_id = uuid4()
+    token = (await service.listen(ctx, source_id)).listener_id
+    get = redis.get.side_effect
+    observed = anyio.Event()
+    captured = anyio.Event()
+
+    async def pause_poll_after_state_read(key):
+        value = await get(key)
+        if key.startswith(f"source:listener:{token}:") and not key.endswith(":owner"):
+            observed.set()
+            await captured.wait()
+        return value
+
+    async def deliver_during_poll():
+        await observed.wait()
+        await capture_source_sample(redis, source_id, body={}, delivery_id="first")
+        captured.set()
+
+    redis.get.side_effect = pause_poll_after_state_read
+    with anyio.fail_after(2):
+        async with anyio.create_task_group() as group:
+            group.start_soon(deliver_during_poll)
+            assert (await service.caught(ctx, source_id, token)).state in {"listening", "caught"}
+    assert (await service.caught(ctx, source_id, token)).delivery.delivery_id == "first"
+
+
+async def test_compact_array_that_fits_a_pin_is_available_as_a_live_sample(ctx, cache, access):
+    redis, _ = cache
+    service = EventSourceSampleService(AsyncMock(), redis)
+    source_id = uuid4()
+    token = (await service.listen(ctx, source_id)).listener_id
+    body = {"values": [0] * 22_000}
+    await capture_source_sample(redis, source_id, body=body, delivery_id="array")
+    sample = await service.caught(ctx, source_id, token)
+    assert sample.state == "caught"
+    assert sample.delivery.body == body
 
 
 @pytest.mark.security
@@ -124,7 +165,7 @@ async def test_large_capture_is_visible_and_never_stores_payload(ctx, cache, acc
     await capture_source_sample(redis, source_id, body={"big": "s" * 64000}, delivery_id="large")
     result = await service.caught(ctx, source_id, listener.listener_id)
     assert result.state == "too_large" and result.delivery is None
-    assert "s" * 100 not in values[f"source:listener:{listener.listener_id}:caught"]
+    assert "s" * 100 not in values[f"source:listener:{listener.listener_id}:state"]
 
 
 async def test_cache_failure_does_not_fail_live_delivery(ctx, cache, access):
@@ -146,7 +187,7 @@ async def test_expired_listener_registry_does_not_capture_later_delivery(ctx, ca
     listener = await service.listen(ctx, source_id)
     values[f"source:listeners:{source_id}"] = '{"' + listener.listener_id + '":"0"}'
     await capture_source_sample(redis, source_id, body={}, delivery_id="later")
-    assert f"source:listener:{listener.listener_id}:caught" not in values
+    assert (await service.caught(ctx, source_id, listener.listener_id)).state == "listening"
 
 
 @pytest.mark.parametrize("contents", ["not-json", '{"token":"not-a-timestamp"}'])

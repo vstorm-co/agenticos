@@ -1,6 +1,5 @@
 """Ephemeral captures on the live source URL, independent of dispatch."""
 
-import json
 import logging
 import secrets
 from datetime import UTC, datetime, timedelta
@@ -17,10 +16,11 @@ from app.core.permissions import AuthContext
 from app.schemas.event_source import JsonObject, SourceCapture, SourceListening, SourceSample
 from app.services.event_sources import EventSourceService
 from app.services.workflow_webhook_test import KEEP_SECONDS, LISTEN_SECONDS
-from app.workflows.graph.model import MAX_PINNED_BYTES
+from app.workflows.graph.model import pinned_output_fits
 
 logger = logging.getLogger(__name__)
 _TOKENS = TypeAdapter(dict[str, str])
+_LISTENING = SourceCapture(state="listening").model_dump_json()
 
 
 class EventSourceSampleService:
@@ -36,7 +36,7 @@ class EventSourceSampleService:
         await self.redis.set(
             f"source:listener:{token}:owner", owner, ttl=KEEP_SECONDS + LISTEN_SECONDS
         )
-        await self.redis.set(f"source:listener:{token}:open", "1", ttl=LISTEN_SECONDS)
+        await self.redis.set(f"source:listener:{token}:state", _LISTENING, ttl=LISTEN_SECONDS)
         await self.redis.update_mapping(
             f"source:listeners:{source_id}",
             updates={token: str(expires.timestamp())},
@@ -49,13 +49,11 @@ class EventSourceSampleService:
         owner = await self.redis.get(f"source:listener:{token}:owner")
         if owner != f"{ctx.organization_id}:{ctx.subject_id}:{source_id}":
             raise NotFoundError(message="Listener not found")
-        found = await self.redis.get(f"source:listener:{token}:caught")
-        if found:
-            return SourceCapture.model_validate_json(found)
-        return SourceCapture(
-            state="listening"
-            if await self.redis.exists(f"source:listener:{token}:open")
-            else "expired"
+        state = await self.redis.get(f"source:listener:{token}:state")
+        return (
+            SourceCapture.model_validate_json(state)
+            if state is not None
+            else SourceCapture(state="expired")
         )
 
     def capture_after_commit(self, source_id: UUID, *, body: JsonObject, delivery_id: str) -> None:
@@ -77,19 +75,23 @@ async def capture_source_sample(
             return
         tokens = _TOKENS.validate_json(raw)
         delivery = SourceSample(body=body, delivery_id=delivery_id)
-        sample = SourceCapture(state="caught", delivery=delivery)
-        if len(json.dumps(delivery.model_dump(), ensure_ascii=False).encode()) > MAX_PINNED_BYTES:
+        try:
+            pinned_output_fits(delivery.model_dump(mode="json"))
+        except ValueError:
             sample = SourceCapture(state="too_large")
+        else:
+            sample = SourceCapture(state="caught", delivery=delivery)
+        captured = sample.model_dump_json()
         now = datetime.now(UTC).timestamp()
         for token, expires in tokens.items():
             if float(expires) <= now:
                 continue
-            if await redis.getdel(f"source:listener:{token}:open") is not None:
-                await redis.set(
-                    f"source:listener:{token}:caught",
-                    sample.model_dump_json(),
-                    ttl=KEEP_SECONDS,
-                )
+            await redis.replace_if_equal(
+                f"source:listener:{token}:state",
+                expected=_LISTENING,
+                value=captured,
+                ttl=KEEP_SECONDS,
+            )
         await redis.update_mapping(
             f"source:listeners:{source_id}", updates={}, remove=list(tokens), ttl=LISTEN_SECONDS
         )

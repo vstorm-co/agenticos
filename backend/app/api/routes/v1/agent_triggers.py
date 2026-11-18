@@ -33,6 +33,7 @@ from app.schemas.agent_trigger import (
     TriggerCreate,
     TriggerCreateRead,
     TriggerDispatchRead,
+    TriggerFilteredEventRead,
     TriggerList,
     TriggerPromptPreviewCreate,
     TriggerPromptPreviewRead,
@@ -334,3 +335,17 @@ async def trigger_attempts(
     credentials. Reading delegates to the agent's resource access checks.
     """
     return await service.attempts(ctx, agent_id, trigger_id, skip=skip, limit=limit)
+
+
+@router.get(
+    "/{agent_id}/triggers/{trigger_id}/filtered-event", response_model=TriggerFilteredEventRead
+)
+async def read_filtered_event(
+    ctx: Auth, agent_id: UUID, trigger_id: UUID, service: AgentTriggerSvc
+) -> Any:
+    """The owner's latest filtered GitHub delivery: time, reason and author policy.
+
+    Only verified deliveries are recorded. One snapshot replaces the previous
+    one; no payload, signing secret or artificial agent run is retained.
+    """
+    return await service.filtered_event(ctx, agent_id, trigger_id)

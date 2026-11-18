@@ -181,6 +181,26 @@ def test_a_delivery_id_cannot_be_a_static_credential_or_signature(header):
         )
 
 
+@pytest.mark.parametrize(
+    "provider,header",
+    [
+        ("github", "X-Hub-Signature-256"),
+        ("linear", "Linear-Signature"),
+        ("hubspot", "X-HubSpot-Signature-V3"),
+        ("hubspot", "X-HubSpot-Signature"),
+        ("zendesk", "X-Zendesk-Webhook-Signature"),
+    ],
+)
+def test_preset_delivery_ids_cannot_use_native_signatures(provider, header):
+    with pytest.raises(ValidationError, match="credential or signature"):
+        EventSourceCreate(
+            name="Provider",
+            provider=provider,
+            auth=SourceAuth(method="provider"),
+            delivery_id_header=header,
+        )
+
+
 @pytest.mark.parametrize("key", ["invalid@@", "whsec_" + base64.b64encode(b"short").decode()])
 def test_standard_keys_are_validated_before_storage(key):
     with pytest.raises(BadRequestError):

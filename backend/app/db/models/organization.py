@@ -176,6 +176,9 @@ class Organization(Base, TimestampMixin):
     # A pair from the speech-to-text catalog, both or neither, and the default an
     # agent or a channel bot inherits (#1797). Whether `/chat` dictation uses it
     # is each agent's switch; without one the browser transcribes.
+    text_to_speech: Mapped[dict[str, str | bool | None] | None] = mapped_column(
+        JSONB, nullable=True
+    )
     speech_to_text_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
     speech_to_text_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # The vault key the pair above is sent with: an org-visible `api_key` whose

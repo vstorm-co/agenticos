@@ -1,5 +1,5 @@
 ---
-source_sha: "906fd3ede6cf"
+source_sha: "d7696a54fcde"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -138,7 +138,7 @@ Wählen Sie GitHub, Linear, HubSpot oder Zendesk für die jeweilige Provider-Pr�
 
 Senden Sie per POST ein JSON-Objekt; die bisherige Anpassung für HubSpot-Stapel bleibt erhalten. Zugangsdaten werden nur geschrieben und im Organisations-Vault gespeichert. Ersetzen Sie sie an der Quelle, niemals in einer Workflow-Definition oder einem Beispiel. Provider-Zustellungs-IDs oder ein konfigurierter Zustellungs-ID-Header erkennen Wiederholungen. Basic-Auth- und API-Schlüssel-Zugangsdaten sind keine Ereignis-IDs. Ohne Ereignis-ID können Wiederholungen zusätzliche Läufe starten.
 
-Eine authentifizierte Zustellung und ihre Versandaufträge werden gemeinsam gespeichert, bevor die Quelle den Empfang bestätigt. Fehler eines Abonnenten beeinflussen andere nicht. Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron und liefert keine benutzerdefinierte Workflow-Antwort. Ein Workflow mit gemeinsamer Quelle darf **Auf Webhook antworten** nicht erreichen. Dedizierte Workflow-Endpunkte behalten synchrone Antworten.
+Eine authentifizierte Zustellung und ihre Versandaufträge werden gemeinsam gespeichert, bevor die Quelle den Empfang bestätigt. Fehler eines Abonnenten beeinflussen andere nicht. Bei vorübergehenden Raten- oder Kapazitätsgrenzen eines Abonnenten versucht der Worker die Zustellung erneut. Für ein eingereihtes Ereignis gilt nur die beim Empfang erteilte Quellenfreigabe der Routine. Ein Wechsel zu einer anderen Quelle erfordert eine neue Prüfung. Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron und liefert keine benutzerdefinierte Workflow-Antwort. Ein Workflow mit gemeinsamer Quelle darf **Auf Webhook antworten** nicht erreichen. Dedizierte Workflow-Endpunkte behalten synchrone Antworten.
 
 **Quelle pausieren** verhindert den Start von Abonnenten für neue Zustellungen; das Pausieren einer Routine oder eines Workflows betrifft nur dieses Ziel. Solange Abonnements bestehen, ist Löschen gesperrt; die Nutzungsliste zeigt die zuvor zu trennenden Ziele. Strukturierte Ereignisse bleiben für eingereihte oder wartende Arbeit erhalten. Abgeschlossene Zustellungen folgen der Aufbewahrungsregel für Hintergrundjobs.
 
@@ -159,7 +159,7 @@ Lies die ungewöhnliche Eigenschaft {{["request.id"]}}.
 
 Pfade beginnen an der Wurzel des JSON-Bodys. Punktnotation, Array-Indizes und Schlüssel in Anführungszeichen innerhalb von Klammern sind erlaubt; Ausdrücke, Funktionen, Schleifen und Standardwerte nicht. Einzelne geschweifte Klammern bleiben Text. Schreiben Sie `\{{example\}}`, um doppelte Klammern wörtlich auszugeben. Die Ersetzung erfolgt einmal; Klammern in empfangenen Werten werden nicht erneut ausgewertet.
 
-**Aufgelösten Prompt anzeigen** verwendet denselben Backend-Resolver wie die Live-Ausführung und ruft keinen Agenten auf. Strings werden direkt eingesetzt, andere JSON-Werte als kompaktes JSON. `false`, `0` und `null` gelten als vorhanden. Ein fehlender Pfad führt vor dem Agentenaufruf zu einem sichtbaren Fehler mit seinem Namen, auch in Aktivierungsdiagnose und Routine-Verlauf, wenn noch kein Lauf existiert.
+**Aufgelösten Prompt anzeigen** verwendet denselben Backend-Resolver wie die Live-Ausführung und ruft keinen Agenten auf. Strings werden direkt eingesetzt, andere JSON-Werte als kompaktes JSON. `false`, `0` und `null` gelten als vorhanden. Ein fehlender Pfad führt vor dem Agentenaufruf zu einem sichtbaren Fehler mit seinem Namen, auch in Aktivierungsdiagnose und Routine-Verlauf, wenn noch kein Lauf existiert. Bei der Vorschau im Inbox-Modus zählen die angezeigten Ergebnisanweisungen zur maximalen Nachrichtengröße.
 
 Speichern prüft die Syntax, ohne passende Felder im Beispiel zu verlangen. Die Auflösung verwendet das strukturierte Ereignis vor einer bisherigen Kontextkürzung. Vorlagen senden den verfassten Prompt mit ausgewählten, als externe Daten markierten Werten, ohne die gesamte Payload anzuhängen. Zu große Nachrichten schlagen fehl, statt gekürzt zu werden. Bestehende Prompts bleiben bis zur ausdrücklichen Umstellung wörtlich; dedizierte URLs und Signatureinstellungen bleiben gültig.
 

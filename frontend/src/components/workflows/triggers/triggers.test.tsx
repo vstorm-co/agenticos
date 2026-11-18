@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useWorkflowExposure } from "@/hooks";
 import type {
   NodeDefinition,
   WorkflowDetail,
@@ -20,7 +21,7 @@ const hook = {
   rotate: { mutate: vi.fn(), isPending: false },
   renewLink: { mutate: vi.fn(), isPending: false },
 };
-vi.mock("@/hooks", () => ({ useWorkflowExposure: () => hook }));
+vi.mock("@/hooks", () => ({ useWorkflowExposure: vi.fn(() => hook) }));
 
 function exposure(overrides: Partial<WorkflowExposureRead> = {}): WorkflowExposureRead {
   return {
@@ -32,6 +33,7 @@ function exposure(overrides: Partial<WorkflowExposureRead> = {}): WorkflowExposu
     adapter: "schedule",
     is_active: true,
     execution_principal_user_id: "u1",
+    source_id: null,
     run_input: {},
     schedule_kind: "interval",
     interval_seconds: 3600,
@@ -226,6 +228,40 @@ describe("TriggerPanel", () => {
       />,
     );
     expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
+  });
+
+  it("links shared webhook credentials to Event sources and keeps the workflow pause control", () => {
+    hook.exposure = exposure({ adapter: "webhook", source_id: "shared-source" });
+    render(
+      <TriggerPanel
+        workflow={workflow("trigger.webhook")}
+        draft={null}
+        catalog={CATALOG}
+        canEdit
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "New secret" })).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Manage credentials in Event sources" }),
+    ).toHaveAttribute("href", "/event-sources");
+    expect(screen.getByRole("button", { name: "Pause" })).toBeEnabled();
+  });
+
+  it("looks up each published webhook card independently of draft entries", () => {
+    render(
+      <TriggerPanel
+        workflow={{
+          ...workflow("trigger.webhook"),
+          live_triggers: ["trigger.webhook", "trigger.form", "trigger.webhook"],
+        }}
+        draft={null}
+        catalog={CATALOG}
+        canEdit
+      />,
+    );
+    expect(useWorkflowExposure).toHaveBeenCalledWith("wf", "trigger.webhook", 0);
+    expect(useWorkflowExposure).toHaveBeenCalledWith("wf", "trigger.form", 0);
+    expect(useWorkflowExposure).toHaveBeenCalledWith("wf", "trigger.webhook", 1);
   });
 
   it("shows a webhook's address and rotates its secret, revealing the new one once", async () => {

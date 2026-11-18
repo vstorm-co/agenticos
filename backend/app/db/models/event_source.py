@@ -151,6 +151,8 @@ class EventDispatch(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(16), default="pending")
     error_code: Mapped[str | None] = mapped_column(String(128))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # A delivery may only use the routine review present when it was accepted.
+    routine_source_policy_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     # Snapshot the published version and its principal at durable receipt so
     # republishing before a worker claims this delivery cannot change either.
     workflow_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))

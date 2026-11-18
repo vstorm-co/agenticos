@@ -418,7 +418,96 @@
       "approvalRequested": "{agent} onayınızı bekliyor",
       "budgetExceeded": "{agent} durduruldu: {scope, select, agent {aylık budget'ı} group {bir departmanın aylık budget'ı} department {{department} departmanının aylık budget'ı} organization {organizasyonun aylık budget'ı} other {bir harcama sınırı}} tükendi ({limit} sınırın {spent} kadarı harcandı)",
       "budgetWarning": "{group}, {limit} aylık budget'ının %{share} kadarını kullandı.",
-      "workflowApproval": "Onay gerekiyor: {title}"
+      "workflowApproval": "Onay gerekiyor: {title}",
+      "runCompleted": "{agent} bir run'ı tamamladı.",
+      "routineFinished": "{routine} tamamlandı.",
+      "routineFinishedExcerpt": "{routine}: {excerpt}",
+      "answeredWhileAway": "{agent} siz yokken yanıt verdi.",
+      "answerFailed": "{agent} yanıtını tamamlayamadı: {error}",
+      "runFailed": "{agent} run'ı başarısız oldu.",
+      "runFailedError": "{agent} run'ı başarısız oldu: {error}",
+      "routineBudgetPaused": "{named, select, yes {{routine}} other {Rutininiz}} bekliyor: {limit} tutarındaki {kind, select, watch {aylık proaktif çalışma budget'ınız} other {aylık rutin budget'ı}} tükendi ({spent} harcandı). {kind, select, watch {Bir yöneticiden sınırı gözden geçirmesini isteyin} other {Sınırı artırın}} ya da devam etmesi için sonraki ayı bekleyin.",
+      "routineBlocked": "{named, select, yes {{routine}} other {Rutininiz}} ilgi bekliyor: {detail}",
+      "routineDetail": {
+        "run_failed": "Run başarıyla tamamlanmadı. Yeniden denemeden önce Etkinlik'i inceleyin.",
+        "run_budget": "Run bir harcama sınırında durdu. Budget'ını ve Etkinlik'i inceleyin.",
+        "run_guardrail": "Bir koruma kuralı run'ı durdurdu. Etkinlik'i ve politikasını inceleyin.",
+        "trigger_auto_stopped": "{failures, plural, one {# başarısız yürütmeden} other {# başarısız yürütmeden}} sonra otomatik olarak duraklatıldı. Etkinlik'i inceleyin ve hazır olduğunda sürdürün.",
+        "computer_start_failed": "Bilgisayarında başlatma için yapılan üç deneme model kabulünden önce başarısız oldu. Sürdürmeden önce hatayı inceleyin.",
+        "review_sources": "Yeniden çalıştırmadan önce bu rutinin kaynaklarını ayarlarında inceleyin.",
+        "desktop_review": "Masaüstü uygulamasında cihazını, klasörünü ve işlemlerini inceleyin, ardından sürdürün.",
+        "computer_waiting": "Onaylı bilgisayarını bekliyor. Yeniden bağlayın ya da masaüstü uygulamasında bu rutinin klasör iznini inceleyin.",
+        "source_changed": "İncelenmiş bir kaynak kullanılamıyor ya da değişti. Bağlantısını ve rutinin kaynaklarını inceleyin.",
+        "agent_misconfigured": "Agent mevcut yapılandırmasıyla çalışamıyor. Yayımlanmış sürümünü ve rutin ayarlarını inceleyin.",
+        "chat_unavailable": "Yanıtı Etkinlik'te, ancak seçilen sohbet kullanılamıyor.",
+        "needs_agent": "Agent'ını seçin ve kaynaklarını onaylayın.",
+        "access_revoked": "Hesap bağlantısını ve mevcut erişimi inceleyin.",
+        "source_unavailable": "Kaynağı şu anda okunamıyor.",
+        "not_completed": "Kontrolü başarıyla tamamlanmadı; Etkinlik'i inceleyin.",
+        "budget_paused": "Kontrolü bir run sınırına ulaştı; Etkinlik'i ve budget'ını inceleyin.",
+        "delivery_unavailable": "Kaynak sohbeti kullanılamıyor. Teslim hedefini inceleyin.",
+        "watch_auto_stopped": "{failures, plural, one {# başarısız kontrolden} other {# başarısız kontrolden}} sonra otomatik olarak duraklatıldı. Etkinlik'i inceleyin ve hazır olduğunda sürdürün."
+      },
+      "capabilityRequested": "{requester}, {agent} için {capability} istedi: {reason}",
+      "suggestionsReady": "AgenticOS'ta sizin için {count, plural, one {yeni bir öneri} other {# yeni öneri}} var.",
+      "briefing": "İzlemeleriniz {count, plural, one {# yeni şey} other {# yeni şey}} buldu.",
+      "ingestionFailed": "“{file}” dizine eklenemedi: {error}",
+      "syncCompleted": "“{collection}” eşitlemesi tamamlandı: {ingested} eklendi, {updated} güncellendi, {skipped} atlandı, {removed} kaldırıldı, {failed} başarısız.",
+      "syncFailed": "{named, select, yes {“{collection}”} other {Koleksiyonu olmayan bir kaynağın}} eşitlemesi başarısız oldu: {error}",
+      "artifactVersionPublished": "“{title}” için yeni bir sürüm var (v{version}).",
+      "artifactOwnerGiven": "{by} sizi {title} sayfasının sahibi yaptı. Siz onaylayana kadar verileri diğerlerinden gizli kalır.",
+      "artifactOwnerTaken": "{by}, {owner} kişisini {title} sayfasının sahibi yaptı.",
+      "resourceShared": "“{name}”, {group} ile paylaşıldı.",
+      "conversationShared": "{by} sizinle {titled, select, yes {“{title}”} other {bir sohbet}} paylaştı.",
+      "mcpServerDown": "{server} MCP sunucusu yanıt vermeyi bıraktı. Ona bağlı agent'lar, geri gelene kadar araçları olmadan çalışır.",
+      "mcpServerRecovered": "{server} MCP sunucusu yeniden yanıt veriyor.",
+      "verdict": {
+        "passed": "geçti",
+        "failed": "kaldı",
+        "inconclusive": "kararsız",
+        "baseline_set": "temel ölçüm"
+      },
+      "evalSuiteReevaluated": "{agent} üzerinde {suite}: inceleme sonrası {previous} → {status}. Terfi için bir kişi gerekir.",
+      "evalSuiteFailed": "{suite}, {versioned, select, yes {{agent} v{version}} other {{agent}}} üzerinde {failed, select, yes {kaldı} other {karar veremedi}}: {reasons}.",
+      "evalSuiteCases": "{failed, select, yes {Başarısız} other {Kararsız}}: {cases}{more, plural, =0 {.} other { ve # tane daha.}}",
+      "evalReason": {
+        "passRateBelow": "geçme oranı {value, number, percent}, {limit, number, percent} sınırının altında",
+        "nothingGraded": "hiçbir durum değerlendirilemedi",
+        "regressions": "{count, plural, one {# durum tekrarlanabilir şekilde bozuluyor} other {# durum tekrarlanabilir şekilde bozuluyor}}",
+        "costRise": "geçen durum başına maliyet {value, number, percent} arttı",
+        "costRiseFromZero": "geçen durum başına maliyet sıfırdan arttı ve her yüzde tavanını aştı",
+        "latencyRise": "p95 gecikmesi {value, number, percent} arttı",
+        "latencyRiseFromZero": "p95 gecikmesi sıfırdan arttı ve her yüzde tavanını aştı",
+        "ungraded": "{count, plural, one {hiçbir şeyin değerlendirmediği # durum} other {hiçbir şeyin değerlendirmediği # durum}}",
+        "incomplete": "{count, plural, one {provider'ın ya da bir değerlendiricinin başarısız olduğu # durum} other {provider'ın ya da bir değerlendiricinin başarısız olduğu # durum}}",
+        "crashed": "agent'ın run'ı {count, plural, one {# durumda} other {# durumda}} başarısız oldu",
+        "invalid": "karşılaştırma geçersiz",
+        "belowThreshold": "eşiğinin altında"
+      },
+      "promotionOverridden": "{agent} v{version}, {suites} geçmeden {environment} ortamına gitti: {reason}",
+      "sharedChangeApplied": "{named, select, yes {{kind, select, context {{name} bağlam dosyasındaki} other {{name} skill'indeki}} bir değişiklik {agent} için yayına girdi} other {Okuduğu bir {kind, select, context {bağlam dosyasındaki} other {skill'deki}} değişiklik {agent} için yayına girdi}}",
+      "securityEvent": {
+        "admin_user_impersonate": "Bir yönetici bir kullanıcının yerine geçmeye başladı.",
+        "admin_user_impersonation_ended": "Bir yönetici bir yerine geçme oturumunu sonlandırdı.",
+        "admin_user_update": "Bir yönetici bir kullanıcı hesabını güncelledi.",
+        "admin_user_delete": "Bir yönetici bir kullanıcı hesabını sildi.",
+        "secret_created": "Bir vault secret'ı oluşturuldu.",
+        "secret_rotated": "Bir vault secret'ı döndürüldü.",
+        "secret_updated": "Bir vault secret'ı güncellendi.",
+        "secret_deleted": "Bir vault secret'ı silindi.",
+        "sandbox_connection_created": "Bir sandbox bağlantısı oluşturuldu.",
+        "sandbox_connection_deleted": "Bir sandbox bağlantısı silindi."
+      },
+      "securityEventOther": "Ayrıcalıklı bir işlem kaydedildi: {action}",
+      "backgroundTaskPaused": "{kind} türündeki arka plan işleri{scoped, select, yes { {organization} için} other {}} duraklatıldı: {reason}. Neden giderildiğinde bunları Arka plan işleri sayfasından sürdürün.",
+      "configurationChanged": "Dağıtımın ayarları güncellendi.",
+      "usageReport": "{name} için kullanım raporu",
+      "workflowLogAlert": "{rule}: son {unit, select, hours {{hours, plural, one {# saatte} other {# saatte}}} other {{minutes, plural, one {# dakikada} other {# dakikada}}}} {workflow} logunda {count, plural, one {# kez} other {# kez}}.",
+      "coalesced": {
+        "securityEvent": "Bir dakika içinde bu gelen kutusunun tek tek listelediğinden daha fazla güvenlik olayı geldi. Hepsi denetim kaydında.",
+        "configurationChanged": "Dağıtımın ayarları bir dakika içinde bu gelen kutusunun tek tek listelediğinden daha fazla kez değiştirildi. Her değişiklik denetim kaydında.",
+        "backgroundTaskPaused": "Bir dakika içinde bu gelen kutusunun tek tek listelediğinden daha fazla türde arka plan işi duraklatıldı. Hepsi Arka plan işleri sayfasında."
+      }
     }
   },
   "billing": {
@@ -1286,6 +1375,12 @@
     "panelProblemsCount": "{count, plural, =1 {1 sorun} other {# sorun}}",
     "nodeFormNoFields": "Bu düğümde yapılandırılabilir alan yok.",
     "nodeFormAddRow": "Satır ekle",
+    "nodeFormFilterColumn": "Sütun",
+    "nodeFormFilterColumnPlaceholder": "Bir sütun seçin",
+    "nodeFormFilterColumnNoTable": "Önce bir tablo seçin",
+    "nodeFormFilterValue": "Değer",
+    "nodeFormFilterValuePlaceholder": "Bir seçenek seçin",
+    "nodeFormFilterOptionArchived": "{label} (arşivlendi)",
     "nodeFormRow": "Satır {index}",
     "nodeFormMoveUp": "{index}. satırı yukarı taşı",
     "nodeFormMoveDown": "{index}. satırı aşağı taşı",
@@ -1344,6 +1439,7 @@
     "bindingJsonInvalid": "Geçerli JSON olmadığından kaydedilmedi.",
     "validationTriggerNotEntry": "Gözetimsiz her tür için bir trigger kullanın.",
     "triggerHintManual": "Düzenleyicinin sağ üstündeki Run düğmesiyle veya run sayfasından başlatın. Başlarken sorulacak alanları tanımlayın.",
+    "dataValueSetOnce": "Her run için bir kez ayarlanır ve asla üzerine yazılmaz: sonraki adımlar bu değeri okur ama değiştiremez. Değiştirmek için ondan yeni bir değer oluşturan bir adım ekleyin.",
     "triggerHintChat": "Üyeler bu workflow’u sohbette seçer. Sonraki adımlar, mesajı konuşma ve gönderen bilgisiyle birlikte prompt olarak okur.",
     "triggerHintWebhook": "Yayımlandığında bu workflow’a özel bir adres ve imzalama secret’ı verilir; yeniden yayımlayınca da aynı kalır. Sonraki adımlar, gelen JSON’u body olarak okur.",
     "publishTrigger": "{trigger} ile başlar. Yayımlandıktan sonra webhook, schedule veya table trigger sizin adınıza çalışır.",
@@ -1601,12 +1697,7 @@
       "nameLabel": "Ad",
       "descriptionPlaceholder": "Kayıtların ne olduğunu ve bunları kimin doldurduğunu açıklayın",
       "descriptionLabel": "Açıklama",
-      "visibilityLabel": "Görünürlük",
-      "visibility": {
-        "private": "Özel",
-        "team": "Ekip",
-        "org": "Kuruluş"
-      },
+      "audienceLabel": "Kimler görebilir?",
       "columnPlaceholder": "Sütun etiketi",
       "columnLabel": "Sütun etiketi",
       "columnType": "Sütun türü",
@@ -3317,7 +3408,9 @@
       "identityHelp": "Taslakla birlikte kaydedilir. Adı değiştirmek @{slug} tanıtıcısını korur; böylece ona bağlı delegasyonlar ve bahsetmeler çalışmaya devam eder.",
       "ownedByWorkflow": "Bu agent workflow adımında yapılandırılır ve workflow ile birlikte sürümlenir. Değişikliği orada yapın.",
       "openWorkflow": "Workflowu aç",
-      "goToModel": "Modele git"
+      "goToModel": "Modele git",
+      "speechUseOrganizationDefaults": "Organizasyon varsayılanlarını kullan",
+      "speechOrganizationDefaultsHint": "Organizasyonun sağlayıcı, model, ses ve anahtarını birlikte kullanın. Bu ajanın kendi sesini yapılandırmak için kapatın."
     },
     "tables": {
       "title": "Tablolar",
@@ -4016,6 +4109,7 @@
       "triggerTableLive": "Tetikleyici filtreleriyle eşleşen her yeni tablo kaydı, o kayıtla bir run başlatır. Tablodaki Triggers bölümünden duraklatabilir veya kararını inceleyebilirsiniz.",
       "triggerOpenTable": "Tabloyu aç",
       "triggerOn": "Açık",
+      "triggerSourceCredentials": "Kimlik bilgilerini Olay kaynakları sayfasında yönet",
       "triggerRotate": "Yeni gizli anahtar",
       "triggerPause": "Duraklat",
       "triggerResume": "Sürdür",
@@ -4125,6 +4219,8 @@
       "allRunsDescription": "Görebildiğiniz workflowların tüm runları, en yeniden başlayarak.",
       "runRetryMark": "yeniden deneme",
       "runModeTest": "Taslak (test)",
+      "runModeStep": "Adım testi",
+      "runModeStepNamed": "Adım testi · {step}",
       "runModeReal": "Yayımlandı",
       "runFilterAnyStatus": "Tüm durumlar",
       "runFilterAnyMode": "Tüm sürümler",
@@ -5616,6 +5712,10 @@
       "max_characters": {
         "title": "En uzun metin",
         "description": "Tek çağrıda seslendirilebilecek en uzun metin; böylece tek çağrının maliyeti sınırlanır."
+      },
+      "use_organization_defaults": {
+        "title": "Organizasyon varsayılanlarını kullan",
+        "description": "Organizasyonun sağlayıcı, model, ses ve anahtarını birlikte kullanın. Bu ajanın kendi sesini yapılandırmak için kapatın."
       }
     },
     "video_generation": {
@@ -8646,7 +8746,7 @@
       },
       "flow-table-field-visibility": {
         "title": "Kimler görebilir?",
-        "body": "Görünürlüğü değiştirmek için Daha fazla seçenek’i açın. Özel tabloyu yalnızca size açar; Ekip ve Kuruluş daha fazla kişiye açar. Daha sonra tek tek kişilerle de paylaşabilirsiniz. Ardından İleri’yi seçin."
+        "body": "Tablonun kime ulaşacağını seçin: yalnızca size, tüm kuruluşa ya da seçtiğiniz gruplara ve kişilere. Bunu daha sonra Paylaş altından değiştirebilirsiniz. Ardından İleri’yi seçin."
       },
       "flow-table-field-create": {
         "title": "Tabloyu oluşturun",
@@ -9546,7 +9646,28 @@
       "tablesListing": "Kullanabileceği tablolar denetleniyor",
       "viewsListing": "Tablonun kayıtlı görünümleri listeleniyor",
       "exportingArtifact": "PDF dışa aktarılıyor…",
-      "exportArtifact": "Yayınlanan uygulamayı dışa aktar"
+      "exportArtifact": "Yayınlanan uygulamayı dışa aktar",
+      "tableCall": {
+        "allRecords": "Tüm kayıtlar",
+        "search": "“{text}” ile eşleşen",
+        "sortedBy": "{column} sütununa göre {direction, select, desc {azalan} other {artan}} sıralı",
+        "createdAt": "Oluşturulma",
+        "updatedAt": "Son güncelleme",
+        "limit": "{count, plural, =1 {En fazla 1 kayıt} other {En fazla # kayıt}}",
+        "externalId": "Harici kimlik: {id}",
+        "found": "{count, plural, =0 {Kayıt bulunamadı} =1 {1 kayıt bulundu} other {# kayıt bulundu}}",
+        "hasMore": "devamı sonraki sayfada",
+        "moreRows": "{count, plural, =1 {ve 1 kayıt daha} other {ve # kayıt daha}}",
+        "exists": "Bu harici kimliğe sahip bir kayıt var",
+        "missing": "Bu harici kimliğe sahip kayıt yok",
+        "deleted": "Kayıt silindi",
+        "record": "“{title}” kaydı · revizyon {revision}",
+        "recordUntitled": "Kayıt · revizyon {revision}",
+        "table": "Tablo",
+        "column": "Sütun",
+        "value": "Değer",
+        "recordLabel": "Kayıt"
+      }
     },
     "turnWasStopped": "durduruldu",
     "unfavourite": "Favorilerden çıkar",
@@ -10324,6 +10445,7 @@
     "customKind": "Özel"
   },
   "apiKeys": {
+    "personalMcpWhy": "Kişisel MCP yetkilendirmesi hiçbir hazır izin kümesine dahil değildir. Bu anahtarın veya uygulamanın dış agent çalıştırmalarında kendi MCP bağlantılarınızı kullanabilmesi için Custom altında mcp:personal:use ve agents:run seçin. Kimlik bilgisine sahip herkes bu bağlantıları sizin adınıza kullanabilir. Kişisel bellek, sohbet geçmişi ve oturum açılmış tarayıcı oturumları erişime açılmaz.",
     "title": "API anahtarları",
     "why": "Anahtarlar, bir betiğin, HTTP istemcisinin veya MCP istemcisinin bu kuruluşun API’sini sizin adınıza çağırmasını ve seçtiğiniz izinlerle sınırlandırılmasını sağlar. Anahtar, sizin bugün yapabildiklerinizden fazlasını yapamaz.",
     "createTitle": "Anahtar oluştur",
@@ -11092,7 +11214,14 @@
       "save": "Değişiklikleri kaydet",
       "saved": "Ses ayarları kaydedildi",
       "notReadyNoKey": "{provider} için key seçilmedi. Bunu devralan agent’lar ve botlar aşağıdan bir key seçene kadar provider ile transkripsiyon yapamaz.",
-      "summary": "Varsayılan transkripsiyon sağlayıcısı ve kayıt sınırları."
+      "summary": "Varsayılan transkripsiyon sağlayıcısı ve kayıt sınırları.",
+      "tts": {
+        "title": "Metinden konuşmaya",
+        "description": "Organizasyon varsayılanlarını seçen ajanlar için varsayılan sağlayıcı, model, ses ve organizasyon anahtarı. Ajanlar kendi ses yapılandırmalarını da kullanabilir.",
+        "voice": "Ses",
+        "required": "Etkinleştirmeden önce sağlayıcı, model ve organizasyon genelinde görünen bir anahtar seçin.",
+        "catalogUnavailable": "Konuşma modelleri yüklenemedi. Sağlayıcıyı değiştirmeden önce tekrar deneyin."
+      }
     },
     "publicAttribution": "Paylaşılan sayfalarda AgenticOS",
     "publicAttributionDescription": "Herkese açık uygulama, pano ve raporlarda yüzen bir AgenticOS rozeti ve GitHub bağlantısı; paylaşılan konuşmaların altında aynı rozeti gösterin.",
@@ -11109,8 +11238,6 @@
     "publicLiveDataConfirmWhy": "Bir sayfanın herkese açık bağlantısına sahip herkes ve sayfayı embed eden tüm siteler, oturum açmadan tablo verilerini görür. Sayfanın sahibi veya bir Owner ya da Admin onaylayana kadar hiçbir veri gösterilmez. Daha önce onaylanmış sayfalar verilerini hemen yeniden gösterir.",
     "publicLiveDataConfirm": "İzin ver",
     "systemAgents": {
-      "title": "Arka plan hizmetleri",
-      "description": "Model kullanan platform hizmetleri. Model ve bütçeyi yapılandırmak için bir hizmeti genişletin. Kullanım ve son çalıştırmalar aşağıda görünür.",
       "configure": "Model ve bütçeyi yapılandır",
       "on": "Açık",
       "off": "Kapalı",
@@ -11138,8 +11265,7 @@
           "what": "Tamamlanan bir sohbeti okuyarak kalıcı bilgileri, tercihleri ve kararları sohbetin kapsamına kaydeder. Kapalıyken veya modeli yokken çalışmaz."
         }
       },
-      "starterAgentMissing": "Bu rol şu anda çalışmıyor: kayıt için kullandığı AgenticOS başlangıç temsilcisi eksik, yayınlanmamış veya yeniden adlandırılmış. agenticos adıyla yeniden yayınlayın.",
-      "summary": "Platform hizmetlerinin modelleri, bütçeleri ve son çalışmaları."
+      "starterAgentMissing": "Bu rol şu anda çalışmıyor: kayıt için kullandığı AgenticOS başlangıç temsilcisi eksik, yayınlanmamış veya yeniden adlandırılmış. agenticos adıyla yeniden yayınlayın."
     },
     "proactive": {
       "budgetTitle": "Bütçe ve sınırlar",
@@ -11150,7 +11276,7 @@
       "discardChanges": "Değişiklikleri iptal et",
       "title": "Asistan önerileri ve izleme",
       "description": "Sohbet tabanlı öneriler ve salt okunur izleme bağımsızdır. Zamanlanmış ve olay rutinleri önerilerin etkin olmasını gerektirmez.",
-      "nightly": "Gece önerileri",
+      "nightly": "Günlük özet ve öneriler",
       "nightlyHint": "Son sohbetlerden ve bellekten rutin, ajan ve profil güncellemeleri önerir. Posta kutularını taramaz. Önerilen rutini oluşturmak kullanıcı onayı gerektirir.",
       "model": "Model",
       "modelHint": "Yalnızca sohbetlerden iyileştirme önermek içindir. İzleme seçilen ajanın modelini kullanır.",
@@ -11164,8 +11290,8 @@
       "hourHint": "Her kişinin kendi saat diliminde.",
       "hourFallbackHint": "Profillerinde çalışma saati belirtilmeyen kişiler için kendi saat dilimlerinde.",
       "save": "Kaydet",
-      "saved": "Gece önerileri kaydedildi",
-      "off": "Gece önerileri kapalı",
+      "saved": "Arka plan ayarları kaydedildi",
+      "off": "Arka plan özellikleri kapalı",
       "invalid": "Dolar cinsinden 0 veya daha büyük bir tutar girin.",
       "welcome": "Sohbet uygulamalarındaki karşılama mesajı",
       "welcomeHint": "Yeni üyeye Slack, Teams ve Mattermost botlarınızdan doğrudan mesaj gönderilir.",
@@ -12706,12 +12832,7 @@
     "description": "Agent çalıştırma izni olan herkesin her sayfada gördüğü köşe asistanı. Diğer agentlar gibi, adı, modeli ve bilgisi Agent Builder’da düzenlenir; maliyeti de diğer agentlar gibi hesaplanır.",
     "openBuilder": "Agent Builder’da aç",
     "enabled": "Açık",
-    "enabledHint": "Kapalıyken kuruluştaki herkes için tüm sayfalardan kaybolur ve hiç kimse çalıştıramaz.",
-    "needsModel": "Henüz modeli yok; bu nedenle yanıt veremez. Agent Builder’daki Model bölümünden bir model seçin.",
-    "greeting": "Karşılama mesajı",
-    "greetingHint": "Birisi açtığında söylediği. Varsayılanı kullanmak için boş bırakın.",
-    "save": "Kaydet",
-    "summary": "Çalışma alanı asistanını ve karşılamasını yapılandırın."
+    "needsModel": "Henüz modeli yok; bu nedenle yanıt veremez. Agent Builder’daki Model bölümünden bir model seçin."
   },
   "appearance": {
     "description": "Konsolun sizin için nasıl görünüp davrandığı. Bu tarayıcıda saklanır ve hemen uygulanır.",
@@ -13761,6 +13882,10 @@
       "data_map": {
         "name": "Alanları eşle",
         "description": "Önceki çıktılardan değerler seçin ve her birine bir tür verin."
+      },
+      "data_value": {
+        "name": "Veri",
+        "description": "Sonraki adımlar için bir nesne, liste veya değer tutar. Her run için bir kez ayarlanır."
       },
       "debug_echo": {
         "name": "Yankı",
@@ -16569,8 +16694,23 @@
     "deleteBlocked": "Bu kaynağı silmeden önce yukarıda listelenen abonelikleri kaldırın.",
     "sourceRoutine": "Olay kaynağından rutin oluştur",
     "credentialHelp": "Gönderenin gizli anahtarını girin. Mevcut kimlik bilgileri hiçbir zaman gösterilmez.",
+    "filters": {
+      "event_types": "Olay türleri",
+      "actions": "Eylemler",
+      "subscription_types": "Abonelik türleri",
+      "property_names": "Özellik adları",
+      "help": "Değerleri virgülle ayırın. Tüm değerleri eşleştirmek için filtreyi boş bırakın."
+    },
     "eventPreset": "Bu rutin için olaylar",
     "currentFilters": "Mevcut veya varsayılan filtreler",
     "presetError": "Olay önayarları yüklenemedi."
+  },
+  "improvement": {
+    "signalWindow": "Son 30 günden {count, plural, one {# seçili kaynak örneği} other {# seçili kaynak örneği}}, en fazla {limit}. Önceki ajan sürümleri ve incelenmiş test yanıtları dahildir.",
+    "likedSignals": "Olumlu değerlendirilen yanıtlar",
+    "failedSignals": "Değerlendirilmemiş başarısız çalıştırmalar",
+    "reviewedSignals": "Diğer incelenmiş test yanıtları",
+    "noLearningExamples": "Henüz öğrenilecek bir şey yok: son 30 günde okunabilir kaynak örneği bulunmuyor. Bir yanıtı değerlendirin veya test sorularını çalıştırıp inceleyin.",
+    "sessionQuote": "{answers, plural, one {# seçili kaynak örneğini} other {# seçili kaynak örneğini}} sıralamak için en fazla {cost} (tahmini). Sonraki her deneme yaklaşık {minutes, plural, one {# dakika} other {# dakika}} sürer ve yaklaşık {perRound} tutar; başlamadan önce yeniden fiyatlandırılır. {limit} sınırı tüm oturum içindir."
   }
 }

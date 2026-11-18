@@ -41,6 +41,7 @@ from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.proactive import ProactiveService
 from app.services.skills import SkillService
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
+from app.services.text_to_speech_settings import TextToSpeechSettingsService
 from app.worker.jobs import Restamp
 
 if TYPE_CHECKING:
@@ -108,6 +109,7 @@ def _org_read(
         chat_may_waive_approvals=org.chat_may_waive_approvals,
         public_agenticos_attribution=org.public_agenticos_attribution,
         public_live_data=org.public_live_data,
+        text_to_speech=org.text_to_speech,
         speech_to_text_provider=org.speech_to_text_provider,
         speech_to_text_model=org.speech_to_text_model,
         speech_to_text_secret_id=org.speech_to_text_secret_id,
@@ -458,7 +460,8 @@ class OrganizationService:
         The speech-to-text default falls under `org:settings` with the metadata,
         and is validated only when one of its fields is named - so a rename never
         trips over a default that went stale (#1797). Calls and dictation are
-        switched on per agent, so nothing else about voice is the organization's.
+        switched on per agent. Text-to-speech defaults are a separate group,
+        inherited only by agents that explicitly choose them.
 
         `key_scopes` are those of the API key the request came with, `None` for
         a session: each field's permission must be one the key was issued for
@@ -577,6 +580,18 @@ class OrganizationService:
             )
         if data.model_fields_set & _SPEECH_FIELDS:
             org = await self._apply_speech_settings(org, data)
+
+        if "text_to_speech" in data.model_fields_set:
+            await TextToSpeechSettingsService(self.db).validate_defaults(
+                org.id, data.text_to_speech
+            )
+            org = await organization_repo.set_text_to_speech(
+                self.db,
+                org,
+                defaults=data.text_to_speech.model_dump(mode="json")
+                if data.text_to_speech is not None
+                else None,
+            )
 
         return await organization_repo.update(
             self.db,

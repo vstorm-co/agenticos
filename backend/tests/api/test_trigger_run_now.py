@@ -192,6 +192,32 @@ async def test_prompt_preview_uses_real_resolver_without_queueing_and_requires_a
     queued.assert_not_awaited()
 
 
+async def test_inbox_preview_counts_result_instructions_in_the_final_byte_limit(monkeypatch):
+    from app.core.config import settings
+    from app.schemas.routine_notifications import ROUTINE_RESULT_INSTRUCTIONS
+    from app.services.routine_prompt import resolve_prompt
+
+    service = AgentTriggerService(MagicMock())
+    service.agents.get = AsyncMock()
+    prompt = "{{title}}"
+    payload = {"title": "  é  "}
+    request = {"prompt": prompt, "payload": payload, "result_mode": "inbox"}
+    resolved = resolve_prompt(prompt, payload)
+    final_message = f"{resolved}\n\n{ROUTINE_RESULT_INSTRUCTIONS}"
+    limit = len(final_message.encode())
+    url = f"/api/v1/agents/{_AGENT_ID}/triggers/preview-prompt"
+    async with _client(service) as client:
+        monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_INPUT_BYTES", limit)
+        fits = await client.post(url, json=request)
+        monkeypatch.setattr(settings, "WORKFLOW_RUN_MAX_INPUT_BYTES", limit - 1)
+        oversized = await client.post(url, json=request)
+        report = await client.post(url, json={**request, "result_mode": "report"})
+    assert fits.json() == {"resolved_prompt": final_message}
+    assert oversized.status_code == 400
+    assert oversized.json()["error"]["details"]["reason"] == "resolved_prompt_too_large"
+    assert report.json() == {"resolved_prompt": resolved}
+
+
 @pytest.mark.security
 async def test_prompt_preview_refuses_an_agent_the_caller_cannot_run():
     from app.core.exceptions import NotFoundError
@@ -205,3 +231,46 @@ async def test_prompt_preview_refuses_an_agent_the_caller_cannot_run():
         )
     assert response.status_code == 404
     assert "Private" not in response.text
+
+
+async def test_filtered_event_endpoint_returns_only_the_typed_snapshot() -> None:
+    from app.schemas.agent_trigger import GithubFilteredEvent, TriggerFilteredEventRead
+
+    trigger_id = uuid4()
+    service = MagicMock(
+        filtered_event=AsyncMock(
+            return_value=TriggerFilteredEventRead(
+                last_event=GithubFilteredEvent(
+                    received_at=datetime(2026, 11, 17, tzinfo=UTC),
+                    reason="author",
+                    authors="members",
+                )
+            )
+        )
+    )
+    async with _client(service) as client:
+        response = await client.get(
+            f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/filtered-event"
+        )
+    assert response.status_code == 200
+    assert response.json() == {
+        "last_event": {
+            "received_at": "2026-11-17T00:00:00+00:00",
+            "reason": "author",
+            "authors": "members",
+        }
+    }
+    assert service.filtered_event.await_args.args[1:] == (_AGENT_ID, trigger_id)
+
+
+@pytest.mark.security
+async def test_filtered_event_endpoint_preserves_the_owner_access_refusal() -> None:
+    from app.core.exceptions import NotFoundError
+
+    service = MagicMock(
+        filtered_event=AsyncMock(side_effect=NotFoundError(message="Trigger not found"))
+    )
+    async with _client(service) as client:
+        response = await client.get(f"/api/v1/agents/{_AGENT_ID}/triggers/{uuid4()}/filtered-event")
+    assert response.status_code == 404
+    assert "last_event" not in response.json()

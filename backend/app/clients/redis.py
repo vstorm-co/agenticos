@@ -22,6 +22,14 @@ _DELETE_IF_EQUAL = (
     "return redis.call('del', KEYS[1]) else return 0 end"
 )
 
+_REPLACE_IF_EQUAL = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+  return 1
+end
+return 0
+"""
+
 _RESERVE_NUMBERS = """
 local now = tonumber(redis.call('TIME')[1])
 local count = tonumber(ARGV[1])
@@ -227,6 +235,10 @@ class RedisClient:
         pipe.expire(key, ttl, nx=True)
         used, _expired = await pipe.execute()
         return int(used)
+
+    async def replace_if_equal(self, key: str, *, expected: str, value: str, ttl: int) -> bool:
+        """Replace a live value and its TTL in one step only if it still equals `expected`."""
+        return bool(await self.raw.eval(_REPLACE_IF_EQUAL, 1, key, expected, value, ttl))
 
     async def expire(self, key: str, ttl: int) -> bool:
         """Set a key's lifetime to `ttl` seconds. False when there is no such key."""

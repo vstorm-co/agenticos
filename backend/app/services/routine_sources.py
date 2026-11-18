@@ -92,6 +92,7 @@ def source_scope(trigger: AgentTrigger) -> str:
         json.dumps(
             {
                 **{name: getattr(trigger, name) for name in fields},
+                **({"source_id": str(trigger.source_id)} if trigger.source_id is not None else {}),
                 **(
                     {"project_id": str(trigger.project_id)}
                     if trigger.project_id is not None

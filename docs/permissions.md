@@ -89,7 +89,9 @@ Two kinds of permission, and they behave differently.
 **Global** permissions are binary and org-wide: `members:view`, `members:manage`, `roles:manage`,
 `org:settings`, `org:delete`, `budgets:manage`, `approvals:decide`,
 `promotions:override`, `connections:view`, `connections:manage`, `channels:manage`,
-`runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`.
+`runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`, `mcp:personal:use`.
+
+The explicit `mcp:personal:use` scope lets external API or OAuth runs use the credential issuer's personal MCP connections. Select it under **Custom** and confirm this delegation; no preset, including **Full access**, includes it, and existing credentials keep organization-only access. It grants no personal memory, conversation search or routine consent. Approval resumes retain the original owner and credential; connected accounts, live key scopes and access to the root and discovered delegates are rechecked before personal tool calls.
 
 Approving personal routines and watches requires the explicit `personal:consent` scope, selected under **Custom** when issuing a key or authorizing an MCP client. It is excluded from every preset, including **Full access**. The confirmation allows the credential to approve persistent routines and watches using your personal connections and data; ordinary `agents:run` and `runs:view` scopes do not. Existing keys and MCP authorizations gain no personal consent automatically.
 

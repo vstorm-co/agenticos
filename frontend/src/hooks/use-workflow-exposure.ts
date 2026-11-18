@@ -19,8 +19,14 @@ import {
  * on - and the writes made beside the graph: pausing, rotating a webhook's
  * secret and replacing a form's link. Rotate resolves with the secret the server
  * returns once; the caller shows it, since nothing reads it back later.
+ * An entry is selected by node ID, or by occurrence within its adapter when the
+ * published trigger list only supplies definition IDs.
  */
-export function useWorkflowExposure(workflowId: string, trigger?: string | null, nodeId?: string) {
+export function useWorkflowExposure(
+  workflowId: string,
+  trigger?: string | null,
+  entry: string | number = 0,
+) {
   const t = useTranslations("pages.workflows");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
@@ -59,11 +65,13 @@ export function useWorkflowExposure(workflowId: string, trigger?: string | null,
     onError: fail,
   });
   const adapter = trigger?.replace("trigger.", "").replace("channel_message", "channel");
-  const exposure = Array.isArray(data)
-    ? (data.find(
-        (item) =>
-          item.adapter === adapter && (nodeId === undefined || item.node_instance_id === nodeId),
-      ) ?? null)
-    : (data ?? null);
+  let exposure = Array.isArray(data) ? null : (data ?? null);
+  if (Array.isArray(data)) {
+    const matches = data.filter((item) => item.adapter === adapter);
+    exposure =
+      (typeof entry === "number"
+        ? matches[entry]
+        : matches.find((item) => item.node_instance_id === entry)) ?? null;
+  }
   return { exposure, isLoading, setActive, rotate, renewLink };
 }

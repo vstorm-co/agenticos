@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -127,6 +127,36 @@ describe("event source management", () => {
     );
     expect(await screen.findByDisplayValue("once-only")).toBeVisible();
   });
+  it.each(["manager", "selector"])(
+    "keeps the %s create dialog open until the one-time credential arrives",
+    async (entry) => {
+      let finish!: () => void;
+      vi.mocked(apiClient.post).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = () => resolve({ ...source, reveal_secret: "once-only" });
+          }),
+      );
+      render(
+        entry === "manager" ? (
+          <SourceManager />
+        ) : (
+          <SourceSelector value={null} onChange={vi.fn()} />
+        ),
+        { wrapper },
+      );
+      await userEvent.click(await screen.findByRole("button", { name: "Create new source" }));
+      const dialog = within(await screen.findByRole("dialog", { name: "Create new source" }));
+      await userEvent.type(dialog.getByLabelText("Name"), "Incoming");
+      await userEvent.click(dialog.getByRole("button", { name: "Create source" }));
+      expect(dialog.getByRole("button", { name: "Cancel" })).toBeDisabled();
+      expect(dialog.getByRole("button", { name: "Close" })).toBeDisabled();
+      await userEvent.keyboard("{Escape}");
+      expect(dialog.getByLabelText("Name")).toBeVisible();
+      finish();
+      expect(await screen.findByDisplayValue("once-only")).toBeVisible();
+    },
+  );
   it("distinguishes a failed read from an empty list", async () => {
     vi.mocked(apiClient.get).mockImplementation(async (path) => {
       if (path === "/me/permissions")
@@ -292,6 +322,7 @@ describe("editor samples", () => {
           value={value}
           onChange={setValue}
           mode="template"
+          resultMode="inbox"
           onModeChange={vi.fn()}
           sourceId={null}
           agentId="a1"
@@ -312,6 +343,7 @@ describe("editor samples", () => {
       expect(apiClient.post).toHaveBeenCalledExactlyOnceWith("/agents/a1/triggers/preview-prompt", {
         prompt: "Triage {{issue.title}} now",
         payload: { issue: { title: "Broken" } },
+        result_mode: "inbox",
       }),
     );
     expect(await screen.findByText("Triage Broken now")).toBeVisible();

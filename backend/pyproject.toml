@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.80.0"
+version = "1.84.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -910,6 +910,7 @@ include = [
     "app/schemas/voice.py",
     "app/services/transcription.py",
     "app/services/text_to_speech_models.py",
+    "app/services/text_to_speech_settings.py",
     "app/services/text_to_speech/__init__.py",
     "app/services/text_to_speech/clients.py",
     "app/services/text_to_speech/exceptions.py",
@@ -1250,6 +1251,11 @@ include = [
     "app/services/_coding_task_revert.py",
     "app/services/workspace_turn_guard.py",
     "app/worker/tasks/coding_tasks.py",
+    "app/db/models/personal_model_key.py",
+    "app/repositories/personal_model_key.py",
+    "app/services/personal_model_key.py",
+    "app/services/personal_model_policy.py",
+    "app/services/personal_model_surfaces.py",
     "app/db/models/coding_account.py",
     "app/schemas/coding_account.py",
     "app/repositories/coding_account.py",
@@ -1833,6 +1839,7 @@ include = [
     "app/schemas/voice.py",
     "app/services/transcription.py",
     "app/services/text_to_speech_models.py",
+    "app/services/text_to_speech_settings.py",
     "app/services/text_to_speech/__init__.py",
     "app/services/text_to_speech/clients.py",
     "app/services/text_to_speech/exceptions.py",
@@ -2173,6 +2180,11 @@ include = [
     "app/services/_coding_task_revert.py",
     "app/services/workspace_turn_guard.py",
     "app/worker/tasks/coding_tasks.py",
+    "app/db/models/personal_model_key.py",
+    "app/repositories/personal_model_key.py",
+    "app/services/personal_model_key.py",
+    "app/services/personal_model_policy.py",
+    "app/services/personal_model_surfaces.py",
     "app/db/models/coding_account.py",
     "app/schemas/coding_account.py",
     "app/repositories/coding_account.py",

@@ -1,5 +1,5 @@
 ---
-source_sha: "3ce26481a019"
+source_sha: "7b83980dd889"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -24,6 +24,28 @@ model profile → credential → unsealed secret → provider client → Model
 ```
 
 Nic z tego, którego modelu używa agent, nie mieszka w `.env`.
+
+## Osobiste klucze do modeli { #personal-model-keys }
+
+W Builderze, w sekcji **Dostęp do modelu**, pozostaw domyślne **Użyj klucza organizacji** lub wybierz **Każdy użytkownik podłącza własny klucz**. Tryb osobisty zachowuje model i endpoint administratora. Obsługuje modele czatu z kluczem API, bez modeli zapasowych i zmiany modelu dla pojedynczej rozmowy.
+
+Zalogowany członek otwiera agenta w czacie i podłącza klucz przez prywatny formularz nad polem wiadomości lub w ustawieniach czatu. Klucz nigdy nie trafia do wiadomości, promptów ani instrukcji agenta. Połączenie jest wspólne dla agentów tej organizacji korzystających z tego samego dostawcy i endpointu. Brak klucza blokuje run przed zapytaniem do modelu; błąd uwierzytelnienia nigdy nie przełącza na klucz organizacji. Wymień klucz w ustawieniach czatu lub usuń połączenie w **Vault → Twoje połączenie z modelem**. Zapis klucza nie sprawdza go u dostawcy.
+
+Formularz prywatnego klucza przesyła oczekiwany profil, dostawcę, endpoint i model pokazane użytkownikowi. Jeśli cel zmieni się przed zapisem, serwer odrzuca klucz jako konflikt; formularz odświeża cel i usuwa wpisany klucz przed kolejną próbą.
+
+Tryb osobisty nie obsługuje obecnie kanałów prywatnych ani grupowych, widgetów, stron publicznych, uruchomień przez HTTP API, harmonogramów, triggerów, tematów w tle, głosu, recenzentów ani osobnych modeli funkcji. Przed publikacją wstrzymaj lub usuń aktywne kanały, publiczne udostępnienia i rutyny. Utworzenie lub ponowne włączenie niezgodnego udostępnienia zostaje odrzucone; run sprawdza tę samą zasadę. Strony publiczne i tokeny JWT widgetów nie identyfikują zalogowanego członka instancji.
+
+Delegowanie działa w czacie zalogowanego użytkownika. Subagent w trybie osobistym musi używać dokładnie tego profilu modelu, który wybrano w głównym agencie działającym w trybie osobistym. Agent organizacyjny nie może korzystać z osobistych kluczy przez delegację, a osobisty subagent nie może wybrać innego modelu ani endpointu. Zasady obowiązują przy publikacji, udostępnianiu, promocji wersji i wykonaniu, także w zagnieżdżonych delegacjach i po wznowieniu.
+
+Subagenci organizacyjni zachowują własne klucze. Specjaliści inline dziedziczą tryb rodzica, a dynamiczni w trybie osobistym pozostają przy jego modelu. Zasady osobistego dostępu MCP pozostają bez zmian.
+
+Komunikat o brakującym połączeniu subagenta podaje nazwę agenta i połączenia z modelem. Otwórz ustawienia czatu tego agenta i podłącz klucz; jeśli agent nie jest widoczny, poproś właściciela o dostęp. Runner sprawdza drzewo delegacji przed zapytaniami do modeli i ponownie przy wznowieniu. Klucz innego endpointu, innej osoby ani osoby zatwierdzającej nie zastępuje brakującego połączenia użytkownika.
+
+Klucze są szyfrowane w vaulcie dla właściciela i usuwane wraz z jego członkostwem lub kontem. Zmiana zatwierdzonego endpointu wymaga nowego połączenia. Rotacja klucza jednej osoby nie zmienia kluczy innych ani wspólnego profilu modelu.
+
+Impersonacja innego członka nie daje dostępu do jego osobistych połączeń z modelami: próby odczytu, zmiany lub użycia klucza są odrzucane przed dostępem do vault.
+
+Prywatna historia rozmowy jest przypisana do zatwierdzonych celów modeli, także fallbacków; [historia czatu](console.md#chat) opisuje zmianę połączenia i wznawianie oczekujących runów.
 
 ## Profil modelu { #a-model-profile }
 

@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
   linked: null as string | null,
   linkedCase: undefined as unknown,
   linkedError: null as Error | null,
+  retryCase: vi.fn(),
   push: vi.fn(),
   remove: vi.fn(),
   runsView: true,
@@ -56,7 +57,13 @@ vi.mock("@/hooks/use-datasets", () => ({
     remove: { mutateAsync: state.remove, isPending: false },
   }),
   useDatasetVersions: () => ({ versions: [], isLoading: false }),
-  useDatasetCase: () => ({ kase: state.linkedCase, isLoading: false, error: state.linkedError }),
+  useDatasetCase: () => ({
+    kase: state.linkedCase,
+    isLoading: false,
+    error: state.linkedError,
+    fetchedAt: 1,
+    refetch: state.retryCase,
+  }),
   useDatasetCases: (_id: string, { skip }: { skip: number }) => {
     state.skips.push(skip);
     return {
@@ -152,6 +159,7 @@ describe("the dataset page", () => {
     state.linked = null;
     state.linkedCase = undefined;
     state.linkedError = null;
+    state.retryCase.mockReset();
     state.push.mockReset();
     state.remove.mockReset();
   });
@@ -346,6 +354,30 @@ describe("the dataset page", () => {
     expect(screen.getByRole("button", { name: "Save case" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("explains a case deleted after opening and retries its live query", async () => {
+    state.linked = "c1";
+    state.linkedCase = CASE;
+    const refresh = await mount();
+    state.linkedError = new ApiError(404, "Case no longer exists");
+    refresh();
+    const dialog = screen.getByRole("dialog", { name: "Case" });
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("Case no longer exists");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Retry" }));
+    expect(state.retryCase).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a historical case readable when its latest version no longer exists", async () => {
+    state.version = "2";
+    state.linked = "c1";
+    state.linkedCase = CASE;
+    state.linkedError = new ApiError(404, "Case no longer exists");
+    await mount();
+    const dialog = screen.getByRole("dialog", { name: "Case" });
+    expect(dialog).toHaveTextContent("How long is the return window?");
+    expect(within(dialog).queryByText("Case no longer exists")).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: "Edit" })).toBeNull();
   });
 
   it("says when the case a link names is gone", async () => {

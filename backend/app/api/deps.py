@@ -2510,3 +2510,13 @@ def get_event_source_sample_service(db: DBSession, redis: Redis) -> EventSourceS
 
 EventSourceSvc = Annotated[EventSourceService, Depends(get_event_source_service)]
 EventSourceSampleSvc = Annotated[EventSourceSampleService, Depends(get_event_source_sample_service)]
+
+
+from app.services.personal_model_key import PersonalModelKeyService
+
+
+def get_personal_model_key_service(db: DBSession) -> PersonalModelKeyService:
+    return PersonalModelKeyService(db)
+
+
+PersonalModelKeySvc = Annotated[PersonalModelKeyService, Depends(get_personal_model_key_service)]

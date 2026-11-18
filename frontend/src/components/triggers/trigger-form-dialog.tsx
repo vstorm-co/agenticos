@@ -945,6 +945,7 @@ export function TriggerFormDialog({
                     onChange={setPrompt}
                     mode={promptMode}
                     onModeChange={setPromptMode}
+                    resultMode={resultMode}
                     sourceId={sourceId}
                     agentId={effectiveAgentId}
                     triggerId={trigger.id}
@@ -1297,6 +1298,7 @@ export function TriggerFormDialog({
                 onChange={setPrompt}
                 mode={promptMode}
                 onModeChange={setPromptMode}
+                resultMode={resultMode}
                 sourceId={sourceId}
                 agentId={effectiveAgentId}
                 disabled={pending}

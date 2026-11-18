@@ -867,9 +867,11 @@ label its author wrote, in place of **Approve**; **Reject** stays. Each way is a
 port of the step, so the workflow goes on by the one the approver pressed, and the
 decided row names it. An edit goes with whichever button is pressed.
 
-In the list a test run's version reads **Draft (test)** and a real one's
-**Published**, and a run started from the console or the HTTP API reads **Console or
-API**. **Status**, **Version**, **Started by** and **Started** (the last hour, day, week or
+In the list a test of the whole draft reads **Draft (test)**, a
+[test of one step](#a-steps-data-pinning-and-testing-one-step) **Step test** followed by the step's name, and a
+real run **Published**. **Version** can show step tests alone or leave them out.
+
+A run started from the console or the HTTP API reads **Console or API**. **Status**, **Version**, **Started by** and **Started** (the last hour, day, week or
 30 days) narrow the runs, and the list answers a
 page at a time; each filter is kept in the address, so a filtered list can be
 linked. **Runs** on the workflows list shows every workflow's runs together. On a
@@ -1003,6 +1005,16 @@ last event it saw and picks up exactly where it stopped. Events are written befo
 they are sent, so nothing is lost and nothing runs twice. The socket re-checks the
 session and the member's access before every frame and every read of the stream.
 The frames are in [The HTTP API](api.md#following-a-run-over-a-websocket).
+
+### Reusable webhook sources { #reusable-webhook-sources }
+
+In a **Webhook** trigger, choose an existing **Event source** or create one. Publishing subscribes that specific workflow entry to the source; later publications keep the subscription when the source and entry are unchanged. The source holds the credentials, outside the workflow definition. Its other routines and workflows receive the same authenticated events independently. [Event sources](https://vstorm-co.github.io/agenticos/triggers/#reusable-event-sources) explains providers, authentication, permissions, pause and retention.
+
+Choose **Listen for event** to capture the next authenticated event on the configured live source URL. The window lasts two minutes; temporary samples last ten minutes and respect the 64 KB pin limit. **Active subscribers still execute.** Capture does not add a run or change delivery processing. Pasted example JSON is an alternative, and saving or publishing never requires a sample.
+
+The selected trigger's sample remains `{body, delivery_id}`. Pin it and use the existing field bindings and step tests; downstream nodes can consume the JSON directly. With multiple entries, capture and pin the intended Webhook node explicitly. This adds no payload transformation or routine-style prompt interpolation to workflow bindings.
+
+A shared source acknowledges durable receipt asynchronously. Publishing refuses a shared-source entry whose reachable branch contains **Respond to webhook**. Choose a dedicated workflow endpoint when the sender needs that node's synchronous status, headers or body. Dedicated endpoint URLs, credentials, duplicate detection and response behavior remain unchanged.
 
 ### A webhook or a schedule { #a-webhook-or-a-schedule }
 

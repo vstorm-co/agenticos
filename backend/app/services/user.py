@@ -754,6 +754,7 @@ class UserService:
         # cascade would leave those rows with no conversation and the bytes
         # readable by the organization. After `_release_owned_rows`, so a project
         # chat the person started - kept for the team - keeps its media too.
+        await conversation_repo.invalidate_author_checkpoints(self.db, user_id=user_id)
         await GeneratedMediaService(self.db).forget_user(user_id)
         await PersonalDataService(self.db).purge(user_id)
         await user_repo.delete(self.db, user_id)
@@ -956,7 +957,9 @@ class UserService:
            documents, the order `OrganizationService.purge` locks them in, and
            deleting the documents first inverted it (#2638);
         3. the user rows (`_lock_user_rows`), `NOWAIT`;
-        4. the names of bases created while this waited (`_hold_late_names`).
+        4. conversations the person owns or authored, `NOWAIT`, before their checkpoints
+           are invalidated and their author references disappear;
+        5. the names of bases created while this waited (`_hold_late_names`).
 
         The user rows are never waited for while the organization is held, nor
         the organization while a user row is. A write for this person takes both
@@ -1008,6 +1011,9 @@ class UserService:
                     for org in sorted(personal_orgs, key=lambda org: org.id):
                         await organization_repo.get_by_id_for_update(self.db, org.id)
                     locked = await self._lock_user_rows(user_id, app_admins=app_admins, nowait=True)
+                    # A message insert locks its conversation before its author FK.
+                    # Never wait for that history while holding the user row.
+                    await conversation_repo.lock_authored_histories(self.db, user_id=user_id)
                     await self._hold_late_names(user_id, personal_orgs, names)
             except DBAPIError as failed:
                 if getattr(failed.orig, "sqlstate", None) != LOCK_NOT_AVAILABLE:

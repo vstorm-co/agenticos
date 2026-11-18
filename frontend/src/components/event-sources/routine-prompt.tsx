@@ -16,6 +16,7 @@ import {
 import { usePromptPreview } from "@/hooks/use-event-sources";
 import { getErrorMessage } from "@/lib/api-error";
 import { insertPromptField, promptFields } from "@/lib/routine-prompt-fields";
+import type { RoutineResultMode } from "@/components/triggers/result-mode-field";
 import type { EventSample } from "@/lib/event-sources-api";
 import { LiveSample, PasteSample } from "./live-sample";
 
@@ -24,6 +25,7 @@ export function RoutinePrompt({
   onChange,
   mode,
   onModeChange,
+  resultMode,
   sourceId,
   agentId,
   triggerId,
@@ -32,6 +34,7 @@ export function RoutinePrompt({
   value: string;
   onChange: (value: string) => void;
   mode: "literal" | "template";
+  resultMode: RoutineResultMode;
   onModeChange: (mode: "literal" | "template") => void;
   sourceId: string | null;
   agentId: string | null;
@@ -45,6 +48,7 @@ export function RoutinePrompt({
   const [sample, setSample] = useState<EventSample | null>(null);
   const [search, setSearch] = useState("");
   const preview = usePromptPreview(agentId ?? "");
+  const currentModePreview = preview.variables?.result_mode === resultMode;
   const change = (next: string) => {
     onChange(next);
     preview.reset();
@@ -152,6 +156,7 @@ export function RoutinePrompt({
                   preview.mutate({
                     prompt: value,
                     payload: sample.body,
+                    result_mode: resultMode,
                     ...(sourceId ? { source_id: sourceId } : {}),
                     ...(triggerId ? { trigger_id: triggerId } : {}),
                   })
@@ -161,12 +166,12 @@ export function RoutinePrompt({
               </Button>
             </div>
           )}
-          {preview.error && (
+          {currentModePreview && preview.error && (
             <p role="alert" className="text-destructive text-sm">
               {getErrorMessage(preview.error, errors)}
             </p>
           )}
-          {preview.data && (
+          {currentModePreview && preview.data && (
             <div className="space-y-2">
               <Label>{t("resolvedPrompt")}</Label>
               <pre className="bg-muted max-h-72 overflow-auto rounded-md p-3 text-sm whitespace-pre-wrap">

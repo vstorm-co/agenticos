@@ -280,3 +280,21 @@ export interface TriggerAttemptList {
 export interface TriggerActivationStatus {
   state: "pending" | "recorded" | "not_started";
 }
+
+export interface TriggerFilteredEventRead {
+  last_event: {
+    received_at: string;
+    reason:
+      | "event"
+      | "action"
+      | "bot"
+      | "ignored_login"
+      | "author"
+      | "draft"
+      | "branch"
+      | "mention"
+      | "conclusion"
+      | "not_branch";
+    authors: "members" | "contributors" | "anyone";
+  } | null;
+}

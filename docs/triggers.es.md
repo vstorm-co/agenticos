@@ -1,5 +1,5 @@
 ---
-source_sha: "906fd3ede6cf"
+source_sha: "d7696a54fcde"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -136,7 +136,7 @@ Elige GitHub, Linear, HubSpot o Zendesk para la verificación del proveedor, o *
 
 Envía un POST con un objeto JSON; se mantiene la adaptación existente de lotes de HubSpot. Las credenciales solo se escriben y se guardan en el almacén seguro de la organización. Sustitúyelas en la fuente, nunca en una definición de workflow ni en una muestra. Los ID de entrega del proveedor o una cabecera de ID configurada reconocen reintentos. Las credenciales Basic Auth y las claves API no son ID de eventos. Sin ID de evento, los reintentos pueden iniciar ejecuciones adicionales.
 
-La entrega autenticada y sus tareas de envío se guardan juntas antes de confirmar la recepción. Los fallos de los suscriptores son independientes. Una URL compartida confirma la recepción duradera de forma asíncrona y no devuelve una respuesta personalizada del workflow. Un workflow con fuente compartida no puede alcanzar **Responder al webhook**. Los endpoints dedicados de workflows conservan las respuestas síncronas.
+La entrega autenticada y sus tareas de envío se guardan juntas antes de confirmar la recepción. Los fallos de los suscriptores son independientes. El worker reintenta la entrega si un suscriptor alcanza un límite temporal de frecuencia o de capacidad. Un evento en cola solo puede usar la aprobación de la fuente de la rutina vigente en el momento de la recepción. Cambiar la fuente de una rutina requiere una nueva revisión. Una URL compartida confirma la recepción duradera de forma asíncrona y no devuelve una respuesta personalizada del workflow. Un workflow con fuente compartida no puede alcanzar **Responder al webhook**. Los endpoints dedicados de workflows conservan las respuestas síncronas.
 
 **Pausar fuente** impide iniciar suscriptores para nuevas entregas; pausar una rutina o workflow afecta solo a ese destino. No se permite eliminar una fuente con suscripciones; la lista de uso muestra los destinos que debes desvincular. Los eventos estructurados siguen disponibles para el trabajo en cola o en espera. Las entregas terminadas siguen la política de retención de tareas en segundo plano.
 
@@ -157,7 +157,7 @@ Lee la propiedad inusual {{["request.id"]}}.
 
 Las rutas empiezan en la raíz del cuerpo JSON. Se admiten propiedades con puntos, índices de arrays y claves entre comillas dentro de corchetes; no expresiones, funciones, bucles ni valores predeterminados. Las llaves simples son literales. Escribe `\{{example\}}` para mostrar llaves dobles como texto. La sustitución ocurre una sola vez: las llaves de un valor recibido nunca generan otra referencia.
 
-**Vista previa del prompt resuelto** usa el mismo resolver del backend que la ejecución y nunca invoca un agente. Las cadenas se insertan directamente; otros valores usan JSON compacto. `false`, `0` y `null` son valores presentes. Una ruta ausente produce un fallo visible con su nombre antes de llamar al agente, también en el diagnóstico de activación y el historial de la rutina cuando todavía no existe una ejecución.
+**Vista previa del prompt resuelto** usa el mismo resolver del backend que la ejecución y nunca invoca un agente. Las cadenas se insertan directamente; otros valores usan JSON compacto. `false`, `0` y `null` son valores presentes. Una ruta ausente produce un fallo visible con su nombre antes de llamar al agente, también en el diagnóstico de activación y el historial de la rutina cuando todavía no existe una ejecución. En el modo de bandeja de entrada, la vista previa incluye las instrucciones para el resultado y las cuenta en el límite de tamaño del mensaje.
 
 Guardar valida la sintaxis sin exigir que los campos aparezcan en una muestra. La resolución usa el evento estructurado antes de cualquier recorte anterior del contexto. El modo de plantilla envía el prompt escrito con valores seleccionados marcados como datos externos, sin añadir la carga completa. Un mensaje demasiado grande falla en vez de truncarse. Los prompts existentes siguen siendo literales hasta cambiar el modo explícitamente; las URL dedicadas y sus ajustes de firma siguen funcionando.
 

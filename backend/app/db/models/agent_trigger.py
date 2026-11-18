@@ -310,6 +310,8 @@ class AgentTrigger(Base, TimestampMixin):
     # dict; a schedule leaves it `{}` and the source null.
     event_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
     event_config: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    # One bounded diagnostic, read through an owner-only endpoint rather than listings.
+    last_filtered_event: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
 
     # The secret an event webhook is verified against, sealed for this
     # organization through the one vault (`app/core/vault.py`) - GitHub's HMAC key

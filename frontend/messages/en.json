@@ -2051,7 +2051,28 @@
       "reactingToMessage": "Reacting to a message",
       "messageReactions": "Message reactions",
       "exportingArtifact": "Exporting a PDF…",
-      "exportArtifact": "Export a Published App"
+      "exportArtifact": "Export a Published App",
+      "tableCall": {
+        "allRecords": "All records",
+        "search": "Matching “{text}”",
+        "sortedBy": "Sorted by {column}, {direction, select, desc {descending} other {ascending}}",
+        "createdAt": "Created",
+        "updatedAt": "Last updated",
+        "limit": "{count, plural, =1 {At most 1 record} other {At most # records}}",
+        "externalId": "External ID: {id}",
+        "found": "{count, plural, =0 {No records found} =1 {1 record found} other {# records found}}",
+        "hasMore": "more on the next page",
+        "moreRows": "{count, plural, =1 {and 1 more record} other {and # more records}}",
+        "exists": "A record with this external ID exists",
+        "missing": "No record has this external ID",
+        "deleted": "Record deleted",
+        "record": "Record “{title}” · revision {revision}",
+        "recordUntitled": "Record · revision {revision}",
+        "table": "Table",
+        "column": "Column",
+        "value": "Value",
+        "recordLabel": "Record"
+      }
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -5697,7 +5718,7 @@
       },
       "flow-table-field-visibility": {
         "title": "Who can see it",
-        "body": "Open More options to change visibility. Private keeps the table to you; Team and Organization open it to more people. You can share it with individual people later. Then choose Next."
+        "body": "Choose who the table reaches: only you, everyone in the organization, or the groups and people you pick. You can change it later under Share. Then choose Next."
       },
       "flow-table-field-create": {
         "title": "Create it",
@@ -6142,6 +6163,10 @@
       "flow-event-source-create": {
         "title": "Create new source",
         "body": "Configure the sender manually to POST JSON to the source URL."
+      },
+      "agent-model-credentials": {
+        "title": "Who supplies the model key",
+        "body": "Use the organization key, or require each signed-in chat user to connect a private vault key. The model and endpoint stay fixed; channels and automatic runs require the organization key."
       }
     },
     "chooseLanguage": "Language",
@@ -6382,6 +6407,7 @@
       "triggerTableLive": "Each record added to the table that matches the trigger's filters starts one run with that record. Pause it, or read what it decided, from the table's Triggers.",
       "triggerOpenTable": "Open the table",
       "triggerOn": "On",
+      "triggerSourceCredentials": "Manage credentials in Event sources",
       "triggerRotate": "New secret",
       "triggerPause": "Pause",
       "triggerResume": "Resume",
@@ -6491,6 +6517,8 @@
       "allRunsDescription": "Every run of the workflows you can see, newest first.",
       "runRetryMark": "retry",
       "runModeTest": "Draft (test)",
+      "runModeStep": "Step test",
+      "runModeStepNamed": "Step test · {step}",
       "runModeReal": "Published",
       "runFilterAnyStatus": "Any status",
       "runFilterAnyMode": "Any version",
@@ -7236,7 +7264,15 @@
       "setBaseline": "Set a baseline",
       "improveFromGaps": "Improve this agent from these gaps",
       "systemAgentReadOnly": "Only an organization administrator can change a system agent. You can read how it works here.",
-      "continueConversation": "Continue my conversation"
+      "continueConversation": "Continue my conversation",
+      "modelCredentialMode": "Model access",
+      "organizationModelKey": "Use the organization’s key",
+      "personalModelKey": "Each user connects their own key",
+      "personalModelLimits": "The model and endpoint stay fixed. Signed-in web chat only. Disable active channels, widgets, hosted pages and routines before publishing. HTTP API runs, background topics, voice, reviewers, separate step models and model fallbacks are not supported. Delegation in signed-in web chat resolves each personal-mode agent for the original caller.",
+      "draftChanged": "This draft changed elsewhere. Your edits are still here, but saving is paused. Copy anything you want to keep, then reload the latest draft.",
+      "reloadDraft": "Reload latest draft",
+      "speechUseOrganizationDefaults": "Use organization defaults",
+      "speechOrganizationDefaultsHint": "Inherit the organization’s provider, model, voice and key together. Turn off to configure this agent’s own voice."
     },
     "auth": {
       "backSign": "Back to sign in",
@@ -9723,7 +9759,14 @@
       "save": "Save changes",
       "saved": "Voice settings saved",
       "notReadyNoKey": "No key is chosen for {provider}. Agents and bots that inherit it can't transcribe with a provider until you choose one below.",
-      "summary": "Default transcription provider and recording limits."
+      "summary": "Default transcription provider and recording limits.",
+      "tts": {
+        "title": "Text to speech",
+        "description": "Default provider, model, voice and organization key for agents that choose organization defaults. Agents can instead use their own voice configuration.",
+        "voice": "Voice",
+        "required": "Choose a provider, model and organization-wide key before enabling text to speech.",
+        "catalogUnavailable": "Speech models could not be loaded. Try again before changing the provider."
+      }
     },
     "publicAttribution": "AgenticOS on shared pages",
     "publicAttributionDescription": "Show a small floating AgenticOS badge with a GitHub link on public apps, dashboards and reports, and below shared conversations.",
@@ -9748,7 +9791,7 @@
       "discardChanges": "Discard changes",
       "title": "Assistant suggestions and monitoring",
       "description": "Conversation-based suggestions and read-only monitoring are independent. Scheduled and event routines do not require suggestions to be enabled.",
-      "nightly": "Nightly suggestions",
+      "nightly": "Daily briefing & suggestions",
       "nightlyHint": "Suggest routines, agents and profile updates from recent conversations and memory. Does not scan mailboxes. Creating a suggested routine still needs the person’s confirmation.",
       "model": "Model",
       "modelHint": "Used only to suggest improvements from conversations. Monitoring uses each selected agent’s model.",
@@ -9762,8 +9805,8 @@
       "hourHint": "In each person's own time zone.",
       "hourFallbackHint": "For people whose profile states no working hours, in their own time zone.",
       "save": "Save",
-      "saved": "Nightly suggestions saved",
-      "off": "Nightly suggestions are off",
+      "saved": "Background settings saved",
+      "off": "Background features are off",
       "invalid": "Enter an amount in dollars, 0 or more.",
       "welcome": "Welcome message in chat apps",
       "welcomeHint": "A new member gets a direct message from your Slack, Teams and Mattermost bots.",
@@ -9782,8 +9825,6 @@
     },
     "systemAgents": {
       "configure": "Configure model and budget",
-      "title": "Background services",
-      "description": "Model-powered platform services. Expand a service to configure its model and budget. Usage and recent runs stay visible below.",
       "on": "On",
       "off": "Off",
       "enabled": "Run this role",
@@ -9810,8 +9851,7 @@
           "what": "Reads a finished chat once and records the durable facts, preferences and decisions in it, in the conversation's own scope. Nothing runs while it is off or has no model."
         }
       },
-      "starterAgentMissing": "This role does nothing right now: the AgenticOS starter agent it is recorded under is missing, unpublished or renamed. Publish it again under the agenticos handle.",
-      "summary": "Models, budgets and recent runs for platform services."
+      "starterAgentMissing": "This role does nothing right now: the AgenticOS starter agent it is recorded under is missing, unpublished or renamed. Publish it again under the agenticos handle."
     }
   },
   "theme": {
@@ -10422,7 +10462,24 @@
     "noRoutineMatchesHint": "Try an agent name, routine title or words from its message.",
     "setupRequired": "Setup required",
     "setupRequiredHint": "Saved and paused. Repair the sources, review access, then enable this routine.",
-    "setupOwnerRequired": "Saved and paused. Its creator must repair and review the sources."
+    "setupOwnerRequired": "Saved and paused. Its creator must repair and review the sources.",
+    "filteredEventTitle": "Latest filtered GitHub event",
+    "filteredEventHint": "The latest retained sample of verified filter rejections is shown, updated at most once a minute. It did not start a run. Payload content is not stored.",
+    "filteredEventEmpty": "No filtered event has been recorded yet. This does not confirm that a webhook has arrived.",
+    "filteredEventError": "Could not read filtered event diagnostics",
+    "filteredEventPolicy": "Author filter at receipt: {policy}",
+    "filteredEventReason": {
+      "event": "The event type did not match.",
+      "action": "The event action did not match.",
+      "bot": "The sender was a bot.",
+      "ignored_login": "The sender matched the excluded connected account.",
+      "author": "The author association was excluded by the author filter.",
+      "draft": "The pull request was opened as a draft.",
+      "branch": "The branch did not match.",
+      "mention": "The comment did not contain the required mention.",
+      "conclusion": "The workflow conclusion did not match.",
+      "not_branch": "The push deleted a branch or was not a branch push."
+    }
   },
   "portals": {
     "backToServices": "Back to services",
@@ -10504,7 +10561,18 @@
     "installationIdLabel": "Installation ID",
     "mailLabelFilter": "Gmail label ID",
     "mailFolderFilter": "Mailbox folder",
-    "sharedMailboxFilter": "Shared mailbox"
+    "sharedMailboxFilter": "Shared mailbox",
+    "githubAuthorsLabel": "Whose events can start this routine",
+    "githubAuthors": {
+      "members": "Repository members (default)",
+      "contributors": "Members and contributors",
+      "anyone": "Anyone"
+    },
+    "githubAuthorsHint": {
+      "members": "OWNER, MEMBER and COLLABORATOR. External contributors are excluded. Bots and the connected account remain excluded.",
+      "contributors": "OWNER, MEMBER, COLLABORATOR and CONTRIBUTOR. First-time contributors are excluded. Bots and the connected account remain excluded.",
+      "anyone": "All author associations, including first-time contributors and people with no prior contributions. Bots and the connected account remain excluded."
+    }
   },
   "agentTemplates": {
     "browse": "Agent templates",
@@ -11115,7 +11183,96 @@
       "approvalRequested": "{agent} is waiting on your approval",
       "budgetExceeded": "{agent} stopped: {scope, select, agent {its monthly budget} group {a department's monthly budget} department {the {department} department's monthly budget} organization {the organization's monthly budget} other {a spending limit}} is used up ({spent} spent of {limit})",
       "budgetWarning": "{group} has used {share}% of its {limit} monthly budget.",
-      "workflowApproval": "Approval needed: {title}"
+      "workflowApproval": "Approval needed: {title}",
+      "runCompleted": "{agent} finished a run.",
+      "routineFinished": "{routine} finished.",
+      "routineFinishedExcerpt": "{routine}: {excerpt}",
+      "answeredWhileAway": "{agent} answered while you were away.",
+      "answerFailed": "{agent} could not finish its answer: {error}",
+      "runFailed": "{agent}'s run failed.",
+      "runFailedError": "{agent}'s run failed: {error}",
+      "routineBudgetPaused": "{named, select, yes {{routine}} other {Your routine}} is waiting: {kind, select, watch {your monthly proactive-work budget} other {its monthly routine budget}} of {limit} is used up ({spent} spent). {kind, select, watch {Ask an administrator to review the limit} other {Increase the limit}} or wait for the next month to resume.",
+      "routineBlocked": "{named, select, yes {{routine}} other {Your routine}} needs attention: {detail}",
+      "routineDetail": {
+        "run_failed": "The run did not finish successfully. Review Activity before retrying.",
+        "run_budget": "The run stopped on a spending limit. Review its budget and Activity.",
+        "run_guardrail": "A guardrail stopped the run. Review Activity and its policy.",
+        "trigger_auto_stopped": "Paused automatically after {failures, plural, one {# unsuccessful execution} other {# unsuccessful executions}}. Review Activity and resume when ready.",
+        "computer_start_failed": "Three attempts to start on its computer failed before model admission. Review the failure before resuming.",
+        "review_sources": "Review this routine's sources in its settings before running it again.",
+        "desktop_review": "Review its device, folder and operations in the desktop app, then resume it.",
+        "computer_waiting": "Waiting for its approved computer. Reconnect it or review this routine's folder permission in the desktop app.",
+        "source_changed": "A reviewed source is unavailable or changed. Inspect its connection and the routine's sources.",
+        "agent_misconfigured": "The agent cannot run with its current configuration. Review its published version and routine settings.",
+        "chat_unavailable": "Its answer is in Activity, but its chosen chat is unavailable.",
+        "needs_agent": "Select its agent and approve its sources.",
+        "access_revoked": "Review its account connection and current access.",
+        "source_unavailable": "Its source cannot currently be read.",
+        "not_completed": "Its check did not complete successfully; review Activity.",
+        "budget_paused": "Its check reached a run limit; review Activity and its budget.",
+        "delivery_unavailable": "Its source chat is unavailable. Review its delivery destination.",
+        "watch_auto_stopped": "Paused automatically after {failures, plural, one {# unsuccessful check} other {# unsuccessful checks}}. Review Activity and resume when ready."
+      },
+      "capabilityRequested": "{requester} asked for {capability} in {agent}: {reason}",
+      "suggestionsReady": "AgenticOS has {count, plural, one {a new suggestion} other {# new suggestions}} for you.",
+      "briefing": "Your watches found {count, plural, one {# new thing} other {# new things}}.",
+      "ingestionFailed": "“{file}” failed to ingest: {error}",
+      "syncCompleted": "Sync of “{collection}” finished: {ingested} ingested, {updated} updated, {skipped} skipped, {removed} removed, {failed} failed.",
+      "syncFailed": "Sync of {named, select, yes {“{collection}”} other {a source with no collection}} failed: {error}",
+      "artifactVersionPublished": "“{title}” has a new version (v{version}).",
+      "artifactOwnerGiven": "{by} made you the owner of {title}. Its data stays hidden from others until you confirm it.",
+      "artifactOwnerTaken": "{by} made {owner} the owner of {title}.",
+      "resourceShared": "“{name}” was shared with {group}.",
+      "conversationShared": "{by} shared {titled, select, yes {“{title}”} other {a conversation}} with you.",
+      "mcpServerDown": "The MCP server {server} stopped answering. Agents bound to it run without its tools until it is back.",
+      "mcpServerRecovered": "The MCP server {server} is answering again.",
+      "verdict": {
+        "passed": "passed",
+        "failed": "failed",
+        "inconclusive": "inconclusive",
+        "baseline_set": "baseline set"
+      },
+      "evalSuiteReevaluated": "{suite} on {agent}: {previous} → {status} after review. Promotion requires a person.",
+      "evalSuiteFailed": "{suite} {failed, select, yes {failed} other {could not decide}} on {versioned, select, yes {{agent} v{version}} other {{agent}}}: {reasons}.",
+      "evalSuiteCases": "{failed, select, yes {Failing} other {Undecided}}: {cases}{more, plural, =0 {.} other { and # more.}}",
+      "evalReason": {
+        "passRateBelow": "pass rate {value, number, percent} is below {limit, number, percent}",
+        "nothingGraded": "no case could be graded",
+        "regressions": "{count, plural, one {# case breaks reproducibly} other {# cases break reproducibly}}",
+        "costRise": "cost per passed case rose {value, number, percent}",
+        "costRiseFromZero": "cost per passed case rose from zero, exceeding every percentage ceiling",
+        "latencyRise": "p95 latency rose {value, number, percent}",
+        "latencyRiseFromZero": "p95 latency rose from zero, exceeding every percentage ceiling",
+        "ungraded": "{count, plural, one {# case nothing grades} other {# cases nothing grades}}",
+        "incomplete": "{count, plural, one {# case the provider or a scorer failed on} other {# cases the provider or a scorer failed on}}",
+        "crashed": "the agent's run failed on {count, plural, one {# case} other {# cases}}",
+        "invalid": "the comparison is invalid",
+        "belowThreshold": "below its threshold"
+      },
+      "promotionOverridden": "v{version} of {agent} went to {environment} without passing {suites}: {reason}",
+      "sharedChangeApplied": "{named, select, yes {A change to the {kind, select, context {context file} other {skill}} {name} went live for {agent}} other {A change to a {kind, select, context {context file} other {skill}} it reads went live for {agent}}}",
+      "securityEvent": {
+        "admin_user_impersonate": "An administrator started impersonating a user.",
+        "admin_user_impersonation_ended": "An administrator ended an impersonation session.",
+        "admin_user_update": "An administrator updated a user account.",
+        "admin_user_delete": "An administrator deleted a user account.",
+        "secret_created": "A vault secret was created.",
+        "secret_rotated": "A vault secret was rotated.",
+        "secret_updated": "A vault secret was updated.",
+        "secret_deleted": "A vault secret was deleted.",
+        "sandbox_connection_created": "A sandbox connection was created.",
+        "sandbox_connection_deleted": "A sandbox connection was deleted."
+      },
+      "securityEventOther": "A privileged action was recorded: {action}",
+      "backgroundTaskPaused": "Background jobs of the kind {kind} are paused{scoped, select, yes { for {organization}} other {}}: {reason}. Resume them on the Background jobs page once the cause is fixed.",
+      "configurationChanged": "The deployment's settings were updated.",
+      "usageReport": "Usage report for {name}",
+      "workflowLogAlert": "{rule}: {count, plural, one {# occurrence} other {# occurrences}} in the log of {workflow} in the last {unit, select, hours {{hours, plural, one {# hour} other {# hours}}} other {{minutes, plural, one {# minute} other {# minutes}}}}.",
+      "coalesced": {
+        "securityEvent": "More security events arrived in one minute than this inbox lists individually. Every one of them is in the audit log.",
+        "configurationChanged": "The deployment's settings were changed more times in one minute than this inbox lists individually. Every change is in the audit log.",
+        "backgroundTaskPaused": "More kinds of background job were paused in one minute than this inbox lists individually. Every one is on the Background jobs page."
+      }
     },
     "needsAttention": "Needs attention"
   },
@@ -11266,6 +11423,12 @@
     "panelProblemsCount": "{count, plural, =1 {1 problem} other {# problems}}",
     "nodeFormNoFields": "This node has no configurable fields.",
     "nodeFormAddRow": "Add row",
+    "nodeFormFilterColumn": "Column",
+    "nodeFormFilterColumnPlaceholder": "Choose a column",
+    "nodeFormFilterColumnNoTable": "Choose a table first",
+    "nodeFormFilterValue": "Value",
+    "nodeFormFilterValuePlaceholder": "Choose an option",
+    "nodeFormFilterOptionArchived": "{label} (archived)",
     "nodeFormRow": "Row {index}",
     "nodeFormMoveUp": "Move row {index} up",
     "nodeFormMoveDown": "Move row {index} down",
@@ -11373,6 +11536,7 @@
     "bindingJsonInvalid": "This is not valid JSON, so it was not saved.",
     "validationTriggerNotEntry": "Use one trigger of each unattended kind.",
     "triggerHintManual": "Start it with Run - at the editor's top right - or from its runs page. Declare fields to be asked for them when it starts.",
+    "dataValueSetOnce": "Set once per run and never overwritten: later steps read this value but cannot change it. To change it, add a step that builds a new value from it.",
     "triggerHintChat": "Members pick this workflow in the chat. The steps after it read the message as prompt, with the conversation and who sent it.",
     "triggerHintWebhook": "Publishing gives this workflow its own address and signing secret, which stay the same when you publish again. The steps after it read the delivery's JSON as body.",
     "publishTrigger": "It starts from {trigger}. A webhook, schedule or table trigger runs as you once it is published.",
@@ -12302,12 +12466,7 @@
       "nameLabel": "Name",
       "descriptionPlaceholder": "What the records are, and who fills them in",
       "descriptionLabel": "Description",
-      "visibilityLabel": "Visibility",
-      "visibility": {
-        "private": "Private",
-        "team": "Team",
-        "org": "Organization"
-      },
+      "audienceLabel": "Who can see it",
       "columnPlaceholder": "Column label",
       "columnLabel": "Column label",
       "columnType": "Column type",
@@ -12934,6 +13093,7 @@
     "mappingDeleted": "Mapping deleted"
   },
   "apiKeys": {
+    "personalMcpWhy": "Personal MCP delegation is excluded from every preset. Select mcp:personal:use and agents:run under Custom to let this key or app use your own MCP connections in external agent runs. Anyone holding the credential can use those connections as you. It does not open personal memory, chat history or signed-in browser sessions.",
     "title": "API keys",
     "why": "Keys let a script, an HTTP client or an MCP client call this organization's API as you, narrowed to what you pick. A key never does more than you can today.",
     "createTitle": "Create key",
@@ -13173,12 +13333,7 @@
     "description": "The assistant in the corner of every page, for everyone who may run agents. It is an agent like any other: its name, model and knowledge are edited in the Agent Builder, and its cost counts like any agent's.",
     "openBuilder": "Open in Agent Builder",
     "enabled": "Switched on",
-    "enabledHint": "Off, it disappears from every page for everyone in the organization, and nobody can run it.",
-    "needsModel": "It has no model yet, so it cannot answer. Choose one under Model in the Agent Builder.",
-    "greeting": "Greeting",
-    "greetingHint": "What it says when somebody opens it. Leave empty for the default.",
-    "save": "Save",
-    "summary": "Configure the workspace assistant and its greeting."
+    "needsModel": "It has no model yet, so it cannot answer. Choose one under Model in the Agent Builder."
   },
   "capabilityGuide": {
     "artifacts": {
@@ -14017,6 +14172,10 @@
       "max_characters": {
         "title": "Longest text",
         "description": "The most text one call may speak, which caps what a single call can cost."
+      },
+      "use_organization_defaults": {
+        "title": "Use organization defaults",
+        "description": "Inherit the organization's provider, model, voice and key as one group. Turn off to choose an agent override."
       }
     },
     "video_generation": {
@@ -15704,7 +15863,7 @@
     "group": "{name} · {count, plural, =1 {1 run} other {# runs}}",
     "trend": {
       "label": "Pass rate by run",
-      "single": "One run so far. Run another to see a trend.",
+      "soFar": "{count, plural, one {One run so far.} other {# runs so far.}} A trend needs at least three; {count, plural, one {run two more to see one.} other {run another to see one.}}",
       "legend": "Each point is a run, oldest on the left; hover one for what ran, against what and when, and click it to open the run.",
       "range": "Runs shown",
       "last": "Last {count}",
@@ -16414,10 +16573,10 @@
     "trainQuestion": "Used to write the changes",
     "holdoutQuestion": "Not used to write the changes",
     "sourceSignals": "Sources to learn from",
-    "signalWindow": "Feedback and failed runs from the last 30 days, plus failures from the latest test.",
+    "signalWindow": "{count, plural, one {# selected source example} other {# selected source examples}} from the last 30 days, up to {limit}. Includes earlier agent versions and reviewed test answers.",
     "ratedSignals": "Answers rated down",
-    "failedSignals": "Runs that failed",
-    "noLearningExamples": "Nothing to learn from yet: nobody rated an answer in the last 30 days. Rate an answer or write test questions first.",
+    "failedSignals": "Unrated runs that failed",
+    "noLearningExamples": "Nothing to learn from yet: no readable source examples in the last 30 days. Rate an answer or run and review test questions first.",
     "evidenceSample": "{count} selected examples, up to {limit}. Sources that were erased or are no longer readable are omitted.",
     "unknownCauses": "Some answers have no recorded cause. They remain unclassified and are shown with the agent examples for review.",
     "cause": {
@@ -16450,7 +16609,7 @@
     "baseline": "Test how the agent answers today",
     "estimate": "Estimate again",
     "estimating": "Estimating the time and cost…",
-    "sessionQuote": "Up to {cost} (estimate) to sort the {answers, plural, one {# answer} other {# answers}} with feedback. Each attempt after that takes about {minutes, plural, one {# minute} other {# minutes}} and costs roughly {perRound}, priced again before you press it; the limit of {limit} caps the whole session.",
+    "sessionQuote": "Up to {cost} (estimate) to sort {answers, plural, one {# selected source example} other {# selected source examples}}. Each attempt after that takes about {minutes, plural, one {# minute} other {# minutes}} and costs roughly {perRound}, priced again before you press it; the limit of {limit} caps the whole session.",
     "evidence": "Based on {count, plural, one {# answer} other {# answers}} with feedback.",
     "budget": "Session spending limit (USD)",
     "start": "Start improving",
@@ -16989,7 +17148,9 @@
     "evidenceOnly": {
       "body": "Every question of this dataset comes from the conversations this change learned from, so none of them can test it.",
       "addQuestions": "Add questions from other conversations"
-    }
+    },
+    "likedSignals": "Answers rated up",
+    "reviewedSignals": "Other reviewed test answers"
   },
   "unsaved": {
     "title": "You have unsaved changes",
@@ -18048,6 +18209,10 @@
       "data_map": {
         "name": "Map fields",
         "description": "Pick values out of earlier outputs and give each one a type."
+      },
+      "data_value": {
+        "name": "Data",
+        "description": "Hold an object, a list or a value for later steps. Set once per run."
       },
       "debug_echo": {
         "name": "Echo",
@@ -20856,8 +21021,29 @@
     "deleteBlocked": "Remove the subscriptions listed above before deleting this source.",
     "sourceRoutine": "Create routine from an event source",
     "credentialHelp": "Enter the sender’s secret. Existing credentials are never shown.",
+    "filters": {
+      "event_types": "Event types",
+      "actions": "Actions",
+      "subscription_types": "Subscription types",
+      "property_names": "Property names",
+      "help": "Separate values with commas. Leave a filter blank to match any value."
+    },
     "eventPreset": "Events for this routine",
     "currentFilters": "Current or default filters",
     "presetError": "Event presets could not be loaded."
+  },
+  "personalModelKeys": {
+    "title": "Your model connection",
+    "fixed": "Model: {model}. Destination: {endpoint}.",
+    "connected": "Your key is saved. Replace it here if authentication fails.",
+    "required": "Connect your own API key before sending a message.",
+    "key": "Your API key",
+    "replace": "Replace key",
+    "connect": "Connect key",
+    "privacy": "Saved privately in the vault. Never sent in chat. No organization-key fallback.",
+    "vaultHelp": "These keys belong only to you. Connect or replace them in the agent’s chat settings. Removing a key blocks future runs until you reconnect.",
+    "remove": "Remove connection",
+    "loading": "Loading connections…",
+    "defaultEndpoint": "Provider default"
   }
 }

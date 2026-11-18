@@ -1,5 +1,5 @@
 ---
-source_sha: "e5bb1f6cfb6a"
+source_sha: "51a34ace781e"
 ---
 
 # Workflows { #workflows }
@@ -895,8 +895,11 @@ jest portem wyjściowym kroku, więc workflow idzie dalej tym, który wybrał za
 a zdecydowany wiersz go wymienia. Edycja idzie z dowolnym naciśniętym przyciskiem.
 
 
-Na liście wersja testowego przebiegu to **Draft (test)**, a prawdziwego
-**Published**, a przebieg uruchomiony z konsoli albo przez HTTP API ma **Console or
+Na liście test całej wersji roboczej ma **Draft (test)**, [test jednego kroku](#a-steps-data-pinning-and-testing-one-step)
+**Step test** z nazwą kroku, a prawdziwy przebieg **Published**. **Version** może
+pokazać same testy kroków albo je pominąć.
+
+Przebieg uruchomiony z konsoli albo przez HTTP API ma **Console or
 API**. **Status**, **Version**, **Started by** i **Started** (ostatnia godzina, doba, tydzień
 albo 30 dni) zawężają przebiegi, a lista odpowiada po
 jednej stronie naraz; każdy filtr trafia do adresu, więc przefiltrowaną listę można

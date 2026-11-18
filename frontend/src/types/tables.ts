@@ -246,6 +246,9 @@ export interface TableCreate {
   name: string;
   description?: string | null;
   visibility?: TableVisibility;
+  /** Shared with each as it is created, which makes it private (#2072). */
+  group_ids?: string[];
+  user_ids?: string[];
   columns?: ColumnInput[];
 }
 

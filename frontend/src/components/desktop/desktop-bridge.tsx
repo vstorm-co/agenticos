@@ -7,6 +7,7 @@ import { DesktopActivityBridge } from "./desktop-activity-bridge";
 
 import { useDesktopSmoothScroll } from "@/hooks/use-desktop-smooth-scroll";
 
+import { notificationSummary } from "@/lib/notification-summary";
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -66,6 +67,8 @@ export function DesktopBridge() {
 
 function Bridge({ shell }: { shell: ShellInfo }) {
   const t = useTranslations("desktop.notifications");
+  const tNotifications = useTranslations("notifications");
+  const tStop = useTranslations("improvement.stop");
   const router = useRouter();
   const { can } = usePermissions();
   const delivery = useDesktopNotifier();
@@ -152,13 +155,13 @@ function Bridge({ shell }: { shell: ShellInfo }) {
         {
           kind: "inbox",
           title: row.agent?.name ?? t("inboxTitle"),
-          body: row.summary,
+          body: notificationSummary(row, tNotifications, tStop),
           path: notificationPath(row),
         },
         row.event_type,
       ).catch((error: unknown) => reportShellFailure("could not notify", error));
     }
-  }, [inbox, t, sendNotice]);
+  }, [inbox, t, tNotifications, tStop, sendNotice]);
 
   useShellEvent("desktop:question", (value) => {
     if (

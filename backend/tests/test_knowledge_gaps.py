@@ -921,3 +921,20 @@ class TestTheImprovementEstimate:
             await self._estimate(
                 self._embeddings("no-such-embedder", EmbeddingKeySource.ORGANIZATION)
             )
+
+
+@pytest.mark.parametrize(
+    ("legacy", "current"),
+    [("answer", "did_not_know"), ("rating", "missing_information"), ("none", "no_gap")],
+)
+def test_legacy_classifier_labels_pass_transport_validation_before_normalization(
+    legacy: str, current: str
+) -> None:
+    from jsonschema import Draft202012Validator
+
+    from app.schemas.knowledge_gap import KnowledgeGapClassification as ClassificationOutput
+    from app.services.system_agent_runner import output_schema, read_output
+
+    answer = {"answers": [{"number": 1, "signal": legacy}]}
+    Draft202012Validator(output_schema(ClassificationOutput)).validate(answer)
+    assert read_output(answer, ClassificationOutput).answers[0].signal == current

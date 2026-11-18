@@ -16,6 +16,7 @@ import type {
   CreateOrganizationInput,
   ProactivityChanges,
   VoiceSettingsUpdate,
+  TextToSpeechSettingsUpdate,
   WelcomeDmChanges,
 } from "@/types";
 
@@ -267,7 +268,10 @@ export function useOrganizations() {
   // Five fields in one request, because the server validates them together: a
   // provider without its model, or `server` without either, is refused whole.
   const setVoiceSettings = useCallback(
-    async (id: string, settings: VoiceSettingsUpdate): Promise<Organization> => {
+    async (
+      id: string,
+      settings: VoiceSettingsUpdate | TextToSpeechSettingsUpdate,
+    ): Promise<Organization> => {
       const updated = await apiClient.patch<Organization>(`/orgs/${id}`, settings);
       writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
       // Every agent's dictation readiness inherits from these settings.

@@ -81,6 +81,7 @@ export const eventSourcesApi = {
     input: {
       prompt: string;
       payload: Record<string, unknown>;
+      result_mode: "report" | "inbox";
       source_id?: string;
       trigger_id?: string;
     },

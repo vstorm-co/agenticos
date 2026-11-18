@@ -1,5 +1,5 @@
 ---
-source_sha: "cd9dbfb49b0b"
+source_sha: "5eb8b938b5d7"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -65,6 +65,18 @@ La CI de versiones crea paquetes nativos para Mac (Apple silicon e Intel), Windo
 Tras una actualización con firma ad-hoc, macOS puede volver a solicitar acceso al micrófono, grabación de pantalla, accesibilidad o llavero. Si se pierde el emparejamiento del dispositivo, vuelve a conectarlo. Las firmas de actualización verifican el paquete, pero no proporcionan una identidad de firma estable de Apple.
 
 Cuando el workflow de versiones tiene un certificado autofirmado estable (`scripts/create_macos_signing_cert.sh` crea uno), macOS conserva los permisos de grabación de pantalla y micrófono entre actualizaciones, porque están ligados a la identidad de firma. Créalo una vez y no lo sustituyas nunca: un certificado nuevo vuelve a preguntar a todos. Autofirmar no elimina la advertencia de Gatekeeper; solo lo hacen la firma Developer ID y la notarización.
+
+## Paquete nativo de Arch Linux { #native-arch-linux-package }
+
+Descarga `agenticos-VERSION-1-x86_64.pkg.tar.zst` de la versión de GitHub e instálalo con `sudo pacman -U ./agenticos-VERSION-1-x86_64.pkg.tar.zst`. Sustituye `VERSION` por el número de versión. Pacman resuelve las dependencias del sistema declaradas, incluido WebKitGTK 4.1. El paquete no incluye su propio WebKitGTK ni la biblioteca cliente de Wayland.
+
+Antes de instalar, descarga también `SHA256SUMS.arch` y compruébalo con `sha256sum -c SHA256SUMS.arch`. Estos paquetes no están firmados por el llavero de Arch Linux.
+
+Para actualizar, descarga el paquete más reciente y vuelve a ejecutar `pacman -U`. Elimínalo con `sudo pacman -R agenticos`; los ajustes personales permanecen en tu directorio de usuario. **Check for Updates…** explica esta política del gestor de paquetes en lugar de descargar un AppImage. No hay un repositorio automático de pacman ni una publicación oficial en AUR.
+
+La receta mantenida está en `packaging/arch/PKGBUILD.in`. `scripts/build_arch_package.sh OUTPUT_DIRECTORY` genera una receta con versión y un archivo con suma de comprobación desde el commit actual de Git y ejecuta makepkg como usuario normal. Compila en un entorno Arch x86_64 actualizado con las dependencias indicadas en la receta. El workflow de publicación repite la compilación para cada versión de la plataforma; las dependencias de la distribución continua se resuelven al compilar.
+
+El trabajo CI nativo de Arch instala el paquete, actualiza su revisión, comprueba la propiedad y eliminación de archivos y ejecuta la prueba aislada de renderizado WebKit del programa instalado bajo Xvfb/X11 y Weston/Wayland sin pantalla. El artefacto `arch-native` registra rutas de bibliotecas, versiones de paquetes y logs de renderizado. Estas pruebas con renderizado por software no demuestran compatibilidad con todas las GPU físicas, versiones de Mesa, compositores ni instalaciones de CachyOS.
 
 ## Ejecutarla { #running-it }
 
@@ -157,7 +169,7 @@ la app no requiere Git, Python, uv ni Node.js en el equipo.
 
 Las instancias nuevas fijan la versión de plataforma incluida con la app.
 Actualizar la app de escritorio no cambia automáticamente una instancia en uso.
-**Update** descarga las imágenes correspondientes, pausa las escrituras y guarda
+**Update local workspace** descarga las imágenes correspondientes, pausa las escrituras y guarda
 una copia de la base de datos, los archivos multimedia y las claves de despliegue
 en el directorio privado `backups/` antes de actualizar. Si falla la copia, se
 bloquea la actualización. Las copias contienen datos personales y requieren
@@ -186,8 +198,7 @@ o abrir una sesión.
 
 La pantalla local muestra las instancias guardadas, sus direcciones y estado.
 **Start and connect** inicia la elegida; **Finish setup** reintenta una instalación
-interrumpida conservando archivos y claves. Start, Stop y Update del menú actúan
-sobre la instancia administrada conectada. Conectarse a un entorno de desarrollo
+interrumpida conservando archivos y claves. Start y Stop del menú actúan sobre la instancia administrada conectada. **Update local workspace…** abre la lista de instancias locales. Conectarse a un entorno de desarrollo
 iniciado externamente no lo convierte en una instancia administrada.
 
 Una instancia local ejecuta la API, el worker, la consola, la base de datos y
@@ -204,6 +215,23 @@ estos archivos ni en argumentos de Docker. Las claves del despliegue permanecen
 en su `.env` privado; las de proveedores se guardan en la bóveda del servidor.
 El asistente nativo usa un foco de teclado neutro y no enfoca automáticamente
 los botones de selección.
+
+La aplicación de escritorio y el espacio de trabajo se actualizan por separado.
+En el menú principal de macOS, elige **AgenticOS → Update local workspace…**; en
+Windows y Linux, usa el menú de la bandeja. La acción también aparece junto a cada
+instancia instalada en **Change server… → On this computer**. La lista muestra la
+versión de la aplicación, la versión configurada del espacio y la versión de destino
+incluida con la aplicación.
+
+En un espacio antiguo sin versión fija, esta figura
+como desconocida; el actualizador la comprueba antes de cambiar nada. No se permite volver a una versión anterior. Si el espacio ya está actualizado, **Reapply workspace update** permite recuperarlo tras un reinicio o una migración interrumpidos.
+
+Elige **Update local workspace** y confirma el aviso nativo de copia de seguridad
+y reinicio. La lista muestra la descarga de imágenes, la copia y el reinicio, y
+luego permite volver a conectarse. Si falla, muestra el error y permite reintentar;
+cancelar deja el espacio sin cambios. **Check for Updates…** solo actualiza la
+aplicación de escritorio e indica la acción separada del espacio, incluso cuando
+la aplicación está al día. Esta ruta funciona también con una consola anterior.
 
 ## Configuración de conexión y estado de la aplicación { #connection-setup-and-app-readiness }
 
@@ -655,6 +683,10 @@ permisos de consola ni archivos; solo pueden notificar una toma de control.
 ## Instaladores y actualizaciones { #installers-and-updates }
 
 El workflow Apps también genera instaladores de desarrollo y comprueba la instalación sin automatizar la interfaz: copia de la app Mac desde el DMG, instalación y desinstalación silenciosas en Windows, instalación y eliminación de Debian y extracción del AppImage portátil. Verifica el widget integrado de macOS y las firmas, el aislamiento de la sesión persistente y el rechazo de descargas de actualización modificadas. Usa compilaciones ad-hoc o sin firma y no acredita notarización pública ni aprobación de tiendas.
+
+La CI de instaladores y las compilaciones de versiones para Linux también inspeccionan el AppImage extraído y rechazan la biblioteca cliente de Wayland incluida (`libwayland-client.so*`), que puede entrar en conflicto con el controlador Mesa del sistema y provocar un fallo de WebKitGTK. La validación se ejecuta antes de subir los instaladores y las firmas de actualización. Esta comprobación de bibliotecas no confirma la compatibilidad de renderizado con todos los compositores Wayland o GPU.
+
+Al ejecutar manualmente un tag antiguo sin `scripts/build_linux_desktop_release.sh`, el trabajo de Linux compila directamente con Tauri y registra una advertencia de que la validación de AppImage previa a la subida no está disponible. Los tags que contienen el wrapper conservan esa validación; un fallo de compilación o validación sigue impidiendo la publicación del manifiesto de actualización.
 
 El workflow **Apps** de GitHub Actions comprueba los crates nativos en macOS,
 Windows y Linux y construye APK de depuración Android y la aplicación del

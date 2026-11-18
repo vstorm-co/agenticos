@@ -1171,7 +1171,7 @@ class AgentSession:
                 # write. A failure is reported below, before the turn completes.
                 answered = True
                 if assistant_msg_id is not None:
-                    await self._remember_context(turn)
+                    await self._remember_context(turn, through_message_id=assistant_msg_id)
                 if turn.run_id is not None and not turn.parked and not turn.questions:
                     # Only an answer that is there to come back to. A write that
                     # failed returns no id, and "answered while you were away"
@@ -1628,11 +1628,11 @@ class AgentSession:
         frame = {"services": [gap.model_dump(mode="json") for gap in gaps]}
         await self._emit("personal_services_unavailable", frame)
 
-    async def _remember_context(self, turn: ChatTurn) -> None:
+    async def _remember_context(self, turn: ChatTurn, *, through_message_id: str) -> None:
         """Record what this turn learned about the thread's own context.
 
-        The summary it produced, so the next turn starts from it rather than
-        buying another; and what a request here carries before a single message,
+        Its model-history checkpoint, so the next turn retains tool evidence
+        and discovery; and what a request here carries before a single message,
         so the next turn can tell a window with no room for a summary from one
         that works before it has a response of its own to measure.
 
@@ -1644,18 +1644,21 @@ class AgentSession:
         time this runs, and its own for a second reason - a failure to record
         either must cost the record, not the answer somebody is reading.
         """
-        if turn.summarized_history is None and turn.overhead_tokens is None:
+        if turn.history_snapshot is None and turn.overhead_tokens is None:
             return
         # Called from inside the branch that has one, which is also the branch
         # that has just written the rows this is measured against.
         conversation_id = UUID(str(self.current_conversation_id))
         async with get_db_context() as db:
             conversations = ConversationService(db)
-            if turn.summarized_history is not None:
+            if turn.history_snapshot is not None:
                 await conversations.keep_summary(
                     conversation_id,
-                    turn.summarized_history,
+                    turn.history_snapshot,
                     expected_revision=turn.history_revision,
+                    expected_frontier=turn.history_frontier,
+                    through_message_id=through_message_id,
+                    provenance=turn.history_provenance,
                 )
             if turn.overhead_tokens is not None:
                 await conversations.keep_overhead(conversation_id, turn.overhead_tokens)

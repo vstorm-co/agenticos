@@ -326,6 +326,20 @@ async def test_invalid_source_update_is_a_domain_refusal_without_mutating_creden
 
 
 @pytest.mark.security
+async def test_update_rejects_the_existing_providers_signature_as_a_delivery_id(ctx, source, setup):
+    service, _, saved = setup
+    source.provider = "hubspot"
+    source.auth = SourceAuth(method="provider").model_dump()
+    with pytest.raises(BadRequestError) as refusal:
+        await service.update(
+            ctx, source.id, EventSourceUpdate(delivery_id_header="X-HubSpot-Signature")
+        )
+    assert refusal.value.details["fields"][0]["field"] == "delivery_id_header"
+    assert source.delivery_id_header == "x-event-id"
+    assert saved == []
+
+
+@pytest.mark.security
 @pytest.mark.parametrize(
     "credentials",
     [

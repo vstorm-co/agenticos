@@ -13,7 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.config import settings
-from app.core.exceptions import AppException, AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AppException,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+    RateLimitError,
+)
 from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
@@ -47,6 +53,7 @@ from app.services import trigger_events
 from app.services.access import AGENT, EVENT_SOURCE, WORKFLOW, accessible_ids, resolve_access
 from app.services.background_jobs import enqueue
 from app.services.event_source_auth import standard_key, verify_source
+from app.services.workflow_execution.exceptions import WorkflowAdmissionQuotaError
 from app.workflows.graph.model import jsonb_value_fits
 
 _BODY = TypeAdapter(JsonObject)
@@ -394,6 +401,7 @@ class EventSourceService:
         self, source_id: UUID, *, body: bytes, headers: Mapping[str, str]
     ) -> tuple[EventSource, EventDelivery, bool]:
         """Verify once, persist receipt and one durable dispatch per subscription atomically."""
+        from app.services.agent_trigger import AgentTriggerService
         from app.worker.jobs import DISPATCH_SOURCE_EVENT, DispatchSourceEvent
 
         source = await repo.get(self.db, source_id, lock=True)
@@ -432,7 +440,9 @@ class EventSourceService:
             raise BadRequestError(message="A webhook body must be a JSON object") from exc
         if auth.method == "standard_webhooks":
             external_id = headers.get("webhook-id") or None
-        elif source.delivery_id_header:
+        elif source.delivery_id_header and not auth.reserves_header(
+            source.provider, source.delivery_id_header
+        ):
             external_id = headers.get(source.delivery_id_header) or None
         elif auth.method in {"api_key", "hmac"} and auth.header_name == "x-delivery-id":
             # The default delivery ID header can also be configured for authentication.
@@ -458,10 +468,16 @@ class EventSourceService:
             ):
                 version_id = None
                 principal_id = None
+                policy_id = None
                 if sub.trigger_id:
-                    target_trigger = await trigger_repo.get_by_id(self.db, sub.trigger_id)
+                    target_trigger = await trigger_repo.get_by_id(
+                        self.db, sub.trigger_id, fresh=True
+                    )
                     if not target_trigger or not target_trigger.is_active:
                         continue
+                    policy_id = await AgentTriggerService(self.db).source_admission_policy(
+                        target_trigger
+                    )
                 else:
                     target_exposure = await exposure_repo.get_by_id(
                         self.db, cast(UUID, sub.exposure_id)
@@ -476,6 +492,7 @@ class EventSourceService:
                         organization_id=source.organization_id,
                         delivery_id=receipt.id,
                         subscription_id=sub.id,
+                        routine_source_policy_id=policy_id,
                         workflow_version_id=version_id,
                         workflow_principal_user_id=principal_id,
                     ),
@@ -506,7 +523,7 @@ class EventSourceService:
             if receipt
             else None
         )
-        row.status = "skipped"
+        status = "skipped"
         if (
             source
             and source.is_active
@@ -524,12 +541,14 @@ class EventSourceService:
                         admitted = await AgentTriggerService(self.db).fire_source_delivery(
                             sub.trigger_id,
                             source_id=source.id,
+                            source_policy_id=row.routine_source_policy_id,
                             organization_id=organization_id,
                             body=receipt.body,
                             delivery_id=receipt.id,
+                            received_at=receipt.created_at,
                             headers=receipt.headers,
                         )
-                        row.status = "admitted" if admitted else "skipped"
+                        status = "admitted" if admitted else "skipped"
                     else:
                         from app.schemas.workflow_exposure import WebhookAdmitted
                         from app.services.workflow_exposure import WorkflowExposureService
@@ -546,16 +565,38 @@ class EventSourceService:
                             version_id=row.workflow_version_id,
                             principal_user_id=row.workflow_principal_user_id,
                         )
-                        row.status = (
+                        status = (
                             "admitted"
                             if isinstance(admitted_workflow, WebhookAdmitted)
                             else "skipped"
                         )
             except AppException as exc:
-                row.status = "failed"
+                if isinstance(exc, RateLimitError) or (
+                    isinstance(exc, WorkflowAdmissionQuotaError) and exc.can_fit_when_idle
+                ):
+                    await self._defer_dispatch(row)
+                    return
+                status = "failed"
                 row.error_code = exc.code
+        row.status = status
         row.completed_at = datetime.now(UTC)
         await repo.save(self.db, row)
+
+    async def _defer_dispatch(self, row: EventDispatch) -> None:
+        """Capacity waits can outlast a job's crash retries. Keep one delayed retry queued."""
+        from app.worker.jobs import DISPATCH_SOURCE_EVENT, DispatchSourceEvent
+
+        now = datetime.now(UTC)
+        # Waiting the elapsed age doubles the interval under sustained load.
+        delay = min(max(now - row.created_at, timedelta(minutes=1)), timedelta(minutes=15))
+        await enqueue(
+            self.db,
+            DISPATCH_SOURCE_EVENT,
+            DispatchSourceEvent(organization_id=row.organization_id, dispatch_id=row.id),
+            organization_id=row.organization_id,
+            run_after=now + delay,
+            dedupe_key=f"event-dispatch:{row.id}",
+        )
 
     async def _audit(self, ctx: AuthContext, source_id: UUID, action: str) -> None:
         await record_audit(

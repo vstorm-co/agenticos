@@ -17,6 +17,15 @@ from pydantic import (
 JsonObject = dict[str, JsonValue]
 Provider = Literal["github", "linear", "hubspot", "zendesk", "webhook"]
 
+SIGNATURE_HEADER = {
+    "github": "x-hub-signature-256",
+    "hubspot": "x-hubspot-signature-v3",
+    "linear": "linear-signature",
+    "webhook": "x-signature-256",
+    "zendesk": "x-zendesk-webhook-signature",
+}
+HUBSPOT_V1_SIGNATURE_HEADER = "x-hubspot-signature"
+
 
 class SourceAuth(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -28,6 +37,15 @@ class SourceAuth(BaseModel):
     signature_prefix: str = Field(default="sha256=", max_length=128)
     encoding: Literal["hex", "base64", "base64url"] = "hex"
     legacy: bool = False
+
+    def reserves_header(self, provider: str, header: str) -> bool:
+        """Whether using this header as an event ID could expose authentication material."""
+        forbidden = {"authorization", self.header_name, "webhook-signature"}
+        if self.method == "provider":
+            forbidden.add(SIGNATURE_HEADER[provider])
+            if provider == "hubspot":
+                forbidden.add(HUBSPOT_V1_SIGNATURE_HEADER)
+        return header.lower() in forbidden
 
     @field_validator("header_name")
     @classmethod
@@ -71,8 +89,7 @@ class EventSourceCreate(BaseModel):
             )
         if self.delivery_id_header:
             self.delivery_id_header = self.delivery_id_header.lower()
-            forbidden = {"authorization", self.auth.header_name, "webhook-signature"}
-            if self.delivery_id_header in forbidden:
+            if self.auth.reserves_header(self.provider, self.delivery_id_header):
                 raise ValueError("Delivery IDs must not use a credential or signature header")
         return self
 

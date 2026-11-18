@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TriggerFormDialog } from "./trigger-form-dialog";
 import { apiClient } from "@/lib/api-client";
+import type { SourceProvider } from "@/lib/event-sources-api";
 import type { Trigger } from "@/types/triggers";
 
 vi.mock("@/lib/api-client", async () => {
@@ -156,7 +157,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     expect(await screen.findAllByLabelText("Mention phrase")).toHaveLength(1);
   });
 
-  it("creates a source-backed template routine without a sample or copied credentials", async () => {
+  function serveSharedSource(provider: SourceProvider) {
     const get = vi.mocked(apiClient.get).getMockImplementation()!;
     vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
       path === "/event-sources"
@@ -165,8 +166,8 @@ describe("TriggerFormDialog custom-webhook event form", () => {
               {
                 id: "shared-source",
                 name: "Shared incoming",
-                provider: "webhook",
-                auth: { method: "hmac" },
+                provider,
+                auth: { method: provider === "webhook" ? "hmac" : "provider" },
                 is_active: true,
                 visibility: "private",
                 can_use: true,
@@ -178,6 +179,62 @@ describe("TriggerFormDialog custom-webhook event form", () => {
           }
         : get(path, options),
     );
+  }
+
+  it.each([
+    {
+      provider: "linear",
+      inputs: { "Event types": "Issue, Comment", Actions: "create, update" },
+      eventConfig: { event_types: ["Issue", "Comment"], actions: ["create", "update"] },
+    },
+    {
+      provider: "hubspot",
+      inputs: {
+        "Subscription types": "deal.propertyChange",
+        "Property names": "amount, dealstage",
+      },
+      eventConfig: {
+        subscription_types: ["deal.propertyChange"],
+        property_names: ["amount", "dealstage"],
+      },
+    },
+    {
+      provider: "zendesk",
+      inputs: { "Event types": "zen:event-type:ticket.created" },
+      eventConfig: { event_types: ["zen:event-type:ticket.created"] },
+    },
+  ] satisfies {
+    provider: SourceProvider;
+    inputs: Record<string, string>;
+    eventConfig: Record<string, string[]>;
+  }[])(
+    "saves the selected $provider subscription filters with the routine",
+    async ({ provider, inputs, eventConfig }) => {
+      serveSharedSource(provider);
+      vi.mocked(apiClient.post).mockResolvedValue(trigger({ event_source: provider }));
+      const dialog = await openEvent();
+      await userEvent.click(dialog.getByRole("combobox", { name: "Event source" }));
+      await userEvent.click(await screen.findByRole("option", { name: "Shared incoming" }));
+      for (const [label, value] of Object.entries(inputs)) {
+        await userEvent.type(dialog.getByLabelText(label), value);
+      }
+      await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
+      await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
+      await userEvent.type(dialog.getByLabelText("Message"), "Triage the event");
+      await userEvent.click(dialog.getByRole("button", { name: "Create" }));
+      expect(apiClient.post).toHaveBeenCalledWith(
+        `/agents/${AGENT_ID}/triggers`,
+        expect.objectContaining({
+          source_id: "shared-source",
+          event_source: provider,
+          event_config: eventConfig,
+        }),
+      );
+    },
+  );
+
+  it("creates a source-backed template routine without a sample or copied credentials", async () => {
+    serveSharedSource("webhook");
     vi.mocked(apiClient.post).mockResolvedValue(
       trigger({ event_source: "webhook", source_id: "shared-source", prompt_mode: "template" }),
     );
@@ -651,4 +708,58 @@ it("locks edited trigger fields and dismissal until a refused save restores the 
   expect(dialog.getByLabelText("Name")).toHaveValue("Customer review");
   expect(dialog.getByRole("textbox", { name: "Message" })).toHaveValue("Triage it");
   expect(onOpenChange).not.toHaveBeenCalled();
+});
+
+it.each([undefined, "members", "contributors", "anyone"])(
+  "shows and preserves the stored author policy %s",
+  async (authors) => {
+    serve();
+    const user = userEvent.setup();
+    const config = {
+      ...(authors ? { authors } : {}),
+      mention: "@agent",
+      event: "issue_comment",
+      ignore_login: "connected-user",
+    };
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger());
+    render(
+      <TriggerFormDialog
+        agentId={AGENT_ID}
+        open
+        onOpenChange={vi.fn()}
+        trigger={trigger({ event_config: config })}
+      />,
+      { wrapper },
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(
+      dialog.getByRole("combobox", { name: "Whose events can start this routine" }),
+    ).toHaveValue(authors ?? "members");
+    fireEvent.change(dialog.getByLabelText("Mention phrase"), { target: { value: "@reviewer" } });
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    expect(vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1]).toHaveProperty("event_config", {
+      ...config,
+      mention: "@reviewer",
+    });
+  },
+);
+
+it("saves an explicitly widened author policy", async () => {
+  serve();
+  const user = userEvent.setup();
+  vi.mocked(apiClient.patch).mockResolvedValue(trigger());
+  render(<TriggerFormDialog agentId={AGENT_ID} open onOpenChange={vi.fn()} trigger={trigger()} />, {
+    wrapper,
+  });
+  const dialog = within(await screen.findByRole("dialog"));
+  await user.selectOptions(
+    dialog.getByRole("combobox", { name: "Whose events can start this routine" }),
+    "contributors",
+  );
+  await user.click(dialog.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+  expect(vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1]).toHaveProperty("event_config", {
+    authors: "contributors",
+  });
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "e5bb1f6cfb6a"
+source_sha: "51a34ace781e"
 ---
 
 # Workflows { #workflows }
@@ -972,8 +972,11 @@ weiter, den die freigebende Person gedrückt hat, und die entschiedene Zeile nen
 Eine Bearbeitung geht mit jeder gedrückten Schaltfläche mit.
 
 
-In der Liste lautet die Version eines Testlaufs **Draft (test)** und die eines echten
-**Published**, und ein aus der Konsole oder über die HTTP-API gestarteter Lauf
+In der Liste lautet ein Test des ganzen Entwurfs **Draft (test)**, ein [Test eines
+einzelnen Schritts](#a-steps-data-pinning-and-testing-one-step) **Step test** mit dem Namen des Schritts und ein echter Lauf
+**Published**. **Version** zeigt nur Schritttests oder lässt sie weg.
+
+Ein aus der Konsole oder über die HTTP-API gestarteter Lauf
 lautet **Console or API**. **Status**, **Version**, **Started by** und **Started** (die letzte Stunde, der letzte Tag,
 die letzte Woche oder 30 Tage) grenzen die Läufe ein, und die Liste
 antwortet seitenweise; jeder Filter steht in der Adresse, sodass sich eine

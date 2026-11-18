@@ -237,6 +237,7 @@ async def test_creation_refuses_unreviewed_project_or_device_authority(monkeypat
     from tests.test_agent_triggers import _interval
 
     service = _service()
+    monkeypatch.setattr(module, "require_organization_agent", AsyncMock())
     service._version_target = AsyncMock()
     service._delivery_target = AsyncMock()
     data = _interval()

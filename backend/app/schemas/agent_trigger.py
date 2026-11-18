@@ -3,7 +3,7 @@
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -12,6 +12,7 @@ from pydantic import (
     ConfigDict,
     Field,
     JsonValue,
+    StringConstraints,
     computed_field,
     field_validator,
     model_validator,
@@ -117,12 +118,14 @@ GithubConclusion = Literal[
 ]
 """A finished workflow run's `conclusion`, as GitHub spells it."""
 
-GithubAuthors = Literal["members", "anyone"]
+GithubAuthors = Literal["members", "contributors", "anyone"]
 """Whose issues, pull requests and comments may fire a trigger.
 
 `members` - the default - is an author GitHub calls the repository's `OWNER`,
 `MEMBER` or `COLLABORATOR`. On a public repository anyone can open an issue, and
-every one would otherwise be an agent run and a page of somebody's text in it."""
+every one would otherwise be an agent run and a page of somebody's text in it.
+`contributors` also admits `CONTRIBUTOR`; first-time contributors still need
+`anyone`. Bot and connected-account exclusions apply to all three choices."""
 
 # Where the filter's per-event fields belong, so one sent for another event is a
 # 422 rather than a filter that silently never applies.
@@ -138,8 +141,8 @@ class GithubTriggerConfig(BaseSchema):
 
     `event` is the webhook it fires on (the `X-GitHub-Event` header), `issues`
     unless it says otherwise; `actions` narrows which of that event's actions
-    fire, defaulting to the one somebody would act on. `authors` keeps issues,
-    pull requests and comments to the repository's own people, and a bot never
+    fire, defaulting to the one somebody would act on. `authors` chooses whose
+    issues, pull requests and comments may fire (members by default), and a bot never
     fires a trigger except through a workflow run.
 
     `mention` is a phrase a comment has to contain (`@agent`), `branches` the
@@ -822,6 +825,33 @@ class TriggerUpdate(BaseSchema):
         return data
 
 
+GithubFilterReason = Literal[
+    "event",
+    "action",
+    "bot",
+    "ignored_login",
+    "author",
+    "draft",
+    "branch",
+    "mention",
+    "conclusion",
+    "not_branch",
+]
+
+
+class GithubFilteredEvent(BaseSchema):
+    """The latest retained sample of verified GitHub rejections, without event content."""
+
+    received_at: datetime
+    recorded_at: datetime | None = Field(default=None, exclude=True)
+    reason: GithubFilterReason
+    authors: GithubAuthors
+
+
+class TriggerFilteredEventRead(BaseSchema):
+    last_event: GithubFilteredEvent | None = None
+
+
 class TriggerRead(BaseSchema, TimestampSchema):
     one_shot: bool = False
 
@@ -1012,11 +1042,17 @@ class TriggerFireResult(BaseSchema):
 class TriggerPromptPreviewCreate(BaseSchema):
     """Resolve an authored prompt against example JSON without invoking an agent."""
 
-    prompt: str = Field(min_length=1, max_length=10000)
+    # Keep example event values byte-for-byte as they arrive on the webhook.
+    model_config = ConfigDict(str_strip_whitespace=False)
+
+    prompt: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=10000)]
     payload: dict[str, JsonValue]
+    result_mode: Literal["report", "inbox"] = "report"
     source_id: UUID | None = None
     trigger_id: UUID | None = None
 
 
 class TriggerPromptPreviewRead(BaseSchema):
+    model_config = ConfigDict(str_strip_whitespace=False)
+
     resolved_prompt: str

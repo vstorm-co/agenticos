@@ -867,9 +867,11 @@ label its author wrote, in place of **Approve**; **Reject** stays. Each way is a
 port of the step, so the workflow goes on by the one the approver pressed, and the
 decided row names it. An edit goes with whichever button is pressed.
 
-In the list a test run's version reads **Draft (test)** and a real one's
-**Published**, and a run started from the console or the HTTP API reads **Console or
-API**. **Status**, **Version**, **Started by** and **Started** (the last hour, day, week or
+In the list a test of the whole draft reads **Draft (test)**, a
+[test of one step](#a-steps-data-pinning-and-testing-one-step) **Step test** followed by the step's name, and a
+real run **Published**. **Version** can show step tests alone or leave them out.
+
+A run started from the console or the HTTP API reads **Console or API**. **Status**, **Version**, **Started by** and **Started** (the last hour, day, week or
 30 days) narrow the runs, and the list answers a
 page at a time; each filter is kept in the address, so a filtered list can be
 linked. **Runs** on the workflows list shows every workflow's runs together. On a

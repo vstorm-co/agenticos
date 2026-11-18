@@ -152,7 +152,7 @@ def _value(field: PromptField, body: dict[str, JsonValue]) -> JsonValue:
 
 
 def resolve_prompt(prompt: str, body: dict[str, JsonValue]) -> str:
-    """Build exactly the message used by preview and execution, without clipping."""
+    """Resolve authored fields and bound the template before adding result instructions."""
     tokens = parse_prompt(prompt)
     fragments = [_EXTERNAL] if any(isinstance(token, PromptField) for token in tokens) else []
     size = sum(len(fragment.encode()) for fragment in fragments)

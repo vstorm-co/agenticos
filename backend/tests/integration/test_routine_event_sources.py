@@ -2,6 +2,7 @@
 
 import hmac
 import json
+from datetime import datetime
 from unittest.mock import AsyncMock
 from uuid import uuid5
 
@@ -14,12 +15,13 @@ from app.db.models.agent_run import AgentRun
 from app.db.models.agent_trigger import TriggerAttempt
 from app.db.models.background_job import BackgroundJob
 from app.db.models.event_source import EventDelivery, EventDispatch, EventSubscription
-from app.schemas.agent_trigger import TriggerCreate
+from app.schemas.agent_trigger import TriggerCreate, TriggerUpdate
 from app.schemas.event_source import EventSourceCreate, SourceAuth, SourceCredentials
+from app.schemas.routine_sources import RoutineSourceConsent
 from app.services import rate_limit
 from app.services.agent_trigger import AgentTriggerService
 from app.services.event_sources import EventSourceService
-from app.services.routine_sources import read_policy
+from app.services.routine_sources import RoutineSourceService, read_policy
 from app.worker.jobs import FireTrigger
 from tests.integration.test_routine_sources import world
 
@@ -70,7 +72,12 @@ async def test_shared_source_admits_one_routine_job_with_structured_input_across
     monkeypatch.setattr(
         rate_limit,
         "trigger_delivery_allowed",
-        AsyncMock(return_value=rate_limit.Decision(allowed=True, retry_after_seconds=0)),
+        AsyncMock(
+            side_effect=[
+                rate_limit.Decision(allowed=False, retry_after_seconds=30),
+                rate_limit.Decision(allowed=True, retry_after_seconds=0),
+            ]
+        ),
     )
     body = {
         "padding": "x" * 4000,
@@ -90,6 +97,7 @@ async def test_shared_source_admits_one_routine_job_with_structured_input_across
     assert await db.scalar(select(func.count()).select_from(EventDelivery)) == 1
     dispatch = await db.scalar(select(EventDispatch))
     assert dispatch is not None and dispatch.subscription_id == subscription.id
+    assert dispatch.routine_source_policy_id == policy_id
     dispatch_id = dispatch.id
     assert (
         await db.scalar(
@@ -102,6 +110,10 @@ async def test_shared_source_admits_one_routine_job_with_structured_input_across
     await db.commit()
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as throttled, throttled.begin():
+        await EventSourceService(throttled).dispatch(ctx.organization_id, dispatch_id)
+    await db.refresh(dispatch)
+    assert dispatch.status == "pending" and dispatch.completed_at is None
     async with factory() as restarted, restarted.begin():
         service = EventSourceService(restarted)
         await service.dispatch(ctx.organization_id, dispatch_id)
@@ -135,6 +147,72 @@ async def test_shared_source_admits_one_routine_job_with_structured_input_across
     )
     assert await db.scalar(select(func.count()).select_from(EventDispatch)) == 1
     assert await db.scalar(select(func.count()).select_from(AgentRun)) == 0
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("initial_review", ["present", "missing", "rebound", "unavailable"])
+async def test_source_delivery_requires_the_same_valid_review_at_receipt_and_dispatch(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, initial_review: str
+) -> None:
+    ctx, existing, _, account = await world(db, mcp=initial_review == "unavailable")
+    sources = EventSourceService(db)
+    source_config = EventSourceCreate(
+        name="First",
+        auth=SourceAuth(method="api_key", header_name="x-api-key", signature_prefix=""),
+        credentials=SourceCredentials(secret=SecretStr("integration-source-key")),
+    )
+    source = await sources.create(ctx, source_config)
+    triggers = AgentTriggerService(db)
+    routine = await triggers.create(
+        ctx,
+        existing.agent_id,
+        TriggerCreate(trigger_type="event", source_id=source.id, prompt="Review"),
+    )
+    policy_id = read_policy(routine.approved_sources).id
+    reviews = RoutineSourceService(db)
+    if initial_review == "missing":
+        routine.approved_sources = None
+        await db.flush()
+    elif initial_review == "unavailable":
+        assert account is not None
+        account.is_enabled = False
+        await db.flush()
+    elif initial_review == "rebound":
+        source = await sources.create(ctx, source_config.model_copy(update={"name": "Second"}))
+        await triggers.update(
+            ctx, existing.agent_id, routine.id, TriggerUpdate(source_id=source.id)
+        )
+    review = await reviews.options(ctx, routine)
+    assert review.current == (initial_review == "present")
+
+    _, _, accepted = await sources.receive(
+        source.id, body=b"{}", headers={"x-api-key": "integration-source-key"}
+    )
+    assert accepted
+    dispatch = await db.scalar(select(EventDispatch))
+    assert dispatch is not None
+    assert dispatch.routine_source_policy_id == (policy_id if initial_review == "present" else None)
+    if initial_review == "unavailable":
+        assert account is not None
+        account.is_enabled = True
+        await db.flush()
+        assert (await reviews.options(ctx, routine)).current
+    else:
+        await reviews.replace(ctx, routine, RoutineSourceConsent(review_token=review.review_token))
+        assert read_policy(routine.approved_sources).id != policy_id
+    await db.commit()
+    monkeypatch.setattr(
+        rate_limit,
+        "trigger_delivery_allowed",
+        AsyncMock(return_value=rate_limit.Decision(allowed=True, retry_after_seconds=0)),
+    )
+    await sources.dispatch(ctx.organization_id, dispatch.id)
+    assert dispatch.status == "skipped"
+    assert (
+        await db.scalar(select(BackgroundJob).where(BackgroundJob.kind == "fire-trigger")) is None
+    )
+    attempt = await db.scalar(select(TriggerAttempt).where(TriggerAttempt.trigger_id == routine.id))
+    assert attempt is not None and attempt.reason == "source_review_required"
 
 
 async def test_dedicated_webhooks_preserve_literal_input_and_validate_template_input(
@@ -198,3 +276,61 @@ async def test_dedicated_webhooks_preserve_literal_input_and_validate_template_i
     )
     assert failed.error_message == "The event body cannot be stored for prompt rendering."
     assert await db.scalar(select(func.count()).select_from(AgentRun)) == 0
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("approval", ["current", "missing", "replaced"])
+async def test_shared_github_filter_keeps_only_the_current_reviews_diagnostic(
+    db: AsyncSession, approval: str
+) -> None:
+    ctx, existing, _, _ = await world(db)
+    sources = EventSourceService(db)
+    source = await sources.create(
+        ctx,
+        EventSourceCreate(
+            name="GitHub",
+            provider="github",
+            auth=SourceAuth(method="provider"),
+            credentials=SourceCredentials(secret=SecretStr("github-secret")),
+        ),
+    )
+    triggers = AgentTriggerService(db)
+    routine = await triggers.create(
+        ctx,
+        existing.agent_id,
+        TriggerCreate(
+            trigger_type="event",
+            source_id=source.id,
+            prompt="Review",
+            event_config={"authors": "members"},
+        ),
+    )
+    if approval == "missing":
+        routine.approved_sources = None
+        await db.flush()
+    body = b'{"action":"opened","issue":{"author_association":"NONE"}}'
+    headers = {
+        "x-github-event": "issues",
+        "x-hub-signature-256": "sha256=" + hmac.digest(b"github-secret", body, "sha256").hex(),
+    }
+    _, receipt, accepted = await sources.receive(source.id, body=body, headers=headers)
+    assert accepted
+    if approval == "replaced":
+        reviews = RoutineSourceService(db)
+        review = await reviews.options(ctx, routine)
+        await reviews.replace(ctx, routine, RoutineSourceConsent(review_token=review.review_token))
+    received_at = await db.scalar(
+        select(EventDelivery.created_at).where(EventDelivery.id == receipt.id)
+    )
+    dispatch = await db.scalar(select(EventDispatch))
+    assert dispatch is not None
+    await sources.dispatch(ctx.organization_id, dispatch.id)
+    await db.refresh(routine)
+    assert dispatch.status == "skipped"
+    if approval != "current":
+        assert routine.last_filtered_event is None
+        return
+    assert routine.last_filtered_event is not None
+    assert datetime.fromisoformat(routine.last_filtered_event["received_at"]) == received_at
+    assert routine.last_filtered_event["reason"] == "author"
+    assert routine.last_filtered_event["authors"] == "members"

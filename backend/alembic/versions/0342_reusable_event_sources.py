@@ -16,8 +16,8 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "0337_reusable_event_sources"
-down_revision: str = "0336_run_memory_snapshot"
+revision: str = "0342_reusable_event_sources"
+down_revision: str = "0341_workflow_run_tested_step"
 branch_labels: None = None
 depends_on: None = None
 
@@ -224,6 +224,7 @@ def upgrade() -> None:
         sa.Column("error_code", sa.String(length=128), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("workflow_version_id", sa.UUID(), nullable=True),
+        sa.Column("routine_source_policy_id", sa.UUID(), nullable=True),
         sa.Column("workflow_principal_user_id", sa.UUID(), nullable=True),
         sa.Column(
             "created_at",

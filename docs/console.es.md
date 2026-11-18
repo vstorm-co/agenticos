@@ -1,5 +1,5 @@
 ---
-source_sha: "2225d063f6ba"
+source_sha: "79ff311d2516"
 ---
 
 # La consola { #the-console }
@@ -231,7 +231,7 @@ a la bandeja privada. Cada pestaña tiene sus acciones de creación.
 30 solicitudes al modelo y recorta los resultados largos, así que seguir un
 workspace grande sigue siendo barato.
 
-Organización → IA y servicios → Sugerencias y monitorización separa sugerencias, seguimiento, límites compartidos, horarios de entrega y mensajes de bienvenida. Los cambios sin guardar se pueden descartar. Los servicios en segundo plano muestran estado y consumo; los ajustes de modelo y presupuesto se despliegan por servicio.
+Organización → IA y servicios muestra tarjetas individuales con interruptores y ajustes desplegables. El informe diario y las sugerencias comparten modelo, presupuesto y horario; la monitorización y los mensajes de bienvenida tienen sus propias tarjetas. Los cambios sin guardar se pueden descartar.
 
 Las rutinas programadas, por eventos y de seguimiento usan el mismo marco de diálogo, con encabezado y navegación fijos y un formulario desplazable. Crear un seguimiento recorre Configuración, Mensaje y Frecuencia; Atrás conserva el borrador. El selector de agentes muestra los mismos avatares que el chat. Las opciones de ejecución y entrega del seguimiento están reunidas en un solo panel de opciones avanzadas.
 
@@ -401,7 +401,7 @@ El Architect es un agente como cualquier otro, así que su nombre, su modelo, su
 conocimiento y el resto de su spec se editan en el Agent Builder - lo hace quien
 puede cambiar los ajustes de la organización, porque todos en la organización lo
 usan. La página de la organización tiene una tarjeta que lo apaga para todos y
-fija su saludo. **Settings → Assistant** guarda solo tus propios consejos.
+enlaza al Agent Builder. **Settings → Assistant** guarda solo tus propios consejos.
 
 ## Agentes incluidos { #shipped-agent-defaults }
 
@@ -475,6 +475,12 @@ todos los runs, los bots de canal a los roles que los gestionan, y
 tus notificaciones solo a ti. Si la conexión se corta, la consola funciona como antes y se reconecta sola.
 
 ## Chat { #chat }
+
+Las salas compartidas, los chats de proyecto y las conversaciones compartidas para edición usan los turnos visibles en vez de checkpoints internos del modelo. Otro participante no hereda resultados privados de herramientas ni razonamiento de un autor anterior; si hace falta, el agente consulta de nuevo con las conexiones de la persona actual. La bifurcación de una fuente compartida también omite sus checkpoints internos. Los chats web privados y los mensajes directos conservan el historial estructurado del modelo.
+
+Los checkpoints privados quedan vinculados al agente, a los destinos resueltos de los modelos, incluidas las conexiones de respaldo, y a las cuentas, endpoints y generaciones de autorización MCP usados en el turno. Cambiar de agente, endpoint o conexión reconstruye el historial desde los mensajes visibles en lugar de enviar resultados ocultos anteriores a otro destinatario.
+
+Los checkpoints antiguos sin esta información también usan la transcripción visible. Una ejecución en espera no puede reanudarse si cambia su destino: restaure la configuración original o inicie un turno nuevo. Las ejecuciones pausadas antes de registrar el destinatario deben reiniciarse.
 
 Donde hablas con un agent publicado. El selector elige qué agent responde, y el
 run se comporta exactamente igual que en Slack o detrás de la API — mismo budget,
@@ -992,7 +998,7 @@ abre su asistente solo para leer, con lo decidido en su último paso; consulte e
 
 Los detalles de organización tienen tres pestañas: **Miembros**, **Presupuesto y aprobaciones** e **IA y servicios**. Miembros ofrece búsqueda por nombre/correo, filtro de rol y la última acción registrada en este espacio. Es una acción de auditoría, no una visita ni un inicio de sesión; se excluyen las acciones por suplantación y se muestra un guion si no hay historial.
 
-El informe diario se configura directamente en Servicios en segundo plano; actualiza el mismo modelo de organización y límite por persona que usan las sugerencias. El mantenimiento de memoria comienza desactivado; los perfiles antiguos sin modelo también se muestran desactivados. Selecciona un modelo antes de activar cada servicio. Los servicios desactivados no muestran avisos de configuración. Los nombres de proveedores de voz no incluyen sufijos sobre credenciales; las claves conservan su selector y validación propios.
+El informe diario y las sugerencias son un servicio con una sola configuración. Su tarjeta también muestra gasto y ejecuciones recientes. El mantenimiento de memoria tiene modelo y presupuesto propios y comienza desactivado. Elige un modelo antes de activar el servicio. AI Architect mantiene visible el interruptor y muestra el enlace al Agent Builder al desplegar la tarjeta, sin editor de saludo. Las siete funciones comparten el encabezado, la disposición de iconos y los controles de despliegue de las tarjetas.
 
 **Editar espacio** abre un diálogo para nombre, avatar y color que protege los cambios sin guardar. IA y servicios comienza con servicios en segundo plano, seguido del Arquitecto de IA, sugerencias y monitorización, y Voz. Desplegar la configuración conserva los borradores. Cada control mantiene sus permisos. Los enlaces antiguos `?tab=profile` abren el diálogo del espacio; `?tab=voice` y `?tab=proactivity` abren sus ajustes en IA y servicios.
 

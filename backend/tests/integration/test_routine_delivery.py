@@ -348,7 +348,7 @@ async def test_observed_expiry_closes_blockers_even_while_the_routine_is_paused(
         routine_kind="trigger",
         reason="run",
         name="Report",
-        detail="Its last attempt failed.",
+        detail="run_failed",
         observed_at=world.run.started_at,
     )
     await RoutineDeliveryService(db).queue(world.run, answer="Result after approval")

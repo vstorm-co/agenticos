@@ -25,6 +25,7 @@ from app.schemas.event_source import (
     SourceListening,
     SourceUsageList,
 )
+from app.services import rate_limit
 
 pytestmark = pytest.mark.anyio
 CTX = AuthContext(organization_id=uuid4(), user_id=uuid4(), role="owner")
@@ -164,5 +165,23 @@ async def test_oversized_ingress_is_refused_before_authentication_or_capture(wir
         content=b"x" * (settings.WORKFLOW_RUN_MAX_INPUT_BYTES + 1),
     )
     assert response.status_code == 413
+    service.receive.assert_not_called()
+    samples.capture_after_commit.assert_not_called()
+
+
+@pytest.mark.security
+async def test_shared_ingress_throttles_the_address_before_reading_the_body(wired, monkeypatch):
+    client, service, samples, source = wired
+    over = rate_limit.Decision(allowed=False, retry_after_seconds=9)
+    consume = AsyncMock(return_value=over)
+    monkeypatch.setattr(rate_limit, "consume", consume)
+    response = await client.post(
+        f"/api/v1/webhooks/sources/{source.id}",
+        content=b"x" * (settings.WORKFLOW_RUN_MAX_INPUT_BYTES + 1),
+    )
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "9"
+    assert consume.await_args.kwargs["surface"] == "workflow_webhook_ip"
+    assert consume.await_args.kwargs["caller"].startswith("ip:")
     service.receive.assert_not_called()
     samples.capture_after_commit.assert_not_called()

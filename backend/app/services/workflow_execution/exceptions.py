@@ -39,6 +39,7 @@ class WorkflowAdmissionQuotaError(AppException):
     status_code = 429
 
     def __init__(self, *, scope: str, limit: int, outstanding: int, requested: int) -> None:
+        self.can_fit_when_idle = requested <= limit
         super().__init__(
             # The workflow's own limit is its editors' setting, and says so.
             message=(

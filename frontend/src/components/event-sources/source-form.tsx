@@ -4,6 +4,10 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   Input,
   Label,
   Select,
@@ -14,6 +18,7 @@ import {
   Switch,
 } from "@/components/ui";
 import { useEventSourceWrites } from "@/hooks/use-event-sources";
+import { DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import type {
   EventSource,
   EventSourceCreated,
@@ -81,17 +86,37 @@ export function SourceCredentialsFields({
   );
 }
 
-export function SourceForm({
-  source,
-  onSaved,
-  onCancel,
-}: {
+interface SourceFormProps {
   source?: EventSource;
   onSaved: (source: EventSourceCreated) => void;
   onCancel: () => void;
-}) {
+}
+
+export function SourceForm(props: SourceFormProps) {
   const t = useTranslations("eventSources");
   const writes = useEventSourceWrites();
+  const pending = writes.create.isPending || writes.update.isPending;
+  return (
+    <Dialog open onOpenChange={(open) => !open && !pending && props.onCancel()}>
+      <DialogContent className={`${DIALOG_FORM} ${DIALOG_COLUMN}`} dismissible={!pending}>
+        <DialogHeader>
+          <DialogTitle>{props.source ? t("edit") : t("createNew")}</DialogTitle>
+        </DialogHeader>
+        <fieldset disabled={pending} className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <SourceFormFields {...props} writes={writes} />
+        </fieldset>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SourceFormFields({
+  source,
+  onSaved,
+  onCancel,
+  writes,
+}: SourceFormProps & { writes: ReturnType<typeof useEventSourceWrites> }) {
+  const t = useTranslations("eventSources");
   const [name, setName] = useState(source?.name ?? "");
   const [provider, setProvider] = useState<SourceProvider>(source?.provider ?? "webhook");
   const [auth, setAuth] = useState<SourceAuth>(
@@ -105,7 +130,6 @@ export function SourceForm({
   const [visibility, setVisibility] = useState<"private" | "org">(source?.visibility ?? "private");
   const [deliveryHeader, setDeliveryHeader] = useState(source?.delivery_id_header ?? "");
   const [credentials, setCredentials] = useState<SourceCredentials>({});
-  const pending = writes.create.isPending || writes.update.isPending;
   const supportsCustomDeliveryId = auth.method !== "standard_webhooks";
   const save = () => {
     const input = {
@@ -206,7 +230,6 @@ export function SourceForm({
           type="button"
           disabled={
             !name.trim() ||
-            pending ||
             (((!source && auth.method === "provider") ||
               (source && source.auth.method !== auth.method && auth.method !== "basic")) &&
               !credentials.secret) ||

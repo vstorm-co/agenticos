@@ -1,5 +1,5 @@
 ---
-source_sha: "21a474aff367"
+source_sha: "33238295f67f"
 ---
 
 # Ochrona danych { #data-protection }
@@ -99,7 +99,7 @@ przez sprawdzenie rodzica.
 | `chat_files` | Załączniki do wiadomości | Nazwa pliku, typ, rozmiar, wyciągnięty tekst (`parsed_content`) i ścieżka bajtów na dysku | Odpowiadanie o pliku |
 | `generated_media` | Jeden wiersz na każdy obraz, klip mowy lub wideo wygenerowane przez agenta | Organizacja, konwersacja, w której powstał, jeśli run ją miał, nazwa pliku, ścieżka w magazynie i rozmiar - **nie jego treść**, która jest plikiem pod `MEDIA_DIR` | Liczenie wygenerowanych mediów każdej organizacji względem jej limitu oraz usuwanie ich razem z konwersacją albo po okresie retencji |
 | `context_files` | Stała wiedza, którą builder napisał dla agentów | Cokolwiek autor tam umieścił — i trafia to do promptu dosłownie. Zobacz [Pliki kontekstu](context.md) | Instrukcje i fakty, które agent zawsze ma znać |
-| `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | Wiersze [Virtual Table](virtual-tables.md) i ślad każdej zmiany w nich | Cokolwiek organizacja umieściła w komórkach, w tym potencjalnie dane osobowe. Bieżące wartości (records); cały rekord przy create i delete, a przy update tylko komórki, które się zmieniły (history); cały rekord tak, jak zwrócił go zapis z kluczem (receipts); id i external id każdego utworzonego rekordu (outbox, bez wartości). Usunięcie rekordu usuwa tylko bieżący wiersz: history i receipts zachowują wartości, dopóki nie usunie ich codzienny sweep retencji: receipts po 24 godzinach, wysłane wiersze outbox po 3 dniach, a history po 365 dniach, wszystko jako ustawienia wdrożenia. Usunięcie konta usuwa jego receipts i czyści je jako autora w history; usunięcie grupy, projektu albo konta usuwa tabelę jego tablicy zadań razem z każdym receipt, który trzyma jej rekordy; usunięcie organizacji usuwa wszystkie cztery | Typowane rekordy dla agentów i workflow, bezpieczne ponawianie zapisu i przekazanie utworzonego rekordu |
+| `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | Wiersze [Virtual Table](virtual-tables.md) i ślad każdej zmiany w nich | Cokolwiek organizacja umieściła w komórkach, w tym potencjalnie dane osobowe. Bieżące wartości (records); cały rekord przy create i delete, a przy update tylko komórki, które się zmieniły (history); cały rekord tak, jak zwrócił go zapis z kluczem, albo wynik operacji zbiorczej z opisami odmów (receipts); id i external id każdego utworzonego rekordu (outbox, bez wartości). Usunięcie rekordu usuwa tylko bieżący wiersz: history i receipts zachowują wartości, dopóki nie usunie ich codzienny sweep retencji: receipts po 24 godzinach, wysłane wiersze outbox po 3 dniach, a history po 365 dniach, wszystko jako ustawienia wdrożenia. Usunięcie konta usuwa jego receipts i czyści je jako autora w history; usunięcie grupy, projektu albo konta usuwa tabelę jego tablicy zadań razem z potwierdzeniami zapisów rekordów i operacji zbiorczych. Aktualizacja kasuje starsze wyniki operacji zbiorczych bez możliwego do odtworzenia powiązania z tabelą, zachowując klucze do wygaśnięcia, aby nie powtórzyć zapisów (zobacz [Bezpieczne ponawianie](virtual-tables.md#safe-retries)); usunięcie organizacji usuwa wszystkie cztery | Typowane rekordy dla agentów i workflow, bezpieczne ponawianie zapisu i przekazanie utworzonego rekordu |
 | `virtual_table_triggers`, `virtual_table_trigger_revisions`, `table_trigger_admissions` | [Wyzwalacze](virtual-tables.md#triggers) tabeli, każda konfiguracja, jaką miały, i to, co każdy zdecydował o utworzonym rekordzie | Członek, jako który działa wyzwalacz; wartości jego filtrów i klucze mapowania, które mogą zawierać dane osobowe, jeśli builder jakieś wpisał (filtr po adresie e-mail). Decyzja trzyma status, ogólny powód i run, który uruchomiła, nigdy wartości rekordu. Żadna klasa retencji ich nie usuwa: znikają razem z tabelą i wyzwalaczem, a usunięcie konta czyści je jako członka, po czym wyzwalacz niczego nie uruchamia | Uruchamianie workflow, gdy przybędzie rekord |
 | `artifacts`, `artifact_versions` i ich pliki | Strony opublikowane przez agentów — raporty, dashboardy | Cokolwiek strona pokazuje, a run zbudował ją z tego, co mógł przeczytać — albo, dla strony powiązanej z danymi tabel, jej zapytania strony (tabela, filtry, sortowanie, limit i kolumny, każde rozwiązane do identyfikatorów), przy czym same rekordy są czytane w chwili oglądania, z dostępem właściciela strony, i nigdy nie są przechowywane w stronie; dla każdej wersji — kto ją opublikował i zgoda właściciela na udostępnienie jej danych (odcisk zapytań, członkostwo właściciela i kiedy) oraz zgoda strony na dane publiczne (kto ją potwierdził, członkostwo właściciela, kiedy); wiersz organizacji trzyma wyłącznik `public_live_data`; właściciel, run, który zapisał każdą wersję, i — gdy jest włączony — klucz publicznego linku, jego ustawienia (hasło jako hash bcrypt) i to, ile razy go otwarto — liczba i czas, nic o odwiedzającym. Zobacz [Aplikacje](artifacts.md) | Udostępnienie wyniku pod stałym linkiem |
 | `datasets`, `dataset_cases` | Przypadki testowe do evali | Pytania i odpowiedzi skopiowane z rozmów, gdy ktoś wybrał „Dodaj do datasetu”, komentarz do odpowiedzi ocenionej negatywnie jako notatka przypadku oraz to, co zawierał zaimportowany plik. Poświadczenia są redagowane przed zapisaniem przypadku. Każdy przypadek zapisuje też, czyje słowa zawiera - kto zadał pytanie, kto napisał każdą wcześniejszą turę, czyj komentarz jest jego notatką - czego nigdy się nie pokazuje ani nie eksportuje i co przetrwa rozmowę. Wymazanie osoby, która zadała pytanie, anonimizuje przypadek w każdej wersji, która go zawiera; wymazanie kogokolwiek innego, czyją turę lub komentarz zachował, zastępuje tę turę i odpowiedź agenta na nią oraz czyści tę notatkę. Zobacz [Datasety](datasets.md#personal-data) | Sprawdzanie, czy agent się poprawił |
@@ -422,7 +422,8 @@ umożliwia.
 
 Powtarzalne sprawdzenia, z hosta, na działającym wdrożeniu. Każde wypisuje
 fakty, które przegląd może załączyć; żadne nie wypisuje poświadczenia ani
-danych osoby. Uruchamiaj je z `backend/` albo przez `docker compose exec api`.
+danych osoby. W checkoutcie źródeł uruchamiaj poniższe polecenia z `backend/`,
+z konfiguracją danego wdrożenia:
 
 ```bash
 # 1. Czy to w ogóle ruszy i czy połączenia do magazynów są szyfrowane?
@@ -446,6 +447,18 @@ uv run agenticos cmd audit-verify
 #    span, ile w każdym magazynie objąłby okres retencji oraz pliki pod
 #    `MEDIA_DIR`, na które nie wskazuje już żaden wiersz.
 uv run agenticos cmd data-protection-report --older-than 365
+```
+
+Przy wdrożeniu przez Compose wywołuj bezpośrednio zainstalowane CLI; obraz
+uruchomieniowy nie zawiera `uv`. Uruchamiaj polecenia z katalogu wdrożenia,
+z tymi samymi plikami Compose, plikiem środowiska i opcjami projektu co działający
+stos:
+
+```bash
+docker compose exec app agenticos cmd doctor
+docker compose exec app agenticos cmd vault-rotate --dry-run
+docker compose exec app agenticos cmd audit-verify
+docker compose exec app agenticos cmd data-protection-report --older-than 365
 ```
 
 Punkt 4 to ten do załączenia. Wypisuje konfigurację i liczby, nigdy treść:

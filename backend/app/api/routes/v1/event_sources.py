@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response
 
-from app.api.deps import Auth, EventSourceSampleSvc, EventSourceSvc, require
+from app.api.deps import Auth, EventSourceSampleSvc, EventSourceSvc, limit_workflow_webhook, require
 from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.schemas.event_source import (
@@ -83,6 +83,7 @@ async def caught(source_id: UUID, token: str, ctx: Auth, service: EventSourceSam
 
 @public_router.post(
     "/sources/{source_id}",
+    dependencies=[Depends(limit_workflow_webhook)],
     response_model=None,
     status_code=202,
     responses={200: {"description": "Linear delivery accepted"}},

@@ -63,31 +63,17 @@ export function SourceManager() {
           ))}
         </div>
       )}
-      <Dialog
-        open={editing !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditing(null);
-        }}
-      >
-        <DialogContent className={`${DIALOG_FORM} ${DIALOG_COLUMN}`}>
-          <DialogHeader>
-            <DialogTitle>{editing === "new" ? t("createNew") : t("edit")}</DialogTitle>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {editing && (
-              <SourceForm
-                key={editing === "new" ? "new" : editing.id}
-                source={editing === "new" ? undefined : editing}
-                onCancel={() => setEditing(null)}
-                onSaved={(source) => {
-                  setEditing(null);
-                  if (source.reveal_secret) setRevealed(source);
-                }}
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {editing && (
+        <SourceForm
+          key={editing === "new" ? "new" : editing.id}
+          source={editing === "new" ? undefined : editing}
+          onCancel={() => setEditing(null)}
+          onSaved={(source) => {
+            setEditing(null);
+            if (source.reveal_secret) setRevealed(source);
+          }}
+        />
+      )}
       <Dialog
         open={revealed !== null}
         onOpenChange={(open) => {

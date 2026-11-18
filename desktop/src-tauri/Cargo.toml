@@ -11,6 +11,9 @@ rust-version = "1.87.0"
 name = "agenticos_desktop"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+arch-package = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

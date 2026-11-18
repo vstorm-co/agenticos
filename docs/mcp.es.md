@@ -1,5 +1,5 @@
 ---
-source_sha: "e7e6baca79ef"
+source_sha: "775173862ab0"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -291,7 +291,7 @@ canal sería entregárselo al canal.
 
 !!! info "Donde no habla nadie, las herramientas están ausentes — y el agent lo dice"
 
-    Una clave de API, el widget embebido, una programación, un trigger y un
+    Una clave de API sin [delegación MCP explícita](api.md#explicit-personal-mcp-delegation), el widget embebido, una programación, un trigger y un
     remitente de canal que no ha enlazado su cuenta de chat no tienen cuenta a
     través de la cual hablar. El run continúa sin ese servidor, con todas las demás
     vinculaciones intactas, y se añade una línea a sus instrucciones que dice qué

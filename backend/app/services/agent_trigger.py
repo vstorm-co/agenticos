@@ -96,6 +96,7 @@ from app.repositories import routine_delivery as routine_delivery_repo
 from app.repositories import routine_device_wait as device_wait_repo
 from app.schemas.agent_trigger import (
     _EVENT_CONFIG_MODELS,
+    GithubFilteredEvent,
     GithubTriggerConfig,
     TriggerActivationRead,
     TriggerAttemptList,
@@ -104,6 +105,7 @@ from app.schemas.agent_trigger import (
     TriggerAttemptStage,
     TriggerAttemptStatus,
     TriggerCreate,
+    TriggerFilteredEventRead,
     TriggerFireResult,
     TriggerPromptPreviewCreate,
     TriggerPromptPreviewRead,
@@ -134,6 +136,7 @@ from app.services.conversation import ConversationService
 from app.services.mcp_connection import McpConnectionService
 from app.services.notifications import NotificationService
 from app.services.outcome import OutcomeService
+from app.services.personal_model_surfaces import require_organization_agent
 from app.services.portal_catalog import DeliveryMode
 from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.services.primary_conversation import PrimaryConversationService
@@ -481,6 +484,27 @@ def _with_event(prompt: str, event_context: str) -> str:
     )
 
 
+def _routine_message(
+    prompt: str,
+    *,
+    prompt_mode: str,
+    result_mode: str,
+    event_body: dict[str, JsonValue] | None,
+    event_context: str | None = None,
+) -> str:
+    """Assemble the final model message for both a fire and its template preview."""
+    message = prompt
+    if prompt_mode == "template":
+        message = resolve_prompt(prompt, event_body or {})
+    elif event_context is not None:
+        message = _with_event(prompt, event_context)
+    if result_mode == "inbox":
+        message += "\n\n" + ROUTINE_RESULT_INSTRUCTIONS
+    if prompt_mode == "template":
+        check_resolved_size(prompt_bytes(message))
+    return message
+
+
 def _update_action(changes: dict[str, Any]) -> str:
     """What to call this edit in the trail - pause and resume get their own names."""
     if changes.get("is_active") is True:
@@ -563,6 +587,57 @@ class AgentTriggerService:
             reads.append(read)
         await self._mark_spend(list(zip(reads, rows, strict=True)))
         return reads
+
+    async def filtered_event(
+        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID
+    ) -> TriggerFilteredEventRead:
+        """A routine owner's latest GitHub filter diagnostic, scoped to their agent."""
+        agent = await self.agents.get(ctx, agent_id)
+        trigger = await agent_trigger_repo.get(
+            self.db, trigger_id, organization_id=ctx.organization_id
+        )
+        if (
+            trigger is None
+            or trigger.agent_id != agent.id
+            or ctx.user_id is None
+            or trigger.created_by_user_id != ctx.subject_id
+        ):
+            raise NotFoundError(
+                message="Trigger not found", details={"trigger_id": str(trigger_id)}
+            )
+        return TriggerFilteredEventRead(
+            last_event=GithubFilteredEvent.model_validate(trigger.last_filtered_event)
+            if trigger.last_filtered_event is not None
+            else None
+        )
+
+    async def _record_filtered_event(
+        self,
+        trigger: AgentTrigger,
+        headers: Mapping[str, str],
+        payload: Mapping[str, Any],
+        *,
+        received_at: datetime | None = None,
+        source_policy_id: UUID | None = None,
+    ) -> None:
+        if trigger.event_source != EventSource.GITHUB.value:
+            return
+        reason = trigger_events.github_filter_reason(headers, payload, trigger.event_config)
+        if reason is None:
+            return
+        if trigger.source_id is not None and (
+            source_policy_id is None
+            or await self.source_admission_policy(trigger) != source_policy_id
+        ):
+            return
+        diagnostic = GithubFilteredEvent(
+            received_at=received_at or datetime.now(UTC),
+            reason=reason,
+            authors=GithubTriggerConfig.model_validate(trigger.event_config).authors,
+        )
+        await agent_trigger_repo.record_filtered_event(
+            self.db, trigger=trigger, diagnostic=diagnostic
+        )
 
     async def attempts(
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, *, skip: int, limit: int
@@ -860,6 +935,14 @@ class AgentTriggerService:
                 }
             )
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        await require_organization_agent(
+            self.db,
+            ctx,
+            agent_id,
+            perm=Perm.AGENTS_RUN,
+            environment_id=data.environment_id,
+            version_id=data.pinned_version_id,
+        )
         refuse_system_agent(agent, action="a schedule or a trigger")
         # A trigger on a never-published agent is guaranteed to disable itself:
         # its first fire reaches for the runnable spec, finds no version, and
@@ -1323,6 +1406,15 @@ class AgentTriggerService:
         trigger = await self._owned(ctx, agent_id, trigger_id, for_update=True)
         previous_source_id = trigger.source_id
         changes = writable(data, over=AgentTrigger)
+        if changes.get("is_active", trigger.is_active):
+            await require_organization_agent(
+                self.db,
+                ctx,
+                agent_id,
+                perm=Perm.AGENTS_RUN,
+                environment_id=changes.get("environment_id", trigger.environment_id),
+                version_id=changes.get("pinned_version_id", trigger.pinned_version_id),
+            )
         if "max_failures" in changes or changes.get("is_active") is True:
             changes["health_reset_at"] = datetime.now(UTC)
             changes["consecutive_failures"] = 0
@@ -1589,7 +1681,14 @@ class AgentTriggerService:
             > settings.WORKFLOW_RUN_MAX_INPUT_BYTES
         ):
             raise refused_field("payload", "Example JSON exceeds the input size limit")
-        return TriggerPromptPreviewRead(resolved_prompt=resolve_prompt(data.prompt, data.payload))
+        return TriggerPromptPreviewRead(
+            resolved_prompt=_routine_message(
+                data.prompt,
+                prompt_mode="template",
+                result_mode=data.result_mode,
+                event_body=data.payload,
+            )
+        )
 
     async def set_source_consents(
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, data: RoutineSourceConsent
@@ -2025,9 +2124,12 @@ class AgentTriggerService:
                 details={"trigger_id": str(trigger_id)},
             )
         payload = _parse_json(body, source=source)
+        if not await self._polled_source_current(trigger):
+            return None
         if not trigger_events.event_matches(
             source, headers=headers, payload=payload, config=trigger.event_config
         ):
+            await self._record_filtered_event(trigger, headers, payload)
             return None
         # At-least-once delivery: a redelivery of an event already dispatched must
         # not fire a second run and a second spend. Claim the provider's delivery
@@ -2035,8 +2137,6 @@ class AgentTriggerService:
         # open and fires, and a duplicate answers the same nothing-to-do `None` an
         # unmatched delivery does, so it stays unprobeable. A transaction that
         # then rolls back queued nothing and gives the claim back (`_claim`).
-        if not await self._polled_source_current(trigger):
-            return None
         delivery = trigger_events.delivery_id(source, headers, payload)
         if delivery is not None and not await self._claim(trigger.id, delivery):
             return None
@@ -2135,6 +2235,7 @@ class AgentTriggerService:
                 payload=payload,
                 config=trigger.event_config,
             ):
+                await self._record_filtered_event(trigger, headers, payload)
                 continue
             delivery = trigger_events.delivery_id(EventSource.GITHUB.value, headers, payload)
             if delivery is not None and not await self._claim(trigger.id, delivery):
@@ -2216,17 +2317,27 @@ class AgentTriggerService:
     async def _polled_source_current(
         self, trigger: AgentTrigger, connection: McpConnection | None = None
     ) -> bool:
+        return await self.source_admission_policy(trigger, connection) is not None
+
+    async def source_admission_policy(
+        self, trigger: AgentTrigger, connection: McpConnection | None = None
+    ) -> UUID | None:
+        """Snapshot the review usable by the current creator for this event origin."""
         ctx = await self._creator_context(trigger)
         if ctx is None:
-            return False
+            return None
         try:
             policy = read_policy(trigger.approved_sources)
             if connection is not None and policy.input_connection_id != connection.id:
-                return False
+                return None
             await self.sources.require_current(ctx, trigger, expected_id=policy.id)
+            if trigger.source_id is not None:
+                from app.services.event_sources import EventSourceService
+
+                await EventSourceService(self.db).require_use(ctx, trigger.source_id)
         except AuthorizationError, NotFoundError, BadRequestError:
-            return False
-        return True
+            return None
+        return policy.id
 
     async def polled_source_admissions(
         self, *, organization_id: UUID, event_source: str, connection: McpConnection
@@ -2477,7 +2588,7 @@ class AgentTriggerService:
                     routine_kind="trigger",
                     reason="run",
                     name=trigger.name or agent.name,
-                    detail="Three attempts to start on its computer failed before model admission. Review the failure before resuming.",
+                    detail="computer_start_failed",
                     observed_at=datetime.now(UTC),
                 )
                 continue
@@ -2538,8 +2649,8 @@ class AgentTriggerService:
                     routine_id=trigger.id,
                     routine_kind="trigger",
                     reason="run",
-                    name=trigger.name or "Routine",
-                    detail="Review this routine's sources in its settings before running it again.",
+                    name=trigger.name,
+                    detail="review_sources",
                     observed_at=datetime.now(UTC),
                 )
             if claimed_at is not None:
@@ -2669,9 +2780,11 @@ class AgentTriggerService:
         trigger_id: UUID,
         *,
         source_id: UUID,
+        source_policy_id: UUID | None,
         body: dict[str, JsonValue],
         delivery_id: UUID,
         organization_id: UUID,
+        received_at: datetime | None = None,
         headers: Mapping[str, str] | None = None,
     ) -> UUID | None:
         """Match one already-authenticated durable source delivery and queue its routine.
@@ -2693,6 +2806,19 @@ class AgentTriggerService:
         if not trigger_events.event_matches(
             trigger.event_source, headers=headers or {}, payload=body, config=trigger.event_config
         ):
+            await self._record_filtered_event(
+                trigger,
+                headers or {},
+                body,
+                received_at=received_at,
+                source_policy_id=source_policy_id,
+            )
+            return None
+        activation_id = uuid5(delivery_id, str(trigger.id))
+        if source_policy_id is None:
+            await self._record_attempt(
+                trigger, activation_id, stage="source_review", reason="source_review_required"
+            )
             return None
         allowance = await rate_limit.trigger_delivery_allowed(trigger.id)
         if not allowance.allowed:
@@ -2706,7 +2832,8 @@ class AgentTriggerService:
             event_context=trigger_events.render_context(trigger.event_source, payload=body),
             event_body=body,
             event_source_id=source_id,
-            activation_id=uuid5(delivery_id, str(trigger.id)),
+            activation_id=activation_id,
+            source_policy_id=source_policy_id,
         )
 
     async def queue_app_fires(self, *, body: bytes, headers: Mapping[str, str]) -> int:
@@ -3015,7 +3142,7 @@ class AgentTriggerService:
             routine_kind="trigger",
             reason="run",
             name=name,
-            detail="Review its device, folder and operations in the desktop app, then resume it.",
+            detail="desktop_review",
             observed_at=datetime.now(UTC),
         )
 
@@ -3069,8 +3196,8 @@ class AgentTriggerService:
                 routine_id=trigger.id,
                 routine_kind="trigger",
                 reason="run",
-                name=trigger.name or "Routine",
-                detail="Review this routine's sources in its settings before running it again.",
+                name=trigger.name,
+                detail="review_sources",
                 observed_at=datetime.now(UTC),
             )
             return
@@ -3122,7 +3249,7 @@ class AgentTriggerService:
                 routine_kind="trigger",
                 reason="run",
                 name=trigger.name or agent.name,
-                detail="Waiting for its approved computer. Reconnect it or review this routine's folder permission in the desktop app.",
+                detail="computer_waiting",
                 observed_at=datetime.now(UTC),
             )
         if trigger.local_target is not None:
@@ -3199,17 +3326,13 @@ class AgentTriggerService:
                     )
                 return
         try:
-            message = (
-                resolve_prompt(trigger.prompt, event_body or {})
-                if trigger.prompt_mode == "template"
-                else trigger.prompt
-                if event_context is None
-                else _with_event(trigger.prompt, event_context)
+            message = _routine_message(
+                trigger.prompt,
+                prompt_mode=trigger.prompt_mode,
+                result_mode=trigger.result_mode,
+                event_body=event_body,
+                event_context=event_context,
             )
-            if trigger.result_mode == "inbox":
-                message += "\n\n" + ROUTINE_RESULT_INSTRUCTIONS
-            if trigger.prompt_mode == "template":
-                check_resolved_size(prompt_bytes(message))
         except RoutinePromptError as exc:
             await self._record_attempt(
                 trigger,
@@ -3326,7 +3449,7 @@ class AgentTriggerService:
                 routine_kind="trigger",
                 reason="run",
                 name=local_trigger_name,
-                detail="A reviewed source is unavailable or changed. Inspect its connection and the routine's sources.",
+                detail="source_changed",
                 observed_at=datetime.now(UTC),
             )
             return
@@ -3364,7 +3487,7 @@ class AgentTriggerService:
                 routine_kind="trigger",
                 reason="run",
                 name=local_trigger_name,
-                detail="The agent cannot run with its current configuration. Review its published version and routine settings.",
+                detail="agent_misconfigured",
                 observed_at=datetime.now(UTC),
             )
             return
@@ -3468,7 +3591,7 @@ class AgentTriggerService:
                 routine_kind="trigger",
                 reason="delivery",
                 name=trigger.name or agent.name,
-                detail="Its answer is in Activity, but its chosen chat is unavailable.",
+                detail="chat_unavailable",
                 observed_at=observation,
                 run=run,
             )
@@ -3626,7 +3749,7 @@ class AgentTriggerService:
                 routine_kind="trigger",
                 reason="delivery",
                 name=trigger.name or agent.name,
-                detail="Its answer is in Activity, but its chosen chat is unavailable.",
+                detail="chat_unavailable",
                 observed_at=observation,
                 run=run,
             )
@@ -4080,7 +4203,9 @@ class AgentTriggerService:
                 different agent than the one in the path, or created by someone else
                 and the caller lacks `agents:edit`.
         """
-        agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        # Publication locks the agent before withdrawing routine consent. Keep
+        # that order when an edit locks both rows for model-surface admission.
+        agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN, for_update=for_update)
         trigger = await agent_trigger_repo.get(
             self.db, trigger_id, organization_id=ctx.organization_id, for_update=for_update
         )

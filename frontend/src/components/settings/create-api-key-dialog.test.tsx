@@ -13,7 +13,14 @@ vi.mock("@/components/public-config/public-config-provider", () => ({
 vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => toastError(...args) } }));
 
 const CATALOG: ApiKeyScopeCatalog = {
-  scopes: ["agents:view", "collections:view", "collections:edit", "personal:consent"],
+  scopes: [
+    "agents:view",
+    "agents:run",
+    "collections:view",
+    "collections:edit",
+    "personal:consent",
+    "mcp:personal:use",
+  ],
   presets: [
     { id: "read_only", scopes: ["agents:view", "collections:view"] },
     { id: "knowledge_ingest", scopes: ["collections:view", "collections:edit"] },
@@ -93,6 +100,24 @@ describe("CreateApiKeyDialog", () => {
       scopes: ["collections:edit"],
       expires_at: null,
     });
+  });
+
+  it("requires an explicit choice to delegate personal MCP", async () => {
+    const { onCreate } = open();
+    expect(screen.getByText(/Personal MCP delegation is excluded/)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Name"), "opencode");
+    await pick("Access", "Custom");
+    const personal = screen.getByRole("checkbox", { name: "mcp:personal:use" });
+    expect(personal).not.toBeChecked();
+    await userEvent.click(personal);
+    await userEvent.click(screen.getByRole("checkbox", { name: "agents:run" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "opencode",
+        scopes: ["mcp:personal:use", "agents:run"],
+      }),
+    );
   });
 
   it("keeps the form and toasts the refusal when the server says no", async () => {

@@ -5,7 +5,7 @@ import hashlib
 import hmac
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from pydantic import SecretStr
@@ -13,6 +13,7 @@ from pydantic import SecretStr
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.vault import VaultScope, seal
+from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.event_source import (
     EventDelivery,
     EventDispatch,
@@ -23,6 +24,8 @@ from app.db.models.event_source import (
 from app.schemas.event_source import EventSourceCreate, SourceAuth, SourceCredentials
 from app.services import event_sources as module
 from app.services.event_sources import EventSourceService, credential_json
+from app.services.routine_sources import source_scope
+from app.services.workflow_execution.exceptions import WorkflowAdmissionQuotaError
 
 pytestmark = pytest.mark.anyio
 
@@ -94,6 +97,19 @@ def signed(body):
     return {
         "x-signature-256": "sha256=" + hmac.new(b"shared-secret", body, hashlib.sha256).hexdigest()
     }
+
+
+def test_dedicated_source_keeps_its_preexisting_consent_fingerprint():
+    trigger = AgentTrigger(
+        agent_id=UUID(int=3),
+        runs_as_creator=True,
+        event_source="webhook",
+        event_config={},
+        answer_to="run_log",
+    )
+    assert (
+        source_scope(trigger) == "56c2b3ef3c3437115ae6520bbc83aee8022eebb9256879ed699b3150c7e29805"
+    )
 
 
 async def test_receipt_retains_complete_json_and_no_auth_headers(db, source, repos):
@@ -169,8 +185,14 @@ async def test_each_active_subscriber_gets_its_own_job_in_the_receipt_transactio
         for _ in range(3)
     ]
     module.repo.subscriptions.return_value = subs
-    with patch.object(
-        module.trigger_repo, "get_by_id", AsyncMock(return_value=MagicMock(is_active=True))
+    with (
+        patch.object(
+            module.trigger_repo, "get_by_id", AsyncMock(return_value=MagicMock(is_active=True))
+        ),
+        patch(
+            "app.services.agent_trigger.AgentTriggerService.source_admission_policy",
+            AsyncMock(return_value=None),
+        ),
     ):
         _, receipt, _ = await EventSourceService(db).receive(
             source.id, body=b"{}", headers=signed(b"{}")
@@ -254,8 +276,10 @@ async def test_source_with_subscriptions_cannot_be_deleted(db, ctx, source, repo
         await EventSourceService(db).delete(ctx, source.id)
 
 
-async def test_dispatch_failure_is_recorded_without_failing_other_jobs(db, source, repos):
+@pytest.mark.parametrize("target", ["routine", "oversized_workflow"])
+async def test_dispatch_failure_is_recorded_without_failing_other_jobs(db, source, repos, target):
     from app.services.agent_trigger import AgentTriggerService
+    from app.services.workflow_exposure import WorkflowExposureService
 
     receipt = EventDelivery(
         id=uuid4(),
@@ -264,9 +288,21 @@ async def test_dispatch_failure_is_recorded_without_failing_other_jobs(db, sourc
         body={"x": 1},
         headers={},
     )
-    sub = EventSubscription(
-        id=uuid4(), source_id=source.id, organization_id=source.organization_id, trigger_id=uuid4()
-    )
+    sub = EventSubscription(id=uuid4(), source_id=source.id, organization_id=source.organization_id)
+    if target == "routine":
+        sub.trigger_id = uuid4()
+        refusal = AuthorizationError(message="Authority revoked")
+        handler = patch.object(
+            AgentTriggerService, "fire_source_delivery", AsyncMock(side_effect=refusal)
+        )
+    else:
+        sub.exposure_id = uuid4()
+        refusal = WorkflowAdmissionQuotaError(
+            scope="organization", limit=10, outstanding=0, requested=11
+        )
+        handler = patch.object(
+            WorkflowExposureService, "receive_source_delivery", AsyncMock(side_effect=refusal)
+        )
     row = EventDispatch(
         id=uuid4(),
         organization_id=source.organization_id,
@@ -278,14 +314,11 @@ async def test_dispatch_failure_is_recorded_without_failing_other_jobs(db, sourc
         patch.object(module.repo, "dispatch", AsyncMock(return_value=row)),
         patch.object(module.repo, "delivery", AsyncMock(return_value=receipt)),
         patch.object(module.repo, "subscription", AsyncMock(return_value=sub)),
-        patch.object(
-            AgentTriggerService,
-            "fire_source_delivery",
-            AsyncMock(side_effect=AuthorizationError(message="Authority revoked")),
-        ),
+        handler,
     ):
         await EventSourceService(db).dispatch(source.organization_id, row.id)
-    assert row.status == "failed" and row.error_code == "AUTHORIZATION_ERROR"
+    assert row.status == "failed" and row.error_code == refusal.code
+    repos.assert_not_awaited()
     assert isinstance(row.completed_at, datetime)
 
 
@@ -365,15 +398,19 @@ async def test_api_key_header_does_not_become_delivery_metadata(db, source, repo
 async def test_github_event_header_is_preserved_for_subscription_filtering(db, source, repos):
     source.provider = "github"
     source.auth = SourceAuth(method="provider").model_dump()
+    # Older source configurations could name the provider's signature as their delivery ID.
+    source.delivery_id_header = "x-hub-signature-256"
     _, receipt, _ = await EventSourceService(db).receive(
         source.id,
         body=b"{}",
         headers={
             "x-hub-signature-256": signed(b"{}")["x-signature-256"],
             "x-github-event": "issues",
+            "x-github-delivery": "event-123",
         },
     )
     assert receipt.headers == {"x-github-event": "issues"}
+    assert receipt.external_id == "event-123"
 
 
 async def test_long_delivery_identifier_is_refused_without_truncation_collision(db, source, repos):

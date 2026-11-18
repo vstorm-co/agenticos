@@ -1,5 +1,5 @@
 ---
-source_sha: "906fd3ede6cf"
+source_sha: "d7696a54fcde"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -132,7 +132,7 @@ Wybierz GitHub, Linear, HubSpot lub Zendesk do weryfikacji właściwej dla dosta
 
 Wyślij POST zawierający obiekt JSON; zachowana jest dotychczasowa adaptacja partii HubSpot. Poświadczenia są tylko do zapisu i trafiają do sejfu organizacji. Zmieniaj je w źródle, nigdy w definicji workflow ani przykładzie. Identyfikatory dostawcy lub skonfigurowany nagłówek ID dostawy rozpoznają ponowienia. Poświadczenia Basic Auth i klucze API nie są identyfikatorami zdarzeń. Bez ID zdarzenia ponowienia mogą uruchomić dodatkowe wykonania.
 
-Uwierzytelniona dostawa i zadania wysyłki zapisują się wspólnie, zanim źródło potwierdzi odbiór. Błędy subskrybentów są niezależne. Wspólny URL asynchronicznie potwierdza trwały odbiór i nie zwraca własnej odpowiedzi workflow. Workflow ze wspólnym źródłem nie może dotrzeć do **Odpowiedz na webhook**. Dedykowane endpointy workflow zachowują odpowiedzi synchroniczne.
+Uwierzytelniona dostawa i zadania wysyłki zapisują się wspólnie, zanim źródło potwierdzi odbiór. Błędy subskrybentów są niezależne. Worker ponawia próbę dostarczenia, gdy subskrybent tymczasowo osiągnie limit częstotliwości lub liczby równoczesnych wykonań. Zdarzenie w kolejce może użyć tylko zgody na źródło rutyny obowiązującej w chwili odbioru. Zmiana źródła rutyny wymaga ponownego zatwierdzenia. Wspólny URL asynchronicznie potwierdza trwały odbiór i nie zwraca własnej odpowiedzi workflow. Workflow ze wspólnym źródłem nie może dotrzeć do **Odpowiedz na webhook**. Dedykowane endpointy workflow zachowują odpowiedzi synchroniczne.
 
 **Wstrzymaj źródło** zatrzymuje uruchamianie subskrybentów dla nowych dostaw; wstrzymanie rutyny lub workflow dotyczy tylko tego celu. Usunięcie źródła jest zablokowane, dopóki istnieją subskrypcje; lista użycia wskazuje cele do odłączenia. Zdarzenia strukturalne pozostają dostępne dla pracy w kolejce lub oczekującej. Zakończone dostawy podlegają zasadom retencji zadań w tle.
 
@@ -153,7 +153,7 @@ Odczytaj nietypową właściwość {{["request.id"]}}.
 
 Ścieżki zaczynają się w korzeniu body JSON. Obsługiwane są właściwości z kropkami, indeksy tablic i klucze w cudzysłowie w nawiasach; wyrażenia, funkcje, pętle i wartości domyślne nie są obsługiwane. Pojedyncze klamry są tekstem. Zapis `\{{example\}}` wyświetla dosłownie podwójne klamry. Podstawienie odbywa się raz: klamry w odebranej wartości nie tworzą kolejnego odwołania.
 
-**Podgląd rozwiązanego promptu** używa tego samego resolvera backendu co wykonanie i nie wywołuje agenta. Teksty są wstawiane bezpośrednio, pozostałe wartości jako zwarty JSON. `false`, `0` i `null` są obecnymi wartościami. Brakująca ścieżka powoduje widoczny błąd z jej nazwą przed wywołaniem agenta, także w diagnostyce aktywacji i historii rutyny, gdy wykonanie jeszcze nie istnieje.
+**Podgląd rozwiązanego promptu** używa tego samego resolvera backendu co wykonanie i nie wywołuje agenta. Teksty są wstawiane bezpośrednio, pozostałe wartości jako zwarty JSON. `false`, `0` i `null` są obecnymi wartościami. Brakująca ścieżka powoduje widoczny błąd z jej nazwą przed wywołaniem agenta, także w diagnostyce aktywacji i historii rutyny, gdy wykonanie jeszcze nie istnieje. W trybie skrzynki odbiorczej podgląd zawiera instrukcje dotyczące wyniku i wlicza je do limitu rozmiaru wiadomości.
 
 Zapis sprawdza składnię bez wymagania pól w przykładzie. Rozwiązywanie korzysta ze strukturalnego zdarzenia przed dotychczasowym skracaniem kontekstu. Tryb szablonu wysyła napisany prompt z wybranymi wartościami oznaczonymi jako dane zewnętrzne, bez dołączania całego payloadu. Zbyt duża wiadomość powoduje błąd zamiast skrócenia. Istniejące prompty pozostają dosłowne do jawnej zmiany trybu; dedykowane adresy URL i ustawienia podpisów nadal działają.
 

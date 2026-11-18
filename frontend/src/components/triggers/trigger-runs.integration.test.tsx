@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TriggerRow } from "./trigger-row";
 import { TriggerRunsView } from "./trigger-runs-view";
 import { apiClient } from "@/lib/api-client";
+import { useAuthStore } from "@/stores";
 import { qk } from "@/lib/query-keys";
 import { useTriggers } from "@/hooks/use-triggers";
 import type { Trigger, TriggerAttempt, TriggerAttemptList } from "@/types/triggers";
@@ -796,4 +797,99 @@ it("reports an unavailable activation receipt without polling it indefinitely", 
   render(<TriggerRunsView trigger={trigger()} activationId="requested-fire" />, { wrapper });
   expect(await screen.findByText("This trigger's runs could not be read.")).toBeVisible();
   expect(screen.queryByText("Starting…")).toBeNull();
+});
+
+describe("GitHub filtered delivery diagnostics", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAuthStore.setState({
+      user: {
+        id: "owner",
+        email: "owner@example.com",
+        is_active: true,
+        created_at: "2026-11-17T09:00:00Z",
+      },
+    });
+  });
+  function serveDiagnostic(last_event: unknown) {
+    serveRuns([]);
+    const previous = vi.mocked(apiClient.get).getMockImplementation();
+    vi.mocked(apiClient.get).mockImplementation(
+      async (path: string, options?: Parameters<typeof apiClient.get>[1]) => {
+        if (path.endsWith("/filtered-event")) return { last_event };
+        return previous?.(path, options);
+      },
+    );
+  }
+  it("shows the owner's latest rejection even when the routine has never run", async () => {
+    serveDiagnostic({ received_at: "2026-11-17T09:00:00Z", reason: "author", authors: "members" });
+    render(
+      <TriggerRunsView
+        trigger={trigger({
+          created_by_user_id: "owner",
+          event_source: "github",
+          conversation_id: null,
+        })}
+        activationId={null}
+      />,
+      { wrapper },
+    );
+    expect(
+      await screen.findByText("The author association was excluded by the author filter."),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Author filter at receipt: Repository members (default)"),
+    ).toBeVisible();
+    expect(screen.getByText(/has not run yet/)).toBeVisible();
+  });
+  it("distinguishes no recorded refusal from a webhook receipt", async () => {
+    serveDiagnostic(null);
+    render(
+      <TriggerRunsView
+        trigger={trigger({ created_by_user_id: "owner", event_source: "github" })}
+        activationId={null}
+      />,
+      { wrapper },
+    );
+    expect(
+      await screen.findByText(/This does not confirm that a webhook has arrived/),
+    ).toBeVisible();
+  });
+  it("shows a diagnostic request failure instead of claiming no filtered events", async () => {
+    serveRuns([]);
+    const previous = vi.mocked(apiClient.get).getMockImplementation();
+    vi.mocked(apiClient.get).mockImplementation(
+      async (path: string, options?: Parameters<typeof apiClient.get>[1]) => {
+        if (path.endsWith("/filtered-event")) throw new Error("unavailable");
+        return previous?.(path, options);
+      },
+    );
+    render(
+      <TriggerRunsView
+        trigger={trigger({ created_by_user_id: "owner", event_source: "github" })}
+        activationId={null}
+      />,
+      { wrapper },
+    );
+    expect(await screen.findByText("Could not read filtered event diagnostics")).toBeVisible();
+    expect(screen.queryByText(/No filtered event has been recorded/)).toBeNull();
+  });
+  it.each(["other-person", null])(
+    "does not fetch owner diagnostics for %s",
+    async (created_by_user_id) => {
+      serveDiagnostic(null);
+      render(
+        <TriggerRunsView
+          trigger={trigger({ created_by_user_id, event_source: "github" })}
+          activationId={null}
+        />,
+        { wrapper },
+      );
+      await screen.findByText(/has not run yet/);
+      expect(screen.queryByText("Latest filtered GitHub event")).toBeNull();
+      expect(
+        vi.mocked(apiClient.get).mock.calls.some(([path]) => path.endsWith("/filtered-event")),
+      ).toBe(false);
+    },
+  );
 });
