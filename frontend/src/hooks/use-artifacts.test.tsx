@@ -753,6 +753,52 @@ describe("cached static App previews", () => {
     }
   });
 
+  it.each(["ready", "unavailable"] as const)(
+    "finishes bounded recovery after unmounting before the first response (%s)",
+    async (finalState) => {
+      vi.useFakeTimers();
+      try {
+        let complete!: (value: {
+          version_id: string;
+          state: string;
+          image: null;
+          retryable: boolean;
+        }) => void;
+        vi.mocked(apiClient.get)
+          .mockImplementationOnce(() => new Promise((resolve) => (complete = resolve)))
+          .mockResolvedValue({
+            version_id: "v1",
+            state: finalState,
+            image: finalState === "ready" ? "data:image/jpeg;base64,aA==" : null,
+            retryable: true,
+          });
+        const wrap = cachedWrapper();
+        const first = renderHook(() => useArtifactThumbnail("a", "v1", true), { wrapper: wrap });
+        expect(apiClient.get).toHaveBeenCalledTimes(1);
+        first.unmount();
+        await act(async () => {
+          complete({ version_id: "v1", state: "unavailable", image: null, retryable: true });
+          await vi.advanceTimersByTimeAsync(10000);
+        });
+        const expectedCalls = finalState === "ready" ? 2 : 3;
+        expect(apiClient.get).toHaveBeenCalledTimes(expectedCalls);
+        const again = renderHook(({ seen }) => useArtifactThumbnail("a", "v1", seen), {
+          initialProps: { seen: false },
+          wrapper: wrap,
+        });
+        again.rerender({ seen: true });
+        await act(async () => vi.advanceTimersByTimeAsync(60000));
+        expect(again.result.current.isSuccess).toBe(finalState === "ready");
+        expect(again.result.current.isError).toBe(finalState === "unavailable");
+        expect(apiClient.get).toHaveBeenCalledTimes(expectedCalls);
+        again.unmount();
+      } finally {
+        vi.clearAllTimers();
+        vi.useRealTimers();
+      }
+    },
+  );
+
   it("bounds temporary retries across visibility changes and remounts", async () => {
     vi.useFakeTimers();
     try {

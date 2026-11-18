@@ -522,8 +522,6 @@ export function usePublicArtifactUnlock(publicKey: string) {
   });
 }
 
-class RetryableThumbnailError extends Error {}
-
 /** Static, data-free previews survive navigation and are replaced only with a new version. */
 export function useArtifactThumbnail(
   artifactId: string,
@@ -539,21 +537,27 @@ export function useArtifactThumbnail(
     // Let an already-started static preview finish into this scoped cache when
     // navigating away. Cancelling it would restart its isolated render on Back.
     queryFn: async () => {
-      const thumbnail = await apiClient.get<ArtifactThumbnail>(
-        `/apps/${artifactId}/thumbnail${versionId ? `?version_id=${encodeURIComponent(versionId)}` : ""}`,
-      );
-      if (thumbnail.state === "unavailable" && thumbnail.retryable === true) {
-        throw new RetryableThumbnailError("ARTIFACT_THUMBNAIL_UNAVAILABLE");
+      // Keep the bounded recovery inside this shared fetch: Query cancels its
+      // own retries when the last card unmounts, even if its request continues.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
+        }
+        const thumbnail = await apiClient.get<ArtifactThumbnail>(
+          `/apps/${artifactId}/thumbnail${versionId ? `?version_id=${encodeURIComponent(versionId)}` : ""}`,
+        );
+        if (thumbnail.state !== "unavailable" || thumbnail.retryable !== true) {
+          return thumbnail;
+        }
       }
-      return thumbnail;
+      throw new Error("ARTIFACT_THUMBNAIL_UNAVAILABLE");
     },
     // Visibility toggles enabled after mount. Keep a failed immutable version
     // failed instead of treating each visibility change as a fresh render.
     enabled: enabled && client.getQueryState(key)?.status !== "error",
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
-    retry: (failures, error) => error instanceof RetryableThumbnailError && failures < 2,
-    retryDelay: (failures) => Math.min(1000 * 2 ** failures, 5000),
+    retry: false,
     retryOnMount: false,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
