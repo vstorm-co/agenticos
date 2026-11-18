@@ -54,7 +54,7 @@ async def test_a_table_for_a_group_is_private_and_shared_with_it(db: AsyncSessio
     grants = (
         await db.scalars(select(ResourceGrant).where(ResourceGrant.resource_id == table.id))
     ).all()
-    assert [(grant.subject_group_id, grant.level) for grant in grants] == [(finance.id, "use")]
+    assert [(grant.subject_group_id, grant.level) for grant in grants] == [(finance.id, "read")]
     assert await _names(db, ctx_for(accountant, org, "member")) == ["Invoices"]
     assert await _names(db, ctx_for(seller, org, "member")) == []
 

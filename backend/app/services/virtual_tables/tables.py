@@ -17,6 +17,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
+from app.db.models.resource_grant import GrantLevel
 from app.db.models.virtual_table import VirtualTable
 from app.db.updates import writable
 from app.repositories import table_view_repo, virtual_table_repo
@@ -150,6 +151,7 @@ class TableOperations(Operations):
                     resource_type=TABLE,
                     group_ids=data.group_ids,
                     user_ids=data.user_ids,
+                    level=GrantLevel.READ,
                 )
             return self._read(table, columns, can_edit=await self._can_edit(ctx, table))
 

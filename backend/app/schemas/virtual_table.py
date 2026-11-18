@@ -278,12 +278,12 @@ class TableCreate(_Request):
     group_ids: list[UUID] = Field(
         default_factory=list,
         max_length=50,
-        description="Share it with these groups as it is created, each at `use`",
+        description="Share it with these groups as it is created, each at `read`",
     )
     user_ids: list[UUID] = Field(
         default_factory=list,
         max_length=50,
-        description="Share it with these members as well, or instead, each at `use`",
+        description="Share it with these members as well, or instead, each at `read`",
     )
 
     @model_validator(mode="after")

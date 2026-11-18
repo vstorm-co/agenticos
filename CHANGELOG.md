@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Choose who can see a new table in the **New table** dialog itself - only you, everyone, or chosen groups and people - as an agent's create dialog does. `POST /tables` accepts `group_ids` and `user_ids`, and shares the new table with each at `use`.
+- Choose who can see a new table in the **New table** dialog itself - only you, everyone, or chosen groups and people - as an agent's create dialog does. `POST /tables` accepts `group_ids` and `user_ids`, and shares the new table with each at `read`.
 
 ## [1.82.2] - 2026-11-18
 
