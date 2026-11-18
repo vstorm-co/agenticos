@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
+from pydantic_ai import ToolOutput
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
@@ -1318,6 +1319,10 @@ _SCORE = {
 }
 
 
+def _shaped(field: dict[str, object]) -> dict[str, object]:
+    return {"type": "object", "properties": {"field": field}}
+
+
 class TestAStructuredAnswer:
     def test_a_spec_from_before_answers_in_text(self):
         """A verbatim stored document with no `output_schema` still loads, as prose."""
@@ -1411,6 +1416,32 @@ class TestAStructuredAnswer:
         assert [tool.strict for tool in offered] == [False]
         assert offered[0].parameters_json_schema["properties"]["value"] == {}
         assert result.output == {"path": "capabilities", "value": {"id": "clock", "config": {}}}
+
+    @pytest.mark.parametrize(
+        ("schema", "strict"),
+        [
+            (_SCORE, None),
+            (_shaped({"type": "array", "items": {"type": "string"}, "minItems": 1}), None),
+            (_shaped({"type": "array", "minItems": 3}), False),
+            (_shaped({"type": "integer", "maximum": 5}), False),
+            ({"type": "object", "$defs": {"Free": {"description": "anything"}}}, False),
+            (_shaped({"anyOf": [{"type": "string"}, {"additionalProperties": {}}]}), False),
+            (
+                _shaped({"type": "array", "prefixItems": [{"type": "string", "maxLength": 9}]}),
+                False,
+            ),
+        ],
+    )
+    def test_only_a_schema_a_strict_grammar_cannot_express_turns_strict_off(self, schema, strict):
+        """Left alone, a provider validating strict tools - Gemini - checks every call."""
+        built = build_agent(
+            AgentSpec(name="Shaped", output_schema=schema),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+        answer = built.agent.output_type[0]
+        assert isinstance(answer, ToolOutput)
+        assert answer.strict is strict
 
     def test_a_parked_run_passes_the_schema_check_untouched(self):
         """What a parked run ends with is not an answer, and is handed on untouched."""

@@ -839,20 +839,59 @@ def _spend_limits(
 def _output_type(schema: dict[str, Any] | None) -> OutputSpec[AgentOutput]:
     """Text, or an object of `schema` handed back as one tool call's arguments.
 
-    The tool is sent non-strict. A strict tool is compiled by the provider into a
-    grammar that refuses valid schemas - a free JSON value (`{}`), numeric bounds,
-    `minItems` above one - and Anthropic rejects the whole request for it. The
-    schema is still enforced: `_fits_schema` sends a misshapen answer back.
+    A schema a strict grammar can express keeps the provider's default, so Gemini
+    still validates every call in the request. Any other is sent non-strict:
+    Anthropic compiles a strict tool into a grammar and rejects the whole request
+    over a node it cannot express. The schema is enforced either way, because
+    `_fits_schema` sends a misshapen answer back.
     """
     if schema is None:
         return [str, DeferredToolRequests]
     return [
         ToolOutput(
             StructuredDict(schema, name="answer", description="The answer, in the shape asked for"),
-            strict=False,
+            strict=None if _grammar_expresses(schema) else False,
         ),
         DeferredToolRequests,
     ]
+
+
+_TYPED = frozenset({"type", "$ref", "enum", "const", "anyOf", "oneOf", "allOf"})
+_BOUNDS = frozenset(
+    {
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "multipleOf",
+        "minLength",
+        "maxLength",
+        "maxItems",
+    }
+)
+
+
+def _grammar_expresses(node: object) -> bool:
+    """Whether a provider's strict-mode grammar accepts `node` and every schema under it.
+
+    It cannot express a free JSON value (`{}`, no type at all), numeric or length
+    bounds, or `minItems` above one.
+    """
+    if not isinstance(node, dict):
+        return True
+    if not _TYPED & node.keys() or _BOUNDS & node.keys() or node.get("minItems", 0) > 1:
+        return False
+    children: list[object] = [
+        *node.get("properties", {}).values(),
+        *node.get("$defs", {}).values(),
+        *node.get("prefixItems", []),
+        *node.get("anyOf", []),
+        *node.get("oneOf", []),
+        *node.get("allOf", []),
+        node.get("items"),
+        node.get("additionalProperties"),
+    ]
+    return all(_grammar_expresses(child) for child in children)
 
 
 def _fits_schema(schema: dict[str, Any]) -> Callable[[AgentOutput], AgentOutput]:
