@@ -195,6 +195,7 @@ async def test_acceptance_does_not_promise_work(disposition: str) -> None:
 
 
 @pytest.mark.parametrize("method", ["select", "confirm", "input", "editor"])
+@pytest.mark.security
 async def test_extension_dialog_is_cancelled_without_invented_approval(method: str) -> None:
     pi = Pi([{"type": "extension_ui_request", "id": "question", "method": method}])
     with pytest.raises(AcpError, match="human input"):
@@ -319,6 +320,98 @@ async def test_persistent_sessions_require_an_owned_storage_reference() -> None:
     with pytest.raises(AcpError, match="persistent session storage"):
         await run(pi, remember=remember)
     assert pi.closed
+
+
+async def test_miscellaneous_native_events_do_not_invent_updates() -> None:
+    pi = Pi()
+    session = _Session(pi, ignore)
+    pi.messages.append({"type": "extension_ui_request", "id": "notice", "method": "notify"})
+    await session.receive()
+    await session.event(
+        _Record(type="message_update", assistantMessageEvent={"type": "thinking_delta"})
+    )
+    await session.event(_Record(type="message_end", message="Human dialog message"))
+    await session.event(_Record(type="tool_execution_start", toolCallId="one", toolName="Read"))
+    assert not session.answer
+    assert len(session.active) == 1
+
+
+async def test_live_pi_answer_reaches_the_waiting_extension_and_native_settlement() -> None:
+    from app.agents.runtime_questions import (
+        RuntimeAnswer,
+        RuntimeQuestionRequest,
+        RuntimeQuestionResponse,
+    )
+
+    ready = anyio.Event()
+
+    class DialogPi(Pi):
+        async def send(self, message: dict[str, object]) -> None:
+            await super().send(message)
+            if message.get("type") == "extension_ui_response":
+                self.messages.extend([finished("Human answered"), {"type": "agent_settled"}])
+                ready.set()
+
+        async def receive(self) -> dict[str, object]:
+            if not self.messages:
+                await ready.wait()
+            return await super().receive()
+
+    async def human(request: RuntimeQuestionRequest) -> RuntimeQuestionResponse:
+        assert request.questions[0].question == "Which one?"
+        return RuntimeQuestionResponse(answers=[RuntimeAnswer(selected=["B"])])
+
+    pi = DialogPi(
+        [
+            {
+                "type": "extension_ui_request",
+                "id": "dialog",
+                "method": "select",
+                "title": "Which one?",
+                "options": ["A", "B"],
+            }
+        ]
+    )
+    report = await run_pi(pi, task="Ask", timeout_seconds=1, shown=ignore, runtime_questions=human)
+    assert report.answer == "Human answered" and report.outcome == "completed"
+    assert {"type": "extension_ui_response", "id": "dialog", "value": "B"} in pi.seen
+    assert pi.closed
+
+
+async def test_pi_terminal_event_cancels_a_live_question_before_waiting_for_an_answer() -> None:
+    from app.agents.runtime_questions import RuntimeQuestionRequest, RuntimeQuestionResponse
+
+    asking = anyio.Event()
+    released = anyio.Event()
+
+    class TerminalPi(Pi):
+        async def receive(self) -> dict[str, object]:
+            if self.messages and self.messages[0].get("type") == "agent_settled":
+                await asking.wait()
+            return await super().receive()
+
+    async def human(_request: RuntimeQuestionRequest) -> RuntimeQuestionResponse:
+        asking.set()
+        try:
+            await anyio.sleep_forever()
+        finally:
+            released.set()
+
+    pi = TerminalPi(
+        [
+            {
+                "type": "extension_ui_request",
+                "id": "dialog",
+                "method": "confirm",
+                "title": "Continue?",
+            },
+            finished(),
+            {"type": "agent_settled"},
+        ]
+    )
+    report = await run_pi(pi, task="Ask", timeout_seconds=1, shown=ignore, runtime_questions=human)
+    assert report.outcome == "completed" and released.is_set() and pi.closed
+    assert not any(message.get("type") == "extension_ui_response" for message in pi.seen)
 
 
 @pytest.mark.parametrize("tool", ["run_acp_agent", "inspect_acp_agent"])

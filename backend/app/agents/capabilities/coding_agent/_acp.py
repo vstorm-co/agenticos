@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 import anyio
+from anyio.abc import TaskGroup
 
 from app.agents.capabilities.coding_agent._harness import (
     Access,
@@ -39,6 +40,7 @@ from app.agents.capabilities.coding_agent._harness import (
     last_steps,
 )
 from app.agents.model_context import check_model_context
+from app.agents.runtime_questions import RuntimeQuestionsCallback
 from app.agents.steering import SteeringInbox, screen_steer
 
 logger = logging.getLogger(__name__)
@@ -419,11 +421,21 @@ Shown = Callable[[list[LiveItem]], Awaitable[None]]
 class Conversation:
     """JSON-RPC over a `Pipe`: requests the client makes, and whatever the agent asks back."""
 
-    def __init__(self, pipe: Pipe, *, access: Access, collector: _Collector, shown: Shown) -> None:
+    def __init__(
+        self,
+        pipe: Pipe,
+        *,
+        access: Access,
+        collector: _Collector,
+        shown: Shown,
+        runtime_questions: RuntimeQuestionsCallback | None = None,
+    ) -> None:
         self._pipe = pipe
         self._access = access
         self._collector = collector
         self._shown = shown
+        self._runtime_questions = runtime_questions
+        self._human_scopes: dict[str | int, anyio.CancelScope] = {}
         self._ids = itertools.count(1)
         self._received_events = 0
         self._received_bytes = 0
@@ -440,10 +452,75 @@ class Conversation:
         )
         if sent is not None:
             sent.set()
+        if self._runtime_questions is None:
+            return await self._receive_result(identifier)
+        try:
+            async with anyio.create_task_group() as group:
+                try:
+                    return await self._receive_result(identifier, group)
+                finally:
+                    group.cancel_scope.cancel()
+        except BaseExceptionGroup as errors:
+            if len(errors.exceptions) == 1:
+                raise errors.exceptions[0] from None
+            raise
+
+    @staticmethod
+    def _human_request(message: Mapping[str, object]) -> bool:
+        method = message.get("method")
+        if method in (
+            "cursor/ask_question",
+            "cursor/create_plan",
+            "x.ai/ask_user_question",
+            "_agenticos/request_questions",
+        ):
+            return True
+        raw = message.get("params")
+        call = raw.get("toolCall") if isinstance(raw, dict) else None
+        return (
+            method == "session/request_permission"
+            and isinstance(call, dict)
+            and call.get("title") == "AskUserQuestion"
+        )
+
+    async def _answer_human(
+        self, message: dict[str, Any], identifier: str | int, scope: anyio.CancelScope
+    ) -> None:
+        try:
+            with scope:
+                await self._handle(message)
+        finally:
+            self._human_scopes.pop(identifier, None)
+
+    async def _receive_result(
+        self, identifier: int, group: TaskGroup | None = None
+    ) -> dict[str, Any] | None:
         while True:
             message = await self._pipe.receive()
             self._consume(message)
-            if "method" in message:
+            if group is not None and message.get("method") == "_agenticos/cancel_request":
+                params = message.get("params")
+                native_id = params.get("id") if isinstance(params, dict) else None
+                if (
+                    type(native_id) in (str, int)
+                    and (scope := self._human_scopes.get(native_id)) is not None
+                ):
+                    scope.cancel()
+            elif group is not None and "id" in message and self._human_request(message):
+                native_id = message["id"]
+                if (
+                    type(native_id) not in (str, int)
+                    or len(str(native_id)) > 256
+                    or native_id in self._human_scopes
+                    or len(self._human_scopes) >= 8
+                ):
+                    raise AcpError(
+                        "The runtime exceeded the human-input request limit or reused a pending identifier."
+                    )
+                scope = anyio.CancelScope()
+                self._human_scopes[native_id] = scope
+                group.start_soon(self._answer_human, message, native_id, scope)
+            elif "method" in message:
                 await self._handle(message)
             elif message.get("id") == identifier:
                 if "error" in message:
@@ -553,6 +630,50 @@ class Conversation:
                     await self._shown(items)
             return
         if "id" not in message:
+            return
+        human_permission = (
+            method == "session/request_permission"
+            and isinstance(params.get("toolCall"), dict)
+            and params["toolCall"].get("title") == "AskUserQuestion"
+        )
+        if self._runtime_questions is not None and (
+            method
+            in {
+                "cursor/ask_question",
+                "cursor/create_plan",
+                "x.ai/ask_user_question",
+                "_agenticos/request_questions",
+            }
+            or human_permission
+        ):
+            from app.agents.capabilities.external_acp import _human
+
+            handler = (
+                _human.permission_question
+                if human_permission
+                else {
+                    "cursor/ask_question": _human.cursor_questions,
+                    "cursor/create_plan": _human.cursor_plan,
+                    "x.ai/ask_user_question": _human.grok_questions,
+                    "_agenticos/request_questions": _human.muse_questions,
+                }[method]
+            )
+            try:
+                human_reply = await handler(params, self._runtime_questions)
+                await check_model_context()
+            except ValueError, TypeError:
+                cancelled = (
+                    {"cancelled": True, "answers": []}
+                    if method == "_agenticos/request_questions"
+                    else {"outcome": "cancelled"}
+                    if method == "x.ai/ask_user_question"
+                    else {"outcome": {"outcome": "cancelled"}}
+                )
+                await self._pipe.send({"jsonrpc": "2.0", "id": message["id"], "result": cancelled})
+                raise AcpError(
+                    "The runtime's human-input request was unsupported or malformed. No answer or approval was invented."
+                ) from None
+            await self._pipe.send({"jsonrpc": "2.0", "id": message["id"], "result": human_reply})
             return
         if method == "session/request_permission":
             tool_call = params.get("toolCall")
@@ -720,6 +841,7 @@ async def run_task(
     configuration_policy: Literal["session", "cli"] = "session",
     remember: Callable[[str], Awaitable[None]] | None = None,
     steering: SteeringInbox | None = None,
+    runtime_questions: RuntimeQuestionsCallback | None = None,
 ) -> CodingReport:
     """One task as one ACP session, ended however the task ends.
 
@@ -727,7 +849,9 @@ async def run_task(
         AcpError: The agent could not be spoken to, or ended before it answered.
     """
     collector = _Collector(cursor_account=auth_method == "cursor_login")
-    conversation = Conversation(pipe, access=access, collector=collector, shown=shown)
+    conversation = Conversation(
+        pipe, access=access, collector=collector, shown=shown, runtime_questions=runtime_questions
+    )
     session_id: str | None = None
     try:
         stop = "timed_out"

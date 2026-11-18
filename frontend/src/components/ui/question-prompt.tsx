@@ -40,7 +40,11 @@ function shown(answer: QuestionPromptAnswer | undefined, skipped: string): strin
  * has seen all their answers together. × skips everything that is left, which
  * the agent reads as declining.
  */
-export function QuestionPrompt({ questions, disabled = false, onComplete }: QuestionPromptProps) {
+export function QuestionPrompt(props: QuestionPromptProps) {
+  return <QuestionPromptRound key={props.questions[0]?.requestId} {...props} />;
+}
+
+function QuestionPromptRound({ questions, disabled = false, onComplete }: QuestionPromptProps) {
   const t = useTranslations("ui");
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<(QuestionPromptAnswer | undefined)[]>([]);

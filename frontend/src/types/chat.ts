@@ -308,6 +308,7 @@ export type WSEventType =
   | "error"
   | "tool_approval_required"
   | "ask_user"
+  | "runtime_question_closed"
   | "user_question_required"
   | "run_answer_result"
   | "steer_applied"
@@ -576,11 +577,19 @@ export interface Decision {
 }
 
 export interface AskUserChoice {
+  labelKey?: "runtimeApprovePlan" | "runtimeRejectPlan" | "runtimeYes" | "runtimeNo";
   label: string;
   description?: string | null;
 }
 
 export interface AskUserQuestion {
+  requestId?: string;
+  minSelections?: number;
+  maxSelections?: number;
+  multiline?: boolean;
+  initialValue?: string;
+  allowEmpty?: boolean;
+  maxAnswerLength?: number;
   question: string;
   /** A short label for the question, shown as a chip (#2064). */
   header?: string | null;

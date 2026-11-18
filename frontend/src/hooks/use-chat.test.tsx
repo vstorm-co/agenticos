@@ -7130,3 +7130,31 @@ it("ends an existing streaming segment when a resumed background turn attaches",
     useChatStore.getState().messages.find((message) => message.id === "old-segment")?.isStreaming,
   ).toBe(false);
 });
+
+it("correlates native human answers and ignores a close for an older card", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("ask_user", {
+    runtime_question_id: "native-two",
+    questions: [{ question: "Which?", options: [{ label: "A" }], allow_custom: false }],
+  });
+  receive("runtime_question_closed", { runtime_question_id: "native-one" });
+  expect(result.current.pendingQuestions?.[0]?.requestId).toBe("native-two");
+  act(() => result.current.sendAskUserResponses([{ answer: "", selected: ["A"], skipped: false }]));
+  expect(sent).toHaveBeenLastCalledWith({
+    type: "ask_user_response",
+    runtime_question_id: "native-two",
+    answers: [{ answer: "", selected: ["A"], skipped: false }],
+  });
+});
+
+it("closes an expired native card and cannot submit its late answer", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("ask_user", {
+    runtime_question_id: "native-one",
+    questions: [{ question: "Which?", options: [{ label: "A" }], allow_custom: false }],
+  });
+  receive("runtime_question_closed", { runtime_question_id: "native-one" });
+  expect(result.current.pendingQuestions).toBeNull();
+  act(() => result.current.sendAskUserResponses([{ answer: "", selected: ["A"], skipped: false }]));
+  expect(sent.mock.calls.filter(([frame]) => frame.type === "ask_user_response")).toHaveLength(0);
+});

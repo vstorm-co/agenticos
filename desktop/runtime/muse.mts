@@ -15,6 +15,8 @@ type ApprovalRequestParams = Parameters<ApprovalHandler>[0];
 type ModelCatalogEntry = Awaited<
   ReturnType<MuseClient["listModels"]>
 >["models"][number];
+type NativeInput = ReturnType<Session["fold"]["pendingUserInputs"]>[number];
+type NativeAnswer = Parameters<Session["answerUserInput"]>[1][number];
 type JsonObject = Record<string, unknown>;
 type Emit = (frame: JsonObject) => Promise<void>;
 
@@ -35,6 +37,13 @@ export class MuseAdapter {
   private active: AbortController | undefined;
   private requests = new Map<string, (value: unknown) => void>();
   private models = new Map<string, ModelCatalogEntry>();
+  private retiredRequests = new Set<string>();
+  private handledInputs = new Set<string>();
+  private inputs = new Map<
+    string,
+    { controller: AbortController; task: Promise<void> }
+  >();
+  private approvalFailed = false;
   private closing = false;
   private running = false;
   private observationFailed = false;
@@ -53,9 +62,20 @@ export class MuseAdapter {
     if (!object(value) || value.jsonrpc !== "2.0")
       throw new Error("Invalid RPC frame");
     const id = value.id;
-    if (typeof id === "string" && this.requests.has(id)) {
+    if (
+      typeof id === "string" &&
+      typeof value.method !== "string" &&
+      this.retiredRequests.has(id)
+    )
+      return;
+    if (
+      typeof id === "string" &&
+      typeof value.method !== "string" &&
+      this.requests.has(id)
+    ) {
       const reply = this.requests.get(id);
       this.requests.delete(id);
+      this.retire(id);
       reply?.(value.result);
       return;
     }
@@ -88,6 +108,202 @@ export class MuseAdapter {
       });
     } finally {
       if (admitted) this.running = false;
+    }
+  }
+
+  private retire(id: string): void {
+    this.retiredRequests.add(id);
+    if (this.retiredRequests.size > 128) {
+      const first = this.retiredRequests.values().next().value;
+      if (first !== undefined) this.retiredRequests.delete(first);
+    }
+  }
+
+  private async requestInput(
+    prompt: NativeInput,
+    signal: AbortSignal,
+  ): Promise<unknown> {
+    if (this.requests.size >= 16)
+      throw new Error("Too many pending native inputs");
+    if (signal.aborted || this.closing) return undefined;
+    const id = `muse-question-${crypto.randomUUID()}`;
+    let cancel: () => void = () => {};
+    const reply = new Promise<unknown>((resolve) => {
+      this.requests.set(id, resolve);
+      cancel = () => resolve(undefined);
+    });
+    signal.addEventListener("abort", cancel, { once: true });
+    const timer =
+      prompt.autoResolutionMs === undefined
+        ? undefined
+        : setTimeout(
+            cancel,
+            Math.min(
+              3600000,
+              Math.max(1, prompt.autoResolutionMs * prompt.questions.length),
+            ),
+          );
+    try {
+      await this.emit({
+        jsonrpc: "2.0",
+        id,
+        method: "_agenticos/request_questions",
+        params: {
+          questions: prompt.questions.map((question) => ({
+            id: question.id,
+            header: question.header,
+            question:
+              question.question +
+              question.options
+                .map((option) =>
+                  option.preview
+                    ? `\n\n${option.label}:\n${option.preview.content}`
+                    : "",
+                )
+                .join(""),
+            options: question.options.map((option) => ({
+              label: option.label,
+              ...(option.description === undefined
+                ? {}
+                : { description: option.description }),
+            })),
+            multi_select: question.selection.mode === "multiple",
+            allow_custom: true,
+            max_answer_length: 500,
+            ...(question.selection.mode === "multiple"
+              ? {
+                  min_selections: question.selection.minSelections ?? 1,
+                  max_selections:
+                    question.selection.maxSelections ?? question.options.length,
+                }
+              : {}),
+          })),
+        },
+      });
+      return await reply;
+    } finally {
+      signal.removeEventListener("abort", cancel);
+      if (timer !== undefined) clearTimeout(timer);
+      if (this.requests.delete(id)) {
+        this.retire(id);
+        await this.emit({
+          jsonrpc: "2.0",
+          method: "_agenticos/cancel_request",
+          params: { id },
+        });
+      }
+    }
+  }
+
+  private async settleInput(
+    session: Session,
+    prompt: NativeInput,
+    signal: AbortSignal,
+  ): Promise<void> {
+    if (
+      prompt.questions.length < 1 ||
+      prompt.questions.length > 3 ||
+      prompt.questions.some(
+        (question) =>
+          question.selection.mode !== "single" &&
+          question.selection.mode !== "multiple",
+      )
+    )
+      throw new Error("Unsupported native question schema");
+    const response = await this.requestInput(prompt, signal);
+    if (
+      !session.fold
+        .pendingUserInputs()
+        .some((item) => item.userInputId === prompt.userInputId)
+    )
+      return;
+    const answers: NativeAnswer[] = [];
+    if (
+      object(response) &&
+      response.cancelled === false &&
+      Array.isArray(response.answers) &&
+      response.answers.length === prompt.questions.length
+    ) {
+      for (const [index, question] of prompt.questions.entries()) {
+        const answer: unknown = response.answers[index];
+        if (
+          !object(answer) ||
+          answer.skipped !== false ||
+          !Array.isArray(answer.selected) ||
+          typeof answer.answer !== "string"
+        )
+          break;
+        const selected = answer.selected.filter(
+          (value: unknown): value is string => typeof value === "string",
+        );
+        if (
+          selected.length !== answer.selected.length ||
+          new Set(selected).size !== selected.length ||
+          !selected.every((label) =>
+            question.options.some((option) => option.label === label),
+          )
+        )
+          break;
+        if (answer.answer) {
+          if (answer.answer.length > 500) break;
+          answers.push({ questionId: question.id, freeText: answer.answer });
+        } else if (
+          question.selection.mode === "single" &&
+          selected.length === 1 &&
+          selected[0] !== undefined
+        ) {
+          answers.push({ questionId: question.id, selectedLabel: selected[0] });
+        } else if (
+          question.selection.mode === "multiple" &&
+          selected.length >= (question.selection.minSelections ?? 1) &&
+          selected.length <=
+            (question.selection.maxSelections ?? question.options.length)
+        ) {
+          answers.push({ questionId: question.id, selectedLabels: selected });
+        } else break;
+      }
+    }
+    try {
+      if (answers.length === prompt.questions.length)
+        await session.answerUserInput(prompt.userInputId, answers);
+      else if (!this.closing)
+        await this.client?.command("userInput/cancel", {
+          sessionId: session.sessionId,
+          userInputId: prompt.userInputId,
+        });
+    } catch (error) {
+      // A host timeout can win while the human's reply is in flight. Only the
+      // SDK's folded settlement permits dropping that now-stale answer.
+      if (
+        session.fold
+          .pendingUserInputs()
+          .some((item) => item.userInputId === prompt.userInputId)
+      )
+        throw error;
+    }
+  }
+
+  private pendingInputs(session: Session): void {
+    const pending = session.fold.pendingUserInputs();
+    const ids = new Set(pending.map((prompt) => prompt.userInputId));
+    for (const [id, input] of this.inputs) {
+      if (!ids.has(id)) input.controller.abort();
+    }
+    for (const prompt of pending) {
+      if (this.handledInputs.has(prompt.userInputId)) continue;
+      if (this.handledInputs.size >= 128 || this.inputs.size >= 8)
+        throw new Error("Native question limit exceeded");
+      this.handledInputs.add(prompt.userInputId);
+      const controller = new AbortController();
+      const task = this.settleInput(session, prompt, controller.signal)
+        .catch(() => {
+          this.observationFailed = true;
+          this.active?.abort(new Error("Muse human input failed"));
+        })
+        .finally(() => {
+          this.inputs.delete(prompt.userInputId);
+        });
+      this.inputs.set(prompt.userInputId, { controller, task });
     }
   }
 
@@ -194,47 +410,51 @@ export class MuseAdapter {
   private async observe(session: Session, signal: AbortSignal): Promise<void> {
     const textLengths = new Map<string, number>();
     const started = new Set<string>();
-    for await (const event of session.events({ signal })) {
-      const item = event.item;
-      if (
-        item?.kind === "agentMessage" &&
-        item.messagePhase !== "commentary" &&
-        typeof item.text === "string"
-      ) {
-        const before = textLengths.get(item.itemId) ?? 0;
-        if (item.text.length < before)
-          throw new Error("Non-append message revision");
-        const delta = item.text.slice(before);
-        textLengths.set(item.itemId, item.text.length);
-        if (delta)
-          await this.update({
-            sessionUpdate: "agent_message_chunk",
-            content: { type: "text", text: delta },
-          });
-      }
-      if (item?.kind === "toolCall") {
-        if (!started.has(item.itemId)) {
-          started.add(item.itemId);
-          await this.update({
-            sessionUpdate: "tool_call",
-            toolCallId: item.itemId,
-            title: item.displayLabel?.active ?? "Muse tool",
-            kind: "other",
-            status: "in_progress",
-          });
+    try {
+      this.pendingInputs(session);
+      for await (const event of session.events({ signal })) {
+        const item = event.item;
+        if (
+          item?.kind === "agentMessage" &&
+          item.messagePhase !== "commentary" &&
+          typeof item.text === "string"
+        ) {
+          const before = textLengths.get(item.itemId) ?? 0;
+          if (item.text.length < before)
+            throw new Error("Non-append message revision");
+          const delta = item.text.slice(before);
+          textLengths.set(item.itemId, item.text.length);
+          if (delta)
+            await this.update({
+              sessionUpdate: "agent_message_chunk",
+              content: { type: "text", text: delta },
+            });
         }
-        if (item.status !== "inProgress")
-          await this.update({
-            sessionUpdate: "tool_call_update",
-            toolCallId: item.itemId,
-            status: item.status === "completed" ? "completed" : "failed",
-          });
+        if (item?.kind === "toolCall") {
+          if (!started.has(item.itemId)) {
+            started.add(item.itemId);
+            await this.update({
+              sessionUpdate: "tool_call",
+              toolCallId: item.itemId,
+              title: item.displayLabel?.active ?? "Muse tool",
+              kind: "other",
+              status: "in_progress",
+            });
+          }
+          if (item.status !== "inProgress")
+            await this.update({
+              sessionUpdate: "tool_call_update",
+              toolCallId: item.itemId,
+              status: item.status === "completed" ? "completed" : "failed",
+            });
+        }
+        this.pendingInputs(session);
       }
-      if (session.fold.pendingUserInputs().length) {
-        // A question without a native answer must stop instead of receiving an
-        // invented response. Native dialog handling belongs to #3108.
-        this.active?.abort(new Error("Muse requires human input"));
-      }
+    } finally {
+      const inputs = [...this.inputs.values()];
+      for (const input of inputs) input.controller.abort();
+      await Promise.all(inputs.map((input) => input.task));
+      this.inputs.clear();
     }
   }
 
@@ -248,9 +468,10 @@ export class MuseAdapter {
   private async opened(session: Session): Promise<JsonObject> {
     this.session = session;
     session.onApproval((request) => this.approval(request));
-    session.onApprovalError(() =>
-      this.active?.abort(new Error("Muse approval failed")),
-    );
+    session.onApprovalError(() => {
+      this.approvalFailed = true;
+      this.active?.abort(new Error("Muse approval failed"));
+    });
     this.observing = new AbortController();
     this.observer = this.observe(session, this.observing.signal);
     // Observe failures immediately; close still awaits the same promise.
@@ -274,7 +495,7 @@ export class MuseAdapter {
         args: ["serve"],
         cwd: process.cwd(),
         clientInfo: { name: "agenticos", version: "1" },
-        capabilities: { experimentalApi: true, userInputDialogs: false },
+        capabilities: { experimentalApi: true, userInputDialogs: true },
         refuseDeclaredBreakingSchema: true,
         signal: AbortSignal.timeout(30000),
       });
@@ -339,7 +560,10 @@ export class MuseAdapter {
           ? await client.resumeSession({
               sessionId: text(params.sessionId),
               onApproval: (request) => this.approval(request),
-              onApprovalError: () => this.active?.abort(),
+              onApprovalError: () => {
+                this.approvalFailed = true;
+                this.active?.abort();
+              },
             })
           : await client.startSession({ workspaceRoot: process.cwd() });
       return this.opened(session);

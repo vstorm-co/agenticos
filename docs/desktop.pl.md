@@ -1,5 +1,5 @@
 ---
-source_sha: "57ef3a3430db"
+source_sha: "5a83c6400b56"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -810,8 +810,8 @@ Wyloguj się przez `agent logout`, a następnie usuń lub ponownie zarejestruj w
 Desktop, aby zatrzymać sesje i usunąć zapamiętane wznowienia. Po zmianie konta
 zarejestruj wpis ponownie; sama zmiana danych CLI nie cofa dostępu procesu.
 
-Pytanie natywne lub prośba o zatwierdzenie planu zostaje jawnie anulowana i kończy
-zadanie do sprawdzenia w Cursor CLI; AgenticOS nie podejmuje decyzji za człowieka.
+Pytania natywne i pełne plany pojawiają się na czacie; runtime otrzymuje wyłącznie
+Twoją jawną odpowiedź. Zobacz [pytania runtime’ów](#runtime-questions).
 Standardowe zgody ACP korzystają z istniejących zasad delegacji. Integracja wymaga
 pełnego dostępu lokalnego i nie przekazuje narzędzi AgenticOS. Logowanie, dostęp
 do modeli, odmowa po wyczerpaniu limitu i wznowienie po restarcie pozostają testami
@@ -876,7 +876,7 @@ Mistral Vibe zgłasza `configuration_policy=cli`: pozostaw puste ID modelu zewn�
 
 Zainstaluj Grok Build, wykonaj `grok login` (lub `grok login --device-auth`) i zarejestruj bezwzględną ścieżkę `grok`, wybierając szablon **Grok**. Uruchamia on `--no-auto-update agent stdio`, usuwa odziedziczone `XAI_API_KEY` oraz `GROK_CODE_XAI_API_KEY` i ustawia `GROK_DISABLE_API_KEY_AUTH=true` wyłącznie dla procesu potomnego.
 
-AgenticOS wymaga reklamowanej metody `cached_token`, odrzuca runtime nadal oferujący `xai.api_key` i żąda logowania bez interakcji. Nie importuje plików tokenów ani nie przełącza się na klucz lub inne logowanie. Modele sprawdzisz przez `inspect_acp_agent`; dostępność i opłaty zależą od konta, gatewaya oraz planu. Szablon nie obiecuje dostępu do Build w każdym planie Grok. Pytania do użytkownika zatrzymują zadanie do sprawdzenia w CLI; pusta odpowiedź końcowa jest jawnym błędem.
+AgenticOS wymaga reklamowanej metody `cached_token`, odrzuca runtime nadal oferujący `xai.api_key` i żąda logowania bez interakcji. Nie importuje plików tokenów ani nie przełącza się na klucz lub inne logowanie. Modele sprawdzisz przez `inspect_acp_agent`; dostępność i opłaty zależą od konta, gatewaya oraz planu. Szablon nie obiecuje dostępu do Build w każdym planie Grok. Pytania do użytkownika pojawiają się na czacie; pusta odpowiedź końcowa jest jawnym błędem.
 
 Po zmianie konta zarejestruj program ponownie. Tryb klucza API w CLI pozostaje odroczony, ponieważ operacja logowania dostawcy może zastąpić zapisane poświadczenia CLI; do kluczy API służy istniejący bezpośredni provider modeli xAI. Logowanie, limity, anulowanie i dostęp do modeli na prawdziwym koncie pozostają warunkami odbioru. Zobacz [dokumentację Grok CLI](https://docs.x.ai/build/cli/reference).
 
@@ -884,7 +884,7 @@ Po zmianie konta zarejestruj program ponownie. Tryb klucza API w CLI pozostaje o
 
 Zainstaluj Kimi Code CLI, wykonaj `kimi login` i zarejestruj bezwzględną ścieżkę `kimi`, wybierając **Kimi Code**. Szablon uruchamia `acp` i wymaga reklamowanej metody `login`. Operacja sprawdza gotowość logowania CLI; AgenticOS nie otwiera terminala logowania ani nie importuje tokenów. Brak lub wygaśnięcie poświadczeń zatrzymuje zadanie bez próbowania innej metody.
 
-Opcje sprawdzisz przez `inspect_acp_agent`. Zostaw External model ID puste i wybierz model w Kimi; szablon raportuje `configuration_policy=cli` i odrzuca nadpisanie modelu. Ustawienia CLI mogą obejmować własnych dostawców z osobnym rozliczaniem API, więc udane logowanie nie ustala, która subskrypcja płaci za model. Pytania do człowieka, w tym wariant uprawnień `AskUserQuestion`, są anulowane do sprawdzenia w CLI zamiast uzyskiwać odpowiedź przez zgodę na narzędzie.
+Opcje sprawdzisz przez `inspect_acp_agent`. Zostaw External model ID puste i wybierz model w Kimi; szablon raportuje `configuration_policy=cli` i odrzuca nadpisanie modelu. Ustawienia CLI mogą obejmować własnych dostawców z osobnym rozliczaniem API, więc udane logowanie nie ustala, która subskrypcja płaci za model. Pytania do człowieka, w tym wariant uprawnień `AskUserQuestion`, trafiają do karty na czacie zamiast uzyskiwać odpowiedź przez zgodę na narzędzie.
 
 Po zmianie konta zarejestruj program ponownie. Uprawnienia, limity, ponowne połączenie, anulowanie i modele na prawdziwym koncie pozostają warunkami odbioru. To delegowane wykonanie lokalne bez przekazywania narzędzi platformy AgenticOS. Zobacz [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
 
@@ -910,7 +910,7 @@ Zarejestruj **Pi** w Ustawienia → Aplikacja Desktop, podając bezwzględną ś
 
 Użyj `inspect_acp_agent`, aby odczytać identyfikatory modeli z nazwą dostawcy z katalogu skonfigurowanego Pi. Nazwa narzędzia pozostaje dla zgodności; transportem jest Pi RPC, nie ACP. Katalog nie potwierdza logowania, uprawnień planu ani kredytów. Nazwane zadania zapamiętują natywny plik sesji w istniejącym zakresie organizacji, osoby, czatu, folderu i wersji rejestracji. Po zmianie konta zarejestruj program ponownie. Nieudane wznowienie powoduje odmowę zamiast cichego rozpoczęcia innej sesji.
 
-Zakończenie wymaga `agent_settled`, również po automatycznych ponowieniach i kompakcji następujących po `agent_end`. Prompt błędny, anulowany, zakolejkowany lub przejęty przez rozszerzenie nie jest raportowany jako ukończony. Stop czyści kolejkę, przerywa aktywną turę i zamyka własne drzewo procesów. Dialogi rozszerzeń są anulowane do obsługi w CLI Pi; system nie wymyśla odpowiedzi człowieka. Strumieniowanie, wznowienie po restarcie, limity, anulowanie i zgodność rozszerzeń na prawdziwym koncie pozostają testami odbiorowymi. Zobacz [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).
+Zakończenie wymaga `agent_settled`, również po automatycznych ponowieniach i kompakcji następujących po `agent_end`. Prompt błędny, anulowany, zakolejkowany lub przejęty przez rozszerzenie nie jest raportowany jako ukończony. Stop czyści kolejkę, przerywa aktywną turę i zamyka własne drzewo procesów. Obsługiwane dialogi rozszerzeń trafiają do karty na czacie; system nie wymyśla odpowiedzi człowieka. Strumieniowanie, wznowienie po restarcie, limity, anulowanie i zgodność rozszerzeń na prawdziwym koncie pozostają testami odbiorowymi. Zobacz [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).
 
 ## Muse przez oficjalny SDK { #muse-sdk }
 
@@ -919,3 +919,9 @@ Wybierz **Muse** lub **Muse — klucz API** w Ustawienia → Aplikacja Desktop i
 Najpierw skonfiguruj konto w `muse`. Muse wybiera klucze środowiskowe przed zapisanymi, a następnie logowanie przeglądarkowe. Inspekcja pokazuje faktyczne źródło klucza API lub OAuth, bez kopiowania tokenów i etykiet kont do raportu. Tryb klucza wymaga `META_API_KEY` w Desktop i potwierdzenia źródła środowiskowego; zapisany klucz lub sesja przeglądarkowa nie mogą go cicho zastąpić. Logowanie przeglądarkowe nie potwierdza uprawnień planu ani rozliczenia. Zarządzane konta Meta mogą wymagać kluczy API. Koszt pozostaje nieznany.
 
 Zadania wymagają jawnej zgody na folder z pełnym dostępem. Muse zachowuje natywne narzędzia i rozszerzenia; narzędzia platformy nie są przekazywane, a tryb bez narzędzi nie jest oferowany. `inspect_acp_agent` odczytuje aktualny katalog modeli z nazwami dostawców; zmiana wymaga zgodności z katalogiem i potwierdzenia serwera. Trwałe sesje korzystają z istniejącej historii wznowień. Brak trwałości lub niezgodna wersja SDK/CLI powodują odmowę. Anulowanie dociera do tury SDK i zamyka własne drzewo procesów. Błędny lub nieznany wynik nie oznacza sukcesu. Uprawnienia planu, limity, wznowienie, Stop i zgodność rozszerzeń na prawdziwym koncie pozostają testami odbiorowymi. Zobacz [SDK Muse](https://github.com/meta-models/muse-code-sdk) i [logowanie](https://www.musemuse.dev/docs/muse-code/auth).
+
+## Pytania runtime’ów { #runtime-questions }
+
+Pytania i pełne plany Cursor, pytania Grok, wariant pytań Kimi przez uprawnienia, dialogi select/confirm/input/editor Pi i pytania Muse SDK pojawiają się w istniejącej karcie czatu. Zachowane są limity wyboru, tożsamość opcji i natywne podglądy. Edytor Pi zachowuje wcięcia, nowe linie i jawną pustą odpowiedź. Hasła wpisuje się w logowaniu dostawcy.
+
+Odpowiedzi wymagają aktywnego, uprawnionego połączenia osoby rozpoczynającej zadanie oraz identyfikatora bieżącego pytania. Stop, rozłączenie, wygaśnięcie lub zakończenie runtime’u zamyka kartę; spóźniona odpowiedź nie odpowie na kolejne pytanie. Bez aktywnej obsługi pytań żądanie zostaje jawnie anulowane. Dialogi nie udzielają uprawnień narzędziom ani nie osłabiają zasad delegacji. Pytania i przyjęte odpowiedzi trafiają na istniejącą oś rozmowy.

@@ -799,8 +799,8 @@ Log out using `agent logout`, then remove or re-register the Desktop entry to st
 owned sessions and clear remembered continuation. Register again after a switch
 of account; changing CLI credentials alone does not revoke a running process.
 
-A native question or plan-approval request is cancelled explicitly and stops the
-task for review in Cursor CLI; AgenticOS does not fabricate a human decision.
+Native questions and complete plan reviews appear in the live chat; only your
+explicit answer is returned. See [runtime questions](#runtime-questions).
 Standard ACP tool permissions use the existing delegation policy. This integration
 requires full local access and forwards no AgenticOS tools. Real-account login,
 model eligibility, quota refusal and restart/resume remain acceptance follow-ups.
@@ -864,7 +864,7 @@ Mistral Vibe reports `configuration_policy=cli`: keep External model ID empty an
 
 Install Grok Build, complete `grok login` (or `grok login --device-auth`), and register the absolute `grok` path with the **Grok** template. It launches `--no-auto-update agent stdio`, removes inherited `XAI_API_KEY` and `GROK_CODE_XAI_API_KEY`, and sets `GROK_DISABLE_API_KEY_AUTH=true` only for this child.
 
-AgenticOS requires the advertised `cached_token` method, rejects a runtime still advertising `xai.api_key`, and requests headless authentication. It neither imports token files nor falls back to a key or another login. Inspect models through `inspect_acp_agent`; account, gateway and plan settings determine availability and billing. This template does not promise that every Grok plan includes Build. Human questions stop for review in the CLI; an empty final answer is an explicit failure.
+AgenticOS requires the advertised `cached_token` method, rejects a runtime still advertising `xai.api_key`, and requests headless authentication. It neither imports token files nor falls back to a key or another login. Inspect models through `inspect_acp_agent`; account, gateway and plan settings determine availability and billing. This template does not promise that every Grok plan includes Build. Human questions use the live chat card; an empty final answer is an explicit failure.
 
 Re-register after changing accounts. API-key CLI mode is deferred because the vendor's authentication operation can replace saved CLI credentials; use the existing direct xAI model provider for API keys. Real-account login, quotas, cancellation and model access remain acceptance checks. See the [Grok CLI reference](https://docs.x.ai/build/cli/reference).
 
@@ -872,7 +872,7 @@ Re-register after changing accounts. API-key CLI mode is deferred because the ve
 
 Install Kimi Code CLI, complete `kimi login`, and register the absolute `kimi` path using **Kimi Code**. The template launches `acp` and requires advertised `login` authentication. This operation checks CLI login readiness; AgenticOS does not open a login terminal or import token files. Missing or expired credentials stop the task without trying another method.
 
-Inspect choices with `inspect_acp_agent`. Keep External model ID empty and choose the model in Kimi itself; this template reports `configuration_policy=cli` and refuses model overrides. CLI settings can include custom providers with separate API billing, so a successful login does not establish which subscription pays for the selected model. Human questions, including Kimi's `AskUserQuestion` permission fallback, are cancelled for review in the CLI rather than answered through tool approval.
+Inspect choices with `inspect_acp_agent`. Keep External model ID empty and choose the model in Kimi itself; this template reports `configuration_policy=cli` and refuses model overrides. CLI settings can include custom providers with separate API billing, so a successful login does not establish which subscription pays for the selected model. Human questions, including Kimi's `AskUserQuestion` permission fallback, use the live chat card rather than tool approval.
 
 Re-register after changing accounts. Real-account entitlement, quota, reconnect, cancellation and available models remain acceptance checks. This is delegated local execution; it forwards no AgenticOS platform tools. See [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
 
@@ -898,7 +898,7 @@ Register **Pi** in Settings → Desktop app with the absolute path of `pi`. The 
 
 Use `inspect_acp_agent` to discover provider-qualified model IDs from the configured Pi catalog. The tool name is retained for compatibility; the transport is Pi RPC, not ACP. A listing does not establish authentication, entitlement or credits. Named tasks remember the native session file under the existing tenant/person/chat/folder/registration revision scope. Re-register after changing accounts. Failed resume is refused rather than silently starting a different session.
 
-Completion waits for `agent_settled`, including automatic retries and compaction after `agent_end`. A failed, aborted, queued or extension-handled prompt is never reported as completed. Stop clears queued work, aborts the active turn and closes the owned process tree. Extension dialogs are cancelled for review in Pi's CLI; no human answer is invented. Real-account streaming, restart/resume, quota, cancellation and extension compatibility remain acceptance checks. See [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).
+Completion waits for `agent_settled`, including automatic retries and compaction after `agent_end`. A failed, aborted, queued or extension-handled prompt is never reported as completed. Stop clears queued work, aborts the active turn and closes the owned process tree. Supported extension dialogs use the live chat card; no human answer is invented. Real-account streaming, restart/resume, quota, cancellation and extension compatibility remain acceptance checks. See [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).
 
 ## Muse through the official SDK { #muse-sdk }
 
@@ -907,3 +907,9 @@ Choose **Muse** or **Muse API key** in Settings → Desktop app, with the absolu
 Complete first-run setup in `muse`. Muse gives environment keys precedence over stored keys, then browser sign-in. Inspect the runtime to see the effective API-key or OAuth source, without copying tokens or account labels into the report. API-key mode requires `META_API_KEY` in Desktop and confirmation of the environment-key lane; a saved key or browser session cannot silently replace it. Browser sign-in does not establish entitlement or billing. Managed Meta accounts may require API keys. Usage remains unpriced.
 
 Tasks require explicit full-access folder consent. Muse retains its native tools and configured extensions; platform tools are not forwarded and tool-free execution is not offered. Discover the current provider-qualified model catalog with `inspect_acp_agent`; model changes require a catalog match and server acknowledgement. Durable sessions use the existing scoped resume history; unsupported persistence or SDK/CLI mismatch refuses execution. Cancellation reaches the SDK turn and closes the owned process tree. Failed and unknown terminal outcomes never become completion. Real-account entitlement, quota, restart/resume, stop and installed-extension compatibility remain acceptance tests. See [Muse SDK](https://github.com/meta-models/muse-code-sdk) and [authentication](https://www.musemuse.dev/docs/muse-code/auth).
+
+## Runtime questions { #runtime-questions }
+
+Cursor questions and full plan reviews, Grok questions, Kimi's question-permission fallback, Pi select/confirm/input/editor dialogs and Muse SDK user inputs appear in the existing live chat card. Multiple-choice bounds, offered identities and native previews are preserved. Pi editors keep indentation, line breaks and an explicit empty replacement. Password requests stay in the vendor's own login.
+
+Answers require the initiating person's live, authorized socket and the current question identity. Stop, disconnection, native expiry or terminal settlement closes the pending card; a late answer cannot answer a later request. Without a live question surface, supported requests are explicitly cancelled. These dialogs do not grant tool permissions or weaken the configured delegation policy. Questions and accepted answers enter the existing conversation timeline.

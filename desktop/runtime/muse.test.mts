@@ -17,14 +17,26 @@ async function fixture(options: Frame = {}) {
   await writeFile(
     program,
     `#!/usr/bin/env node
-import { createInterface } from 'node:readline';
-import { appendFileSync } from 'node:fs';
+import { EventEmitter } from 'node:events';
+import { appendFileSync, watchFile, unwatchFile } from 'node:fs';
 const options = ${JSON.stringify(options)};
 let selected = 'native-model';
 let cursor = 0;
+const expireFile = ${JSON.stringify(join(root, "expire"))};
+if(options.expireQuestion)watchFile(expireFile,{interval:10},stat=>{
+ if(!stat.size)return;
+ unwatchFile(expireFile);
+ notify('userInput/settled',{userInputId:'human-one',answers:[],outcome:'timedOut',clarification:null,decidedAt:null,decidedByCommandId:null,reason:null});
+ notify('item/completed',{item:{itemId:'expired-answer',kind:'agentMessage',revision:1,status:'completed',turnId:'native-turn',messagePhase:'finalAnswer',text:'Native timeout'}});
+ notify('turn/completed',{terminal:'completed'});
+});
 const send = frame => process.stdout.write(JSON.stringify(frame) + '\\n');
 const notify = (method, params) => send({jsonrpc:'2.0',method,params:{sessionId:'native-session',turnId:'native-turn',viewCursor:'c-'+(++cursor),sourceRange:{stream:{id:'stream',kind:'session'},first:{id:'event',sequence:cursor},last:{id:'event',sequence:cursor}},...params}});
-const lines=createInterface({input:process.stdin,crlfDelay:Infinity});
+const lines=new EventEmitter();
+let incoming='';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data',chunk=>{incoming+=chunk;let end;while((end=incoming.indexOf('\\n'))!==-1){const line=incoming.slice(0,end);incoming=incoming.slice(end+1);lines.emit('line',line);}});
+process.stdin.on('end',()=>lines.emit('close'));
 lines.on('line',line=>{
  const frame=JSON.parse(line),p=frame.params??{};
  appendFileSync(${JSON.stringify(trace)},JSON.stringify(frame)+'\\n');
@@ -39,11 +51,20 @@ lines.on('line',line=>{
   reply({disposition:'started',startedNewTurn:true,status:'accepted',turnId:'native-turn'});
   notify('turn/started',{});
   if(options.wait)return;
+  if(options.questions){
+   notify('userInput/requested',{userInputId:'human-one',itemId:'question-tool',toolCallId:'question-call',toolName:'ask',questions:options.questions});return;
+  }
   if(options.approval){
    notify('approval/requested',{approvalId:'approval',availableChoices:[{choiceId:'once',decision:'approved',label:'Allow once',scope:'once'},{choiceId:'persist',decision:'approvedForSession',label:'Always allow',scope:'session'},{choiceId:'reject',decision:'denied',label:'Reject',scope:'once'}],currentRequirementId:{approvalId:'approval',sourceIndex:0},itemId:'tool-item',judgeEscalated:false,protectedWrite:false,rawArgs:'{}',taskId:'tool-item',toolCallId:'call',toolName:'Native tool',subject:{kind:options.subject??'shell'}});return;
   }
   notify('item/completed',{item:{itemId:'native-message',kind:'agentMessage',revision:1,status:'completed',turnId:'native-turn',messagePhase:'finalAnswer',text:'Native final answer'}});
   notify('turn/completed',{terminal:options.terminal??'completed',...(options.terminal==='failed'?{error:{kind:'auth',message:'SECRET-vendor-error'}}:{})});return;
+ }
+ if(frame.method==='userInput/answer'||frame.method==='userInput/cancel'){
+  reply({status:'accepted',userInputId:'human-one'});
+  notify('userInput/settled',{userInputId:'human-one',answers:p.answers??[],outcome:frame.method==='userInput/answer'?'answered':'cancelled',clarification:null,decidedAt:null,decidedByCommandId:p.commandId,reason:null});
+  notify('item/completed',{item:{itemId:'human-answer',kind:'agentMessage',revision:1,status:'completed',turnId:'native-turn',messagePhase:'finalAnswer',text:'Question resolved'}});
+  notify('turn/completed',{terminal:'completed'});return;
  }
  if(frame.method==='approval/decide'){
   reply({terminal:true});
@@ -61,6 +82,22 @@ lines.on('close',()=>process.exit(0));
   const frames: Frame[] = [];
   const adapter = new MuseAdapter(program, async (frame) => {
     frames.push(frame);
+    if (
+      frame.method === "_agenticos/request_questions" &&
+      options.expireQuestion
+    ) {
+      await writeFile(join(root, "expire"), "settle");
+    }
+    if (
+      frame.method === "_agenticos/request_questions" &&
+      !options.holdQuestion
+    ) {
+      await adapter.accept({
+        jsonrpc: "2.0",
+        id: frame.id,
+        result: options.humanResponse,
+      });
+    }
     if (frame.method === "session/request_permission") {
       const params = frame.params;
       assert.ok(
@@ -436,6 +473,162 @@ test(
     } finally {
       child.kill();
       await exited;
+      await f.close();
+    }
+  },
+);
+
+const nativeQuestion = {
+  id: "choice",
+  header: "Approach",
+  question: "Choose the approach",
+  options: [
+    { label: "A", preview: { format: "markdown", content: "Full preview" } },
+    { label: "B" },
+  ],
+  selection: { mode: "single" },
+};
+
+for (const [name, response, expected] of [
+  [
+    "selection",
+    {
+      cancelled: false,
+      answers: [{ skipped: false, selected: ["B"], answer: "" }],
+    },
+    [{ questionId: "choice", selectedLabel: "B" }],
+  ],
+  [
+    "free text",
+    {
+      cancelled: false,
+      answers: [{ skipped: false, selected: [], answer: "Custom answer" }],
+    },
+    [{ questionId: "choice", freeText: "Custom answer" }],
+  ],
+  [
+    "unknown choice",
+    {
+      cancelled: false,
+      answers: [{ skipped: false, selected: ["Injected"], answer: "" }],
+    },
+    undefined,
+  ],
+  ["cancelled", { cancelled: true, answers: [] }, undefined],
+] as const) {
+  test(
+    `native human ${name} travels through the real SDK`,
+    { timeout: 5000 },
+    async () => {
+      const f = await fixture({
+        questions: [nativeQuestion],
+        humanResponse: response,
+      });
+      try {
+        await f.open();
+        const result = await f.request("session/prompt", {
+          sessionId: "native-session",
+          prompt: [{ type: "text", text: "Ask" }],
+        });
+        assert.deepEqual(result.result, { stopReason: "end_turn" });
+        const sent = await f.sent();
+        const answer = sent.find(
+          (frame) =>
+            frame.method ===
+            (expected ? "userInput/answer" : "userInput/cancel"),
+        );
+        assert.ok(answer);
+        if (expected)
+          assert.deepEqual(
+            object(answer.params) && answer.params.answers,
+            expected,
+          );
+        assert.ok(JSON.stringify(f.frames).includes("Full preview"));
+      } finally {
+        await f.close();
+      }
+    },
+  );
+}
+
+test(
+  "terminal cancellation closes a pending native question without waiting for a human",
+  { timeout: 5000 },
+  async () => {
+    const f = await fixture({
+      questions: [nativeQuestion],
+      holdQuestion: true,
+    });
+    try {
+      await f.open();
+      const asking = f.request("session/prompt", {
+        sessionId: "native-session",
+        prompt: [{ type: "text", text: "Ask" }],
+      });
+      while (
+        !f.frames.some(
+          (frame) => frame.method === "_agenticos/request_questions",
+        )
+      )
+        await new Promise((resolve) => setImmediate(resolve));
+      const question = f.frames.find(
+        (frame) => frame.method === "_agenticos/request_questions",
+      );
+      assert.ok(question);
+      await f.adapter.accept({
+        jsonrpc: "2.0",
+        method: "session/cancel",
+        params: { sessionId: "native-session" },
+      });
+      assert.ok((await asking).error);
+      assert.ok(
+        f.frames.some(
+          (frame) =>
+            frame.method === "_agenticos/cancel_request" &&
+            object(frame.params) &&
+            frame.params.id === question.id,
+        ),
+      );
+      await f.adapter.accept({
+        jsonrpc: "2.0",
+        id: question.id,
+        result: {
+          cancelled: false,
+          answers: [{ answer: "stale", selected: [], skipped: false }],
+        },
+      });
+      assert.ok(
+        !(await f.sent()).some((frame) => frame.method === "userInput/answer"),
+      );
+    } finally {
+      await f.close();
+    }
+  },
+);
+
+test(
+  "a native timeout closes the live card while the protocol observer keeps running",
+  { timeout: 5000 },
+  async () => {
+    const f = await fixture({
+      questions: [nativeQuestion],
+      holdQuestion: true,
+      expireQuestion: true,
+    });
+    try {
+      await f.open();
+      const result = await f.request("session/prompt", {
+        sessionId: "native-session",
+        prompt: [{ type: "text", text: "Ask" }],
+      });
+      assert.deepEqual(result.result, { stopReason: "end_turn" });
+      assert.ok(
+        f.frames.some((frame) => frame.method === "_agenticos/cancel_request"),
+      );
+      assert.ok(
+        !(await f.sent()).some((frame) => frame.method === "userInput/answer"),
+      );
+    } finally {
       await f.close();
     }
   },

@@ -1,5 +1,5 @@
 ---
-source_sha: "57ef3a3430db"
+source_sha: "5a83c6400b56"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -853,8 +853,8 @@ oder registrieren Sie den Desktop-Eintrag erneut, um Sitzungen und gespeicherte
 Fortsetzungen zu löschen. Registrieren Sie nach einem Kontowechsel erneut; allein
 der Wechsel der CLI-Zugangsdaten widerruft keinen laufenden Prozess.
 
-Native Fragen und Planfreigaben werden ausdrücklich abgebrochen und stoppen die
-Aufgabe zur Prüfung in Cursor CLI. AgenticOS erfindet keine menschliche Entscheidung.
+Native Fragen und vollständige Pläne erscheinen im Live-Chat. Nur Ihre ausdrückliche
+Antwort wird zurückgegeben. Siehe [Runtime-Fragen](#runtime-questions).
 Standard-ACP-Toolfreigaben nutzen die bestehende Delegationsrichtlinie. Die
 Integration verlangt vollen lokalen Zugriff und leitet keine AgenticOS-Tools
 weiter. Kontoanmeldung, Modellzugriff, Kontingentablehnung und Wiederaufnahme nach
@@ -922,7 +922,7 @@ Mistral Vibe meldet `configuration_policy=cli`: Lassen Sie Externe Modell-ID lee
 
 Installieren Sie Grok Build, führen Sie `grok login` (oder `grok login --device-auth`) aus und registrieren Sie den absoluten `grok`-Pfad mit der Vorlage **Grok**. Sie startet `--no-auto-update agent stdio`, entfernt geerbte `XAI_API_KEY` und `GROK_CODE_XAI_API_KEY` und setzt `GROK_DISABLE_API_KEY_AUTH=true` nur für diesen Kindprozess.
 
-AgenticOS verlangt die angebotene Methode `cached_token`, lehnt eine Laufzeit mit weiter angebotenem `xai.api_key` ab und fordert Anmeldung ohne Interaktion an. Tokendateien werden nicht importiert; es gibt keinen Wechsel zu Schlüsseln oder anderer Anmeldung. Prüfen Sie Modelle mit `inspect_acp_agent`; Konto, Gateway und Tarif bestimmen Verfügbarkeit und Kosten. Nicht jeder Grok-Tarif muss Build enthalten. Rückfragen stoppen zur Prüfung im CLI; eine leere Schlussantwort ist ein ausdrücklicher Fehler.
+AgenticOS verlangt die angebotene Methode `cached_token`, lehnt eine Laufzeit mit weiter angebotenem `xai.api_key` ab und fordert Anmeldung ohne Interaktion an. Tokendateien werden nicht importiert; es gibt keinen Wechsel zu Schlüsseln oder anderer Anmeldung. Prüfen Sie Modelle mit `inspect_acp_agent`; Konto, Gateway und Tarif bestimmen Verfügbarkeit und Kosten. Nicht jeder Grok-Tarif muss Build enthalten. Rückfragen erscheinen als Live-Chat-Karte; eine leere Schlussantwort ist ein ausdrücklicher Fehler.
 
 Registrieren Sie nach Kontowechsel erneut. Der API-Schlüsselmodus des CLI bleibt offen, weil die Anmeldung gespeicherte CLI-Zugangsdaten ersetzen kann; verwenden Sie für API-Schlüssel den vorhandenen direkten xAI-Modellanbieter. Anmeldung, Kontingente, Abbruch und Modellzugriff mit echtem Konto bleiben Abnahmekriterien. Siehe [Grok CLI-Referenz](https://docs.x.ai/build/cli/reference).
 
@@ -930,7 +930,7 @@ Registrieren Sie nach Kontowechsel erneut. Der API-Schlüsselmodus des CLI bleib
 
 Installieren Sie Kimi Code CLI, führen Sie `kimi login` aus und registrieren Sie den absoluten `kimi`-Pfad mit **Kimi Code**. Die Vorlage startet `acp` und verlangt die angebotene Methode `login`. Sie prüft die CLI-Anmeldung; AgenticOS öffnet kein Anmeldeterminal und importiert keine Token. Fehlende oder abgelaufene Zugangsdaten stoppen die Aufgabe ohne Methodenwechsel.
 
-Prüfen Sie Optionen mit `inspect_acp_agent`. Lassen Sie External model ID leer und wählen Sie das Modell in Kimi; die Vorlage meldet `configuration_policy=cli` und lehnt Modellüberschreibungen ab. CLI-Einstellungen können eigene Anbieter mit separater API-Abrechnung enthalten; eine Anmeldung bestimmt daher nicht den zahlenden Tarif. Rückfragen, einschließlich Kimis Berechtigungsersatz `AskUserQuestion`, werden zur Prüfung im CLI abgebrochen und nicht durch Werkzeugfreigabe beantwortet.
+Prüfen Sie Optionen mit `inspect_acp_agent`. Lassen Sie External model ID leer und wählen Sie das Modell in Kimi; die Vorlage meldet `configuration_policy=cli` und lehnt Modellüberschreibungen ab. CLI-Einstellungen können eigene Anbieter mit separater API-Abrechnung enthalten; eine Anmeldung bestimmt daher nicht den zahlenden Tarif. Rückfragen, einschließlich Kimis Berechtigungsersatz `AskUserQuestion`, erscheinen als Chat-Karte und werden nicht durch Werkzeugfreigabe beantwortet.
 
 Registrieren Sie nach Kontowechsel erneut. Berechtigungen, Kontingente, Wiederverbindung, Abbruch und Modelle mit echtem Konto bleiben Abnahmekriterien. Dies ist delegierte lokale Ausführung ohne Weitergabe von AgenticOS-Plattformwerkzeugen. Siehe [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
 
@@ -956,7 +956,7 @@ Registriere **Pi** unter Einstellungen → Desktop-App mit dem absoluten Pfad zu
 
 `inspect_acp_agent` liest mit Anbietern qualifizierte Modell-IDs aus dem konfigurierten Pi-Katalog. Der Werkzeugname bleibt aus Kompatibilitätsgründen; der Transport ist Pi RPC, nicht ACP. Ein Katalog belegt weder Anmeldung noch Berechtigung oder Guthaben. Benannte Aufgaben speichern die native Sitzungsdatei im bestehenden Geltungsbereich von Organisation, Person, Chat, Ordner und Registrierungsversion. Nach einem Kontowechsel erneut registrieren. Ein fehlgeschlagener Wiederaufnahmeversuch wird abgelehnt, statt still eine andere Sitzung zu starten.
 
-Der Abschluss wartet auf `agent_settled`, auch nach automatischen Wiederholungen und Kompaktierung nach `agent_end`. Fehlgeschlagene, abgebrochene, eingereihte oder von Erweiterungen behandelte Prompts gelten nie als abgeschlossen. Stop leert die Warteschlange, bricht den aktiven Durchlauf ab und beendet den eigenen Prozessbaum. Erweiterungsdialoge werden zur Bearbeitung in der Pi-CLI abgebrochen; menschliche Antworten werden nicht erfunden. Streaming, Wiederaufnahme nach Neustart, Kontingente, Abbruch und Erweiterungskompatibilität mit einem echten Konto bleiben Abnahmetests. Siehe [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).
+Der Abschluss wartet auf `agent_settled`, auch nach automatischen Wiederholungen und Kompaktierung nach `agent_end`. Fehlgeschlagene, abgebrochene, eingereihte oder von Erweiterungen behandelte Prompts gelten nie als abgeschlossen. Stop leert die Warteschlange, bricht den aktiven Durchlauf ab und beendet den eigenen Prozessbaum. Unterstützte Erweiterungsdialoge erscheinen als Chat-Karte; menschliche Antworten werden nicht erfunden. Streaming, Wiederaufnahme nach Neustart, Kontingente, Abbruch und Erweiterungskompatibilität mit einem echten Konto bleiben Abnahmetests. Siehe [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).
 
 ## Muse über das offizielle SDK { #muse-sdk }
 
@@ -965,3 +965,9 @@ Wähle **Muse** oder **Muse API-Schlüssel** unter Einstellungen → Desktop-App
 Richte das Konto zuerst in `muse` ein. Muse bevorzugt Umgebungsschlüssel vor gespeicherten Schlüsseln und danach die Browseranmeldung. Die Inspektion zeigt die tatsächliche API-Schlüssel- oder OAuth-Quelle, ohne Token oder Kontobezeichnungen in den Bericht zu kopieren. Der Schlüsselmodus benötigt `META_API_KEY` in Desktop und die Bestätigung dieser Quelle; gespeicherte Schlüssel oder Browserkonten dürfen sie nicht still ersetzen. Eine Browseranmeldung belegt weder Berechtigung noch Abrechnung. Verwaltete Meta-Konten können API-Schlüssel benötigen. Kosten bleiben unbekannt.
 
 Aufgaben benötigen ausdrückliche Ordnerfreigabe mit Vollzugriff. Muse behält native Werkzeuge und Erweiterungen; Plattformwerkzeuge werden nicht weitergegeben, eine werkzeugfreie Ausführung wird nicht angeboten. `inspect_acp_agent` liest den aktuellen Katalog mit Anbieter-IDs; Modellwechsel benötigen Katalogtreffer und Serverbestätigung. Dauerhafte Sitzungen nutzen die vorhandene Wiederaufnahmehistorie. Fehlende Persistenz oder unpassende SDK/CLI-Versionen führen zur Ablehnung. Abbruch erreicht den SDK-Durchlauf und beendet den eigenen Prozessbaum. Fehlerhafte oder unbekannte Endzustände gelten nie als Erfolg. Kontoberechtigung, Kontingente, Wiederaufnahme, Stop und Erweiterungskompatibilität bleiben echte Kontotests. Siehe [Muse SDK](https://github.com/meta-models/muse-code-sdk) und [Anmeldung](https://www.musemuse.dev/docs/muse-code/auth).
+
+## Runtime-Fragen { #runtime-questions }
+
+Cursor-Fragen und vollständige Pläne, Grok-Fragen, Kimis Fragen über Berechtigungen, Pis select/confirm/input/editor-Dialoge und Muse-SDK-Eingaben erscheinen in der bestehenden Chat-Karte. Auswahlgrenzen, Optionsidentitäten und native Vorschauen bleiben erhalten. Pi-Editoren bewahren Einrückungen, Zeilenumbrüche und ausdrücklich leeren Ersatztext. Passwörter gehören in die Anmeldung des Anbieters.
+
+Antworten erfordern die aktive, berechtigte Verbindung der startenden Person und die aktuelle Frage-ID. Stop, Verbindungsabbruch, natives Ablaufen oder Abschluss schließt die Karte; verspätete Antworten können keine spätere Frage beantworten. Ohne aktive Frageschnittstelle werden Anfragen ausdrücklich abgebrochen. Dialoge erteilen keine Werkzeugrechte und lockern keine Delegationsrichtlinie. Fragen und angenommene Antworten erscheinen im bestehenden Gesprächsverlauf.

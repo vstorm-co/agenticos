@@ -1,0 +1,409 @@
+"""Native questions use the initiating live socket and preserve vendor reply shapes."""
+
+import pytest
+from pydantic import ValidationError
+
+from app.agents.capabilities.external_acp import _human
+from app.agents.runtime_questions import (
+    RuntimeAnswer,
+    RuntimeChoice,
+    RuntimeQuestion,
+    RuntimeQuestionRequest,
+    RuntimeQuestionResponse,
+)
+
+pytestmark = pytest.mark.anyio
+
+
+class Human:
+    def __init__(
+        self, answers: list[RuntimeAnswer] | None = None, *, cancelled: bool = False
+    ) -> None:
+        self.answers = answers or []
+        self.cancelled = cancelled
+        self.seen: list[RuntimeQuestionRequest] = []
+
+    async def __call__(self, request: RuntimeQuestionRequest) -> RuntimeQuestionResponse:
+        self.seen.append(request)
+        return RuntimeQuestionResponse(answers=self.answers, cancelled=self.cancelled)
+
+
+async def test_cursor_multiple_choices_are_mapped_to_offered_ids() -> None:
+    human = Human([RuntimeAnswer(selected=["First", "Second"])])
+    params = {
+        "questions": [
+            {
+                "id": "q",
+                "prompt": "Which?",
+                "allowMultiple": True,
+                "options": [{"id": "one", "label": "First"}, {"id": "two", "label": "Second"}],
+            }
+        ]
+    }
+    result = await _human.cursor_questions(params, human)
+    assert result == {
+        "outcome": {
+            "outcome": "answered",
+            "answers": [{"questionId": "q", "selectedOptionIds": ["one", "two"]}],
+        }
+    }
+    assert human.seen[0].questions[0].multi_select
+    assert not human.seen[0].questions[0].allow_custom
+    assert (await _human.cursor_questions(params, None)) == {"outcome": {"outcome": "cancelled"}}
+    for answers in [[], [RuntimeAnswer(skipped=True)], [RuntimeAnswer(selected=["Forged"])]]:
+        assert (await _human.cursor_questions(params, Human(answers)))["outcome"] == {
+            "outcome": "cancelled"
+        }
+
+
+@pytest.mark.parametrize(
+    "selected,expected",
+    [(["Approve plan"], "accepted"), (["Reject plan"], "rejected"), (["Invented"], "rejected")],
+)
+@pytest.mark.security
+async def test_cursor_plan_requires_the_users_exact_approval_after_showing_the_whole_plan(
+    selected: list[str], expected: str
+) -> None:
+    human = Human([RuntimeAnswer(selected=selected)])
+    result = await _human.cursor_plan(
+        {
+            "plan": "A complete plan\nSecond step",
+            "todos": [{"content": "Structured task"}],
+            "phases": [{"name": "Phase"}],
+        },
+        human,
+    )
+    assert result == {"outcome": {"outcome": expected}}
+    shown = human.seen[0].questions[0].question
+    assert all(
+        part in shown for part in ["complete plan", "Second step", "Structured task", "Phase"]
+    )
+    assert (await _human.cursor_plan({"plan": "Read the whole plan"}, None)) == {
+        "outcome": {"outcome": "cancelled"}
+    }
+    with pytest.raises(ValueError):
+        await _human.cursor_plan({"plan": ""}, human)
+
+
+@pytest.mark.parametrize(
+    "method,answer,expected",
+    [
+        ("select", RuntimeAnswer(selected=["Choice"]), {"value": "Choice"}),
+        ("confirm", RuntimeAnswer(selected=["Yes"]), {"confirmed": True}),
+        ("confirm", RuntimeAnswer(selected=["No"]), {"confirmed": False}),
+        ("input", RuntimeAnswer(answer="My answer"), {"value": "My answer"}),
+        ("editor", RuntimeAnswer(answer="New\ntext"), {"value": "New\ntext"}),
+    ],
+)
+async def test_pi_dialogs_return_only_a_humans_actual_answer(
+    method: str, answer: RuntimeAnswer, expected: dict[str, object]
+) -> None:
+    human = Human([answer])
+    params = {
+        "method": method,
+        "title": "Question",
+        "options": ["Choice"],
+        "prefill": "Original text",
+        "message": "Explanation",
+    }
+    assert await _human.pi_dialog(params, human) == expected
+    shown = human.seen[0].questions[0].question
+    assert "Explanation" in shown
+    assert human.seen[0].questions[0].initial_value == (
+        "Original text" if method == "editor" else None
+    )
+    assert await _human.pi_dialog(params, None) == {"cancelled": True}
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"method": "input", "title": "Secret", "isPassword": True},
+        {"method": "input", "title": "Secret", "secret": True},
+        {"method": "select", "title": "Q", "options": [1]},
+        {"method": "select", "title": "Q", "options": []},
+        {"method": "new-method", "title": "Q"},
+        {"method": "input"},
+    ],
+)
+@pytest.mark.security
+async def test_unsupported_or_secret_dialogs_never_reach_the_question_card(
+    params: dict[str, object],
+) -> None:
+    human = Human()
+    with pytest.raises(ValueError):
+        await _human.pi_dialog(params, human)
+    assert not human.seen
+
+
+@pytest.mark.parametrize(
+    "method,answer",
+    [
+        ("confirm", RuntimeAnswer(selected=["Forged"])),
+        ("select", RuntimeAnswer(selected=["Forged"])),
+        ("input", RuntimeAnswer(skipped=True)),
+        ("editor", RuntimeAnswer(skipped=True)),
+    ],
+)
+async def test_missing_or_unoffered_pi_answers_are_cancellation(
+    method: str, answer: RuntimeAnswer
+) -> None:
+    assert await _human.pi_dialog(
+        {"method": method, "title": "Q", "options": ["Choice"]}, Human([answer])
+    ) == {"cancelled": True}
+
+
+@pytest.mark.security
+async def test_kimi_permission_questions_are_answers_not_blanket_tool_permission() -> None:
+    params = {
+        "toolCall": {
+            "title": "AskUserQuestion",
+            "content": [{"type": "content", "content": {"type": "text", "text": "Which target?"}}],
+        },
+        "options": [
+            {"optionId": "q0_opt_0", "name": "Target", "kind": "allow_once"},
+            {"optionId": "skip", "name": "Skip", "kind": "reject_once"},
+        ],
+    }
+    human = Human([RuntimeAnswer(selected=["Target"])])
+    assert await _human.permission_question(params, human) == {
+        "outcome": {"outcome": "selected", "optionId": "q0_opt_0"}
+    }
+    assert human.seen[0].questions[0].question == "Which target?"
+    assert await _human.permission_question(params, None) == {"outcome": {"outcome": "cancelled"}}
+    for answer in [RuntimeAnswer(skipped=True), RuntimeAnswer(selected=["Forged"])]:
+        assert await _human.permission_question(params, Human([answer])) == {
+            "outcome": {"outcome": "cancelled"}
+        }
+
+
+async def test_grok_free_text_and_previews_follow_its_annotated_answer_contract() -> None:
+    params = {
+        "questions": [
+            {
+                "question": "Which?",
+                "options": [{"label": "A", "description": "Meaning", "preview": "Full preview"}],
+            }
+        ]
+    }
+    human = Human([RuntimeAnswer(answer="A custom answer")])
+    assert await _human.grok_questions(params, human) == {
+        "outcome": "accepted",
+        "answers": {"Which?": ["Other"]},
+        "annotations": {"Which?": {"notes": "A custom answer"}},
+    }
+    selected = await _human.grok_questions(params, Human([RuntimeAnswer(selected=["A"])]))
+    assert selected["annotations"] == {"Which?": {"preview": "Full preview"}}
+    assert "Full preview" in human.seen[0].questions[0].question
+    assert await _human.grok_questions(params, None) == {"outcome": "cancelled"}
+    for answer in [RuntimeAnswer(skipped=True), RuntimeAnswer(selected=["Forged"])]:
+        assert await _human.grok_questions(params, Human([answer])) == {"outcome": "cancelled"}
+    with pytest.raises(ValueError):
+        await _human.grok_questions({"questions": params["questions"] * 2}, human)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        {"id": "q", "question": "Escape\x1b"},
+        {"id": "q", "question": "Q", "options": [{"label": "Case"}, {"label": "CASE"}]},
+        {"id": "q", "question": "Q", "options": [{"label": "A"}] * 129},
+    ],
+)
+def test_unbounded_or_ambiguous_question_data_is_refused(question: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        RuntimeQuestion.model_validate(question)
+
+
+def test_duplicate_question_ids_and_oversized_answers_are_refused() -> None:
+    question = RuntimeQuestion(id="one", question="Q", options=[RuntimeChoice(label="A")])
+    with pytest.raises(ValidationError):
+        RuntimeQuestionRequest(runtime_name="Runtime", questions=[question, question])
+    with pytest.raises(ValidationError):
+        RuntimeAnswer(answer="x" * 32001)
+
+
+async def test_native_prompt_completion_cancels_an_unanswered_human_card_without_deadlock() -> None:
+    import anyio
+
+    from app.agents.capabilities.coding_agent._acp import Conversation, _Collector
+    from tests.test_coding_agent_acp import _nothing
+
+    asked = anyio.Event()
+    cancelled = anyio.Event()
+    writer, reader = anyio.create_memory_object_stream[dict[str, object]](16)
+
+    class Pipe:
+        async def send(self, message: dict[str, object]) -> None:
+            if message.get("method") == "session/prompt":
+                await writer.send(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": "question",
+                        "method": "cursor/create_plan",
+                        "params": {"plan": "Read the complete plan"},
+                    }
+                )
+
+        async def receive(self) -> dict[str, object]:
+            return await reader.receive()
+
+        async def close(self) -> None:
+            await writer.aclose()
+            await reader.aclose()
+
+    async def human(_request: RuntimeQuestionRequest) -> RuntimeQuestionResponse:
+        asked.set()
+        try:
+            await anyio.sleep_forever()
+        finally:
+            cancelled.set()
+
+    pipe = Pipe()
+    conversation = Conversation(
+        pipe, access="edit", collector=_Collector(), shown=_nothing, runtime_questions=human
+    )
+
+    async def native_finish() -> None:
+        await asked.wait()
+        await writer.send({"jsonrpc": "2.0", "id": 1, "result": {"stopReason": "end_turn"}})
+
+    async with anyio.create_task_group() as group:
+        group.start_soon(native_finish)
+        with anyio.fail_after(1):
+            result = await conversation.request(
+                "session/prompt", {"sessionId": "owned", "prompt": []}
+            )
+        group.cancel_scope.cancel()
+    assert result == {"stopReason": "end_turn"} and cancelled.is_set()
+    assert not conversation._human_scopes
+    await pipe.close()
+
+
+async def test_runtime_socket_round_is_correlated_and_preserves_editor_whitespace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from app.services.chat_timeline import TurnTimeline
+    from tests.test_agent_session import _next_frame, _sent_events, _session, _wait
+
+    session = _session()
+    session._current_timeline = TurnTimeline()
+    monkeypatch.setattr(session, "_reauthorize_write", AsyncMock(return_value=True))
+    request = RuntimeQuestionRequest(
+        runtime_name="Pi",
+        questions=[
+            RuntimeQuestion(
+                id="editor",
+                question="Edit this",
+                multiline=True,
+                allow_empty=True,
+                initial_value="old",
+            )
+        ],
+    )
+    visible = _next_frame(session)
+    task = asyncio.create_task(session._runtime_questions(request))
+    await _wait(visible)
+    frame = next(data for kind, data in _sent_events(session) if kind == "ask_user")
+    runtime_id = frame["runtime_question_id"]
+    await session.handle_frame(
+        {
+            "type": "ask_user_response",
+            "runtime_question_id": "stale",
+            "answers": [{"answer": "Wrong", "skipped": False}],
+        }
+    )
+    assert not task.done()
+    text = "  indented\n\tcode\n"
+    await session.handle_frame(
+        {
+            "type": "ask_user_response",
+            "runtime_question_id": runtime_id,
+            "answers": [{"answer": text, "skipped": False}],
+        }
+    )
+    result = await task
+    assert not result.cancelled and result.answers[0].answer == text
+    stored = session._current_timeline.stored()
+    assert stored is not None and stored[-1].answer == text and stored[-1].asked_by == "Pi"
+    assert ("runtime_question_closed", {"runtime_question_id": runtime_id}) in _sent_events(session)
+    assert session._runtime_question_id is None and session._runtime_request is None
+
+
+async def test_cancelling_the_native_dialog_closes_the_live_card_and_releases_the_slot() -> None:
+    import asyncio
+
+    from tests.test_agent_session import _next_frame, _sent_events, _session, _wait
+
+    session = _session()
+    shown = _next_frame(session)
+    request = RuntimeQuestionRequest(
+        runtime_name="Cursor", questions=[RuntimeQuestion(id="q", question="Q")]
+    )
+    task = asyncio.create_task(session._runtime_questions(request))
+    await _wait(shown)
+    runtime_id = next(
+        data["runtime_question_id"] for kind, data in _sent_events(session) if kind == "ask_user"
+    )
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert session._ask_user_future is None and session._pending_questions is None
+    assert session._runtime_question_id is None
+    assert not session._ask_lock.locked()
+    assert ("runtime_question_closed", {"runtime_question_id": runtime_id}) in _sent_events(session)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        None,
+        [],
+        [{}] * 2,
+        [{"skipped": "false"}],
+        [{"selected": ["forged"], "answer": "forged text"}],
+        [{"selected": ["A"]}],
+        [{"selected": ["A", "B", "C"]}],
+    ],
+)
+def test_runtime_answer_normalization_refuses_malformed_or_out_of_bounds_choices(
+    raw: object,
+) -> None:
+    from app.agents.runtime_questions import normalize_runtime_answers
+
+    request = RuntimeQuestionRequest(
+        runtime_name="Muse",
+        questions=[
+            RuntimeQuestion(
+                id="q",
+                question="Choose two",
+                options=[RuntimeChoice(label=label) for label in ["A", "B", "C"]],
+                multi_select=True,
+                min_selections=2,
+                max_selections=2,
+                allow_custom=False,
+            )
+        ],
+    )
+    assert normalize_runtime_answers(request, raw).cancelled
+
+
+@pytest.mark.parametrize("text", ["", "  keep indentation\n"])
+def test_empty_and_multiline_editors_preserve_the_explicit_submission(text: str) -> None:
+    from app.agents.runtime_questions import normalize_runtime_answers
+
+    request = RuntimeQuestionRequest(
+        runtime_name="Pi",
+        questions=[RuntimeQuestion(id="q", question="Edit", allow_empty=True, multiline=True)],
+    )
+    response = normalize_runtime_answers(request, [{"answer": text, "skipped": False}])
+    assert not response.cancelled and response.answers[0].answer == text
+
+
+@pytest.mark.parametrize("label", [" ", "hidden\x00", "hidden\n"])
+def test_native_choices_need_visible_nonempty_labels(label: str) -> None:
+    with pytest.raises(ValueError):
+        RuntimeChoice(label=label)

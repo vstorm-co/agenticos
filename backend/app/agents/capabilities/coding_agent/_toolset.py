@@ -744,6 +744,7 @@ async def run_local_task(
                         model=model,
                         effort=effort,
                         remember=pipe.remember,
+                        runtime_questions=ctx.deps.runtime_questions,
                     )
                 else:
                     report = await run_task(
@@ -764,6 +765,7 @@ async def run_local_task(
                         configuration_policy=pipe.configuration_policy,
                         remember=pipe.remember,
                         steering=steering,
+                        runtime_questions=ctx.deps.runtime_questions,
                     )
         finally:
             # Failed and cancelled tasks may have spent subscription tokens too.

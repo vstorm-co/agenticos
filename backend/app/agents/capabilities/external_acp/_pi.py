@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 import anyio
+from anyio.abc import TaskGroup
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 
 from app.agents.capabilities.coding_agent._acp import AcpError, Pipe, Shown
@@ -20,6 +21,7 @@ from app.agents.capabilities.coding_agent._harness import (
 )
 from app.agents.capabilities.external_acp._catalog import AcpCatalog, AcpChoice
 from app.agents.model_context import check_model_context
+from app.agents.runtime_questions import RuntimeQuestionsCallback
 
 
 class _Record(BaseModel):
@@ -30,7 +32,13 @@ class _Record(BaseModel):
     success: bool | None = None
     data: dict[str, JsonValue] = Field(default_factory=dict)
     method: str | None = None
-    message: dict[str, JsonValue] = Field(default_factory=dict)
+    message: dict[str, JsonValue] | str = Field(default_factory=dict)
+    title: str | None = None
+    options: list[str] = Field(default_factory=list, max_length=128)
+    prefill: str | None = Field(default=None, max_length=32000)
+    secret: bool = False
+    isPassword: bool = False
+    timeout: float | None = Field(default=None, gt=0, le=3600000)
     assistantMessageEvent: dict[str, JsonValue] = Field(default_factory=dict)
     aborted: bool = False
     toolCallId: str | None = None
@@ -68,6 +76,9 @@ class _Models(BaseModel):
 class _Session:
     pipe: Pipe
     shown: Shown
+    runtime_questions: RuntimeQuestionsCallback | None = None
+    question_group: TaskGroup | None = None
+    pending_questions: set[str] = field(default_factory=set)
     settled: bool = False
     received: int = 0
     sequence: int = 0
@@ -90,6 +101,14 @@ class _Session:
             if record.method in {"select", "confirm", "input", "editor"}:
                 if record.id is None:
                     raise AcpError("Pi sent a dialog without an identifier.")
+                if self.runtime_questions is not None and self.question_group is not None:
+                    if record.id in self.pending_questions or len(self.pending_questions) >= 8:
+                        raise AcpError(
+                            "Pi exceeded the pending human-input limit or reused a dialog identifier."
+                        )
+                    self.pending_questions.add(record.id)
+                    self.question_group.start_soon(self.answer_dialog, record)
+                    return record
                 await self.pipe.send(
                     {"type": "extension_ui_response", "id": record.id, "cancelled": True}
                 )
@@ -99,6 +118,27 @@ class _Session:
         elif record.type == "extension_error":
             raise AcpError("A Pi extension failed. Review the extension in Pi before continuing.")
         return record
+
+    async def answer_dialog(self, record: _Record) -> None:
+        from ._human import pi_dialog
+
+        reply: dict[str, object] = {"cancelled": True}
+        try:
+            with anyio.move_on_after(record.timeout / 1000 if record.timeout is not None else None):
+                try:
+                    reply = await pi_dialog(record.model_dump(), self.runtime_questions)
+                    await check_model_context()
+                except ValueError, TypeError:
+                    await self.pipe.send(
+                        {"type": "extension_ui_response", "id": record.id, "cancelled": True}
+                    )
+                    raise AcpError(
+                        "Pi sent an unsupported human-input request. No answer was invented."
+                    ) from None
+            await self.pipe.send({"type": "extension_ui_response", "id": record.id, **reply})
+        finally:
+            if record.id is not None:
+                self.pending_questions.discard(record.id)
 
     async def request(self, command: str, **params: JsonValue) -> dict[str, JsonValue]:
         self.sequence += 1
@@ -131,7 +171,11 @@ class _Session:
             delta = event.get("delta")
             if event.get("type") == "text_delta" and isinstance(delta, str):
                 items.append(Said(delta[:32000]))
-        elif record.type == "message_end" and record.message.get("role") == "assistant":
+        elif (
+            record.type == "message_end"
+            and isinstance(record.message, dict)
+            and record.message.get("role") == "assistant"
+        ):
             content = record.message.get("content")
             if not isinstance(content, list):
                 raise AcpError("Pi returned malformed assistant content.")
@@ -225,54 +269,62 @@ async def run_pi(
     model: str | None = None,
     effort: str | None = None,
     remember: Callable[[str], Awaitable[None]] | None = None,
+    runtime_questions: RuntimeQuestionsCallback | None = None,
 ) -> CodingReport:
-    session = _Session(pipe, shown)
+    session = _Session(pipe, shown, runtime_questions=runtime_questions)
     timed_out = False
     identifier: str | None = None
     try:
         with anyio.move_on_after(timeout_seconds) as deadline:
-            if model is not None or effort is not None:
-                raise AcpError(
-                    "Pi model settings belong to its CLI. Choose the provider/model there and leave the external model ID empty."
-                )
-            await check_model_context()
-            opened = (
-                await session.request("switch_session", sessionPath=previous_session)
-                if previous_session is not None
-                else await session.request("new_session")
-            )
-            if opened.get("cancelled") is not False:
-                raise AcpError(
-                    "A Pi extension refused to open the requested session. No prompt was sent."
-                )
-            state = await session.state()
-            identifier = state.sessionId
-            if state.model is None:
-                raise AcpError(
-                    "Pi has no configured model. Choose a provider, complete its login and select a model in Pi first."
-                )
-            if remember is not None:
-                if not state.sessionFile:
-                    raise AcpError(
-                        "Pi did not expose persistent session storage. No prompt was sent."
+            async with anyio.create_task_group() as group:
+                session.question_group = group
+                try:
+                    if model is not None or effort is not None:
+                        raise AcpError(
+                            "Pi model settings belong to its CLI. Choose the provider/model there and leave the external model ID empty."
+                        )
+                    await check_model_context()
+                    opened = (
+                        await session.request("switch_session", sessionPath=previous_session)
+                        if previous_session is not None
+                        else await session.request("new_session")
                     )
-                await remember(state.sessionFile)
-            await check_model_context()
-            session.settled = False
-            session.answer = ""
-            session.stop_reason = None
-            session.steps.clear()
-            session.active.clear()
-            accepted = await session.request("prompt", message=task)
-            if accepted.get("disposition") != "started":
-                raise AcpError(
-                    "Pi did not start this prompt. An extension handled it or queued it; completion was not confirmed."
-                )
-            while not session.settled:
-                record = await session.receive()
-                if record.type == "response":
-                    raise AcpError("Pi returned an unexpected RPC response during the task.")
-                await session.event(record)
+                    if opened.get("cancelled") is not False:
+                        raise AcpError(
+                            "A Pi extension refused to open the requested session. No prompt was sent."
+                        )
+                    state = await session.state()
+                    identifier = state.sessionId
+                    if state.model is None:
+                        raise AcpError(
+                            "Pi has no configured model. Choose a provider, complete its login and select a model in Pi first."
+                        )
+                    if remember is not None:
+                        if not state.sessionFile:
+                            raise AcpError(
+                                "Pi did not expose persistent session storage. No prompt was sent."
+                            )
+                        await remember(state.sessionFile)
+                    await check_model_context()
+                    session.settled = False
+                    session.answer = ""
+                    session.stop_reason = None
+                    session.steps.clear()
+                    session.active.clear()
+                    accepted = await session.request("prompt", message=task)
+                    if accepted.get("disposition") != "started":
+                        raise AcpError(
+                            "Pi did not start this prompt. An extension handled it or queued it; completion was not confirmed."
+                        )
+                    while not session.settled:
+                        record = await session.receive()
+                        if record.type == "response":
+                            raise AcpError(
+                                "Pi returned an unexpected RPC response during the task."
+                            )
+                        await session.event(record)
+                finally:
+                    group.cancel_scope.cancel()
         timed_out = deadline.cancel_called
         completed = session.settled and session.stop_reason == "stop" and not session.active
         outcome: Literal["completed", "failed", "timed_out"] = (
@@ -291,6 +343,10 @@ async def run_pi(
             session_id=identifier,
             steps=last_steps(session.steps),
         )
+    except BaseExceptionGroup as errors:
+        if len(errors.exceptions) == 1:
+            raise errors.exceptions[0] from None
+        raise
     finally:
         with anyio.CancelScope(shield=True):
             try:

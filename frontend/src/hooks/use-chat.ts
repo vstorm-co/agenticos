@@ -354,6 +354,7 @@ export function useChat(options: UseChatOptions = {}) {
   const parkedQuestionRunRef = useRef<string | null>(null);
   const answeringQuestionRef = useRef<object | null>(null);
   const liveQuestionRef = useRef(false);
+  const runtimeQuestionIdRef = useRef<string | null>(null);
   const pendingRunAnswerRef = useRef<{
     requestId: string;
     runId: string;
@@ -574,6 +575,7 @@ export function useChat(options: UseChatOptions = {}) {
       questionOfferedForRef.current.add(runId);
       parkedQuestionRunRef.current = runId;
       liveQuestionRef.current = false;
+      runtimeQuestionIdRef.current = null;
       // Every call the run is waiting on, not the first: the backend answers a
       // call left out as declined, so offering one put words the person never
       // chose into the others.
@@ -1280,6 +1282,7 @@ export function useChat(options: UseChatOptions = {}) {
           if (parkedQuestionRunRef.current === null) {
             setPendingQuestions(null);
             liveQuestionRef.current = false;
+            runtimeQuestionIdRef.current = null;
           }
           setPendingConnection(null);
           setPendingComputerAccess(null);
@@ -1484,10 +1487,35 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "runtime_question_closed": {
+          const data: unknown = wsEvent.data;
+          if (
+            !data ||
+            typeof data !== "object" ||
+            !("runtime_question_id" in data) ||
+            typeof data.runtime_question_id !== "string" ||
+            data.runtime_question_id !== runtimeQuestionIdRef.current
+          )
+            break;
+          runtimeQuestionIdRef.current = null;
+          liveQuestionRef.current = false;
+          setPendingQuestions(null);
+          break;
+        }
+
         case "ask_user": {
           liveQuestionRef.current = true;
-          const { questions } = wsEvent.data as { questions: WireQuestion[] };
-          setPendingQuestions(toAskUserQuestions(questions ?? []));
+          const { questions, runtime_question_id } = wsEvent.data as {
+            questions: WireQuestion[];
+            runtime_question_id?: unknown;
+          };
+          runtimeQuestionIdRef.current =
+            typeof runtime_question_id === "string" && runtime_question_id.length <= 128
+              ? runtime_question_id
+              : null;
+          setPendingQuestions(
+            toAskUserQuestions(questions ?? [], runtimeQuestionIdRef.current ?? undefined),
+          );
           const messageId = currentMessageIdRef.current;
           const message = chatApi.getState().messages.find((message) => message.id === messageId);
           for (const call of message?.toolCalls ?? []) {
@@ -2095,6 +2123,7 @@ export function useChat(options: UseChatOptions = {}) {
     answeringQuestionRef.current = null;
     abandonRunAnswer();
     liveQuestionRef.current = false;
+    runtimeQuestionIdRef.current = null;
     // A delegation belongs to a run in one organization, and to one conversation
     // inside it - the effect below is the other half of that sentence. Left on
     // screen it would show the previous tenant's specialist names and prompts to
@@ -2198,6 +2227,7 @@ export function useChat(options: UseChatOptions = {}) {
     answeringQuestionRef.current = null;
     abandonRunAnswer();
     liveQuestionRef.current = false;
+    runtimeQuestionIdRef.current = null;
   }, [activeConversationId, closeBrowserPanel, sendMessage, abandonRunAnswer]);
 
   // The caller's permissions, for the restore effect below: rebuilding the
@@ -2868,6 +2898,7 @@ export function useChat(options: UseChatOptions = {}) {
           terminalRunIdsRef.current.add(parked.runId);
           setPendingQuestions(null);
           liveQuestionRef.current = false;
+          runtimeQuestionIdRef.current = null;
           setPendingConnection(null);
           abandonOpenCalls(parked.messageId);
           const messageId = stream.started ? currentMessageIdRef.current : null;
@@ -2930,7 +2961,9 @@ export function useChat(options: UseChatOptions = {}) {
         return;
       }
       if (!liveQuestionRef.current) return;
+      const runtimeQuestionId = runtimeQuestionIdRef.current;
       liveQuestionRef.current = false;
+      runtimeQuestionIdRef.current = null;
       setPendingQuestions(null);
       const messageId = currentMessageIdRef.current;
       const message = chatApi.getState().messages.find((message) => message.id === messageId);
@@ -2939,7 +2972,11 @@ export function useChat(options: UseChatOptions = {}) {
           updateToolCallPart(messageId, call.id, { status: "running" });
         }
       }
-      sendMessage({ type: "ask_user_response", answers });
+      sendMessage({
+        type: "ask_user_response",
+        answers,
+        ...(runtimeQuestionId ? { runtime_question_id: runtimeQuestionId } : {}),
+      });
     },
     [parkedQuestion, answerParkedQuestion, isConnected, sendMessage, chatApi, updateToolCallPart],
   );
@@ -2993,6 +3030,7 @@ export function useChat(options: UseChatOptions = {}) {
         abandonRunAnswer();
       }
       liveQuestionRef.current = false;
+      runtimeQuestionIdRef.current = null;
       processingRef.current = false;
       if (currentMessageIdRef.current) {
         updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));

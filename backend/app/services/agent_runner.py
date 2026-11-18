@@ -239,6 +239,7 @@ from app.agents.observability import current_trace_id
 from app.agents.person_briefing import Person, with_person
 from app.agents.routine_actions import RoutineToolCheck
 from app.agents.routine_authority import RoutineCheck, guard_for
+from app.agents.runtime_questions import RuntimeQuestionsCallback
 from app.agents.spec import (
     AgentSpec,
     BudgetSpec,
@@ -2291,6 +2292,7 @@ class LiveRunSurface:
     ask_user: AskUserCallback
     ask_questions: QuestionsCallback
     emit: Callable[[str, dict[str, Any]], Awaitable[None]]
+    runtime_questions: RuntimeQuestionsCallback | None = None
 
 
 async def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
@@ -7934,6 +7936,7 @@ class AgentRunnerService:
         if live_surface is not None:
             prepared.built.deps.ask_user = live_surface.ask_user
             prepared.built.deps.ask_questions = live_surface.ask_questions
+            prepared.built.deps.runtime_questions = live_surface.runtime_questions
             prepared.built.deps.parks_questions = False
         prepared.built.deps.shows_drafts = _draws_drafts(run, state)
 

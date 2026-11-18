@@ -1,5 +1,5 @@
 ---
-source_sha: "57ef3a3430db"
+source_sha: "5a83c6400b56"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -840,9 +840,8 @@ registrar la entrada Desktop para detener sesiones y borrar continuaciones.
 Registra de nuevo después de cambiar de cuenta; cambiar las credenciales del CLI
 no revoca por sí solo un proceso activo.
 
-Las preguntas nativas y solicitudes de aprobación de planes se cancelan de forma
-explícita y detienen la tarea para revisarla en Cursor CLI. AgenticOS no inventa
-una decisión humana. Los permisos ACP estándar siguen la política de delegación
+Las preguntas nativas y los planes completos aparecen en el chat en vivo. Solo se
+devuelve tu respuesta explícita. Consulta [preguntas del runtime](#runtime-questions). Los permisos ACP estándar siguen la política de delegación
 existente. La integración exige acceso local completo y no reenvía herramientas
 de AgenticOS. El inicio de sesión, los modelos, el rechazo por cuota y la
 reanudación tras reiniciar siguen pendientes de pruebas reales. Consulta
@@ -907,7 +906,7 @@ Mistral Vibe indica `configuration_policy=cli`: deja vacío ID del modelo extern
 
 Instala Grok Build, completa `grok login` (o `grok login --device-auth`) y registra la ruta absoluta de `grok` con la plantilla **Grok**. Ejecuta `--no-auto-update agent stdio`, elimina `XAI_API_KEY` y `GROK_CODE_XAI_API_KEY` heredadas y establece `GROK_DISABLE_API_KEY_AUTH=true` solo para ese proceso hijo.
 
-AgenticOS exige el método anunciado `cached_token`, rechaza un runtime que siga anunciando `xai.api_key` y solicita autenticación sin interacción. No importa archivos de tokens ni cambia a una clave u otro inicio de sesión. Consulta los modelos mediante `inspect_acp_agent`; cuenta, gateway y plan determinan disponibilidad y cargos. La plantilla no promete Build en todos los planes Grok. Las preguntas al usuario detienen la tarea para revisarla en el CLI; una respuesta final vacía es un fallo explícito.
+AgenticOS exige el método anunciado `cached_token`, rechaza un runtime que siga anunciando `xai.api_key` y solicita autenticación sin interacción. No importa archivos de tokens ni cambia a una clave u otro inicio de sesión. Consulta los modelos mediante `inspect_acp_agent`; cuenta, gateway y plan determinan disponibilidad y cargos. La plantilla no promete Build en todos los planes Grok. Las preguntas al usuario aparecen en el chat en vivo; una respuesta final vacía es un fallo explícito.
 
 Registra de nuevo tras cambiar de cuenta. El modo de clave API del CLI queda pendiente porque la autenticación del proveedor puede sustituir credenciales guardadas; usa el proveedor directo xAI existente para claves API. Inicio de sesión, cuotas, cancelación y modelos con una cuenta real siguen como criterios de aceptación. Consulta la [referencia Grok CLI](https://docs.x.ai/build/cli/reference).
 
@@ -915,7 +914,7 @@ Registra de nuevo tras cambiar de cuenta. El modo de clave API del CLI queda pen
 
 Instala Kimi Code CLI, completa `kimi login` y registra la ruta absoluta de `kimi` con **Kimi Code**. La plantilla ejecuta `acp` y exige el método anunciado `login`. Comprueba la autenticación del CLI; AgenticOS no abre un terminal de acceso ni importa tokens. Credenciales ausentes o caducadas detienen la tarea sin probar otro método.
 
-Consulta opciones con `inspect_acp_agent`. Deja External model ID vacío y elige el modelo en Kimi; la plantilla informa `configuration_policy=cli` y rechaza sobrescrituras. El CLI puede configurar proveedores propios con facturación API separada, por lo que iniciar sesión no determina qué suscripción paga el modelo. Las preguntas humanas, incluido el mecanismo de permisos `AskUserQuestion`, se cancelan para revisarlas en el CLI y no se responden mediante aprobación de herramientas.
+Consulta opciones con `inspect_acp_agent`. Deja External model ID vacío y elige el modelo en Kimi; la plantilla informa `configuration_policy=cli` y rechaza sobrescrituras. El CLI puede configurar proveedores propios con facturación API separada, por lo que iniciar sesión no determina qué suscripción paga el modelo. Las preguntas humanas, incluido el mecanismo de permisos `AskUserQuestion`, aparecen como tarjeta de chat y no se responden mediante aprobación de herramientas.
 
 Registra de nuevo tras cambiar de cuenta. Permisos, cuotas, reconexión, cancelación y modelos con cuenta real siguen como criterios de aceptación. Es ejecución local delegada sin herramientas de plataforma AgenticOS. Consulta [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
 
@@ -941,7 +940,7 @@ Registra **Pi** en Ajustes → Aplicación Desktop con la ruta absoluta de `pi`.
 
 Usa `inspect_acp_agent` para descubrir identificadores de modelo con su proveedor en el catálogo de Pi configurado. El nombre de la herramienta se conserva por compatibilidad; el transporte es Pi RPC, no ACP. El catálogo no demuestra autenticación, derechos del plan ni crédito. Las tareas con nombre guardan el archivo nativo de sesión en el ámbito existente de organización, persona, chat, carpeta y versión de registro. Registra de nuevo tras cambiar de cuenta. Una reanudación fallida se rechaza en lugar de iniciar otra sesión silenciosamente.
 
-La finalización espera a `agent_settled`, incluidos los reintentos y la compactación automáticos posteriores a `agent_end`. Un prompt fallido, cancelado, en cola o procesado por una extensión nunca se informa como completado. Stop vacía la cola, cancela el turno activo y cierra el árbol de procesos propio. Los diálogos de extensiones se cancelan para atenderlos en la CLI de Pi; no se inventan respuestas humanas. Streaming, reanudación tras reinicio, cuotas, cancelación y compatibilidad de extensiones con una cuenta real siguen siendo pruebas de aceptación. Consulta [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).
+La finalización espera a `agent_settled`, incluidos los reintentos y la compactación automáticos posteriores a `agent_end`. Un prompt fallido, cancelado, en cola o procesado por una extensión nunca se informa como completado. Stop vacía la cola, cancela el turno activo y cierra el árbol de procesos propio. Los diálogos de extensiones compatibles aparecen como tarjeta de chat; no se inventan respuestas humanas. Streaming, reanudación tras reinicio, cuotas, cancelación y compatibilidad de extensiones con una cuenta real siguen siendo pruebas de aceptación. Consulta [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).
 
 ## Muse mediante el SDK oficial { #muse-sdk }
 
@@ -950,3 +949,9 @@ Elige **Muse** o **Muse API key** en Ajustes → Aplicación Desktop con la ruta
 Configura la cuenta primero en `muse`. Muse prioriza claves del entorno, luego claves guardadas y finalmente el inicio de sesión del navegador. La inspección muestra la fuente efectiva de clave API u OAuth sin copiar tokens ni etiquetas de cuenta al informe. El modo de clave requiere `META_API_KEY` en Desktop y confirmación de esa fuente; una clave guardada o sesión del navegador no puede sustituirla silenciosamente. El acceso del navegador no demuestra derechos ni facturación. Las cuentas Meta administradas pueden requerir claves API. El coste permanece desconocido.
 
 Las tareas requieren consentimiento expreso para una carpeta con acceso completo. Muse conserva sus herramientas y extensiones; no se transfieren herramientas de la plataforma ni se ofrece ejecución sin herramientas. `inspect_acp_agent` consulta el catálogo actual con identificadores de proveedor; los cambios requieren coincidencia y confirmación del servidor. Las sesiones duraderas usan el historial de reanudación existente. La falta de persistencia o versiones SDK/CLI incompatibles provocan rechazo. Cancelar alcanza el turno SDK y cierra el árbol de procesos propio. Los resultados fallidos o desconocidos nunca se convierten en éxito. Derechos, cuotas, reanudación, Stop y compatibilidad de extensiones siguen siendo pruebas con cuentas reales. Consulta [Muse SDK](https://github.com/meta-models/muse-code-sdk) y [autenticación](https://www.musemuse.dev/docs/muse-code/auth).
+
+## Preguntas del runtime { #runtime-questions }
+
+Las preguntas y planes completos de Cursor, preguntas de Grok, preguntas de Kimi mediante permisos, diálogos select/confirm/input/editor de Pi y entradas del SDK Muse aparecen en la tarjeta de chat existente. Se conservan límites de selección, identidad de opciones y vistas previas nativas. El editor de Pi conserva sangría, saltos de línea y un reemplazo vacío explícito. Las contraseñas se introducen en el inicio de sesión del proveedor.
+
+Las respuestas requieren la conexión activa y autorizada de la persona que inició la tarea y la identidad de la pregunta actual. Stop, desconexión, caducidad nativa o finalización cierra la tarjeta; una respuesta tardía no puede contestar otra pregunta. Sin una interfaz activa, las solicitudes se cancelan explícitamente. Estos diálogos no conceden permisos de herramientas ni debilitan la política de delegación. Preguntas y respuestas aceptadas se guardan en la cronología existente.

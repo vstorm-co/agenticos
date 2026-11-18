@@ -25,6 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Show supported native runtime questions, complete Cursor plans and Pi editors in live chat with correlated answers and cancellation.
+
 - Add Muse native SDK delegation with pinned CLI compatibility, effective credential-source reporting and explicit API-key mode.
 
 - Add Pi native RPC delegation with scoped session resume, authoritative settlement, model discovery and owned process cancellation.
@@ -35,9 +37,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Add Qwen Code subscription ACP delegation with explicit CLI subscription mode and no API-key authentication fallback.
 
-- Add Kimi Code desktop ACP delegation with CLI-owned login and explicit cancellation of human questions.
+- Add Kimi Code desktop ACP delegation with CLI-owned login and live human questions.
 
-- Add a Grok Build desktop ACP template with cached headless account auth, API-key isolation and explicit human-input refusal.
+- Add a Grok Build desktop ACP template with cached headless account auth, API-key isolation and live human questions.
 
 - Add Mistral Vibe ACP delegation with browser/key setup, delayed model discovery and sanitized credential-source reporting, without assuming subscription entitlement (#3108).
 
