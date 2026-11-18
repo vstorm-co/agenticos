@@ -1,5 +1,5 @@
 ---
-source_sha: "df225624e97c"
+source_sha: "57ef3a3430db"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -911,3 +911,11 @@ Zarejestruj **Pi** w Ustawienia → Aplikacja Desktop, podając bezwzględną ś
 Użyj `inspect_acp_agent`, aby odczytać identyfikatory modeli z nazwą dostawcy z katalogu skonfigurowanego Pi. Nazwa narzędzia pozostaje dla zgodności; transportem jest Pi RPC, nie ACP. Katalog nie potwierdza logowania, uprawnień planu ani kredytów. Nazwane zadania zapamiętują natywny plik sesji w istniejącym zakresie organizacji, osoby, czatu, folderu i wersji rejestracji. Po zmianie konta zarejestruj program ponownie. Nieudane wznowienie powoduje odmowę zamiast cichego rozpoczęcia innej sesji.
 
 Zakończenie wymaga `agent_settled`, również po automatycznych ponowieniach i kompakcji następujących po `agent_end`. Prompt błędny, anulowany, zakolejkowany lub przejęty przez rozszerzenie nie jest raportowany jako ukończony. Stop czyści kolejkę, przerywa aktywną turę i zamyka własne drzewo procesów. Dialogi rozszerzeń są anulowane do obsługi w CLI Pi; system nie wymyśla odpowiedzi człowieka. Strumieniowanie, wznowienie po restarcie, limity, anulowanie i zgodność rozszerzeń na prawdziwym koncie pozostają testami odbiorowymi. Zobacz [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).
+
+## Muse przez oficjalny SDK { #muse-sdk }
+
+Wybierz **Muse** lub **Muse — klucz API** w Ustawienia → Aplikacja Desktop i podaj bezwzględną ścieżkę do CLI Muse **1.4.23**. AgenticOS dostarcza zgodny `@muse-code/sdk` na licencji MIT w zarządzanym środowisku Node. SDK odpowiada za negocjację MSP, odtwarzanie zdarzeń, historię i wynik tury; adapter AgenticOS łączy go z istniejącym transportem zadań. Uruchamia własny proces `muse serve` na pierwszym planie. Nie podłącza się do demona ani nie traktuje konta Meta jako zwykłego tokenu modelu.
+
+Najpierw skonfiguruj konto w `muse`. Muse wybiera klucze środowiskowe przed zapisanymi, a następnie logowanie przeglądarkowe. Inspekcja pokazuje faktyczne źródło klucza API lub OAuth, bez kopiowania tokenów i etykiet kont do raportu. Tryb klucza wymaga `META_API_KEY` w Desktop i potwierdzenia źródła środowiskowego; zapisany klucz lub sesja przeglądarkowa nie mogą go cicho zastąpić. Logowanie przeglądarkowe nie potwierdza uprawnień planu ani rozliczenia. Zarządzane konta Meta mogą wymagać kluczy API. Koszt pozostaje nieznany.
+
+Zadania wymagają jawnej zgody na folder z pełnym dostępem. Muse zachowuje natywne narzędzia i rozszerzenia; narzędzia platformy nie są przekazywane, a tryb bez narzędzi nie jest oferowany. `inspect_acp_agent` odczytuje aktualny katalog modeli z nazwami dostawców; zmiana wymaga zgodności z katalogiem i potwierdzenia serwera. Trwałe sesje korzystają z istniejącej historii wznowień. Brak trwałości lub niezgodna wersja SDK/CLI powodują odmowę. Anulowanie dociera do tury SDK i zamyka własne drzewo procesów. Błędny lub nieznany wynik nie oznacza sukcesu. Uprawnienia planu, limity, wznowienie, Stop i zgodność rozszerzeń na prawdziwym koncie pozostają testami odbiorowymi. Zobacz [SDK Muse](https://github.com/meta-models/muse-code-sdk) i [logowanie](https://www.musemuse.dev/docs/muse-code/auth).

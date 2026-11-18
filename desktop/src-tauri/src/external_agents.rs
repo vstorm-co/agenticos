@@ -23,6 +23,8 @@ pub enum Provider {
     QwenSubscription,
     Devin,
     Pi,
+    Muse,
+    MuseApiKey,
     #[serde(rename = "opencode")]
     OpenCode,
     #[serde(rename = "opencode_go")]
@@ -116,6 +118,9 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
             "Pi requires --mode rpc without startup overrides. Choose its provider and model in Pi itself.".into(),
         );
     }
+    if matches!(input.provider, Provider::Muse | Provider::MuseApiKey) && input.args != ["serve"] {
+        return Err("Muse uses its pinned native SDK with muse serve. Startup overrides are not supported.".into());
+    }
     Ok(Registration {
         provider: input.provider,
         id: input.id,
@@ -141,6 +146,8 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
     let before = settings::current(&app).connection_revision;
     let (send, receive) = tokio::sync::oneshot::channel();
     let billing = match registration.provider {
+        Provider::Muse => "Muse uses the pinned official SDK and your CLI configuration. Run muse and complete its login first. META_API_KEY and stored API keys take priority over a browser account; check the reported credential source. Login does not establish plan entitlement. Native tools and configured extensions retain local access. This is an owned foreground MSP host, not an attached daemon.",
+        Provider::MuseApiKey => "Muse uses the required META_API_KEY inherited by Desktop. A missing key refuses launch without falling back to a browser login or stored key. The key stays local. This uses the pinned official SDK with an owned foreground muse serve host.",
         Provider::Pi => "Pi uses its own saved configuration, extensions, login and API keys through native RPC. Run pi and choose its provider/model before registration. This runs the CLI with full local access; extensions and native tools retain that access. No platform tools or vault credentials are forwarded, and account/model catalogs do not prove subscription entitlement. Human extension dialogs stop for review in Pi. Charges are unpriced.",
         Provider::Devin => "Devin CLI uses its own account and advertised browser login. Complete devin auth login and check devin auth status first. Billing and enterprise CLI permission belong to your Devin account. This launches the local ACP agent, not --cloud or the Devin task API. Keep External model ID empty and choose the model in Devin. CLI-owned tools and account data remain with Devin; AgenticOS forwards no platform tools.",
         Provider::QwenSubscription => "Qwen Code uses its own saved subscription login. Complete /auth in qwen first, choosing Qwen Account with Subscription. The child explicitly selects qwen-subscription and removes inherited OpenAI key, endpoint and model overrides. No authenticate operation or credential import is performed. Keep External model ID empty and choose the subscription model in Qwen. Plan access and quotas require account verification.",
@@ -213,6 +220,25 @@ mod tests {
             name: "My agent".into(),
             program: std::env::current_exe().unwrap().to_string_lossy().into_owned(),
             args: vec!["acp".into()],
+        }
+    }
+
+    #[test]
+    fn muse_templates_require_owned_sdk_host_without_overrides() {
+        for provider in [Provider::Muse, Provider::MuseApiKey] {
+            assert!(checked(RegistrationInput {
+                provider,
+                args: vec!["serve".into()],
+                ..input()
+            })
+            .is_ok());
+            assert!(checked(RegistrationInput {
+                provider,
+                args: vec!["serve".into(), "--daemon".into()],
+                ..input()
+            })
+            .is_err());
+            assert!(checked(RegistrationInput { provider, ..input() }).is_err());
         }
     }
 

@@ -209,6 +209,8 @@ class DevicePipe:
                 "cached_token",
                 "login",
                 "devin-browser",
+                "muse-cli",
+                "muse-api-key",
             }:
                 await self.close()
                 raise AcpError("The Desktop app requires an unsupported authentication mode.")
@@ -326,7 +328,11 @@ class _Collector:
                         raise AcpError(
                             "Cursor requires account sign-in or a billing change. Check agent status and your plan; no other account was selected."
                         )
-                    self.said.append(text)
+                    meta = update.get("_meta")
+                    if isinstance(meta, dict) and meta.get("agenticosFinalAnswer") is True:
+                        self.said = [text]
+                    else:
+                        self.said.append(text)
                 return []
             case "tool_call":
                 return self._started(update)

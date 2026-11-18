@@ -104,7 +104,7 @@ class CodingStep(BaseModel):
 class RuntimeCredentials(BaseModel):
     """Non-secret credential facts reported by the runtime, not plan entitlement."""
 
-    kind: Literal["api_key"]
+    kind: Literal["api_key", "oauth"]
     source: Literal["os_keyring", "cli_file", "environment"]
     sign_out_available: bool
 

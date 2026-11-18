@@ -25,6 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Add Muse native SDK delegation with pinned CLI compatibility, effective credential-source reporting and explicit API-key mode.
+
 - Add Pi native RPC delegation with scoped session resume, authoritative settlement, model discovery and owned process cancellation.
 
 - Add GitHub Copilot model profiles and personal device sign-in with account-specific Chat Completions catalogs, user-sealed credentials and AgenticOS integration identity.

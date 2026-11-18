@@ -1,5 +1,5 @@
 ---
-source_sha: "df225624e97c"
+source_sha: "57ef3a3430db"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -957,3 +957,11 @@ Registriere **Pi** unter Einstellungen → Desktop-App mit dem absoluten Pfad zu
 `inspect_acp_agent` liest mit Anbietern qualifizierte Modell-IDs aus dem konfigurierten Pi-Katalog. Der Werkzeugname bleibt aus Kompatibilitätsgründen; der Transport ist Pi RPC, nicht ACP. Ein Katalog belegt weder Anmeldung noch Berechtigung oder Guthaben. Benannte Aufgaben speichern die native Sitzungsdatei im bestehenden Geltungsbereich von Organisation, Person, Chat, Ordner und Registrierungsversion. Nach einem Kontowechsel erneut registrieren. Ein fehlgeschlagener Wiederaufnahmeversuch wird abgelehnt, statt still eine andere Sitzung zu starten.
 
 Der Abschluss wartet auf `agent_settled`, auch nach automatischen Wiederholungen und Kompaktierung nach `agent_end`. Fehlgeschlagene, abgebrochene, eingereihte oder von Erweiterungen behandelte Prompts gelten nie als abgeschlossen. Stop leert die Warteschlange, bricht den aktiven Durchlauf ab und beendet den eigenen Prozessbaum. Erweiterungsdialoge werden zur Bearbeitung in der Pi-CLI abgebrochen; menschliche Antworten werden nicht erfunden. Streaming, Wiederaufnahme nach Neustart, Kontingente, Abbruch und Erweiterungskompatibilität mit einem echten Konto bleiben Abnahmetests. Siehe [Pi RPC](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md).
+
+## Muse über das offizielle SDK { #muse-sdk }
+
+Wähle **Muse** oder **Muse API-Schlüssel** unter Einstellungen → Desktop-App mit dem absoluten Pfad zur Muse-CLI **1.4.23**. AgenticOS liefert das passende MIT-lizenzierte `@muse-code/sdk` in seiner verwalteten Node-Laufzeit. Das SDK übernimmt MSP-Aushandlung, Ereignisrekonstruktion, Wiederholung und Durchlaufergebnisse; ein AgenticOS-Adapter verbindet es mit dem bestehenden Aufgabentransport. Es startet einen eigenen Vordergrundprozess `muse serve`. Es verbindet sich nicht mit einem Daemon und behandelt ein Meta-Konto nicht als gewöhnlichen Modelltoken.
+
+Richte das Konto zuerst in `muse` ein. Muse bevorzugt Umgebungsschlüssel vor gespeicherten Schlüsseln und danach die Browseranmeldung. Die Inspektion zeigt die tatsächliche API-Schlüssel- oder OAuth-Quelle, ohne Token oder Kontobezeichnungen in den Bericht zu kopieren. Der Schlüsselmodus benötigt `META_API_KEY` in Desktop und die Bestätigung dieser Quelle; gespeicherte Schlüssel oder Browserkonten dürfen sie nicht still ersetzen. Eine Browseranmeldung belegt weder Berechtigung noch Abrechnung. Verwaltete Meta-Konten können API-Schlüssel benötigen. Kosten bleiben unbekannt.
+
+Aufgaben benötigen ausdrückliche Ordnerfreigabe mit Vollzugriff. Muse behält native Werkzeuge und Erweiterungen; Plattformwerkzeuge werden nicht weitergegeben, eine werkzeugfreie Ausführung wird nicht angeboten. `inspect_acp_agent` liest den aktuellen Katalog mit Anbieter-IDs; Modellwechsel benötigen Katalogtreffer und Serverbestätigung. Dauerhafte Sitzungen nutzen die vorhandene Wiederaufnahmehistorie. Fehlende Persistenz oder unpassende SDK/CLI-Versionen führen zur Ablehnung. Abbruch erreicht den SDK-Durchlauf und beendet den eigenen Prozessbaum. Fehlerhafte oder unbekannte Endzustände gelten nie als Erfolg. Kontoberechtigung, Kontingente, Wiederaufnahme, Stop und Erweiterungskompatibilität bleiben echte Kontotests. Siehe [Muse SDK](https://github.com/meta-models/muse-code-sdk) und [Anmeldung](https://www.musemuse.dev/docs/muse-code/auth).

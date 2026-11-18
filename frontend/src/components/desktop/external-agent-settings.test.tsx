@@ -319,3 +319,28 @@ it("registers Pi with native RPC and preserves its CLI model configuration", asy
     { ...registration, provider: "pi" },
   ]);
 });
+
+it.each(["muse", "muse_api_key"])(
+  "registers %s with a native SDK foreground host",
+  async (provider) => {
+    mount();
+    await userEvent.selectOptions(screen.getByLabelText("Setup template"), provider);
+    expect(screen.getByText(/Muse requires CLI 1.4.23/)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Absolute executable path"), "/opt/bin/muse");
+    await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+        registration: {
+          provider,
+          id: provider.replaceAll("_", "-"),
+          name: provider === "muse" ? "Muse" : "Muse API key",
+          program: "/opt/bin/muse",
+          args: ["serve"],
+        },
+      }),
+    );
+    expect(parseExternalAgents([{ ...registration, provider }])).toEqual([
+      { ...registration, provider },
+    ]);
+  },
+);

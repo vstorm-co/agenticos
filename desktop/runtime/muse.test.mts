@@ -1,0 +1,442 @@
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { mkdtemp, writeFile, chmod, rm, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+import { EXPECTED_SCHEMA_FINGERPRINT } from "@muse-code/sdk";
+import { MuseAdapter, SDK_VERSION, object } from "./muse.mts";
+
+type Frame = Record<string, unknown>;
+
+async function fixture(options: Frame = {}) {
+  const root = await mkdtemp(join(tmpdir(), "agenticos-muse-test-"));
+  const trace = join(root, "frames.jsonl");
+  const program = join(root, "muse.mjs");
+  await writeFile(
+    program,
+    `#!/usr/bin/env node
+import { createInterface } from 'node:readline';
+import { appendFileSync } from 'node:fs';
+const options = ${JSON.stringify(options)};
+let selected = 'native-model';
+let cursor = 0;
+const send = frame => process.stdout.write(JSON.stringify(frame) + '\\n');
+const notify = (method, params) => send({jsonrpc:'2.0',method,params:{sessionId:'native-session',turnId:'native-turn',viewCursor:'c-'+(++cursor),sourceRange:{stream:{id:'stream',kind:'session'},first:{id:'event',sequence:cursor},last:{id:'event',sequence:cursor}},...params}});
+const lines=createInterface({input:process.stdin,crlfDelay:Infinity});
+lines.on('line',line=>{
+ const frame=JSON.parse(line),p=frame.params??{};
+ appendFileSync(${JSON.stringify(trace)},JSON.stringify(frame)+'\\n');
+ const reply=result=>send({jsonrpc:'2.0',id:frame.id,result:{...result,...(p.commandId?{commandId:p.commandId}:{})}});
+ if(frame.method==='initialize') return reply({experimentalApi:true,grantedCapabilities:['sessionMcp'],museHome:'/private/native-home',platformFamily:'unix',platformOs:'linux',schema:{fingerprint:${JSON.stringify(EXPECTED_SCHEMA_FINGERPRINT)},version:1},serverInfo:{name:'fixture',version:options.version??${JSON.stringify(SDK_VERSION)}},sessionDurability:options.durability??'durable',userAgent:'fixture'});
+ if(frame.method==='account/read') return reply({state:options.state??'accountLogin',credentialRequired:options.credentialRequired??true,label:'private@example.test',apiKey:'never-export-this'});
+ if(frame.method==='session/start') return reply({session:{sessionId:'native-session',status:'idle'},viewCursor:'c-0'});
+ if(frame.method==='session/resume') return reply({session:{sessionId:p.sessionId,status:'idle'},history:{mode:'none',items:[]},pendingRequests:[],viewCursor:'c-0'});
+ if(frame.method==='model/list') return reply({providerId:'meta',profileId:null,source:'providerCatalog',models:(options.duplicate?[selected,selected]:['native-model','other-model']).map(modelId=>({modelId,providerId:'meta',profileId:null,displayLabel:modelId,isActive:modelId===selected,isDefault:false,description:null,cost:null,contextLimit:null,outputLimit:null,releaseDate:null}))});
+ if(frame.method==='session/setModel'){if(!options.ignoreModel)selected=p.model.modelId;return reply({});}
+ if(frame.method==='turn/start'){
+  reply({disposition:'started',startedNewTurn:true,status:'accepted',turnId:'native-turn'});
+  notify('turn/started',{});
+  if(options.wait)return;
+  if(options.approval){
+   notify('approval/requested',{approvalId:'approval',availableChoices:[{choiceId:'once',decision:'approved',label:'Allow once',scope:'once'},{choiceId:'persist',decision:'approvedForSession',label:'Always allow',scope:'session'},{choiceId:'reject',decision:'denied',label:'Reject',scope:'once'}],currentRequirementId:{approvalId:'approval',sourceIndex:0},itemId:'tool-item',judgeEscalated:false,protectedWrite:false,rawArgs:'{}',taskId:'tool-item',toolCallId:'call',toolName:'Native tool',subject:{kind:options.subject??'shell'}});return;
+  }
+  notify('item/completed',{item:{itemId:'native-message',kind:'agentMessage',revision:1,status:'completed',turnId:'native-turn',messagePhase:'finalAnswer',text:'Native final answer'}});
+  notify('turn/completed',{terminal:options.terminal??'completed',...(options.terminal==='failed'?{error:{kind:'auth',message:'SECRET-vendor-error'}}:{})});return;
+ }
+ if(frame.method==='approval/decide'){
+  reply({terminal:true});
+  notify('item/completed',{item:{itemId:'answer',kind:'agentMessage',revision:1,status:'completed',turnId:'native-turn',text:'Approval resolved'}});
+  notify('turn/completed',{terminal:'completed'});return;
+ }
+ if(frame.method==='turn/cancel'||frame.method==='turn/interrupt'){reply({status:'accepted'});notify('turn/completed',{terminal:'cancelled'});return;}
+ if(frame.method==='initialized'||frame.id===undefined)return;
+ send({jsonrpc:'2.0',id:frame.id,error:{code:-32601,message:'SECRET-unimplemented',data:{kind:'methodNotFound'}}});
+});
+lines.on('close',()=>process.exit(0));
+`,
+  );
+  await chmod(program, 0o700);
+  const frames: Frame[] = [];
+  const adapter = new MuseAdapter(program, async (frame) => {
+    frames.push(frame);
+    if (frame.method === "session/request_permission") {
+      const params = frame.params;
+      assert.ok(
+        typeof params === "object" && params !== null && "options" in params,
+      );
+      const choices = params.options;
+      assert.ok(Array.isArray(choices));
+      const chosen: unknown =
+        choices.find(
+          (choice: unknown) =>
+            typeof choice === "object" &&
+            choice !== null &&
+            "kind" in choice &&
+            choice.kind === "allow_once",
+        ) ?? choices[0];
+      assert.ok(
+        typeof chosen === "object" && chosen !== null && "optionId" in chosen,
+      );
+      await adapter.accept({
+        jsonrpc: "2.0",
+        id: frame.id,
+        result: { outcome: { outcome: "selected", optionId: chosen.optionId } },
+      });
+    }
+  });
+  let id = 0;
+  async function request(method: string, params: Frame = {}) {
+    const requestId = ++id;
+    await adapter.accept({ jsonrpc: "2.0", id: requestId, method, params });
+    const frame = frames.find((frame) => frame.id === requestId);
+    assert.ok(frame);
+    return frame;
+  }
+  async function initialize() {
+    const initialized = await request("initialize", { protocolVersion: 1 });
+    assert.ok(initialized.result);
+    return initialized;
+  }
+  async function open() {
+    await initialize();
+    assert.ok((await request("authenticate", { methodId: "muse-cli" })).result);
+    const opened = await request("session/new", {
+      cwd: process.cwd(),
+      mcpServers: [],
+    });
+    assert.ok(opened.result);
+    return opened;
+  }
+  async function sent(): Promise<Frame[]> {
+    return (await readFile(trace, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line: string): Frame => JSON.parse(line));
+  }
+  async function close() {
+    await adapter.close();
+    await rm(root, { recursive: true, force: true });
+  }
+  return { adapter, frames, request, initialize, open, sent, close, program };
+}
+
+for (const terminal of [
+  "completed",
+  "failed",
+  "cancelled",
+  "new-unknown-terminal",
+]) {
+  test(
+    `the real SDK owns streaming and ${terminal} settlement`,
+    { timeout: 5000 },
+    async () => {
+      const f = await fixture({ terminal });
+      try {
+        await f.open();
+        const response = await f.request("session/prompt", {
+          sessionId: "native-session",
+          prompt: [{ type: "text", text: "Investigate" }],
+        });
+        assert.deepEqual(response.result, {
+          stopReason: terminal === "completed" ? "end_turn" : "cancelled",
+        });
+        const output = JSON.stringify(f.frames);
+        assert.ok(output.includes("Native final answer"));
+        assert.ok(!output.includes("SECRET"));
+        const sent = await f.sent();
+        assert.equal(
+          sent.filter((frame) => frame.method === "turn/start").length,
+          1,
+        );
+        assert.ok(sent.every((frame) => frame.method !== "account/loginStart"));
+      } finally {
+        await f.close();
+      }
+    },
+  );
+}
+
+test(
+  "SDK/CLI versions and duplicate catalogs are refused before inference",
+  { timeout: 5000 },
+  async () => {
+    for (const options of [
+      { version: "0.0.0" },
+      { duplicate: true },
+      { durability: "ephemeral" },
+      { durability: "new-unknown" },
+    ]) {
+      const f = await fixture(options);
+      try {
+        const initialized = await f.request("initialize", {
+          protocolVersion: 1,
+        });
+        const result =
+          "version" in options || "durability" in options
+            ? initialized
+            : await f.request("session/new", {
+                cwd: process.cwd(),
+                mcpServers: [],
+              });
+        assert.ok(result.error);
+        assert.ok(
+          !(await f.sent()).some((frame) => frame.method === "turn/start"),
+        );
+      } finally {
+        await f.close();
+      }
+    }
+  },
+);
+
+for (const state of [
+  "accountLogin",
+  "envKey",
+  "apiKey",
+  "loggedOut",
+  "unknown",
+]) {
+  test(
+    `credential reporting sanitizes the ${state} lane`,
+    { timeout: 5000 },
+    async () => {
+      const f = await fixture({ state });
+      try {
+        await f.initialize();
+        const status = await f.request("_auth/status");
+        assert.deepEqual(status.result, { state, credentialRequired: true });
+        const auth = await f.request("authenticate", { methodId: "muse-cli" });
+        assert.equal(
+          Boolean(auth.error),
+          ["loggedOut", "unknown"].includes(state),
+        );
+        assert.ok(!JSON.stringify(f.frames).includes("private@example"));
+        assert.ok(!JSON.stringify(f.frames).includes("never-export"));
+      } finally {
+        await f.close();
+      }
+    },
+  );
+}
+
+test(
+  "unapproved folders and MCP configuration cannot be injected",
+  { timeout: 5000 },
+  async () => {
+    for (const params of [
+      { cwd: tmpdir(), mcpServers: [] },
+      { cwd: process.cwd(), mcpServers: [{ command: "injected" }] },
+    ]) {
+      const f = await fixture();
+      try {
+        await f.initialize();
+        assert.ok((await f.request("session/new", params)).error);
+        assert.ok(
+          !(await f.sent()).some((frame) => frame.method === "session/start"),
+        );
+      } finally {
+        await f.close();
+      }
+    }
+  },
+);
+
+test(
+  "model switching requires the SDK catalog and server acknowledgement",
+  { timeout: 5000 },
+  async () => {
+    for (const ignoreModel of [false, true]) {
+      const f = await fixture({ ignoreModel });
+      try {
+        await f.open();
+        const result = await f.request("session/set_config_option", {
+          sessionId: "native-session",
+          configId: "model",
+          value: "meta/other-model",
+        });
+        assert.equal(Boolean(result.error), ignoreModel);
+        assert.ok(
+          (
+            await f.request("session/set_model", {
+              sessionId: "foreign",
+              modelId: "meta/native-model",
+            })
+          ).error,
+        );
+        assert.ok(
+          (
+            await f.request("session/set_model", {
+              sessionId: "native-session",
+              modelId: "unlisted",
+            })
+          ).error,
+        );
+      } finally {
+        await f.close();
+      }
+    }
+  },
+);
+
+test(
+  "native cancellation reaches the owned SDK turn and returns no success",
+  { timeout: 5000 },
+  async () => {
+    const f = await fixture({ wait: true });
+    try {
+      await f.open();
+      const prompt = f.request("session/prompt", {
+        sessionId: "native-session",
+        prompt: [{ type: "text", text: "Wait" }],
+      });
+      for (
+        let tries = 0;
+        tries < 100 &&
+        !(await f.sent()).some((frame) => frame.method === "turn/start");
+        tries++
+      )
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      await f.adapter.accept({
+        jsonrpc: "2.0",
+        method: "session/cancel",
+        params: { sessionId: "native-session" },
+      });
+      assert.ok((await prompt).error);
+      assert.ok(
+        (await f.sent()).some(
+          (frame) =>
+            frame.method === "turn/cancel" || frame.method === "turn/interrupt",
+        ),
+      );
+    } finally {
+      await f.close();
+    }
+  },
+);
+
+for (const subject of ["shell", "unrecognized-kind", "computerUseTakeover"]) {
+  test(
+    `approval choices preserve once-only scope for ${subject}`,
+    { timeout: 5000 },
+    async () => {
+      const f = await fixture({ approval: true, subject });
+      try {
+        await f.open();
+        const result = await f.request("session/prompt", {
+          sessionId: "native-session",
+          prompt: [{ type: "text", text: "Work" }],
+        });
+        assert.deepEqual(result.result, { stopReason: "end_turn" });
+        const decision = (await f.sent()).find(
+          (frame) => frame.method === "approval/decide",
+        );
+        assert.ok(
+          decision &&
+            typeof decision.params === "object" &&
+            decision.params !== null &&
+            "choiceId" in decision.params,
+        );
+        assert.equal(
+          decision.params.choiceId,
+          subject === "shell" ? "once" : "reject",
+        );
+      } finally {
+        await f.close();
+      }
+    },
+  );
+}
+
+test(
+  "API-key mode refuses a saved account or saved-key fallback",
+  { timeout: 5000 },
+  async () => {
+    for (const state of ["accountLogin", "apiKey", "envKey"]) {
+      const f = await fixture({ state });
+      try {
+        await f.initialize();
+        const response = await f.request("authenticate", {
+          methodId: "muse-api-key",
+        });
+        assert.equal(Boolean(response.error), state !== "envKey");
+      } finally {
+        await f.close();
+      }
+    }
+  },
+);
+
+test(
+  "the subprocess frames only on LF and preserves split UTF-8 prompts",
+  { timeout: 5000 },
+  async () => {
+    const f = await fixture();
+    const child = spawn(
+      process.execPath,
+      [fileURLToPath(new URL("./muse.mts", import.meta.url)), f.program],
+      { stdio: ["pipe", "pipe", "pipe"] },
+    );
+    const output: Frame[] = [];
+    let pending = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      pending += chunk;
+      const lines = pending.split("\n");
+      pending = lines.pop() ?? "";
+      for (const line of lines) {
+        const value: unknown = JSON.parse(line);
+        assert.ok(object(value));
+        output.push(value);
+      }
+    });
+    const exited = new Promise<number | null>((resolve) =>
+      child.once("exit", resolve),
+    );
+    async function command(id: number, method: string, params: Frame) {
+      const bytes = Buffer.from(
+        JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n",
+      );
+      const split = bytes.indexOf(Buffer.from("🙂")) + 1;
+      if (split > 0) {
+        child.stdin.write(bytes.subarray(0, split));
+        child.stdin.write(bytes.subarray(split));
+      } else child.stdin.write(bytes);
+      for (let tries = 0; tries < 400; tries++) {
+        const result = output.find((frame) => frame.id === id);
+        if (result) return result;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      throw new Error("No adapter response");
+    }
+    try {
+      assert.ok(
+        (await command(1, "initialize", { protocolVersion: 1 })).result,
+      );
+      assert.ok(
+        (
+          await command(2, "session/new", {
+            cwd: process.cwd(),
+            mcpServers: [],
+          })
+        ).result,
+      );
+      assert.ok(
+        (
+          await command(3, "session/prompt", {
+            sessionId: "native-session",
+            prompt: [{ type: "text", text: "Line\u2028🙂" }],
+          })
+        ).result,
+      );
+      assert.ok(JSON.stringify(await f.sent()).includes("Line\u2028🙂"));
+      child.stdin.end();
+      assert.equal(await exited, 0);
+    } finally {
+      child.kill();
+      await exited;
+      await f.close();
+    }
+  },
+);

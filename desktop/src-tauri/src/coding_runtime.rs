@@ -9,6 +9,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 const NODE_VERSION: &str = "24.19.0";
 const MANIFEST: &str = include_str!("../../runtime/package.json");
+const MUSE: &str = include_str!("../../runtime/muse.mts");
 const LOCK: &str = include_str!("../../runtime/package-lock.json");
 static PREPARING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
@@ -18,6 +19,10 @@ pub struct Runtime {
 }
 
 impl Runtime {
+    pub fn muse_adapter(&self) -> PathBuf {
+        self.directory.join("muse.mts")
+    }
+
     pub fn adapter(&self, agent: crate::local_agents::AgentId) -> PathBuf {
         self.directory
             .join("node_modules/@agentclientprotocol")
@@ -122,6 +127,8 @@ fn at(directory: PathBuf, archive: &str) -> Runtime {
 fn complete(runtime: &Runtime) -> bool {
     let present = |path: &Path| path.metadata().is_ok_and(|meta| meta.is_file() && meta.len() > 0);
     present(&runtime.node)
+        && present(&runtime.muse_adapter())
+        && present(&runtime.directory.join("node_modules/@muse-code/sdk/dist/src/index.js"))
         && [
             crate::local_agents::AgentId::ClaudeCode,
             crate::local_agents::AgentId::Codex,
@@ -139,7 +146,7 @@ fn complete(runtime: &Runtime) -> bool {
 fn revision() -> String {
     format!(
         "{:x}",
-        Sha256::digest(format!("{NODE_VERSION}\n{MANIFEST}\n{LOCK}").as_bytes())
+        Sha256::digest(format!("{NODE_VERSION}\n{MANIFEST}\n{LOCK}\n{MUSE}").as_bytes())
     )
 }
 
@@ -275,6 +282,9 @@ async fn install(directory: &Path, archive: &str, checksum: &str) -> Result<(), 
     tokio::fs::write(directory.join("package-lock.json"), LOCK)
         .await
         .map_err(|e| e.to_string())?;
+    tokio::fs::write(directory.join("muse.mts"), MUSE)
+        .await
+        .map_err(|e| e.to_string())?;
     let config = directory.join("npmrc");
     tokio::fs::write(&config, "registry=https://registry.npmjs.org/\n")
         .await
@@ -351,6 +361,19 @@ mod tests {
         let mut command = runtime.command().unwrap();
         command.args(["-e", "if (process.versions.node !== '24.19.0') process.exit(1)"]);
         run(command, "check private Node").await.unwrap();
+        let mut command = runtime.command().unwrap();
+        command.args(["--input-type=module", "-e", "await import('./muse.mts')"]);
+        run(command, "import the pinned Muse SDK adapter").await.unwrap();
+        #[cfg(unix)]
+        {
+            let test_file = runtime.directory.join("muse.test.mts");
+            tokio::fs::write(&test_file, include_str!("../../runtime/muse.test.mts"))
+                .await
+                .unwrap();
+            let mut command = runtime.command().unwrap();
+            command.arg("--test").arg(test_file);
+            run(command, "test the native Muse SDK boundary").await.unwrap();
+        }
         for agent in [
             crate::local_agents::AgentId::ClaudeCode,
             crate::local_agents::AgentId::Codex,

@@ -189,6 +189,13 @@ impl Sessions {
     }
 }
 
+fn muse_key_environment(command: &mut tokio::process::Command, key: Option<&std::ffi::OsStr>) -> Result<(), Refusal> {
+    let key = key.and_then(std::ffi::OsStr::to_str).filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| Refusal::new("denied", "Muse API-key mode requires META_API_KEY in the Desktop environment. No saved-account fallback was selected."))?;
+    command.env("META_API_KEY", key);
+    Ok(())
+}
+
 fn qwen_subscription_environment(command: &mut tokio::process::Command) {
     for name in ["OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL", "DASHSCOPE_API_KEY"] {
         command.env_remove(name);
@@ -277,6 +284,10 @@ fn spawn_authenticated(
             provider == crate::external_agents::Provider::ClineApiKey,
             key.as_deref(),
         )?;
+    }
+    if provider == crate::external_agents::Provider::MuseApiKey {
+        let key = std::env::var_os("META_API_KEY");
+        muse_key_environment(&mut command, key.as_deref())?;
     }
     if provider == crate::external_agents::Provider::QwenSubscription {
         qwen_subscription_environment(&mut command);
@@ -648,7 +659,19 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         .ok_or_else(|| Refusal::new("denied", "The connection changed. Start the agent again."))?;
     }
     drop(confirmation);
-    let runtime = if agent.builtin().is_some() {
+    let needs_muse = external.as_ref().is_some_and(|item| {
+        matches!(
+            item.provider,
+            crate::external_agents::Provider::Muse | crate::external_agents::Provider::MuseApiKey
+        )
+    });
+    if needs_muse && !supports_auth_modes {
+        return Err(Refusal::new(
+            "denied",
+            "Update the AgenticOS server to use Muse credential reporting.",
+        ));
+    }
+    let runtime = if agent.builtin().is_some() || needs_muse {
         Some(
             crate::coding_runtime::prepare(app)
                 .await
@@ -688,13 +711,32 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         if !crate::settings::current(app).external_agents.contains(external) {
             return Err(Refusal::new("denied", "The ACP registration changed. Start again."));
         }
-        spawn_authenticated(
-            Path::new(&external.program),
-            &external.args,
-            &root,
-            path_with(Path::new(&external.program)),
+        if matches!(
             external.provider,
-        )?
+            crate::external_agents::Provider::Muse | crate::external_agents::Provider::MuseApiKey
+        ) {
+            let runtime = runtime
+                .as_ref()
+                .ok_or_else(|| Refusal::new("io", "Prepare the managed SDK runtime first."))?;
+            spawn_authenticated(
+                &runtime.node,
+                &[
+                    runtime.muse_adapter().to_string_lossy().into_owned(),
+                    external.program.clone(),
+                ],
+                &root,
+                path_with(&runtime.node),
+                external.provider,
+            )?
+        } else {
+            spawn_authenticated(
+                Path::new(&external.program),
+                &external.args,
+                &root,
+                path_with(Path::new(&external.program)),
+                external.provider,
+            )?
+        }
     } else if let (Some(runtime), Some(builtin)) = (&runtime, agent.builtin()) {
         spawn(
             &runtime.node,
@@ -720,6 +762,8 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         crate::external_agents::Provider::Grok => Some("cached_token"),
         crate::external_agents::Provider::Kimi => Some("login"),
         crate::external_agents::Provider::Devin => Some("devin-browser"),
+        crate::external_agents::Provider::Muse => Some("muse-cli"),
+        crate::external_agents::Provider::MuseApiKey => Some("muse-api-key"),
         _ => None,
     });
     let runtime_name = external.as_ref().map(|item| item.name.as_str());
@@ -971,6 +1015,19 @@ mod tests {
             .map(|l| l.as_str().unwrap().to_owned())
             .collect();
         (lines, answer["cursor"].as_u64().unwrap(), answer["exit"].as_i64())
+    }
+
+    #[test]
+    fn muse_key_mode_requires_an_explicit_nonempty_environment_key() {
+        let mut command = tokio::process::Command::new("unused");
+        assert!(muse_key_environment(&mut command, None).is_err());
+        assert!(muse_key_environment(&mut command, Some(std::ffi::OsStr::new(" "))).is_err());
+        muse_key_environment(&mut command, Some(std::ffi::OsStr::new("test-key"))).unwrap();
+        let selected = command.as_std().get_envs().find(|(name, _)| *name == "META_API_KEY");
+        assert_eq!(
+            selected.map(|(_, value)| value),
+            Some(Some(std::ffi::OsStr::new("test-key")))
+        );
     }
 
     #[tokio::test]

@@ -90,6 +90,8 @@ export function ExternalAgentSettings() {
                 selected !== "mistral_vibe" &&
                 selected !== "grok" &&
                 selected !== "kimi" &&
+                selected !== "muse" &&
+                selected !== "muse_api_key" &&
                 selected !== "pi" &&
                 selected !== "devin" &&
                 selected !== "qwen_subscription" &&
@@ -110,6 +112,8 @@ export function ExternalAgentSettings() {
                 mistral_vibe: "Mistral Vibe",
                 grok: "Grok",
                 kimi: "Kimi Code",
+                muse: "Muse",
+                muse_api_key: t("museApi"),
                 pi: "Pi",
                 devin: "Devin",
                 qwen_subscription: t("qwenSubscription"),
@@ -118,19 +122,21 @@ export function ExternalAgentSettings() {
               };
               setName(names[selected]);
               setArgs(
-                selected === "pi"
-                  ? '["--mode","rpc"]'
-                  : selected === "devin"
-                    ? '["--permission-mode","normal","acp"]'
-                    : selected === "qwen_subscription"
-                      ? '["--acp","--auth-type=qwen-subscription"]'
-                      : selected === "grok"
-                        ? '["--no-auto-update","agent","stdio"]'
-                        : selected === "mistral_vibe"
-                          ? "[]"
-                          : selected === "cline" || selected === "cline_api_key"
-                            ? '["--acp"]'
-                            : '["acp"]',
+                selected === "muse" || selected === "muse_api_key"
+                  ? '["serve"]'
+                  : selected === "pi"
+                    ? '["--mode","rpc"]'
+                    : selected === "devin"
+                      ? '["--permission-mode","normal","acp"]'
+                      : selected === "qwen_subscription"
+                        ? '["--acp","--auth-type=qwen-subscription"]'
+                        : selected === "grok"
+                          ? '["--no-auto-update","agent","stdio"]'
+                          : selected === "mistral_vibe"
+                            ? "[]"
+                            : selected === "cline" || selected === "cline_api_key"
+                              ? '["--acp"]'
+                              : '["acp"]',
               );
             }}
           >
@@ -143,6 +149,9 @@ export function ExternalAgentSettings() {
             <option value="devin">Devin</option>
             {/* i18n-exempt: product name */}
             <option value="pi">Pi</option>
+            {/* i18n-exempt: product name */}
+            <option value="muse">Muse</option>
+            <option value="muse_api_key">{t("museApi")}</option>
             {/* i18n-exempt: product name */}
             <option value="kimi">Kimi Code</option>
             {/* i18n-exempt: product name */}
@@ -168,6 +177,9 @@ export function ExternalAgentSettings() {
         )}
         {provider === "qwen_subscription" && (
           <p className="text-muted-foreground text-xs">{t("qwenHelp")}</p>
+        )}
+        {(provider === "muse" || provider === "muse_api_key") && (
+          <p className="text-muted-foreground text-xs">{t("museHelp")}</p>
         )}
         {provider === "pi" && <p className="text-muted-foreground text-xs">{t("piHelp")}</p>}
         {provider === "devin" && <p className="text-muted-foreground text-xs">{t("devinHelp")}</p>}
