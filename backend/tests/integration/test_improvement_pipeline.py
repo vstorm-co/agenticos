@@ -1,10 +1,13 @@
 """The durable pipeline across actual PostgreSQL transactions and scripted model calls."""
 
+from collections.abc import Awaitable, Callable
 from decimal import Decimal
+from typing import cast
 from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
+from pydantic_ai.exceptions import ModelTimeoutError
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +19,7 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.permissions import AuthContext
+from app.db.models.agent_run import AgentRun
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
@@ -77,6 +81,34 @@ class Answers(Model):
         return answer, run
 
 
+class TimingOut(Answers):
+    """Times out on the proposed side's first `timeouts` answers, after the provider charged."""
+
+    def __init__(self, db: AsyncSession, *, timeouts: int) -> None:
+        super().__init__(db)
+        self.timeouts = timeouts
+        self.timed_out: list[UUID] = []
+
+    async def execute(
+        self,
+        runner: AgentRunnerService,
+        ctx: AuthContext,
+        agent_id: UUID,
+        prompt: str,
+        **kw: object,
+    ):
+        answer, run = await super().execute(runner, ctx, agent_id, prompt, **kw)
+        candidate = kw["candidate"]
+        assert isinstance(candidate, UnpublishedCandidate)
+        if self.timeouts and "30 days" in candidate.spec.instructions:
+            self.timeouts -= 1
+            started = cast(Callable[[AgentRun], Awaitable[None]], kw["started"])
+            await started(run)
+            self.timed_out.append(run.id)
+            raise ModelTimeoutError("gpt-test", "Request timed out")
+        return answer, run
+
+
 async def _next_step(
     db: AsyncSession, ctx: AuthContext, run_id: UUID, *, note: str | None = None
 ) -> ImprovementRead:
@@ -109,7 +141,7 @@ async def _until_child(db: AsyncSession, ctx: AuthContext, run_id: UUID) -> None
     await ImprovementPipelineService(db).advance(run_id, ctx.organization_id)
 
 
-async def _ready_proposal(db):
+async def _ready_proposal(db, *, timeouts: int = 0, timed_out: list[UUID] | None = None):
     ctx, agent, _, read = await _started(db)
     original = AgentSpec.model_validate(agent.draft_spec)
     version = agent.current_version_id
@@ -153,7 +185,7 @@ async def _ready_proposal(db):
     assert (await ImprovementPipelineService(db).read(ctx, agent.id, read.id)).iterations[
         0
     ].eval_run_ids == [eval_id]
-    model = Answers(db)
+    model = TimingOut(db, timeouts=timeouts)
 
     async def execute(runner, *args, **kwargs):
         return await model.execute(runner, *args, **kwargs)
@@ -165,6 +197,8 @@ async def _ready_proposal(db):
         await EvalRunWorker(
             eval_id, ctx.organization_id, sessions=_sessions(db), sleep=AsyncMock()
         ).run()
+    if timed_out is not None:
+        timed_out.extend(model.timed_out)
     await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     await ImprovementPipelineService(db).advance(read.id, ctx.organization_id)
     ready = await ImprovementPipelineService(db).read(ctx, agent.id, read.id)
@@ -194,6 +228,30 @@ async def _ready_proposal(db):
     assert (await ImprovementPipelineService(db).read(ctx, agent.id, read.id)).status == "ready"
 
     return ctx, agent, ready
+
+
+async def test_answers_a_check_lost_to_timeouts_are_asked_again_not_the_whole_check(db):
+    """A timed-out answer would leave the check inconclusive and the session paying for
+    all of it again; only the lost answers are asked again, and what they cost counts."""
+    from app.repositories import eval_run_repo
+    from app.services.eval_run import EvalRunService
+
+    timed_out: list[UUID] = []
+    ctx, _, ready = await _ready_proposal(db, timeouts=2, timed_out=timed_out)
+
+    [eval_id] = ready.iterations[0].eval_run_ids
+    attempts = await eval_run_repo.list_cases(db, eval_id, organization_id=ctx.organization_id)
+    assert {(a.status, a.error) for a in attempts} == {("done", None)}
+    check = await EvalRunService(db).get(ctx, eval_id)
+    assert check.outcome is not None and check.outcome.verdict != "invalid"
+    assert len(timed_out) == 2
+    assert not {a.agent_run_id for a in attempts} & set(timed_out)
+    # No attempt leads to the timed-out tries any more; the session still paid for them.
+    paid = (
+        await db.scalars(select(AgentRun.improvement_run_id).where(AgentRun.id.in_(timed_out)))
+    ).all()
+    assert paid == [ready.id, ready.id]
+    assert ready.iterations[0].cost_usd >= Decimal("0.01") * (len(attempts) + 2)
 
 
 async def test_a_session_waiting_for_a_person_is_listed_only_where_its_agent_is_readable(db):

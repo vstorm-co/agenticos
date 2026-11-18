@@ -3,6 +3,8 @@ and tells when it closes a run."""
 
 import uuid
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -11,6 +13,7 @@ import pytest
 
 from app.agents.capabilities.skills import SkillBodyFile
 from app.core.exceptions import AuthenticationError
+from app.db.models.agent_run import AgentRun
 from app.db.models.eval_run import (
     AttemptFault,
     CaseAttemptStatus,
@@ -219,3 +222,212 @@ async def test_a_runs_reader_is_its_starter_as_they_stand_or_none(gone: bool) ->
         )
 
     assert reader is (None if gone else ctx)
+
+
+def _attempt(**fields: object) -> EvalRunCase:
+    defaults: dict[str, object] = {
+        "attempt": 0,
+        "status": CaseAttemptStatus.DONE.value,
+        "agent_run_id": uuid.uuid4(),
+    }
+    return EvalRunCase(id=uuid.uuid4(), case_revision_id=uuid.uuid4(), **{**defaults, **fields})
+
+
+async def _ask_lost_again(
+    attempts: list[EvalRunCase],
+    *,
+    status: str = EvalRunStatus.RUNNING.value,
+    session: bool = True,
+    linked: bool = True,
+    budget: str = "10",
+    spent: str = "4",
+    anonymised: frozenset[uuid.UUID] = frozenset(),
+) -> tuple[bool, list[EvalRunCase], set[uuid.UUID]]:
+    """Run the step on a check of `len(attempts)` first answers estimated at 4 USD with
+    1 USD of reruns; what it returned, what it queued and which runs it forgot."""
+    org = uuid.uuid4()
+    record = ProposalCheckRecord(
+        kind="agent",
+        base_version=None,
+        on_draft=True,
+        suggestions=1,
+        improvement_run_id=uuid.uuid4() if linked else None,
+    )
+    run = SimpleNamespace(
+        id=uuid.uuid4(),
+        status=status,
+        proposal_check=record.model_dump(mode="json"),
+        estimate_usd=Decimal("4"),
+        rerun_ceiling_usd=Decimal("1"),
+    )
+    revisions = {
+        a.case_revision_id: SimpleNamespace(
+            anonymised_at=datetime.now(UTC) if a.case_revision_id in anonymised else None
+        )
+        for a in attempts
+    }
+    db = AsyncMock()
+
+    @asynccontextmanager
+    async def sessions():
+        yield db
+
+    queued, forgotten = AsyncMock(), AsyncMock()
+    with (
+        patch("app.services.eval_run_worker.eval_run_repo.lock", new=AsyncMock(return_value=run)),
+        patch(
+            "app.services.eval_run_worker.eval_run_repo.list_cases",
+            new=AsyncMock(return_value=attempts),
+        ),
+        patch(
+            "app.services.eval_run_worker.eval_run_repo.revisions",
+            new=AsyncMock(return_value=revisions),
+        ),
+        patch(
+            "app.services.eval_run_worker.improvement_repo.get_run",
+            new=AsyncMock(
+                return_value=SimpleNamespace(budget_usd=Decimal(budget)) if session else None
+            ),
+        ),
+        patch(
+            "app.services.eval_run_worker.improvement_repo.spent",
+            new=AsyncMock(return_value=Decimal(spent)),
+        ),
+        patch("app.services.eval_run_worker.eval_run_repo.ask_again", new=queued),
+        patch("app.services.eval_run_worker.personal_data_repo.forget_runs", new=forgotten),
+    ):
+        asked = await EvalRunWorker(run.id, org, sessions=sessions)._ask_lost_again()
+    queued_call, forgotten_call = queued.await_args, forgotten.await_args
+    return (
+        asked,
+        [] if queued_call is None else list(queued_call.kwargs["cases"]),
+        set() if forgotten_call is None else set(forgotten_call.args[1]),
+    )
+
+
+async def test_only_the_answers_the_infrastructure_lost_are_asked_again() -> None:
+    """A timed-out answer is asked again and what its run kept of the question is forgotten;
+    an answer the agent failed on is a result, a rerun is not a first answer, and an
+    anonymised case is never asked again."""
+    timed_out = _attempt(status="failed", fault=AttemptFault.INFRASTRUCTURE.value)
+    before_faults = _attempt(status="failed", fault=None, agent_run_id=None)
+    crashed = _attempt(status="failed", fault=AttemptFault.AGENT.value)
+    rerun = _attempt(status="failed", fault=AttemptFault.INFRASTRUCTURE.value, attempt=1)
+    erased = _attempt(status="failed", fault=AttemptFault.INFRASTRUCTURE.value)
+    answered = _attempt()
+
+    asked, queued, forgotten = await _ask_lost_again(
+        [timed_out, before_faults, crashed, rerun, erased, answered],
+        anonymised=frozenset({erased.case_revision_id}),
+    )
+
+    assert asked
+    assert queued == [timed_out, before_faults]
+    assert forgotten == {timed_out.agent_run_id}
+
+
+@pytest.mark.parametrize(
+    ("status", "linked", "session", "budget"),
+    [
+        (EvalRunStatus.BUDGET_EXCEEDED.value, True, True, "10"),
+        (EvalRunStatus.RUNNING.value, False, True, "10"),
+        (EvalRunStatus.RUNNING.value, True, False, "10"),
+        # 4 spent + 2 of 4 answers at 1 USD each + 1 of reruns is 7: over a 6.5 budget.
+        (EvalRunStatus.RUNNING.value, True, True, "6.5"),
+    ],
+)
+async def test_lost_answers_are_left_when_the_check_or_its_session_cannot_pay_for_them(
+    status: str, linked: bool, session: bool, budget: str
+) -> None:
+    lost = [_attempt(status="failed", fault=AttemptFault.INFRASTRUCTURE.value) for _ in range(2)]
+
+    asked, queued, forgotten = await _ask_lost_again(
+        [*lost, _attempt(), _attempt()],
+        status=status,
+        linked=linked,
+        session=session,
+        budget=budget,
+    )
+
+    assert (asked, queued, forgotten) == (False, [], set())
+
+
+async def test_lost_answers_are_asked_again_when_the_budget_just_covers_them() -> None:
+    lost = [_attempt(status="failed", fault=AttemptFault.INFRASTRUCTURE.value) for _ in range(2)]
+
+    asked, queued, _ = await _ask_lost_again([*lost, _attempt(), _attempt()], budget="7")
+
+    assert asked and queued == lost
+
+
+async def test_a_check_with_nothing_lost_asks_nothing_again() -> None:
+    asked, queued, _ = await _ask_lost_again([_attempt(), _attempt()])
+
+    assert (asked, queued) == (False, [])
+
+
+async def test_a_manual_eval_does_not_ask_its_lost_answers_again() -> None:
+    db = AsyncMock()
+
+    @asynccontextmanager
+    async def sessions():
+        yield db
+
+    run = SimpleNamespace(status=EvalRunStatus.RUNNING.value, proposal_check=None)
+    listed = AsyncMock()
+    with (
+        patch("app.services.eval_run_worker.eval_run_repo.lock", new=AsyncMock(return_value=run)),
+        patch("app.services.eval_run_worker.eval_run_repo.list_cases", new=listed),
+    ):
+        assert not await EvalRunWorker(
+            uuid.uuid4(), uuid.uuid4(), sessions=sessions
+        )._ask_lost_again()
+
+    assert listed.await_count == 0
+
+
+@pytest.mark.parametrize("asked_again", [False, True])
+async def test_lost_answers_are_asked_before_the_flips_are_confirmed(asked_again: bool) -> None:
+    """A case settled by asking again is then confirmed like any other."""
+    worker = EvalRunWorker(uuid.uuid4(), uuid.uuid4(), heartbeat=3600)
+    steps: list[str] = []
+
+    async def step(name: str, result: bool = False):
+        steps.append(name)
+        return result
+
+    with (
+        patch.object(EvalRunWorker, "_begin", new=AsyncMock(return_value=MagicMock())),
+        patch.object(EvalRunWorker, "_wave", new=lambda self, ctx: step("wave")),
+        patch.object(EvalRunWorker, "_ask_lost_again", new=lambda self: step("ask", asked_again)),
+        patch.object(EvalRunWorker, "_queue_reruns", new=lambda self, ctx: step("reruns")),
+        patch.object(EvalRunWorker, "_route_to_review", new=AsyncMock()),
+        patch.object(EvalRunWorker, "_close", new=AsyncMock()),
+    ):
+        await worker._work()
+
+    assert steps == ["wave", "ask", *(["wave"] if asked_again else []), "reruns"]
+
+
+@pytest.mark.parametrize(
+    ("before", "partial"), [(None, False), (Decimal("0.02"), False), (Decimal("0.02"), True)]
+)
+def test_an_answer_asked_again_keeps_what_its_failed_try_spent(
+    before: Decimal | None, partial: bool
+) -> None:
+    attempt = EvalRunCase(cost_usd=before, cost_is_partial=partial)
+    agent_run = SimpleNamespace(
+        id=uuid.uuid4(),
+        cost_usd=Decimal("0.01"),
+        cost_is_partial=False,
+        input_tokens=10,
+        output_tokens=2,
+        started_at=None,
+        ended_at=None,
+    )
+
+    spend = EvalRunWorker._spend(cast(AgentRun, agent_run), attempt)
+
+    assert spend["cost_usd"] == Decimal("0.01") + (before or 0)
+    assert spend["cost_is_partial"] is partial
+    assert (spend["input_tokens"], spend["output_tokens"]) == (10, 2)

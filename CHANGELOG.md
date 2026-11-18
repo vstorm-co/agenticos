@@ -29,6 +29,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **Adding a capability in an Improve proposal.** A helper that named an addition `capabilities/<id>`, the way the prompt lists a bound capability, had it refused as not a target; it is now read as adding that capability.
 
+- **An Improve check that lost a few answers to timeouts.** An answer the model provider timed out on or failed left its question incomplete, so the comparison came out invalid and the session ran the whole check again at its full price. The check now asks just those answers once more before confirming the flips, when the session's budget still covers them; an answer that fails again leaves the check inconclusive as before.
+
 ### Upgrading
 
 - Migration `0342_criterion_verdicts` widens the improvement verdict, stop reason and skill-check agent state constraints and adds `skill_check_agents.criteria`. Its downgrade reads the new verdicts and states as `no_change`.
