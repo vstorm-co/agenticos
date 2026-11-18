@@ -1203,7 +1203,7 @@ Inbound `references` must be a list of strings without CR or LF; retained entrie
 1. **api.slack.com/apps → Create New App → From scratch.** Name it and pick the
    workspace.
 2. **OAuth & Permissions → Bot Token Scopes → Add an OAuth Scope**, and add the
-   thirteen below. *Install to Workspace* stays greyed out until at least one is
+   fourteen below. *Install to Workspace* stays greyed out until at least one is
    added, which is what a blank app is waiting for.
 3. **Install App → Install to Workspace → Allow.** Copy the **Bot User OAuth
    Token** (`xoxb-…`).
@@ -1248,6 +1248,7 @@ Inbound `references` must be a list of strings without CR or LF; retained entrie
       scopes:
         bot:
           - chat:write
+          - reactions:write
           - files:write
           - files:read
           - app_mentions:read
@@ -1356,6 +1357,7 @@ Fourteen bot token scopes, each earning its place by a call the adapter makes:
 | Scope | What needs it |
 |---|---|
 | `chat:write` | `chat.postMessage`, and `chat.update` for the reply rewritten as it is written |
+| `reactions:write` | `reactions.add` for the default 👀 acknowledgement. Reinstall an existing app after adding this scope. |
 | `files:write` | `files.upload` — a chart or a file the agent sends back |
 | `files:read` | an attachment somebody posted, fetched from `url_private_download` |
 | `app_mentions:read` | being named in a channel |

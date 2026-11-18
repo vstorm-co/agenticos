@@ -1,5 +1,5 @@
 ---
-source_sha: "b60dfc3dc436"
+source_sha: "a5254a7d132b"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1314,7 +1314,7 @@ Eingehende `references` müssen eine Liste von Zeichenketten ohne CR oder LF sei
 1. **api.slack.com/apps → Create New App → From scratch.** Benennen Sie die App
    und wählen Sie den Workspace.
 2. **OAuth & Permissions → Bot Token Scopes → Add an OAuth Scope**, und fügen Sie
-   die dreizehn unten hinzu. *Install to Workspace* bleibt ausgegraut, bis
+   die vierzehn unten hinzu. *Install to Workspace* bleibt ausgegraut, bis
    mindestens einer hinzugefügt ist, und darauf wartet eine leere App.
 3. **Install App → Install to Workspace → Allow.** Kopieren Sie das **Bot User
    OAuth Token** (`xoxb-…`).
@@ -1363,6 +1363,7 @@ Eingehende `references` müssen eine Liste von Zeichenketten ohne CR oder LF sei
       scopes:
         bot:
           - chat:write
+          - reactions:write
           - files:write
           - files:read
           - app_mentions:read
@@ -1480,6 +1481,7 @@ Adapter macht:
 | Scope | Was ihn braucht |
 |---|---|
 | `chat:write` | `chat.postMessage`, und `chat.update` für die Antwort, die umgeschrieben wird, während sie entsteht |
+| `reactions:write` | `reactions.add` für die standardmäßige Empfangsbestätigung 👀. Installiere eine bestehende App nach dem Hinzufügen dieses Scopes erneut. |
 | `files:write` | `files.upload` — ein Diagramm oder eine Datei, die der Agent zurückschickt |
 | `files:read` | ein Anhang, den jemand gepostet hat, geholt von `url_private_download` |
 | `app_mentions:read` | in einem Channel genannt zu werden |

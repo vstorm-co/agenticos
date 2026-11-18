@@ -674,6 +674,44 @@ class TestTheApprovalReadsAsARequest:
             "I need your approval to *send in Gmail* as *Work*: “ana@example.com”"
         )
 
+    def test_a_native_slack_write_shows_destination_and_message_instead_of_account_id(self) -> None:
+        assert approval_text(
+            "slack_post_message",
+            {
+                "account_name": "slack-account-internal-id",
+                "body": {
+                    "channel": "C123",
+                    "text": "First line\nSecond line",
+                    "thread_ts": "123.456",
+                },
+            },
+            "Work",
+        ) == (
+            "I need your approval to *post a Slack message* as *Work*.\n"
+            "To: C123\nMessage: First line\nSecond line\nThread: 123.456"
+        )
+
+    @pytest.mark.parametrize("body", [None, "invalid", {}, {"channel": 123, "text": " "}])
+    def test_an_incomplete_slack_write_never_summarizes_the_internal_account(
+        self, body: object
+    ) -> None:
+        assert (
+            approval_text(
+                "slack_post_message", {"account_name": "slack-account-internal-id", "body": body}
+            )
+            == "I need your approval to *post a Slack message*. See the call details in the console."
+        )
+
+    def test_a_slack_preview_is_bounded_and_does_not_activate_slack_mentions(self) -> None:
+        result = approval_text(
+            "slack_post_message",
+            {"body": {"channel": "C123", "text": "<!channel> & " + "x" * 300, "token": "secret"}},
+        )
+        assert "Message: &lt;!channel&gt; &amp; " in result
+        assert result.endswith("…")
+        assert "x" * 200 not in result
+        assert "secret" not in result
+
 
 class TestPressingAnApproval:
     async def _press(

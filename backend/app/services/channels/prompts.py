@@ -15,6 +15,7 @@ decide, and only the person a question was put to may answer it. An unlinked
 presser is told to link, like an unlinked sender.
 """
 
+import html
 import logging
 import re
 from collections.abc import Sequence
@@ -163,6 +164,20 @@ def approval_text(tool_name: str, args: dict[str, object], account: str | None =
     schema's twenty fields in it was read by nobody. Which account it acts as is
     said where the call names one - two mailboxes make "send mail" a question.
     """
+    if tool_name == "slack_post_message":
+        body = args.get("body")
+        details: list[str] = []
+        if isinstance(body, dict):
+            for key, label in (("channel", "To"), ("text", "Message"), ("thread_ts", "Thread")):
+                value = body.get(key)
+                if isinstance(value, str) and value.strip():
+                    preview = value.strip()
+                    if len(preview) > _SUMMARY_SHOWN:
+                        preview = f"{preview[: _SUMMARY_SHOWN - 1]}…"
+                    details.append(f"{label}: {html.escape(preview, quote=False)}")
+        acting = f" as *{account}*" if account else ""
+        about = "\n" + "\n".join(details) if details else " See the call details in the console."
+        return f"I need your approval to *post a Slack message*{acting}.{about}"
     summary = call_summary(args)
     about = f": “{summary}”" if summary else "."
     acting = f" as *{account}*" if account else ""

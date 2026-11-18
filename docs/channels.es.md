@@ -1,5 +1,5 @@
 ---
-source_sha: "b60dfc3dc436"
+source_sha: "a5254a7d132b"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1258,7 +1258,7 @@ Las `references` entrantes deben ser una lista de cadenas sin CR ni LF; las entr
 1. **api.slack.com/apps → Create New App → From scratch.** Ponle nombre y elige el
    workspace.
 2. **OAuth & Permissions → Bot Token Scopes → Add an OAuth Scope**, y añade los
-   trece de abajo. *Install to Workspace* sigue en gris hasta que se añade al menos
+   catorce de abajo. *Install to Workspace* sigue en gris hasta que se añade al menos
    uno, que es lo que está esperando una app en blanco.
 3. **Install App → Install to Workspace → Allow.** Copia el **Bot User OAuth
    Token** (`xoxb-…`).
@@ -1303,6 +1303,7 @@ Las `references` entrantes deben ser una lista de cadenas sin CR ni LF; las entr
       scopes:
         bot:
           - chat:write
+          - reactions:write
           - files:write
           - files:read
           - app_mentions:read
@@ -1416,6 +1417,7 @@ adaptador:
 | Scope | Qué lo necesita |
 |---|---|
 | `chat:write` | `chat.postMessage`, y `chat.update` para la respuesta reescrita según se escribe |
+| `reactions:write` | `reactions.add` para la confirmación de recepción predeterminada 👀. Vuelve a instalar una aplicación existente después de añadir este permiso. |
 | `files:write` | `files.upload` — un gráfico o un fichero que el agent devuelve |
 | `files:read` | un adjunto que alguien publicó, descargado de `url_private_download` |
 | `app_mentions:read` | que lo nombren en un canal |

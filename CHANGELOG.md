@@ -99,6 +99,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Show the destination, message preview and optional thread when approving a
+  native Slack message, rather than its internal account identifier. Include
+  the acknowledgement reaction permission in the manual Slack setup manifest.
+
 - Align integration connection choices with the console control styles and retain
   actual disconnected/unknown channel states alongside public WhatsApp line labels.
 - Keep personal-service setup tools out of runs acting as a public-line agent.

@@ -2,11 +2,13 @@
 
 import json
 import uuid
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import urlencode
 
 import pytest
+import yaml
 from fastapi import HTTPException
 
 from app.api.routes.v1.slack_webhook import slack_commands, slack_events, slack_interactions
@@ -413,6 +415,13 @@ class TestParsing:
 
 
 class TestTheManifest:
+    @pytest.mark.parametrize("locale", ["", ".pl", ".de", ".es"])
+    def test_the_manual_manifest_can_send_the_default_acknowledgement(self, locale: str) -> None:
+        page = (Path(__file__).parents[2] / "docs" / f"channels{locale}.md").read_text()
+        slack_section = page.split("## Slack", 1)[1]
+        manifest = yaml.safe_load(slack_section.split("```yaml\n", 1)[1].split("```", 1)[0])
+        assert "reactions:write" in manifest["oauth_config"]["scopes"]["bot"]
+
     def test_it_points_every_request_at_this_bot_on_this_deployment(self):
         bot = _bot()
         with (
