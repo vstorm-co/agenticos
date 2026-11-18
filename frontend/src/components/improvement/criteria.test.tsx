@@ -55,7 +55,7 @@ it("says which criterion an attempt fixed and which still keep every question fa
   expect(
     screen.getByText(
       "Attempt 1 made Quote Builder better on 1 criterion: price break 9/40 → 40/40. " +
-        "No question passes yet, because other criteria still fail: " +
+        "No additional question passes yet, because other criteria still fail: " +
         "validity (skill “Quote rules”) and payment terms (skill “Quote rules”).",
     ),
   ).toBeInTheDocument();

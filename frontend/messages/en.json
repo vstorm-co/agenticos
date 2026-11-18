@@ -16679,7 +16679,7 @@
       "failingSkill": "{name} (skill “{skill}”)",
       "more": "{count, plural, one {# more} other {# more}}",
       "better": "Attempt {number} made {agent} better on {count, plural, one {# criterion} other {# criteria}}: {list}.",
-      "stillFailing": "No question passes yet, because other criteria still fail: {list}.",
+      "stillFailing": "No additional question passes yet, because other criteria still fail: {list}.",
       "worse": "Attempt {number} made {agent} worse on {count, plural, one {# criterion} other {# criteria}}, though no question broke: {list}.",
       "worseBeside": "Attempt {number} also made {agent} worse on {count, plural, one {# criterion} other {# criteria}}: {list}.",
       "title": "Criteria the answers are graded on",

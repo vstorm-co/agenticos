@@ -16452,7 +16452,7 @@
       "failingSkill": "{name} (skill „{skill}”)",
       "more": "{count, plural, one {i # więcej} few {i # więcej} many {i # więcej} other {i # więcej}}",
       "better": "Próba {number} poprawiła agenta {agent} w {count, plural, one {# kryterium} few {# kryteriach} many {# kryteriach} other {# kryterium}}: {list}.",
-      "stillFailing": "Żadne pytanie jeszcze nie przechodzi, bo inne kryteria nadal nie są spełnione: {list}.",
+      "stillFailing": "Żadne kolejne pytanie jeszcze nie przechodzi, bo inne kryteria nadal nie są spełnione: {list}.",
       "worse": "Próba {number} pogorszyła agenta {agent} w {count, plural, one {# kryterium} few {# kryteriach} many {# kryteriach} other {# kryterium}}, choć żadne pytanie nie zostało zepsute: {list}.",
       "worseBeside": "Próba {number} pogorszyła też agenta {agent} w {count, plural, one {# kryterium} few {# kryteriach} many {# kryteriach} other {# kryterium}}: {list}.",
       "title": "Kryteria, według których oceniane są odpowiedzi",

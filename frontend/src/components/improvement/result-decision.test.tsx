@@ -431,7 +431,7 @@ it("says what an attempt fixed criterion by criterion instead of no change, and 
   expect(
     screen.getByText(
       "Attempt 1 made Refund desk better on 1 criterion: price break 9/40 → 40/40. " +
-        "No question passes yet, because other criteria still fail: " +
+        "No additional question passes yet, because other criteria still fail: " +
         "validity (skill “Quote rules”).",
     ),
   ).toBeInTheDocument();

@@ -16365,7 +16365,7 @@
       "failingSkill": "{name} (Skill „{skill}“)",
       "more": "{count, plural, one {# weiteres} other {# weitere}}",
       "better": "Versuch {number} hat {agent} bei {count, plural, one {# Kriterium} other {# Kriterien}} verbessert: {list}.",
-      "stillFailing": "Noch besteht keine Frage, weil andere Kriterien weiter nicht erfüllt sind: {list}.",
+      "stillFailing": "Noch besteht keine weitere Frage, weil andere Kriterien weiter nicht erfüllt sind: {list}.",
       "worse": "Versuch {number} hat {agent} bei {count, plural, one {# Kriterium} other {# Kriterien}} verschlechtert, ohne eine Frage zu verschlechtern: {list}.",
       "worseBeside": "Versuch {number} hat {agent} außerdem bei {count, plural, one {# Kriterium} other {# Kriterien}} verschlechtert: {list}.",
       "title": "Kriterien, nach denen die Antworten bewertet werden",

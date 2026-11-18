@@ -48,7 +48,7 @@ def test_an_attempt_better_on_criteria_says_what_moved_and_what_still_fails():
 
     assert sentence == (
         "Attempt 1 makes the agent better on some criteria, though no whole question flipped. "
-        "Criteria that got better: price break 9/40 → 40/40. No question passes yet: other "
+        "Criteria that got better: price break 9/40 → 40/40. No additional question passes yet: other "
         'criteria still fail - validity 0/40 → 0/40 (skill "Quote rules").'
     )
 

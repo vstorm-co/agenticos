@@ -478,7 +478,7 @@ def _criteria_sentences(detail: dict[str, Any], verdict: str) -> list[str]:
         sentences.append("Criteria that got better: " + ", ".join(map(_criterion, better)) + ".")
         if failing:
             sentences.append(
-                "No question passes yet: other criteria still fail - "
+                "No additional question passes yet: other criteria still fail - "
                 + ", ".join(map(_criterion, failing))
                 + "."
             )
