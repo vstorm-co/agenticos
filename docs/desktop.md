@@ -630,6 +630,8 @@ The Apps workflow also builds development installers and tests installation with
 
 Installer CI and Linux release builds also inspect the extracted AppImage and reject a bundled Wayland client library (`libwayland-client.so*`), which can conflict with the host Mesa driver and crash WebKitGTK. Release validation runs before installers and updater signatures are uploaded. This library check does not establish rendering compatibility on every Wayland compositor or GPU.
 
+When manually dispatching an older tag without `scripts/build_linux_desktop_release.sh`, the Linux job builds directly with Tauri and logs a warning that pre-upload AppImage validation is unavailable. Tags containing the wrapper keep that validation; a build or validation failure still prevents updater publication.
+
 The **Apps** GitHub Actions workflow checks native crates on macOS, Windows and
 Linux and builds Android debug APKs and an iOS simulator app. Full native checks
 run in CI. Local `make desktop-check` remains available for a focused change.
