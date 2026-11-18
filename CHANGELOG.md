@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.82.2] - 2026-11-18
+
 ### Added
 
 - Publish native Arch Linux x86_64 desktop packages using system WebKitGTK, with pacman-managed updates and CI checks for installation, package revision upgrades, removal and X11/Wayland rendering (#3104).
@@ -22058,7 +22060,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.82.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.82.2...HEAD
+[1.82.2]: https://github.com/vstorm-co/agenticos/compare/v1.82.1...v1.82.2
 [1.82.1]: https://github.com/vstorm-co/agenticos/compare/v1.82.0...v1.82.1
 [1.82.0]: https://github.com/vstorm-co/agenticos/compare/v1.81.0...v1.82.0
 [1.81.0]: https://github.com/vstorm-co/agenticos/compare/v1.80.0...v1.81.0
