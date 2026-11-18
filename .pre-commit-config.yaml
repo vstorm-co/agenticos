@@ -189,7 +189,8 @@ repos:
         name: Architect guide copies current
         entry: uv run --no-sync --directory backend python3 ../scripts/gen_architect_guide.py --check
         language: system
-        types: [markdown]
+        files: '(\.md$|^scripts/gen_architect_guide\.py$)'
+        types_or: [markdown, python]
         pass_filenames: false
       # Double backticks are reStructuredText; Markdown renders them literally,
       # and so do editor hovers over a docstring.
