@@ -11,6 +11,7 @@ import type {
   Trigger,
   TriggerActivationStatus,
   TriggerAttemptList,
+  TriggerFilteredEventRead,
   TriggerCreate,
   TriggerCreated,
   TriggerDispatch,
@@ -173,5 +174,18 @@ export function useTriggerActivation(
     },
     refetchInterval: (query) =>
       query.state.error === null && query.state.data?.state === "pending" ? 3000 : false,
+  });
+}
+
+/** Owner-only metadata; no request is made for other viewers of the agent. */
+export function useTriggerFilteredEvent(trigger: Trigger, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.triggers.filteredEvent(trigger.agent_id, trigger.id),
+    queryFn: () =>
+      apiClient.get<TriggerFilteredEventRead>(
+        `/agents/${trigger.agent_id}/triggers/${trigger.id}/filtered-event`,
+      ),
+    enabled,
+    refetchInterval: 30_000,
   });
 }

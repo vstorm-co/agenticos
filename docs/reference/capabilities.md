@@ -1491,8 +1491,13 @@ Reads a text aloud through a speech provider the author picks, and behaves as
 image generation does: the clip is stored, shown in the conversation as a player,
 and written under `output/` when a workspace is open (#2259).
 
+Organization defaults are optional. In **Organization → AI & services → Text to speech**, an administrator saves the provider, model, voice and organization-visible vault key as one group. An agent inherits that group only after its author enables **Use organization defaults**; existing agents keep their explicit settings. A waiting run keeps its resolved group when the default changes, but disabling organization TTS or revoking the key still refuses speech. An agent override uses its own provider and key together.
+
+The HTTP catalog includes Eleven v4 through its text-to-dialogue endpoint, with chunks of at most 2,000 characters, plus Eleven v3 and Flash v2. WebSocket-only conversational models belong to a different transport and are not offered for clip generation.
+
 | Config | Default | Values |
 |---|---|---|
+| `use_organization_defaults` | `false` | Inherit the organization's provider, model, voice and key together; otherwise use this binding |
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | That provider's models, from `app/core/catalog/text_to_speech_models.json` |
 | `voice` | the model's first | The default the agent speaks in; it may switch per clip within `voices`. A catalog voice for OpenAI and Gemini; an id from your own voice library for ElevenLabs |
@@ -2586,11 +2591,16 @@ tokens into output tokens, which are billed at a premium and generated serially,
 so an agent whose runs are dominated by large tool results is usually better on
 `tiered`.
 
-**It reaches one run, not one conversation.** Between turns the history is rebuilt
-from the transcript as user and assistant text, so tool calls and their results
-are not there to compact and no edit made here survives a turn boundary. The
-history worth compacting is the long tool loop inside a single run, where one
-directory listing or knowledge search is tens of thousands of tokens.
+**History survives turn boundaries.** Each completed turn checkpoints its model
+messages, including tool calls, results and local or native tool-search discovery.
+Compaction works on that same history; its summaries survive into the next turn.
+
+The checkpoint keeps at most 200 model messages and 2 MiB of serialized history.
+Older messages are evicted without separating calls from their results, and an
+omission notice tells the model to rediscover missing tools or reread evidence.
+Discovery expires when its evidence is evicted. Current tool definitions,
+availability, permissions and execution approvals still apply on every run.
+Parked approvals use their separate resume state; a checkpoint does not replay actions.
 
 **The trigger is a fraction because an absolute number is only right for one
 model**, and the same agent runs on whatever profile its spec points at. The
@@ -2656,13 +2666,10 @@ stores and the walkers come from
 |---|---|---|
 | `threshold_bytes` | 32768 | 1 KiB–10 MiB; parts at least this large are stored out of line |
 
-**There is one place media actually piles up, and this is it.** An attachment
-reaches the model once, on the turn it was attached: the ordinary history is
-rebuilt from the transcript's *text*, so a picture is not re-sent on later turns.
-A conversation that has been [compacted](#context-management) is the exception —
-the library's own dump of the run's messages is stored whole and replayed exactly
-as the model last saw it, base64 and all, until the next summary replaces it.
-That blob is rows in Postgres and bytes on the wire, every turn in between.
+**Attachments can survive into later turns.** Completed turns retain model
+messages within the history limits, including retained images. Media offload runs
+on ordinary checkpoints as well as compacted histories. Ephemeral desktop
+screenshots are replaced with a notice before storage.
 
 **Where the bytes go, and how long they live.** Into the deployment's own file
 storage, at `media/<organization>/<conversation>/<digest>`. The organization is

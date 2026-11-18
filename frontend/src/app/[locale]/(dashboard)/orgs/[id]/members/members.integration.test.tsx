@@ -470,31 +470,100 @@ describe("organization settings tabs", () => {
     ]);
     await userEvent.click(screen.getByRole("tab", { name: "AI & services" }));
     const expand = screen.getByRole("button", {
-      name: "Assistant suggestions and monitoring",
+      name: "Daily briefing & suggestions",
     });
     await userEvent.click(expand);
-    const nightly = screen.getByRole("switch", { name: "Nightly suggestions" });
+    const nightly = screen.getByRole("switch", { name: "Daily briefing & suggestions" });
     await userEvent.click(nightly);
     expect(nightly).toBeChecked();
+    const limit = screen.getByLabelText("Limit per person (USD a month)");
+    await userEvent.clear(limit);
+    await userEvent.type(limit, "5");
     await userEvent.click(expand);
-    expect(nightly).not.toBeVisible();
+    expect(nightly).toBeVisible();
+    expect(limit).not.toBeVisible();
     await userEvent.click(screen.getByRole("tab", { name: "Members" }));
     await userEvent.click(screen.getByRole("tab", { name: "AI & services" }));
     await userEvent.click(expand);
     expect(nightly).toBeChecked();
     expect(nightly).toBeVisible();
+    expect(limit).toHaveValue(5);
+    expect(limit).toBeVisible();
   });
 
-  it("places Background services before the other settings for budget managers", async () => {
+  it("uses one service-card header for all seven functions, with independent keyboard disclosures", async () => {
+    serve(
+      "owner",
+      [
+        { permission: Perm.orgSettings, scope: "all" },
+        { permission: Perm.budgetsManage, scope: "all" },
+      ],
+      { welcome_dm_enabled: true },
+    );
+    const original = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === "/assistant")
+        return Promise.resolve({
+          status: "ready",
+          agent_id: "architect",
+          slug: "ai-architect",
+          name: "Architect",
+          named_by_default: true,
+          greeting: null,
+          avatar_url: null,
+          avatar_color: null,
+          wears_mark: true,
+          can_use: true,
+          can_configure: true,
+        });
+      return original(url);
+    });
+    await mount();
+    await userEvent.click(await screen.findByRole("tab", { name: "AI & services" }));
+    const titles = [
+      "Memory maintenance",
+      "AI Architect",
+      "Daily briefing & suggestions",
+      "Allow read-only monitoring routines",
+      "Welcome message in chat apps",
+      "Speech to text",
+      "Text to speech",
+    ];
+    const headers: HTMLElement[] = [];
+    for (const title of titles) {
+      const card = await screen.findByRole("region", { name: title });
+      expect(card).toHaveAttribute("data-slot", "service-card");
+      const header = card.querySelector("header");
+      expect(header).not.toBeNull();
+      headers.push(header!);
+      expect(header!.querySelector('[data-slot="service-icon"] > svg')).not.toBeNull();
+      const trigger = within(header!).getByRole("button", { name: title });
+      const toggle = within(header!).getByRole("switch");
+      expect(trigger).not.toContainElement(toggle);
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+      trigger.focus();
+      await userEvent.keyboard("{Enter}");
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      await userEvent.keyboard(" ");
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+      expect(toggle).toBeVisible();
+    }
+    expect(new Set(headers.map((header) => header.className)).size).toBe(1);
+    expect(document.querySelectorAll('[data-slot="service-card"]')).toHaveLength(7);
+  });
+
+  it("shows individual service cards to budget managers without parent groups", async () => {
     serve("viewer", [{ permission: Perm.budgetsManage, scope: "all" }]);
     await mount();
     await userEvent.click(await screen.findByRole("tab", { name: "AI & services" }));
-    expect(screen.getAllByRole("heading", { level: 2 })[0]).toHaveTextContent(
-      "Background services",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Background services" }));
+    expect(screen.getAllByRole("heading", { level: 2 })[0]).toHaveTextContent("Memory maintenance");
+    expect(screen.queryByRole("button", { name: "Background services" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Memory maintenance/ }));
     expect(await screen.findByRole("region", { name: "Memory maintenance" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Voice" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "AI Architect" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Speech to text" })).not.toBeInTheDocument();
+    expect(document.querySelectorAll('[data-slot="service-card"]')).toHaveLength(3);
   });
 
   it("shows actionable Voice setup without warning about disabled services", async () => {

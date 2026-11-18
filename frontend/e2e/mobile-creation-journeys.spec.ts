@@ -1,5 +1,5 @@
 import { test, expect } from "./fixtures";
-import { AUTH_STATE, nowMatching, submitDialog } from "./helpers";
+import { AUTH_STATE, SEEDED_CONTEXT_NAME, nowMatching, submitDialog } from "./helpers";
 import type { Page } from "@playwright/test";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
@@ -348,16 +348,37 @@ test("phone dropped context files remain queued after Stay and save in order", a
     await expect(
       page.getByRole("button", { name: "New context file", exact: true }).first(),
     ).toBeVisible();
-    await page.evaluate((files) => {
-      const transfer = new DataTransfer();
+    await expect(
+      page.getByRole("main").getByText(SEEDED_CONTEXT_NAME, { exact: true }),
+    ).toBeVisible();
+    const transfer = await page.evaluateHandle((files) => {
+      const data = new DataTransfer();
       for (const [index, name] of files.entries())
-        transfer.items.add(
-          new File([`Policy ${index + 1}.`], `${name}.md`, { type: "text/markdown" }),
-        );
-      window.dispatchEvent(
-        new DragEvent("drop", { dataTransfer: transfer, bubbles: true, cancelable: true }),
-      );
+        data.items.add(new File([`Policy ${index + 1}.`], `${name}.md`, { type: "text/markdown" }));
+      return data;
     }, names);
+    try {
+      // A visible create button can precede the window listeners' passive effect.
+      await expect
+        .poll(() =>
+          page.evaluate((dataTransfer) => {
+            const init = { dataTransfer, bubbles: true, cancelable: true };
+            window.dispatchEvent(new DragEvent("dragenter", init));
+            const over = new DragEvent("dragover", init);
+            window.dispatchEvent(over);
+            return over.defaultPrevented;
+          }, transfer),
+        )
+        .toBe(true);
+      await expect(page.getByTestId("file-drop-overlay")).toBeVisible();
+      await page.evaluate((dataTransfer) => {
+        window.dispatchEvent(
+          new DragEvent("drop", { dataTransfer, bubbles: true, cancelable: true }),
+        );
+      }, transfer);
+    } finally {
+      await transfer.dispose();
+    }
     let form = page.getByRole("dialog");
     await expect(form.getByLabel("Name", { exact: true })).toHaveValue(names[0]);
     await form.getByRole("button", { name: "Cancel", exact: true }).click();

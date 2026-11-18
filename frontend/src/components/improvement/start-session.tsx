@@ -253,7 +253,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
             )}
           </section>
         )}
-        <StartSignals agentId={agentId} datasetId={target} />
+        {!loading && <StartSignals agentId={agentId} datasetId={target} />}
         {target && (
           <details
             className="border-t pt-4"

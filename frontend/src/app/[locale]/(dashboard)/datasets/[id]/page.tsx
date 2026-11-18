@@ -112,7 +112,7 @@ export default function DatasetPage({ params }: PageProps) {
   const [gradingRestore, setGradingRestore] = useState<{ value: GradingCopy; at: number }>();
   const [restoring, setRestoring] = useState<UnsavedCopy | null>(null);
   const restoringCase = useDatasetCase(id, restoring?.place.slice("case:".length) ?? null);
-  const { dataset, error: datasetError, update, remove } = useDataset(id);
+  const { dataset, fetchedAt, error: datasetError, update, remove } = useDataset(id);
   // Every read behind the Evals tab and the run it starts takes runs:view.
   const canViewRuns = usePermissions().can(Perm.runsView);
   const { versions } = useDatasetVersions(id);
@@ -152,6 +152,7 @@ export default function DatasetPage({ params }: PageProps) {
     setCopies(dataset.can_edit ? readCopies(organization, id) : []);
   }
   const cases = useDatasetCases(id, { version, skip: page * PAGE_SIZE, limit: PAGE_SIZE });
+  const editedCase = useDatasetCase(id, version === null ? (editing?.item?.case_id ?? null) : null);
   const pageCount = Math.max(1, Math.ceil(cases.total / PAGE_SIZE));
   // Removing the last case of the last page leaves that page empty; step back to
   // the page that still exists, the adjust-state-while-rendering way.
@@ -378,6 +379,7 @@ export default function DatasetPage({ params }: PageProps) {
           >
             <GradingPanel
               dataset={dataset}
+              fetchedAt={fetchedAt}
               onContinue={canViewRuns && dataset.can_run ? () => showTab("evals") : undefined}
               onDirtyChange={setGradingUnsaved}
               localCopy={dataset.can_edit ? keep("grading") : undefined}
@@ -482,6 +484,19 @@ export default function DatasetPage({ params }: PageProps) {
           ]}
           onSave={editable && !editing.item?.masked ? save : undefined}
           startFrom={editing.startFrom}
+          remote={
+            editing.item && version === null
+              ? {
+                  datasetId: id,
+                  stored: editedCase.kase && draftOf(editedCase.kase),
+                  fetchedAt: editedCase.fetchedAt,
+                  error: editedCase.error,
+                  retry: () => {
+                    void editedCase.refetch();
+                  },
+                }
+              : undefined
+          }
           localCopy={
             editable && !editing.item?.masked
               ? keep(editing.item === null ? "case:new" : `case:${editing.item.case_id}`)

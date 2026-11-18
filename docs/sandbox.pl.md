@@ -1,5 +1,5 @@
 ---
-source_sha: "5605d024cb81"
+source_sha: "febed1aea968"
 ---
 
 # Sandbox { #the-sandbox }
@@ -765,7 +765,11 @@ Opcjonalny **Secure Access** wymaga bramy ingress OpenSandbox na Kubernetes. Doc
 
 Kolejna tura łączy się z zapisaną przestrzenią. Brak lub niedostępność powoduje odmowę; identyfikator pozostaje, zamiast cichego tworzenia pustych plików. Reset wykonuj jawnie po odzyskaniu potrzebnych plików. Zamknięcie tury zwalnia klientów HTTP, a przestrzeń żyje zgodnie ze swoim zakresem; jawne sprzątanie korzysta z trwałej kolejki usuwania. Zachowaj połączenie i klucz do zakończenia oczekujących usunięć. AgenticOS nie wylicza wszystkich sandboxów serwera; panele sesji i limitów sandboxd nie opisują tego dostawcy.
 
-Walidacja objęła cykl życia na Dockerze, trwałość plików, ponowne połączenie, odmowę brakującej przestrzeni i sprzątanie na server/execd 1.2.0. Secure Access na Kubernetes nie przetestowano na rzeczywistym klastrze. Cofnięcie migracji `0317_opensandbox_connections.py` jest odrzucane, dopóki istnieją połączenia OpenSandbox lub nazwy runtime dłuższe niż 64 znaki.
+Walidacja objęła cykl życia na Dockerze, trwałość plików, ponowne połączenie, odmowę brakującej przestrzeni i sprzątanie na server/execd 1.2.0.
+
+Lokalna walidacja OpenShift 5.0.0 objęła również Kubernetes BatchSandbox, Secure Access, próbę powłoki i trwałość plików na server/controller/execd/gateway 1.2.1. Usuwanie rozmowy wymaga poprawki kolejności sprzątania opisanej w [przewodniku Kubernetes](kubernetes.md#oidc-and-sandbox-configuration); wydana wersja 1.80.0 zostawia zdalne workspace. Narzędzia agenta odczytują i zapisują pliki, ale API archiwum workspace konsoli nie przegląda ani nie pobiera plików OpenSandbox.
+
+ Cofnięcie migracji `0317_opensandbox_connections.py` jest odrzucane, dopóki istnieją połączenia OpenSandbox lub nazwy runtime dłuższe niż 64 znaki.
 
 **Własny komputer osoby.** W [aplikacji desktopowej](desktop.md#work-on-this-computer)
 czat może pracować w folderze na komputerze, na którym działa. Narzędzia sięgają

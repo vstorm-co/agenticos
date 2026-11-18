@@ -1,5 +1,5 @@
 ---
-source_sha: "f824a1c79a78"
+source_sha: "419bd9ea9a93"
 ---
 
 # Conceptos { #concepts }
@@ -29,6 +29,12 @@ en [`app/agents/spec.py`](reference/spec.md) y lo valida Pydantic.
 
 Un agent tiene exactamente un spec _borrador_, que el Builder edita y guarda de
 forma continua.
+
+Cada guardado comprueba el draft del que partió la edición. Si otra pestaña
+o una acción del servidor lo cambió, el guardado se pausa y los cambios
+locales permanecen en pantalla. Copia lo que quieras conservar antes de
+elegir **Recargar el último draft**. Después aplica esos cambios a la versión
+actual; un guardado obsoleto no puede sobrescribirla.
 
 El spec cumple dos reglas, y son las que lo hacen útil.
 

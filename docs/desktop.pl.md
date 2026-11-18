@@ -1,5 +1,5 @@
 ---
-source_sha: "cd9dbfb49b0b"
+source_sha: "e958989d6bcc"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -65,6 +65,18 @@ CI wydania buduje natywne paczki dla Maca (Apple silicon i Intel), Windowsa i Li
 Po aktualizacji z podpisem ad-hoc macOS może ponownie poprosić o dostęp do mikrofonu, nagrywania ekranu, dostępności lub Pęku kluczy. Jeśli urządzenie utraci sparowanie, połącz je ponownie. Podpis aktualizacji weryfikuje paczkę, ale nie zapewnia stałej tożsamości podpisu Apple.
 
 Gdy workflow wydania ma stały, samopodpisany certyfikat (tworzy go `scripts/create_macos_signing_cert.sh`), macOS zachowuje zgody na nagrywanie ekranu i mikrofon po aktualizacjach, bo są związane z tożsamością podpisu. Utwórz go raz i nigdy nie wymieniaj: nowy certyfikat ponownie pyta wszystkich użytkowników. Samopodpisanie nie usuwa ostrzeżenia Gatekeepera; robi to tylko podpis Developer ID z notaryzacją.
+
+## Natywny pakiet Arch Linux { #native-arch-linux-package }
+
+Pobierz `agenticos-VERSION-1-x86_64.pkg.tar.zst` z wydania GitHub i zainstaluj go poleceniem `sudo pacman -U ./agenticos-VERSION-1-x86_64.pkg.tar.zst`. Zastąp `VERSION` numerem wydania. Pacman rozwiązuje zadeklarowane zależności systemowe, w tym WebKitGTK 4.1. Pakiet nie zawiera własnego WebKitGTK ani biblioteki klienta Wayland.
+
+Przed instalacją pobierz obok pakietu plik `SHA256SUMS.arch` i sprawdź go przez `sha256sum -c SHA256SUMS.arch`. Pakiety wydania nie są podpisane kluczami dystrybucji Arch Linux.
+
+Aby zaktualizować aplikację, pobierz nowszy pakiet i ponownie użyj `pacman -U`. Usuń go przez `sudo pacman -R agenticos`; ustawienia osobiste pozostają w katalogu domowym. **Check for Updates…** wyjaśnia aktualizowanie przez menedżer pakietów zamiast pobierać AppImage. Nie ma automatycznego repozytorium pacmana ani oficjalnej publikacji w AUR.
+
+Utrzymywany przepis znajduje się w `packaging/arch/PKGBUILD.in`. `scripts/build_arch_package.sh OUTPUT_DIRECTORY` generuje wersjonowany przepis i archiwum z sumą kontrolną z bieżącego commita Git, a następnie uruchamia makepkg jako zwykły użytkownik. Buduj w aktualnym środowisku Arch x86_64 z zależnościami wskazanymi w przepisie. Workflow wydania powtarza ten proces dla każdego wydania platformy; zależności dystrybucji ciągłej są rozwiązywane podczas budowania.
+
+Zadanie CI dla natywnego Archa instaluje pakiet, aktualizuje jego rewizję, sprawdza własność plików i usuwanie oraz uruchamia izolowany test renderowania WebKit z zainstalowanego programu pod Xvfb/X11 i bezekranowym Westonem/Waylandem. Artefakt `arch-native` zawiera ścieżki bibliotek, wersje pakietów i logi renderowania. Testy z renderowaniem programowym nie potwierdzają zgodności ze wszystkimi fizycznymi GPU, wersjami Mesy, kompozytorami ani instalacjami CachyOS.
 
 ## Uruchamianie { #running-it }
 
@@ -628,6 +640,8 @@ nadal wymaga wyboru lokalnej przeglądarki.
 ## Instalatory i aktualizacje { #installers-and-updates }
 
 Workflow Apps buduje też instalatory deweloperskie i testuje instalację bez automatyzacji interfejsu: kopiowanie aplikacji Mac z DMG, cichą instalację i usunięcie na Windowsie, instalację i usunięcie pakietu Debian oraz rozpakowanie przenośnego AppImage. Sprawdza osadzony widget macOS i podpisy, izolację trwałej sesji oraz odrzucenie zmodyfikowanego pliku aktualizacji. Te kontrole używają buildów ad-hoc lub niepodpisanych i nie potwierdzają publicznej notaryzacji ani akceptacji sklepu.
+
+CI instalatorów i buildy wydań dla Linuksa sprawdzają też rozpakowany AppImage i odrzucają dołączoną bibliotekę klienta Waylanda (`libwayland-client.so*`), która może kolidować z systemowym sterownikiem Mesa i powodować awarię WebKitGTK. Walidacja wydania odbywa się przed wysłaniem instalatorów i podpisów aktualizacji. Ta kontrola bibliotek nie potwierdza zgodności renderowania z każdym kompozytorem Waylanda ani GPU.
 
 Workflow **Apps** w GitHub Actions sprawdza natywne crate'y na macOS, Windows i
 Linuksie, buduje debug APK Androida i aplikację symulatora iOS. Pełne sprawdzenia

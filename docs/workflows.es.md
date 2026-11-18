@@ -1,5 +1,5 @@
 ---
-source_sha: "92206b1b99b8"
+source_sha: "24b33415d9e7"
 ---
 
 # Workflows { #workflows }
@@ -923,8 +923,11 @@ es un puerto de salida del paso, así que el workflow sigue por la que pulsó qu
 aprueba, y la fila decidida la nombra. Una edición va con el botón que se pulse.
 
 
-En la lista, la versión de un run de prueba dice **Draft (test)** y la de uno real
-**Published**, y un run iniciado desde la consola o la API HTTP dice **Console or
+En la lista, una prueba de todo el borrador dice **Draft (test)**, una [prueba de un
+paso](#a-steps-data-pinning-and-testing-one-step) **Step test** seguido del nombre del paso, y un run real **Published**.
+**Version** puede mostrar solo las pruebas de paso u omitirlas.
+
+Un run iniciado desde la consola o la API HTTP dice **Console or
 API**. **Status**, **Version**, **Started by** y **Started** (la última hora, día, semana o 30
 días) acotan las ejecuciones, y la lista responde
 una página cada vez; cada filtro queda en la dirección, así que una lista filtrada

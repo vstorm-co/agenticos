@@ -65,7 +65,13 @@ class ClassifiedAnswer(BaseSchema):
         description="One sentence on why, naming the source that shows it",
     )
 
-    @field_validator("signal", mode="before")
+    @field_validator(
+        "signal",
+        mode="before",
+        json_schema_input_type=Literal[
+            "did_not_know", "missing_information", "no_gap", "refused", "answer", "rating", "none"
+        ],
+    )
     @classmethod
     def _successor(cls, value: object) -> object:
         return _LEGACY_LABELS.get(value, value) if isinstance(value, str) else value

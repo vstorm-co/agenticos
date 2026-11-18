@@ -17,7 +17,7 @@ import { Badge, Button } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
-import { hasKey, modelDetail, runsAgents, usableForAgents } from "@/lib/model-profiles";
+import { hasKey, modelDetail, runsAgents } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -27,6 +27,8 @@ interface ModelProfilePickerProps {
   /** A single selector for setup dialogs; model management keeps its full editor. */
   compact?: boolean;
   purpose?: "chat" | "decision";
+  /** Personal-key agents choose a destination without an organization credential. */
+  requireOrganizationKey?: boolean;
   /** A required independent model can label the empty choice without implying inheritance. */
   emptyLabel?: string;
   /**
@@ -119,6 +121,7 @@ export function ModelProfilePicker({
   onCreationPendingChange,
   compact = false,
   purpose = "chat",
+  requireOrganizationKey = true,
   emptyLabel,
   allowAdd = false,
   allowRemove = false,
@@ -154,7 +157,7 @@ export function ModelProfilePicker({
   const usable = (profile: ModelProfile) =>
     purpose === "decision"
       ? profile.decision_capable === true && hasKey(profile)
-      : usableForAgents(profile);
+      : runsAgents(profile) && (!requireOrganizationKey || hasKey(profile));
   const offered = profiles.filter(
     (profile) => usable(profile) || profile.id === value || allowRemove,
   );
@@ -177,7 +180,7 @@ export function ModelProfilePicker({
           // that cannot answer. The server's `missing_key`, not `secret_id`
           // alone: a self-hosted model at an endpoint has no key and needs none,
           // and reading the column marked every Ollama profile "no key" (#2478).
-          noKey={!hasKey(profile)}
+          noKey={requireOrganizationKey && !hasKey(profile)}
           notChat={purpose === "chat" && !runsAgents(profile)}
           selectable={usable(profile) || profile.id === value}
           disabled={disabled}
@@ -209,7 +212,9 @@ export function ModelProfilePicker({
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{selected.label}</span>
       {/* The badge that decides whether the agent can run at all. In a list of a
           dozen saved models the chosen one's badge is a badge among twelve. */}
-      {!hasKey(selected) && <Badge variant="destructive">{t("noKey")}</Badge>}
+      {requireOrganizationKey && !hasKey(selected) && (
+        <Badge variant="destructive">{t("noKey")}</Badge>
+      )}
       {purpose === "chat" && !runsAgents(selected) && (
         <Badge variant="destructive">{t("notAChatModel")}</Badge>
       )}
@@ -218,7 +223,7 @@ export function ModelProfilePicker({
           {t("notAChatModelHint", { model: selected.model })}
         </p>
       )}
-      {runsAgents(selected) && !hasKey(selected) && (
+      {requireOrganizationKey && runsAgents(selected) && !hasKey(selected) && (
         <p role="alert" className="text-destructive basis-full text-xs">
           {t("modelHasNoKeyHint")}
         </p>
@@ -283,7 +288,9 @@ export function ModelProfilePicker({
                   <span className="flex min-w-0 items-center gap-2">
                     <ProviderIcon provider={profile.provider} />
                     <span className="truncate">{profile.label}</span>
-                    {!hasKey(profile) && <Badge variant="destructive">{t("noKey")}</Badge>}
+                    {requireOrganizationKey && !hasKey(profile) && (
+                      <Badge variant="destructive">{t("noKey")}</Badge>
+                    )}
                   </span>
                 </SelectItem>
               ))}

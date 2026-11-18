@@ -1,5 +1,5 @@
 ---
-source_sha: "1e63060a548e"
+source_sha: "ef5a787328c9"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -538,6 +538,10 @@ unlesbar. Ein mehrfach bewertetes Kriterium ist ein Fehler, nicht die zuletzt
 gekommene Note. Der Run des Bewerters in **Aktivität** nennt die Felder, die sich
 nicht lesen ließen, nie die Antwort selbst, die einen Fall eines Datasets
 wiederholen kann, das sein Leser nicht sehen darf.
+
+Der Bewerter antwortet in dieser Form über eine strukturierte Ausgabe, nicht in
+Prosa. Eine Antwort, die die Form verletzt, geht höchstens zweimal zur Korrektur
+an den Bewerter zurück; erst dann ist der Fall nicht bewertet.
 
 Jeder Score behält Modell, veröffentlichte Helferidentität, Kriterienhash, Aufgabenversion und Anweisungshash. Dataset-Modell und Anweisungen dürfen geändert werden; Bewertungen unterschiedlicher Konfigurationen sind nicht unmittelbar vergleichbar.
 

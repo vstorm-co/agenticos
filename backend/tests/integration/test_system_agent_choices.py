@@ -105,6 +105,7 @@ class ScriptedHelper:
         )
         self.db.add(run)
         await self.db.flush()
+        _kwargs["structured"].append(output)  # type: ignore[union-attr]
         return json.dumps(output), run
 
     def replacing_runner(self):

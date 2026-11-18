@@ -493,7 +493,10 @@ export default function OrgMembersPage({ params }: PageProps) {
                   placeholder={t("searchMembers")}
                 />
                 <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  <SelectTrigger className="w-auto min-w-36" aria-label={t("filterRole")}>
+                  <SelectTrigger
+                    className="w-auto min-w-36 capitalize"
+                    aria-label={t("filterRole")}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -501,7 +504,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                     {Array.from(new Set(members.map((member) => member.role)))
                       .sort()
                       .map((role) => (
-                        <SelectItem key={role} value={role}>
+                        <SelectItem key={role} value={role} className="capitalize">
                           {role}
                         </SelectItem>
                       ))}
@@ -635,8 +638,8 @@ export default function OrgMembersPage({ params }: PageProps) {
           forceMount
           className="space-y-6 data-[state=inactive]:hidden"
         >
-          {org && canSystemServices && <OrgSystemAgents org={org} collapsible />}
-          {canConfigureAssistant && <OrgAssistant orgId={id} collapsible />}
+          {org && canSystemServices && <OrgSystemAgents org={org} excludeBriefing />}
+          {canConfigureAssistant && <OrgAssistant orgId={id} />}
           <div data-tour="org-proactivity">
             {org && (
               <OrgProactivity org={org} collapsible defaultOpen={tabParam === "proactivity"} />

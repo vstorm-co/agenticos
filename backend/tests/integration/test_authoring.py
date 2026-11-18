@@ -299,7 +299,9 @@ class Improver:
         )
         self.db.add(run)
         await self.db.flush()
-        return json.dumps(self._answer(prompt)), run
+        answer = self._answer(prompt)
+        kw["structured"].append(answer)
+        return json.dumps(answer), run
 
 
 def _answering(model: Improver):

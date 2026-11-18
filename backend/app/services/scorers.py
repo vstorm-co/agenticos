@@ -19,7 +19,7 @@ from uuid import UUID
 import regex
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
-from pydantic import BaseModel, Field, JsonValue, field_validator
+from pydantic import BaseModel, Field, JsonValue, TypeAdapter, field_validator
 from pydantic import ValidationError as PydanticValidationError
 from referencing.exceptions import Unresolvable
 
@@ -456,12 +456,12 @@ class JudgeGrade(BaseModel):
 
     # Only the criterion id and the grade must be right for a grade to stand: a
     # judge that overruns a limit on what backs it loses the overrun, not the grade.
-    @field_validator("rule", mode="before")
+    @field_validator("rule", mode="before", json_schema_input_type=object)
     @classmethod
     def _rule_cut(cls, value: object) -> str:
         return value[:MAX_RULE] if isinstance(value, str) else ""
 
-    @field_validator("quotes", mode="before")
+    @field_validator("quotes", mode="before", json_schema_input_type=object)
     @classmethod
     def _quotes_kept(cls, value: object) -> list[str]:
         given = [value] if isinstance(value, str) else value if isinstance(value, list) else []
@@ -473,6 +473,30 @@ class JudgeVerdict(BaseModel):
     """The judge's answer: one grade per criterion id."""
 
     grades: list[JudgeGrade]
+
+
+def verdict_schema(criteria: Sequence[JudgeCriterion], *, scale_max: int) -> dict[str, Any]:
+    """The verdict's JSON schema for these criteria: a grade on the scale for each one.
+
+    The judge answers through this schema, so a verdict that leaves a criterion
+    out, grades one off the scale or names an id it was not given is sent back
+    to it rather than read with those criteria ungraded.
+    """
+    schema = TypeAdapter(JudgeVerdict).json_schema()
+    grade = schema["$defs"]["JudgeGrade"]["properties"]
+    grade["id"]["enum"] = [criterion.id for criterion in criteria]
+    grade["score"].update(minimum=1, maximum=scale_max)
+    grades = schema["properties"]["grades"]
+    grades["minItems"] = grades["maxItems"] = len(criteria)
+    grades["allOf"] = [
+        {
+            "contains": {"properties": {"id": {"const": criterion.id}}, "required": ["id"]},
+            "minContains": 1,
+            "maxContains": 1,
+        }
+        for criterion in criteria
+    ]
+    return schema
 
 
 # Bumped whenever what `judge_prompt` hands the judge changes, so a score graded

@@ -119,6 +119,7 @@ def _trigger(
         id=uuid.uuid4(),
         organization_id=ORG,
         portal_key=portal_key,
+        event_source="github",
         provider_target=target,
         event_config={"actions": list(actions)},
         approved_sources=RoutineSourcePolicy(
@@ -176,6 +177,8 @@ def _service() -> AgentTriggerService:
     db = MagicMock()
     db.execute = AsyncMock()
     db.info = {}
+    db.flush = AsyncMock()
+    db.refresh = AsyncMock()
     _deferred_sessions.append(db)
     service = AgentTriggerService(db)
     # Portal routing is independent of source-consent admission, covered by the
@@ -913,3 +916,23 @@ async def test_a_signed_app_event_with_stale_sources_never_claims_a_trigger():
     service._polled_source_current = AsyncMock(return_value=False)
     with _wired(grants=[_grant()], triggers=[trigger]):
         assert await service.prepare_app_fires(body=body, headers=_headers(body)) == []
+
+
+class TestAppFilteredEventDiagnostics:
+    async def test_a_verified_app_delivery_records_the_author_refusal_for_its_routine(self) -> None:
+        trigger = _trigger()
+        payload = json.loads(_body())
+        payload["issue"]["author_association"] = "CONTRIBUTOR"
+        body = json.dumps(payload).encode()
+        service = _service()
+        with (
+            _wired(grants=[_grant()], triggers=[trigger]),
+            patch(f"{SERVICE}.agent_trigger_repo.record_filtered_event", AsyncMock()) as update,
+            patch(f"{SERVICE}.rate_limit.trigger_delivery_allowed", AsyncMock()) as allowance,
+        ):
+            assert await service.prepare_app_fires(body=body, headers=_headers(body)) == []
+        allowance.assert_not_awaited()
+        diagnostic = update.await_args.kwargs["diagnostic"].model_dump(mode="json")
+        assert diagnostic["reason"] == "author"
+        assert diagnostic["authors"] == "members"
+        assert set(diagnostic) == {"received_at", "reason", "authors"}

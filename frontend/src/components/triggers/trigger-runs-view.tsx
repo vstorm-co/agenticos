@@ -1,5 +1,6 @@
 "use client";
 
+import { FilteredEventDiagnostic } from "./filtered-event-diagnostic";
 import { useEffect, useState } from "react";
 import { ArrowUpRight, CheckCircle2, Loader2, PlayCircle, XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -98,6 +99,7 @@ export function TriggerRunsView({
       ) : attempts && attempts.total > 0 ? (
         <AttemptHistory attempts={attempts} page={page} onPage={setPage} locale={locale} />
       ) : null}
+      <FilteredEventDiagnostic trigger={trigger} />
       <div className="min-h-0 flex-1">
         <RunHistory
           trigger={trigger}

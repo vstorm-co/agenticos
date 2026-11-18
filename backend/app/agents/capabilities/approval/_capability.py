@@ -31,7 +31,13 @@ from typing import Any
 
 from pydantic_ai import AgentRunResult, ApprovalRequired, RunContext
 from pydantic_ai.capabilities import AbstractCapability, WrapRunHandler, WrapToolExecuteHandler
-from pydantic_ai.messages import CapabilityLoadDeltaPart, ModelRequest, ToolCallPart
+from pydantic_ai.messages import (
+    CapabilityLoadDeltaPart,
+    LoadCapabilityReturnPart,
+    ModelRequest,
+    ToolCallPart,
+    ToolReturnPart,
+)
 from pydantic_ai.tools import ToolDefinition
 from pydantic_core import to_jsonable_python
 
@@ -122,12 +128,16 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
             for message in ctx.messages:
                 if isinstance(message, ModelRequest):
                     parts = [
-                        part
-                        for part in message.parts
-                        if not (
-                            isinstance(part, CapabilityLoadDeltaPart)
-                            and part.tool_call_id == "agenticos:restored-loads"
+                        ToolReturnPart(
+                            tool_name=part.tool_name,
+                            tool_call_id=part.tool_call_id,
+                            content="This capability was loaded in an earlier turn. Load it again for fresh approval.",
+                            timestamp=part.timestamp,
                         )
+                        if isinstance(part, LoadCapabilityReturnPart)
+                        else part
+                        for part in message.parts
+                        if not isinstance(part, CapabilityLoadDeltaPart)
                     ]
                     if parts:
                         kept.append(replace(message, parts=parts))

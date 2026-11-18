@@ -98,7 +98,7 @@ export {
 } from "./use-model-providers";
 export { useDeploymentSettings } from "./use-deployment-settings";
 export { useBrandingNotice } from "./use-branding-notice";
-export { useTables, useTable, useAllTables } from "./use-tables";
+export { useTables, useTable, useAllTables, useTableRecord } from "./use-tables";
 export { useTableRecords } from "./use-table-records";
 export { useTableRecordCount, useTableRecordPages } from "./use-table-record-pages";
 export { useTableViews, useTableDefaultView } from "./use-table-views";
@@ -214,3 +214,5 @@ export { useWikiGraph } from "./use-wiki-graph";
 export { useDurableTasks } from "./use-durable-tasks";
 
 export { useCodingAccounts } from "./use-coding-accounts";
+
+export { usePersonalModelKeys } from "./use-personal-model-keys";

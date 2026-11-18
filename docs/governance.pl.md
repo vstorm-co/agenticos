@@ -1,5 +1,5 @@
 ---
-source_sha: "580be673475a"
+source_sha: "ef824da65bb6"
 ---
 
 # Governance { #governance }
@@ -45,6 +45,23 @@ nigdy się nie kończy.
 Trigger zdarzeniowy dokłada na swojej krawędzi jeszcze jedną odmowę: webhook,
 którego podpis nie weryfikuje się względem własnego sekretu triggera, to 403,
 które w ogóle nie dociera do runnera.
+
+Rutyny GitHub pokazują filtr autorów przy tworzeniu i edycji triggerów issue,
+pull requestów i komentarzy. **Członkowie repozytorium (domyślnie)** dopuszcza
+`OWNER`, `MEMBER` i `COLLABORATOR`; **Członkowie i contributorzy** dopuszcza też
+`CONTRIBUTOR`. **Każdy** obejmuje osoby wnoszące pierwszy wkład i innych
+zgłaszających. To powiązania autorów w GitHub, a nie role organizacji AgenticOS.
+Boty i jawnie wykluczony login podłączonego konta pozostają zablokowane w każdej
+opcji. Filtr autorów nie dotyczy pushy, runów workflow ani wydań. Istniejące rutyny
+zachowują swoją politykę; brak `authors` w konfiguracji nadal oznacza `members`.
+
+W historii rutyny jej zalogowany właściciel widzi **Ostatnie odfiltrowane zdarzenie
+GitHub**: czas odrzucenia zweryfikowanego webhooka, przyczynę i politykę autorów
+obowiązującą przy odbiorze. Diagnostykę zapisują webhooki rutyn i dostawy GitHub App.
+Zachowujemy ostatnie zapisane odrzucenie, aktualizowane najwyżej raz na minutę na
+rutynę według zegara bazy danych. Nie zapisujemy treści zdarzenia, tekstu autora
+ani sekretu. Nie powstaje run i nie zużywamy limitu uruchomień. Brak diagnostyki oznacza brak zapisanego odrzucenia, a nie
+potwierdzenie dostawy webhooka. Publiczne odpowiedzi webhooków pozostają bez zmian.
 
 ## Dostarczanie wyników rutyny { #routine-delivery }
 
@@ -901,7 +918,7 @@ Część pracy należy do samej platformy i mimo to potrzebuje modelu. **Rola
 systemowa** daje jej właściciela, którego operator widzi: jedna konfiguracja na
 organizację i rolę, nigdy wiersz agenta, nigdy jedna na zadanie i nigdy
 przypisana agentowi startowemu ani żadnemu agentowi, którego instrukcje się nie
-wykonały (#2575). **Organizacje → AI i usługi → Usługi w tle**
+wykonały (#2575). **Organizacje → AI i usługi**
 (`budgets:manage`) wylicza każdą rolę z modelem, na którym działa, wydatkami w tym
 miesiącu i ostatnimi wykonaniami.
 

@@ -44,7 +44,7 @@ second run.
 """
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
@@ -428,6 +428,11 @@ class ResolvedCredential:
     # The profile's, like `api`: where the requests may run, for a provider that
     # takes a region. `None` for every provider that does not.
     region: ModelRegion | None = None
+    # Identity and non-secret routing bind replay to the actual vault destination,
+    # including providers whose endpoint lives in a structured credential.
+    credential_id: UUID | None = None
+    authorization_generation: UUID | None = None
+    routing: Mapping[str, str | None] = field(default_factory=dict)
 
 
 def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provider[Any]:

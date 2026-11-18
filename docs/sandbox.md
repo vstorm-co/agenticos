@@ -739,7 +739,11 @@ Press **Test server and image** to create one disposable sandbox, check its shel
 
 A later turn attaches to its recorded workspace. A missing or unreachable workspace is refused; its ref is retained rather than silently replaced with empty files. Reset explicitly after recovering any files. Closing a turn releases HTTP clients, while the workspace survives according to its scope; explicit cleanup uses the existing durable destroy queue. Keep its connection and vault key until pending cleanup succeeds. AgenticOS does not enumerate all sandboxes on an OpenSandbox server; sandboxd-specific session/limit panels do not describe this provider.
 
-Validation for this integration covered the Docker lifecycle, file persistence, reattachment, missing-workspace refusal and cleanup on server/execd 1.2.0. Kubernetes Secure Access was not validated on a live cluster. Downgrading migration `0317_opensandbox_connections.py` is refused while OpenSandbox connections or runtime names longer than 64 characters remain.
+Validation for this integration covered the Docker lifecycle, file persistence, reattachment, missing-workspace refusal and cleanup on server/execd 1.2.0.
+
+Local OpenShift 5.0.0 validation also exercised Kubernetes BatchSandbox, Secure Access, shell probing and file persistence on server/controller/execd/gateway 1.2.1. Conversation deletion needs the cleanup-order fix described in the [Kubernetes guide](kubernetes.md#oidc-and-sandbox-configuration); released 1.80.0 leaves remote workspaces behind. Agent tools can read/write files, but the console workspace archive API does not browse or download OpenSandbox files.
+
+ Downgrading migration `0317_opensandbox_connections.py` is refused while OpenSandbox connections or runtime names longer than 64 characters remain.
 
 **The person's own computer.** In the [desktop app](desktop.md#work-on-this-computer)
 a chat can work in a folder on the computer it runs on. The tools reach it

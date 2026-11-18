@@ -38,6 +38,7 @@ interface ExposuresPanelProps {
    * sharing panel does.
    */
   canManage: boolean;
+  personalModel?: boolean;
   /**
    * Whether the agent keeps files at all.
    *
@@ -64,7 +65,12 @@ interface ExposuresPanelProps {
 /** Sentinel for "the default environment" - a Select item may not be empty. */
 const DEFAULT_ENV = "__default__";
 
-export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPanelProps) {
+export function ExposuresPanel({
+  agentId,
+  canManage,
+  hasWorkspace,
+  personalModel = false,
+}: ExposuresPanelProps) {
   const t = useTranslations("agents");
   const {
     exposures,
@@ -152,7 +158,9 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
               <Button
                 variant="ghost"
                 size="sm"
-                disabled={!canManage || setActive.isPending}
+                disabled={
+                  !canManage || setActive.isPending || (personalModel && !exposure.is_active)
+                }
                 aria-label={
                   exposure.is_active
                     ? t("pauseOn", { bot: exposure.channel_bot_name })
@@ -179,7 +187,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                 about a binding somebody actually wants to change after making
                 it, and a surface's own instructions are worth reading beside
                 the surface they belong to. */}
-            {canManage && (
+            {canManage && !personalModel && (
               <>
                 {/* Under the binding, because that is what the answer belongs
                     to: the same agent on an internal Mattermost and a customer
@@ -227,7 +235,7 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
           </div>
         ))}
 
-        {canManage && (
+        {canManage && !personalModel && (
           <ExposureChannelTiles
             available={available}
             // A rule under the bindings; over nothing it would only underline the header.

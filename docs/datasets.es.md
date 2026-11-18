@@ -1,5 +1,5 @@
 ---
-source_sha: "1e63060a548e"
+source_sha: "ef5a787328c9"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -512,6 +512,10 @@ nota hace ilegible un veredicto. Un criterio calificado más de una vez es un
 error, en lugar de la nota que llegó la última. El run del juez en Activity
 indica qué campos no se pudieron leer, nunca la respuesta, que puede repetir un
 caso de un dataset que quien lo lee no puede ver.
+
+El juez responde con esa forma mediante una salida estructurada, no en prosa.
+Una respuesta que la incumple vuelve al juez para corregirla, como mucho dos
+veces; solo entonces el caso queda sin calificar.
 
 Cada puntuación conserva modelo, identidad publicada del ayudante, hash de criterios, versión de tarea y hash de instrucciones. Se pueden cambiar modelo e instrucciones del dataset; las calificaciones de configuraciones distintas no son directamente comparables.
 

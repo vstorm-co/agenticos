@@ -10,18 +10,15 @@ package is the two things a platform has to add to them.
 
 ## What it reaches, and what it does not
 
-**One run.** Between turns the history is rebuilt from the transcript by
-`app.services.agent.build_message_history`, which reconstructs a conversation as
-user and assistant *text* and drops tool calls, tool returns and thinking. No
-edit made here survives a turn boundary.
+Completed turns checkpoint their model history, including tool calls, results and
+local or native discovery. The next turn starts from that checkpoint. Compaction
+therefore works across the conversation, and a summary is paid for once rather
+than rebuilt from text on every turn.
 
-That is not the limitation it sounds like. The history worth compacting is the
-hundred-step tool loop `DEFAULT_MAX_STEPS` allows, where a single directory
-listing or knowledge search is tens of thousands of tokens; a conversation's
-turns are text and are small. It does mean a summary is paid for once per run
-rather than amortised across a thread. It also fires late: at 0.9 of the window,
-because compaction is the point at which a run starts losing detail and that is
-worth deferring until the window is nearly full.
+The storage ceiling is 200 model messages and 2 MiB, independent of token-based
+compaction. Eviction keeps call/result pairs together and explicitly reports lost
+context. Discovery removed by eviction must be repeated. Current permissions,
+configuration and approvals still govern execution.
 
 ## The strategies
 

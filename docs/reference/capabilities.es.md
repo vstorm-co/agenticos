@@ -1,5 +1,5 @@
 ---
-source_sha: "34fa5b94abdb"
+source_sha: "2bc3e7bad49a"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1584,8 +1584,13 @@ Lee un texto en voz alta con el provider de voz que elige el autor y se comporta
 como la generación de imágenes: el clip se guarda, aparece en la conversación como
 reproductor y se escribe en `output/` cuando hay un workspace abierto (#2259).
 
+Los valores de la organización son opcionales. En **Organización → AI & services → Text to speech**, un administrador guarda provider, modelo, voz y clave del vault visible para la organización como un grupo. El agente solo lo hereda cuando su autor activa **Use organization defaults**; los agentes existentes conservan su configuración. Un run en espera conserva el grupo resuelto aunque cambien los valores. Desactivar el TTS de la organización o revocar la clave sigue impidiendo generar voz. La configuración propia del agente usa conjuntamente su provider y su clave.
+
+El catálogo HTTP incluye Eleven v4 mediante su endpoint text-to-dialogue, con fragmentos de hasta 2000 caracteres, además de Eleven v3 y Flash v2. Los modelos conversacionales exclusivos de WebSocket requieren otro transporte y no se ofrecen para generar clips.
+
 | Configuración | Por defecto | Valores |
 | --- | --- | --- |
+| `use_organization_defaults` | `false` | Heredar conjuntamente provider, modelo, voz y clave de la organización; en caso contrario usar este binding |
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | Los modelos de ese provider, de `app/core/catalog/text_to_speech_models.json` |
 | `voice` | la primera del modelo | La voz por defecto del agente; puede cambiarla en cada clip dentro de `voices`. Una voz del catálogo para OpenAI y Gemini; un id de tu propia biblioteca de voces para ElevenLabs |
@@ -2758,12 +2763,18 @@ Resumir convierte tokens de entrada en tokens de salida, que se facturan más ca
 se generan en serie, así que a un agent cuyos runs están dominados por resultados de
 herramienta grandes le suele ir mejor con `tiered`.
 
-**Alcanza un run, no una conversación.** Entre turnos el historial se reconstruye
-desde la transcripción como texto de usuario y de asistente, así que las llamadas de
-herramienta y sus resultados no están ahí para compactarse y ninguna edición hecha
-aquí sobrevive a la frontera de un turno. El historial que merece la pena compactar
-es el largo bucle de herramientas dentro de un solo run, donde un listado de
-directorio o una búsqueda de conocimiento son decenas de miles de tokens.
+**El historial se conserva entre turnos.** Cada turno completado guarda mensajes
+del modelo, incluidas llamadas, resultados y descubrimientos de búsqueda de
+herramientas local o nativa. La compactación trabaja sobre ese mismo historial;
+su resumen permanece en el turno siguiente.
+
+Se conservan como máximo 200 mensajes del modelo y 2 MiB de historial serializado.
+Los mensajes antiguos se eliminan sin separar llamadas de sus resultados. Un aviso
+indica al modelo que vuelva a descubrir herramientas o a leer las pruebas que
+falten. Los descubrimientos caducan al eliminarse su registro. Las definiciones,
+la disponibilidad, los permisos y las aprobaciones actuales siguen aplicándose
+en cada run. Las aprobaciones pendientes usan un estado de reanudación separado;
+el historial no vuelve a ejecutar acciones.
 
 **El disparador es una fracción porque un número absoluto solo es correcto para un
 modelo**, y el mismo agent se ejecuta con el perfil al que apunte su spec. La ventana
@@ -2832,14 +2843,11 @@ vienen de
 | --- | --- | --- |
 | `threshold_bytes` | 32768 | 1 KiB–10 MiB; las partes de ese tamaño o mayores se guardan fuera del historial |
 
-**Hay un sitio donde los medios se acumulan de verdad, y es este.** Un adjunto
-llega al modelo una vez, en el turno en que se adjuntó: el historial ordinario se
-reconstruye a partir del _texto_ de la transcripción, así que una imagen no se
-reenvía. La excepción es una conversación [compactada](#context-management) —
-entonces el volcado que hace la propia biblioteca de los mensajes del run se
-guarda entero y se reproduce exactamente como el modelo lo vio por última vez,
-base64 incluido, hasta que el siguiente resumen lo sustituye. Ese blob son filas
-en Postgres y bytes en el cable, en cada turno intermedio.
+**Los adjuntos pueden conservarse en turnos posteriores.** Los turnos completados
+retienen mensajes del modelo, incluidas imágenes, dentro de los límites del
+historial. La descarga de medios se aplica tanto al guardado ordinario como a
+los historiales compactados. Las capturas efímeras del escritorio se sustituyen
+por un aviso antes del guardado.
 
 **Dónde van los bytes, y cuánto viven.** Al propio almacenamiento de ficheros del
 despliegue, en `media/<organización>/<conversación>/<digest>`. La organización es

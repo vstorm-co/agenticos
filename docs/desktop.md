@@ -61,6 +61,18 @@ After an ad-hoc update, macOS may request microphone, Screen Recording, Accessib
 
 When the release workflow has a stable self-signed certificate (`scripts/create_macos_signing_cert.sh` makes one), macOS keeps the Screen Recording and Microphone grants across updates, because they are bound to the signing identity. Create it once and never replace it: a new certificate asks every user again. Self-signing does not remove the Gatekeeper warning; only Developer ID signing and notarization do.
 
+## Native Arch Linux package
+
+Download `agenticos-VERSION-1-x86_64.pkg.tar.zst` from the GitHub release and install it with `sudo pacman -U ./agenticos-VERSION-1-x86_64.pkg.tar.zst`. Replace `VERSION` with the release number. Pacman resolves the declared system dependencies, including WebKitGTK 4.1. This package does not bundle WebKitGTK or the Wayland client library.
+
+Download `SHA256SUMS.arch` beside the package and verify it with `sha256sum -c SHA256SUMS.arch` before installation. These release packages are not signed by the Arch Linux keyring.
+
+Upgrade by downloading the newer package and running the same `pacman -U` command. Remove it with `sudo pacman -R agenticos`; personal settings remain in your home directory. **Check for Updates…** explains this package-manager policy instead of downloading an AppImage. There is no automatic pacman repository or official AUR publication.
+
+The maintained recipe is `packaging/arch/PKGBUILD.in`. `scripts/build_arch_package.sh OUTPUT_DIRECTORY` generates a versioned recipe and checksummed archive from the current Git commit, then runs makepkg as an ordinary user. Build inside an updated Arch x86_64 environment with the recipe's build and runtime dependencies installed. The release workflow repeats this build for each platform release; rolling system dependencies are resolved at build time.
+
+The native Arch CI job installs the package, upgrades its package revision, checks ownership and removal, and runs the installed executable's isolated WebKit rendering check under Xvfb/X11 and headless Weston/Wayland. Its `arch-native` artifact records library paths, package versions and rendering logs. These software-rendered checks do not establish compatibility with every physical GPU, Mesa version, compositor or CachyOS installation.
+
 ## Running it
 
 The first-run wizard starts with a language choice and whether to create a local
@@ -615,6 +627,8 @@ one-way notification that the person took control. A binding with
 ## Installers and updates
 
 The Apps workflow also builds development installers and tests installation without UI automation: copying the Mac app from its DMG, silent installation and removal on Windows, Debian installation and removal, and portable AppImage extraction. It verifies the embedded macOS widget and signatures, persistent session isolation, and rejection of tampered updater downloads. These checks use ad-hoc or unsigned builds and do not establish public notarization or store approval.
+
+Installer CI and Linux release builds also inspect the extracted AppImage and reject a bundled Wayland client library (`libwayland-client.so*`), which can conflict with the host Mesa driver and crash WebKitGTK. Release validation runs before installers and updater signatures are uploaded. This library check does not establish rendering compatibility on every Wayland compositor or GPU.
 
 The **Apps** GitHub Actions workflow checks native crates on macOS, Windows and
 Linux and builds Android debug APKs and an iOS simulator app. Full native checks

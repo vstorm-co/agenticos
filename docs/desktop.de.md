@@ -1,5 +1,5 @@
 ---
-source_sha: "cd9dbfb49b0b"
+source_sha: "e958989d6bcc"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -65,6 +65,18 @@ Die Release-CI baut native Pakete für Mac (Apple silicon und Intel), Windows un
 Nach einem Ad-hoc-Update kann macOS erneut Zugriff auf Mikrofon, Bildschirmaufnahme, Bedienungshilfen oder Schlüsselbund verlangen. Geht die Gerätekopplung verloren, verbinde das Gerät erneut. Update-Signaturen prüfen das Paket, bieten aber keine stabile Apple-Signierungsidentität.
 
 Hat der Release-Workflow ein stabiles selbstsigniertes Zertifikat (`scripts/create_macos_signing_cert.sh` erzeugt eines), behält macOS die Berechtigungen für Bildschirmaufnahme und Mikrofon über Updates hinweg, weil sie an die Signaturidentität gebunden sind. Erzeuge es einmal und ersetze es nie: Ein neues Zertifikat fragt jede Person erneut. Selbstsignieren entfernt die Gatekeeper-Warnung nicht; das schaffen nur Developer-ID-Signatur und Beglaubigung.
+
+## Natives Arch-Linux-Paket { #native-arch-linux-package }
+
+Laden Sie `agenticos-VERSION-1-x86_64.pkg.tar.zst` aus dem GitHub-Release herunter und installieren Sie es mit `sudo pacman -U ./agenticos-VERSION-1-x86_64.pkg.tar.zst`. Ersetzen Sie `VERSION` durch die Versionsnummer. Pacman löst die deklarierten Systemabhängigkeiten einschließlich WebKitGTK 4.1 auf. Das Paket enthält weder eigenes WebKitGTK noch eine Wayland-Clientbibliothek.
+
+Laden Sie vor der Installation auch `SHA256SUMS.arch` herunter und prüfen Sie es mit `sha256sum -c SHA256SUMS.arch`. Diese Release-Pakete sind nicht mit dem Arch-Linux-Schlüsselbund signiert.
+
+Laden Sie zum Aktualisieren das neuere Paket herunter und führen Sie erneut `pacman -U` aus. Entfernen Sie es mit `sudo pacman -R agenticos`; persönliche Einstellungen bleiben im Home-Verzeichnis. **Check for Updates…** erklärt diese Paketverwaltung, statt ein AppImage herunterzuladen. Es gibt weder ein automatisches Pacman-Repository noch eine offizielle AUR-Veröffentlichung.
+
+Das gepflegte Rezept steht in `packaging/arch/PKGBUILD.in`. `scripts/build_arch_package.sh OUTPUT_DIRECTORY` erzeugt aus dem aktuellen Git-Commit ein versioniertes Rezept und ein Archiv mit Prüfsumme und führt makepkg als normaler Benutzer aus. Bauen Sie in einer aktuellen Arch-x86_64-Umgebung mit den im Rezept genannten Abhängigkeiten. Der Release-Workflow wiederholt den Build bei jeder Plattformversion; die Abhängigkeiten der Rolling-Release-Distribution werden beim Build aufgelöst.
+
+Der native Arch-CI-Job installiert das Paket, aktualisiert seine Paketrevision, prüft Dateieigentum und Entfernung und führt den isolierten WebKit-Rendertest des installierten Programms unter Xvfb/X11 und Weston/Wayland ohne Bildschirm aus. Das Artefakt `arch-native` enthält Bibliothekspfade, Paketversionen und Renderprotokolle. Diese Tests mit Software-Rendering belegen keine Kompatibilität mit allen physischen GPUs, Mesa-Versionen, Compositors oder CachyOS-Installationen.
 
 ## Starten { #running-it }
 
@@ -663,6 +675,8 @@ Seiten erhalten keine Konsolen- oder Dateiberechtigungen; sie dürfen nur eine
 ## Installationspakete und Updates { #installers-and-updates }
 
 Der Apps-Workflow baut auch Entwicklungsinstaller und prüft die Installation ohne UI-Automatisierung: Kopieren der Mac-App aus dem DMG, stille Installation und Entfernung unter Windows, Installation und Entfernung des Debian-Pakets sowie Entpacken der portablen AppImage. Er prüft das eingebettete macOS-Widget und Signaturen, die Isolation persistenter Sitzungen und die Ablehnung veränderter Update-Downloads. Diese Prüfungen nutzen Ad-hoc- oder unsignierte Builds und bestätigen keine öffentliche Beglaubigung oder Store-Freigabe.
+
+Die Installer-CI und Linux-Release-Builds prüfen auch das entpackte AppImage und lehnen eine mitgelieferte Wayland-Client-Bibliothek (`libwayland-client.so*`) ab, die mit dem Mesa-Treiber des Systems kollidieren und WebKitGTK zum Absturz bringen kann. Die Release-Prüfung erfolgt vor dem Hochladen von Installern und Update-Signaturen. Diese Bibliotheksprüfung bestätigt nicht die Rendering-Kompatibilität mit jedem Wayland-Compositor oder jeder GPU.
 
 Der GitHub-Actions-Workflow **Apps** prüft native Crates auf macOS, Windows und
 Linux und baut Android-Debug-APKs sowie die iOS-Simulator-App. Vollständige native
