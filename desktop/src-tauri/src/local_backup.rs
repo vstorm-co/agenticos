@@ -29,7 +29,8 @@ pub fn prevent_downgrade(current: &str, target: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub fn current_version(docker: &Path, dir: &Path, instance: &Instance) -> Result<String, String> {
+/// Read the configured release without starting Docker or exposing other environment values.
+pub fn pinned_version(dir: &Path) -> Result<Option<String>, String> {
     let environment = fs::read_to_string(dir.join(".env")).map_err(|e| e.to_string())?;
     if let Some(pin) = environment
         .lines()
@@ -37,8 +38,15 @@ pub fn current_version(docker: &Path, dir: &Path, instance: &Instance) -> Result
     {
         let pin = pin.trim().trim_matches(['\'', '"']);
         if version(pin).is_ok() {
-            return Ok(pin.to_owned());
+            return Ok(Some(pin.to_owned()));
         }
+    }
+    Ok(None)
+}
+
+pub fn current_version(docker: &Path, dir: &Path, instance: &Instance) -> Result<String, String> {
+    if let Some(pin) = pinned_version(dir)? {
+        return Ok(pin);
     }
     // Legacy installs used latest. Read only their cached image's package metadata;
     // do not pull another image or run migrations to discover a version.
@@ -199,6 +207,24 @@ fn write_archive(mut command: std::process::Command, destination: &Path) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn the_picker_reads_only_a_valid_pin_without_starting_docker() {
+        let dir = std::env::temp_dir().join(format!("agenticos-picker-version-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).unwrap();
+        for (environment, expected) in [
+            ("SECRET=private\nAGENTICOS_VERSION=1.80.0\n", Some("1.80.0")),
+            ("AGENTICOS_VERSION='1.82.2'\n", Some("1.82.2")),
+            ("AGENTICOS_VERSION=latest\n", None),
+            ("SECRET=private\n", None),
+        ] {
+            fs::write(dir.join(".env"), environment).unwrap();
+            assert_eq!(super::pinned_version(&dir).unwrap().as_deref(), expected);
+        }
+        fs::remove_file(dir.join(".env")).unwrap();
+        assert!(super::pinned_version(&dir).is_err());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
     #[test]
     fn version_changes_preserve_keys_and_remove_old_duplicate_pins() {
         let original =

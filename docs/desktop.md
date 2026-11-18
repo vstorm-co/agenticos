@@ -158,7 +158,7 @@ checks, not workload sizing guarantees. Image downloads show progress and have a
 Git, Python, uv and Node.js are not required on the host for ordinary app use.
 
 New instances pin the platform version shipped with the app. Updating the desktop
-app does not silently replace a running instance's version. **Update** downloads
+app does not silently replace a running instance's version. **Update local workspace** downloads
 the matching platform images, pauses writers and backs up the database, media and
 deployment keys under the instance's private `backups/` directory before applying
 the update. A failed backup blocks the update. Backups contain personal data and
@@ -185,7 +185,7 @@ setup refuses an older image before creating the owner or opening a session.
 The local screen lists saved instances, their addresses and whether they are
 running. **Start and connect** starts the selected instance; **Finish setup**
 retries an interrupted installation using its existing files and keys. The menu
-bar's Start, Stop and Update act on the connected managed instance. Connecting
+bar's Start and Stop act on the connected managed instance. **Update local workspace…** opens the local instance picker. Connecting
 to an externally started development stack does not make it managed by the app.
 
 A local instance runs the API, the worker, the console, the database and Redis,
@@ -202,6 +202,21 @@ these files or putting them on the Docker command line. Deployment keys stay
 in the instance's private `.env`; provider keys are stored by the server's vault.
 The native setup controls use a neutral keyboard focus indicator and do not
 focus choice buttons automatically.
+
+The desktop app and workspace update separately. In the main macOS menu, choose
+**AgenticOS → Update local workspace…**; on Windows and Linux, use the tray menu.
+The same action is available beside each installed instance in **Change server… →
+On this computer**. The picker shows the desktop app version, each workspace's
+configured version and the update target bundled with the app. An older unpinned
+workspace shows its version as unavailable; the updater still checks it before
+changing anything. A newer workspace cannot be downgraded. A current workspace offers **Reapply workspace update** to recover from an interrupted restart or migration.
+
+Choose **Update local workspace**, then confirm the native backup and restart
+notice. The picker reports image download, backup and restart progress, then
+lets you connect again. On failure it shows the error and permits retry; cancelling
+leaves the workspace unchanged. **Check for Updates…** updates only the desktop
+app and points you to the separate workspace action, including when the app is
+already current. This path works even when the connected console is older.
 
 ## Connection setup and app readiness
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "327da9eb6755"
+source_sha: "5eb8b938b5d7"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -171,7 +171,7 @@ Host weder Git, Python, uv noch Node.js erforderlich.
 
 Neue Instanzen verwenden die mit der App gelieferte Plattformversion. Ein Update
 der Desktop-App ersetzt nicht automatisch die Version einer laufenden Instanz.
-**Update** lädt passende Plattform-Images, pausiert Schreibprozesse und sichert vor
+**Update local workspace** lädt passende Plattform-Images, pausiert Schreibprozesse und sichert vor
 dem Update Datenbank, Mediendateien und Bereitstellungsschlüssel im privaten
 `backups/`-Verzeichnis der Instanz. Eine fehlgeschlagene Sicherung verhindert das
 Update. Sicherungen enthalten personenbezogene Daten und müssen geschützt werden.
@@ -197,8 +197,7 @@ unterstützen; ältere Images werden vor der Kontoerstellung und Sitzung abgeleh
 
 Die lokale Ansicht zeigt gespeicherte Instanzen, Adressen und ihren Laufstatus.
 **Start and connect** startet die gewählte Instanz; **Finish setup** wiederholt eine
-unterbrochene Installation mit ihren vorhandenen Dateien und Schlüsseln. Start,
-Stop und Update im Menü betreffen die verbundene verwaltete Instanz. Die Verbindung
+unterbrochene Installation mit ihren vorhandenen Dateien und Schlüsseln. Start und Stop im Menü betreffen die verbundene verwaltete Instanz. **Update local workspace…** öffnet die lokale Instanzliste. Die Verbindung
 zu einem extern gestarteten Entwicklungsstack macht diesen nicht appverwaltet.
 
 Eine lokale Instanz betreibt API, Worker, Konsole, Datenbank und Redis, aber
@@ -214,6 +213,22 @@ Passwörter und Anbieterschlüssel gelangen zum Bootstrap, ohne in diesen Dateie
 oder Docker-Befehlsargumenten zu stehen. Bereitstellungsschlüssel bleiben in der
 privaten `.env`; Anbieterschlüssel speichert der Servertresor. Der native Assistent
 verwendet einen neutralen Tastaturfokus und fokussiert Auswahlknöpfe nicht automatisch.
+
+Desktop-App und Workspace werden separat aktualisiert. Wähle im macOS-Hauptmenü
+**AgenticOS → Update local workspace…**; unter Windows und Linux nutze das Tray-Menü.
+Die Aktion steht auch neben jeder installierten Instanz unter **Change server… →
+On this computer**. Die Liste zeigt die Desktop-App-Version, die konfigurierte
+Workspace-Version und die mit der App gelieferte Zielversion. Bei älteren Workspaces
+ohne feste Version erscheint diese als unbekannt; der Updater prüft sie vor jeder
+Änderung. Ein neuerer Workspace kann nicht zurückgestuft werden. Für aktuelle Workspaces bietet **Reapply workspace update** eine Wiederherstellung nach unterbrochenem Neustart oder Migration.
+
+Wähle **Update local workspace** und bestätige den nativen Hinweis zu Sicherung
+und Neustart. Die Liste zeigt Image-Download, Sicherung und Neustart an; danach
+kannst du dich wieder verbinden. Bei einem Fehler erscheint die Meldung und du
+kannst es erneut versuchen. Abbrechen lässt den Workspace unverändert. **Check for
+Updates…** aktualisiert nur die Desktop-App und verweist auf die separate
+Workspace-Aktion, auch wenn die App aktuell ist. Dieser Weg funktioniert auch mit
+einer älteren Konsole.
 
 ## Verbindungseinrichtung und App-Bereitschaft { #connection-setup-and-app-readiness }
 

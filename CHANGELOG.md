@@ -27,15 +27,13 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Enforce personal-model consent across delegation trees and recheck both test and production MCP account authority on delegated tool calls. Recover organization MCP queries on later page visits without interrupting personal account editing.
-
 - Exclude repeated agent instructions and SDK instruction baselines and deltas from conversation checkpoints, preserving more conversation and tool evidence within the existing storage limit. Later turns continue with the agent's current instructions (#3141).
 - Serialize routine edits with agent publication in the same lock order, preventing deadlocks while retaining model checks and creator-consent withdrawal (#3139).
 - Replay earlier assistant answers once when stored content and streamed parts differ only in edge whitespace, include several final text parts, or contain blank fragments. Preserve human reply ordering and the token anchor used for history compaction, including in existing conversations (#3156).
 - Forward agent avatar uploads through the authenticated console proxy, preserving multipart file bytes, the active organization and backend validation errors (#3153).
 - Let members manage their personal MCP connections without organization permissions. Only request organization connections with `mcp:manage`, use that permission for organization controls, and hide cached organization accounts when the query is disabled (#3152).
-### Fixed
-
 - Build Linux desktop installers when manually dispatching App release for older tags without the build wrapper. These builds warn that pre-upload AppImage validation is unavailable; releases containing the wrapper retain that validation (#3140).
+- Make local workspace updates accessible from the desktop app menu and instance picker, show workspace and target versions separately from the desktop version, and report backup and restart progress with retryable errors (#3157).
 
 ## [1.82.2] - 2026-11-18
 

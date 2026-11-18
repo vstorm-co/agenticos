@@ -46,6 +46,7 @@ const COMMANDS: &[&str] = &[
     "request_onboarding_permission",
     "local_status",
     "local_instances",
+    "update_local",
     "set_up_local",
     "use_local",
     "resume_local",

@@ -1,4 +1,4 @@
-import { startLanguage } from "./language.js";
+import { startLanguage, translated } from "./language.js";
 import { localComputerStep } from "./local-computer.js";
 import { permissionStep } from "./permissions.js";
 
@@ -145,6 +145,7 @@ async function start() {
     }
   });
   await listen("local:progress", ({ payload }) => {
+    checkLocal.progress(payload);
     if (typeof payload.instance_id === "string")
       localForm.querySelector("[name=instance-id]").value = payload.instance_id;
     const detail = document.querySelector("[data-progress-detail]");
@@ -159,6 +160,13 @@ async function start() {
     invoke("startup_notice"),
   ]);
   if (state.server_url) serverField.value = state.server_url;
+  if (typeof state.desktop_version === "string")
+    document.querySelector("[data-desktop-version]").textContent =
+      `${translated("Desktop app", document.documentElement.lang)} ${state.desktop_version}`;
+  if (new URLSearchParams(location.search).get("local") === "update") {
+    show("local");
+    return;
+  }
   if (state.local_setup_pending) {
     show("local");
     await checkLocal.prepare();
