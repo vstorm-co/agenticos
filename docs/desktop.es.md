@@ -1,5 +1,5 @@
 ---
-source_sha: "76d30b9708b5"
+source_sha: "9ab06f37bc3e"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -910,3 +910,11 @@ Instala Grok Build, completa `grok login` (o `grok login --device-auth`) y regis
 AgenticOS exige el método anunciado `cached_token`, rechaza un runtime que siga anunciando `xai.api_key` y solicita autenticación sin interacción. No importa archivos de tokens ni cambia a una clave u otro inicio de sesión. Consulta los modelos mediante `inspect_acp_agent`; cuenta, gateway y plan determinan disponibilidad y cargos. La plantilla no promete Build en todos los planes Grok. Las preguntas al usuario detienen la tarea para revisarla en el CLI; una respuesta final vacía es un fallo explícito.
 
 Registra de nuevo tras cambiar de cuenta. El modo de clave API del CLI queda pendiente porque la autenticación del proveedor puede sustituir credenciales guardadas; usa el proveedor directo xAI existente para claves API. Inicio de sesión, cuotas, cancelación y modelos con una cuenta real siguen como criterios de aceptación. Consulta la [referencia Grok CLI](https://docs.x.ai/build/cli/reference).
+
+## Kimi Code mediante ACP { #kimi-acp }
+
+Instala Kimi Code CLI, completa `kimi login` y registra la ruta absoluta de `kimi` con **Kimi Code**. La plantilla ejecuta `acp` y exige el método anunciado `login`. Comprueba la autenticación del CLI; AgenticOS no abre un terminal de acceso ni importa tokens. Credenciales ausentes o caducadas detienen la tarea sin probar otro método.
+
+Consulta opciones con `inspect_acp_agent`. Deja External model ID vacío y elige el modelo en Kimi; la plantilla informa `configuration_policy=cli` y rechaza sobrescrituras. El CLI puede configurar proveedores propios con facturación API separada, por lo que iniciar sesión no determina qué suscripción paga el modelo. Las preguntas humanas, incluido el mecanismo de permisos `AskUserQuestion`, se cancelan para revisarlas en el CLI y no se responden mediante aprobación de herramientas.
+
+Registra de nuevo tras cambiar de cuenta. Permisos, cuotas, reconexión, cancelación y modelos con cuenta real siguen como criterios de aceptación. Es ejecución local delegada sin herramientas de plataforma AgenticOS. Consulta [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).

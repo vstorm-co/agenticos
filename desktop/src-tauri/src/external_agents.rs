@@ -19,6 +19,7 @@ pub enum Provider {
     ClineApiKey,
     MistralVibe,
     Grok,
+    Kimi,
     #[serde(rename = "opencode")]
     OpenCode,
     #[serde(rename = "opencode_go")]
@@ -79,7 +80,7 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
     }
     if matches!(
         input.provider,
-        Provider::Antigravity | Provider::Cursor | Provider::OpenCode | Provider::OpenCodeGo
+        Provider::Antigravity | Provider::Cursor | Provider::OpenCode | Provider::OpenCodeGo | Provider::Kimi
     ) && input.args != ["acp"]
     {
         return Err(
@@ -124,6 +125,7 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
     let before = settings::current(&app).connection_revision;
     let (send, receive) = tokio::sync::oneshot::channel();
     let billing = match registration.provider {
+        Provider::Kimi => "Kimi uses its own configured login and providers. Complete kimi login first. AgenticOS checks login readiness without importing credentials. Custom models can use separately billed APIs; account login alone does not establish subscription billing. Keep External model ID empty and choose the model in Kimi itself. Human questions stop for review in the CLI.",
         Provider::Grok => "Grok uses a cached CLI login. This child removes XAI_API_KEY and GROK_CODE_XAI_API_KEY and disables API-key authentication. The server refuses a runtime still advertising API-key auth. Finish grok login first. Grok account, gateway and plan settings determine billing; no API-key mode is supported by this template.",
         Provider::MistralVibe => "Vibe owns browser sign-in and API keys. Browser sign-in may provision or reuse an API key; it does not prove Le Chat subscription access. This child disables telemetry and enables Vibe's experimental model catalog. Existing keyring, .env and project settings stay with Vibe. Usage is unpriced.",
         Provider::Cline => "Cline account login is required. Inherited API keys are removed and provider selection is fixed to Cline. Credit, model availability and any free offerings depend on your Cline account, not on an assumed subscription.",
@@ -193,6 +195,12 @@ mod tests {
             program: std::env::current_exe().unwrap().to_string_lossy().into_owned(),
             args: vec!["acp".into()],
         }
+    }
+
+    #[test]
+    fn kimi_template_refuses_config_and_auto_approval_overrides() {
+        assert!(checked(RegistrationInput { provider: Provider::Kimi, args: vec!["acp".into()], ..input() }).is_ok());
+        assert!(checked(RegistrationInput { provider: Provider::Kimi, args: vec!["acp".into(), "--yolo".into()], ..input() }).is_err());
     }
 
     #[test]

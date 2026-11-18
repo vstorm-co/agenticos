@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Add Kimi Code desktop ACP delegation with CLI-owned login and explicit cancellation of human questions.
+
 - Add a Grok Build desktop ACP template with cached headless account auth, API-key isolation and explicit human-input refusal.
 
 - Add Mistral Vibe ACP delegation with browser/key setup, delayed model discovery and sanitized credential-source reporting, without assuming subscription entitlement (#3108).

@@ -229,3 +229,27 @@ it("registers Grok cached-account stdio without background updates", async () =>
     { ...registration, provider: "grok" },
   ]);
 });
+
+it("registers Kimi with its CLI-owned configured account", async () => {
+  mount();
+  await userEvent.selectOptions(screen.getByLabelText("Setup template"), "kimi");
+  expect(
+    screen.getByText(/Keep External model ID empty and choose the model in Kimi/),
+  ).toBeInTheDocument();
+  await userEvent.type(screen.getByLabelText("Absolute executable path"), "/opt/bin/kimi");
+  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+      registration: {
+        provider: "kimi",
+        id: "kimi",
+        name: "Kimi Code",
+        program: "/opt/bin/kimi",
+        args: ["acp"],
+      },
+    }),
+  );
+  expect(parseExternalAgents([{ ...registration, provider: "kimi" }])).toEqual([
+    { ...registration, provider: "kimi" },
+  ]);
+});

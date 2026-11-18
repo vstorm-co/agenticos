@@ -166,7 +166,7 @@ async def test_vibe_model_selection_cannot_rewrite_the_native_cli_default(
         .tools["run_acp_agent"]
         .function(_ctx(_local_workspace(), []), "Fix the test")
     )
-    assert "persists model settings" in result
+    assert "manages model settings" in result
     assert not computer.agent.seen
     assert computer.ops[-1] == "agent.close"
 
@@ -191,7 +191,7 @@ async def test_older_vibe_desktop_replies_still_preserve_cli_configuration(
         .tools["run_acp_agent"]
         .function(_ctx(_local_workspace(), []), "Fix the test")
     )
-    assert "persists model settings" in result and not computer.agent.seen
+    assert "manages model settings" in result and not computer.agent.seen
     assert computer.ops[-1] == "agent.close"
 
 
@@ -222,7 +222,7 @@ async def test_an_unknown_native_configuration_policy_refuses_discovery(
 async def test_cli_configuration_policy_also_refuses_reasoning_overrides() -> None:
     agent = VibeAgent()
     pipe = ScriptedPipe(agent)
-    with pytest.raises(acp.AcpError, match="persists model settings"):
+    with pytest.raises(acp.AcpError, match="manages model settings"):
         await acp.run_task(
             pipe,
             harness="custom",

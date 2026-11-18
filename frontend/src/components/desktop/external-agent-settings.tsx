@@ -89,6 +89,7 @@ export function ExternalAgentSettings() {
                 selected !== "cline_api_key" &&
                 selected !== "mistral_vibe" &&
                 selected !== "grok" &&
+                selected !== "kimi" &&
                 selected !== "opencode" &&
                 selected !== "opencode_go"
               ) {
@@ -105,6 +106,7 @@ export function ExternalAgentSettings() {
                 cline_api_key: t("clineApi"),
                 mistral_vibe: "Mistral Vibe",
                 grok: "Grok",
+                kimi: "Kimi Code",
                 opencode: "OpenCode",
                 opencode_go: "OpenCode Go",
               };
@@ -124,6 +126,8 @@ export function ExternalAgentSettings() {
             {/* i18n-exempt: product name */}
             <option value="antigravity">Antigravity</option>
             {/* i18n-exempt: product names */}
+            <option value="kimi">Kimi Code</option>
+            {/* i18n-exempt: product name */}
             <option value="grok">Grok</option>
             {/* i18n-exempt: product name */}
             <option value="mistral_vibe">Mistral Vibe</option>
@@ -144,6 +148,7 @@ export function ExternalAgentSettings() {
         {provider === "mistral_vibe" && (
           <p className="text-muted-foreground text-xs">{t("vibeHelp")}</p>
         )}
+        {provider === "kimi" && <p className="text-muted-foreground text-xs">{t("kimiHelp")}</p>}
         {provider === "grok" && <p className="text-muted-foreground text-xs">{t("grokHelp")}</p>}
         {provider === "cursor" && (
           <p className="text-muted-foreground text-xs">{t("cursorHelp")}</p>

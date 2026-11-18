@@ -200,6 +200,7 @@ class DevicePipe:
                 "cline",
                 "browser-auth",
                 "cached_token",
+                "login",
             }:
                 await self.close()
                 raise AcpError("The Desktop app requires an unsupported authentication mode.")
@@ -540,6 +541,18 @@ class Conversation:
         if "id" not in message:
             return
         if method == "session/request_permission":
+            tool_call = params.get("toolCall")
+            if isinstance(tool_call, dict) and tool_call.get("title") == "AskUserQuestion":
+                await self._pipe.send(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": message["id"],
+                        "result": {"outcome": {"outcome": "cancelled"}},
+                    }
+                )
+                raise AcpError(
+                    "The runtime needs a human answer. Its question was cancelled; continue in its CLI to review it."
+                )
             reply = permission_reply(self._access, params)
             if reply["outcome"]["outcome"] == "cancelled" or _was_rejected(params, reply):
                 title = (params.get("toolCall") or {}).get("title")
@@ -709,7 +722,7 @@ async def run_task(
         with anyio.move_on_after(timeout_seconds):
             if configuration_policy == "cli" and (model is not None or effort is not None):
                 raise AcpError(
-                    "This runtime persists model settings in its CLI configuration. Choose its model in the CLI and leave the external model ID empty; no configuration or prompt was sent."
+                    "This runtime manages model settings in its CLI configuration. Choose its model in the CLI and leave the external model ID empty; no configuration or prompt was sent."
                 )
             initialized = await initialize_session(
                 conversation, require_version=harness == "custom", auth_method=auth_method

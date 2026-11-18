@@ -1,5 +1,5 @@
 ---
-source_sha: "76d30b9708b5"
+source_sha: "9ab06f37bc3e"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -925,3 +925,11 @@ Installieren Sie Grok Build, führen Sie `grok login` (oder `grok login --device
 AgenticOS verlangt die angebotene Methode `cached_token`, lehnt eine Laufzeit mit weiter angebotenem `xai.api_key` ab und fordert Anmeldung ohne Interaktion an. Tokendateien werden nicht importiert; es gibt keinen Wechsel zu Schlüsseln oder anderer Anmeldung. Prüfen Sie Modelle mit `inspect_acp_agent`; Konto, Gateway und Tarif bestimmen Verfügbarkeit und Kosten. Nicht jeder Grok-Tarif muss Build enthalten. Rückfragen stoppen zur Prüfung im CLI; eine leere Schlussantwort ist ein ausdrücklicher Fehler.
 
 Registrieren Sie nach Kontowechsel erneut. Der API-Schlüsselmodus des CLI bleibt offen, weil die Anmeldung gespeicherte CLI-Zugangsdaten ersetzen kann; verwenden Sie für API-Schlüssel den vorhandenen direkten xAI-Modellanbieter. Anmeldung, Kontingente, Abbruch und Modellzugriff mit echtem Konto bleiben Abnahmekriterien. Siehe [Grok CLI-Referenz](https://docs.x.ai/build/cli/reference).
+
+## Kimi Code über ACP { #kimi-acp }
+
+Installieren Sie Kimi Code CLI, führen Sie `kimi login` aus und registrieren Sie den absoluten `kimi`-Pfad mit **Kimi Code**. Die Vorlage startet `acp` und verlangt die angebotene Methode `login`. Sie prüft die CLI-Anmeldung; AgenticOS öffnet kein Anmeldeterminal und importiert keine Token. Fehlende oder abgelaufene Zugangsdaten stoppen die Aufgabe ohne Methodenwechsel.
+
+Prüfen Sie Optionen mit `inspect_acp_agent`. Lassen Sie External model ID leer und wählen Sie das Modell in Kimi; die Vorlage meldet `configuration_policy=cli` und lehnt Modellüberschreibungen ab. CLI-Einstellungen können eigene Anbieter mit separater API-Abrechnung enthalten; eine Anmeldung bestimmt daher nicht den zahlenden Tarif. Rückfragen, einschließlich Kimis Berechtigungsersatz `AskUserQuestion`, werden zur Prüfung im CLI abgebrochen und nicht durch Werkzeugfreigabe beantwortet.
+
+Registrieren Sie nach Kontowechsel erneut. Berechtigungen, Kontingente, Wiederverbindung, Abbruch und Modelle mit echtem Konto bleiben Abnahmekriterien. Dies ist delegierte lokale Ausführung ohne Weitergabe von AgenticOS-Plattformwerkzeugen. Siehe [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).

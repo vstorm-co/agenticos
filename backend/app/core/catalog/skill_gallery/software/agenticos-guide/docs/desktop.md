@@ -867,3 +867,11 @@ Install Grok Build, complete `grok login` (or `grok login --device-auth`), and r
 AgenticOS requires the advertised `cached_token` method, rejects a runtime still advertising `xai.api_key`, and requests headless authentication. It neither imports token files nor falls back to a key or another login. Inspect models through `inspect_acp_agent`; account, gateway and plan settings determine availability and billing. This template does not promise that every Grok plan includes Build. Human questions stop for review in the CLI; an empty final answer is an explicit failure.
 
 Re-register after changing accounts. API-key CLI mode is deferred because the vendor's authentication operation can replace saved CLI credentials; use the existing direct xAI model provider for API keys. Real-account login, quotas, cancellation and model access remain acceptance checks. See the [Grok CLI reference](https://docs.x.ai/build/cli/reference).
+
+## Kimi Code through ACP { #kimi-acp }
+
+Install Kimi Code CLI, complete `kimi login`, and register the absolute `kimi` path using **Kimi Code**. The template launches `acp` and requires advertised `login` authentication. This operation checks CLI login readiness; AgenticOS does not open a login terminal or import token files. Missing or expired credentials stop the task without trying another method.
+
+Inspect choices with `inspect_acp_agent`. Keep External model ID empty and choose the model in Kimi itself; this template reports `configuration_policy=cli` and refuses model overrides. CLI settings can include custom providers with separate API billing, so a successful login does not establish which subscription pays for the selected model. Human questions, including Kimi's `AskUserQuestion` permission fallback, are cancelled for review in the CLI rather than answered through tool approval.
+
+Re-register after changing accounts. Real-account entitlement, quota, reconnect, cancellation and available models remain acceptance checks. This is delegated local execution; it forwards no AgenticOS platform tools. See [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).

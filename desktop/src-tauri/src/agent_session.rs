@@ -563,6 +563,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
                 | crate::external_agents::Provider::Cline
                 | crate::external_agents::Provider::MistralVibe
                 | crate::external_agents::Provider::Grok
+                | crate::external_agents::Provider::Kimi
         )
     }) && !supports_auth_modes
     {
@@ -583,7 +584,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     }
     if external
         .as_ref()
-        .is_some_and(|item| item.provider == crate::external_agents::Provider::MistralVibe)
+        .is_some_and(|item| matches!(item.provider, crate::external_agents::Provider::MistralVibe | crate::external_agents::Provider::Kimi))
         && !supports_configuration_policy
     {
         return Err(Refusal::new(
@@ -683,12 +684,13 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         crate::external_agents::Provider::Cline => Some("cline"),
         crate::external_agents::Provider::MistralVibe => Some("browser-auth"),
         crate::external_agents::Provider::Grok => Some("cached_token"),
+        crate::external_agents::Provider::Kimi => Some("login"),
         _ => None,
     });
     let runtime_name = external.as_ref().map(|item| item.name.as_str());
     let configuration_policy = if external
         .as_ref()
-        .is_some_and(|item| item.provider == crate::external_agents::Provider::MistralVibe)
+        .is_some_and(|item| matches!(item.provider, crate::external_agents::Provider::MistralVibe | crate::external_agents::Provider::Kimi))
     {
         "cli"
     } else {
@@ -704,6 +706,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
             crate::external_agents::Provider::OpenCode
                 | crate::external_agents::Provider::OpenCodeGo
                 | crate::external_agents::Provider::MistralVibe
+                | crate::external_agents::Provider::Kimi
         )
     });
     Ok(object(
