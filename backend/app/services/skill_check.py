@@ -74,6 +74,7 @@ from app.repositories import (
     conversation_repo,
     dataset_repo,
     eval_run_repo,
+    improvement_repo,
     skill_check_repo,
     skill_improvement_repo,
     skill_proposal_repo,
@@ -597,7 +598,14 @@ class SkillCheckService:
         *,
         excluded: Collection[UUID] = (),
     ) -> list[Stage]:
-        """The skill's questions, then the agent's own, as far as each exists."""
+        """The skill's questions, then the agent's own, as far as each exists.
+
+        The agent's own are the dataset its newest improvement session measures on,
+        when that is one of the datasets testing it: a change to a skill it uses is
+        checked on the questions its own Improve already uses, and a dataset kept
+        back for a final measurement stays unasked. Without such a session, the
+        first dataset testing it.
+        """
         stages: list[Stage] = []
         kept = _kept(test_set, holdout)
         if test_set is not None and test_set.case_count and kept != []:
@@ -612,7 +620,14 @@ class SkillCheckService:
         readable = await accessible_ids(
             self.db, ctx, own, Perm.DATASETS_VIEW, resource_type=DATASET
         )
-        dataset = next((item for item in own if item.id in readable), None)
+        sessions = await improvement_repo.list_for_agent(
+            self.db, organization_id=ctx.organization_id, agent_id=user.agent.id, limit=1
+        )
+        improving = sessions[0].dataset_id if sessions else None
+        dataset = next(
+            (item for item in own if item.id in readable and item.id == improving),
+            next((item for item in own if item.id in readable), None),
+        )
         if dataset is None:
             if mode is CheckMode.QUICK:
                 row.sample = SampleKind.SKILL_SET_ONLY

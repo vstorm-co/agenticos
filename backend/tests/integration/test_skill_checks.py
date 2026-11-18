@@ -45,6 +45,7 @@ from app.db.models.skill_check import (
 from app.repositories import (
     dataset_repo,
     eval_run_repo,
+    improvement_repo,
     skill_check_repo,
     skill_proposal_repo,
     skill_usage_repo,
@@ -416,6 +417,28 @@ class TestWhoIsChecked:
         a = next(row for row in estimate.agents if row.agent.name == "A")
         [own] = [stage for stage in a.stages if stage.kind == "dataset"]
         assert own.dataset_name is not None and own.dataset_name.startswith("a-own")
+
+    async def test_the_dataset_the_agents_own_improve_measures_on_comes_first(
+        self, db, monkeypatch
+    ):
+        """An agent kept a final set aside and improves on another: a skill check asks the
+        one its Improve uses, never the one kept back, whichever was made for it."""
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        improving = await _run_against(db, lab, lab.a)
+
+        async def list_for_agent(_db, *, organization_id, agent_id, limit=20):
+            return [SimpleNamespace(dataset_id=improving.id)] if agent_id == lab.a.id else []
+
+        monkeypatch.setattr(improvement_repo, "list_for_agent", list_for_agent)
+
+        estimate = await SkillCheckService(db).estimate(
+            lab.ctx, lab.skill.id, _start(mode="thorough")
+        )
+
+        a = next(row for row in estimate.agents if row.agent.name == "A")
+        [own] = [stage for stage in a.stages if stage.kind == "dataset"]
+        assert own.dataset_id == improving.id
 
     async def test_a_dataset_the_starter_may_not_see_is_not_asked(self, db, monkeypatch):
         lab = await _lab(db)
