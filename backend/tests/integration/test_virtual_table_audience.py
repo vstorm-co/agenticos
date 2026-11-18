@@ -16,8 +16,11 @@ from app.db.models.group import Group, GroupMember
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import ResourceGrant
 from app.db.models.user import User
+from app.db.models.virtual_table import VirtualTableReceipt
 from app.schemas.virtual_table import TableCreate
 from app.services.virtual_tables import VirtualTableService
+from app.services.virtual_tables.exceptions import IdempotencyKeyReuseError
+from app.services.virtual_tables.receipts import payload_hash
 from tests.integration.virtual_table_support import ctx_for, make_org, make_user
 
 pytestmark = pytest.mark.anyio
@@ -64,11 +67,59 @@ async def test_a_table_shared_with_a_person_reaches_them(db: AsyncSession) -> No
     org = await make_org(db, owner=owner)
     colleague = await _member(db, org)
 
-    await VirtualTableService(db).create_table(
-        ctx_for(owner, org), TableCreate(name="Leads", user_ids=[colleague.id, owner.id])
-    )
+    service = VirtualTableService(db)
+    ctx = ctx_for(owner, org)
+    body = TableCreate(name="Leads", user_ids=[colleague.id, owner.id])
+    first = await service.create_table(ctx, body, operation_key="audience")
+    replay = await service.create_table(ctx, body, operation_key="audience")
+    assert replay.id == first.id
+    grants = (
+        await db.scalars(select(ResourceGrant).where(ResourceGrant.resource_id == first.id))
+    ).all()
+    assert len(grants) == 1
 
     assert await _names(db, ctx_for(colleague, org, "member")) == ["Leads"]
+
+
+async def test_creation_replays_a_pre_audience_receipt_but_refuses_new_recipients(
+    db: AsyncSession,
+) -> None:
+    owner = await make_user(db)
+    org = await make_org(db, owner=owner)
+    colleague = await _member(db, org)
+    ctx = ctx_for(owner, org)
+    service = VirtualTableService(db)
+    first = await service.create_table(ctx, TableCreate(name="Legacy"))
+    db.add(
+        VirtualTableReceipt(
+            organization_id=org.id,
+            principal_id=ctx.subject_id,
+            operation="table.create",
+            operation_key="before-upgrade",
+            payload_hash=payload_hash(
+                {
+                    "icon": None,
+                    "name": "Legacy",
+                    "description": None,
+                    "columns": [],
+                    "visibility": "private",
+                }
+            ),
+            outcome=first.model_dump(mode="json"),
+        )
+    )
+    await db.flush()
+    replay = await service.create_table(
+        ctx, TableCreate(name="Legacy"), operation_key="before-upgrade"
+    )
+    assert replay.id == first.id
+    assert await _names(db, ctx) == ["Legacy"]
+    with pytest.raises(IdempotencyKeyReuseError):
+        await service.create_table(
+            ctx,
+            TableCreate(name="Legacy", user_ids=[colleague.id]),
+            operation_key="before-upgrade",
+        )
 
 
 async def test_a_group_from_another_organization_is_refused(db: AsyncSession) -> None:

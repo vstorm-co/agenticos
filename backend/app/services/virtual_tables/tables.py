@@ -155,12 +155,19 @@ class TableOperations(Operations):
                 )
             return self._read(table, columns, can_edit=await self._can_edit(ctx, table))
 
+        # Empty audience fields must keep the hash of receipts written before
+        # table creation accepted recipients, including retries across upgrades.
         created, _replayed = await run_once(
             self.db,
             ctx,
             operation="table.create",
             operation_key=_checked_key(operation_key),
-            payload=data.model_dump(mode="json"),
+            payload=data.model_dump(
+                mode="json",
+                exclude={"group_ids", "user_ids"}
+                if not data.group_ids and not data.user_ids
+                else None,
+            ),
             outcome_type=TableRead,
             action=action,
         )
