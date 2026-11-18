@@ -189,6 +189,12 @@ impl Sessions {
     }
 }
 
+fn vibe_environment(command: &mut tokio::process::Command) {
+    command
+        .env("VIBE_ENABLE_TELEMETRY", "false")
+        .env("VIBE_EXPERIMENTAL_ENABLE_MODEL_CATALOG", "true");
+}
+
 fn cline_environment(
     command: &mut tokio::process::Command,
     api_key_mode: bool,
@@ -258,6 +264,9 @@ fn spawn_authenticated(
             provider == crate::external_agents::Provider::ClineApiKey,
             key.as_deref(),
         )?;
+    }
+    if provider == crate::external_agents::Provider::MistralVibe {
+        vibe_environment(&mut command);
     }
     if provider == crate::external_agents::Provider::Cursor {
         cursor_account_environment(&mut command);
@@ -541,6 +550,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
             crate::external_agents::Provider::Antigravity
                 | crate::external_agents::Provider::Cursor
                 | crate::external_agents::Provider::Cline
+                | crate::external_agents::Provider::MistralVibe
         )
     }) && !supports_auth_modes
     {
@@ -649,6 +659,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         crate::external_agents::Provider::Antigravity => Some("oauth-personal"),
         crate::external_agents::Provider::Cursor => Some("cursor_login"),
         crate::external_agents::Provider::Cline => Some("cline"),
+        crate::external_agents::Provider::MistralVibe => Some("browser-auth"),
         _ => None,
     });
     let runtime_name = external.as_ref().map(|item| item.name.as_str());
@@ -659,7 +670,9 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     let refresh_catalog = external.as_ref().is_some_and(|item| {
         matches!(
             item.provider,
-            crate::external_agents::Provider::OpenCode | crate::external_agents::Provider::OpenCodeGo
+            crate::external_agents::Provider::OpenCode
+                | crate::external_agents::Provider::OpenCodeGo
+                | crate::external_agents::Provider::MistralVibe
         )
     });
     Ok(object(
@@ -964,6 +977,23 @@ mod tests {
         assert!(sessions.contains_key("retained"));
         assert!(drain(&output, 0).await.2.is_some());
         remove_external(&mut sessions, "second");
+    }
+
+    #[test]
+    fn vibe_template_sets_child_only_privacy_and_catalog_options() {
+        use std::ffi::OsStr;
+        let mut command = tokio::process::Command::new("vibe-acp");
+        vibe_environment(&mut command);
+        let environment: std::collections::BTreeMap<_, _> = command.as_std().get_envs().collect();
+        assert_eq!(
+            environment.get(OsStr::new("VIBE_ENABLE_TELEMETRY")),
+            Some(&Some(OsStr::new("false")))
+        );
+        assert_eq!(
+            environment.get(OsStr::new("VIBE_EXPERIMENTAL_ENABLE_MODEL_CATALOG")),
+            Some(&Some(OsStr::new("true")))
+        );
+        assert!(!environment.contains_key(OsStr::new("MISTRAL_API_KEY")));
     }
 
     #[test]

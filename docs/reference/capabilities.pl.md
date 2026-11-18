@@ -1,5 +1,5 @@
 ---
-source_sha: "e1f846f12f56"
+source_sha: "b5aa3a975b63"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3513,3 +3513,5 @@ Rejestracje OpenCode odczytują opóźnione aktualizacje katalogu sesji. Osobny 
 Szablon Cursor korzysta z logowania kontem CLI przez `cursor_login`, usuwa odziedziczone przełączniki danych API i anuluje pytania wymagające człowieka. Rejestracja klucza API wymaga potwierdzenia izolacji. Zobacz [konfigurację Cursor](../desktop.md#cursor-acp).
 
 Cline ma osobne szablony konta i odziedziczonego klucza API; oba wymuszają providera Cline i bezpośrednie `--acp`. [Konfiguracja Cline](../desktop.md#cline-acp) opisuje dane logowania, kredyty i warunki odbioru.
+
+Mistral Vibe korzysta z własnej konfiguracji przeglądarkowej i kluczy; katalog i raport zadania podają oczyszczone źródło klucza. [Konfiguracja Vibe](../desktop.md#mistral-vibe-acp) opisuje rozliczanie i weryfikację konta.

@@ -29,6 +29,7 @@ from app.agents.capabilities.coding_agent._harness import (
     CodingReport,
     CodingStep,
     LiveItem,
+    RuntimeCredentials,
     Said,
     StepEnded,
     StepKind,
@@ -183,7 +184,7 @@ class DevicePipe:
         self.refresh_catalog = opened.get("refresh_catalog") is True
         method = opened.get("auth_method")
         if method is not None:
-            if method not in {"oauth-personal", "cursor_login", "cline"}:
+            if method not in {"oauth-personal", "cursor_login", "cline", "browser-auth"}:
                 await self.close()
                 raise AcpError("The Desktop app requires an unsupported authentication mode.")
             self.auth_method = method
@@ -263,8 +264,10 @@ class _Tool:
 
 @dataclass
 class _Collector:
-    cursor_account: bool = False
     """What a session's updates add up to: the steps, the files, the answer."""
+
+    credentials: RuntimeCredentials | None = None
+    cursor_account: bool = False
 
     tools: dict[str, _Tool] = field(default_factory=dict)
     order: list[str] = field(default_factory=list)
@@ -352,6 +355,7 @@ class _Collector:
         changed = list(dict.fromkeys(path for key in self.order for path in self.tools[key].edits))
         return CodingReport(
             harness=harness,
+            credentials=self.credentials,
             access=access,
             outcome="completed" if outcome == "completed" else "failed",
             answer=bounded(answer),
@@ -636,6 +640,9 @@ async def initialize_session(
     return initialized
 
 
+type CredentialProbe = Callable[[Conversation, str | None], Awaitable[RuntimeCredentials | None]]
+
+
 async def run_task(
     pipe: Pipe,
     *,
@@ -650,6 +657,7 @@ async def run_task(
     previous_session: str | None = None,
     auth_method: str | None = None,
     model_prefix: str | None = None,
+    credential_probe: CredentialProbe | None = None,
     remember: Callable[[str], Awaitable[None]] | None = None,
     steering: SteeringInbox | None = None,
 ) -> CodingReport:
@@ -669,6 +677,8 @@ async def run_task(
             initialized = await initialize_session(
                 conversation, require_version=harness == "custom", auth_method=auth_method
             )
+            if credential_probe is not None:
+                collector.credentials = await credential_probe(conversation, auth_method)
             session_params: dict[str, Any] = {"cwd": root, "mcpServers": []}
             if harness == "claude_code" and access == "read_only":
                 session_params["_meta"] = {

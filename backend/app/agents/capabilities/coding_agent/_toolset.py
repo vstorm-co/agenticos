@@ -36,7 +36,12 @@ from app.agents.audience import RunAudience
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities.budget import assert_ambient_budget, record_ambient_usage
 from app.agents.capabilities.coding_agent import _changes
-from app.agents.capabilities.coding_agent._acp import AcpError, DevicePipe, run_task
+from app.agents.capabilities.coding_agent._acp import (
+    AcpError,
+    CredentialProbe,
+    DevicePipe,
+    run_task,
+)
 from app.agents.capabilities.coding_agent._harness import (
     CLAUDE_TOKEN_PREFIX,
     LABELS,
@@ -664,6 +669,7 @@ async def run_local_task(
     effort: str | None = None,
     custom_agent_id: str | None = None,
     auth_method: str | None = None,
+    credential_probe: CredentialProbe | None = None,
 ) -> str:
     """The task on the person's computer, in the folder they chose, over ACP.
 
@@ -740,6 +746,7 @@ async def run_local_task(
                     previous_session=pipe.session_id,
                     auth_method=pipe.auth_method or auth_method,
                     model_prefix=pipe.model_prefix,
+                    credential_probe=credential_probe,
                     remember=pipe.remember,
                     steering=steering,
                 )

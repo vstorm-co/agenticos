@@ -17,6 +17,7 @@ pub enum Provider {
     Cursor,
     Cline,
     ClineApiKey,
+    MistralVibe,
     #[serde(rename = "opencode")]
     OpenCode,
     #[serde(rename = "opencode_go")]
@@ -91,6 +92,9 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
                 .into(),
         );
     }
+    if input.provider == Provider::MistralVibe && !input.args.is_empty() {
+        return Err("Mistral Vibe requires the vibe-acp executable without arguments.".into());
+    }
     Ok(Registration {
         provider: input.provider,
         id: input.id,
@@ -116,6 +120,7 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
     let before = settings::current(&app).connection_revision;
     let (send, receive) = tokio::sync::oneshot::channel();
     let billing = match registration.provider {
+        Provider::MistralVibe => "Vibe owns browser sign-in and API keys. Browser sign-in may provision or reuse an API key; it does not prove Le Chat subscription access. This child disables telemetry and enables Vibe's experimental model catalog. Existing keyring, .env and project settings stay with Vibe. Usage is unpriced.",
         Provider::Cline => "Cline account login is required. Inherited API keys are removed and provider selection is fixed to Cline. Credit, model availability and any free offerings depend on your Cline account, not on an assumed subscription.",
         Provider::ClineApiKey => "Only the CLINE_API_KEY inherited by Desktop is used, with the provider fixed to Cline. A missing key refuses launch without using saved account credentials. No key is stored by AgenticOS. Cline account/credit terms determine charges.",
         Provider::Cursor => "Cursor uses its own CLI account login; inherited API keys and auth-token overrides are removed. Account, model and on-demand settings determine charges. Sign in with agent login first. API-key registration is not supported by this template.",
@@ -183,6 +188,21 @@ mod tests {
             program: std::env::current_exe().unwrap().to_string_lossy().into_owned(),
             args: vec!["acp".into()],
         }
+    }
+
+    #[test]
+    fn vibe_template_uses_its_own_executable_without_startup_overrides() {
+        assert!(checked(RegistrationInput {
+            provider: Provider::MistralVibe,
+            args: vec![],
+            ..input()
+        })
+        .is_ok());
+        assert!(checked(RegistrationInput {
+            provider: Provider::MistralVibe,
+            ..input()
+        })
+        .is_err());
     }
 
     #[test]

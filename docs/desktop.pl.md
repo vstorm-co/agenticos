@@ -1,5 +1,5 @@
 ---
-source_sha: "a6bcda2e98ba"
+source_sha: "62891c2c8105"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -844,3 +844,28 @@ jest pełny dostęp lokalny; narzędzia platformy nie są przekazywane.
 Logowanie kontem i kluczem, odmowa po wyczerpaniu kredytów, modele i wznowienie
 po restarcie wymagają odbioru na rzeczywistym koncie. Zobacz
 [Cline ACP](https://github.com/cline/cline/blob/main/docs/usage/acp.mdx).
+
+## Mistral Vibe przez ACP { #mistral-vibe-acp }
+
+Zainstaluj Mistral Vibe, wykonaj `vibe --setup`, a następnie zarejestruj
+bezwzględną ścieżkę `vibe-acp` szablonem **Mistral Vibe**, bez argumentów. Szablon
+wymaga ACP `browser-auth`, wyłącza telemetrię tego procesu i włącza eksperymentalny
+katalog modeli Vibe. Pliki konfiguracji i dane logowania pozostają po stronie
+Vibe. Logowanie przeglądarkowe może utworzyć lub wykorzystać klucz API; nie
+potwierdza uprawnień subskrypcji Le Chat.
+
+`inspect_acp_agent` krótko czeka na aktualizacje katalogu i podaje oczyszczone
+`credentials`: `kind=api_key`, źródło (`os_keyring`, `cli_file` lub `environment`)
+i dostępność natywnego wylogowania według Vibe. Raport zadania zawiera te same
+fakty. Wyniki nie kopiują tożsamości konta, klucza, domeny ani błędu konfiguracji.
+Nieznany kontrakt statusu lub brak danych logowania blokuje inferencję. Status
+opisuje miejsce przechowywania klucza, a nie pozostałe kredyty lub plan.
+
+Opłaty API i subskrypcji kontrolujesz na koncie; użycie zewnętrzne jest
+niewycenione. Usunięcie rejestracji nie cofa odziedziczonego klucza CLI. Użyj
+ustawień konta i konfiguracji Vibe, a następnie usuń lub ponownie zarejestruj wpis
+Desktop, aby zatrzymać procesy i usunąć wznowienia. Obsługiwane jest lokalne
+logowanie przeglądarkowe, a nie delegowane logowanie na zdalnym hoście. Wymagany
+jest pełny dostęp lokalny; przekazywanie narzędzi platformy pozostaje osobną
+pracą. Logowanie, limity, wylogowanie i wznowienie wymagają odbioru na koncie.
+Zobacz [konfigurację Vibe ACP](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).

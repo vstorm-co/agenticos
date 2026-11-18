@@ -1,5 +1,5 @@
 ---
-source_sha: "a6bcda2e98ba"
+source_sha: "62891c2c8105"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -889,3 +889,29 @@ Zugriff ist erforderlich; Plattform-Tools werden nicht weitergeleitet.
 Konto- und Schlüsselanmeldung, Guthabenablehnung, Modelle und Wiederaufnahme nach
 Neustart verlangen echte Abnahmetests. Siehe
 [Cline ACP](https://github.com/cline/cline/blob/main/docs/usage/acp.mdx).
+
+## Mistral Vibe über ACP { #mistral-vibe-acp }
+
+Installieren Sie Mistral Vibe, schließen Sie `vibe --setup` ab und registrieren
+Sie den absoluten Pfad von `vibe-acp` ohne Argumente mit **Mistral Vibe**. Die
+Vorlage verlangt ACP `browser-auth`, deaktiviert Telemetrie für diesen Prozess
+und aktiviert Vibes experimentellen Modellkatalog. Konfiguration und Zugangsdaten
+bleiben bei Vibe. Die Browser-Anmeldung kann einen API-Schlüssel erzeugen oder
+wiederverwenden; sie bestätigt keinen Le-Chat-Abonnementzugriff.
+
+`inspect_acp_agent` wartet kurz auf Katalogaktualisierungen und liefert bereinigte
+`credentials`: `kind=api_key`, Quelle (`os_keyring`, `cli_file` oder `environment`)
+und die von Vibe gemeldete Abmeldemöglichkeit. Aufgabenberichte tragen dieselben
+Fakten. Kontoidentität, Schlüssel, Domain und Konfigurationsfehler werden nicht
+übernommen. Ein unbekannter Statusvertrag oder fehlende Zugangsdaten verhindern
+Inferenz. Der Status beschreibt den Speicherort, weder Restguthaben noch Tarif.
+
+API- und Abonnementkosten bleiben unter den Kontoeinstellungen; externe Nutzung
+ist unbepreist. Das Entfernen einer Registrierung widerruft keinen geerbten
+CLI-Schlüssel. Nutzen Sie Vibes Konto- und Einrichtungskontrollen und entfernen
+oder registrieren Sie danach den Desktop-Eintrag erneut, um Prozesse und
+Fortsetzungen zu löschen. Unterstützt ist lokale Browser-Anmeldung, keine
+delegierte Anmeldung auf entfernten Hosts. Voller lokaler Zugriff ist erforderlich;
+Plattform-Tools bleiben separate Arbeit. Anmeldung, Guthabenlimits, Abmeldung und
+Wiederaufnahme benötigen echte Abnahmetests. Siehe
+[Vibe ACP einrichten](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).

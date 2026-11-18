@@ -87,6 +87,7 @@ export function ExternalAgentSettings() {
                 selected !== "cursor" &&
                 selected !== "cline" &&
                 selected !== "cline_api_key" &&
+                selected !== "mistral_vibe" &&
                 selected !== "opencode" &&
                 selected !== "opencode_go"
               ) {
@@ -101,12 +102,17 @@ export function ExternalAgentSettings() {
                 cursor: "Cursor",
                 cline: "Cline",
                 cline_api_key: t("clineApi"),
+                mistral_vibe: "Mistral Vibe",
                 opencode: "OpenCode",
                 opencode_go: "OpenCode Go",
               };
               setName(names[selected]);
               setArgs(
-                selected === "cline" || selected === "cline_api_key" ? '["--acp"]' : '["acp"]',
+                selected === "mistral_vibe"
+                  ? "[]"
+                  : selected === "cline" || selected === "cline_api_key"
+                    ? '["--acp"]'
+                    : '["acp"]',
               );
             }}
           >
@@ -114,6 +120,8 @@ export function ExternalAgentSettings() {
             {/* i18n-exempt: product name */}
             <option value="antigravity">Antigravity</option>
             {/* i18n-exempt: product names */}
+            <option value="mistral_vibe">Mistral Vibe</option>
+            {/* i18n-exempt: product name */}
             <option value="cline">Cline</option>
             <option value="cline_api_key">{t("clineApi")}</option>
             {/* i18n-exempt: product name */}
@@ -126,6 +134,9 @@ export function ExternalAgentSettings() {
         </div>
         {(provider === "cline" || provider === "cline_api_key") && (
           <p className="text-muted-foreground text-xs">{t("clineHelp")}</p>
+        )}
+        {provider === "mistral_vibe" && (
+          <p className="text-muted-foreground text-xs">{t("vibeHelp")}</p>
         )}
         {provider === "cursor" && (
           <p className="text-muted-foreground text-xs">{t("cursorHelp")}</p>

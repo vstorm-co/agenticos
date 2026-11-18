@@ -1,5 +1,5 @@
 ---
-source_sha: "e1f846f12f56"
+source_sha: "b5aa3a975b63"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3769,3 +3769,5 @@ OpenCode-Registrierungen lesen verzögerte Katalogaktualisierungen. Die separate
 Die Cursor-Vorlage nutzt das CLI-Konto mit `cursor_login`, entfernt geerbte API-Zugangsdaten und bricht unbeantwortete menschliche Anfragen ab. Die API-Schlüsselregistrierung wartet auf eine bestätigte Isolierung. Siehe [Cursor einrichten](../desktop.md#cursor-acp).
 
 Cline hat getrennte Vorlagen für Konto und geerbten API-Schlüssel, beide auf den Provider Cline und direktes `--acp` beschränkt. [Cline einrichten](../desktop.md#cline-acp) beschreibt Zugangsdaten, Guthaben und Abnahme.
+
+Mistral Vibe nutzt eigene Browser- und Schlüsseleinrichtung; Katalog und Aufgabenbericht nennen bereinigte Quellenangaben. [Vibe einrichten](../desktop.md#mistral-vibe-acp) beschreibt Kosten und Kontoprüfung.

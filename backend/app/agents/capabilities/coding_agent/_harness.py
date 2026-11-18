@@ -101,12 +101,21 @@ class CodingStep(BaseModel):
     failed: bool = False
 
 
+class RuntimeCredentials(BaseModel):
+    """Non-secret credential facts reported by the runtime, not plan entitlement."""
+
+    kind: Literal["api_key"]
+    source: Literal["os_keyring", "cli_file", "environment"]
+    sign_out_available: bool
+
+
 class CodingReport(BaseModel):
     """What one task came to, as the model reads it and the console draws it."""
 
     kind: Literal["coding_agent"] = "coding_agent"
     harness: AcpHarness
     runtime_name: str | None = Field(default=None, min_length=1, max_length=120)
+    credentials: RuntimeCredentials | None = None
     access: Access
     outcome: Literal["completed", "failed", "timed_out"]
     answer: str

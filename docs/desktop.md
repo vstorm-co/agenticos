@@ -831,3 +831,29 @@ continuation. Full local access is required; platform tools are not forwarded.
 
 Account/key login, credit refusal, available models and restart/resume still need
 real-account acceptance. See [Cline ACP](https://github.com/cline/cline/blob/main/docs/usage/acp.mdx).
+
+## Mistral Vibe through ACP { #mistral-vibe-acp }
+
+Install Mistral Vibe, complete `vibe --setup`, then register the absolute
+`vibe-acp` executable path with the **Mistral Vibe** template and no arguments.
+The template requires ACP `browser-auth`, disables telemetry for this child and
+enables Vibe's experimental model catalog. It leaves configuration and credential
+files with Vibe. Browser sign-in may provision or reuse an API key; it is not
+proof of Le Chat subscription entitlement.
+
+`inspect_acp_agent` waits briefly for session catalog updates and includes
+sanitized `credentials`: `kind=api_key`, its source (`os_keyring`, `cli_file` or
+`environment`) and whether Vibe reports native sign-out as available. Task reports
+carry the same facts. No account identity, key, domain or configuration error is
+copied into those results. An unknown status contract or unavailable credential
+fails before an inference prompt. The status describes credential storage, not
+remaining credit or the account's plan.
+
+Keep API and subscription charges under the account's own controls; external use
+is unpriced. Inherited keys remain with the CLI and cannot be revoked by removing
+a registration. Use Vibe's own setup/account controls, then remove or re-register
+the Desktop entry to stop owned processes and clear continuation. This supports
+local browser authentication, not delegated browser login on a remote host.
+Full local access is required; platform-tool forwarding remains separate work.
+Real account login, credit limits, sign-out and restart/resume need acceptance
+tests. See [Vibe ACP setup](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).

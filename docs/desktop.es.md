@@ -1,5 +1,5 @@
 ---
-source_sha: "a6bcda2e98ba"
+source_sha: "62891c2c8105"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -874,3 +874,29 @@ la plataforma.
 El acceso por cuenta o clave, el rechazo por créditos agotados, los modelos y
 la reanudación tras reiniciar requieren pruebas reales. Consulta
 [Cline ACP](https://github.com/cline/cline/blob/main/docs/usage/acp.mdx).
+
+## Mistral Vibe mediante ACP { #mistral-vibe-acp }
+
+Instala Mistral Vibe, completa `vibe --setup` y registra la ruta absoluta de
+`vibe-acp` sin argumentos mediante **Mistral Vibe**. La plantilla exige ACP
+`browser-auth`, desactiva la telemetría de este proceso y activa el catálogo
+experimental de modelos. Vibe conserva configuración y credenciales. El acceso
+por navegador puede crear o reutilizar una clave API; no confirma derechos de
+suscripción Le Chat.
+
+`inspect_acp_agent` espera brevemente actualizaciones del catálogo e incluye
+`credentials` saneadas: `kind=api_key`, origen (`os_keyring`, `cli_file` o
+`environment`) y disponibilidad de cierre de sesión según Vibe. Los informes de
+tareas incluyen los mismos datos. No se copian identidad de cuenta, clave,
+dominio ni errores de configuración. Un contrato desconocido o credenciales no
+disponibles impiden la inferencia. El estado indica almacenamiento, no créditos
+restantes ni plan.
+
+La cuenta controla cargos API y de suscripción; el uso externo queda sin valorar.
+Eliminar una inscripción no revoca una clave heredada del CLI. Usa los controles
+de cuenta y configuración de Vibe y después elimina o registra de nuevo la
+entrada Desktop para detener procesos y borrar continuaciones. Se admite acceso
+local por navegador, no acceso delegado en hosts remotos. Se exige acceso local
+completo; reenviar herramientas de la plataforma sigue siendo trabajo separado.
+Inicio de sesión, límites, cierre y reanudación requieren pruebas reales. Consulta
+[configuración ACP de Vibe](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).

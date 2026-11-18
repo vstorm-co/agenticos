@@ -53,3 +53,14 @@ is stored by AgenticOS or sent through server messages. CLI contract checked at
 [`eff43e19b267`](https://github.com/cline/cline/blob/eff43e19b267e171f597ab03733bfed25090f72d/apps/cli/src/acp/acpAgent.ts):
 provider override cannot change during a session, the environment key wins over
 restored credentials, and the direct ACP process owns its session managers.
+
+Mistral Vibe supplies `browser-auth` and `_auth/status`; the status is reduced to
+API-key source and native sign-out availability, never account identity, key,
+endpoint or raw config errors. The shared task loop accepts an injected credential
+probe rather than importing vendor transport logic. A probe's refusal ends before
+inference and still uses the task's deadline and cleanup. The native child enables
+the experimental catalog and disables telemetry without rewriting CLI files.
+The contract was checked in [Vibe 3.1.3 source](https://github.com/mistralai/mistral-vibe/tree/63dab302305c80131ea1e5b1c3cb18c2a4fd96d3/vibe/acp).
+Remote delegated browser login and a native vendor sign-out control remain separate
+from this device-owned registration; removing an ID revokes its running tasks,
+not a key owned by Vibe or its launch environment.

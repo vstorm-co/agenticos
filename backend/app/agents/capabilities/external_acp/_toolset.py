@@ -19,6 +19,8 @@ from app.services.device_hub import (
     DeviceWorkspace,
 )
 
+from ._credentials import probe_credentials
+
 INSPECT_DESCRIPTION = (
     "Read model and reasoning choices from the registered ACP agent on this account."
 )
@@ -73,6 +75,7 @@ def build_acp_toolset(
             custom_agent_id=agent_id,
             auth_method=auth_method,
             model=model_id,
+            credential_probe=probe_credentials,
         )
 
     async def inspect_acp_agent(ctx: RunContext[AgentDeps]) -> str:
@@ -102,6 +105,7 @@ def build_acp_toolset(
                 auth_method=pipe.auth_method or auth_method,
                 model_prefix=pipe.model_prefix,
                 wait_for_updates=pipe.refresh_catalog,
+                credential_probe=probe_credentials,
                 timeout_seconds=min(timeout_seconds, 60),
             )
             return catalog.model_dump_json()

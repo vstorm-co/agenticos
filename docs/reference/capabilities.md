@@ -3389,3 +3389,5 @@ OpenCode registrations refresh delayed session catalog updates. The separate Go 
 The Cursor template uses CLI account login with `cursor_login`, removes inherited API credential overrides and cancels unanswered human requests. API-key registration remains pending isolation verification. See [Cursor setup](../desktop.md#cursor-acp).
 
 Cline has separate account and inherited-API-key templates, both locked to the Cline provider and foreground `--acp`. See [Cline setup](../desktop.md#cline-acp) for credential, credit and acceptance boundaries.
+
+Mistral Vibe uses its own browser/key setup, with sanitized credential-source status in discovery and task reports. See [Vibe setup](../desktop.md#mistral-vibe-acp) for billing and account verification.

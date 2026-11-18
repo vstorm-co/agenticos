@@ -8,11 +8,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.agents.capabilities.coding_agent._acp import (
     AcpError,
     Conversation,
+    CredentialProbe,
     Pipe,
     _Collector,
     initialize_session,
 )
-from app.agents.capabilities.coding_agent._harness import LiveItem
+from app.agents.capabilities.coding_agent._harness import LiveItem, RuntimeCredentials
 
 
 class AcpChoice(BaseModel):
@@ -22,6 +23,7 @@ class AcpChoice(BaseModel):
 
 
 class AcpCatalog(BaseModel):
+    credentials: RuntimeCredentials | None = None
     refresh_pending: bool = False
     model_prefix: str | None = None
     models_exposed: bool = False
@@ -120,6 +122,7 @@ async def inspect_session(
     model_prefix: str | None = None,
     wait_for_updates: bool = False,
     refresh_seconds: float = 2.0,
+    credential_probe: CredentialProbe | None = None,
 ) -> AcpCatalog:
     async def ignore(_items: list[LiveItem]) -> None:
         return None
@@ -129,6 +132,11 @@ async def inspect_session(
     try:
         with anyio.fail_after(timeout_seconds):
             await initialize_session(conversation, auth_method=auth_method)
+            credentials = (
+                await credential_probe(conversation, auth_method)
+                if credential_probe is not None
+                else None
+            )
             opened = await conversation.request("session/new", {"cwd": root, "mcpServers": []})
             if not isinstance(opened, dict) or not isinstance(opened.get("sessionId"), str):
                 raise AcpError("The agent did not open a session for model discovery.")
@@ -142,6 +150,7 @@ async def inspect_session(
                 else opened
             )
             catalog = _scoped_catalog(state, model_prefix)
+            catalog.credentials = credentials
             catalog.refresh_pending = wait_for_updates and not catalog.models
             return catalog
     finally:

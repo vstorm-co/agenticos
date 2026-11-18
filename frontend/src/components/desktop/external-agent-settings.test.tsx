@@ -186,3 +186,25 @@ it("keeps the editable command when switching a template back to custom", async 
     }),
   );
 });
+
+it("registers vibe-acp without arguments or copied credentials", async () => {
+  mount();
+  await userEvent.selectOptions(screen.getByLabelText("Setup template"), "mistral_vibe");
+  expect(screen.getByLabelText("Arguments (JSON array)")).toHaveValue("[]");
+  await userEvent.type(screen.getByLabelText("Absolute executable path"), "/opt/bin/vibe-acp");
+  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+      registration: {
+        provider: "mistral_vibe",
+        id: "mistral-vibe",
+        name: "Mistral Vibe",
+        program: "/opt/bin/vibe-acp",
+        args: [],
+      },
+    }),
+  );
+  expect(parseExternalAgents([{ ...registration, provider: "mistral_vibe" }])).toEqual([
+    { ...registration, provider: "mistral_vibe" },
+  ]);
+});

@@ -1,5 +1,5 @@
 ---
-source_sha: "e1f846f12f56"
+source_sha: "b5aa3a975b63"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3615,3 +3615,5 @@ Las inscripciones OpenCode leen actualizaciones tardías del catálogo. La plant
 La plantilla Cursor usa la cuenta CLI con `cursor_login`, elimina credenciales API heredadas y cancela solicitudes humanas sin respuesta. El registro de claves API espera verificar su aislamiento. Consulta la [configuración Cursor](../desktop.md#cursor-acp).
 
 Cline ofrece plantillas separadas para cuenta y clave API heredada, ambas fijadas al provider Cline y `--acp` directo. La [configuración Cline](../desktop.md#cline-acp) explica credenciales, créditos y aceptación.
+
+Mistral Vibe usa su configuración de navegador y claves; catálogo e informes indican el origen saneado. La [configuración Vibe](../desktop.md#mistral-vibe-acp) explica facturación y verificación de cuenta.
