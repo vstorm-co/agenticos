@@ -875,3 +875,11 @@ Install Kimi Code CLI, complete `kimi login`, and register the absolute `kimi` p
 Inspect choices with `inspect_acp_agent`. Keep External model ID empty and choose the model in Kimi itself; this template reports `configuration_policy=cli` and refuses model overrides. CLI settings can include custom providers with separate API billing, so a successful login does not establish which subscription pays for the selected model. Human questions, including Kimi's `AskUserQuestion` permission fallback, are cancelled for review in the CLI rather than answered through tool approval.
 
 Re-register after changing accounts. Real-account entitlement, quota, reconnect, cancellation and available models remain acceptance checks. This is delegated local execution; it forwards no AgenticOS platform tools. See [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
+
+## Qwen subscription through ACP { #qwen-subscription-acp }
+
+Install a current Qwen Code CLI, run `qwen`, and use `/auth` to choose **Qwen Account with Subscription**. Register the absolute `qwen` path with **Qwen subscription**. The child launches `--acp --auth-type=qwen-subscription` and removes inherited `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` and `DASHSCOPE_API_KEY`. Unsupported CLI versions must be upgraded rather than replaced with an API-key fallback.
+
+This template does not call ACP `authenticate`: the current operation writes user authentication settings, while the advertised methods do not include subscription login. Qwen checks its own saved subscription credentials when opening the session. AgenticOS imports no tokens or OAuth client identity. Keep External model ID empty and choose the subscription model in Qwen; the template reports `configuration_policy=cli` and refuses overrides.
+
+Qwen Plus/Pro subscription access is distinct from Alibaba Model Studio API keys and Coding/Token Plan endpoints. The discontinued legacy free OAuth allowance is not offered. Plans and quotas require real-account acceptance, alongside expiry/revocation, cancellation, reconnect and available models. Re-register after changing accounts. Platform-tool forwarding remains open. See [Qwen authentication](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).

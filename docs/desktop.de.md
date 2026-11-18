@@ -1,5 +1,5 @@
 ---
-source_sha: "9ab06f37bc3e"
+source_sha: "a823bbd2edc5"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -933,3 +933,11 @@ Installieren Sie Kimi Code CLI, führen Sie `kimi login` aus und registrieren Si
 Prüfen Sie Optionen mit `inspect_acp_agent`. Lassen Sie External model ID leer und wählen Sie das Modell in Kimi; die Vorlage meldet `configuration_policy=cli` und lehnt Modellüberschreibungen ab. CLI-Einstellungen können eigene Anbieter mit separater API-Abrechnung enthalten; eine Anmeldung bestimmt daher nicht den zahlenden Tarif. Rückfragen, einschließlich Kimis Berechtigungsersatz `AskUserQuestion`, werden zur Prüfung im CLI abgebrochen und nicht durch Werkzeugfreigabe beantwortet.
 
 Registrieren Sie nach Kontowechsel erneut. Berechtigungen, Kontingente, Wiederverbindung, Abbruch und Modelle mit echtem Konto bleiben Abnahmekriterien. Dies ist delegierte lokale Ausführung ohne Weitergabe von AgenticOS-Plattformwerkzeugen. Siehe [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
+
+## Qwen-Abonnement über ACP { #qwen-subscription-acp }
+
+Installieren Sie ein aktuelles Qwen Code CLI, starten Sie `qwen` und wählen Sie mit `/auth` **Qwen Account with Subscription**. Registrieren Sie den absoluten `qwen`-Pfad mit **Qwen-Abonnement**. Der Kindprozess startet `--acp --auth-type=qwen-subscription` und entfernt geerbte `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` und `DASHSCOPE_API_KEY`. Nicht unterstützte CLI-Versionen müssen aktualisiert werden; es gibt keinen API-Schlüsselersatz.
+
+Die Vorlage ruft ACP `authenticate` nicht auf: Diese Operation schreibt Anmeldeeinstellungen, während die angebotenen Methoden kein Abonnementlogin enthalten. Qwen prüft beim Sitzungsstart seine gespeicherten Abonnement-Zugangsdaten. AgenticOS importiert weder Token noch OAuth-Clientidentitäten. Lassen Sie External model ID leer und wählen Sie das Abonnementmodell in Qwen; die Vorlage meldet `configuration_policy=cli` und lehnt Überschreibungen ab.
+
+Qwen Plus/Pro unterscheidet sich von Alibaba Model Studio API-Schlüsseln und Coding/Token-Plan-Endpunkten. Das eingestellte kostenlose OAuth-Kontingent wird nicht angeboten. Tarife, Kontingente, Ablauf und Widerruf, Abbruch, Wiederverbindung und Modelle benötigen Abnahme mit echtem Konto. Registrieren Sie nach Kontowechsel erneut. Plattformwerkzeug-Weitergabe bleibt offen. Siehe [Qwen-Anmeldung](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).

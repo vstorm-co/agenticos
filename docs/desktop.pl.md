@@ -1,5 +1,5 @@
 ---
-source_sha: "9ab06f37bc3e"
+source_sha: "a823bbd2edc5"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -887,3 +887,11 @@ Zainstaluj Kimi Code CLI, wykonaj `kimi login` i zarejestruj bezwzględną ście
 Opcje sprawdzisz przez `inspect_acp_agent`. Zostaw External model ID puste i wybierz model w Kimi; szablon raportuje `configuration_policy=cli` i odrzuca nadpisanie modelu. Ustawienia CLI mogą obejmować własnych dostawców z osobnym rozliczaniem API, więc udane logowanie nie ustala, która subskrypcja płaci za model. Pytania do człowieka, w tym wariant uprawnień `AskUserQuestion`, są anulowane do sprawdzenia w CLI zamiast uzyskiwać odpowiedź przez zgodę na narzędzie.
 
 Po zmianie konta zarejestruj program ponownie. Uprawnienia, limity, ponowne połączenie, anulowanie i modele na prawdziwym koncie pozostają warunkami odbioru. To delegowane wykonanie lokalne bez przekazywania narzędzi platformy AgenticOS. Zobacz [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
+
+## Subskrypcja Qwen przez ACP { #qwen-subscription-acp }
+
+Zainstaluj aktualne Qwen Code CLI, uruchom `qwen` i przez `/auth` wybierz **Qwen Account with Subscription**. Zarejestruj bezwzględną ścieżkę `qwen`, wybierając **Subskrypcja Qwen**. Proces potomny uruchamia `--acp --auth-type=qwen-subscription` i usuwa odziedziczone `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` oraz `DASHSCOPE_API_KEY`. Nieobsługiwane wersje CLI wymagają aktualizacji zamiast przełączenia na klucz API.
+
+Szablon nie wywołuje ACP `authenticate`: bieżąca operacja zapisuje ustawienia logowania użytkownika, a reklamowane metody nie obejmują logowania subskrypcji. Qwen sprawdza własne zapisane poświadczenia podczas otwierania sesji. AgenticOS nie importuje tokenów ani tożsamości klienta OAuth. Zostaw External model ID puste i wybierz model subskrypcji w Qwen; szablon raportuje `configuration_policy=cli` i odrzuca nadpisania.
+
+Subskrypcje Qwen Plus/Pro są odrębne od kluczy API Alibaba Model Studio i endpointów Coding/Token Plan. Wycofany darmowy limit OAuth nie jest oferowany. Plany, limity, wygasanie i cofnięcie logowania, anulowanie, ponowne połączenie oraz modele wymagają odbioru na prawdziwym koncie. Po zmianie konta zarejestruj program ponownie. Przekazywanie narzędzi platformy pozostaje otwarte. Zobacz [logowanie Qwen](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).

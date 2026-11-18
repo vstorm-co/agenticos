@@ -253,3 +253,25 @@ it("registers Kimi with its CLI-owned configured account", async () => {
     { ...registration, provider: "kimi" },
   ]);
 });
+
+it("pins Qwen subscription auth without launching its mutating authentication RPC", async () => {
+  mount();
+  await userEvent.selectOptions(screen.getByLabelText("Setup template"), "qwen_subscription");
+  expect(screen.getByText(/without calling ACP authenticate/)).toBeInTheDocument();
+  await userEvent.type(screen.getByLabelText("Absolute executable path"), "/opt/bin/qwen");
+  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+      registration: {
+        provider: "qwen_subscription",
+        id: "qwen-subscription",
+        name: "Qwen subscription",
+        program: "/opt/bin/qwen",
+        args: ["--acp", "--auth-type=qwen-subscription"],
+      },
+    }),
+  );
+  expect(parseExternalAgents([{ ...registration, provider: "qwen_subscription" }])).toEqual([
+    { ...registration, provider: "qwen_subscription" },
+  ]);
+});

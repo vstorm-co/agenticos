@@ -189,6 +189,12 @@ impl Sessions {
     }
 }
 
+fn qwen_subscription_environment(command: &mut tokio::process::Command) {
+    for name in ["OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL", "DASHSCOPE_API_KEY"] {
+        command.env_remove(name);
+    }
+}
+
 fn grok_account_environment(command: &mut tokio::process::Command) {
     command.env_remove("XAI_API_KEY").env_remove("GROK_CODE_XAI_API_KEY")
         .env("GROK_DISABLE_API_KEY_AUTH", "true");
@@ -269,6 +275,9 @@ fn spawn_authenticated(
             provider == crate::external_agents::Provider::ClineApiKey,
             key.as_deref(),
         )?;
+    }
+    if provider == crate::external_agents::Provider::QwenSubscription {
+        qwen_subscription_environment(&mut command);
     }
     if provider == crate::external_agents::Provider::Grok {
         grok_account_environment(&mut command);
@@ -564,6 +573,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
                 | crate::external_agents::Provider::MistralVibe
                 | crate::external_agents::Provider::Grok
                 | crate::external_agents::Provider::Kimi
+                | crate::external_agents::Provider::QwenSubscription
         )
     }) && !supports_auth_modes
     {
@@ -584,7 +594,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     }
     if external
         .as_ref()
-        .is_some_and(|item| matches!(item.provider, crate::external_agents::Provider::MistralVibe | crate::external_agents::Provider::Kimi))
+        .is_some_and(|item| matches!(item.provider, crate::external_agents::Provider::MistralVibe | crate::external_agents::Provider::Kimi | crate::external_agents::Provider::QwenSubscription))
         && !supports_configuration_policy
     {
         return Err(Refusal::new(
@@ -690,7 +700,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     let runtime_name = external.as_ref().map(|item| item.name.as_str());
     let configuration_policy = if external
         .as_ref()
-        .is_some_and(|item| matches!(item.provider, crate::external_agents::Provider::MistralVibe | crate::external_agents::Provider::Kimi))
+        .is_some_and(|item| matches!(item.provider, crate::external_agents::Provider::MistralVibe | crate::external_agents::Provider::Kimi | crate::external_agents::Provider::QwenSubscription))
     {
         "cli"
     } else {
@@ -707,6 +717,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
                 | crate::external_agents::Provider::OpenCodeGo
                 | crate::external_agents::Provider::MistralVibe
                 | crate::external_agents::Provider::Kimi
+                | crate::external_agents::Provider::QwenSubscription
         )
     });
     Ok(object(
@@ -1011,6 +1022,17 @@ mod tests {
         assert!(sessions.contains_key("retained"));
         assert!(drain(&output, 0).await.2.is_some());
         remove_external(&mut sessions, "second");
+    }
+
+    #[test]
+    fn qwen_subscription_drops_inherited_api_destination_overrides() {
+        use std::ffi::OsStr;
+        let mut command = tokio::process::Command::new("qwen");
+        qwen_subscription_environment(&mut command);
+        let environment: std::collections::BTreeMap<_, _> = command.as_std().get_envs().collect();
+        for name in ["OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL", "DASHSCOPE_API_KEY"] {
+            assert_eq!(environment.get(OsStr::new(name)), Some(&None));
+        }
     }
 
     #[test]

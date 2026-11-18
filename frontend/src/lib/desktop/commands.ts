@@ -689,6 +689,7 @@ export interface ExternalAgent {
     | "cursor"
     | "cline"
     | "cline_api_key"
+    | "qwen_subscription"
     | "kimi"
     | "grok"
     | "mistral_vibe"
@@ -718,6 +719,7 @@ export function parseExternalAgents(value: unknown): ExternalAgent[] {
       provider !== "mistral_vibe" &&
       provider !== "grok" &&
       provider !== "kimi" &&
+      provider !== "qwen_subscription" &&
       provider !== "opencode" &&
       provider !== "opencode_go"
     )

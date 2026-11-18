@@ -20,6 +20,7 @@ pub enum Provider {
     MistralVibe,
     Grok,
     Kimi,
+    QwenSubscription,
     #[serde(rename = "opencode")]
     OpenCode,
     #[serde(rename = "opencode_go")]
@@ -100,6 +101,9 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
     if input.provider == Provider::Grok && input.args != ["--no-auto-update", "agent", "stdio"] {
         return Err("Grok requires --no-auto-update agent stdio without extra launch flags.".into());
     }
+    if input.provider == Provider::QwenSubscription && input.args != ["--acp", "--auth-type=qwen-subscription"] {
+        return Err("Qwen subscription requires --acp --auth-type=qwen-subscription without extra launch flags.".into());
+    }
     Ok(Registration {
         provider: input.provider,
         id: input.id,
@@ -125,6 +129,7 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
     let before = settings::current(&app).connection_revision;
     let (send, receive) = tokio::sync::oneshot::channel();
     let billing = match registration.provider {
+        Provider::QwenSubscription => "Qwen Code uses its own saved subscription login. Complete /auth in qwen first, choosing Qwen Account with Subscription. The child explicitly selects qwen-subscription and removes inherited OpenAI key, endpoint and model overrides. No authenticate operation or credential import is performed. Keep External model ID empty and choose the subscription model in Qwen. Plan access and quotas require account verification.",
         Provider::Kimi => "Kimi uses its own configured login and providers. Complete kimi login first. AgenticOS checks login readiness without importing credentials. Custom models can use separately billed APIs; account login alone does not establish subscription billing. Keep External model ID empty and choose the model in Kimi itself. Human questions stop for review in the CLI.",
         Provider::Grok => "Grok uses a cached CLI login. This child removes XAI_API_KEY and GROK_CODE_XAI_API_KEY and disables API-key authentication. The server refuses a runtime still advertising API-key auth. Finish grok login first. Grok account, gateway and plan settings determine billing; no API-key mode is supported by this template.",
         Provider::MistralVibe => "Vibe owns browser sign-in and API keys. Browser sign-in may provision or reuse an API key; it does not prove Le Chat subscription access. This child disables telemetry and enables Vibe's experimental model catalog. Existing keyring, .env and project settings stay with Vibe. Usage is unpriced.",
@@ -195,6 +200,13 @@ mod tests {
             program: std::env::current_exe().unwrap().to_string_lossy().into_owned(),
             args: vec!["acp".into()],
         }
+    }
+
+    #[test]
+    fn qwen_subscription_pins_auth_type_instead_of_inheriting_api_auth() {
+        assert!(checked(RegistrationInput { provider: Provider::QwenSubscription, args: vec!["--acp".into(), "--auth-type=qwen-subscription".into()], ..input() }).is_ok());
+        assert!(checked(RegistrationInput { provider: Provider::QwenSubscription, args: vec!["--acp".into()], ..input() }).is_err());
+        assert!(checked(RegistrationInput { provider: Provider::QwenSubscription, args: vec!["--acp".into(), "--auth-type=openai".into()], ..input() }).is_err());
     }
 
     #[test]

@@ -37,7 +37,7 @@ class CursorAgent(ScriptedAgent):
             self._result(message, {"configOptions": model_options()})
         else:
             super().on_message(message)
-            if method == "initialize":
+            if method == "initialize" and self.fail_on != method:
                 self.out[-1]["result"]["authMethods"] = [{"id": "cursor_login", "name": "Cursor"}]
             if method == "session/new" and self.fail_on != method:
                 self.out[-1]["result"]["configOptions"] = model_options()

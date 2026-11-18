@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Add Qwen Code subscription ACP delegation with explicit CLI subscription mode and no API-key authentication fallback.
+
 - Add Kimi Code desktop ACP delegation with CLI-owned login and explicit cancellation of human questions.
 
 - Add a Grok Build desktop ACP template with cached headless account auth, API-key isolation and explicit human-input refusal.

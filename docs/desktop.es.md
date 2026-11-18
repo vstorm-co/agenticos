@@ -1,5 +1,5 @@
 ---
-source_sha: "9ab06f37bc3e"
+source_sha: "a823bbd2edc5"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -918,3 +918,11 @@ Instala Kimi Code CLI, completa `kimi login` y registra la ruta absoluta de `kim
 Consulta opciones con `inspect_acp_agent`. Deja External model ID vacío y elige el modelo en Kimi; la plantilla informa `configuration_policy=cli` y rechaza sobrescrituras. El CLI puede configurar proveedores propios con facturación API separada, por lo que iniciar sesión no determina qué suscripción paga el modelo. Las preguntas humanas, incluido el mecanismo de permisos `AskUserQuestion`, se cancelan para revisarlas en el CLI y no se responden mediante aprobación de herramientas.
 
 Registra de nuevo tras cambiar de cuenta. Permisos, cuotas, reconexión, cancelación y modelos con cuenta real siguen como criterios de aceptación. Es ejecución local delegada sin herramientas de plataforma AgenticOS. Consulta [Kimi ACP](https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp).
+
+## Suscripción Qwen mediante ACP { #qwen-subscription-acp }
+
+Instala Qwen Code CLI actualizado, ejecuta `qwen` y elige **Qwen Account with Subscription** mediante `/auth`. Registra la ruta absoluta de `qwen` con **Qwen subscription**. El proceso hijo ejecuta `--acp --auth-type=qwen-subscription` y elimina `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` y `DASHSCOPE_API_KEY` heredadas. Las versiones incompatibles deben actualizarse; no se cambia a una clave API.
+
+La plantilla no llama a ACP `authenticate`: la operación actual escribe ajustes de autenticación y los métodos anunciados no incluyen acceso de suscripción. Qwen comprueba sus credenciales guardadas al abrir la sesión. AgenticOS no importa tokens ni identidades de cliente OAuth. Deja External model ID vacío y elige el modelo de suscripción en Qwen; la plantilla informa `configuration_policy=cli` y rechaza sobrescrituras.
+
+Qwen Plus/Pro es distinto de claves API Alibaba Model Studio y endpoints Coding/Token Plan. No se ofrece la antigua cuota OAuth gratuita retirada. Planes, cuotas, caducidad, revocación, cancelación, reconexión y modelos requieren aceptación con cuenta real. Registra de nuevo tras cambiar de cuenta. El reenvío de herramientas de plataforma sigue pendiente. Consulta [autenticación Qwen](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/).
