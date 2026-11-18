@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
+import { startLanguage } from "../../../../desktop/ui/language.js";
 import { localComputerStep } from "../../../../desktop/ui/local-computer.js";
 
 const invoke = vi.fn<(command: string, args?: Record<string, string>) => Promise<unknown>>();
@@ -13,6 +14,8 @@ function mount() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  document.documentElement.lang = "en";
+  localStorage.clear();
   invoke.mockReset();
   invoke.mockImplementation(async (command) => (command === "local_instances" ? [] : "ready"));
   document.body.innerHTML = readFileSync(
@@ -297,7 +300,9 @@ it("shows workspace and target versions and updates only the chosen managed inst
   });
   const { root, refresh } = mount();
   await refresh();
-  expect(screen.getByText("Workspace 1.80.0 · Update target 1.82.2")).toBeVisible();
+  expect(screen.getByText("Update target").parentElement).toHaveTextContent(
+    "Workspace 1.80.0 · Update target 1.82.2",
+  );
   const update = screen.getByRole("button", { name: "Update local workspace" });
   fireEvent.click(update);
   fireEvent.click(update);
@@ -364,4 +369,47 @@ it("permits reapplying the current release to recover an interrupted update", as
   await refresh();
   fireEvent.click(screen.getByRole("button", { name: "Reapply workspace update" }));
   await waitFor(() => expect(invoke).toHaveBeenCalledWith("update_local", { instanceId: "work" }));
+});
+
+it("keeps healthy instances available when another workspace version cannot be read", async () => {
+  invoke.mockImplementation(async (command) =>
+    command === "local_instances"
+      ? [
+          {
+            ...outdated,
+            id: "damaged",
+            name: "Damaged",
+            version: null,
+            version_error: "The version file cannot be read",
+            can_update: false,
+          },
+          outdated,
+        ]
+      : "running",
+  );
+  const { refresh } = mount();
+  await refresh();
+  expect(screen.getByText("Damaged")).toBeVisible();
+  expect(screen.getByText("The version file cannot be read")).toBeVisible();
+  expect(screen.getAllByRole("button", { name: "Connect" })).toHaveLength(2);
+  expect(screen.getAllByRole("button", { name: "Update local workspace" })).toHaveLength(1);
+});
+
+it("translates update labels on language changes without translating instance names or versions", async () => {
+  invoke.mockImplementation(async (command) =>
+    command === "local_instances" ? [{ ...outdated, name: "Workspace" }] : "running",
+  );
+  localStorage.setItem("agenticos:start-language", "en");
+  await startLanguage(invoke);
+  const { refresh } = mount();
+  await refresh();
+  const language = document.querySelector<HTMLSelectElement>("#language");
+  if (!language) throw new Error("Language control is missing");
+  fireEvent.change(language, { target: { value: "pl" } });
+  await screen.findByRole("button", { name: "Zaktualizuj lokalny workspace" });
+  expect(screen.getByText("Wersja docelowa").parentElement).toHaveTextContent("1.80.0");
+  expect(document.querySelector(".instance-row strong")).toHaveTextContent("Workspace");
+  fireEvent.change(language, { target: { value: "en" } });
+  await screen.findByRole("button", { name: "Update local workspace" });
+  expect(screen.getByText("Update target").parentElement).toHaveTextContent("1.82.2");
 });

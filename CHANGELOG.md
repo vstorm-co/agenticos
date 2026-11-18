@@ -26,6 +26,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Preserve original delegated MCP authority on approval resumes without requiring the approver’s key to delegate its own accounts; leave explicitly disabled environment bindings off even when their production account is unavailable.
+
 - Enforce personal-model consent across delegation trees and recheck both test and production MCP account authority on delegated tool calls. Recover organization MCP queries on later page visits without interrupting personal account editing.
 - Exclude repeated agent instructions and SDK instruction baselines and deltas from conversation checkpoints, preserving more conversation and tool evidence within the existing storage limit. Later turns continue with the agent's current instructions (#3141).
 - Serialize routine edits with agent publication in the same lock order, preventing deadlocks while retaining model checks and creator-consent withdrawal (#3139).

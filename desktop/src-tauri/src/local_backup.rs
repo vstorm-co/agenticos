@@ -44,6 +44,22 @@ pub fn pinned_version(dir: &Path) -> Result<Option<String>, String> {
     Ok(None)
 }
 
+pub struct VersionStatus {
+    pub version: Option<String>,
+    pub error: Option<String>,
+}
+
+/// One damaged instance must not prevent the picker from listing healthy workspaces.
+pub fn version_status(dir: &Path) -> VersionStatus {
+    match pinned_version(dir) {
+        Ok(version) => VersionStatus { version, error: None },
+        Err(error) => VersionStatus {
+            version: None,
+            error: Some(error),
+        },
+    }
+}
+
 pub fn current_version(docker: &Path, dir: &Path, instance: &Instance) -> Result<String, String> {
     if let Some(pin) = pinned_version(dir)? {
         return Ok(pin);
@@ -223,6 +239,23 @@ mod tests {
         fs::remove_file(dir.join(".env")).unwrap();
         assert!(super::pinned_version(&dir).is_err());
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn an_unreadable_instance_has_its_own_version_error() {
+        let root = std::env::temp_dir().join(format!("agenticos-picker-status-{}", uuid::Uuid::new_v4()));
+        let healthy = root.join("healthy");
+        fs::create_dir_all(&healthy).unwrap();
+        fs::write(healthy.join(".env"), "AGENTICOS_VERSION=1.82.2\n").unwrap();
+        let rows: Vec<_> = [root.join("damaged"), healthy]
+            .iter()
+            .map(|dir| version_status(dir))
+            .collect();
+        assert!(rows[0].version.is_none());
+        assert!(rows[0].error.is_some());
+        assert_eq!(rows[1].version.as_deref(), Some("1.82.2"));
+        assert!(rows[1].error.is_none());
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

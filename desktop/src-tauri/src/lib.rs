@@ -589,7 +589,7 @@ async fn arrive(
     retarget_companions(app, &server)?;
     start_companions(app, &server, &settings);
     app.state::<ShellMenu>()
-        .reflect_local_instance(local_instances::selected(app)?.is_some())
+        .reflect_local_instance(app, local_instances::selected(app)?.is_some())
         .map_err(|e| e.to_string())
 }
 
@@ -634,6 +634,7 @@ struct LocalInstanceView {
     installed: bool,
     running: bool,
     version: Option<String>,
+    version_error: Option<String>,
     target_version: &'static str,
     can_update: bool,
 }
@@ -643,13 +644,18 @@ async fn local_instances(app: AppHandle) -> Result<Vec<LocalInstanceView>, Strin
         local_instances::load(&app).and_then(|rows| {
             rows.into_iter()
                 .map(|row| {
-                    let version = if row.installed {
-                        local_backup::pinned_version(&row.dir(&app)?)?
+                    let status = if row.installed {
+                        local_backup::version_status(&row.dir(&app)?)
                     } else {
-                        None
+                        local_backup::VersionStatus {
+                            version: None,
+                            error: None,
+                        }
                     };
+                    let version = status.version;
                     let target_version = env!("AGENTICOS_PLATFORM_VERSION");
                     let can_update = row.installed
+                        && status.error.is_none()
                         && version
                             .as_deref()
                             .is_none_or(|current| local_backup::prevent_downgrade(current, target_version).is_ok());
@@ -660,6 +666,7 @@ async fn local_instances(app: AppHandle) -> Result<Vec<LocalInstanceView>, Strin
                         name: row.name,
                         installed: row.installed,
                         version,
+                        version_error: status.error,
                         target_version,
                         can_update,
                     })
@@ -1194,6 +1201,7 @@ pub struct ShellMenu {
 impl ShellMenu {
     fn build(app: &AppHandle, settings: &Settings) -> tauri::Result<Self> {
         let local = local_instances::selected(app).is_ok_and(|instance| instance.is_some());
+        let saved = local_instances::load(app).is_ok_and(|rows| rows.iter().any(|row| row.installed));
         Ok(Self {
             blobby: blobby::BlobbyMenu::build(app, &settings.blobby)?,
             open_console: MenuItem::with_id(app, OPEN_CONSOLE, "Open AgenticOS", true, None::<&str>)?,
@@ -1212,7 +1220,7 @@ impl ShellMenu {
             local: [
                 MenuItem::with_id(app, LOCAL_START, "Start", local, None::<&str>)?,
                 MenuItem::with_id(app, LOCAL_STOP, "Stop", local, None::<&str>)?,
-                MenuItem::with_id(app, LOCAL_UPDATE, "Update local workspace…", local, None::<&str>)?,
+                MenuItem::with_id(app, LOCAL_UPDATE, "Update local workspace…", saved, None::<&str>)?,
             ],
         })
     }
@@ -1232,12 +1240,12 @@ impl ShellMenu {
         Ok(())
     }
 
-    /// The local stack's controls are live only while the app runs one.
-    fn reflect_local_instance(&self, available: bool) -> tauri::Result<()> {
-        for item in &self.local {
+    /// Start and Stop address the selected instance; Update opens the saved-instance picker.
+    fn reflect_local_instance(&self, app: &AppHandle, available: bool) -> tauri::Result<()> {
+        for item in &self.local[..2] {
             item.set_enabled(available)?;
         }
-        Ok(())
+        self.local[2].set_enabled(local_instances::load(app).is_ok_and(|rows| rows.iter().any(|row| row.installed)))
     }
 
     /// The tray's menu, which is also blobby's: everything the shell does, with no window open.

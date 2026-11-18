@@ -4507,6 +4507,8 @@ class TestResume:
         conversation_id: uuid.UUID | None = None,
         current_revision: int | None = 0,
         started_at: datetime | None = None,
+        resumer: AuthContext | None = None,
+        run_key_scopes: list[str] | None = None,
     ) -> MagicMock:
         """Resume a parked run and hand back the `build_agent` mock.
 
@@ -4524,6 +4526,7 @@ class TestResume:
             parent_run_id=parent_run_id,
             conversation_id=conversation_id,
             started_at=started_at or datetime.now(UTC),
+            key_scopes=run_key_scopes,
         )
         run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
         from contextlib import asynccontextmanager
@@ -4588,7 +4591,7 @@ class TestResume:
         ):
             self.finished = finished
             self.resolve = resolve
-            resumer = _ctx()
+            resumer = resumer or _ctx()
             # Kept for the tests that ask *whose* account the continuation spoke
             # through: the approver releasing a parked run is not its owner.
             self.resumed_run = run
@@ -4969,7 +4972,19 @@ class TestResume:
 
     @pytest.mark.anyio
     @pytest.mark.security
-    async def test_api_mcp_resume_uses_the_original_key_and_owner_not_the_approver(self):
+    @pytest.mark.parametrize("limited_key", [False, True])
+    async def test_api_mcp_resume_uses_the_original_key_and_owner_not_the_approver(
+        self, limited_key: bool
+    ):
+        resumer = (
+            replace(
+                _ctx(),
+                api_key_id=uuid.uuid4(),
+                key_scopes=frozenset({Perm.AGENTS_RUN, Perm.APPROVALS_DECIDE}),
+            )
+            if limited_key
+            else None
+        )
         key_id = uuid.uuid4()
         check = AsyncMock()
         with (
@@ -4981,6 +4996,8 @@ class TestResume:
         ):
             await self._resumed(
                 surface=RunSurface.API,
+                resumer=resumer,
+                run_key_scopes=[Perm.AGENTS_RUN.value, Perm.MCP_PERSONAL_USE.value],
                 paused_state={
                     "messages": [],
                     "tool_call_ids": {},

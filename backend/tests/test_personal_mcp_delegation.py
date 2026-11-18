@@ -415,3 +415,27 @@ async def test_external_environment_run_refuses_an_unavailable_production_ceilin
             test_connections={production_id: test_id},
             recheck_sources=True,
         )
+
+
+@pytest.mark.parametrize("missing", [True, False])
+async def test_external_environment_can_disable_a_binding_with_no_live_production_account(
+    missing: bool,
+) -> None:
+    ctx = caller()
+    production_id = uuid.uuid4()
+    production = McpConnection(id=production_id, is_enabled=False)
+    with (
+        patch(
+            "app.services.mcp_connection.mcp_connection_repo.get_org_scoped_by_ids",
+            AsyncMock(return_value={} if missing else {production_id: production}),
+        ),
+        patch("app.services.mcp_connection.probe_toolsets", AsyncMock(return_value=[])),
+    ):
+        result = await build_toolsets_for_agent(
+            MagicMock(),
+            organization_id=ctx.organization_id,
+            refs=[OrgMcpServerRef(connection_id=production_id)],
+            test_connections={production_id: None},
+            recheck_sources=True,
+        )
+    assert result.toolsets == []

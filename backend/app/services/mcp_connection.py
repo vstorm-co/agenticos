@@ -3104,7 +3104,11 @@ async def build_toolsets_for_agent(
             continue
         if ref.connection_id in overrides:
             production = found.get(ref.connection_id)
-            if recheck_sources and (production is None or not production.is_enabled):
+            if (
+                recheck_sources
+                and overrides[ref.connection_id] is not None
+                and (production is None or not production.is_enabled)
+            ):
                 raise AuthorizationError(
                     message="The production MCP account is no longer available"
                 )

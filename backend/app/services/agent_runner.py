@@ -4556,7 +4556,7 @@ class AgentRunnerService:
                 or person is None
                 or subject_is_publisher_fallback
                 or current_impersonator() is not None
-                or not ctx.key_allows(Perm.MCP_PERSONAL_USE)
+                or (existing_run is None and not ctx.key_allows(Perm.MCP_PERSONAL_USE))
             ):
                 raise AuthorizationError(message="This run cannot use delegated personal MCP")
             personal_mcp_check = _personal_mcp_check(

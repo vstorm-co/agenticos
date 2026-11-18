@@ -15,7 +15,6 @@ export const TRANSLATIONS = {
     de: "Desktop-App",
     tr: "Masaüstü uygulaması",
   },
-  Workspace: { pl: "Workspace", de: "Workspace", tr: "Çalışma alanı" },
   "Update target": {
     pl: "Wersja docelowa",
     de: "Zielversion",

@@ -1,7 +1,5 @@
 /** @typedef {(command: string, args?: Record<string, string>) => Promise<unknown>} Invoke */
 
-import { translated } from "./language.js";
-
 const VIEWS = {
   no_docker: {
     title: "Prepare this computer",
@@ -51,8 +49,13 @@ export function localComputerStep(root, invoke, report) {
   let updating = false;
   const updateProgress = root.querySelector("[data-local-update-progress]");
   const updateStatus = root.querySelector("[data-local-update-status]");
-  /** @param {string} text */
-  const tr = (text) => translated(text, document.documentElement.lang);
+  /** @param {string} text @returns {HTMLSpanElement} */
+  function label(text) {
+    const span = document.createElement("span");
+    span.dataset.onboardingCopy = "";
+    span.textContent = text;
+    return span;
+  }
   function showOverview() {
     root.dataset.view = "overview";
     overview.hidden = false;
@@ -97,6 +100,8 @@ export function localComputerStep(root, invoke, report) {
             typeof row.installed !== "boolean" ||
             typeof row.running !== "boolean" ||
             (row.version != null && typeof row.version !== "string") ||
+            (row.version_error != null &&
+              typeof row.version_error !== "string") ||
             (row.target_version !== undefined &&
               typeof row.target_version !== "string") ||
             (row.can_update !== undefined &&
@@ -127,19 +132,35 @@ export function localComputerStep(root, invoke, report) {
         row.append(description, button);
         if (instance.installed && typeof instance.target_version === "string") {
           const versions = document.createElement("p");
-          versions.textContent = instance.version
-            ? `${tr("Workspace")} ${instance.version} · ${tr("Update target")} ${instance.target_version}`
-            : `${tr("Workspace version unavailable; target")} ${instance.target_version}`;
+          if (instance.version) {
+            versions.append(
+              label("Workspace"),
+              ` ${instance.version} · `,
+              label("Update target"),
+              ` ${instance.target_version}`,
+            );
+          } else {
+            versions.append(
+              label("Workspace version unavailable; target"),
+              ` ${instance.target_version}`,
+            );
+          }
           description.append(versions);
+          if (typeof instance.version_error === "string") {
+            const error = document.createElement("p");
+            error.className = "error";
+            error.textContent = instance.version_error;
+            description.append(error);
+          }
           if (instance.can_update === true) {
             const update = document.createElement("button");
             update.type = "button";
             update.className = "secondary";
-            update.textContent = tr(
+            update.dataset.onboardingCopy = "";
+            update.textContent =
               instance.version === instance.target_version
                 ? "Reapply workspace update"
-                : "Update local workspace",
-            );
+                : "Update local workspace";
             update.dataset.updateInstance = instance.id;
             row.append(update);
           }

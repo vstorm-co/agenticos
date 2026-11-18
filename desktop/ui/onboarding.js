@@ -160,9 +160,13 @@ async function start() {
     invoke("startup_notice"),
   ]);
   if (state.server_url) serverField.value = state.server_url;
-  if (typeof state.desktop_version === "string")
-    document.querySelector("[data-desktop-version]").textContent =
-      `${translated("Desktop app", document.documentElement.lang)} ${state.desktop_version}`;
+  if (typeof state.desktop_version === "string") {
+    const label = document.createElement("span");
+    label.textContent = "Desktop app";
+    document
+      .querySelector("[data-desktop-version]")
+      .replaceChildren(label, ` ${state.desktop_version}`);
+  }
   if (new URLSearchParams(location.search).get("local") === "update") {
     show("local");
     return;
