@@ -32,7 +32,7 @@ The node catalog is the source of truth. `agenticos:list_workflow_nodes` returns
 
 Read `agenticos:get_workflow_node` for every step before placing it: its `config_schema`, `input_schema`, `output_schema` and `ports`. Never invent a step, a port or a config key.
 
-- `ai.*` steps take a `model_profile_id`. `decide.*` steps use the organization's decision model: check `decision_capable` in `agenticos:list_models`, and use `ai.classify` or `ai.prompt` when no profile has it.
+- `ai.*` steps take a `model_profile_id`. `decide.*` steps need a decision model, the organization's or a `model_profile_id` of their own: check `decision_capable` in `agenticos:list_models`, and use `ai.classify` or `ai.prompt` when no profile has it.
 - A service with no MCP server and no node is reached with `http.request` and a vault secret reference. Credentials never go in a graph.
 - A schedule's cron is read in the workflow's own time zone setting, which is UTC unless changed.
 - A workflow triggered by table records must not retrigger itself with its own writes.
