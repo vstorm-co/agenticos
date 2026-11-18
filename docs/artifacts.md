@@ -1389,6 +1389,8 @@ under `artifacts/<organization>/<artifact>/`.
 
 Chat previews reserve their space while the visual renderer or App thumbnail loads. They fade in only when rendering or image decoding finishes; reduced-motion preferences disable the animation. App listings use cached, version-specific static thumbnails rather than executing every App again when returning to the list.
 
+Temporary renderer failures and timeouts receive at most two automatic retries with increasing delays. An unconfigured renderer and refused access are not retried. Returning to a card or changing its visibility does not restart an exhausted retry budget. Successful images remain cached for their authorized version.
+
 The Apps skill includes interactive HTML slide decks, print styles for PDF and reusable component examples. PDF export needs the configured renderer; a validation-only preview does not prove that a script executed successfully. Use the actual rendered preview to verify charts, tables and interactive content. PowerPoint export is not included.
 
 The platform MCP tool `create_app_public_link` requires edit access and explicit confirmation that the App may be shared publicly. It reuses an existing link and preserves its password, expiry and pinned version. Live data requires separate owner consent. A call is successful only when the API confirms the public URL.
