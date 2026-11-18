@@ -292,7 +292,7 @@
     "separateBrowser": "This opens a separate session in your own browser. Hosted sign-in and cookies are not transferred.",
     "stopOriginatingRun": "The hosted page remains protected. To end the hosted run, use Stop in the chat where it is running. Closing this view only disconnects the view.",
     "protectedTitle": "Protected browser",
-    "protectedSummary": "Page previews and controls are hidden while saved values may be present.",
+    "protectedSummary": "Page text, images and ordinary browser controls stay hidden. Saved values may be present.",
     "protectedNoReceipt": "The hosted page stays protected. Ask the agent to prepare a saved credential request to review its exact destination and selected fields.",
     "closeView": "Close view",
     "reviewDestination": "Review destination",

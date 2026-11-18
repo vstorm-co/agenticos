@@ -453,6 +453,11 @@ and failed-commit cleanup. Unrestricted post-login automation still needs an
 explicit declassification decision. This checkpoint does not complete that part
 of #112.
 
+Rendered desktop and mobile fixture evidence for the protected view, the separate
+Submit receipt and the continuation consent and receipt is in
+`frontend/e2e/evidence/issue-112/`. It is fixture-only. It does not prove a live
+credential fill or a deployment output purge.
+
 ## Frontend consent and recovery
 
 **Vault** offers Browser login and Browser profile separately from model-provider

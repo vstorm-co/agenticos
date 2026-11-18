@@ -378,6 +378,12 @@ test.describe("Browser credentials — fixture-only visual evidence", () => {
         await expect(
           main.getByRole("heading", { name: "Protected browser", exact: true }),
         ).toBeVisible();
+        await expect(
+          main.getByText(
+            "Page text, images and ordinary browser controls stay hidden. Saved values may be present.",
+            { exact: true },
+          ),
+        ).toBeVisible();
         await expect(main.getByText(ORIGIN, { exact: true })).toBeVisible();
         await expect(main.getByText(LOGIN_NAME, { exact: true })).toBeVisible();
         await expect(main.getByText("Outcome unknown", { exact: true })).toBeVisible();

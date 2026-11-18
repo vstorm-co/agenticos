@@ -20,7 +20,7 @@ test.use({ storageState: AUTH_STATE });
  */
 const SIZES = [
   { name: "desktop", width: 1440, height: 900 },
-  { name: "narrow", width: 390, height: 844 },
+  { name: "mobile", width: 390, height: 844 },
 ] as const;
 const SOURCE_PATH = "/api/runs/" + ids.run + "/browser-credential-plans/" + ids.child;
 const CONTINUATION_PATH = SOURCE_PATH + "/continuation";
@@ -168,6 +168,9 @@ test.describe("Protected continuation — fixture-only rendered evidence", () =>
           await expect(panel.getByText(source.origin!, { exact: true })).toBeVisible();
           await expect(dialog.getByText(NAME, { exact: true })).toBeVisible();
           await expect(panel.getByText(/Both browser views remain protected/)).toBeVisible();
+          await expect(
+            panel.getByText(/Page text, images and ordinary browser controls stay hidden/),
+          ).toBeVisible();
           await expect(panel.getByText(/up to seven days/)).toBeVisible();
           const checkbox = panel.getByRole("checkbox", { name: "Keep me signed in", exact: true });
           await expect(checkbox).not.toBeChecked();
@@ -183,7 +186,6 @@ test.describe("Protected continuation — fixture-only rendered evidence", () =>
             dialog.getByRole("button", { name: "Submit this form", exact: true }),
           ).toHaveCount(0);
           expect(writes).toEqual([]);
-          if (keep) await checkbox.check();
           await contained(page);
           if (outcome === "continued") {
             await confirm.scrollIntoViewIfNeeded();
@@ -192,6 +194,7 @@ test.describe("Protected continuation — fixture-only rendered evidence", () =>
               animations: "disabled",
             });
           }
+          if (keep) await checkbox.check();
 
           await confirm.click();
           await expect(
