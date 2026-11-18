@@ -126,6 +126,11 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     ),
     # Screenshots of the desktop go to the agent's own model; the actions, and the
     # text the model types, go to the desktop.
+    "external_acp": (
+        "The model provider, gateway and native tools configured in the registered ACP program, "
+        "directly from the person's computer, with its task and the files it reads. "
+        "The deployment does not control that program's endpoint or sign-in."
+    ),
     "computer_use": "the agent's sandbox connection, or the computerd host on COMPUTER_DAEMON_ALLOWED_HOSTS",
     "image_generation": "the image provider named in the binding",
     "knowledge": "the collection's embedding endpoint",

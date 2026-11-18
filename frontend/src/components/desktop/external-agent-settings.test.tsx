@@ -167,3 +167,22 @@ it.each([
     ]);
   },
 );
+
+it("keeps the editable command when switching a template back to custom", async () => {
+  mount();
+  await userEvent.selectOptions(screen.getByLabelText("Setup template"), "opencode");
+  await userEvent.selectOptions(screen.getByLabelText("Setup template"), "custom");
+  await userEvent.type(screen.getByLabelText("Absolute executable path"), "/opt/bin/my-agent");
+  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+      registration: {
+        provider: "custom",
+        id: "opencode",
+        name: "OpenCode",
+        program: "/opt/bin/my-agent",
+        args: ["acp"],
+      },
+    }),
+  );
+});
