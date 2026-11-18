@@ -2598,6 +2598,7 @@ class EvalRunService:
         baseline_run_id: UUID | None = None,
         measurement_only: bool = True,
         holdout_minimum: bool = True,
+        training_only: bool = False,
     ) -> EvalComparisonRead:
         """One candidate arm against its baseline.
 
@@ -2606,6 +2607,8 @@ class EvalRunService:
         of the default; it must be a run of the same agent and dataset.
         `holdout_minimum` False leaves a measured run's held-out minimum to the
         caller, which pools several runs' held-out questions into one result.
+        `training_only` compares the questions a measured run did not keep aside
+        instead, so nothing about its held-out questions is read.
         """
         run = await self._readable(ctx, run_id)
         return await self._comparison(
@@ -2613,8 +2616,9 @@ class EvalRunService:
             run,
             arm_id=arm_id,
             baseline_run_id=baseline_run_id,
-            measurement_only=measurement_only,
+            measurement_only=measurement_only and not training_only,
             holdout_minimum=holdout_minimum,
+            training_only=training_only,
         )
 
     @staticmethod
@@ -2686,6 +2690,7 @@ class EvalRunService:
         baseline_run_id: UUID | None = None,
         measurement_only: bool = True,
         holdout_minimum: bool = True,
+        training_only: bool = False,
     ) -> EvalComparisonRead:
         arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
         candidates = [a for a in arms if a.role == ArmRole.CANDIDATE.value]
@@ -2708,6 +2713,11 @@ class EvalRunService:
         candidate_attempts = await self._first_attempts(ctx, candidate, attempts)
         measured = self._measurement(run) if measurement_only else None
         allowed = None if measured is None else set(measured.holdout_case_ids)
+        if training_only:
+            kept_aside = self._measurement(run)
+            allowed = {attempt.case_id for attempt in attempts} - set(
+                () if kept_aside is None else kept_aside.holdout_case_ids
+            )
         if allowed is not None:
             mine = {key: value for key, value in mine.items() if key in allowed}
             candidate_attempts = [case for case in candidate_attempts if case.case_id in allowed]

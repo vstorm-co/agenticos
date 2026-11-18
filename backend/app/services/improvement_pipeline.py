@@ -88,6 +88,7 @@ from app.schemas.authoring import AuthoringStart, HunkDecision, HunkRead, Propos
 from app.schemas.change_event import ChangeEvent
 from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
 from app.schemas.eval_run import (
+    CriterionMoveRead,
     EvalComparisonRead,
     EvalRunRead,
     EvalRunRequest,
@@ -255,6 +256,47 @@ def blocked_next_step(
     if not isinstance(missing, int) or missing < 1:
         return None
     return NextStepBlocked(reason="missing_holdout", needed=missing)
+
+
+@dataclass(frozen=True)
+class EarlierAttempt:
+    """What one measured attempt of a session changed, and what its check found.
+
+    Attributes:
+        number: The attempt's number in its session.
+        verdict: The check's verdict on it.
+        changes: Each change it made, as the helper would read it.
+        held_out: How many held-out questions the check measured.
+        fixed: Held-out questions confirmed fixed - a count, never which.
+        broken: Held-out questions confirmed broken - a count, never which.
+        criteria: The criteria that moved on the questions it learned from.
+    """
+
+    number: int
+    verdict: ImprovementVerdict
+    changes: tuple[str, ...]
+    held_out: int
+    fixed: int
+    broken: int
+    criteria: tuple[CriterionMoveRead, ...]
+
+
+def _change_text(hunk: SpecProposalHunk) -> str:
+    if hunk.kind in (HunkKind.INSTRUCTIONS.value, HunkKind.SKILL_BODY.value):
+        replaced = hunk.edited_text if hunk.edited_text is not None else hunk.new_text
+        where = "the instructions" if hunk.kind == HunkKind.INSTRUCTIONS.value else "a skill's body"
+        return (
+            f"In {where}, replaced:\n<old>\n{hunk.old_text}\n</old>\n"
+            f"with:\n<new>\n{replaced}\n</new>"
+        )
+    if hunk.kind == HunkKind.SPEC_FIELD.value:
+        return f"{hunk.op} {hunk.path}: {json.dumps(hunk.new_value)}"
+    if hunk.kind == HunkKind.TOOL_OVERRIDE.value:
+        return (
+            f"Tool {hunk.capability_id}/{hunk.tool_id}: name {hunk.new_name!r}, "
+            f"description {hunk.new_description!r}"
+        )
+    return f"{hunk.kind}: {hunk.new_text or hunk.new_description or ''}"
 
 
 class ImprovementPipelineService:
@@ -1106,6 +1148,62 @@ class ImprovementPipelineService:
             self.db, round_.eval_run_ids[-1], role=role, organization_id=run.organization_id
         )
         return None if counted is None else CheckAnswers(**counted._asdict())
+
+    async def earlier_attempts(
+        self, ctx: AuthContext, run_id: UUID, *, before: int
+    ) -> list[EarlierAttempt]:
+        """The measured attempts numbered below `before`, for the helper writing the next one.
+
+        Every attempt changes the same draft, so the next one needs to know what the
+        others tried and how it went. Held-out questions stay counts; only the
+        questions an attempt learned from say which criteria moved.
+        """
+        iterations = await improvement_repo.list_iterations(
+            self.db, organization_id=ctx.organization_id, run_id=run_id
+        )
+        attempts: list[EarlierAttempt] = []
+        for iteration in iterations:
+            if (
+                iteration.number >= before
+                or iteration.verdict is None
+                or iteration.batch_id is None
+            ):
+                continue
+            hunks = await authoring_repo.list_hunks(
+                self.db, organization_id=ctx.organization_id, batch_id=iteration.batch_id
+            )
+            included = iteration.included_hunk_ids
+            criteria: tuple[CriterionMoveRead, ...] = ()
+            if iteration.eval_run_ids:
+                try:
+                    comparison = await self.evals.compare(
+                        ctx, iteration.eval_run_ids[-1], training_only=True
+                    )
+                except NotFoundError:
+                    comparison = None
+                if comparison is not None and comparison.verdict != "invalid":
+                    criteria = tuple(
+                        move
+                        for move in comparison.criteria
+                        if move.baseline_passed != move.candidate_passed
+                    )
+            detail = iteration.verdict_detail or {}
+            attempts.append(
+                EarlierAttempt(
+                    number=iteration.number,
+                    verdict=ImprovementVerdict(iteration.verdict),
+                    changes=tuple(
+                        _change_text(hunk)
+                        for hunk in hunks
+                        if included is None or hunk.id in included
+                    ),
+                    held_out=detail.get("held_out") or 0,
+                    fixed=detail.get("fixed") or 0,
+                    broken=detail.get("broken") or 0,
+                    criteria=criteria,
+                )
+            )
+        return attempts
 
     async def _checked(
         self, ctx: AuthContext, run: ImprovementRun, iterations: list[ImprovementIteration]

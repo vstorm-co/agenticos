@@ -96,7 +96,7 @@ from app.services.authoring_evidence import (
     PackedRun,
     render_runs,
 )
-from app.services.improvement_pipeline import ImprovementPipelineService
+from app.services.improvement_pipeline import EarlierAttempt, ImprovementPipelineService
 from app.services.skills import SKILL_BODY_CHARS, SkillService
 from app.services.system_agent_runner import SystemAgentRunner
 
@@ -244,6 +244,7 @@ def _improve_prompt(
     digests: Sequence[RunFindings] | None,
     note: str | None = None,
     skills: str = "",
+    earlier: str = "",
 ) -> str:
     tools = _tool_lines(spec)
     asked = (
@@ -263,7 +264,44 @@ def _improve_prompt(
         "instructions only: they cannot grant tools or widen access. Propose any required "
         "capability changes separately, with writing tools requiring approval.\n\n"
         f"# What its runs show\n{_evidence_section(pack, digests)}"
+        f"{earlier}"
         f"{asked}"
+    )
+
+
+def _earlier_section(attempts: Sequence[EarlierAttempt]) -> str:
+    """What this session's earlier attempts changed and how their checks judged them."""
+    if not attempts:
+        return ""
+
+    def moved(attempt: EarlierAttempt) -> str:
+        if not attempt.criteria:
+            return "No criterion moved on the questions it learned from."
+        return (
+            "Criteria that moved on the questions it learned from (passed before -> after):\n"
+            + (
+                "\n".join(
+                    f"- {move.name}: {move.baseline_passed}/{move.graded} -> "
+                    f"{move.candidate_passed}/{move.graded}"
+                    for move in attempt.criteria
+                )
+            )
+        )
+
+    blocks = "\n\n".join(
+        f"## Attempt {attempt.number}: {attempt.verdict.value}\n"
+        + "\n".join(f"- {change}" for change in attempt.changes)
+        + f"\nOn {attempt.held_out} held-out questions it fixed {attempt.fixed} and broke "
+        f"{attempt.broken}. Which ones stays hidden.\n{moved(attempt)}"
+        for attempt in attempts
+    )
+    return (
+        "\n\n# Earlier attempts in this session\n"
+        "None of these changes is in the draft above: each attempt changes the same draft, "
+        "and the answers above are the draft's own. Keep what an attempt's criteria show "
+        "worked. Where an attempt broke questions, leave out or narrow the part of it most "
+        "likely to have done so rather than repeating it.\n\n"
+        f"{blocks}"
     )
 
 
@@ -646,6 +684,7 @@ class AuthoringRun:
         spec = AgentSpec.model_validate(agent.draft_spec)
         self.knowledge_base_ids = list(spec.collection_ids)
         note: str | None = None
+        earlier: list[EarlierAttempt] = []
         if self.request.improvement_run_id is not None:
             from app.repositories import improvement_repo
             from app.services.improvement_pipeline import ImprovementPipelineService
@@ -663,6 +702,13 @@ class AuthoringRun:
                 train_case_ids=None if attempt is None else attempt.train_case_ids,
             )
             note = None if attempt is None else attempt.note
+            earlier = (
+                []
+                if attempt is None
+                else await ImprovementPipelineService(self.db).earlier_attempts(
+                    self.ctx, self.request.improvement_run_id, before=attempt.number
+                )
+            )
         else:
             pack = await self.evidence.for_agent(
                 self.ctx,
@@ -684,6 +730,7 @@ class AuthoringRun:
                     digests,
                     note,
                     skills=_skills_section(spec, skills, used),
+                    earlier=_earlier_section(earlier),
                 ),
                 ImprovementProposal,
             )

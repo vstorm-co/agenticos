@@ -27,6 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **Improve proposals on Anthropic models through OpenRouter.** The Improve helper's **Changes** step failed with HTTP 400, because the answer tool was sent strict and a proposal's free JSON value has no type in its schema. An answer schema a strict tool cannot express (a free JSON value, numeric or length bounds, `minItems` above one) now goes through a non-strict tool, still checked against the schema and sent back when it breaks it; any other schema keeps the provider's default, so Gemini still validates every call (#3146).
 
+- **Improve's Try again after a rejected attempt.** The next attempt read the rejected attempt's answers as if they were the agent's, so a fix that attempt had made looked done although the draft never got it, and it was not told what the earlier attempt changed. It now learns from the draft's own answers and reads each earlier attempt's change, verdict, the criteria that moved on its learning questions, and how many held-out questions it fixed and broke.
+
 - **Adding a capability in an Improve proposal.** A helper that named an addition `capabilities/<id>`, the way the prompt lists a bound capability, had it refused as not a target; it is now read as adding that capability.
 
 - **An Improve check that lost a few answers to timeouts.** An answer the model provider timed out on or failed left its question incomplete, so the comparison came out invalid and the session ran the whole check again at its full price. The check now asks just those answers once more before confirming the flips, when the session's budget still covers them; an answer that fails again leaves the check inconclusive as before.
