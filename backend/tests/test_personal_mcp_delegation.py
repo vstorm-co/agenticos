@@ -1,6 +1,7 @@
 """Explicit API delegation reaches personal MCP, not the rest of a person's state."""
 
 import uuid
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -11,6 +12,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RunUsage
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.mcp import AuthorityChecked, McpServerSpec, ToolOrigins
 from app.agents.spec import OrgMcpServerRef
@@ -52,15 +54,15 @@ def caller() -> AuthContext:
         {"role": "viewer"},
     ],
 )
-def test_personal_mcp_is_not_implicitly_delegated(fields):
+def test_personal_mcp_is_not_implicitly_delegated(fields: dict[str, object]) -> None:
     assert not replace(caller(), **fields).may_delegate_personal_mcp
 
 
-def test_only_the_explicit_external_credential_is_eligible():
+def test_only_the_explicit_external_credential_is_eligible() -> None:
     assert caller().may_delegate_personal_mcp
 
 
-def test_old_parked_state_does_not_gain_mcp_authority():
+def test_old_parked_state_does_not_gain_mcp_authority() -> None:
     state = AdmittedAs.model_validate({"acts_for_sender": False})
     assert state.personal_mcp_key_id is None
     assert "personal_mcp_key_id" not in state.model_dump(mode="json")
@@ -69,7 +71,7 @@ def test_old_parked_state_does_not_gain_mcp_authority():
     assert AdmittedAs.model_validate_json(state.model_dump_json()).personal_mcp_key_id == key_id
 
 
-async def test_one_persons_key_cannot_be_used_for_another_persons_connections():
+async def test_one_persons_key_cannot_be_used_for_another_persons_connections() -> None:
     ctx = caller()
     service = ApiKeyService(MagicMock())
     with (
@@ -97,7 +99,9 @@ async def test_one_persons_key_cannot_be_used_for_another_persons_connections():
         {"scopes": ["agents:run"]},
     ],
 )
-async def test_delegation_checks_the_live_key_instead_of_saved_scopes(overrides):
+async def test_delegation_checks_the_live_key_instead_of_saved_scopes(
+    overrides: dict[str, object],
+) -> None:
     ctx = caller()
     key = ApiKey(
         id=ctx.api_key_id,
@@ -132,7 +136,7 @@ async def test_delegation_checks_the_live_key_instead_of_saved_scopes(overrides)
         )
 
 
-async def test_cross_tenant_key_is_not_resolved():
+async def test_cross_tenant_key_is_not_resolved() -> None:
     ctx = caller()
     get = AsyncMock(return_value=None)
     with (
@@ -144,7 +148,7 @@ async def test_cross_tenant_key_is_not_resolved():
         )
 
 
-async def test_impersonation_cannot_issue_personal_mcp_delegation():
+async def test_impersonation_cannot_issue_personal_mcp_delegation() -> None:
     ctx = caller()
     with (
         patch("app.services.api_key.current_impersonator", return_value=uuid.uuid4()),
@@ -155,7 +159,7 @@ async def test_impersonation_cannot_issue_personal_mcp_delegation():
         )
 
 
-async def test_each_mcp_call_rechecks_authority_and_does_not_call_after_revocation():
+async def test_each_mcp_call_rechecks_authority_and_does_not_call_after_revocation() -> None:
     calls = []
     tools = FunctionToolset()
 
@@ -174,11 +178,11 @@ async def test_each_mcp_call_rechecks_authority_and_does_not_call_after_revocati
     assert calls == ["read"]
 
 
-async def test_delegated_mcp_rechecks_agent_access_with_the_original_subject():
+async def test_delegated_mcp_rechecks_agent_access_with_the_original_subject() -> None:
     ctx = caller()
 
     @asynccontextmanager
-    async def session():
+    async def session() -> AsyncIterator[AsyncSession]:
         yield MagicMock()
 
     agent_id = uuid.uuid4()
@@ -247,7 +251,7 @@ async def test_cached_mcp_tools_stop_after_account_revocation_or_narrowing(chang
         return "record"
 
     @asynccontextmanager
-    async def session():
+    async def session() -> AsyncIterator[AsyncSession]:
         yield MagicMock()
 
     wrapped = AuthorityChecked(
@@ -315,11 +319,13 @@ async def test_external_runs_attach_live_account_checks_to_the_resolved_connecti
         calls.append("read")
         return "organization account"
 
-    async def probe(specs):
+    async def probe(
+        specs: list[McpServerSpec],
+    ) -> list[tuple[McpServerSpec, FunctionToolset[object]]]:
         return [(spec, tools) for spec in specs]
 
     @asynccontextmanager
-    async def session():
+    async def session() -> AsyncIterator[AsyncSession]:
         yield MagicMock()
 
     with (
