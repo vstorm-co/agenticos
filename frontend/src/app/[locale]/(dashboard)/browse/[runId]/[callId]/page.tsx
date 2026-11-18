@@ -28,6 +28,7 @@ interface PageProps {
 export default function LiveBrowsePage({ params }: PageProps) {
   const { runId, callId } = use(params);
   const t = useTranslations("browse");
+  const credentials = useTranslations("browserCredentials");
   const ts = useTranslations("states");
   const { browse, task, canControl, canRemember, status, send, protect } = useLiveBrowse(
     runId,
@@ -69,7 +70,7 @@ export default function LiveBrowsePage({ params }: PageProps) {
     <div className="mx-auto flex h-[calc(100dvh-7rem)] w-full max-w-7xl min-w-0 flex-col gap-4">
       <PageHeader
         className="mb-0 md:mb-0"
-        title={t("title")}
+        title={browse.outputProtected ? credentials("protectedTitle") : t("title")}
         description={
           browse.outputProtected ? undefined : (
             <>

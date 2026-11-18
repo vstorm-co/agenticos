@@ -295,7 +295,7 @@ test.describe("Browser teaching — fixture-only visual evidence", () => {
           }),
         );
         await expect(
-          page.getByRole("heading", { name: "Protected browser", exact: true }),
+          page.getByRole("heading", { name: "Protected browser", exact: true, level: 1 }),
         ).toBeVisible();
         (socket as unknown as WebSocketRoute).send(
           JSON.stringify({

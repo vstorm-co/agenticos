@@ -24,3 +24,4 @@ E2E_PORT=3100 bunx playwright test e2e/browser-credential-visual-fixtures.spec.t
 - `--no-deps` skipped the seed project. Its "a colleague is a member" step timed out on the local stack. These fixture specs do not depend on that step.
 - `--timeout=120000` gave slow on-demand compiles on this machine more room. The 15-second expect timeout in `playwright.config.ts` is unchanged.
 - Each PNG is copied unchanged from `frontend/test-results/`.
+- `browser-protected-view-heading-fixture-*.png` is the after-state for the protected title. The page title and the protected window both read "Protected browser"; the `browser-protected-view-fixture-*.png` pair above shows "Live browser" as the title. It came from the protected-view test alone: `E2E_PORT=3100 bun run test:e2e e2e/browser-credential-visual-fixtures.spec.ts --project=chromium --no-deps --workers=1 --timeout=120000 -g "protected live view"`.

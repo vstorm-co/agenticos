@@ -375,9 +375,15 @@ test.describe("Browser credentials — fixture-only visual evidence", () => {
 
         await page.goto("/browse/" + ids.run + "/" + CALL);
         const main = page.getByRole("main");
+        // The page title and the window bar both name the protected state.
         await expect(
-          main.getByRole("heading", { name: "Protected browser", exact: true }),
+          main.getByRole("heading", { name: "Protected browser", exact: true, level: 1 }),
         ).toBeVisible();
+        await expect(
+          main.getByRole("heading", { name: "Protected browser", exact: true, level: 2 }),
+        ).toBeVisible();
+        const liveTitle = main.getByRole("heading", { name: "Live browser", exact: true });
+        await expect(liveTitle).toHaveCount(0);
         await expect(
           main.getByText(
             "Page text, images and ordinary browser controls stay hidden. Saved values may be present.",
