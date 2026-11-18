@@ -133,14 +133,17 @@ def _replays_content(texts: Sequence[str], content: str) -> bool:
     of an earlier part is still replayed.
     """
     expected = content.strip()
-    suffix = ""
-    for text in reversed(texts):
-        suffix = text + suffix
-        candidate = suffix.strip()
-        if candidate == expected:
+    joined = "".join(texts).rstrip()
+    if not joined.endswith(expected):
+        return False
+    start = len(joined) - len(expected)
+    # A suffix may start with whitespace, but must start at a part boundary.
+    earliest = len(joined[:start].rstrip())
+    offset = 0
+    for text in texts:
+        if earliest <= offset <= start:
             return True
-        if len(candidate) > len(expected):
-            return False
+        offset += len(text)
     return False
 
 
@@ -191,7 +194,13 @@ def _as_history(
                     and isinstance(text := part.get("text"), str)
                 ):
                     texts.append(text)
-                    if text.strip():
+                    if (
+                        ordered
+                        and ordered[-1]["role"] == "assistant"
+                        and (not text.strip() or not ordered[-1]["content"].strip())
+                    ):
+                        ordered[-1]["content"] += text
+                    else:
                         ordered.append({"role": "assistant", "content": text})
                 elif kind == "steer" and isinstance(text := part.get("text"), str):
                     ordered.append({"role": "user", "content": f"{STEER_PREFIX}\n\n{text}"})
@@ -205,6 +214,7 @@ def _as_history(
                     ordered.append(
                         {"role": "user", "content": f"Question: {question}\nAnswer: {answer}"}
                     )
+        ordered = [entry for entry in ordered if entry["content"].strip()]
         if _replays_content(texts, row.content):
             _anchor_replayed_answer(ordered, row.context_used_tokens)
             history.extend(ordered)

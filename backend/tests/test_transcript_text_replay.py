@@ -19,7 +19,7 @@ from app.services.message_history import build_message_history
         (["The answer. \t\n"], "The answer. \t\n", ["The answer. \t\n"]),
         (["\u2003The answer.\u2003"], "The answer.", ["\u2003The answer.\u2003"]),
         (["Earlier.", "Final ", "answer."], "Final answer.", ["Earlier.", "Final ", "answer."]),
-        (["Before", " \n", "after"], "Before \nafter", ["Before", "after"]),
+        (["Before", " \n", "after"], "Before \nafter", ["Before \n", "after"]),
         (["First.", "Second."], "First.Second.", ["First.", "Second."]),
         (["First.", "Second."], "Second.", ["First.", "Second."]),
         (["Draft."], "Final.", ["Draft.", "Final."]),
@@ -27,6 +27,10 @@ from app.services.message_history import build_message_history
         ([], "Legacy answer.", ["Legacy answer."]),
         ([" \n"], "Final.", ["Final."]),
         (["Partial.", ""], "Partial.", ["Partial."]),
+        ([" \n", "Answer."], "Answer.", [" \nAnswer."]),
+        ([" \n", "\t", "Answer."], "Answer.", [" \n\tAnswer."]),
+        (["Prefix", " \n", "Answer."], "Answer.", ["Prefix \n", "Answer."]),
+        (["A"] * 20_000, "A" * 20_000, ["A"] * 20_000),
     ],
 )
 def test_stored_answer_is_replayed_once(
@@ -101,3 +105,15 @@ def test_a_turn_ending_with_a_human_reply_keeps_its_last_answer_anchor() -> None
     assert isinstance(history[0], ModelResponse)
     assert history[0].usage.input_tokens == 56_000
     assert estimate_context_tokens(history) >= 56_000
+
+
+def test_an_empty_legacy_answer_adds_no_model_message_or_token_anchor() -> None:
+    row = Message(
+        id=uuid4(),
+        role="assistant",
+        content="",
+        parts=None,
+        guardrail_refused=False,
+        context_used_tokens=56_000,
+    )
+    assert build_message_history(_as_history([row], None)) == []
