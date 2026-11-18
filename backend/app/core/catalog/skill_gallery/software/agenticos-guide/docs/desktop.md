@@ -859,3 +859,11 @@ Real account login, credit limits, sign-out and restart/resume need acceptance
 tests. See [Vibe ACP setup](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).
 
 Mistral Vibe reports `configuration_policy=cli`: keep External model ID empty and choose the model through Vibe itself. AgenticOS refuses model overrides before protocol setup because the runtime may persist them as user defaults.
+
+## Grok Build through ACP { #grok-acp }
+
+Install Grok Build, complete `grok login` (or `grok login --device-auth`), and register the absolute `grok` path with the **Grok** template. It launches `--no-auto-update agent stdio`, removes inherited `XAI_API_KEY` and `GROK_CODE_XAI_API_KEY`, and sets `GROK_DISABLE_API_KEY_AUTH=true` only for this child.
+
+AgenticOS requires the advertised `cached_token` method, rejects a runtime still advertising `xai.api_key`, and requests headless authentication. It neither imports token files nor falls back to a key or another login. Inspect models through `inspect_acp_agent`; account, gateway and plan settings determine availability and billing. This template does not promise that every Grok plan includes Build. Human questions stop for review in the CLI; an empty final answer is an explicit failure.
+
+Re-register after changing accounts. API-key CLI mode is deferred because the vendor's authentication operation can replace saved CLI credentials; use the existing direct xAI model provider for API keys. Real-account login, quotas, cancellation and model access remain acceptance checks. See the [Grok CLI reference](https://docs.x.ai/build/cli/reference).

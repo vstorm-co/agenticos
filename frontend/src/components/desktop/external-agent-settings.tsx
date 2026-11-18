@@ -88,6 +88,7 @@ export function ExternalAgentSettings() {
                 selected !== "cline" &&
                 selected !== "cline_api_key" &&
                 selected !== "mistral_vibe" &&
+                selected !== "grok" &&
                 selected !== "opencode" &&
                 selected !== "opencode_go"
               ) {
@@ -103,16 +104,19 @@ export function ExternalAgentSettings() {
                 cline: "Cline",
                 cline_api_key: t("clineApi"),
                 mistral_vibe: "Mistral Vibe",
+                grok: "Grok",
                 opencode: "OpenCode",
                 opencode_go: "OpenCode Go",
               };
               setName(names[selected]);
               setArgs(
-                selected === "mistral_vibe"
-                  ? "[]"
-                  : selected === "cline" || selected === "cline_api_key"
-                    ? '["--acp"]'
-                    : '["acp"]',
+                selected === "grok"
+                  ? '["--no-auto-update","agent","stdio"]'
+                  : selected === "mistral_vibe"
+                    ? "[]"
+                    : selected === "cline" || selected === "cline_api_key"
+                      ? '["--acp"]'
+                      : '["acp"]',
               );
             }}
           >
@@ -120,6 +124,8 @@ export function ExternalAgentSettings() {
             {/* i18n-exempt: product name */}
             <option value="antigravity">Antigravity</option>
             {/* i18n-exempt: product names */}
+            <option value="grok">Grok</option>
+            {/* i18n-exempt: product name */}
             <option value="mistral_vibe">Mistral Vibe</option>
             {/* i18n-exempt: product name */}
             <option value="cline">Cline</option>
@@ -138,6 +144,7 @@ export function ExternalAgentSettings() {
         {provider === "mistral_vibe" && (
           <p className="text-muted-foreground text-xs">{t("vibeHelp")}</p>
         )}
+        {provider === "grok" && <p className="text-muted-foreground text-xs">{t("grokHelp")}</p>}
         {provider === "cursor" && (
           <p className="text-muted-foreground text-xs">{t("cursorHelp")}</p>
         )}

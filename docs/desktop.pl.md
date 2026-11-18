@@ -1,5 +1,5 @@
 ---
-source_sha: "3bd968e04155"
+source_sha: "76d30b9708b5"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -871,3 +871,11 @@ pracą. Logowanie, limity, wylogowanie i wznowienie wymagają odbioru na koncie.
 Zobacz [konfigurację Vibe ACP](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).
 
 Mistral Vibe zgłasza `configuration_policy=cli`: pozostaw puste ID modelu zewnętrznego i wybierz model w Vibe. AgenticOS odmawia zmiany przed rozpoczęciem protokołu, ponieważ runtime może zapisać ją jako ustawienie domyślne użytkownika.
+
+## Grok Build przez ACP { #grok-acp }
+
+Zainstaluj Grok Build, wykonaj `grok login` (lub `grok login --device-auth`) i zarejestruj bezwzględną ścieżkę `grok`, wybierając szablon **Grok**. Uruchamia on `--no-auto-update agent stdio`, usuwa odziedziczone `XAI_API_KEY` oraz `GROK_CODE_XAI_API_KEY` i ustawia `GROK_DISABLE_API_KEY_AUTH=true` wyłącznie dla procesu potomnego.
+
+AgenticOS wymaga reklamowanej metody `cached_token`, odrzuca runtime nadal oferujący `xai.api_key` i żąda logowania bez interakcji. Nie importuje plików tokenów ani nie przełącza się na klucz lub inne logowanie. Modele sprawdzisz przez `inspect_acp_agent`; dostępność i opłaty zależą od konta, gatewaya oraz planu. Szablon nie obiecuje dostępu do Build w każdym planie Grok. Pytania do użytkownika zatrzymują zadanie do sprawdzenia w CLI; pusta odpowiedź końcowa jest jawnym błędem.
+
+Po zmianie konta zarejestruj program ponownie. Tryb klucza API w CLI pozostaje odroczony, ponieważ operacja logowania dostawcy może zastąpić zapisane poświadczenia CLI; do kluczy API służy istniejący bezpośredni provider modeli xAI. Logowanie, limity, anulowanie i dostęp do modeli na prawdziwym koncie pozostają warunkami odbioru. Zobacz [dokumentację Grok CLI](https://docs.x.ai/build/cli/reference).

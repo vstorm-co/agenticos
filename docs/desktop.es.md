@@ -1,5 +1,5 @@
 ---
-source_sha: "3bd968e04155"
+source_sha: "76d30b9708b5"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -902,3 +902,11 @@ Inicio de sesión, límites, cierre y reanudación requieren pruebas reales. Con
 [configuración ACP de Vibe](https://docs.mistral.ai/vibe/code/use-vibe-in-other-ides).
 
 Mistral Vibe indica `configuration_policy=cli`: deja vacío ID del modelo externo y elige el modelo en Vibe. AgenticOS rechaza cambios antes de iniciar el protocolo porque el runtime puede guardarlos como valores predeterminados del usuario.
+
+## Grok Build mediante ACP { #grok-acp }
+
+Instala Grok Build, completa `grok login` (o `grok login --device-auth`) y registra la ruta absoluta de `grok` con la plantilla **Grok**. Ejecuta `--no-auto-update agent stdio`, elimina `XAI_API_KEY` y `GROK_CODE_XAI_API_KEY` heredadas y establece `GROK_DISABLE_API_KEY_AUTH=true` solo para ese proceso hijo.
+
+AgenticOS exige el método anunciado `cached_token`, rechaza un runtime que siga anunciando `xai.api_key` y solicita autenticación sin interacción. No importa archivos de tokens ni cambia a una clave u otro inicio de sesión. Consulta los modelos mediante `inspect_acp_agent`; cuenta, gateway y plan determinan disponibilidad y cargos. La plantilla no promete Build en todos los planes Grok. Las preguntas al usuario detienen la tarea para revisarla en el CLI; una respuesta final vacía es un fallo explícito.
+
+Registra de nuevo tras cambiar de cuenta. El modo de clave API del CLI queda pendiente porque la autenticación del proveedor puede sustituir credenciales guardadas; usa el proveedor directo xAI existente para claves API. Inicio de sesión, cuotas, cancelación y modelos con una cuenta real siguen como criterios de aceptación. Consulta la [referencia Grok CLI](https://docs.x.ai/build/cli/reference).

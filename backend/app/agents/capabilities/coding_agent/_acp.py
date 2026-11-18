@@ -194,7 +194,13 @@ class DevicePipe:
         self.refresh_catalog = opened.get("refresh_catalog") is True
         method = opened.get("auth_method")
         if method is not None:
-            if method not in {"oauth-personal", "cursor_login", "cline", "browser-auth"}:
+            if method not in {
+                "oauth-personal",
+                "cursor_login",
+                "cline",
+                "browser-auth",
+                "cached_token",
+            }:
                 await self.close()
                 raise AcpError("The Desktop app requires an unsupported authentication mode.")
             self.auth_method = method
@@ -540,6 +546,13 @@ class Conversation:
                 self._collector.refused.append(clip(str(title or "a request")))
             await self._pipe.send({"jsonrpc": "2.0", "id": message["id"], "result": reply})
             return
+        if method == "x.ai/ask_user_question":
+            await self._pipe.send(
+                {"jsonrpc": "2.0", "id": message["id"], "result": {"outcome": "cancelled"}}
+            )
+            raise AcpError(
+                "Grok needs a human answer. Its request was cancelled; continue in the Grok CLI to review it."
+            )
         if method in {"cursor/ask_question", "cursor/create_plan"}:
             await self._pipe.send(
                 {
@@ -646,7 +659,16 @@ async def initialize_session(
             raise AcpError(
                 "This agent does not advertise the configured login method. Check its version and sign-in settings; no other account or billing mode was selected."
             )
-        await conversation.request("authenticate", {"methodId": auth_method})
+        parameters: dict[str, object] = {"methodId": auth_method}
+        if auth_method == "cached_token":
+            if any(
+                isinstance(method, dict) and method.get("id") == "xai.api_key" for method in methods
+            ):
+                raise AcpError(
+                    "Grok account mode requires API-key authentication to be disabled. Check its version and configuration; no prompt was submitted."
+                )
+            parameters["_meta"] = {"headless": True}
+        await conversation.request("authenticate", parameters)
     return initialized
 
 
@@ -767,6 +789,10 @@ async def run_task(
                 "Hand it a narrower task, or split this one.",
                 session_id=session_id,
             ).model_copy(update={"outcome": "timed_out"})
+        if auth_method == "cached_token" and stop == "end_turn" and not answer.strip():
+            raise AcpError(
+                "Grok returned no answer. Check its CLI authentication, plan and gateway; completion was not confirmed."
+            )
         if stop != "end_turn":
             answer = answer or f"The agent stopped before finishing ({stop})."
         return collector.report(

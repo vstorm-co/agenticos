@@ -208,3 +208,24 @@ it("registers vibe-acp without arguments or copied credentials", async () => {
     { ...registration, provider: "mistral_vibe" },
   ]);
 });
+
+it("registers Grok cached-account stdio without background updates", async () => {
+  mount();
+  await userEvent.selectOptions(screen.getByLabelText("Setup template"), "grok");
+  await userEvent.type(screen.getByLabelText("Absolute executable path"), "/opt/bin/grok");
+  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+      registration: {
+        provider: "grok",
+        id: "grok",
+        name: "Grok",
+        program: "/opt/bin/grok",
+        args: ["--no-auto-update", "agent", "stdio"],
+      },
+    }),
+  );
+  expect(parseExternalAgents([{ ...registration, provider: "grok" }])).toEqual([
+    { ...registration, provider: "grok" },
+  ]);
+});

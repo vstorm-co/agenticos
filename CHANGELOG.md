@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Add a Grok Build desktop ACP template with cached headless account auth, API-key isolation and explicit human-input refusal.
+
 - Add Mistral Vibe ACP delegation with browser/key setup, delayed model discovery and sanitized credential-source reporting, without assuming subscription entitlement (#3108).
 
 - Add foreground Cline ACP account and inherited-key templates, with a fixed Cline provider, native missing-key refusal and no saved-account fallback in key mode (#3108).
