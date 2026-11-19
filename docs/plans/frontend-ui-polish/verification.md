@@ -566,3 +566,23 @@ refresh errors keep the cached content with a warning. Existing mutation
 invalidation and account/organization cache clearing remain unchanged. Focused
 starter/Inbox/query tests cover cache reuse, post-decision refresh and error
 retention. No data or agent configuration was changed for this restoration.
+
+
+The populated Chromium DOM pass verified pending local image previews, simulated
+upload failures, and attachment containment at 1440px and 390px. Dashboard selection
+moved from x=0px/47px width to x=67px/111px width; reduced motion reduced its transition
+to the console's near-zero duration, with no client exceptions. No screenshots or
+paid model calls were used. Starter/Inbox/cache tests passed 42 cases in five files.
+
+Three model-picker design previews are available only under `/dev/model-picker`
+(`variant=list`, `library`, or `command`). They read available workspace models and
+support search/local selection, but do not create profiles or change agents/chats.
+The production model picker remains unchanged pending the maintainer's selection.
+Four preview interaction tests passed, plus two marker lifecycle tests, including
+a strip that only mounts after the available dashboard views have loaded.
+
+
+The three model-picker previews passed populated Chromium DOM checks at 1440px and
+390px, including search/local selection and no document overflow. The same browser
+pass confirmed the restored starter grid is visible in main chat. No client
+exceptions, screenshots or live model calls occurred.

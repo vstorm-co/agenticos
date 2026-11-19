@@ -3,10 +3,10 @@
 import { useLayoutEffect, type RefObject } from "react";
 
 /** Share one selection marker; geometry also supports browsers without CSS anchors. */
-export function useTabIndicator(ref: RefObject<HTMLElement | null>): void {
+export function useTabIndicator(ref: RefObject<HTMLElement | null>, enabled = true): void {
   useLayoutEffect(() => {
     const strip = ref.current;
-    if (!strip) return;
+    if (!strip || !enabled) return;
     const update = () => {
       const active = strip.querySelector<HTMLElement>(
         ':scope > [aria-selected="true"], :scope > [aria-current="page"], :scope > [aria-checked="true"], :scope > [aria-pressed="true"]',
@@ -41,5 +41,5 @@ export function useTabIndicator(ref: RefObject<HTMLElement | null>): void {
       changes.disconnect();
       strip.removeAttribute("data-indicator-ready");
     };
-  }, [ref]);
+  }, [ref, enabled]);
 }

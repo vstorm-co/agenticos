@@ -50,7 +50,7 @@ export function ViewSwitcher({
   const t = useTranslations("dashboard.views");
   const strip = useRef<HTMLDivElement>(null);
   useScrollFade(strip);
-  useTabIndicator(strip);
+  useTabIndicator(strip, views.length > 1);
   if (views.length < 2)
     return actions ? <div className="mb-5 flex justify-end">{actions}</div> : null;
 

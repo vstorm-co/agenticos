@@ -57,3 +57,19 @@ it("moves to the selected tab, updates after resizing, and removes a missing sel
     vi.unstubAllGlobals();
   }
 });
+
+it("attaches when a conditional strip becomes available", () => {
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(80);
+  function Conditional({ visible }: { visible: boolean }) {
+    const ref = useRef<HTMLDivElement>(null);
+    useTabIndicator(ref, visible);
+    return visible ? (
+      <div ref={ref} data-testid="conditional">
+        <button aria-pressed>Selected</button>
+      </div>
+    ) : null;
+  }
+  const view = render(<Conditional visible={false} />);
+  view.rerender(<Conditional visible />);
+  expect(view.getByTestId("conditional")).toHaveAttribute("data-indicator-ready");
+});
