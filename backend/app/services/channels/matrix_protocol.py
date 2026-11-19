@@ -24,6 +24,9 @@ from app.services.channels.attachments import routed_type
 from app.services.channels.base import IncomingAttachment, mentionable_text
 
 CLIENT_API = "/_matrix/client/v3"
+RELATIONS_API = "/_matrix/client/v1"
+"""`/relations` was added under `v1` and was never given a `v3` path; a homeserver
+answers 404 there."""
 MEDIA_DOWNLOAD = "/_matrix/client/v1/media/download"
 MEDIA_UPLOAD = "/_matrix/media/v3/upload"
 

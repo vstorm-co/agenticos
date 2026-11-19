@@ -76,6 +76,7 @@ from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.matrix_protocol import (
     CLIENT_API,
     MEDIA_UPLOAD,
+    RELATIONS_API,
     SYNC_FILTER,
     SYNC_TIMEOUT_MS,
     Message,
@@ -640,7 +641,7 @@ class MatrixAdapter(ChannelAdapter):
         room = _segment(room_id)
         replies = await self._call(
             "GET",
-            f"{base_url}{CLIENT_API}/rooms/{room}/relations/{_segment(root)}/m.thread",
+            f"{base_url}{RELATIONS_API}/rooms/{room}/relations/{_segment(root)}/m.thread",
             token,
             params={"dir": "b", "limit": limit},
         )

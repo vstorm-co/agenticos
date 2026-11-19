@@ -38,9 +38,14 @@ USER = "@ada:example.org"
 API = "/_matrix/client/v3"
 
 
-def _room_path(room: str, *parts: str) -> str:
+def _room_path(room: str, *parts: str, api: str = API) -> str:
     """A room's path as the adapter writes it, every segment percent-encoded."""
-    return f"{API}/rooms/" + "/".join(quote(part, safe="") for part in (room, *parts))
+    return f"{api}/rooms/" + "/".join(quote(part, safe="") for part in (room, *parts))
+
+
+def _relations(room: str, root: str) -> str:
+    """Where a thread's replies are listed: `/relations` exists only under `v1`."""
+    return _room_path(room, "relations", root, "m.thread", api="/_matrix/client/v1")
 
 
 class _Homeserver:
@@ -64,6 +69,8 @@ class _Homeserver:
         elif request.content:
             body = request.content
         self.calls.append((request.method, path, body))
+        if "/_matrix/client/v3/rooms/" in path and "/relations/" in path:
+            return httpx.Response(404, json={"errcode": "M_UNRECOGNIZED"})
         queued = self.routes.get((request.method, path))
         if queued:
             return queued.pop(0) if len(queued) > 1 else queued[0]
@@ -433,7 +440,7 @@ class TestHistoryAndFiles:
     ):
         server.answer(
             "GET",
-            _room_path(ROOM, "relations", "$root", "m.thread"),
+            _relations(ROOM, "$root"),
             httpx.Response(
                 200,
                 json={
@@ -511,7 +518,7 @@ class TestHistoryAndFiles:
         file = {"msgtype": "m.file", "url": "mxc://example.org/f", "info": {"size": 1}}
         server.answer(
             "GET",
-            _room_path(ROOM, "relations", "$root", "m.thread"),
+            _relations(ROOM, "$root"),
             httpx.Response(
                 200,
                 json={
