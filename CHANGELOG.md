@@ -33,6 +33,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - An eval run asks a case again only when it decides something: its whole outcome flipped, or a family of criteria flipped in it that moved on two cases or more and that an exact McNemar test over its own flipped cases cannot settle. A family settled by its own spread counts every flip it had, and one that moved on a single case decides nothing. Asking every case with any flipped criterion again had cost more than the first answers (#3178).
 - An unchanged draft baseline answers once per Improve session: a later check reuses the earlier check's baseline answers when the draft's fingerprint, the cases left out, the dataset version, model, scoring, environment and judge all match (#3178).
+- An Improve session started from a draft nobody edited since publishing reuses that version's own eval as its baseline, priced at nothing in the estimate, when it left out the same cases as the check (#3178).
 - A skill check asks each agent the dataset its newest Improve session measures on, so a set kept back for a final measurement stays unasked (#3178).
 
 ### Fixed

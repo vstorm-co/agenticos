@@ -395,9 +395,15 @@ answers are reused: a case that flips is asked of it again in this run.
 
 A baseline that is the agent's draft - what an Improve session measures each
 attempt against - is matched by the draft's exact fingerprint, and only when the
-earlier run left out exactly the same cases. A session leaves out its own evidence
-in every check, so while the draft is unchanged the baseline answers once per
-session. A published baseline with cases left out is never reused.
+earlier run left out exactly the same cases. That run may be the session's previous
+check, or a run of a published version whose spec the draft still is, so a session
+started from an unedited draft reuses that version's own eval.
+
+A session leaves out its own evidence in every check, so while the draft is
+unchanged the baseline answers at most once per session. A run that asked more
+cases is never cut down, because a reused arm's answers are read whole. A reused
+baseline costs nothing in the estimate. A published baseline with cases left out
+is never reused.
 
 ### A flip is confirmed before it counts { #a-flip-is-confirmed-before-it-counts }
 

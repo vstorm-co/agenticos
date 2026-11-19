@@ -1,5 +1,5 @@
 ---
-source_sha: "5c0984512a82"
+source_sha: "42c955482b4f"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -436,9 +436,17 @@ der kippt, wird ihm in diesem Run erneut gestellt.
 Eine Baseline, die der Entwurf des Agents ist - das, woran eine Improve-Sitzung
 jeden Versuch misst -, wird über den exakten Fingerabdruck des Entwurfs
 zugeordnet, und nur, wenn der frühere Run genau dieselben Fälle ausgelassen hat.
+Dieser Run kann die vorige Prüfung der Sitzung sein oder ein Run einer
+veröffentlichten Version, deren Spec der Entwurf noch ist, sodass eine Sitzung,
+die von einem unbearbeiteten Entwurf startet, den eigenen Eval dieser Version
+wiederverwendet.
+
 Eine Sitzung lässt bei jeder Prüfung ihre eigenen Belege aus, sodass die
-Baseline, solange der Entwurf unverändert bleibt, einmal pro Sitzung antwortet.
-Eine veröffentlichte Baseline mit ausgelassenen Fällen wird nie wiederverwendet.
+Baseline, solange der Entwurf unverändert bleibt, höchstens einmal pro Sitzung
+antwortet. Ein Run, der mehr Fälle gefragt hat, wird nie gekürzt, weil die
+Antworten eines wiederverwendeten Arms ganz gelesen werden. Eine
+wiederverwendete Baseline kostet in der Schätzung nichts. Eine veröffentlichte
+Baseline mit ausgelassenen Fällen wird nie wiederverwendet.
 
 ### Ein Kippen wird bestätigt, bevor es zählt { #a-flip-is-confirmed-before-it-counts }
 

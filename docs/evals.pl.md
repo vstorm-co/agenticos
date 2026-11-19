@@ -1,5 +1,5 @@
 ---
-source_sha: "5c0984512a82"
+source_sha: "42c955482b4f"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -411,10 +411,17 @@ się odwraca, jest mu w tym runie zadawany ponownie.
 
 Baseline będący wersją roboczą agenta - tym, z czym sesja Improve porównuje
 każdą próbę - jest dopasowywany po dokładnym odcisku wersji roboczej i tylko
-wtedy, gdy wcześniejszy run pominął dokładnie te same przypadki. Sesja w każdym
-sprawdzeniu pomija własne dowody, więc dopóki wersja robocza się nie zmienia,
-baseline odpowiada raz na sesję. Opublikowany baseline z pominiętymi
-przypadkami nigdy nie jest wykorzystywany ponownie.
+wtedy, gdy wcześniejszy run pominął dokładnie te same przypadki. Tym runem może
+być poprzednie sprawdzenie sesji albo run opublikowanej wersji, której spec
+wersja robocza wciąż jest, więc sesja rozpoczęta od nieedytowanej wersji roboczej
+wykorzystuje własną ewaluację tej wersji.
+
+Sesja w każdym sprawdzeniu pomija własne dowody, więc dopóki wersja robocza się
+nie zmienia, baseline odpowiada najwyżej raz na sesję. Run, który zadał więcej
+przypadków, nigdy nie jest przycinany, bo odpowiedzi ponownie użytego ramienia
+są czytane w całości. Ponownie użyty baseline nic nie kosztuje w szacunku.
+Opublikowany baseline z pominiętymi przypadkami nigdy nie jest wykorzystywany
+ponownie.
 
 ### Odwrócenie jest potwierdzane, zanim się liczy { #a-flip-is-confirmed-before-it-counts }
 

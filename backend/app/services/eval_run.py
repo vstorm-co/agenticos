@@ -1195,7 +1195,8 @@ class EvalRunService:
 
         A draft baseline is what an improvement session measures each attempt
         against; while the draft is unchanged, its answers from the session's
-        previous check serve the next one.
+        previous check serve the next one, and so do a published version's from a
+        run of its own when the draft is still that version's spec.
         """
         since = datetime.now(UTC) - timedelta(hours=settings.EVAL_BASELINE_CACHE_HOURS)
         if arm.version is None:

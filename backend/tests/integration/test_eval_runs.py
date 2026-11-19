@@ -3130,6 +3130,73 @@ async def test_an_unchanged_draft_baseline_is_answered_once_across_checks(db) ->
     assert len(changed_model.calls) == 4
 
 
+async def test_a_draft_still_equal_to_a_published_version_reuses_that_version_s_answers(
+    db,
+) -> None:
+    """An improvement session starts from a draft nobody has edited since publishing,
+    and the version's own eval already answered every case the check asks."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    service = EvalRunService(db)
+    published = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), published.id, ctx)
+    [answered] = published.arms
+    unchanged = AgentSpec(name="Clerk", instructions="v7")
+    request = EvalRunRequest(dataset_id=dataset.id, paired_baseline=True)
+    attempt = AgentSpec(name="Clerk", instructions="Attempt 1")
+
+    quote = await service.estimate(
+        ctx, agent.id, request, candidate_spec=attempt, baseline_spec=unchanged
+    )
+    started = await service.start(
+        ctx, agent.id, request, candidate_spec=attempt, baseline_spec=unchanged
+    )
+    model = Model(db)
+    await _run_to_end(db, model, started.id, ctx)
+
+    [baseline] = [arm for arm in quote.arms if arm.role == "baseline"]
+    assert (baseline.basis, baseline.cost_usd) == ("cached", 0)
+    assert baseline.cached_from_run_id == published.id
+    [reused] = [arm for arm in started.arms if arm.role == "baseline"]
+    assert reused.reused_from_arm_id == answered.id
+    assert len(model.calls) == 3
+    assert (await service.compare(ctx, started.id)).compared == 3
+
+
+async def test_a_version_run_that_asked_more_cases_than_the_check_is_not_reused(db) -> None:
+    """A reused arm's first answers are read whole, so the session's evidence cases
+    the version's run answered would land in the baseline."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    evidence = uuid.uuid4()
+    db.add(Conversation(id=evidence, organization_id=ctx.organization_id))
+    case = (
+        (await db.execute(select(DatasetCase).where(DatasetCase.dataset_id == dataset.id)))
+        .scalars()
+        .first()
+    )
+    assert case is not None
+    case.source_conversation_id = evidence
+    await db.flush()
+    service = EvalRunService(db)
+    published = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), published.id, ctx)
+
+    started = await service.start(
+        ctx,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, paired_baseline=True),
+        candidate_spec=AgentSpec(name="Clerk", instructions="Attempt 1"),
+        baseline_spec=AgentSpec(name="Clerk", instructions="v7"),
+        exclude_conversations=[evidence],
+    )
+
+    assert started.excluded_case_ids == [case.case_id]
+    assert all(arm.reused_from_arm_id is None for arm in started.arms)
+
+
 async def test_a_dataset_made_wholly_of_the_evidence_is_refused(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)

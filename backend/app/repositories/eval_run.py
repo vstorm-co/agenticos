@@ -800,18 +800,26 @@ async def latest_draft_arm(
     excluded_case_ids: Collection[UUID],
     skill_versions: Mapping[str, str] | None,
 ) -> tuple[EvalRunArm, EvalRun] | None:
-    """The newest baseline arm of a completed run that answered this exact draft.
+    """The newest arm of a completed run that answered this exact draft.
 
-    The draft is matched by its fingerprint, and the run must have left out
-    exactly `excluded_case_ids` - an improvement session's own evidence, the
-    same in every check it runs - so the reused answers cover the cases this run
-    asks. An arm that served a proposed body, or was itself reused, never stands in.
+    The draft is matched by its fingerprint: a draft baseline that answered it,
+    or an arm of a published version whose spec the draft still is. The run must
+    have left out exactly `excluded_case_ids` - an improvement session's own
+    evidence, the same in every check it runs - because a reused arm's first
+    answers are read whole, so a run that asked more cases would put them in the
+    baseline. An arm that served a proposed body, or was itself reused, never
+    stands in.
     """
     excluded = sorted(excluded_case_ids)
     conditions = [
         EvalRunArm.organization_id == organization_id,
-        EvalRunArm.agent_version_id.is_(None),
-        EvalRunArm.role == ArmRole.BASELINE.value,
+        or_(
+            and_(
+                EvalRunArm.agent_version_id.is_(None),
+                EvalRunArm.role == ArmRole.BASELINE.value,
+            ),
+            EvalRunArm.agent_version_id.is_not(None),
+        ),
         EvalRunArm.spec_hash == spec_hash,
         EvalRunArm.reused_from_arm_id.is_(None),
         EvalRunArm.skill_bodies.is_(None),

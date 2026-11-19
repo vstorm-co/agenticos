@@ -1,5 +1,5 @@
 ---
-source_sha: "5c0984512a82"
+source_sha: "42c955482b4f"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -404,10 +404,16 @@ le vuelve a preguntar en este run.
 
 Un baseline que es el borrador del agent - aquello con lo que una sesión de
 Improve mide cada intento - se empareja por la huella exacta del borrador, y solo
-cuando el run anterior dejó fuera exactamente los mismos casos. Una sesión deja
-fuera su propia evidencia en cada comprobación, así que mientras el borrador no
-cambia, el baseline responde una vez por sesión. Un baseline publicado con casos
-dejados fuera nunca se reutiliza.
+cuando el run anterior dejó fuera exactamente los mismos casos. Ese run puede ser
+la comprobación anterior de la sesión o un run de una versión publicada cuyo spec
+el borrador sigue siendo, así que una sesión iniciada desde un borrador sin editar
+reutiliza el eval propio de esa versión.
+
+Una sesión deja fuera su propia evidencia en cada comprobación, así que mientras
+el borrador no cambia, el baseline responde como mucho una vez por sesión. Un
+run que preguntó más casos nunca se recorta, porque las respuestas de un brazo
+reutilizado se leen enteras. Un baseline reutilizado no cuesta nada en la
+estimación. Un baseline publicado con casos dejados fuera nunca se reutiliza.
 
 ### Un cambio se confirma antes de contar { #a-flip-is-confirmed-before-it-counts }
 
