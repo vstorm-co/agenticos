@@ -9096,7 +9096,6 @@
     "endsAtHint": "Pozostaw puste, aby działać do zatrzymania. Ta data używa strefy {zone}, niezależnie od strefy harmonogramu.",
     "endsAtInvalid": "Wybierz prawidłową przyszłą datę albo wyczyść pole, aby usunąć koniec.",
     "actionConsents": {
-      "platformGroup": "{app} · {group}",
       "checkConnections": "Sprawdź te połączenia, aby przejrzeć ich działania: {names}.",
       "personalAccount": "{name} · Twoje konto",
       "organizationAccount": "{name} · konto organizacji",
@@ -9105,11 +9104,9 @@
       "retry": "Spróbuj ponownie",
       "notAllowed": "Twoje uprawnienia do zatwierdzania i ustawienie organizacji muszą pozwalać na wyjątki. Nadal możesz cofnąć wszystkie zgody.",
       "empty": "Ta wersja nie ma działań, dla których można tu udzielić zgody.",
-      "required": "Agent wymaga zatwierdzenia",
       "revokeAll": "Cofnij wszystkie",
       "save": "Zapisz zgody",
       "search": "Szukaj akcji",
-      "selectAll": "Zaznacz wszystkie dozwolone akcje",
       "bulkScope": "Zaznaczanie grupowe obejmuje całą grupę lub listę, także akcje ukryte przez wyszukiwanie. Obowiązkowe akceptacje pozostają wymagane.",
       "selectGroup": "Zaznacz dozwolone akcje w {name}",
       "noMatches": "Brak akcji pasujących do wyszukiwania.",
@@ -9121,7 +9118,11 @@
         "intent": "Zmieniła się praca lub miejsce docelowe routine. Sprawdź ponownie akcje.",
         "instructions": "Zmieniły się instrukcje skill, context lub projektu. Sprawdź ponownie akcje.",
         "actions": "Niektóre poprzednio wybrane akcje są niedostępne, wymagają akceptacji lub mają inną autoryzację konta. Nie zostaną zaznaczone ponownie."
-      }
+      },
+      "capabilitiesSection": "Capabilities",
+      "copyAgent": "Skopiuj ustawienia agenta",
+      "copyAgentHint": "Zaznacza dokładnie te działania, które agent już w czacie wykonuje bez pytania. Działań, przed którymi agent pyta, nie ma na liście i nie można tu na nie zgodzić.",
+      "groupCount": "{selected} z {total}"
     },
     "sourceConsents": {
       "title": "Zatwierdzone źródła",
@@ -9131,7 +9132,10 @@
       "changed": "Przejrzyj te źródła przed kolejnym runem.",
       "unavailable": "Najpierw sprawdź lub ponownie połącz źródła: {names}",
       "accept": "Zatwierdź te źródła",
-      "inspectAgent": "Sprawdź połączenia agenta"
+      "inspectAgent": "Sprawdź połączenia agenta",
+      "kind": "{kind, select, capability {Capabilities} skill {Skille} context {Pliki kontekstu} knowledge {Bazy wiedzy} table {Tabele} delegate {Agenci-delegaci} remote_agent {Zdalni agenci} platform {Platforma} mcp_account {Konta MCP} chat_connection {Połączenia czatu} phone {Telefon} terminal_account {Konta terminala} terminal_credential {Dane dostępowe terminala} event_source {Źródło zdarzeń} other {Inne}}",
+      "kindCount": "{name} ({count})",
+      "unnamed": "Już niedostępne"
     },
     "advancedOptions": "Opcje zaawansowane",
     "advancedOptionsHint": "Domyślnie: bieżąca opublikowana wersja, ochrona przed błędami i Twoje preferencje powiadomień.",

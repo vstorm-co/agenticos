@@ -107,7 +107,7 @@ export function ActionConsentsDialog({
                     {t("checkConnections", { names: data.unavailable_sources.join(", ") })}
                   </p>
                 )}
-                {data.items.length === 0 && (
+                {!data.items.some((item) => item.waivable) && (
                   <p className="text-muted-foreground text-sm">{t("empty")}</p>
                 )}
                 {data.review_changes?.map((change) => (

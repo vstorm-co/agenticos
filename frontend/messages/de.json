@@ -10275,7 +10275,6 @@
     "endsAtHint": "Leer lassen, um bis zum Stoppen fortzufahren. Diese Zeit verwendet {zone}, unabhängig von der Zeitzone des Zeitplans.",
     "endsAtInvalid": "Wählen Sie einen gültigen Zeitpunkt in der Zukunft oder leeren Sie das Feld, um das Ende zu entfernen.",
     "actionConsents": {
-      "platformGroup": "{app} · {group}",
       "checkConnections": "Prüfe diese Verbindungen, um ihre Aktionen zu prüfen: {names}.",
       "personalAccount": "{name} · dein Konto",
       "organizationAccount": "{name} · Organisationskonto",
@@ -10284,11 +10283,9 @@
       "retry": "Erneut versuchen",
       "notAllowed": "Deine Bestätigungsrechte und die Einstellung der Organisation müssen Ausnahmen erlauben. Du kannst weiterhin alle Freigaben widerrufen.",
       "empty": "Diese Version hat hier keine freigebbaren Aktionen.",
-      "required": "Bestätigung vom Agenten verlangt",
       "revokeAll": "Alle widerrufen",
       "save": "Freigaben speichern",
       "search": "Aktionen suchen",
-      "selectAll": "Alle zulässigen Aktionen auswählen",
       "bulkScope": "Die Sammelauswahl gilt für die ganze Gruppe oder Liste, auch für ausgefilterte Aktionen. Verbindliche Freigaben bleiben erforderlich.",
       "selectGroup": "Zulässige Aktionen in {name} auswählen",
       "noMatches": "Keine Aktionen entsprechen der Suche.",
@@ -10300,7 +10297,11 @@
         "intent": "Aufgabe oder Ziel der Routine haben sich geändert. Prüfe ihre Aktionen erneut.",
         "instructions": "Anweisungen von Skill, Context oder Projekt haben sich geändert. Prüfe die Aktionen erneut.",
         "actions": "Einige zuvor ausgewählte Aktionen sind nicht verfügbar, benötigen eine Freigabe oder haben eine andere Kontoautorisierung. Sie werden nicht erneut ausgewählt."
-      }
+      },
+      "capabilitiesSection": "Capabilities",
+      "copyAgent": "Einstellungen des Agenten übernehmen",
+      "copyAgentHint": "Wählt genau die Aktionen, die dieser Agent im Chat schon ohne Nachfrage ausführt. Aktionen, vor denen der Agent fragt, stehen nicht in der Liste und lassen sich hier nicht freigeben.",
+      "groupCount": "{selected} von {total}"
     },
     "sourceConsents": {
       "title": "Geprüfte Quellen",
@@ -10310,7 +10311,10 @@
       "changed": "Prüfen Sie diese Quellen vor dem nächsten Lauf.",
       "unavailable": "Prüfen oder verbinden Sie zuerst diese Quellen: {names}",
       "accept": "Diese Quellen genehmigen",
-      "inspectAgent": "Verbindungen des Agenten prüfen"
+      "inspectAgent": "Verbindungen des Agenten prüfen",
+      "kind": "{kind, select, capability {Capabilities} skill {Skills} context {Kontextdateien} knowledge {Wissensdatenbanken} table {Tabellen} delegate {Delegierte Agenten} remote_agent {Entfernte Agenten} platform {Plattform} mcp_account {MCP-Konten} chat_connection {Chat-Verbindungen} phone {Telefon} terminal_account {Terminal-Konten} terminal_credential {Terminal-Zugangsdaten} event_source {Ereignisquelle} other {Sonstige}}",
+      "kindCount": "{name} ({count})",
+      "unnamed": "Nicht mehr verfügbar"
     },
     "advancedOptions": "Erweiterte Optionen",
     "advancedOptionsHint": "Standard: aktuelle veröffentlichte Version, Fehlerschutz und deine Benachrichtigungseinstellungen.",

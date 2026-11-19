@@ -78,6 +78,9 @@ class RoutineActions(BaseModel):
 
 class RoutineActionOption(RoutineActionKey):
     name: str
+    capability_name: str | None = Field(
+        default=None, description="The capability's name, which the review groups its actions under"
+    )
     consented: bool
     previously_consented: bool = Field(
         default=False,

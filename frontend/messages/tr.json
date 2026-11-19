@@ -11060,7 +11060,6 @@
     "clearSearch": "Aramayı temizle",
     "noRoutineMatchesHint": "Agent adı, rutin başlığı veya mesajındaki sözcüklerle arayın.",
     "actionConsents": {
-      "platformGroup": "{app} · {group}",
       "checkConnections": "Eylemlerini incelemek için bu bağlantıları kontrol edin: {names}.",
       "personalAccount": "{name} · hesabınız",
       "organizationAccount": "{name} · organizasyon hesabı",
@@ -11069,11 +11068,9 @@
       "retry": "Yeniden dene",
       "notAllowed": "Onay yetkileriniz ve organizasyonun kalıcı izin ayarı istisnalara izin vermelidir. Tüm izinleri yine de iptal edebilirsiniz.",
       "empty": "Bu sürümde burada yetkilendirilebilecek eylem yok.",
-      "required": "Agent onayı gerekli",
       "revokeAll": "Tümünü iptal et",
       "save": "İzni kaydet",
       "search": "Eylemleri ara",
-      "selectAll": "İzin verilebilir tüm eylemleri seç",
       "bulkScope": "Toplu seçim, aramada gizlenenler dahil tüm grubu veya listeyi kapsar. Zorunlu onaylar geçerliliğini korur.",
       "selectGroup": "{name} içindeki izin verilebilir eylemleri seç",
       "noMatches": "Aramayla eşleşen eylem yok.",
@@ -11085,7 +11082,16 @@
         "intent": "Rutinin işi veya hedefi değişti. Eylemleri yeniden inceleyin.",
         "instructions": "Skill, context veya proje talimatları değişti. Eylemleri yeniden inceleyin.",
         "actions": "Önceden seçilen bazı eylemler kullanılamıyor, onay gerektiriyor veya hesap yetkilendirmesi değişmiş. Bunlar yeniden seçilmez."
-      }
+      },
+      "capabilitiesSection": "Capabilities",
+      "copyAgent": "Agent ayarlarını kopyala",
+      "copyAgentHint": "Bu agent'ın sohbette zaten sormadan çalıştırdığı eylemleri tam olarak seçer. Agent'ın önce sorduğu eylemler listelenmez ve burada onaylanamaz.",
+      "groupCount": "{selected} / {total}"
+    },
+    "sourceConsents": {
+      "kind": "{kind, select, capability {Capabilities} skill {Skill'ler} context {Bağlam dosyaları} knowledge {Bilgi tabanları} table {Tablolar} delegate {Delege agent'lar} remote_agent {Uzak agent'lar} platform {Platform} mcp_account {MCP hesapları} chat_connection {Sohbet bağlantıları} phone {Telefon} terminal_account {Terminal hesapları} terminal_credential {Terminal kimlik bilgileri} event_source {Olay kaynağı} other {Diğer}}",
+      "kindCount": "{name} ({count})",
+      "unnamed": "Artık kullanılamıyor"
     }
   },
   "teams": {

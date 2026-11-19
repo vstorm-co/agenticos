@@ -20,7 +20,7 @@ from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
-from app.schemas.routine_actions import RoutineActionKey, RoutineActions
+from app.schemas.routine_actions import RoutineActionKey, RoutineActionOption, RoutineActions
 from app.services.routine_actions import RoutineActionService, action_review
 from app.services.routine_authority import RoutineAuthority
 from app.services.routine_sources import read_policy
@@ -141,7 +141,9 @@ async def test_only_a_current_snapshotted_consent_waives_its_action(
     service = RoutineActionService(db)
     before = await capture(db, world)
     options = await service.replace(world.ctx, world.trigger, _request(world, [WRITE]))
-    assert next(item for item in options.items if item.tool_id == WRITE.tool_id).consented
+    execute = next(item for item in options.items if item.tool_id == WRITE.tool_id)
+    assert isinstance(execute, RoutineActionOption)
+    assert execute.consented and execute.capability_name == "Sandbox"
     assert (await before.action_policy(world.agent.id, world.spec, tool())).consented_by is None
     authority = await capture(db, world)
     assert (

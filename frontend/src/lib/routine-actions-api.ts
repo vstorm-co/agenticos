@@ -24,7 +24,7 @@ interface ActionReview {
   waivable: boolean;
 }
 export type RoutineActionOption =
-  | (CapabilityActionKey & ActionReview)
+  | (CapabilityActionKey & ActionReview & { capability_name?: string | null })
   | (McpActionKey &
       ActionReview & {
         account_name: string;

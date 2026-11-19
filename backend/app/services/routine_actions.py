@@ -181,6 +181,7 @@ def action_options(spec: AgentSpec, *, local: bool = False) -> list[RoutineActio
                 options.append(
                     RoutineActionOption(
                         capability_id=binding.id,
+                        capability_name=definition.name,
                         tool_id=tool.id,
                         name=tool.name,
                         consented=False,

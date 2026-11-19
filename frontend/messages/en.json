@@ -10395,7 +10395,6 @@
     "endsAtHint": "Leave blank to run until stopped. This time uses {zone}, independently of the schedule zone.",
     "endsAtInvalid": "Choose a valid future time, or clear the field to remove the end.",
     "actionConsents": {
-      "platformGroup": "{app} · {group}",
       "checkConnections": "Check these connections to review their actions: {names}.",
       "personalAccount": "{name} · your account",
       "organizationAccount": "{name} · organization account",
@@ -10404,11 +10403,9 @@
       "retry": "Try again",
       "notAllowed": "Your approval permissions and the organization’s standing-consent setting must allow exceptions. You can still revoke all consent.",
       "empty": "This version has no eligible actions to authorize here.",
-      "required": "Approval required by the agent",
       "revokeAll": "Revoke all",
       "save": "Save consent",
       "search": "Search actions",
-      "selectAll": "Select all eligible actions",
       "bulkScope": "Bulk controls cover the whole group or inventory, including actions hidden by the search. Required approvals stay enforced.",
       "selectGroup": "Select eligible actions in {name}",
       "noMatches": "No actions match your search.",
@@ -10420,7 +10417,11 @@
         "intent": "The routine’s work or destination changed. Review its actions again.",
         "instructions": "The skill, context or project instructions changed. Review its actions again.",
         "actions": "Some previously selected actions are unavailable, require approval, or have different account authorization. They are not reselected."
-      }
+      },
+      "capabilitiesSection": "Capabilities",
+      "copyAgent": "Copy the agent's settings",
+      "copyAgentHint": "Selects exactly the actions this agent already runs without asking in a chat. Actions the agent asks before are not listed and cannot be consented to here.",
+      "groupCount": "{selected} of {total}"
     },
     "sourceConsents": {
       "title": "Reviewed sources",
@@ -10430,7 +10431,10 @@
       "changed": "Review these sources before the next run.",
       "unavailable": "Reconnect or inspect these sources first: {names}",
       "accept": "Approve these sources",
-      "inspectAgent": "Inspect the agent’s connections"
+      "inspectAgent": "Inspect the agent’s connections",
+      "kind": "{kind, select, capability {Capabilities} skill {Skills} context {Context files} knowledge {Knowledge bases} table {Tables} delegate {Delegate agents} remote_agent {Remote agents} platform {Platform} mcp_account {MCP accounts} chat_connection {Chat connections} phone {Telephone} terminal_account {Terminal accounts} terminal_credential {Terminal credentials} event_source {Event source} other {Other}}",
+      "kindCount": "{name} ({count})",
+      "unnamed": "No longer available"
     },
     "advancedOptions": "Advanced options",
     "advancedOptionsHint": "Defaults: current published version, standard failure protection and your notification preferences.",

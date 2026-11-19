@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ActionConsentsDialog } from "./action-consents-dialog";
@@ -6,6 +6,9 @@ import type { RoutineActionOptions } from "@/lib/routine-actions-api";
 import type { Trigger } from "@/types/triggers";
 
 vi.mock("./source-consents-panel", () => ({ SourceConsentsPanel: () => null }));
+vi.mock("@/components/branding/branding-provider", () => ({
+  useBranding: () => ({ appName: "AgenticOS", logoUrl: null }),
+}));
 
 const state = vi.hoisted(() => ({
   data: {
@@ -79,7 +82,8 @@ describe("routine action consent", () => {
   });
   it("submits only explicitly selected action identities and preserves required gates", async () => {
     render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
-    expect(screen.getByRole("checkbox", { name: "publish" })).toBeDisabled();
+    // An action the agent asks before cannot be consented to, so it is not offered.
+    expect(screen.queryByRole("checkbox", { name: "publish" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("checkbox", { name: "execute" }));
     await userEvent.click(screen.getByRole("button", { name: "Save consent" }));
     expect(state.save).toHaveBeenCalledWith([{ capability_id: "sandbox", tool_id: "execute" }]);
@@ -172,10 +176,19 @@ describe("routine action consent", () => {
       },
     );
     render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
-    expect(screen.getByRole("group", { name: /· Tables$/ })).toBeVisible();
-    expect(screen.getByRole("checkbox", { name: "delete_virtual_table_record" })).toBeDisabled();
+    const platform = screen.getByRole("region", { name: "AgenticOS" });
+    expect(within(platform).getByRole("group", { name: "Tables" })).toBeVisible();
+    expect(
+      screen.queryByRole("checkbox", { name: "delete_virtual_table_record" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "add_virtual_table_record",
+        description: "AgenticOS Tables",
+      }),
+    ).not.toBeChecked();
     await userEvent.click(
-      screen.getByRole("checkbox", { name: /^Select eligible actions in .* · Tables$/ }),
+      screen.getByRole("checkbox", { name: "Select eligible actions in Tables" }),
     );
     await userEvent.click(screen.getByRole("button", { name: "Save consent" }));
     expect(state.save).toHaveBeenCalledWith([
@@ -190,6 +203,33 @@ describe("routine action consent", () => {
     ).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Revoke all" }));
     expect(state.save).toHaveBeenCalledWith([], expect.any(Object));
+  });
+  it("copies the agent's settings over a narrower choice and names capabilities", async () => {
+    state.data.items = ["execute", "write_file"].map((tool) => ({
+      capability_id: "sandbox",
+      capability_name: "Sandbox",
+      tool_id: tool,
+      name: tool,
+      consented: false,
+      waivable: true,
+    }));
+    render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+    expect(screen.getByRole("group", { name: "Sandbox" })).toBeVisible();
+    await userEvent.click(screen.getByRole("checkbox", { name: "write_file" }));
+    await userEvent.click(screen.getByRole("button", { name: "Copy the agent's settings" }));
+    expect(screen.getByRole("checkbox", { name: "execute" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "write_file" })).toBeChecked();
+  });
+  it("says there is nothing to consent to when the agent asks before every action", () => {
+    state.data.items = state.data.items.map((item) => ({ ...item, waivable: false }));
+    render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+    expect(
+      screen.getByText("This version has no eligible actions to authorize here."),
+    ).toBeVisible();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Copy the agent's settings" }),
+    ).not.toBeInTheDocument();
   });
   it("distinguishes an empty review from a failed connection check", () => {
     state.data.items = [];
@@ -238,12 +278,13 @@ it("bulk selects a large inventory with individual exclusions and keeps mandator
   }));
   state.data.max_actions = 1000;
   render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
-  await userEvent.click(screen.getByRole("checkbox", { name: "Select all eligible actions" }));
-  expect(screen.getByRole("checkbox", { name: "Action 100" })).not.toBeChecked();
+  await userEvent.click(screen.getByRole("button", { name: "Copy the agent's settings" }));
+  expect(screen.queryByRole("checkbox", { name: "Action 100" })).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("checkbox", { name: "Action 4" }));
   expect(
-    screen.getByRole("checkbox", { name: "Select all eligible actions" }),
+    screen.getByRole("checkbox", { name: "Select eligible actions in Capabilities" }),
   ).toBePartiallyChecked();
+  expect(screen.getAllByText("99 of 100")).toHaveLength(2);
   await userEvent.click(screen.getByRole("button", { name: "Save consent" }));
   const [keys] = state.save.mock.calls.at(-1) ?? [];
   expect(keys).toHaveLength(99);
@@ -297,7 +338,7 @@ it("refuses an oversized selection visibly without dropping its items", async ()
   }));
   state.data.max_actions = 100;
   render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
-  await userEvent.click(screen.getByRole("checkbox", { name: "Select all eligible actions" }));
+  await userEvent.click(screen.getByRole("button", { name: "Copy the agent's settings" }));
   expect(screen.getByRole("alert")).toHaveTextContent("101 actions selected; the limit is 100");
   expect(screen.getByRole("button", { name: "Save consent" })).toBeDisabled();
   await userEvent.click(screen.getByRole("checkbox", { name: "Action 100" }));
