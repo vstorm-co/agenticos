@@ -84,3 +84,20 @@ async def test_nonreaders_cannot_consume_quota_or_claim_concurrency(monkeypatch,
         await anext(limit_eval_comparison(ctx))
     consume.assert_not_awaited()
     claim.assert_not_called()
+
+
+async def test_verdict_computation_and_reads_share_the_claim_and_person_budget(monkeypatch):
+    ctx = _ctx()
+    monkeypatch.setattr(rate_limit, "_redis", None)
+    async with aclosing(limit_eval_comparison(ctx)) as read:
+        await anext(read)
+        with pytest.raises(RateLimitError):
+            async with rate_limit.eval_computation(ctx):
+                pytest.fail("a verdict write must not overlap the comparison")
+    for _ in range(29):
+        async with rate_limit.eval_computation(ctx):
+            pass
+    with pytest.raises(RateLimitError) as refused:
+        await anext(limit_eval_comparison(ctx))
+    assert 1 <= refused.value.details["retry_after_seconds"] <= 60
+    assert "inflight:eval_comparison:org:" + str(ctx.organization_id) not in rate_limit._held_here

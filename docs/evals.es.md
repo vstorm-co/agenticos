@@ -1,5 +1,5 @@
 ---
-source_sha: "0d161c204d65"
+source_sha: "585a8d5139e6"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -362,7 +362,7 @@ Un criterio del juez puede aplicarse a todos los casos o solo a casos con alguna
 
 Los nombres de criterios, sus calificaciones y las atribuciones a skills requieren `runs:view`, acceso al dataset fijado para la sesión y a cada skill mencionado. Los detalles de una comprobación de skills requieren acceso a todos los datasets utilizados. Si alguna fuente está oculta o ya no existe, estos detalles se ocultan sin modificar los resultados guardados. Las notificaciones de resultados comprueban el acceso actual del destinatario antes de incluir los detalles de los criterios.
 
-Las lecturas interactivas de comparaciones permiten hasta 30 solicitudes por persona y 60 por organización por minuto, con una comparación en ejecución por organización. La consola y la API comparten estos límites. Las solicitudes excesivas o simultáneas reciben HTTP 429 con `Retry-After`; los clientes deben esperar antes de reintentar. Redis compartido coordina los workers; durante una caída se conserva un límite local por worker.
+Las lecturas interactivas de comparaciones permiten hasta 30 solicitudes por persona y 60 por organización por minuto, con una comparación en ejecución por organización. La consola y la API comparten estos límites. Las solicitudes excesivas o simultáneas reciben HTTP 429 con `Retry-After`; los clientes deben esperar antes de reintentar. Redis compartido coordina los workers; durante una caída se conserva un límite local por worker. Los cambios manuales de veredicto en respuestas de evaluaciones comparten el mismo presupuesto y bloqueo, después de autorizar el acceso al dataset y antes de modificar la calificación o los resultados guardados.
 
 Los lectores necesitan `runs:view` antes de ocupar la exclusión o consumir cuota. Las comparaciones activas renuevan sus bloqueos; la caducidad de 120 segundos recupera los de procesos caídos. Un fallo de renovación en Redis se registra y mantiene el bloqueo local del worker.
 

@@ -1586,28 +1586,13 @@ async def limit_table_write(ctx: Auth) -> None:
 async def limit_eval_comparison(ctx: Auth) -> AsyncGenerator[None]:
     """Bound interactive comparisons per person and organization, including the console.
 
-    Thirty reads per person and sixty per organization per minute leave room for
+    Thirty computations per person and sixty per organization per minute leave room for
     the console's three-second polling. One comparison may execute per organization
-    at a time, so parallel reads cannot fill every worker with the same large run.
+    at a time, so parallel requests cannot fill every worker with the same large run.
     Shared Redis owns both controls; the established local floors apply on outage.
     """
     _refuse_missing(ctx, (Perm.RUNS_VIEW,))
-    async with rate_limit.one_in_flight(
-        "eval_comparison",
-        f"org:{ctx.organization_id}",
-        ttl_seconds=120,
-        renew=True,
-        message="A comparison is already running for this organization. Wait and try again.",
-    ):
-        # A busy refusal performs no comparison work and must not spend the read budget.
-        for caller, attempts in (
-            (f"org:{ctx.organization_id}:user:{ctx.subject_id}", 30),
-            (f"org:{ctx.organization_id}", 60),
-        ):
-            decision = await rate_limit.consume_with_local_floor(
-                surface="eval_comparison", caller=caller, limit=rate_limit.Limit(attempts=attempts)
-            )
-            _refuse_if_over(decision, "Too many comparisons. Wait and try again.")
+    async with rate_limit.eval_computation(ctx):
         yield
 
 

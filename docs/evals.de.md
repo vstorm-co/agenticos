@@ -1,5 +1,5 @@
 ---
-source_sha: "0d161c204d65"
+source_sha: "585a8d5139e6"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -390,7 +390,7 @@ Ein Bewerterkriterium kann für alle Fälle oder nur für Fälle mit mindestens 
 
 Kriteriennamen, Einzelbewertungen und Skill-Zuordnungen erfordern `runs:view`, Zugriff auf den festgelegten Datensatz der Sitzung und auf jeden genannten Skill. Details einer Skill-Prüfung erfordern Zugriff auf alle beteiligten Datensätze. Verborgene oder fehlende Quellen blenden diese Details aus, ohne gespeicherte Ergebnisse zu ändern. Ergebnisbenachrichtigungen prüfen die aktuellen Zugriffsrechte des Empfängers, bevor sie Kriteriendetails enthalten.
 
-Interaktive Vergleichsabrufe erlauben bis zu 30 Anfragen pro Person und 60 pro Organisation und Minute; je Organisation wird jeweils ein Vergleich ausgeführt. Konsole und API teilen diese Grenzen. Überschüssige oder gleichzeitige Anfragen erhalten HTTP 429 mit `Retry-After`; Clients sollen vor dem Wiederholen warten. Gemeinsames Redis koordiniert die Worker; bei einem Ausfall bleibt je Worker eine lokale Begrenzung bestehen.
+Interaktive Vergleichsabrufe erlauben bis zu 30 Anfragen pro Person und 60 pro Organisation und Minute; je Organisation wird jeweils ein Vergleich ausgeführt. Konsole und API teilen diese Grenzen. Überschüssige oder gleichzeitige Anfragen erhalten HTTP 429 mit `Retry-After`; Clients sollen vor dem Wiederholen warten. Gemeinsames Redis koordiniert die Worker; bei einem Ausfall bleibt je Worker eine lokale Begrenzung bestehen. Manuelle Bewertungsänderungen für Eval-Antworten nutzen dasselbe Budget und dieselbe Sperre, nach Prüfung des Datensatzzugriffs und vor Änderungen an der Bewertung oder gespeicherten Ergebnissen.
 
 Leser benötigen `runs:view`, bevor sie die Parallelitätssperre belegen oder Kontingent verbrauchen. Aktive Vergleiche erneuern ihre Sperren; der Ablauf nach 120 Sekunden gibt Sperren abgestürzter Prozesse frei. Eine fehlgeschlagene Redis-Erneuerung wird protokolliert und behält die lokale Worker-Sperre bei.
 

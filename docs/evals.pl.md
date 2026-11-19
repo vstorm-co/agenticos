@@ -1,5 +1,5 @@
 ---
-source_sha: "0d161c204d65"
+source_sha: "585a8d5139e6"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -371,7 +371,7 @@ Kryterium sędziego może dotyczyć wszystkich przypadków albo tylko przypadkó
 
 Nazwy kryteriów, oceny poszczególnych kryteriów i przypisania do skilli wymagają `runs:view`, dostępu do datasetu przypisanego do sesji i do każdego wskazanego skilla. Szczegóły sprawdzania skilla wymagają dostępu do wszystkich użytych datasetów. Ukryte lub usunięte źródła powodują ukrycie tych szczegółów bez zmiany zapisanych wyników. Powiadomienia o wynikach sprawdzają aktualny dostęp odbiorcy przed dołączeniem szczegółów kryteriów.
 
-Interaktywne odczyty porównań dopuszczają do 30 żądań na osobę i 60 na organizację na minutę, z jednym wykonywanym porównaniem na organizację jednocześnie. Konsola i API współdzielą te limity. Nadmiarowe lub równoległe żądania zwracają HTTP 429 z `Retry-After`; klient powinien odczekać przed ponowieniem. Wspólny Redis koordynuje workery, a podczas awarii każdy worker zachowuje lokalny limit.
+Interaktywne odczyty porównań dopuszczają do 30 żądań na osobę i 60 na organizację na minutę, z jednym wykonywanym porównaniem na organizację jednocześnie. Konsola i API współdzielą te limity. Nadmiarowe lub równoległe żądania zwracają HTTP 429 z `Retry-After`; klient powinien odczekać przed ponowieniem. Wspólny Redis koordynuje workery, a podczas awarii każdy worker zachowuje lokalny limit. Ręczne zmiany oceny odpowiedzi pochodzących z evali korzystają z tego samego budżetu i blokady, po sprawdzeniu dostępu do datasetu, a przed zmianą oceny lub zapisanych wyników.
 
 Odczyt wymaga `runs:view` przed zajęciem blokady współbieżności lub zużyciem limitu. Aktywne porównania odnawiają blokady; wygaśnięcie po 120 sekundach zwalnia blokady procesów, które przestały działać. Błąd odnowienia w Redisie jest logowany i pozostawia lokalną blokadę workera.
 

@@ -36,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Admit eval-backed verdict writes through the shared comparison budget before changing scores or cached results.
+
 - Skip criterion aggregation for invalid comparisons and retain scorer labels when notification details are shortened.
 
 - Keep criterion text, grades and skill attributions private when the reader cannot open their source datasets or named skills, including Improve read/list responses, skill checks and result notifications.
@@ -66,7 +68,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Comparison clients must honor HTTP 429 and `Retry-After`: the console and API share 30 reads per person and 60 per organization per minute, with one comparison executing per organization.
+- Comparison clients must honor HTTP 429 and `Retry-After`: the console and API share 30 reads per person and 60 per organization per minute, with one comparison executing per organization. Manual verdict updates for eval-backed scores use the same shared allowance.
 
 - Migration `backend/alembic/versions/0342_criterion_verdicts.py` widens the improvement verdict, stop reason and skill-check agent state constraints and adds `skill_check_agents.criteria`. Its downgrade reads the new verdicts and states as `no_change`.
 

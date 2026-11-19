@@ -58,6 +58,7 @@ from starlette.requests import HTTPConnection
 from app.clients.redis import RedisClient
 from app.core.config import settings
 from app.core.exceptions import RateLimitError
+from app.core.permissions import AuthContext
 
 logger = logging.getLogger(__name__)
 
@@ -421,6 +422,36 @@ async def one_in_flight(
                 _held_here.discard(key)
             if redis is not None:
                 await _release(redis, key, token)
+
+
+@asynccontextmanager
+async def eval_computation(ctx: AuthContext) -> AsyncGenerator[None]:
+    """Shared admission for comparisons and eval-backed verdict writes.
+
+    The caller checks the operation's own permissions first: comparison readers
+    need runs:view, while a dataset editor may hold only an explicit edit grant.
+    """
+    async with one_in_flight(
+        "eval_comparison",
+        f"org:{ctx.organization_id}",
+        ttl_seconds=120,
+        renew=True,
+        message="A comparison is already running for this organization. Wait and try again.",
+    ):
+        # A busy refusal must not spend the shared work budget.
+        for caller, attempts in (
+            (f"org:{ctx.organization_id}:user:{ctx.subject_id}", 30),
+            (f"org:{ctx.organization_id}", 60),
+        ):
+            decision = await consume_with_local_floor(
+                surface="eval_comparison", caller=caller, limit=Limit(attempts=attempts)
+            )
+            if not decision.allowed:
+                raise RateLimitError(
+                    message="Too many comparisons and eval verdict updates. Wait and try again.",
+                    details={"retry_after_seconds": decision.retry_after_seconds},
+                )
+        yield
 
 
 def dictation_limit() -> Limit:
