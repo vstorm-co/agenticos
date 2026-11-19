@@ -1,5 +1,7 @@
 "use client";
 
+import { NATIVE_CHOICE } from "@/components/ui/control-styles";
+
 import { canonicalJson, sameJson } from "@/lib/canonical-json";
 import { MoreOptions } from "@/components/ui/more-options";
 
@@ -1791,6 +1793,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     <label key={mode} className="flex min-h-11 items-center gap-2 text-sm">
                       <input
                         type="radio"
+                        className={NATIVE_CHOICE}
                         name="model-credential-mode"
                         value={mode}
                         checked={(spec.model_credential_mode ?? "organization") === mode}

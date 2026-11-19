@@ -1,9 +1,12 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { Check, ChevronRight, KeyRound, Trash2 } from "lucide-react";
 
 import { AddModel } from "@/components/agents/add-model";
+import { CONTROL_FOCUS, MENU_ROW } from "@/components/ui/control-styles";
 import { ModelIcon } from "@/components/icons/model-icon";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
@@ -354,7 +357,7 @@ export function ModelProfilePicker({
       {offered.length === 0 && profilesStatus === "failed" && failed}
 
       {offered.length > 0 && (
-        <details className="group">
+        <NativeDisclosure className="group">
           <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
             <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
             {t("useSavedModelCount", {
@@ -365,7 +368,7 @@ export function ModelProfilePicker({
             {list}
             <p className="text-muted-foreground text-xs">{t("namedSoOrganizationCan")}</p>
           </div>
-        </details>
+        </NativeDisclosure>
       )}
     </div>
   );
@@ -413,8 +416,12 @@ function ProfileRow({
         disabled={disabled || !selectable}
         onClick={onSelect}
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
-          selected ? "border-brand bg-brand/5" : "border-border hover:border-foreground/20",
+          CONTROL_FOCUS,
+          MENU_ROW,
+          "min-w-0 flex-1 border text-left",
+          selected
+            ? "border-foreground/25 bg-control-active"
+            : "border-border hover:border-foreground/20",
           (disabled || !selectable) && "cursor-not-allowed opacity-60",
         )}
       >

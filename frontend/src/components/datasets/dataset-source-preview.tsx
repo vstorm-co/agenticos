@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useTranslations } from "next-intl";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 
@@ -7,7 +9,7 @@ import { MarkdownContent } from "@/components/chat/markdown-content";
 export function DatasetSourcePreview({ question, answer }: { question: string; answer: string }) {
   const t = useTranslations("datasets");
   return (
-    <details className="rounded-lg border">
+    <NativeDisclosure className="rounded-lg border">
       <summary className="cursor-pointer px-3 py-2.5 text-sm font-medium">
         {t("viewSourceMessages")}
       </summary>
@@ -25,6 +27,6 @@ export function DatasetSourcePreview({ question, answer }: { question: string; a
           </div>
         </div>
       </div>
-    </details>
+    </NativeDisclosure>
   );
 }

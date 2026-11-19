@@ -494,3 +494,43 @@ visually certified. No screenshots or Computer Use/Browser Use were used.
 The final ChatContainer integration file also passed all 75 tests. Local
 `/chat` returned HTTP 200 after the changes. Shared-account tests retained their
 existing connection and revoke behavior. Full CI for the next SHA remains pending.
+
+
+## Application-wide component migration (2026-11-19)
+
+Implemented all migration waves in the [component-system plan](component-system-plan.md).
+The [migration review](component-migration-review.md) separates source integration
+coverage of all 101 page entry points/layouts from runtime samples and records
+intentional specialized/brand exceptions. Baseline module counts remain in the
+inventory; ChoiceGroup and NativeDisclosure now live in the shared UI layer.
+
+Shared field/action surfaces, floating panels, menu rows, choices and tab triggers
+now have common owners. All nine cmdk picker modules reuse row presentation.
+The chat-route portal override and unused alternate glass surface are removed.
+MoreOptions and SettingsSection retain form values through folding, return focus,
+and reveal invalid required fields. All 61 original native details instances in
+50 files now use the native-preserving disclosure component. Existing canvas,
+streaming, media, credential and permission contracts remain at their owners.
+
+Focused final batches passed: shared controls/files/period (60 tests, nine files),
+form disclosures (18 tests, four files), specialized chat/editor controls
+(210 tests, seven files), native-disclosure consumers (224 tests, eight files),
+and cross-family choices/filters/forms (67 tests, six files). Earlier additional
+model/table/account/sheet checks passed 136 tests in seven files. Counts overlap.
+The first migration batches caught a missing picker import and obsolete class/
+role assertions; corrected behavioral tests passed. Existing jsdom canvas and
+navigation warnings were not live provider calls.
+
+The first populated Chromium pass completed 15 cases without client exceptions:
+core fields/menus at 1440/390px in light/dark, main-chat filters and disabled
+pre-message controls, plus ten catalog/dashboard/settings routes without document
+overflow. A final eight-case pass after the native migration verified keyboard
+folding and preserved drafts, settled themes, popup focus restoration and coarse-
+pointer field/summary targets of at least 44px. The What's new interstitial was
+acknowledged only in the disposable test browser's local storage. No screenshots,
+Computer Use/Browser Use, microphone capture or paid model runs were used.
+
+Local frontend reloads were restarted after broad HMR invalidation caused login
+requests to time out; direct backend login returned 200 and the final browser run
+passed. The existing database and app configuration were preserved. Final commit
+hooks and new-SHA CI are checked after this note is prepared.

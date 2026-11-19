@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState, type ReactNode } from "react";
 import "./chat-layout.css";
 import {
@@ -147,7 +149,7 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
                   ))}
               </div>
             )}
-            <details className="border-border border-t pt-2">
+            <NativeDisclosure className="border-border border-t pt-2">
               <summary className="text-muted-foreground cursor-pointer py-1 text-xs">
                 {modelCopy("changeModel")}
               </summary>
@@ -159,7 +161,7 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
                   onChange={change}
                 />
               </div>
-            </details>
+            </NativeDisclosure>
           </div>
         )}
         {modelProfileId !== null && (
@@ -252,7 +254,7 @@ export function ChatComposerControls({
             <div className="chat-settings-body">
               <YourConnections />
               {(desktop || harnesses.length > 0) && (
-                <details className="chat-settings-section" open>
+                <NativeDisclosure className="chat-settings-section" open>
                   <summary>
                     <SquareTerminal className="size-4" aria-hidden />
                     <span>{t("toolsTab")}</span>
@@ -269,11 +271,11 @@ export function ChatComposerControls({
                     ))}
                     {desktop && <WorkOn agentCapabilities={agentCapabilities} />}
                   </div>
-                </details>
+                </NativeDisclosure>
               )}
               <ConversationNotifications />
               {can(Perm.approvalsDecide) && (
-                <details className="chat-settings-section">
+                <NativeDisclosure className="chat-settings-section">
                   <summary>
                     <ShieldCheck className="size-4" aria-hidden />
                     <span>{chat("approvalRememberedTitle")}</span>
@@ -282,7 +284,7 @@ export function ChatComposerControls({
                   <div className="chat-settings-section-body">
                     <RememberedApprovals showTitle={false} />
                   </div>
-                </details>
+                </NativeDisclosure>
               )}
             </div>
             <p className="chat-settings-footer">{t("savedAutomatically")}</p>

@@ -5,7 +5,7 @@ import { Command } from "cmdk";
 import { Check, ChevronsUpDown, Pencil } from "lucide-react";
 
 import { Badge, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
-import { COMMAND_ITEM_FOCUS, FORM_CONTROL } from "@/components/ui/control-styles";
+import { COMMAND_ITEM_FOCUS, FORM_CONTROL, MENU_ROW } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -138,11 +138,11 @@ export function ModelCombobox({
               value={search}
               onValueChange={setSearch}
               placeholder={t("searchModels")}
-              className="placeholder:text-muted-foreground w-full bg-transparent text-sm outline-none"
+              className="placeholder:text-muted-foreground w-full bg-transparent text-base outline-none md:text-sm"
             />
           </div>
 
-          <Command.List id={listId} className="max-h-72 scrollbar-thin overflow-y-auto p-1">
+          <Command.List id={listId} className="max-h-72 scrollbar-thin overflow-y-auto p-1.5">
             {/* Not `Command.Empty`: when something has been typed there *is* an
                 option - itself - and an "no matches" line above an offer to use
                 what you typed contradicts it. */}
@@ -162,10 +162,7 @@ export function ModelCombobox({
               <Command.Item
                 value={custom}
                 onSelect={() => pick(custom)}
-                className={cn(
-                  COMMAND_ITEM_FOCUS,
-                  "relative flex cursor-pointer items-center gap-2.5 rounded-lg py-2 pr-9 pl-3 text-sm",
-                )}
+                className={cn(COMMAND_ITEM_FOCUS, MENU_ROW, "cursor-pointer pr-9")}
               >
                 <ModelIcon model={custom} provider={provider} />
                 <span className="min-w-0 flex-1 truncate">
@@ -186,10 +183,7 @@ export function ModelCombobox({
                 // "opus" is the name and "claude-opus" is the id.
                 value={`${option.id} ${option.name}`}
                 onSelect={() => pick(option.id)}
-                className={cn(
-                  COMMAND_ITEM_FOCUS,
-                  "relative flex cursor-pointer items-start gap-2.5 rounded-lg py-2 pr-9 pl-3 text-sm",
-                )}
+                className={cn(COMMAND_ITEM_FOCUS, MENU_ROW, "cursor-pointer items-start pr-9")}
               >
                 <ModelIcon model={option.id} provider={provider} className="self-center" />
                 <span className="min-w-0 flex-1">

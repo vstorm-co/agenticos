@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 
+import { DisclosureContent } from "./disclosure-content";
+import { DISCLOSURE_TRIGGER } from "./control-styles";
 import { cn } from "@/lib/utils";
 
 /**
@@ -27,6 +29,7 @@ export function MoreOptions({
   onOpenChange?: (open: boolean) => void;
   children: ReactNode;
 }) {
+  const id = useId();
   const [own, setOwn] = useState(defaultOpen);
   const open = controlled ?? own;
   const toggle = () => {
@@ -36,18 +39,33 @@ export function MoreOptions({
   return (
     <div>
       <button
+        id={`${id}-toggle`}
         type="button"
+        aria-controls={id}
         aria-expanded={open}
         onClick={toggle}
-        className="text-muted-foreground hover:text-foreground flex w-full items-center gap-2 border-t pt-4 text-[13px] font-medium transition-colors"
+        className={cn(DISCLOSURE_TRIGGER, "border-t pt-3")}
       >
         <ChevronRight
-          className={cn("h-4 w-4 transition-transform", open && "rotate-90")}
+          className={cn(
+            "h-4 w-4 transition-transform motion-reduce:transition-none",
+            open && "rotate-90",
+          )}
           aria-hidden
         />
         {label}
       </button>
-      {open && <div className="mt-4 space-y-5">{children}</div>}
+      <DisclosureContent
+        id={id}
+        open={open}
+        triggerId={`${id}-toggle`}
+        onReveal={() => {
+          setOwn(true);
+          onOpenChange?.(true);
+        }}
+      >
+        <div className="space-y-4 pt-3">{children}</div>
+      </DisclosureContent>
     </div>
   );
 }

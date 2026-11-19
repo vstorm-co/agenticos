@@ -8,7 +8,7 @@ export const CONTROL_INVALID =
   "aria-invalid:border-destructive aria-invalid:focus-visible:border-destructive aria-invalid:focus-visible:outline-destructive";
 
 /** Shared surface and states for text fields, selects and multiline fields. */
-export const FORM_CONTROL = `${CONTROL_FOCUS} ${CONTROL_DISABLED} ${CONTROL_INVALID} border-input bg-field text-foreground placeholder:text-muted-foreground enabled:hover:border-foreground/30 enabled:hover:bg-control focus-visible:border-foreground/50 w-full min-w-0 rounded-xl border-2 transition-[background-color,border-color,box-shadow,color] duration-[var(--duration-fast)]`;
+export const FORM_CONTROL = `${CONTROL_FOCUS} ${CONTROL_DISABLED} ${CONTROL_INVALID} border-input bg-field text-foreground placeholder:text-muted-foreground enabled:hover:border-foreground/30 enabled:hover:bg-control focus-visible:border-foreground/50 w-full min-w-0 rounded-xl border transition-[background-color,border-color,box-shadow,color] duration-[var(--duration-fast)]`;
 
 /** A visible secondary action surface on both the page and a card. */
 export const SECONDARY_CONTROL =
@@ -24,3 +24,30 @@ export const MENU_ITEM_FOCUS =
 /** Command palettes retain the same highlight while focus stays in their search field. */
 export const COMMAND_ITEM_FOCUS =
   "aria-selected:bg-foreground/[0.09] aria-selected:text-foreground data-[selected=true]:bg-foreground/[0.09] data-[selected=true]:text-foreground aria-selected:[&_.text-muted-foreground]:text-foreground/80 data-[selected=true]:[&_.text-muted-foreground]:text-foreground/80";
+
+/** Floating surfaces share their appearance across routes, including portals. */
+export const FLOATING_PANEL =
+  "panel text-popover-foreground rounded-2xl duration-[var(--duration-panel)] data-[state=closed]:duration-120";
+
+/** Geometry and states shared by menu actions, choices and command results. */
+export const MENU_ROW =
+  "touch:min-h-11 relative flex min-h-9 cursor-default touch-manipulation items-center gap-2 rounded-xl px-2.5 py-2 text-[13px] outline-none select-none transition-colors duration-[var(--duration-fast)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:pointer-events-none [&>svg]:size-4 [&>svg]:shrink-0";
+
+export const MENU_LABEL = "text-muted-foreground px-2.5 py-2 text-xs font-medium";
+export const MENU_SEPARATOR = "bg-border mx-1 my-1 h-px";
+
+/** A disclosure is an action, not another bordered field. */
+// i18n-exempt: Tailwind control class tokens, never rendered as interface copy.
+export const DISCLOSURE_TRIGGER = `${CONTROL_FOCUS} text-muted-foreground hover:text-foreground touch:min-h-11 flex min-h-9 w-full items-center gap-2 rounded-lg text-left text-[13px] font-medium transition-colors duration-[var(--duration-fast)]`;
+
+export const CHOICE_SURFACE =
+  "border-input bg-field inline-flex max-w-full items-center gap-0.5 rounded-xl border p-0.5";
+// i18n-exempt: Tailwind control class tokens, never rendered as interface copy.
+export const CHOICE_OPTION = `${CONTROL_FOCUS} ${CONTROL_DISABLED} touch:min-h-11 touch:min-w-11 inline-flex min-h-9 touch-manipulation items-center justify-center gap-1.5 rounded-lg px-3 py-1 text-[13px] transition-colors duration-[var(--duration-fast)]`;
+
+/** Native radio/checkbox controls in rich choice cards keep browser semantics. */
+// i18n-exempt: Tailwind control class tokens, never rendered as interface copy.
+export const NATIVE_CHOICE = `${CONTROL_FOCUS} accent-foreground shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50`;
+
+/** Page links and in-page tabs share a visual language, not ARIA roles. */
+export const TAB_TRIGGER = `${CONTROL_FOCUS} touch:min-h-11 inline-flex min-h-9 shrink-0 touch-manipulation items-center justify-center gap-2 rounded-t-lg border-b-2 border-transparent px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors duration-[var(--duration-fast)] hover:bg-foreground/[0.04] hover:text-foreground`;

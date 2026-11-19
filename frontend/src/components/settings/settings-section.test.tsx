@@ -53,3 +53,20 @@ it("keeps a destructive card warning visible", () => {
   expect(screen.getByText("Cannot be undone")).toBeVisible();
   expect(screen.queryByRole("button", { name: "More information" })).toBeNull();
 });
+
+it("retains a settings draft when its section folds and excludes it from focus", async () => {
+  function Fields({ open }: { open: boolean }) {
+    return (
+      <SettingsSection title="Preferences" collapsible open={open}>
+        <input aria-label="Name" defaultValue="" />
+      </SettingsSection>
+    );
+  }
+  const view = render(<Fields open />);
+  await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "Draft name");
+  view.rerender(<Fields open={false} />);
+  expect(screen.getByRole("button", { name: "Preferences" })).toHaveFocus();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  view.rerender(<Fields open />);
+  expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Draft name");
+});

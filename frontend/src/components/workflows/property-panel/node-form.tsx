@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -1165,7 +1167,7 @@ function InputNode({ schema, name, required, path, defs, ctx }: FieldProps) {
           onRemove={ctx.removeBinding}
         />
         {legacy && (
-          <details>
+          <NativeDisclosure>
             <summary className="text-muted-foreground cursor-pointer text-xs">{label}</summary>
             <div className="space-y-3 pt-3">
               {shape.entries.map((child) => (
@@ -1178,7 +1180,7 @@ function InputNode({ schema, name, required, path, defs, ctx }: FieldProps) {
                 />
               ))}
             </div>
-          </details>
+          </NativeDisclosure>
         )}
       </div>
     );

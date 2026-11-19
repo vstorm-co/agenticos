@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { Check, Clock, Lock, Mic, ShieldAlert, X } from "lucide-react";
 import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
@@ -146,14 +148,14 @@ export function VoiceApprovalCard({
       <ToolLine tool={approval.tool} />
       <Arguments args={approval.args} large />
       {approval.said && <Said said={approval.said} warn />}
-      <details>
+      <NativeDisclosure>
         <summary className="text-muted-foreground w-fit cursor-pointer text-xs">
           {t("exactJson")}
         </summary>
         <pre className="bg-muted mt-1.5 overflow-x-auto rounded-lg px-2.5 py-2 font-mono text-xs">
           {JSON.stringify(approval.args, null, 2)}
         </pre>
-      </details>
+      </NativeDisclosure>
       {canDecide && (
         <div className="flex flex-wrap justify-end gap-2">
           <Button

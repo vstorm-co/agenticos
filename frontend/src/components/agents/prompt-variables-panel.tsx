@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -70,7 +72,7 @@ export function PromptVariablesPanel({
   return (
     // A card of its own, beside the instructions rather than boxed inside them.
     <Card>
-      <details
+      <NativeDisclosure
         className="group"
         open={expanded}
         onToggle={(event) => setExpanded(event.currentTarget.open)}
@@ -223,7 +225,7 @@ export function PromptVariablesPanel({
             )}
           </div>
         </CardContent>
-      </details>
+      </NativeDisclosure>
     </Card>
   );
 }

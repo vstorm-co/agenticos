@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 
+import { COMMAND_ITEM_FOCUS, MENU_ROW, MENU_LABEL } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 import type { Mentionable } from "@/types/mention";
 import { MentionMark } from "./mention-chip";
@@ -67,11 +68,7 @@ export function MentionPalette({
             const heading = index === 0 || items[index - 1]?.kind !== item.kind;
             return (
               <li key={`${item.kind}:${item.id}`}>
-                {heading && (
-                  <p className="text-muted-foreground px-3 pt-2 pb-1 text-[11px] font-medium tracking-wide uppercase">
-                    {t(`kind.${item.kind}`)}
-                  </p>
-                )}
+                {heading && <p className={MENU_LABEL}>{t(`kind.${item.kind}`)}</p>}
                 <div
                   id={id ? `${id}-${index}` : undefined}
                   role="option"
@@ -84,7 +81,9 @@ export function MentionPalette({
                     onPick(item);
                   }}
                   className={cn(
-                    "chat-command-palette-row flex cursor-pointer items-center gap-2.5 px-3 py-1.5",
+                    MENU_ROW,
+                    COMMAND_ITEM_FOCUS,
+                    "chat-command-palette-row cursor-pointer",
                     index === selectedIndex ? "bg-foreground/[0.06]" : "hover:bg-foreground/[0.03]",
                   )}
                 >

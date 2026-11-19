@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { toolLookupName } from "@/lib/tool-identity";
 
 import { memo } from "react";
@@ -234,7 +236,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
 }) {
   const t = useTranslations("chat");
   return (
-    <details className="group" open={open}>
+    <NativeDisclosure className="group" open={open}>
       {/* A line, not a box. The reasoning is an aside on the way to an answer, and a
           bordered panel around it gives it more weight on the page than the answer
           itself - which is backwards, and was the loudest thing in every turn. */}
@@ -257,7 +259,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
       <div className="text-muted-foreground border-border/70 mt-2 ml-4 max-h-72 overflow-y-auto border-l pl-5 text-[13px] leading-relaxed">
         <MarkdownContent content={text} />
       </div>
-    </details>
+    </NativeDisclosure>
   );
 });
 
@@ -318,7 +320,7 @@ export function AskUserBlock({
 }) {
   const t = useTranslations("chat");
   return (
-    <details className="group text-muted-foreground text-[13px]">
+    <NativeDisclosure className="group text-muted-foreground text-[13px]">
       <summary className="hover:text-foreground flex min-h-8 cursor-pointer items-center gap-2 rounded-md py-1 focus-visible:outline-2 focus-visible:outline-offset-2">
         <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
           <MessageCircleQuestion className="size-3.5" />
@@ -338,7 +340,7 @@ export function AskUserBlock({
         <div className="text-xs font-medium">{t("askUserAnswered")}</div>
         <p className="text-foreground/80 break-words whitespace-pre-wrap">{answer}</p>
       </div>
-    </details>
+    </NativeDisclosure>
   );
 }
 

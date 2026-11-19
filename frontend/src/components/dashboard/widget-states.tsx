@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { ChevronDown, TriangleAlert } from "lucide-react";
 import { InboxIcon as Inbox } from "@/components/icons/product-icons";
 import type { LucideIcon } from "lucide-react";
@@ -147,7 +149,7 @@ export function WidgetEmptyBody({
   icon?: LucideIcon;
 }) {
   return (
-    <details data-widget-empty className="group/empty min-w-0">
+    <NativeDisclosure data-widget-empty className="group/empty min-w-0">
       <summary className="focus-visible:outline-foreground flex cursor-pointer list-none items-center gap-2 rounded-md text-sm focus-visible:outline-2 [&::-webkit-details-marker]:hidden">
         <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
         <span className="text-foreground min-w-0 flex-1 text-xs font-medium">{title}</span>
@@ -159,7 +161,7 @@ export function WidgetEmptyBody({
       {description && (
         <p className="text-muted-foreground mt-2 text-xs leading-relaxed">{description}</p>
       )}
-    </details>
+    </NativeDisclosure>
   );
 }
 

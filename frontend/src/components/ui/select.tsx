@@ -3,7 +3,15 @@
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp, ListFilter, type LucideIcon } from "lucide-react";
-import { FILTER_CONTROL, FORM_CONTROL, MENU_ITEM_FOCUS } from "./control-styles";
+import {
+  FILTER_CONTROL,
+  FORM_CONTROL,
+  MENU_ITEM_FOCUS,
+  FLOATING_PANEL,
+  MENU_ROW,
+  MENU_LABEL,
+  MENU_SEPARATOR,
+} from "./control-styles";
 import { cn } from "@/lib/utils";
 
 const Select = SelectPrimitive.Root;
@@ -89,7 +97,8 @@ const SelectContent = React.forwardRef<
       <SelectPrimitive.Content
         ref={ref}
         className={cn(
-          "panel text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-97 data-[state=open]:zoom-in-97 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height,24rem))] max-w-[calc(100vw-1.5rem)] min-w-[8rem] origin-[var(--radix-select-content-transform-origin)] overflow-hidden rounded-xl",
+          FLOATING_PANEL,
+          "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-97 data-[state=open]:zoom-in-97 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height,24rem))] max-w-[calc(100vw-1.5rem)] min-w-[8rem] origin-[var(--radix-select-content-transform-origin)] overflow-hidden",
           className,
         )}
         position={position}
@@ -118,11 +127,7 @@ const SelectLabel = React.forwardRef<
   React.ComponentRef<typeof SelectPrimitive.Label>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Label>
 >(({ className, ...props }, ref) => (
-  <SelectPrimitive.Label
-    ref={ref}
-    className={cn("px-2 py-1.5 text-sm font-semibold", className)}
-    {...props}
-  />
+  <SelectPrimitive.Label ref={ref} className={cn(MENU_LABEL, className)} {...props} />
 ));
 SelectLabel.displayName = SelectPrimitive.Label.displayName;
 
@@ -151,7 +156,8 @@ const SelectItem = React.forwardRef<
     ref={ref}
     className={cn(
       MENU_ITEM_FOCUS,
-      "data-[state=checked]:bg-foreground/[0.05] touch:min-h-11 relative flex min-h-9 w-full cursor-pointer touch-manipulation items-center rounded-lg py-2 pr-9 pl-3 text-[13px] outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[state=checked]:font-medium",
+      MENU_ROW,
+      "data-[state=checked]:bg-foreground/[0.05] w-full cursor-pointer pr-9 data-[state=checked]:font-medium",
       className,
     )}
     {...props}
@@ -171,11 +177,7 @@ const SelectSeparator = React.forwardRef<
   React.ComponentRef<typeof SelectPrimitive.Separator>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Separator>
 >(({ className, ...props }, ref) => (
-  <SelectPrimitive.Separator
-    ref={ref}
-    className={cn("bg-muted -mx-1 my-1 h-px", className)}
-    {...props}
-  />
+  <SelectPrimitive.Separator ref={ref} className={cn(MENU_SEPARATOR, className)} {...props} />
 ));
 SelectSeparator.displayName = SelectPrimitive.Separator.displayName;
 

@@ -229,6 +229,7 @@ function ConversationItem({
       {isEditing ? (
         <input
           type="text"
+          aria-label={t("rename")}
           value={editTitle}
           onChange={(e) => setEditTitle(e.target.value)}
           onBlur={handleRename}
@@ -237,7 +238,7 @@ function ConversationItem({
             if (e.key === "Escape") setIsEditing(false);
           }}
           ref={titleField}
-          className="text-foreground relative min-w-0 flex-1 bg-transparent text-base font-medium outline-none md:text-[13px]"
+          className="text-foreground focus-visible:outline-foreground/60 relative min-w-0 flex-1 rounded bg-transparent text-base font-medium focus-visible:outline-2 focus-visible:outline-offset-2 md:text-[13px]"
           onClick={(e) => e.stopPropagation()}
         />
       ) : (

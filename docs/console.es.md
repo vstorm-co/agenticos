@@ -1,5 +1,5 @@
 ---
-source_sha: "6e9a8b41b6fa"
+source_sha: "91931d439fad"
 ---
 
 # La consola { #the-console }
@@ -247,6 +247,8 @@ Las tarjetas del panel usan filas compactas coherentes, símbolos de servicios y
 Un chat nuevo saluda según la hora local y muestra un editor compacto. Los archivos están junto al agente; los ajustes y el escudo de permisos, junto al modelo. El uso de contexto permanece como icono hasta abrirlo. Debajo aparecen hasta tres temas de Inbox, primero los urgentes, con marcas de origen del catálogo MCP; el contador de aprobaciones enlaza a su cola. Abrir una vista previa no aprueba ni descarta nada. La carga, los errores y la lista vacía tienen estados distintos. El dictado y las llamadas usan la misma superficie ligera que el editor. Los chats integrados de agentes y Architect conservan sus propios controles.
 
 Antes del primer mensaje, Archivos y uso de contexto permanecen visibles pero desactivados. El menú de adjuntos muestra directamente sus acciones disponibles. Los ajustes del chat usan secciones compactas para conexiones y aprobaciones recordadas; la vista previa de Inbox muestra origen, tiempo y prioridad.
+
+Los campos, las filas de menú, los selectores, las pestañas y las secciones de ajustes comparten el mismo estilo compacto en toda la consola. Al plegar un formulario opcional se conserva el borrador; un campo obligatorio no válido puede volver a abrir su sección. Los desplegables nativos comparten espaciado y se animan donde se admiten tamaños intrínsecos; en los demás navegadores se abren de forma nativa sin animación. Se mantienen el movimiento reducido y las áreas táctiles más grandes.
 
 Los chats guardados muestran directamente marcadores del historial, sin destellos de bienvenida; la barra lateral y el historial cargan de forma independiente. Los envíos manuales desplazan suavemente el mensaje hacia arriba; la cola no mueve al lector. El desplazamiento, el tacto y el teclado cancelan el movimiento. Los menús y diálogos compartidos usan transiciones pequeñas y suaves; la preferencia Motion desactiva el movimiento.
 

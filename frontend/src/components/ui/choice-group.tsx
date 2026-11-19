@@ -3,7 +3,7 @@
 import { useRef, type KeyboardEvent } from "react";
 import type { LucideIcon } from "lucide-react";
 
-import { CONTROL_DISABLED, CONTROL_FOCUS } from "@/components/ui/control-styles";
+import { CHOICE_SURFACE, CHOICE_OPTION } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 
 export interface Choice<T extends string> {
@@ -16,6 +16,7 @@ export interface Choice<T extends string> {
 interface ChoiceGroupProps<T extends string> {
   /** The id of the element naming the group. */
   labelledBy: string;
+  compact?: boolean;
   /** `undefined` before the stored value is known, which checks nothing. */
   value: T | undefined;
   options: readonly Choice<T>[];
@@ -35,6 +36,7 @@ const PREVIOUS_KEYS = new Set(["ArrowLeft", "ArrowUp"]);
  */
 export function ChoiceGroup<T extends string>({
   labelledBy,
+  compact = false,
   value,
   options,
   onChange,
@@ -51,7 +53,9 @@ export function ChoiceGroup<T extends string>({
     if (step === 0) return;
     event.preventDefault();
     const next = (index + step + options.length) % options.length;
-    onChange(options[next]!.value);
+    const option = options[next];
+    if (!option) return;
+    onChange(option.value);
     buttons.current[next]?.focus();
   };
 
@@ -60,7 +64,7 @@ export function ChoiceGroup<T extends string>({
       role="radiogroup"
       aria-labelledby={labelledBy}
       aria-disabled={disabled || undefined}
-      className="border-input bg-field inline-flex flex-wrap gap-0.5 rounded-xl border-2 p-0.5"
+      className={cn(CHOICE_SURFACE, "flex-wrap")}
     >
       {options.map((option, index) => {
         const checked = option.value === value;
@@ -78,9 +82,8 @@ export function ChoiceGroup<T extends string>({
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(
-              CONTROL_FOCUS,
-              CONTROL_DISABLED,
-              "touch:min-h-11 touch:min-w-11 inline-flex touch-manipulation items-center gap-1.5 rounded-lg px-3 py-1 text-sm transition-colors duration-[var(--duration-fast)]",
+              CHOICE_OPTION,
+              compact && "min-h-8",
               checked
                 ? "bg-control-active text-foreground font-semibold"
                 : "text-muted-foreground hover:text-foreground",

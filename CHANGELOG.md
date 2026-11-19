@@ -34,6 +34,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Unify fields, menus, model and resource pickers, tabs, settings and native disclosures across the console using the accepted compact chat presentation. Preserve native keyboard behavior, reduced motion, touch targets, form drafts and hidden-field validation.
+
 - Keep the greeting, date, summary space and primary action consistent across personal, organization, group and deployment dashboards. Keep scope navigation aligned with its filters, retain navigation on empty layouts and animate scope changes.
 
 - Ease tab content into place across shared console tabs, draft versions, authoring comparisons, delegate details, browser previews and desktop Quick Ask. Respect reduced motion and keep the tab strip stationary.

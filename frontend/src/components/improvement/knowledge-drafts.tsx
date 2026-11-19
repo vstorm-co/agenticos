@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { NativeSelect } from "@/components/ui/native-select";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -295,10 +297,10 @@ function DraftFacts({
           {!(supported ?? topic.draft.sources.some((source) => source.kind === "document")) && (
             <p className="text-warning-ink">{t("unsupportedDraft")}</p>
           )}
-          <details className="rounded-lg border p-3">
+          <NativeDisclosure className="rounded-lg border p-3">
             <summary className="cursor-pointer font-medium">{topic.draft.title}</summary>
             <p className="mt-3 break-words whitespace-pre-wrap">{topic.draft.content}</p>
-          </details>
+          </NativeDisclosure>
         </>
       )}
       {!readOnly && (

@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/types/permissions";
 import Link from "next/link";
@@ -128,14 +130,14 @@ export function DelegationSheet({
             </Link>
           )}
           {item.thinking && (
-            <details className="text-muted-foreground text-[13px]">
+            <NativeDisclosure className="text-muted-foreground text-[13px]">
               <summary className="hover:text-foreground cursor-pointer">
                 {chat("thoughtAboutIt")}
               </summary>
               <div className="border-foreground/10 mt-2 border-l pl-3">
                 <MarkdownContent content={item.thinking} />
               </div>
-            </details>
+            </NativeDisclosure>
           )}
           {item.brief && (
             <section className="space-y-1.5">

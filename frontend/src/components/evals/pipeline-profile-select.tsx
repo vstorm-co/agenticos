@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 
 import { ModelIcon } from "@/components/icons/model-icon";
 import { Badge, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
-import { COMMAND_ITEM_FOCUS, FORM_CONTROL } from "@/components/ui/control-styles";
+import { COMMAND_ITEM_FOCUS, FORM_CONTROL, MENU_ROW } from "@/components/ui/control-styles";
 import { hasKey, modelDetail, runsAgents, usableForAgents } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import type { ModelProfile } from "@/types/providers";
@@ -79,7 +79,8 @@ export function PipelineProfileSelect({
                   }}
                   className={cn(
                     COMMAND_ITEM_FOCUS,
-                    "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm data-[disabled=true]:opacity-50",
+                    MENU_ROW,
+                    "cursor-pointer data-[disabled=true]:opacity-50",
                   )}
                 >
                   <ModelIcon model={profile.model} provider={profile.provider} />

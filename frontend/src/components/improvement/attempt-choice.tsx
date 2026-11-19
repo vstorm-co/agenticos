@@ -1,5 +1,7 @@
 "use client";
 
+import { NATIVE_CHOICE } from "@/components/ui/control-styles";
+
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
@@ -74,7 +76,7 @@ export function AttemptChoice({ session, agent }: { session: Improvement; agent:
               setChoice(round.id);
             }}
             aria-label={t("option", { number: round.number })}
-            className="accent-foreground"
+            className={NATIVE_CHOICE}
           />
           <AttemptSummary session={session} round={round} />
         </label>

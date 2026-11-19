@@ -1,4 +1,7 @@
 "use client";
+import { cn } from "@/lib/utils";
+
+import { NATIVE_CHOICE } from "@/components/ui/control-styles";
 
 import { useState, useEffect, useId, type FormEvent } from "react";
 import { BrandIcon } from "@/components/icons/brand-icon";
@@ -155,7 +158,7 @@ export function CodingAccountConnect({
               type="checkbox"
               checked={enabled}
               onChange={(event) => setEnabled(event.target.checked)}
-              className="mt-1"
+              className={cn(NATIVE_CHOICE, "mt-1")}
             />
             {t("consent")}
           </label>

@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { NativeSelect } from "@/components/ui/native-select";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
@@ -77,7 +79,7 @@ export function StartWorkspace({
         </Button>
       )}
       {organizations.some((org) => org.is_personal) && (
-        <details className={styles.personalChoice}>
+        <NativeDisclosure className={styles.personalChoice}>
           <summary>{t("usePersonal")}</summary>
           <p className={styles.explanation}>{t("personalExplanation")}</p>
           <Label htmlFor="setup-personal">{t("personalChoice")}</Label>
@@ -107,7 +109,7 @@ export function StartWorkspace({
               {t("continuePersonal")}
             </Button>
           )}
-        </details>
+        </NativeDisclosure>
       )}
     </div>
   );

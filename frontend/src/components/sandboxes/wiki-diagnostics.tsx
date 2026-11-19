@@ -1,4 +1,6 @@
 "use client";
+
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { useTranslations } from "next-intl";
 import type { WikiSnapshot } from "@/lib/wiki-workspace";
 export function WikiDiagnostics({ graph }: { graph: WikiSnapshot }) {
@@ -7,7 +9,7 @@ export function WikiDiagnostics({ graph }: { graph: WikiSnapshot }) {
     <div className="space-y-2">
       {" "}
       {(graph.skipped.length > 0 || graph.failed.length > 0 || graph.truncated) && (
-        <details className="text-sm">
+        <NativeDisclosure className="text-sm">
           <summary>{t("partial")}</summary>
           <p>{t("limits")}</p>
           <ul>
@@ -18,7 +20,7 @@ export function WikiDiagnostics({ graph }: { graph: WikiSnapshot }) {
               <li key={path}>{t("unreadable", { path })}</li>
             ))}
           </ul>
-        </details>
+        </NativeDisclosure>
       )}
       {graph.pages.some((entry) => entry.invalidFrontmatter) && (
         <p role="alert" className="text-sm">

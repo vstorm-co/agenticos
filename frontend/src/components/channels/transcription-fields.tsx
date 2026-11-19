@@ -3,7 +3,7 @@
 import { TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { ChoiceGroup } from "@/components/settings/choice-group";
+import { ChoiceGroup } from "@/components/ui/choice-group";
 import { SpeechKeyField, useSpeechKeyCheck } from "@/components/vault/speech-key-field";
 import {
   FormField,

@@ -20,6 +20,7 @@ import {
   Input,
   Textarea,
   NativeSelect,
+  NativeDisclosure,
   Select,
   SelectTrigger,
   SelectValue,
@@ -252,6 +253,15 @@ function Gallery() {
             </Alert>
           ))}
         </div>
+      </Section>
+
+      <Section title="Native disclosures">
+        <NativeDisclosure id="g-native-disclosure" className="w-full rounded-xl border px-3">
+          <summary>Native details</summary>
+          <div className="pb-3">
+            <Input aria-label="Native draft" defaultValue="Keep this draft" />
+          </div>
+        </NativeDisclosure>
       </Section>
 
       <Section title="FormField">

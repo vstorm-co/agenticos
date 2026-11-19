@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -64,7 +66,7 @@ export function StartersPanel({
 
   return (
     <Card className="@container">
-      <details
+      <NativeDisclosure
         className="group"
         open={expanded}
         onToggle={(event) => setExpanded(event.currentTarget.open)}
@@ -188,7 +190,7 @@ export function StartersPanel({
             </div>
           )}
         </CardContent>
-      </details>
+      </NativeDisclosure>
     </Card>
   );
 }

@@ -129,3 +129,7 @@ export { MoreOptions } from "./more-options";
 export { SwipeToDecide } from "./swipe-to-decide";
 
 export { NativeSelect } from "./native-select";
+
+export { ChoiceGroup, type Choice } from "./choice-group";
+
+export { NativeDisclosure } from "./native-disclosure";

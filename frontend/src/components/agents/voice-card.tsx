@@ -9,7 +9,7 @@ import {
   VoiceConversationFields,
   type VoiceConversationProps,
 } from "@/components/agents/voice-conversation-fields";
-import { ChoiceGroup } from "@/components/settings/choice-group";
+import { ChoiceGroup } from "@/components/ui/choice-group";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { ModelLabel } from "@/components/icons/model-icon";
 import { SpeechKeyField, useSpeechKeyCheck } from "@/components/vault/speech-key-field";

@@ -84,7 +84,7 @@ export function ServiceCard({
                   <span className="block">{title}</span>
                   <span
                     id={`${panelId}-description`}
-                    className="text-muted-foreground mt-1 block min-h-10 text-xs leading-5 font-normal"
+                    className="text-muted-foreground mt-1 block text-xs leading-5 font-normal"
                   >
                     {description}
                   </span>
@@ -93,7 +93,7 @@ export function ServiceCard({
             ) : (
               <span className="block min-h-9">
                 <span className="block">{title}</span>
-                <span className="text-muted-foreground mt-1 block min-h-10 text-xs leading-5 font-normal">
+                <span className="text-muted-foreground mt-1 block text-xs leading-5 font-normal">
                   {description}
                 </span>
               </span>
@@ -107,8 +107,9 @@ export function ServiceCard({
         <DisclosureContent
           id={panelId}
           open={!expandable || open}
-          triggerId={`${panelId}-toggle`}
+          triggerId={expandable ? `${panelId}-toggle` : undefined}
           mountOnOpen={false}
+          onReveal={() => changeOpen(true)}
         >
           <div className="space-y-4 border-t px-4 py-4 sm:px-5">{children}</div>
         </DisclosureContent>

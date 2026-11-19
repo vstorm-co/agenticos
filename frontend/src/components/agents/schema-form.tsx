@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import Image from "next/image";
 import { ChevronRight, Cloud, Container, Eye, EyeOff, Globe, Laptop, Network } from "lucide-react";
@@ -225,13 +227,13 @@ function visible(
 function AdvancedFields({ open, children }: { open: boolean; children: React.ReactNode }) {
   const t = useTranslations("agents");
   return (
-    <details className="group" open={open}>
+    <NativeDisclosure className="group" open={open}>
       <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
         <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
         {t("advancedSettings")}
       </summary>
       <div className="mt-3 space-y-4">{children}</div>
-    </details>
+    </NativeDisclosure>
   );
 }
 

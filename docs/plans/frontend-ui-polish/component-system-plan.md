@@ -1,7 +1,7 @@
 # Console component consistency plan
 
 Date: 2026-11-19. PR: [#3160](https://github.com/vstorm-co/agenticos/pull/3160).
-Status: code inventory and initial inspection complete; application-wide migration not started.
+Status: implementation and source integration migration complete; final checks are recorded in [the migration review](component-migration-review.md).
 
 ## Outcome
 
@@ -9,7 +9,7 @@ Make the entire application use the accepted Minimal chat's quiet surfaces, rest
 
 The [inventory](component-inventory.md) covers all current component directories, all 69 shared UI modules and 101 App Router page modules. Inspection concentrated on shared primitives and representative chat, dashboard, settings, model, table, navigation and editor compositions. This is a code audit, not a visual certification of every route. No screenshots, Computer Use or Browser Use were run.
 
-The current request is to review and plan first. The waves below are pending implementation. The preceding chat refinements remain part of this PR and do not establish that the rest of the application has migrated.
+The maintainer approved the full plan after the initial review. The waves below are implemented through shared presentation owners and explicit feature migrations; the migration review distinguishes source integration from runtime samples. Baseline findings and line references below describe the tree before this migration.
 
 ## What the code shows
 
@@ -64,23 +64,23 @@ Implement in existing owners before adding wrappers. Introduce a new composite o
 
 ### 1. Shared controls and the reported filter panel
 
-- [ ] Consolidate field, action and floating-surface values in `control-styles.ts`, shared UI wrappers and existing global tokens.
-- [ ] Align Button/IconButton, Input/Textarea/NativeSelect/Select, Switch/Checkbox and search controls; keep existing props and focus contracts.
-- [ ] Align Popover/DropdownMenu/ContextMenu/Tooltip surface and row styling. Keep forms, command lists and menus semantically distinct.
-- [ ] Migrate ConversationFilters first, followed by ListFilters and dashboard period/section controls. Keep filters in the same row as tabs where the page already uses that pattern.
-- [ ] Promote reusable Minimal surface styling out of `chat-layout.css`; remove the corresponding body/portal override only after callers inherit the shared style.
-- [ ] Verify narrow filter panels, long agent/model names, keyboard opening/Escape/focus return and both themes. Keep current filter behavior unchanged.
+- [x] Consolidate field, action and floating-surface values in `control-styles.ts`, shared UI wrappers and existing global tokens.
+- [x] Align Button/IconButton, Input/Textarea/NativeSelect/Select, Switch/Checkbox and search controls; keep existing props and focus contracts.
+- [x] Align Popover/DropdownMenu/ContextMenu/Tooltip surface and row styling. Keep forms, command lists and menus semantically distinct.
+- [x] Migrate ConversationFilters first, followed by ListFilters and dashboard period/section controls. Keep filters in the same row as tabs where the page already uses that pattern.
+- [x] Promote reusable Minimal surface styling out of `chat-layout.css`; remove the corresponding body/portal override only after callers inherit the shared style.
+- [x] Verify narrow filter panels, long agent/model names, keyboard opening/Escape/focus return and both themes. Keep current filter behavior unchanged.
 
 Deliverable: the screenshot's panel and equivalent shared controls look coherent both inside and outside `/chat`.
 
 ### 2. Repeated compositions
 
-- [ ] Field groups and compact filter panels: FormField, ListFilters, ListCardControlsRow, sort/search/period controls and condition-editor framing.
-- [ ] Model/provider choices: ModelCombobox, ModelProfilePicker, ChatModelPicker, eval model pickers, service defaults and voice selectors. Use shared identity/row presentation, not one universal business component.
-- [ ] Cards and settings: Card, ListCard, SettingsSection, SectionCard, ServiceCard and capability configuration headers; standardize rhythm without adding cards around every section.
-- [ ] Dialog/ConfirmDialog/AlertDialog/Sheet headers, content and footer spacing. Preserve unsaved/pending writes, non-dismissible operations, onboarding exceptions and nested OAuth dialogs.
-- [ ] Tabs, wizard steps and disclosures: migrate custom copies; use DisclosureContent where persistent form state is required. Do not unmount unsaved fields just to animate them.
-- [ ] Shared empty/error/loading, status badges, toast and skeleton styles.
+- [x] Field groups and compact filter panels: FormField, ListFilters, ListCardControlsRow, sort/search/period controls and condition-editor framing.
+- [x] Model/provider choices: ModelCombobox, ModelProfilePicker, ChatModelPicker, eval model pickers, service defaults and voice selectors. Use shared identity/row presentation, not one universal business component.
+- [x] Cards and settings: Card, ListCard, SettingsSection, SectionCard, ServiceCard and capability configuration headers; standardize rhythm without adding cards around every section.
+- [x] Dialog/ConfirmDialog/AlertDialog/Sheet headers, content and footer spacing. Preserve unsaved/pending writes, non-dismissible operations, onboarding exceptions and nested OAuth dialogs.
+- [x] Tabs, wizard steps and disclosures: migrate custom copies; use DisclosureContent where persistent form state is required. Do not unmount unsaved fields just to animate them.
+- [x] Shared empty/error/loading, status badges, toast and skeleton styles.
 
 Deliverable: repeated patterns have one owner and real callers no longer carry duplicate presentation recipes.
 
@@ -104,11 +104,11 @@ Do not apply console-density changes blindly to public forms, embedded widgets, 
 
 ### 4. Specialized interactions and cleanup
 
-- [ ] Editor/canvas drag, selection, docking, resizing and keyboard bindings: reuse surfaces and controls, preserve coordinate and gesture behavior.
-- [ ] Streaming steps, long/virtualized lists, live counters and voice state: prevent remount/entrance animations on each update.
-- [ ] Audit the inventory's native button/input/details candidates. Reuse shared presentation where appropriate; retain native semantics and specialized handlers where necessary.
-- [ ] Remove superseded local classes and duplicate composition code only after all consumers migrate. Verify usage beyond direct imports before deleting any module.
-- [ ] Review new presentation abstractions against actual callers; remove variants/props introduced without a real use.
+- [x] Editor/canvas drag, selection, docking, resizing and keyboard bindings: reuse surfaces and controls, preserve coordinate and gesture behavior.
+- [x] Streaming steps, long/virtualized lists, live counters and voice state: prevent remount/entrance animations on each update.
+- [x] Audit the inventory's native button/input/details candidates. Reuse shared presentation where appropriate; retain native semantics and specialized handlers where necessary.
+- [x] Remove superseded local classes and duplicate composition code only after all consumers migrate. Verify usage beyond direct imports before deleting any module.
+- [x] Review new presentation abstractions against actual callers; remove variants/props introduced without a real use.
 
 ## Verification and completion criteria
 

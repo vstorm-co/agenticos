@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
+import { FLOATING_PANEL } from "./control-styles";
 import { cn } from "@/lib/utils";
 
 const Popover = PopoverPrimitive.Root;
@@ -18,7 +19,8 @@ const PopoverContent = React.forwardRef<
       align={align}
       sideOffset={sideOffset}
       className={cn(
-        "panel text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-97 data-[state=open]:zoom-in-97 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 z-50 max-h-[var(--radix-popover-content-available-height)] w-72 max-w-[calc(100vw-1.5rem)] origin-[var(--radix-popover-content-transform-origin)] overflow-y-auto overscroll-contain rounded-xl p-4 outline-none",
+        FLOATING_PANEL,
+        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-97 data-[state=open]:zoom-in-97 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 z-50 max-h-[var(--radix-popover-content-available-height)] w-72 max-w-[calc(100vw-1.5rem)] origin-[var(--radix-popover-content-transform-origin)] overflow-y-auto overscroll-contain p-3 outline-none",
         className,
       )}
       {...props}

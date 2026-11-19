@@ -229,6 +229,8 @@ A new chat greets you by local time and shows a compact composer. Files sit besi
 
 Before the first message, Files and context usage remain visible but disabled. The attachment menu shows its available actions directly. Chat controls use compact sections for connections and remembered approvals; Inbox previews show source identity, time and priority.
 
+Shared console fields, menu rows, pickers, tabs and settings sections use the same compact presentation. Folding an optional form preserves its draft; a required invalid field can reopen its section. Native disclosures share trigger spacing and animate where intrinsic sizing is supported, with ordinary native opening elsewhere. Reduced motion and larger touch targets remain available.
+
 Opening a saved conversation shows transcript placeholders directly, without flashing welcome suggestions; the sidebar and transcript load independently. Explicit sends glide the message near the top; queued messages do not reposition the reader. Scroll, touch and keyboard input cancel the glide. Shared menus and dialogs use small, eased transitions; the Motion preference disables movement.
 
 ## The inbox { #the-inbox }

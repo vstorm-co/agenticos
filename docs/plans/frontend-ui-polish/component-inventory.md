@@ -1,8 +1,10 @@
 # Frontend component inventory
 
-Snapshot: 2026-11-19, branch `codex/chat-inbox-ui-polish`. See [the migration plan](component-system-plan.md).
+Baseline snapshot before migration: 2026-11-19, branch `codex/chat-inbox-ui-polish`. See [the migration plan](component-system-plan.md).
 
 ## Method and limits
+
+Current migration evidence is in [component-migration-review.md](component-migration-review.md). ChoiceGroup and NativeDisclosure now live in `ui/`; baseline counts below are retained for comparison.
 
 Static enumeration of `.ts`/`.tsx` files under `frontend/src`, excluding `.test.`, `.spec.` and `.stories.`. Counts include helpers and barrel modules, not only React components. CSS and assets are outside these module counts. Imports include direct `@/components/ui/<module>` imports and named imports through `@/components/ui`, resolved against its current export barrel. Counts are distinct importing files, not rendered instances; relative imports, lazy imports and other re-export chains are not resolved. Zero is not evidence that a module is unused. Native JSX is a migration search index, not an accessibility defect count.
 
@@ -161,106 +163,106 @@ Every directory belongs to a migration wave; helper modules remain unchanged unl
 
 ## Route checklist
 
-These are routes to check after the component migration, not a claim that each screen has already been visually reviewed. Authentication, public/hosted and development routes have distinct interaction constraints. No browser automation or screenshots were used for this inventory.
+Checked boxes now record source integration review, not a claim that each screen has been visually reviewed. Runtime samples are recorded separately in the migration review. Authentication, public/hosted and development routes have distinct interaction constraints. No browser automation or screenshots were used for this inventory.
 
-- [ ] `[locale]/(auth)/forgot-password/page.tsx`
-- [ ] `[locale]/(auth)/login/page.tsx`
-- [ ] `[locale]/(auth)/magic-link-sent/page.tsx`
-- [ ] `[locale]/(auth)/register/page.tsx`
-- [ ] `[locale]/(auth)/reset-password/page.tsx`
-- [ ] `[locale]/(dashboard)/admin/background-jobs/page.tsx`
-- [ ] `[locale]/(dashboard)/admin/organizations/[id]/page.tsx`
-- [ ] `[locale]/(dashboard)/admin/organizations/page.tsx`
-- [ ] `[locale]/(dashboard)/admin/page.tsx`
-- [ ] `[locale]/(dashboard)/admin/settings/page.tsx`
-- [ ] `[locale]/(dashboard)/admin/system/page.tsx`
-- [ ] `[locale]/(dashboard)/admin/users/page.tsx`
-- [ ] `[locale]/(dashboard)/agents/[id]/evals/[runId]/page.tsx`
-- [ ] `[locale]/(dashboard)/agents/[id]/improve/[session]/page.tsx`
-- [ ] `[locale]/(dashboard)/agents/[id]/page.tsx`
-- [ ] `[locale]/(dashboard)/agents/page.tsx`
-- [ ] `[locale]/(dashboard)/apps/page.tsx`
-- [ ] `[locale]/(dashboard)/browse/[runId]/[callId]/page.tsx`
-- [ ] `[locale]/(dashboard)/channels/page.tsx`
-- [ ] `[locale]/(dashboard)/chat/page.tsx`
-- [ ] `[locale]/(dashboard)/context/page.tsx`
-- [ ] `[locale]/(dashboard)/dashboard/page.tsx`
-- [ ] `[locale]/(dashboard)/datasets/[id]/page.tsx`
-- [ ] `[locale]/(dashboard)/datasets/page.tsx`
-- [ ] `[locale]/(dashboard)/dev/components/page.tsx`
-- [ ] `[locale]/(dashboard)/documents/[id]/page.tsx`
-- [ ] `[locale]/(dashboard)/documents/page.tsx`
-- [ ] `[locale]/(dashboard)/evals/page.tsx`
-- [ ] `[locale]/(dashboard)/groups/[id]/page.tsx`
-- [ ] `[locale]/(dashboard)/groups/page.tsx`
-- [ ] `[locale]/(dashboard)/inbox/page.tsx`
-- [ ] `[locale]/(dashboard)/invitations/[token]/page.tsx`
-- [ ] `[locale]/(dashboard)/invitations/pending/page.tsx`
-- [ ] `[locale]/(dashboard)/kb/[id]/page.tsx`
-- [ ] `[locale]/(dashboard)/kb/page.tsx`
-- [ ] `[locale]/(dashboard)/link/[token]/page.tsx`
-- [ ] `[locale]/(dashboard)/mcp-servers/page.tsx`
-- [ ] `[locale]/(dashboard)/orgs/[id]/directory/page.tsx`
-- [ ] `[locale]/(dashboard)/orgs/[id]/groups/page.tsx`
-- [ ] `[locale]/(dashboard)/orgs/[id]/members/page.tsx`
-- [ ] `[locale]/(dashboard)/orgs/[id]/retention/page.tsx`
-- [ ] `[locale]/(dashboard)/orgs/[id]/roles/page.tsx`
-- [ ] `[locale]/(dashboard)/orgs/page.tsx`
-- [ ] `[locale]/(dashboard)/profile/page.tsx`
-- [ ] `[locale]/(dashboard)/projects/[id]/page.tsx`
-- [ ] `[locale]/(dashboard)/projects/page.tsx`
-- [ ] `[locale]/(dashboard)/rag/[id]/page.tsx`
-- [ ] `[locale]/(dashboard)/rag/page.tsx`
-- [ ] `[locale]/(dashboard)/remote-agents/page.tsx`
-- [ ] `[locale]/(dashboard)/routines/page.tsx`
-- [ ] `[locale]/(dashboard)/runs/page.tsx`
-- [ ] `[locale]/(dashboard)/sandboxes/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/account/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/api-keys/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/api-keys/reference/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/assistant/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/blobby/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/desktop/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/mcp/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/memory/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/mobile/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/notifications/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/profile/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/shortcuts/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/sign-ins/page.tsx`
-- [ ] `[locale]/(dashboard)/settings/slash-commands/page.tsx`
-- [ ] `[locale]/(dashboard)/skills/[id]/improve/[session]/page.tsx`
-- [ ] `[locale]/(dashboard)/skills/[id]/page.tsx`
-- [ ] `[locale]/(dashboard)/skills/page.tsx`
-- [ ] `[locale]/(dashboard)/tables/[id]/page.tsx`
-- [ ] `[locale]/(dashboard)/tables/page.tsx`
-- [ ] `[locale]/(dashboard)/vault/page.tsx`
-- [ ] `[locale]/(dashboard)/work/page.tsx`
-- [ ] `[locale]/(dashboard)/workflows/[id]/form-preview/page.tsx`
-- [ ] `[locale]/(dashboard)/workflows/[id]/logs/page.tsx`
-- [ ] `[locale]/(dashboard)/workflows/[id]/page.tsx`
-- [ ] `[locale]/(dashboard)/workflows/[id]/runs/[runId]/page.tsx`
-- [ ] `[locale]/(dashboard)/workflows/[id]/runs/page.tsx`
-- [ ] `[locale]/(dashboard)/workflows/page.tsx`
-- [ ] `[locale]/(dashboard)/workflows/runs/page.tsx`
-- [ ] `[locale]/(viewer)/apps/[id]/page.tsx`
-- [ ] `[locale]/(viewer)/oauth/consent/page.tsx`
-- [ ] `[locale]/a/[publicKey]/page.tsx`
-- [ ] `[locale]/auth/callback/page.tsx`
-- [ ] `[locale]/auth/email-change/page.tsx`
-- [ ] `[locale]/auth/magic-link/page.tsx`
-- [ ] `[locale]/auth/pair/page.tsx`
-- [ ] `[locale]/desktop/blobby/page.tsx`
-- [ ] `[locale]/desktop/quick-ask/page.tsx`
-- [ ] `[locale]/desktop/readiness/page.tsx`
-- [ ] `[locale]/desktop/welcome/page.tsx`
-- [ ] `[locale]/e/[publicKey]/page.tsx`
-- [ ] `[locale]/f/[token]/page.tsx`
-- [ ] `[locale]/legal/cookies/page.tsx`
-- [ ] `[locale]/legal/privacy/page.tsx`
-- [ ] `[locale]/legal/terms/page.tsx`
-- [ ] `[locale]/onboarding/[...step]/page.tsx`
-- [ ] `[locale]/onboarding/page.tsx`
-- [ ] `[locale]/page.tsx`
-- [ ] `[locale]/shared/[token]/page.tsx`
+- [x] `[locale]/(auth)/forgot-password/page.tsx`
+- [x] `[locale]/(auth)/login/page.tsx`
+- [x] `[locale]/(auth)/magic-link-sent/page.tsx`
+- [x] `[locale]/(auth)/register/page.tsx`
+- [x] `[locale]/(auth)/reset-password/page.tsx`
+- [x] `[locale]/(dashboard)/admin/background-jobs/page.tsx`
+- [x] `[locale]/(dashboard)/admin/organizations/[id]/page.tsx`
+- [x] `[locale]/(dashboard)/admin/organizations/page.tsx`
+- [x] `[locale]/(dashboard)/admin/page.tsx`
+- [x] `[locale]/(dashboard)/admin/settings/page.tsx`
+- [x] `[locale]/(dashboard)/admin/system/page.tsx`
+- [x] `[locale]/(dashboard)/admin/users/page.tsx`
+- [x] `[locale]/(dashboard)/agents/[id]/evals/[runId]/page.tsx`
+- [x] `[locale]/(dashboard)/agents/[id]/improve/[session]/page.tsx`
+- [x] `[locale]/(dashboard)/agents/[id]/page.tsx`
+- [x] `[locale]/(dashboard)/agents/page.tsx`
+- [x] `[locale]/(dashboard)/apps/page.tsx`
+- [x] `[locale]/(dashboard)/browse/[runId]/[callId]/page.tsx`
+- [x] `[locale]/(dashboard)/channels/page.tsx`
+- [x] `[locale]/(dashboard)/chat/page.tsx`
+- [x] `[locale]/(dashboard)/context/page.tsx`
+- [x] `[locale]/(dashboard)/dashboard/page.tsx`
+- [x] `[locale]/(dashboard)/datasets/[id]/page.tsx`
+- [x] `[locale]/(dashboard)/datasets/page.tsx`
+- [x] `[locale]/(dashboard)/dev/components/page.tsx`
+- [x] `[locale]/(dashboard)/documents/[id]/page.tsx`
+- [x] `[locale]/(dashboard)/documents/page.tsx`
+- [x] `[locale]/(dashboard)/evals/page.tsx`
+- [x] `[locale]/(dashboard)/groups/[id]/page.tsx`
+- [x] `[locale]/(dashboard)/groups/page.tsx`
+- [x] `[locale]/(dashboard)/inbox/page.tsx`
+- [x] `[locale]/(dashboard)/invitations/[token]/page.tsx`
+- [x] `[locale]/(dashboard)/invitations/pending/page.tsx`
+- [x] `[locale]/(dashboard)/kb/[id]/page.tsx`
+- [x] `[locale]/(dashboard)/kb/page.tsx`
+- [x] `[locale]/(dashboard)/link/[token]/page.tsx`
+- [x] `[locale]/(dashboard)/mcp-servers/page.tsx`
+- [x] `[locale]/(dashboard)/orgs/[id]/directory/page.tsx`
+- [x] `[locale]/(dashboard)/orgs/[id]/groups/page.tsx`
+- [x] `[locale]/(dashboard)/orgs/[id]/members/page.tsx`
+- [x] `[locale]/(dashboard)/orgs/[id]/retention/page.tsx`
+- [x] `[locale]/(dashboard)/orgs/[id]/roles/page.tsx`
+- [x] `[locale]/(dashboard)/orgs/page.tsx`
+- [x] `[locale]/(dashboard)/profile/page.tsx`
+- [x] `[locale]/(dashboard)/projects/[id]/page.tsx`
+- [x] `[locale]/(dashboard)/projects/page.tsx`
+- [x] `[locale]/(dashboard)/rag/[id]/page.tsx`
+- [x] `[locale]/(dashboard)/rag/page.tsx`
+- [x] `[locale]/(dashboard)/remote-agents/page.tsx`
+- [x] `[locale]/(dashboard)/routines/page.tsx`
+- [x] `[locale]/(dashboard)/runs/page.tsx`
+- [x] `[locale]/(dashboard)/sandboxes/page.tsx`
+- [x] `[locale]/(dashboard)/settings/account/page.tsx`
+- [x] `[locale]/(dashboard)/settings/api-keys/page.tsx`
+- [x] `[locale]/(dashboard)/settings/api-keys/reference/page.tsx`
+- [x] `[locale]/(dashboard)/settings/assistant/page.tsx`
+- [x] `[locale]/(dashboard)/settings/blobby/page.tsx`
+- [x] `[locale]/(dashboard)/settings/desktop/page.tsx`
+- [x] `[locale]/(dashboard)/settings/mcp/page.tsx`
+- [x] `[locale]/(dashboard)/settings/memory/page.tsx`
+- [x] `[locale]/(dashboard)/settings/mobile/page.tsx`
+- [x] `[locale]/(dashboard)/settings/notifications/page.tsx`
+- [x] `[locale]/(dashboard)/settings/page.tsx`
+- [x] `[locale]/(dashboard)/settings/profile/page.tsx`
+- [x] `[locale]/(dashboard)/settings/shortcuts/page.tsx`
+- [x] `[locale]/(dashboard)/settings/sign-ins/page.tsx`
+- [x] `[locale]/(dashboard)/settings/slash-commands/page.tsx`
+- [x] `[locale]/(dashboard)/skills/[id]/improve/[session]/page.tsx`
+- [x] `[locale]/(dashboard)/skills/[id]/page.tsx`
+- [x] `[locale]/(dashboard)/skills/page.tsx`
+- [x] `[locale]/(dashboard)/tables/[id]/page.tsx`
+- [x] `[locale]/(dashboard)/tables/page.tsx`
+- [x] `[locale]/(dashboard)/vault/page.tsx`
+- [x] `[locale]/(dashboard)/work/page.tsx`
+- [x] `[locale]/(dashboard)/workflows/[id]/form-preview/page.tsx`
+- [x] `[locale]/(dashboard)/workflows/[id]/logs/page.tsx`
+- [x] `[locale]/(dashboard)/workflows/[id]/page.tsx`
+- [x] `[locale]/(dashboard)/workflows/[id]/runs/[runId]/page.tsx`
+- [x] `[locale]/(dashboard)/workflows/[id]/runs/page.tsx`
+- [x] `[locale]/(dashboard)/workflows/page.tsx`
+- [x] `[locale]/(dashboard)/workflows/runs/page.tsx`
+- [x] `[locale]/(viewer)/apps/[id]/page.tsx`
+- [x] `[locale]/(viewer)/oauth/consent/page.tsx`
+- [x] `[locale]/a/[publicKey]/page.tsx`
+- [x] `[locale]/auth/callback/page.tsx`
+- [x] `[locale]/auth/email-change/page.tsx`
+- [x] `[locale]/auth/magic-link/page.tsx`
+- [x] `[locale]/auth/pair/page.tsx`
+- [x] `[locale]/desktop/blobby/page.tsx`
+- [x] `[locale]/desktop/quick-ask/page.tsx`
+- [x] `[locale]/desktop/readiness/page.tsx`
+- [x] `[locale]/desktop/welcome/page.tsx`
+- [x] `[locale]/e/[publicKey]/page.tsx`
+- [x] `[locale]/f/[token]/page.tsx`
+- [x] `[locale]/legal/cookies/page.tsx`
+- [x] `[locale]/legal/privacy/page.tsx`
+- [x] `[locale]/legal/terms/page.tsx`
+- [x] `[locale]/onboarding/[...step]/page.tsx`
+- [x] `[locale]/onboarding/page.tsx`
+- [x] `[locale]/page.tsx`
+- [x] `[locale]/shared/[token]/page.tsx`

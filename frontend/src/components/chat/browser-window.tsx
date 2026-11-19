@@ -1,5 +1,7 @@
 "use client";
 
+import { NATIVE_CHOICE } from "@/components/ui/control-styles";
+
 import { useEffect, useRef, useState } from "react";
 import {
   ExternalLink,
@@ -461,7 +463,7 @@ export function BrowserWindow({
             type="checkbox"
             checked={remember}
             onChange={(event) => setRemember(event.target.checked)}
-            className="accent-foreground size-4"
+            className={cn(NATIVE_CHOICE, "size-4")}
           />
           <span>{tb("rememberSignIn", { site: host })}</span>
         </label>

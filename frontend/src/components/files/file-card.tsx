@@ -4,8 +4,9 @@ import Image from "next/image";
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { CONTROL_FOCUS } from "@/components/ui/control-styles";
 import { FileIcon } from "./file-icon";
-import { DocPeek, Spinner, TextPeek } from "@/components/ui";
+import { IconButton, DocPeek, Spinner, TextPeek } from "@/components/ui";
 import { resolveFileKind, suffixOf } from "@/lib/file-kinds";
 import { cn, formatBytes } from "@/lib/utils";
 
@@ -209,7 +210,10 @@ export function FileCard({
             type="button"
             onClick={onOpen}
             aria-label={t("openFile", { name })}
-            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md text-left"
+            className={cn(
+              CONTROL_FOCUS,
+              "flex min-w-0 flex-1 items-center gap-2.5 rounded-lg text-left",
+            )}
           >
             {compactBody}
           </button>
@@ -220,27 +224,30 @@ export function FileCard({
         {onRemove !== undefined && (
           // Its own hit area rather than a 12px glyph in a corner: at chip height
           // the card is the size the icon used to sit in.
-          <button
+          <IconButton
             type="button"
             onClick={onRemove}
             aria-label={removeLabel ?? t("removeFile", { name })}
-            className="hover:bg-muted text-muted-foreground hover:text-foreground absolute top-1/2 right-1 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded"
+            className="text-muted-foreground absolute top-1/2 right-1 size-8 -translate-y-1/2"
           >
             <X className="h-3.5 w-3.5" />
-          </button>
+          </IconButton>
         )}
       </div>
     );
   }
 
   return (
-    <div className={cn(CARD, onRemove !== undefined && "pr-7", className)}>
+    <div className={cn(CARD, onRemove !== undefined && "pr-10", className)}>
       {onOpen !== undefined ? (
         <button
           type="button"
           onClick={onOpen}
           title={t("openFile", { name })}
-          className="hover:border-foreground/30 -m-2 flex flex-col gap-1.5 rounded-lg border border-transparent p-2 text-left transition-colors"
+          className={cn(
+            CONTROL_FOCUS,
+            "hover:border-foreground/30 -m-2 flex flex-col gap-1.5 rounded-lg border border-transparent p-2 text-left transition-colors",
+          )}
         >
           {body}
         </button>
@@ -251,14 +258,14 @@ export function FileCard({
       {onRemove !== undefined && (
         // Always rendered, never on hover: a hover-only control is unreachable on a
         // touch screen and invisible to anybody who does not think to try.
-        <button
+        <IconButton
           type="button"
           onClick={onRemove}
           aria-label={removeLabel ?? t("removeFile", { name })}
-          className="hover:bg-muted text-muted-foreground hover:text-foreground absolute top-1.5 right-1.5 rounded p-0.5"
+          className="text-muted-foreground absolute top-1 right-1 size-8"
         >
           <X className="h-3 w-3" />
-        </button>
+        </IconButton>
       )}
     </div>
   );

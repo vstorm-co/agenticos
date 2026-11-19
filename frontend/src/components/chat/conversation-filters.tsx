@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+import { ChoiceGroup } from "@/components/ui/choice-group";
 import { useTranslations } from "next-intl";
 import { ListFilter, ChevronDown } from "lucide-react";
 
@@ -94,6 +96,7 @@ export function ConversationFilters({
   beside = false,
   compact = false,
 }: ConversationFiltersProps) {
+  const viewLabelId = useId();
   const iconOnly = compact || beside;
   const t = useTranslations("chat.sidebar");
   const { agents } = useAgents({ includeArchived: true });
@@ -128,25 +131,18 @@ export function ConversationFilters({
         sideOffset={8}
         collisionPadding={12}
         aria-label={t("filters")}
-        className="w-80 max-w-[calc(100vw-1.5rem)] space-y-5 p-4"
+        className="w-80 max-w-[calc(100vw-1.5rem)] space-y-3 p-3"
       >
-        <div className="flex gap-5 border-b" role="group" aria-label={t("show")}>
-          {(["active", "archived"] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={view === option}
-              onClick={() => onViewChange(option)}
-              className={
-                view === option
-                  ? "border-foreground border-b-2 pb-2.5 text-sm font-medium"
-                  : "text-muted-foreground hover:text-foreground border-b-2 border-transparent pb-2.5 text-sm"
-              }
-            >
-              {t(option)}
-            </button>
-          ))}
-        </div>
+        <span id={viewLabelId} className="sr-only">
+          {t("show")}
+        </span>
+        <ChoiceGroup
+          compact
+          labelledBy={viewLabelId}
+          value={view}
+          options={(["active", "archived"] as const).map((value) => ({ value, label: t(value) }))}
+          onChange={onViewChange}
+        />
         <div className="space-y-1.5">
           {/* "Answered in", not "belongs to". The picker can be changed
                 mid-thread, so a thread can match two agents - which is why the
@@ -159,7 +155,7 @@ export function ConversationFilters({
             value={agentId ?? "all"}
             onValueChange={(value) => onAgentChange(value === "all" ? null : value)}
           >
-            <SelectTrigger id="conversation-agent" aria-label={t("agentFilterLabel")}>
+            <SelectTrigger size="sm" id="conversation-agent" aria-label={t("agentFilterLabel")}>
               <SelectValue placeholder={t("allAgents")} />
             </SelectTrigger>
             <SelectContent>
@@ -189,7 +185,7 @@ export function ConversationFilters({
             {t("sortLabel")}
           </Label>
           <Select value={sort} onValueChange={(value) => onSortChange(value as ConversationSort)}>
-            <SelectTrigger id="conversation-sort" aria-label={t("sortLabel")}>
+            <SelectTrigger size="sm" id="conversation-sort" aria-label={t("sortLabel")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -203,7 +199,7 @@ export function ConversationFilters({
         </div>
         {/* A script's threads beside a person's: shown, labelled, and one
               switch from out of the way (#2122). */}
-        <label className="flex items-center justify-between gap-4 border-t pt-4 text-[13px]">
+        <label className="flex items-center justify-between gap-4 border-t pt-3 text-[13px]">
           {t("apiFilterLabel")}
           <Switch checked={hideApi} onCheckedChange={onHideApiChange} aria-label={t("hideApi")} />
         </label>

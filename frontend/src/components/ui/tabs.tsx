@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { TAB_TRIGGER } from "./control-styles";
 import { cn } from "@/lib/utils";
 
 import { SCROLL_FADE, useScrollFade } from "./scroll-fade";
@@ -74,7 +75,8 @@ const TabsTrigger = React.forwardRef<
     className={cn(
       // The active tab is the one carrying the ink: a bottom border in the
       // foreground colour, with a quiet surface to make the selected area legible.
-      "focus-visible:ring-ring touch:min-h-11 inline-flex min-h-9 touch-manipulation items-center justify-center gap-2 rounded-t-lg border-b-2 border-transparent px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors duration-[var(--duration-fast)] focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset disabled:pointer-events-none disabled:opacity-50",
+      TAB_TRIGGER,
+      "focus-visible:-outline-offset-2 disabled:pointer-events-none disabled:opacity-50",
       "hover:bg-foreground/[0.04] hover:text-foreground data-[state=active]:border-foreground data-[state=active]:bg-foreground/[0.055] data-[state=active]:text-foreground",
       className,
     )}
