@@ -493,7 +493,6 @@ export function ChatContainer({
     setModelProfile,
     setApprovalMode,
     pendingApproval,
-    continuingApproval,
     mayRememberApproval,
     sendResumeDecisions,
     pendingQuestions,
@@ -937,7 +936,6 @@ export function ChatContainer({
         sentTurnAnchoredRef={sentTurnAnchoredRef}
         sentTurnSpacerRef={sentTurnSpacerRef}
         pendingApproval={pendingApproval}
-        continuingApproval={continuingApproval}
         onResumeDecisions={sendResumeDecisions}
         mayRememberApproval={mayRememberApproval}
         pendingQuestions={pendingQuestions}
@@ -1073,7 +1071,6 @@ interface ChatUIProps {
   sentTurnAnchoredRef: React.RefObject<boolean>;
   sentTurnSpacerRef: React.RefObject<HTMLDivElement | null>;
   pendingApproval?: PendingApproval | null;
-  continuingApproval?: boolean;
   onResumeDecisions?: (decisions: Decision[]) => void;
   mayRememberApproval?: boolean;
   pendingQuestions?: AskUserQuestion[] | null;
@@ -1150,7 +1147,6 @@ function ChatUI({
   sentTurnAnchoredRef,
   sentTurnSpacerRef,
   pendingApproval,
-  continuingApproval = false,
   onResumeDecisions,
   mayRememberApproval,
   pendingQuestions,
@@ -1654,17 +1650,10 @@ function ChatUI({
               compact && "bg-background",
             )}
           >
-            {/* Actionable notices belong beside the composer, outside the transcript.
-              The approval panel replaces approval notices, including older runs. */}
+            {/* Findings and approval decisions sit beside the composer. */}
             {conversationId && !compact && (
               <OutcomeCards
                 conversationId={conversationId}
-                hasApprovalPanel={!!pendingApproval && !!onResumeDecisions}
-                isWorking={
-                  isProcessing ||
-                  continuingApproval ||
-                  messages.some((message) => message.isStreaming)
-                }
                 className="pointer-events-auto mx-auto max-h-40 w-full max-w-5xl overflow-y-auto overscroll-contain px-2 pb-2 sm:px-4"
               />
             )}

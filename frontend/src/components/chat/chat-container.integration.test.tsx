@@ -1907,7 +1907,7 @@ describe("the chat container - a conversation shared with the reader", () => {
   });
 });
 
-it("keeps actionable outcome notices beside the composer instead of above the transcript", async () => {
+it("keeps findings beside the composer and leaves approvals to decision cards", async () => {
   const originalGet = get.getMockImplementation();
   get.mockImplementation((url: string, ...args: unknown[]) =>
     url.startsWith("/outcomes?")
@@ -1921,16 +1921,24 @@ it("keeps actionable outcome notices beside the composer instead of above the tr
               context_url: "/runs?tab=approvals",
               source_conversation_id: "c-notice",
             },
+            {
+              id: "finding",
+              kind: "finding",
+              summary: "A finding from this conversation",
+              status: "open",
+              source_conversation_id: "c-notice",
+            },
           ],
         })
       : originalGet?.(url, ...args),
   );
   useConversationStore.getState().setCurrentConversationId("c-notice");
   mount();
-  const notice = await screen.findByText("Review the pending operation");
+  const notice = await screen.findByText("A finding from this conversation");
   const dock = screen.getByRole("textbox").closest("[data-chat-dock]");
   expect(dock).toContainElement(notice);
   expect(document.querySelector("[data-transcript]")).not.toContainElement(notice);
+  expect(screen.queryByText("Review the pending operation")).not.toBeInTheDocument();
 });
 
 describe("opening a saved chat", () => {

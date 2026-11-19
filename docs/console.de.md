@@ -1,5 +1,5 @@
 ---
-source_sha: "8da37b8cd0c2"
+source_sha: "2071dc42abe0"
 ---
 
 # Die Konsole { #the-console }
@@ -610,7 +610,7 @@ Der laufende Verlauf folgt dem Seitenfluss; der aufgeklappte abgeschlossene Verl
 
 Erfolgreiche MCP-Schreibvorgänge zeigen verlinkte Karten für Projekte, Tabellen, Aufgaben, Datensätze, Agenten, Workflows, Skills und Context. Fehler erzeugen keine Erfolgskarten. Gesendete Nachrichten stehen nahe am oberen Rand mit Platz für die Antwort; manuelles Scrollen behält Ihre Position bei. Person- und Agent-Listen scrollen im Datensatzdialog. Fragen funktionieren auch nach genehmigten HTTP-Fortsetzungen.
 
-Auch Ergebnisbenachrichtigungen stehen neben dem Eingabefeld. Solange ein Entscheidungspanel sichtbar ist oder der Chat arbeitet, werden Freigabebenachrichtigungen auch älterer Läufe ausgeblendet. Andernfalls führen sie zur Freigabewarteschlange. Sie bieten niemals Gesehen, Erledigt oder Nicht mehr fragen: Nur die eigentliche Genehmigung oder Ablehnung entscheidet über die Operation. Inbox und Glocke behalten ihre Benachrichtigungen.
+Hinweise zu Ergebnissen stehen neben dem Eingabefeld. Wenn Sie eine Unterhaltung erneut öffnen oder aktualisieren, erscheinen ausstehende Werkzeugfreigaben für berechtigte Personen wieder als Entscheidungskarten mit Details und den Schaltflächen Genehmigen und Ablehnen. Auch Inbox und Glocke zeigen Freigabebenachrichtigungen.
 
 **Unter einer Antwort.** Ein Agent mit
 [Nächsten Schritten](reference/capabilities.md#follow-ups) bietet unter seiner

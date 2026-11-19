@@ -331,6 +331,7 @@ export function useChat(options: UseChatOptions = {}) {
   // steps stop reading `awaiting_approval`, which is exactly the state the
   // effect reads as "a reloaded parked run".
   const offeredApprovalBatchesRef = useRef<Set<string>>(new Set());
+  const parkedApprovalReadsRef = useRef(new Map<string, Promise<ParkedCall[]>>());
   const decidedApprovalIdsRef = useRef(new Set<string>());
   const terminalRunIdsRef = useRef(new Set<string>());
   const decidingApprovalRef = useRef<object | null>(null);
@@ -2227,11 +2228,10 @@ export function useChat(options: UseChatOptions = {}) {
   // `sendResumeDecisions` clears the panel before the steps stop reading
   // `awaiting_approval`, which is exactly the state this effect would otherwise
   // read as a reloaded parked run. Empty rows are left alone - a run decided
-  // elsewhere but not yet resumed has nothing left to offer - and a fetch that
-  // failed is left alone too: the approvals queue holds the same rows, and an
-  // error toast over a transcript somebody is reading buys nothing.
+  // elsewhere but not yet resumed has nothing left to offer.
   useEffect(() => {
-    if (pendingApproval !== null || !canDecide || decidingApprovalRef.current) return;
+    if (pendingApproval !== null || continuingApproval || !canDecide || decidingApprovalRef.current)
+      return;
     const candidates = [...messages].reverse().flatMap((message) => {
       const calls = (message.toolCalls ?? []).filter((call) => call.status === "awaiting_approval");
       if (
@@ -2254,14 +2254,22 @@ export function useChat(options: UseChatOptions = {}) {
       for (const { message, key, runId } of candidates) {
         if (disposed || panelsBelongTo.current !== conversation) return;
         if (terminalRunIdsRef.current.has(runId)) continue;
-        offeredApprovalBatchesRef.current.add(key);
+        // The transcript can be hydrated again while the read is in flight.
+        // Share that read and only mark it handled when the current effect can
+        // apply the response.
+        const reads = parkedApprovalReadsRef.current;
+        let request = reads.get(runId);
+        if (request === undefined) {
+          request = apiClient.get<ParkedCall[]>(`/runs/${runId}/parked`);
+          reads.set(runId, request);
+        }
         try {
-          const parked = await apiClient.get<ParkedCall[]>(`/runs/${runId}/parked`);
-          if (disposed || panelsBelongTo.current !== conversation || decidingApprovalRef.current) {
-            offeredApprovalBatchesRef.current.delete(key);
+          const parked = await request;
+          if (disposed || panelsBelongTo.current !== conversation || decidingApprovalRef.current)
             return;
-          }
-          if (terminalRunIdsRef.current.has(runId)) continue;
+          if (terminalRunIdsRef.current.has(runId) || offeredApprovalBatchesRef.current.has(key))
+            continue;
+          offeredApprovalBatchesRef.current.add(key);
           const actionable = parked.filter((call) => !decidedApprovalIdsRef.current.has(call.id));
           if (actionable.length === 0) continue;
           setPendingApproval({
@@ -2287,14 +2295,16 @@ export function useChat(options: UseChatOptions = {}) {
           });
           return;
         } catch {
-          offeredApprovalBatchesRef.current.delete(key);
+          // Keep the batch eligible for a later transcript refresh.
+        } finally {
+          if (reads.get(runId) === request) reads.delete(runId);
         }
       }
     })();
     return () => {
       disposed = true;
     };
-  }, [messages, pendingApproval, canDecide, activeConversationId]);
+  }, [messages, pendingApproval, continuingApproval, canDecide, activeConversationId]);
 
   const queryClient = useQueryClient();
 

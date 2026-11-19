@@ -1,5 +1,5 @@
 ---
-source_sha: "8da37b8cd0c2"
+source_sha: "2071dc42abe0"
 ---
 
 # Konsola { #the-console }
@@ -572,7 +572,7 @@ Oś czasu w trakcie pracy jest częścią strony. Rozwinięta historia zakończo
 
 Udane zapisy MCP pokazują karty z linkami do projektów, tabel, zadań, rekordów, agentów, workflow, skilli i Context. Błędy nie tworzą kart sukcesu. Wysłana wiadomość pojawia się blisko góry z miejscem na odpowiedź; ręczne przewijanie zachowuje pozycję. Listy Person i Agent przewijają się w oknie rekordu. Pytania działają także po wznowieniu czatu przez HTTP po zatwierdzeniu operacji.
 
-Powiadomienia o wynikach również są przy polu wiadomości. Powiadomienia o zatwierdzeniu są ukryte, gdy widoczny jest panel decyzji lub agent pracuje, także dla starszych przebiegów. W pozostałych przypadkach prowadzą do kolejki zatwierdzeń. Nie mają przycisków Widziane, Zrobione ani Nie pytaj więcej: operację rozstrzyga wyłącznie zatwierdzenie lub odrzucenie właściwego żądania. Inbox i dzwonek zachowują własne powiadomienia.
+Powiadomienia o wynikach pojawiają się przy polu wiadomości. Po ponownym otwarciu lub odświeżeniu rozmowy oczekujące zgody na wywołanie narzędzia wracają jako karty ze szczegółami i przyciskami Zatwierdź i Odrzuć dla osób uprawnionych do decyzji. Inbox i dzwonek również pokazują powiadomienia o zgodach.
 
 **Pod odpowiedzią.** Agent z [Następnymi krokami](reference/capabilities.md#follow-ups)
 proponuje pod najnowszą odpowiedzią do trzech następnych kroków jako przyciski, a

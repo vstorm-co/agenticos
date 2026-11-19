@@ -1,5 +1,5 @@
 ---
-source_sha: "8da37b8cd0c2"
+source_sha: "2071dc42abe0"
 ---
 
 # La consola { #the-console }
@@ -589,7 +589,7 @@ El historial en vivo sigue el flujo de la página; el historial terminado y desp
 
 Las escrituras MCP confirmadas muestran tarjetas enlazadas de proyectos, tablas, tareas, registros, agentes, workflows, skills y Context. Los errores no generan tarjetas de éxito. Los mensajes enviados aparecen cerca del borde superior con espacio para la respuesta; el desplazamiento manual conserva tu posición. Las listas Person y Agent se desplazan dentro del diálogo del registro. Las preguntas siguen funcionando tras las continuaciones HTTP aprobadas.
 
-Los avisos de resultados también están junto al editor. Mientras hay un panel de decisión visible o el chat está trabajando, se ocultan los avisos de aprobación incluso de ejecuciones anteriores. En los demás casos, enlazan a la cola de aprobaciones. Nunca ofrecen Visto, Hecho ni No volver a preguntar: solo aprobar o rechazar la solicitud real decide la operación. Inbox y la campana conservan sus notificaciones.
+Los avisos de resultados aparecen junto al editor. Al volver a abrir o actualizar una conversación, las aprobaciones de herramientas pendientes aparecen como tarjetas con detalles y los botones Aprobar y Rechazar para quienes pueden decidir. Inbox y la campana también muestran notificaciones de aprobación.
 
 **Debajo de una respuesta.** Un agent con
 [Follow-ups](reference/capabilities.md#follow-ups) ofrece debajo de su respuesta
