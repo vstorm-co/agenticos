@@ -172,10 +172,40 @@ class TestReading:
 
 
 class TestAddressing:
-    def test_m_mentions_decides_where_the_client_sent_it(self):
-        """A name in the text is not a mention when the sender's client said whom it notified."""
-        message = read_message(_event({"body": f"ask {BOT} later", "m.mentions": {}}))
-        assert message is not None and names(message, BOT) is False
+    def test_m_mentions_naming_the_bot_addresses_it(self):
+        message = read_message(_event({"body": "Agent: hi", "m.mentions": {"user_ids": [BOT]}}))
+        assert message is not None and names(message, BOT, "Agent") is True
+
+    @pytest.mark.parametrize(
+        "body",
+        ["@AgenticOS (dev) what can you do?", "hey @agent, a question", f"{BOT}: hi"],
+        ids=["display-name", "localpart", "user-id"],
+    )
+    def test_a_typed_handle_addresses_the_bot_without_a_pill(self, body: str):
+        """Some clients send a typed `@name` as plain text with an empty `m.mentions` (#2081).
+
+        Read as the router reads a typed `@agent-slug`: an explicit handle is
+        somebody addressing the bot, pill or not.
+        """
+        message = read_message(_event({"body": body, "m.mentions": {}}))
+        assert message is not None and names(message, BOT, "AgenticOS (dev)") is True
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "AgenticOS (dev) without the at",
+            "ping @agent-ops please",
+            "mail agent@example.org",
+            "a robot",
+        ],
+    )
+    def test_a_name_without_its_handle_or_another_handle_does_not(self, body: str):
+        message = read_message(_event({"body": body, "m.mentions": {}}))
+        assert message is not None and names(message, BOT, "AgenticOS (dev)") is False
+
+    def test_a_handle_inside_code_is_not_a_mention(self):
+        message = read_message(_event({"body": "run `@agent help`", "m.mentions": {}}))
+        assert message is not None and names(message, BOT, None) is False
 
     def test_an_older_client_is_read_by_the_pill_it_wrote(self):
         message = read_message(
@@ -187,7 +217,7 @@ class TestAddressing:
                 }
             )
         )
-        assert message is not None and names(message, BOT) is True
+        assert message is not None and names(message, BOT, None) is True
 
     def test_the_bots_name_leaves_the_question_and_code_keeps_its_lines(self):
         text = "Agent: run this\n```\nprint(1)\n```"
@@ -198,6 +228,12 @@ class TestAddressing:
 
     def test_a_user_id_mention_is_removed_wherever_it_is(self):
         assert without_mention(f"{BOT}: hi", BOT, None) == "hi"
+
+    def test_a_typed_handle_leaves_the_question(self):
+        assert without_mention("@AgenticOS (dev) what can you do?", BOT, "AgenticOS (dev)") == (
+            "what can you do?"
+        )
+        assert without_mention("thanks @agent, that works", BOT, None) == "thanks , that works"
 
 
 class TestWriting:

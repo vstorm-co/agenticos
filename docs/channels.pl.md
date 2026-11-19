@@ -1,5 +1,5 @@
 ---
-source_sha: "7db4e67f54b4"
+source_sha: "930dd9673a27"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1808,9 +1808,14 @@ z limitu przez
 | Pokój | Gdy wiadomość wspomina bota. Odpowiedź otwiera wątek na pytaniu, a wątek jest rozmową |
 | Wątek, w którym zapytano bota | Na każdą wiadomość w nim |
 
-Wzmianka jest odczytywana z `m.mentions` wiadomości, które wysyłają obecne
-klienty. W wiadomości ze starszego klienta jest odczytywana z identyfikatora
-użytkownika bota albo z „pigułki” (pill), która do niego linkuje. Na `@room` bot
+Wzmianka to bot wskazany w `m.mentions` wiadomości, „pigułka” (pill), która do
+niego linkuje, albo wpisany uchwyt: `@` i identyfikator użytkownika, część
+lokalna lub nazwa wyświetlana bota, np. `@AgenticOS co potrafisz?`. Niektóre
+klienty wysyłają wpisany uchwyt jako zwykły tekst, więc liczy się on także bez
+pigułki. Nazwa bez `@`, uchwyt w kodzie i dłuższy uchwyt, jak `@agent-ops`, się
+nie liczą.
+
+Na `@room` bot
 odpowiada tylko wtedy, gdy jego polityka każe odpowiadać na wzmianki całego
 kanału. Jak wszędzie indziej, czat bezpośredni też ma wątki: odpowiedź w wątku
 odpowiedzi kontynuuje rozmowę, a nowa wiadomość na dole zaczyna nową.

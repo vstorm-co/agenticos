@@ -920,7 +920,7 @@ class MatrixAdapter(ChannelAdapter):
         root = response.json()
         root_message = read_message(root)
         ours = root.get("sender") == account.user_id or (
-            root_message is not None and names(root_message, account.user_id)
+            root_message is not None and names(root_message, account.user_id, account.display_name)
         )
         self._bot_threads.put(key, ours)
         return ours
@@ -1048,7 +1048,7 @@ class MatrixAdapter(ChannelAdapter):
             attachments=[attachment] if attachment is not None else [],
             broadcast_mention=_room_mentioned(message),
             addressed=direct
-            or names(message, account.user_id)
+            or names(message, account.user_id, account.display_name)
             or raw_payload.get("bot_thread") is True,
         )
 

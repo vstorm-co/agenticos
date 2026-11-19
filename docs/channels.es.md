@@ -1,5 +1,5 @@
 ---
-source_sha: "7db4e67f54b4"
+source_sha: "930dd9673a27"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1847,9 +1847,14 @@ entonces a saltos. En Synapse, un administrador exime al bot con
 | Una sala | Cuando el mensaje menciona al bot. La respuesta abre un hilo sobre la pregunta, y el hilo es la conversación |
 | Un hilo en el que se preguntó al bot | A cada mensaje del hilo |
 
-La mención se lee del `m.mentions` del mensaje, que envían los clientes actuales.
-En un mensaje de un cliente más antiguo, se lee del ID de usuario del bot o de
-una «pill» que enlaza a él. `@room` solo se responde cuando la política del bot
+Una mención es el bot nombrado en el `m.mentions` del mensaje, una «pill» que
+enlaza a él o un identificador escrito: `@` y el ID de usuario, la parte local o
+el nombre visible del bot, como en `@AgenticOS ¿qué puedes hacer?`. Algunos
+clientes envían un identificador escrito como texto plano, así que cuenta sin
+«pill». El nombre sin `@`, un identificador dentro de código y uno más largo como
+`@agent-ops` no cuentan.
+
+`@room` solo se responde cuando la política del bot
 dice que responda a las menciones de todo el canal. Como en todas partes, un chat
 directo también va en hilos: una respuesta en el hilo de la respuesta continúa la
 conversación, y un mensaje nuevo al final empieza otra.

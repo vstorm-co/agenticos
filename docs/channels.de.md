@@ -1,5 +1,5 @@
 ---
-source_sha: "7db4e67f54b4"
+source_sha: "930dd9673a27"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1941,9 +1941,14 @@ nimmt ein Administrator den Bot mit
 | Ein Raum | Wenn die Nachricht den Bot erwähnt. Die Antwort öffnet einen Thread auf der Frage, und der Thread ist die Unterhaltung |
 | Ein Thread, in dem der Bot gefragt wurde | Auf jede Nachricht darin |
 
-Eine Erwähnung wird aus `m.mentions` der Nachricht gelesen, das aktuelle Clients
-senden. Bei einer Nachricht von einem älteren Client wird sie aus der
-Benutzer-ID des Bots oder einer Pill gelesen, die auf ihn verlinkt. Auf `@room`
+Eine Erwähnung ist der Bot in `m.mentions` der Nachricht, eine Pill, die auf ihn
+verlinkt, oder ein getippter Handle: `@` und die Benutzer-ID, der Localpart oder
+der Anzeigename des Bots, etwa `@AgenticOS was kannst du?`. Manche Clients senden
+einen getippten Handle als reinen Text, deshalb zählt er auch ohne Pill. Der Name
+ohne `@`, ein Handle in Code und ein längerer Handle wie `@agent-ops` zählen
+nicht.
+
+Auf `@room`
 antwortet er nur, wenn seine Richtlinie sagt, auf kanalweite Erwähnungen zu
 antworten. Wie überall ist auch ein Direktchat in Threads gegliedert: Eine
 Antwort im Thread der Antwort setzt die Unterhaltung fort, und eine neue

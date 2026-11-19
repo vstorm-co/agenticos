@@ -1760,9 +1760,13 @@ exempts the bot with
 | A room | When the message mentions the bot. The answer opens a thread on the question, and the thread is the conversation |
 | A thread the bot was asked in | Every message in it |
 
-A mention is read from the message's `m.mentions`, which current clients send.
-For a message from an older client, it is read from the bot's user ID or a pill
-linking to it. `@room` is answered only when the bot's policy says to answer
+A mention is the bot named in the message's `m.mentions`, a pill linking to it,
+or a typed handle: `@` and the bot's user ID, localpart or display name, as in
+`@AgenticOS what can you do?`. Some clients send a typed handle as plain text,
+so it counts without a pill. The name without the `@`, a handle inside code and
+a longer handle such as `@agent-ops` do not.
+
+`@room` is answered only when the bot's policy says to answer
 channel-wide mentions. Like everywhere else, a direct chat is threaded too: a
 reply in the answer's thread continues the conversation, and a new message at
 the bottom starts a new one.

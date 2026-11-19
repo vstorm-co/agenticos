@@ -21,7 +21,7 @@ import httpx
 from markdown_it import MarkdownIt
 
 from app.services.channels.attachments import routed_type
-from app.services.channels.base import IncomingAttachment
+from app.services.channels.base import IncomingAttachment, mentionable_text
 
 CLIENT_API = "/_matrix/client/v3"
 MEDIA_DOWNLOAD = "/_matrix/client/v1/media/download"
@@ -323,29 +323,51 @@ def without_reply_fallback(body: str) -> str:
     return "\n".join(lines[index:]).lstrip("\n")
 
 
-def names(message: Message, user_id: str) -> bool:
+def _handles(user_id: str, display_name: str | None) -> list[str]:
+    """What a person may type after `@` to name the bot: its user id, localpart and display name."""
+    localpart = user_id.removeprefix("@").partition(":")[0]
+    return [handle for handle in (user_id.removeprefix("@"), localpart, display_name) if handle]
+
+
+def _handle_pattern(handle: str) -> str:
+    # Not inside a word or an address (`agent@example.org`), and not a longer
+    # handle (`@agent-ops`): the characters a localpart may continue with end it.
+    return rf"(?<![\w@])@{re.escape(handle)}(?![\w.=/+-])"
+
+
+def names(message: Message, user_id: str, display_name: str | None) -> bool:
     """Whether the message addresses `user_id`.
 
-    `m.mentions` first, which every current client sends: it is the sender's
-    client saying whom it notified, so a display name that happens to appear in
-    the text is not a mention. A message without it is read the old way - the
-    user id in the body, or a pill linking to it in the HTML.
+    `m.mentions` naming the bot, a pill linking to it, or a typed handle: `@`
+    and its user id, localpart or display name. The handle counts because some
+    clients send a typed `@name` as plain text with an empty `m.mentions`, and a
+    bot that only answers pills looks broken to everybody using one (#2081). It
+    is read as the router reads a typed `@agent-slug`: an explicit handle outside
+    code, never a bare word - a bot called Agent must not answer "agent".
     """
-    if message.mentioned is not None:
-        return user_id in message.mentioned
-    return user_id in message.text or _PILL.format(user_id) in message.formatted
+    if message.mentioned is not None and user_id in message.mentioned:
+        return True
+    if _PILL.format(user_id) in message.formatted:
+        return True
+    text = mentionable_text(message.text)
+    return any(
+        re.search(_handle_pattern(handle), text, re.I) for handle in _handles(user_id, display_name)
+    )
 
 
 def without_mention(text: str, user_id: str, display_name: str | None) -> str:
     """The text with the bot's own mention taken out.
 
     A pill arrives in the plain body as the bot's display name, often followed by
-    a colon; the agent is the addressee, and its own name handed to it as content
-    reads as part of the question. Only a leading display name is removed: the
-    same word mid-sentence may be meant. Only spaces and tabs beside a mention
-    go with it, so line breaks and code blocks reach the agent as written.
+    a colon, and a typed handle as `@name`; the agent is the addressee, and its
+    own name handed to it as content reads as part of the question. A bare
+    display name is removed only at the start: the same word mid-sentence may be
+    meant. Only spaces and tabs beside a mention go with it, so line breaks and
+    code blocks reach the agent as written.
     """
-    stripped = re.sub(rf"[ \t]*{re.escape(user_id)}:?[ \t]*", " ", text)
+    stripped = text
+    for handle in sorted(_handles(user_id, display_name), key=len, reverse=True):
+        stripped = re.sub(rf"[ \t]*{_handle_pattern(handle)}:?[ \t]*", " ", stripped, flags=re.I)
     if display_name:
         stripped = re.sub(
             rf"^[ \t]*{re.escape(display_name)}[ \t]*[:,]?[ \t]*", "", stripped, count=1, flags=re.I
