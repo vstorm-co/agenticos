@@ -2560,6 +2560,8 @@
       "heading": "Hintergrundthemen · {count} aktiv",
       "empty": "Bitte einen Agenten mit Hintergrundthemen um eine Delegation und setze das Gespräch fort.",
       "retry": "Hintergrundthemen erneut laden",
+      "unavailable": "Hintergrundthemen nicht verfügbar",
+      "loadFailed": "Hintergrundthemen konnten nicht aktualisiert werden. Du kannst weiter chatten.",
       "stop": "{title} stoppen",
       "returnInterrupted": "Ergebnisübermittlung unterbrochen",
       "status": {
@@ -2644,7 +2646,8 @@
       "urgent": "Wichtig",
       "approvals": "{count, plural, one {# Genehmigung wartet auf dich} other {# Genehmigungen warten auf dich}}",
       "empty": "Alles erledigt. Neue Erkenntnisse und wichtige Themen erscheinen hier.",
-      "failed": "Dein Posteingang konnte nicht geladen werden."
+      "failed": "Dein Posteingang konnte nicht geladen werden.",
+      "refreshFailed": "Dein Posteingang konnte nicht aktualisiert werden. Die zuletzt geladenen Einträge werden angezeigt."
     }
   },
   "common": {

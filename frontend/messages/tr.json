@@ -10132,6 +10132,8 @@
       "emptyTitle": "Siz konuşmaya devam ederken işi devredin",
       "heading": "Arka plan konuları · {count} etkin",
       "retry": "Arka plan konularını yeniden yükle",
+      "unavailable": "Arka plan konuları kullanılamıyor",
+      "loadFailed": "Arka plan konuları yenilenemedi. Sohbete devam edebilirsiniz.",
       "returnInterrupted": "Sonucun iletilmesi kesildi",
       "status": {
         "awaiting_answer": "Yanıtınız bekleniyor",
@@ -10225,7 +10227,8 @@
       "urgent": "Öncelikli",
       "approvals": "{count} onay kararını bekliyor",
       "empty": "Her şey güncel. Yeni bulgular ve önemli konular burada görünecek.",
-      "failed": "Gelen kutun yüklenemedi."
+      "failed": "Gelen kutun yüklenemedi.",
+      "refreshFailed": "Gelen kutunuz yenilenemedi. Son yüklenen öğeler gösteriliyor."
     }
   },
   "admin": {

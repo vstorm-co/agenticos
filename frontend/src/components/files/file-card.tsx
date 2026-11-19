@@ -92,7 +92,7 @@ const CARD =
  * so the row never overflows and the arrows never appear.
  */
 const CHIP =
-  "border-foreground/10 bg-card relative flex w-56 shrink-0 items-center gap-2.5 rounded-xl border px-2.5 py-2 shadow-none";
+  "border-foreground/10 bg-foreground/[0.02] relative flex w-56 shrink-0 items-center gap-2.5 rounded-xl border p-2 shadow-none";
 
 export function FileCard({
   name,
@@ -172,7 +172,7 @@ export function FileCard({
   if (compact) {
     const compactBody = (
       <>
-        <span className="bg-foreground/[0.04] relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+        <span className="bg-foreground/[0.04] relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg">
           {isImage && imageUrl != null ? (
             <Image src={imageUrl} alt={name} fill className="object-cover" unoptimized />
           ) : (
@@ -281,10 +281,12 @@ export function PendingFileCard({
   name,
   size,
   compact = false,
+  imageUrl,
 }: {
   name: string;
   size: number;
   compact?: boolean;
+  imageUrl?: string;
 }) {
   const t = useTranslations("files");
 
@@ -293,8 +295,13 @@ export function PendingFileCard({
   if (compact) {
     return (
       <div className={CHIP}>
-        <span className="bg-foreground/[0.04] flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-          <Spinner className="text-muted-foreground h-3.5 w-3.5" />
+        <span className="bg-foreground/[0.04] relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+          {imageUrl && (
+            <Image src={imageUrl} alt={name} fill className="object-cover opacity-50" unoptimized />
+          )}
+          <span className="bg-card/90 relative flex size-6 items-center justify-center rounded-full">
+            <Spinner className="text-muted-foreground h-3.5 w-3.5" />
+          </span>
         </span>
         <span className="flex min-w-0 flex-col">
           <span title={name} className="truncate text-xs leading-tight font-medium">

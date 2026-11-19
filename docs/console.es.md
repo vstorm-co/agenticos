@@ -1,5 +1,5 @@
 ---
-source_sha: "91931d439fad"
+source_sha: "89d514c07e07"
 ---
 
 # La consola { #the-console }
@@ -125,6 +125,11 @@ El botón compacto bajo una respuesta abre Sources junto a la conversación y oc
 Los enlaces web de las respuestas usan la misma política de favicon, sin depender de conexiones MCP. Los iconos de sitios desconocidos pasan por el proxy del mismo origen de la consola y el servicio fijo de iconos de DuckDuckGo. Este solo recibe el nombre de host, nunca las cookies o la dirección IP del lector, la ruta ni los parámetros de URL. El proxy rechaza redirecciones, contenido no rasterizado e iconos de más de 64 KiB; el tiempo límite es de tres segundos. Si falta el icono o no está disponible, aparece un globo. Las vistas inertes de transcripciones no cargan imágenes remotas ni iconos de sitios desconocidos.
 
 Una ejecución fallida muestra el error separado de la respuesta y fuera de las herramientas plegadas, incluso después de recargar la conversación. El filtro de contenido del proveedor tiene una explicación explícita; las respuestas originales del proveedor y los errores históricos desconocidos no se copian a transcripciones compartidas. El trabajo parcial sigue disponible y no se presenta como terminado.
+
+
+Los adjuntos permanecen dentro del cuadro de mensaje en una fila desplazable. Las imágenes seguras muestran una miniatura local durante la carga; un indicador giratorio señala las cargas pendientes sin inventar porcentajes. Los errores al actualizar temas en segundo plano permanecen en su propio panel desplegable y nunca aparecen en un chat sin enviar. Los subrayados de pestañas y las selecciones segmentadas se deslizan entre opciones; con movimiento reducido, cambian de inmediato.
+
+Los nuevos chats muestran sobre la bandeja de entrada los mensajes iniciales publicados del agente seleccionado, con sus iconos, títulos y vistas previas breves. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
 
 ## El dashboard { #the-dashboard }
 

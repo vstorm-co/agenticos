@@ -1,5 +1,6 @@
 "use client";
 
+import { useTabIndicator } from "@/components/ui/use-tab-indicator";
 import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { TAB_TRIGGER } from "./control-styles";
@@ -15,6 +16,7 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => {
   const strip = React.useRef<HTMLDivElement | null>(null);
   useScrollFade(strip);
+  useTabIndicator(strip);
   React.useEffect(() => {
     const list = strip.current;
     if (!list) return;
@@ -42,6 +44,7 @@ const TabsList = React.forwardRef<
   }, []);
   return (
     <TabsPrimitive.List
+      data-tab-indicator="line"
       ref={(node) => {
         strip.current = node;
         if (typeof ref === "function") ref(node);

@@ -1,5 +1,5 @@
 ---
-source_sha: "91931d439fad"
+source_sha: "89d514c07e07"
 ---
 
 # Die Konsole { #the-console }
@@ -125,6 +125,11 @@ Die kompakte Quellen-Schaltfläche unter einer Antwort öffnet Sources neben dem
 Weblinks in Antworten verwenden dieselbe Favicon-Regel unabhängig von MCP-Verbindungen. Symbole unbekannter Seiten werden über den Proxy unter derselben Origin wie die Konsole und den festen Symboldienst von DuckDuckGo geladen. Dieser erhält nur den Hostnamen, keine Cookies oder IP-Adresse des Lesers, URL-Pfade oder Abfrageparameter. Der Proxy verweigert Weiterleitungen, nicht-rasterbasierte Inhalte und Symbole über 64 KiB; das Zeitlimit beträgt drei Sekunden. Bei fehlenden oder nicht erreichbaren Symbolen erscheint ein Globus. Inaktive Transkriptansichten laden weder entfernte Bilder noch Symbole unbekannter Seiten.
 
 Ein fehlgeschlagener Chat-Run zeigt seinen Fehler getrennt von der Antwort und außerhalb der eingeklappten Tool-Schritte, auch nach dem Neuladen. Inhaltsfilter des Anbieters erhalten eine ausdrückliche Erklärung; rohe Anbieterantworten und unbekannte historische Fehlermeldungen werden nicht in geteilte Transkripte kopiert. Teilergebnisse bleiben sichtbar, und fehlgeschlagene Arbeit erscheint nicht als abgeschlossen.
+
+
+Anhänge bleiben innerhalb des Eingabefelds in einer horizontal scrollbaren Zeile. Sichere Bilder zeigen beim Hochladen eine lokale Vorschau; ein Spinner zeigt laufende Uploads ohne erfundene Prozentangabe. Fehler beim Aktualisieren von Hintergrundthemen bleiben in einem eigenen aufklappbaren Bereich und erscheinen nie in einem noch nicht gesendeten Chat. Tab-Unterstreichungen und Segmentmarkierungen gleiten zwischen Optionen; bei reduzierter Bewegung wechselt die Auswahl sofort.
+
+Neue Chats zeigen über dem Posteingang die veröffentlichten Gesprächseinstiege des ausgewählten Agenten mit konfigurierten Symbolen, Titeln und kurzen Vorschauen. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
 
 ## Das Dashboard { #the-dashboard }
 

@@ -2560,6 +2560,8 @@
       "heading": "Background topics · {count} active",
       "empty": "Ask an agent with Background topics to delegate work while you keep talking.",
       "retry": "Reload background topics",
+      "unavailable": "Background topics unavailable",
+      "loadFailed": "Could not refresh background topics. You can keep chatting.",
       "stop": "Stop {title}",
       "returnInterrupted": "Result delivery interrupted",
       "status": {
@@ -2644,7 +2646,8 @@
       "urgent": "Priority",
       "approvals": "{count, plural, one {# approval needs your attention} other {# approvals need your attention}}",
       "empty": "You’re all caught up. New findings and important topics will appear here.",
-      "failed": "Your inbox could not be loaded."
+      "failed": "Your inbox could not be loaded.",
+      "refreshFailed": "Could not refresh your inbox. Showing the last loaded items."
     }
   },
   "common": {

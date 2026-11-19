@@ -1,5 +1,6 @@
 "use client";
 
+import { useTabIndicator } from "@/components/ui/use-tab-indicator";
 import { TAB_TRIGGER } from "@/components/ui/control-styles";
 
 import { useEffect, useRef } from "react";
@@ -82,6 +83,7 @@ export function PageTabs({
   const many = vertical || (overflow === "menu" && tabs.length > 4);
   const sectionMenu = !vertical && many && tabs.length > 6;
   useScrollFade(strip);
+  useTabIndicator(strip);
 
   // On a phone the strip is wider than the screen, and a tab past its edge -
   // API, opened from a link - was active but out of sight. Centre it, moving
@@ -144,6 +146,7 @@ export function PageTabs({
       )}
       <nav
         ref={strip}
+        data-tab-indicator={vertical ? "pill" : "line"}
         className={cn(
           "relative -mb-px flex min-w-0 [scrollbar-width:none] gap-0.5 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
           !vertical && SCROLL_FADE,

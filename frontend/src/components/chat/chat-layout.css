@@ -91,7 +91,8 @@
   padding-bottom: 8px;
 }
 .chat-layout [data-chat-welcome-hints] {
-  display: none;
+  max-width: 47.5rem;
+  margin: 1rem auto 0;
 }
 .chat-attach-trigger[data-state="open"] svg {
   transform: rotate(45deg);

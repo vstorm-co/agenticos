@@ -1719,10 +1719,6 @@ function ChatUI({
               <PlanStrip plan={plan} live={isProcessing} />
               {/* Right over the box the reply is written in, where a messenger says it. */}
               <TypingIndicator people={typing} />
-              {/* What is attached, above the composer rather than inside it. The
-                slot is here because the box below is drawn here; `ChatInput`
-                portals its row into it and keeps the upload state. */}
-              <div ref={setAttachmentSlot} />
               {/* `@container`, so the composer and the line under it change shape
                 on their own width rather than on the window's. They are not the
                 same question: at 900px with the conversation list open this box
@@ -1808,6 +1804,7 @@ function ChatUI({
                           composerStrip !== null && !mainChat && "rounded-t-none",
                         )}
                       >
+                        <div ref={setAttachmentSlot} />
                         {!agentFixed && (
                           <div className="border-border bg-muted/40 hidden items-center rounded-t-2xl border-b px-3 py-1.5 has-[a]:flex">
                             <ProjectChip
@@ -2022,10 +2019,8 @@ function ChatUI({
             </div>
           </div>
           {showWorkspaceHome && !emptyState && (
-            <div
-              ref={setHomeHintsSlot}
-              className="chat-home-hints mx-auto min-h-40 w-full max-w-5xl shrink-0 px-4 pb-4 sm:px-5"
-            >
+            <div className="chat-home-hints mx-auto min-h-40 w-full max-w-5xl shrink-0 px-4 pb-4 sm:px-5">
+              <div ref={setHomeHintsSlot} />
               {mainChat && <ChatHomeInbox />}
             </div>
           )}

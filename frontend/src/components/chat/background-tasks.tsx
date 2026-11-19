@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, GitBranch, Loader2, Square } from "lucide-react";
+import { useId, useState } from "react";
+import { CircleAlert, ChevronDown, GitBranch, Loader2, Square } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   useConversationTasks,
@@ -10,6 +10,8 @@ import {
 } from "@/hooks/use-conversation-tasks";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { DisclosureContent } from "@/components/ui/disclosure-content";
+import { CONTROL_FOCUS } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 
 /** Tasks stay visible across turns, with their own topic and ordinary approval queue. */
@@ -17,45 +19,61 @@ export function BackgroundTasks({ conversationId }: { conversationId: string | n
   const t = useTranslations("chat.backgroundTasks");
   const state = useConversationTasks(conversationId ?? undefined);
   const [expanded, setExpanded] = useState(false);
+  const triggerId = useId();
   const tasks = state.data ?? [];
-  if (tasks.length === 0) {
-    if (state.error)
-      return (
-        <Button variant="ghost" size="sm" onClick={() => void state.refetch()}>
-          {t("retry")}
-        </Button>
-      );
-    return null;
-  }
+  if (!conversationId || (tasks.length === 0 && !state.error)) return null;
   const active = tasks.filter(taskIsActive).length;
   return (
     <section
-      className="border-foreground/8 mb-2 overflow-hidden rounded-xl border"
+      className="border-foreground/8 bg-card mx-auto mb-2 max-w-[760px] overflow-hidden rounded-2xl border"
       data-tour="chat-background-tasks"
     >
       <button
+        id={triggerId}
         type="button"
         aria-expanded={expanded}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px]"
+        className={cn(
+          CONTROL_FOCUS,
+          "text-muted-foreground hover:text-foreground flex w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-left text-xs transition-colors",
+        )}
         onClick={() => setExpanded(!expanded)}
       >
-        {active > 0 ? (
+        {state.error ? (
+          <CircleAlert className="size-3.5 shrink-0" />
+        ) : active > 0 ? (
           <Loader2 className="size-3.5 shrink-0 animate-spin" />
         ) : (
           <GitBranch className="size-3.5 shrink-0" />
         )}
-        <span className="min-w-0 flex-1 truncate">{t("heading", { count: active })}</span>
+        <span className="min-w-0 flex-1 truncate">
+          {state.error ? t("unavailable") : t("heading", { count: active })}
+        </span>
         <ChevronDown
           className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")}
         />
       </button>
-      {expanded && (
+      <DisclosureContent open={expanded} triggerId={triggerId}>
+        {state.error && (
+          <div className="border-foreground/8 flex items-center justify-between gap-3 border-t px-3 py-2">
+            <p role="status" className="text-muted-foreground text-xs">
+              {t("loadFailed")}
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={state.isFetching}
+              onClick={() => void state.refetch()}
+            >
+              {t("retry")}
+            </Button>
+          </div>
+        )}
         <BackgroundTaskList
           tasks={tasks}
           stopping={state.stop.isPending}
           onStop={(id) => state.stop.mutate(id)}
         />
-      )}
+      </DisclosureContent>
     </section>
   );
 }

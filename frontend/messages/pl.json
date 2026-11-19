@@ -1574,6 +1574,8 @@
       "heading": "Tematy w tle · aktywne: {count}",
       "empty": "Poproś agenta z funkcją Tematy w tle o delegowanie zadania i kontynuuj rozmowę.",
       "retry": "Wczytaj tematy w tle ponownie",
+      "unavailable": "Tematy w tle są niedostępne",
+      "loadFailed": "Nie udało się odświeżyć tematów w tle. Możesz dalej rozmawiać.",
       "stop": "Zatrzymaj: {title}",
       "returnInterrupted": "Przerwano przekazanie wyniku",
       "status": {
@@ -1658,7 +1660,8 @@
       "urgent": "Ważne",
       "approvals": "{count, plural, one {# zgoda czeka na Twoją decyzję} few {# zgody czekają na Twoją decyzję} other {# zgód czeka na Twoją decyzję}}",
       "empty": "Wszystko na bieżąco. Nowe ustalenia i ważne tematy pojawią się tutaj.",
-      "failed": "Nie udało się wczytać Inboxa."
+      "failed": "Nie udało się wczytać Inboxa.",
+      "refreshFailed": "Nie udało się odświeżyć skrzynki. Wyświetlamy ostatnio pobrane elementy."
     }
   },
   "errors": {

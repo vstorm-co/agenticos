@@ -9,6 +9,7 @@ const env = vi.hoisted(() => ({
   stop: vi.fn(),
   error: null as Error | null,
   retry: vi.fn(),
+  fetching: false,
 }));
 vi.mock("@/hooks/use-conversation-tasks", () => ({
   taskIsActive: (task: ConversationTask) =>
@@ -17,6 +18,7 @@ vi.mock("@/hooks/use-conversation-tasks", () => ({
     data: env.tasks,
     error: env.error,
     refetch: env.retry,
+    isFetching: env.fetching,
     stop: { mutate: env.stop, isPending: false },
   }),
 }));
@@ -35,6 +37,7 @@ const task: ConversationTask = {
 };
 beforeEach(() => {
   env.tasks = [];
+  env.fetching = false;
   env.error = null;
   env.stop.mockReset();
   env.retry.mockReset();
@@ -54,11 +57,32 @@ it("keeps an interrupted result honest and does not offer to replay completed ac
   expect(screen.getByText(/Result delivery interrupted/)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Stop Export bug" })).not.toBeInTheDocument();
 });
-it("shows an empty dashboard and an explicit retry after a failed read", async () => {
-  const view = render(<BackgroundTasks conversationId={null} />);
-  expect(screen.queryByRole("button")).not.toBeInTheDocument();
+it("hides background topics for an unsent conversation, including stale errors", () => {
   env.error = new Error("Offline");
-  view.rerender(<BackgroundTasks conversationId={null} />);
+  render(<BackgroundTasks conversationId={null} />);
+  expect(screen.queryByRole("button")).not.toBeInTheDocument();
+});
+it("contains a failed read and its retry in an expandable panel", async () => {
+  env.error = new Error("Offline");
+  const view = render(<BackgroundTasks conversationId="source" />);
+  expect(
+    screen.queryByRole("button", { name: "Reload background topics" }),
+  ).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Background topics unavailable" }));
+  expect(screen.getByRole("status")).toHaveTextContent("Could not refresh background topics");
   await userEvent.click(screen.getByRole("button", { name: "Reload background topics" }));
   expect(env.retry).toHaveBeenCalledOnce();
+  env.fetching = true;
+  view.rerender(<BackgroundTasks conversationId="source" />);
+  expect(screen.getByRole("button", { name: "Reload background topics" })).toBeDisabled();
+});
+it("preserves loaded topics when a refresh fails", async () => {
+  env.error = new Error("Offline");
+  env.tasks = [task];
+  render(<BackgroundTasks conversationId="source" />);
+  await userEvent.click(screen.getByRole("button", { name: "Background topics unavailable" }));
+  expect(screen.getByRole("link", { name: /Export bug/ })).toHaveAttribute(
+    "href",
+    "/chat?id=child",
+  );
 });

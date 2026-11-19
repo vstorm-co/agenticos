@@ -229,6 +229,10 @@ A new chat greets you by local time and shows a compact composer. Files sit besi
 
 Before the first message, Files and context usage remain visible but disabled. The attachment menu shows its available actions directly. Chat controls use compact sections for connections and remembered approvals; Inbox previews show source identity, time and priority.
 
+Attachments stay inside the composer on one scrolling row. Safe images show a local thumbnail while uploading; pending uploads show an indeterminate spinner rather than an invented percentage. Background-topic refresh errors stay in their own expandable panel and never appear for an unsent chat. Tab underlines and segmented selections glide between choices, with immediate selection when motion is reduced.
+
+New chats show the selected agent’s published opening prompts above Inbox, with their configured icons, titles and short previews. Inbox and approval reads reuse cached data immediately across navigation, treat reads as fresh for 30 seconds and retain unused entries for 30 minutes. Refresh failures keep cached items visible with a warning. Account and organization switches retain the existing cache-clearing behavior.
+
 Shared console fields, menu rows, pickers, tabs and settings sections use the same compact presentation. Folding an optional form preserves its draft; a required invalid field can reopen its section. Native disclosures share trigger spacing and animate where intrinsic sizing is supported, with ordinary native opening elsewhere. Reduced motion and larger touch targets remain available.
 
 Opening a saved conversation shows transcript placeholders directly, without flashing welcome suggestions; the sidebar and transcript load independently. Explicit sends glide the message near the top; queued messages do not reposition the reader. Scroll, touch and keyboard input cancel the glide. Shared menus and dialogs use small, eased transitions; the Motion preference disables movement.

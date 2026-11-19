@@ -93,3 +93,14 @@ it("shows loading before declaring the inbox empty", () => {
   rerender(<ChatHomeInbox />);
   expect(screen.getByText(/all caught up/)).toBeVisible();
 });
+
+it("keeps cached topics visible when a background refresh fails", () => {
+  state.items = [suggestion("cached")];
+  state.error = new Error("offline");
+  render(<ChatHomeInbox />);
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Could not refresh your inbox. Showing the last loaded items.",
+  );
+  expect(screen.getByRole("link", { name: /Topic cached/ })).toBeVisible();
+  expect(screen.queryByText(/all caught up/)).not.toBeInTheDocument();
+});

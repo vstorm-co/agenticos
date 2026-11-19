@@ -534,3 +534,35 @@ Local frontend reloads were restarted after broad HMR invalidation caused login
 requests to time out; direct backend login returned 200 and the final browser run
 passed. The existing database and app configuration were preserved. Final commit
 hooks and new-SHA CI are checked after this note is prepared.
+
+
+### Composer uploads and gliding selection markers — 2026-11-19
+
+Moved the attachment portal inside the composer. Safe pending images use local
+object URLs owned by the upload lifecycle, released on completion, failure or
+unmount. The shared compact file card shows a larger thumbnail and one spinner;
+the toolbar no longer duplicates upload activity. Attachment count stays available
+to assistive technology without extending the tray beyond the composer.
+
+Background-topic read errors use a bounded expandable panel, preserve loaded tasks,
+and disable retry during an in-flight fetch. Unsent chats show no task error panel.
+Shared tabs, page tabs, dashboard scopes and segmented choices have one moving
+selection marker, using scoped CSS anchors with measured geometry for unsupported
+browsers. Native selected states and keyboard behavior are retained; resizing,
+wrapping and hidden controls update the marker, and reduced motion disables gliding.
+
+The final focused batch passed 131 tests across ten files. ESLint passed for all
+changed components; TypeScript and documentation translation checks passed. The
+first upload run caught jsdom's object-URL incompatibility; scoped browser API
+mocks and explicit failure/unmount cleanup tests now cover that boundary. No full
+coverage or e2e suite was run locally.
+
+
+Restored Minimal's published starter cards above Inbox by removing the rule that
+hid the entire hint grid and making quiet descriptions visible. Icon/title/prompt
+mapping remains the published agent's configuration. Inbox and approval queries
+now explicitly share a 30-second freshness window and 30-minute inactive cache;
+refresh errors keep the cached content with a warning. Existing mutation
+invalidation and account/organization cache clearing remain unchanged. Focused
+starter/Inbox/query tests cover cache reuse, post-decision refresh and error
+retention. No data or agent configuration was changed for this restoration.

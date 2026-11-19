@@ -67,7 +67,7 @@ export function ChatWelcome({
         className={cn(
           "grid",
           quiet
-            ? "mt-4 auto-rows-[3.5rem] gap-1 sm:grid-cols-2"
+            ? "mt-4 auto-rows-fr gap-2 sm:grid-cols-2"
             : compact
               ? "mt-4 auto-rows-fr gap-1.5"
               : "mt-6 auto-rows-fr gap-2 sm:grid-cols-2",
@@ -89,8 +89,8 @@ export function ChatWelcome({
                   // blank page read as a form to fill in, not as places to start.
                   className={cn(
                     "group hover:bg-muted focus-visible:ring-ring flex h-full w-full items-start gap-3 rounded-lg text-left transition-colors outline-none focus-visible:ring-2",
-                    quiet ? "text-muted-foreground px-2 py-2" : "bg-muted/60",
-                    quiet ? "px-2 py-2" : compact ? "px-3 py-2.5" : "px-3 py-3",
+                    quiet ? "border-border/70 border bg-transparent" : "bg-muted/60",
+                    quiet ? "px-3 py-3" : compact ? "px-3 py-2.5" : "px-3 py-3",
                   )}
                 >
                   {/* Off in a narrow column, where it took a third of a card's
@@ -98,7 +98,7 @@ export function ChatWelcome({
                   <span
                     className={
                       quiet
-                        ? "text-muted-foreground flex size-5 shrink-0 items-center justify-center"
+                        ? "bg-foreground/[0.04] text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg"
                         : "bg-foreground/[0.045] text-foreground/80 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl @max-xl:hidden"
                     }
                   >
@@ -106,10 +106,7 @@ export function ChatWelcome({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span
-                      className={cn(
-                        "block text-sm",
-                        quiet ? "line-clamp-2" : "text-foreground font-medium",
-                      )}
+                      className={cn("block text-sm", "text-foreground line-clamp-2 font-medium")}
                     >
                       {suggestion.title}
                     </span>
@@ -117,7 +114,6 @@ export function ChatWelcome({
                       <span
                         className={cn(
                           "text-muted-foreground mt-0.5 block text-[13px] leading-relaxed",
-                          quiet && "sr-only",
                           // A narrow window shows four cards and a composer at once only
                           // when each says its prompt in a line.
                           compact ? "line-clamp-1" : "line-clamp-1 md:line-clamp-2",

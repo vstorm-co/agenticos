@@ -1,5 +1,6 @@
 "use client";
 
+import { useTabIndicator } from "@/components/ui/use-tab-indicator";
 import { Building2, Server, User, UsersRound, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -49,6 +50,7 @@ export function ViewSwitcher({
   const t = useTranslations("dashboard.views");
   const strip = useRef<HTMLDivElement>(null);
   useScrollFade(strip);
+  useTabIndicator(strip);
   if (views.length < 2)
     return actions ? <div className="mb-5 flex justify-end">{actions}</div> : null;
 
@@ -60,6 +62,7 @@ export function ViewSwitcher({
       <div className="border-border min-w-0 border-b md:border-0">
         <div
           ref={strip}
+          data-tab-indicator="line"
           className={cn(
             "-mb-px flex h-12 max-w-full scrollbar-none items-stretch gap-5 overflow-x-auto",
             SCROLL_FADE,

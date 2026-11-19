@@ -1,5 +1,5 @@
 ---
-source_sha: "91931d439fad"
+source_sha: "89d514c07e07"
 ---
 
 # Konsola { #the-console }
@@ -123,6 +123,11 @@ Kompaktowy przycisk źródeł pod odpowiedzią otwiera Sources obok rozmowy, a n
 Linki internetowe w odpowiedzi korzystają z tych samych favicon niezależnie od połączeń MCP. Ikony nieznanych stron przechodzą przez proxy konsoli i stały serwis ikon DuckDuckGo. Serwis otrzymuje tylko nazwę hosta, bez cookies i adresu IP czytelnika, ścieżki ani parametrów URL. Proxy odrzuca przekierowania, obrazy inne niż rastrowe i ikony ponad 64 KiB; limit czasu wynosi trzy sekundy. Brak lub niedostępność ikony zastępuje globus. Widoki transkrypcji z wyłączonym ładowaniem obrazów nie pobierają też ikon nieznanych stron.
 
 Nieudany run pokazuje błąd oddzielnie od odpowiedzi agenta, poza zwijanymi narzędziami, także po odświeżeniu rozmowy. Filtr treści dostawcy ma osobne wyjaśnienie; surowe odpowiedzi dostawcy i nieznane historyczne komunikaty błędów nie są kopiowane do udostępnianych transkrypcji. Częściowe wyniki pozostają dostępne, a nieudana praca nie jest oznaczana jako ukończona.
+
+
+Załączniki pozostają wewnątrz pola wiadomości w jednym przewijanym wierszu. Bezpieczne obrazy mają lokalną miniaturę podczas wysyłania; trwające wysyłanie wskazuje animowany wskaźnik bez wymyślonego procentu. Błędy odświeżania tematów w tle pozostają w osobnym rozwijanym panelu i nie pojawiają się w niewysłanej rozmowie. Podkreślenia kart i zaznaczenia segmentów płynnie przechodzą między opcjami; przy ograniczeniu animacji zmiana jest natychmiastowa.
+
+Nowy czat pokazuje nad skrzynką propozycje rozpoczęcia rozmowy opublikowane przez wybranego agenta, z ustawionymi ikonami, tytułami i krótkimi podglądami. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
 
 ## Dashboard { #the-dashboard }
 

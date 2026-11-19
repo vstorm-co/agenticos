@@ -3290,3 +3290,77 @@ body .tour-spotlight {
     transition-behavior: allow-discrete;
   }
 }
+
+/* A single marker keeps selection continuous without changing tab semantics. */
+[data-tab-indicator] {
+  position: relative;
+  isolation: isolate;
+  anchor-scope: --selected-tab;
+}
+[data-tab-indicator]
+  > :is(
+    [aria-selected="true"],
+    [aria-current="page"],
+    [aria-checked="true"],
+    [aria-pressed="true"]
+  ) {
+  anchor-name: --selected-tab;
+}
+[data-tab-indicator][data-indicator-ready]
+  > :is(
+    [aria-selected="true"],
+    [aria-current="page"],
+    [aria-checked="true"],
+    [aria-pressed="true"]
+  ) {
+  border-bottom-color: transparent;
+  background-color: transparent;
+}
+[data-tab-indicator][data-indicator-ready]::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+  bottom: 0;
+  left: 0;
+  width: var(--tab-width);
+  transform: translateX(var(--tab-x));
+  border-bottom: 2px solid var(--color-foreground);
+}
+[data-tab-indicator="pill"][data-indicator-ready]::before {
+  top: 0;
+  bottom: auto;
+  height: var(--tab-height);
+  transform: translate(var(--tab-x), var(--tab-y));
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: var(--color-control-active);
+}
+@supports (position-anchor: --selected-tab) and (anchor-scope: --selected-tab) {
+  [data-tab-indicator][data-indicator-ready]::before {
+    position-anchor: --selected-tab;
+    left: anchor(left);
+    right: anchor(right);
+    width: auto;
+    transform: none;
+  }
+  [data-tab-indicator="pill"][data-indicator-ready]::before {
+    top: anchor(top);
+    bottom: anchor(bottom);
+    height: auto;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) [data-tab-indicator][data-indicator-ready]::before {
+    transition:
+      transform 220ms ease-out,
+      width 220ms ease-out,
+      height 220ms ease-out,
+      inset 220ms ease-out;
+  }
+}
+@media (forced-colors: active) {
+  [data-tab-indicator="pill"][data-indicator-ready]::before {
+    border-color: Highlight;
+  }
+}

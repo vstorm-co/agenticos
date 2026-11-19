@@ -3,6 +3,7 @@
 import { useRef, type KeyboardEvent } from "react";
 import type { LucideIcon } from "lucide-react";
 
+import { useTabIndicator } from "./use-tab-indicator";
 import { CHOICE_SURFACE, CHOICE_OPTION } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,8 @@ export function ChoiceGroup<T extends string>({
   onChange,
   disabled = false,
 }: ChoiceGroupProps<T>) {
+  const strip = useRef<HTMLDivElement>(null);
+  useTabIndicator(strip);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   const focusable = Math.max(
     0,
@@ -61,6 +64,8 @@ export function ChoiceGroup<T extends string>({
 
   return (
     <div
+      ref={strip}
+      data-tab-indicator="pill"
       role="radiogroup"
       aria-labelledby={labelledBy}
       aria-disabled={disabled || undefined}

@@ -34,6 +34,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Restore configured starter-prompt cards above the new-chat Inbox and keep cached Inbox items visible during background refresh failures.
+- Keep chat attachment previews inside the composer, contain background-topic retry errors, and glide shared tab and segmented selection markers between options.
+
 - Unify fields, menus, model and resource pickers, tabs, settings and native disclosures across the console using the accepted compact chat presentation. Preserve native keyboard behavior, reduced motion, touch targets, form drafts and hidden-field validation.
 
 - Keep the greeting, date, summary space and primary action consistent across personal, organization, group and deployment dashboards. Keep scope navigation aligned with its filters, retain navigation on empty layouts and animate scope changes.

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
@@ -48,7 +48,12 @@ function uploaded(overrides: Partial<FileUploadResponse> = {}): FileUploadRespon
 const LONG = "x".repeat(50_000);
 const CHAT_MAX_UPLOAD_SIZE_MB = DEFAULT_PUBLIC_CONFIG.chatMaxUploadSizeMb;
 
+afterEach(() => vi.restoreAllMocks());
+
 beforeEach(() => {
+  // jsdom Files cannot be read by Node's object-URL implementation.
+  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:pending-image");
+  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
   state.upload.mockReset();
   state.upload.mockResolvedValue(uploaded());
   // The toast mock is module-level, so without this a refusal asserted in one
@@ -1169,4 +1174,33 @@ describe("clean composer draft actions", () => {
     await userEvent.click(screen.getByRole("button", { name: "Stop generating" }));
     expect(stop).toHaveBeenCalledOnce();
   });
+});
+
+it("releases pending image previews when upload fails or the composer unmounts", async () => {
+  let rejectUpload: (reason: Error) => void = () => {};
+  state.upload.mockImplementation(
+    () =>
+      new Promise((_, reject) => {
+        rejectUpload = reject;
+      }),
+  );
+  const view = render(<ChatInput onSend={vi.fn()} />);
+  const file = new File(["png"], "photo.png", { type: "image/png" });
+  await userEvent.upload(
+    view.container.querySelector<HTMLInputElement>('input[type="file"]')!,
+    file,
+  );
+  expect(screen.getByRole("img", { name: file.name })).toHaveAttribute("src", "blob:pending-image");
+  rejectUpload(new Error("Unavailable"));
+  await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledOnce());
+  expect(toast.error).toHaveBeenCalled();
+  await userEvent.upload(
+    view.container.querySelector<HTMLInputElement>('input[type="file"]')!,
+    file,
+  );
+  view.unmount();
+  expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
+  rejectUpload(new Error("Unmounted"));
+  await act(async () => {});
+  expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
 });

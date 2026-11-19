@@ -10,6 +10,7 @@ import {
   useMemo,
 } from "react";
 import type { ReactNode } from "react";
+import { isRenderSafeImage } from "@/lib/file-kinds";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button, Spinner } from "@/components/ui";
 import { Send, Mic, MicOff } from "lucide-react";
@@ -27,17 +28,7 @@ import { useChatStore } from "@/stores";
 import { useMainChat } from "./main-chat-context";
 import { ComposerSheet, type AttachSource } from "./composer-sheet";
 
-/**
- * Render `row` where the page wants it, or in place when it named nowhere.
- *
- * The attachments belong *above* the composer, and the box around the composer is
- * drawn by the page rather than by this component - so the row cannot simply be
- * the first child here. A portal keeps the state where the uploads happen and
- * puts the markup where it reads correctly; lifting `attachedFiles`, `pending`
- * and every upload path into the page would be a much larger change for a
- * question about layout. Without a slot it renders here, which is what any other
- * mounting of this composer gets.
- */
+/** Keep upload state here while the owning surface places its attachment tray. */
 function into(slot: HTMLElement | null | undefined, row: React.ReactNode): React.ReactNode {
   return slot == null ? row : createPortal(row, slot);
 }
@@ -110,6 +101,7 @@ interface PendingUpload {
   key: number;
   name: string;
   size: number;
+  imageUrl?: string;
 }
 
 /**
@@ -309,6 +301,14 @@ export function ChatInput({
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [isListening, setIsListening] = useState(false);
   const pendingKey = useRef(0);
+  const pendingPreviews = useRef(new Map<number, string>());
+  useEffect(() => {
+    const previews = pendingPreviews.current;
+    return () => {
+      for (const url of previews.values()) URL.revokeObjectURL(url);
+      previews.clear();
+    };
+  }, []);
   const isUploading = pending.length > 0;
   // Slash-command palette state. Open while message starts with "/" and the
   // caller wired a context - without one, commands have nothing to do.
@@ -739,11 +739,12 @@ export function ChatInput({
       // Every accepted file gets its card before the first request goes out, so
       // dropping four files shows four cards rather than one that moves along
       // the row. The key is a counter: two files can share a name and a size.
-      const queued = accepted.map((file) => ({
-        key: pendingKey.current++,
-        name: file.name,
-        size: file.size,
-      }));
+      const queued = accepted.map((file) => {
+        const key = pendingKey.current++;
+        const imageUrl = isRenderSafeImage(file.type) ? URL.createObjectURL(file) : undefined;
+        if (imageUrl) pendingPreviews.current.set(key, imageUrl);
+        return { key, name: file.name, size: file.size, imageUrl };
+      });
       setPending((prev) => [...prev, ...queued]);
 
       for (const [i, file] of accepted.entries()) {
@@ -753,6 +754,12 @@ export function ChatInput({
         } catch (err) {
           toast.error(`${file.name}: ${getErrorMessage(err, tErrors, t("uploadFailed"))}`);
         } finally {
+          const key = queued[i]!.key;
+          const url = pendingPreviews.current.get(key);
+          if (url) {
+            URL.revokeObjectURL(url);
+            pendingPreviews.current.delete(key);
+          }
           setPending((prev) => prev.filter((p) => p.key !== queued[i]!.key));
         }
       }
@@ -960,10 +967,13 @@ export function ChatInput({
                 onRemove={() => removeFile(file.id)}
               />
             ))}
-            {/* After the finished ones, in the order they were dropped, so a card
-                does not move when its upload lands. */}
             {pending.map((p) => (
-              <PendingAttachmentCard key={p.key} name={p.name} size={p.size} />
+              <PendingAttachmentCard
+                key={p.key}
+                name={p.name}
+                size={p.size}
+                imageUrl={p.imageUrl}
+              />
             ))}
           </AttachmentRow>,
         )}
@@ -1045,7 +1055,6 @@ export function ChatInput({
           phoneRows={phoneRows}
           disabled={disabled || isUploading}
         />
-        {isUploading && <Spinner className="text-muted-foreground h-4 w-4 shrink-0" />}
         {controlsSlot ? (
           <div className="chat-input-selection flex min-w-0 items-center gap-1">{controlsSlot}</div>
         ) : null}
