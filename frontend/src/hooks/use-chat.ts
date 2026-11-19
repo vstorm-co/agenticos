@@ -1917,6 +1917,7 @@ export function useChat(options: UseChatOptions = {}) {
     [
       chatApi,
       conversationApi,
+      queryClient,
       scoped,
       tenantId,
       // currentMessageId is read via currentMessageIdRef inside the handler,

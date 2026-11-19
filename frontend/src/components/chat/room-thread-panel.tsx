@@ -312,7 +312,7 @@ export function RoomThreadPanel({
               ref={close}
               size="icon"
               variant="ghost"
-              aria-label={t("close")}
+              aria-label={t("closePanel")}
               onClick={onClose}
             >
               <ArrowLeft className="size-4" aria-hidden />

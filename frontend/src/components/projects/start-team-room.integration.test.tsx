@@ -71,6 +71,35 @@ describe("starting a team room", () => {
     expect(push).toHaveBeenCalledExactlyOnceWith("/chat?id=new-room");
   });
 
+  it("authorizes the created room before navigating, and stops when that selection is stale", async () => {
+    const order: string[] = [];
+    push.mockImplementation(() => {
+      order.push("navigate");
+    });
+    const onCreated = vi.fn((id: string) => {
+      order.push(`created:${id}`);
+      return true;
+    });
+    const view = render(<StartTeamRoom projectId="project-a" onCreated={onCreated} />, {
+      wrapper,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "New team room" }));
+    await waitFor(() => expect(push).toHaveBeenCalledExactlyOnceWith("/chat?id=new-room"));
+    expect(onCreated).toHaveBeenCalledExactlyOnceWith("new-room");
+    expect(order).toEqual(["created:new-room", "navigate"]);
+    view.unmount();
+
+    push.mockClear();
+    push.mockImplementation(() => {});
+    const rejected = render(<StartTeamRoom projectId="project-a" onCreated={() => false} />, {
+      wrapper,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "New team room" }));
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(2));
+    expect(push).not.toHaveBeenCalled();
+    rejected.unmount();
+  });
+
   it("waits for the signed-in account before allowing creation", async () => {
     useAuthStore.setState({ user: null });
     render(<StartTeamRoom projectId="project-a" />, { wrapper });
@@ -134,12 +163,15 @@ describe("starting a team room", () => {
   });
 
   it.each(["account", "organization", "unmount"] as const)(
-    "does not navigate or invalidate after the %s changes during creation",
+    "does not navigate, authorize or invalidate after the %s changes during creation",
     async (boundary) => {
       const creation = deferred<typeof room>();
       vi.mocked(apiClient.post).mockReturnValue(creation.promise);
       const invalidate = vi.spyOn(client, "invalidateQueries");
-      const view = render(<StartTeamRoom projectId="project-a" />, { wrapper });
+      const onCreated = vi.fn(() => true);
+      const view = render(<StartTeamRoom projectId="project-a" onCreated={onCreated} />, {
+        wrapper,
+      });
       fireEvent.click(screen.getByRole("button", { name: "New team room" }));
       expect(apiClient.post).toHaveBeenCalledTimes(1);
 
@@ -150,6 +182,7 @@ describe("starting a team room", () => {
       });
       await act(async () => creation.resolve(room));
       expect(push).not.toHaveBeenCalled();
+      expect(onCreated).not.toHaveBeenCalled();
       expect(invalidate).not.toHaveBeenCalled();
       expect(toast.error).not.toHaveBeenCalled();
     },
@@ -157,14 +190,17 @@ describe("starting a team room", () => {
 
   it("shows a current creation failure and allows another attempt", async () => {
     vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("Creation failed"));
-    render(<StartTeamRoom projectId="project-a" />, { wrapper });
+    const onCreated = vi.fn(() => true);
+    render(<StartTeamRoom projectId="project-a" onCreated={onCreated} />, { wrapper });
     const button = screen.getByRole("button", { name: "New team room" });
     fireEvent.click(button);
     await waitFor(() => expect(toast.error).toHaveBeenCalledExactlyOnceWith(expect.any(String)));
     expect(button).toBeEnabled();
     expect(push).not.toHaveBeenCalled();
+    expect(onCreated).not.toHaveBeenCalled();
     fireEvent.click(button);
     await waitFor(() => expect(push).toHaveBeenCalledWith("/chat?id=new-room"));
+    expect(onCreated).toHaveBeenCalledExactlyOnceWith("new-room");
     expect(apiClient.post).toHaveBeenCalledTimes(2);
   });
 

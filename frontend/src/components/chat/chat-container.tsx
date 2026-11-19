@@ -1614,6 +1614,22 @@ interface ChatUIProps {
   onStartCall: (transport: VoiceTransport) => void;
 }
 
+interface DirectChatDraft {
+  content: string;
+  accountId: string | null;
+  organizationId: string | null;
+  conversationId: string | null;
+  selectionVersion: number;
+}
+
+interface CreatedRoomDraftHandoff {
+  roomId: string;
+  projectId: string;
+  accountId: string;
+  organizationId: string;
+  selectionVersion: number;
+}
+
 function ChatUI({
   manualCompaction,
   sideThreadActions,
@@ -1723,13 +1739,114 @@ function ChatUI({
   sendDisabled = false,
 }: ChatUIProps) {
   const manualCompacting = manualCompaction?.status === "running";
-  const directDraftRef = useRef("");
+  const directDraftRef = useRef<DirectChatDraft | null>(null);
+  const createdRoomDraftHandoffRef = useRef<CreatedRoomDraftHandoff | null>(null);
+  const conversationApi = useConversationStore.useApi();
+  const selectionVersion = useConversationStore((state) => state.selectionVersion);
   const composerFocusRequest = useConversationStore((state) => state.composerFocusRequest);
   const t = useTranslations("chat");
   const tThread = useTranslations("chat.roomThread");
   const tDictation = useTranslations("chat.dictation");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const accountId = useAuthStore((state) => state.user?.id ?? null);
+  const recordDirectDraft = useCallback(
+    (content: string) => {
+      directDraftRef.current = {
+        content,
+        accountId,
+        organizationId: activeOrgId,
+        conversationId,
+        selectionVersion,
+      };
+    },
+    [accountId, activeOrgId, conversationId, selectionVersion],
+  );
+  const authorizeCreatedRoomDraft = useCallback(
+    (roomId: string, projectId: string) => {
+      const current = conversationApi.getState();
+      if (
+        accountId === null ||
+        activeOrgId === null ||
+        conversationId !== null ||
+        roomProjectId !== projectId ||
+        useAuthStore.getState().user?.id !== accountId ||
+        useOrgStore.getState().activeOrgId !== activeOrgId ||
+        current.currentConversationId !== null ||
+        current.pendingProjectId !== projectId ||
+        current.selectionVersion !== selectionVersion
+      ) {
+        createdRoomDraftHandoffRef.current = null;
+        return false;
+      }
+
+      const draft = directDraftRef.current;
+      if (
+        draft !== null &&
+        draft.content.length > 0 &&
+        draft.accountId === accountId &&
+        draft.organizationId === activeOrgId &&
+        draft.conversationId === null &&
+        draft.selectionVersion === selectionVersion
+      ) {
+        createdRoomDraftHandoffRef.current = {
+          roomId,
+          projectId,
+          accountId,
+          organizationId: activeOrgId,
+          selectionVersion,
+        };
+      } else {
+        createdRoomDraftHandoffRef.current = null;
+      }
+      return true;
+    },
+    [accountId, activeOrgId, conversationApi, conversationId, roomProjectId, selectionVersion],
+  );
+  const consumeDirectDraft = useCallback(() => {
+    const draft = directDraftRef.current;
+    if (draft === null) return "";
+
+    const current = conversationApi.getState();
+    const sameIdentity =
+      useAuthStore.getState().user?.id === accountId &&
+      useOrgStore.getState().activeOrgId === activeOrgId;
+    const sameSelection =
+      current.currentConversationId === conversationId &&
+      current.selectionVersion === selectionVersion;
+    if (!sameIdentity || !sameSelection) return "";
+
+    const belongsToCurrentConversation =
+      draft.accountId === accountId &&
+      draft.organizationId === activeOrgId &&
+      draft.conversationId === conversationId &&
+      draft.selectionVersion === selectionVersion;
+    if (belongsToCurrentConversation) {
+      directDraftRef.current = null;
+      createdRoomDraftHandoffRef.current = null;
+      return draft.content;
+    }
+
+    const handoff = createdRoomDraftHandoffRef.current;
+    if (handoff?.roomId === conversationId) createdRoomDraftHandoffRef.current = null;
+    const belongsToCreatedRoom =
+      handoff !== null &&
+      handoff.roomId === conversationId &&
+      handoff.projectId === roomProjectId &&
+      handoff.accountId === accountId &&
+      handoff.organizationId === activeOrgId &&
+      handoff.selectionVersion === draft.selectionVersion &&
+      current.selectionVersion === handoff.selectionVersion + 1 &&
+      draft.accountId === accountId &&
+      draft.organizationId === activeOrgId &&
+      draft.conversationId === null;
+    if (belongsToCreatedRoom) {
+      directDraftRef.current = null;
+      return draft.content;
+    }
+
+    directDraftRef.current = null;
+    return "";
+  }, [accountId, activeOrgId, conversationApi, conversationId, roomProjectId, selectionVersion]);
   const roomRequests = useRoomRequests(isRoom ? conversationId : null);
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const { mode: sendMode, setMode: setSendMode } = useChatSendModePreference(
@@ -2460,7 +2577,8 @@ function ChatUI({
                   conversationId={conversationId}
                   readOnly={roomReadOnly}
                   onTyping={onTyping}
-                  initialContent={directDraftRef.current}
+                  consumeInitialContent={consumeDirectDraft}
+                  onRoomCreated={authorizeCreatedRoomDraft}
                 />
               ) : (viewOnly || accessState) && !onCall ? (
                 <ConversationAccessNotice state={accessState ?? "view"} onRetry={onRetryAccess} />
@@ -2567,6 +2685,7 @@ function ChatUI({
                           limit near its end changes an icon's colour and never
                           costs the row a button. */}
                           <ChatInput
+                            key={JSON.stringify([accountId, activeOrgId, selectionVersion])}
                             autoFocus={!compact && !onCall && requestedMessageId === null}
                             preserveReadingFocus={requestedMessageId !== null}
                             focusRequest={composerFocusRequest}
@@ -2624,9 +2743,7 @@ function ChatUI({
                             incoming={incoming}
                             onTyping={onTyping}
                             onDraftChange={setDrafting}
-                            onTextDraftChange={(content) => {
-                              directDraftRef.current = content;
-                            }}
+                            onTextDraftChange={recordDirectDraft}
                             offline={!isConnected}
                             projects={projectMentions.items}
                             onPickProject={projectMentions.pick}

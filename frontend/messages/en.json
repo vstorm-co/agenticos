@@ -2972,6 +2972,7 @@
       "placeholder": "Reply here. Everyone in the room can read this thread.",
       "post": "Post reply",
       "close": "Close thread",
+      "closePanel": "Close thread panel",
       "earlier": "Load earlier replies",
       "audience": "Visible to everyone in this room",
       "root": "Original message",

@@ -141,6 +141,13 @@ function changed() {
   announceRoomChange({ conversationId: "room-a", accountId: "me", organizationId: "org-a" });
 }
 
+async function getFilePicker(container: HTMLElement): Promise<HTMLInputElement> {
+  await screen.findByRole("button", { name: /attach/i });
+  const picker = container.querySelector<HTMLInputElement>('input[type="file"]');
+  expect(picker).not.toBeNull();
+  return picker!;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -223,6 +230,7 @@ describe("the room composer", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/conversations/room-a/room-messages", {
       client_message_id: expect.any(String),
       content: "Hello @Writer",
+      mentions: [],
     });
     await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue(""));
   });
@@ -247,6 +255,7 @@ describe("the room composer", () => {
         content: "Propose the next steps",
         intent: "ask_lead",
         expected_policy_revision: 7,
+        mentions: [],
       }),
     );
   });
@@ -367,7 +376,9 @@ describe("the room composer", () => {
     render(room(), { wrapper });
     const input = await screen.findByRole("textbox");
     await user.type(input, "Please ask @Writer");
-    await user.click(await screen.findByRole("option", { name: "Writer Add before mention" }));
+    await user.click(
+      await screen.findByRole("option", { name: "Writer, Agents, Add before mentioning" }),
+    );
     expect(await screen.findByRole("alertdialog")).toHaveTextContent("Add Writer to this room?");
     expect(apiClient.post).not.toHaveBeenCalledWith(
       "/conversations/room-a/participants",
@@ -385,12 +396,14 @@ describe("the room composer", () => {
         id: "writer",
       }),
     );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(input).toHaveValue("Please ask @Writer ");
     await user.click(screen.getByRole("button", { name: "Post message" }));
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith(
         "/conversations/room-a/room-messages",
         expect.objectContaining({
-          content: "Please ask @Writer ",
+          content: "Please ask @Writer",
           mentions: [{ kind: "agent", id: "writer" }],
         }),
       ),
@@ -398,17 +411,19 @@ describe("the room composer", () => {
   });
 
   it("keeps the converted room draft and hides the project-only Ask Lead control", async () => {
+    const consumeInitialContent = vi.fn(() => "A draft from the existing chat");
     render(
       <TeamRoomComposer
         conversationId="room-a"
         projectId={null}
         readOnly={false}
         onTyping={vi.fn()}
-        initialContent="A draft from the existing chat"
+        consumeInitialContent={consumeInitialContent}
       />,
       { wrapper },
     );
     expect(await screen.findByRole("textbox")).toHaveValue("A draft from the existing chat");
+    expect(consumeInitialContent).toHaveBeenCalledOnce();
     expect(screen.queryByRole("button", { name: "Ask lead" })).not.toBeInTheDocument();
     expect(apiClient.get).not.toHaveBeenCalledWith("/conversations/room-a/lead-policy");
   });
@@ -419,17 +434,18 @@ describe("the room composer", () => {
     render(room(), { wrapper });
     const input = await screen.findByRole("textbox");
     await user.type(input, "Hi @");
-    const options = await screen.findAllByRole("option", { name: "Alex" });
-    expect(options).toHaveLength(2);
-    await user.click(options[0]!);
+    expect(await screen.findByRole("option", { name: "Alex, Agents" })).toBeVisible();
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    await user.click(screen.getByRole("option", { name: "Alex, People" }));
     await user.type(input, "@");
+    expect(await screen.findByRole("option", { name: "Alex, Agents" })).toBeVisible();
     await user.keyboard("{ArrowDown}{Enter}");
     await user.click(screen.getByRole("button", { name: "Post message" }));
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith(
         "/conversations/room-a/room-messages",
         expect.objectContaining({
-          content: "Hi @Alex @Alex ",
+          content: "Hi @Alex @Alex",
           mentions: [
             { kind: "user", id: "person" },
             { kind: "agent", id: "writer" },
@@ -439,11 +455,53 @@ describe("the room composer", () => {
     );
   });
 
+  it.each([
+    ["first", "agent", "writer"],
+    ["second", "user", "person"],
+  ] as const)(
+    "deleting the %s identical mention preserves only the other identity",
+    async (position, expectedKind, expectedId) => {
+      mentionables = [
+        participant("agent", "writer", "Alex"),
+        participant("user", "person", "Alex"),
+      ];
+      const user = userEvent.setup();
+      render(room(), { wrapper });
+      const input = await screen.findByRole<HTMLTextAreaElement>("textbox", {
+        name: "Message to the team",
+      });
+
+      await user.type(input, "Hi @");
+      await user.click(await screen.findByRole("option", { name: "Alex, People" }));
+      await user.type(input, "@");
+      await screen.findByRole("option", { name: "Alex, Agents" });
+      await user.keyboard("{ArrowDown}{Enter}");
+      await waitFor(() => expect(input).toHaveValue("Hi @Alex @Alex "));
+
+      const start =
+        position === "first" ? input.value.indexOf("@Alex") : input.value.lastIndexOf("@Alex");
+      act(() => input.setSelectionRange(start, start + "@Alex".length + 1));
+      await user.keyboard("{Backspace}");
+      await waitFor(() => expect(input).toHaveValue("Hi @Alex "));
+      await user.click(screen.getByRole("button", { name: "Post message" }));
+
+      await waitFor(() =>
+        expect(apiClient.post).toHaveBeenCalledWith(
+          "/conversations/room-a/room-messages",
+          expect.objectContaining({
+            content: "Hi @Alex",
+            mentions: [{ kind: expectedKind, id: expectedId }],
+          }),
+        ),
+      );
+    },
+  );
+
   it("blocks posting after an upload failure and allows a captionless attachment retry", async () => {
     vi.mocked(apiClient.upload).mockRejectedValueOnce(new Error("Upload unavailable"));
     const user = userEvent.setup();
     const { container } = render(room(), { wrapper });
-    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const picker = await getFilePicker(container);
     const file = new File(["notes"], "notes.txt", { type: "text/plain" });
 
     fireEvent.change(picker, { target: { files: [file] } });
@@ -468,7 +526,7 @@ describe("the room composer", () => {
     const user = userEvent.setup();
     const { container } = render(room(), { wrapper });
     await user.type(await screen.findByRole("textbox"), "Keep this text");
-    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const picker = await getFilePicker(container);
     fireEvent.change(picker, {
       target: { files: [new File(["notes"], "notes.txt", { type: "text/plain" })] },
     });
@@ -500,7 +558,7 @@ describe("the room composer", () => {
     const user = userEvent.setup();
     const { container, rerender } = render(room("room-a"), { wrapper });
     const file = new File(["notes"], "notes.txt", { type: "text/plain" });
-    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const picker = await getFilePicker(container);
     fireEvent.change(picker, { target: { files: [file] } });
     expect(await screen.findByText("notes.txt")).toBeVisible();
     expect(screen.getByRole("button", { name: "Post message" })).toBeDisabled();
@@ -540,7 +598,7 @@ describe("the room composer", () => {
     const user = userEvent.setup();
     const { container, rerender } = render(room("room-a"), { wrapper });
     const file = new File(["notes"], "notes.txt", { type: "text/plain" });
-    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const picker = await getFilePicker(container);
     fireEvent.change(picker, { target: { files: [file] } });
     await screen.findByRole("alert");
 
@@ -551,7 +609,7 @@ describe("the room composer", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("notes.txt: Upload unavailable");
     expect(screen.getByRole("button", { name: "Post message" })).toBeDisabled();
 
-    const retryPicker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const retryPicker = await getFilePicker(container);
     fireEvent.change(retryPicker, { target: { files: [file] } });
     await waitFor(() => expect(screen.getByRole("button", { name: "Post message" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Post message" }));
@@ -572,7 +630,7 @@ describe("the room composer", () => {
     );
     const user = userEvent.setup();
     const { container } = render(room("room-a"), { wrapper });
-    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const picker = await getFilePicker(container);
     const first = new File(["one"], "one.txt", { type: "text/plain" });
     const second = new File(["two"], "two.txt", { type: "text/plain" });
     fireEvent.change(picker, { target: { files: [first, second] } });
@@ -608,7 +666,7 @@ describe("the room composer", () => {
     const user = userEvent.setup();
     const { container, rerender } = render(threadRoom("root-a"), { wrapper });
     const file = new File(["notes"], "notes.txt", { type: "text/plain" });
-    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const picker = await getFilePicker(container);
     fireEvent.change(picker, { target: { files: [file] } });
     expect(await screen.findByText("notes.txt")).toBeVisible();
 
@@ -646,7 +704,7 @@ describe("the room composer", () => {
     vi.mocked(apiClient.post).mockRejectedValueOnce(new TypeError("Acknowledgement lost"));
     const user = userEvent.setup();
     const { container } = render(room(), { wrapper });
-    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const picker = await getFilePicker(container);
     const file = new File(["notes"], "notes.txt", { type: "text/plain" });
     fireEvent.change(picker, { target: { files: [file] } });
     await screen.findByText("notes.txt");

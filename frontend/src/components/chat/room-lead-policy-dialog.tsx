@@ -23,7 +23,6 @@ import { useAgents } from "@/hooks/use-agents";
 import { useRoomRoutingActions } from "@/hooks/use-room-routing";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import type { RoomLeadPolicy } from "@/types/room-routing";
-import { roomResponders } from "./team-room-responder";
 
 export function RoomLeadPolicyDialog({
   conversationId,
@@ -38,7 +37,15 @@ export function RoomLeadPolicyDialog({
   const errors = useTranslations("errors");
   const id = useId();
   const { agents, isLoading, error: agentsError } = useAgents();
-  const eligible = roomResponders(agents);
+  // Room requests run without a person's local workspace or subscription context.
+  const eligible = agents.filter(
+    (agent) =>
+      agent.status === "published" &&
+      agent.can_run &&
+      !agent.local_workspace &&
+      !agent.local_coding_agent &&
+      !agent.personal_coding_harness,
+  );
   const actions = useRoomRoutingActions(conversationId);
   const [enabled, setEnabled] = useState(policy.enabled);
   const [lead, setLead] = useState(policy.lead?.agent_id ?? "none");
