@@ -1281,6 +1281,10 @@ class ImprovementPipelineService:
     ) -> ImprovementFinished:
         """Accept the selected round and optionally publish, in one human-confirmed transaction.
 
+        With `data.round`, a session that stopped without a round waiting - on a
+        criterion that got worse, say - has that round selected first, in the same
+        transaction, as `select_round` would.
+
         Normal authoring and publish validation apply to the confirming person.
         Guarded environments remain on their old version until their checks pass.
         """
@@ -1289,6 +1293,9 @@ class ImprovementPipelineService:
         if await agent_repo.lock(self.db, agent_id, organization_id=ctx.organization_id) is None:
             raise NotFoundError(message="Agent not found")
         run = await self._row(ctx, agent_id, run_id, lock=True)
+        if run.status != Status.READY and data.round is not None:
+            await self.select_round(ctx, agent_id, run_id, data.round)
+            run = await self._row(ctx, agent_id, run_id, lock=True)
         if run.status != Status.READY:
             raise BadRequestError(message="Select a checked round before accepting it")
         await self.ensure_current(ctx, run.id, allow_finished=True)

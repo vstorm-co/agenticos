@@ -400,6 +400,15 @@ class ImprovementFinish(BaseSchema):
     confirmed: Literal[True]
     publish: bool = False
     automatic_check: bool = False
+    round: int | None = Field(
+        default=None,
+        ge=1,
+        le=10,
+        description=(
+            "The checked attempt to accept, for a session that stopped without one waiting; "
+            "selected first, as selecting it on its own does"
+        ),
+    )
 
 
 class ImprovementFinished(BaseSchema):
