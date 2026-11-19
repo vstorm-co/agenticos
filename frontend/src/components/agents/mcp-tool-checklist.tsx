@@ -60,17 +60,12 @@ export function asksFirst(
 export type GroupApproval = "ask" | "run" | "mixed";
 
 /**
- * The tools an agent may call after ticking or unticking: still null - every
- * tool, those the server adds later included - only while it was null and every
- * tool is still chosen. Ticking the last one back gives the list of today's
- * tools; taking later ones is `NewToolsSwitch`'s decision alone.
+ * The tools an agent may call after ticking or unticking, always as a list:
+ * ticking the last one back gives today's tools, and taking those the server
+ * adds later is `NewToolsSwitch`'s decision alone. A tick never meets null, since
+ * null has every tool ticked and the first click unticks one.
  */
-export function allowedAfterToggle(
-  tools: { name: string }[],
-  allowed: string[] | null,
-  chosen: Set<string>,
-): string[] | null {
-  if (allowed === null && tools.every((tool) => chosen.has(tool.name))) return null;
+export function chosenTools(tools: { name: string }[], chosen: Set<string>): string[] {
   return tools.map((tool) => tool.name).filter((name) => chosen.has(name));
 }
 
@@ -169,7 +164,7 @@ export function McpToolChecklist({
       if (on) next.add(name);
       else next.delete(name);
     }
-    onChange(allowedAfterToggle(tools, allowed, next));
+    onChange(chosenTools(tools, next));
   };
 
   const reads = tools.filter((tool) => tool.read_only === true);

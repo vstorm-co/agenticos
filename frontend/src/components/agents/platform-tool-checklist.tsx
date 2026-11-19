@@ -5,8 +5,8 @@ import { Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
-  allowedAfterToggle,
   asksFirst,
+  chosenTools,
   NewToolsSwitch,
   ToolGroup,
   type GroupApproval,
@@ -108,8 +108,7 @@ export function PlatformToolChecklist({
         delete own[name];
       }
     }
-    const allowed = allowedAfterToggle(tools, binding.allowed_tools, next);
-    onChange(withToolApproval({ ...binding, allowed_tools: allowed }, own));
+    onChange(withToolApproval({ ...binding, allowed_tools: chosenTools(tools, next) }, own));
   };
   /**
    * These tools set to ask or not. The default becomes `all` when every read
