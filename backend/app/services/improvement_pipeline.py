@@ -3045,6 +3045,7 @@ class ImprovementPipelineService:
             held_out=None
             if child.proposal_check is None or child.proposal_check.measurement is None
             else len(child.proposal_check.measurement.holdout_case_ids),
+            criterion_change=comparison.criterion_change,
             criteria=tuple(CriterionMove(**move.model_dump()) for move in comparison.criteria),
         )
 
@@ -3058,6 +3059,7 @@ class ImprovementPipelineService:
             detail.get("fixed") or 0,
             detail.get("broken") or 0,
             detail.get("held_out") or 0,
+            criterion_change=detail.get("criterion_change", 0.0),
         )
 
     @staticmethod
@@ -3066,6 +3068,7 @@ class ImprovementPipelineService:
     ) -> VerdictDetail:
         return {
             "criteria": criterion_details(result.criteria, owners or {}),
+            "criterion_change": result.criterion_change,
             "reason": None,
             "broken": result.regressions_confirmed,
             "fixed": result.fixed_confirmed,

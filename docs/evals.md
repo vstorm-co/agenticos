@@ -340,6 +340,8 @@ A judge criterion can apply to every case or only cases carrying any of its sele
 
 ## Comparing with a baseline { #comparing-with-a-baseline }
 
+`criterion_change` is the net number of confirmed criterion fixes, divided by every paired criterion grade. It is computed before limiting the response detail. When whole questions do not change and several attempts improve criteria alone, Improve prefers the larger normalized criterion change; exact ties retain the earlier attempt.
+
 Interactive comparison reads allow up to 30 requests per person and 60 per organization per minute, with one comparison executing per organization at a time. Console and API requests share these limits. Excess or overlapping requests return HTTP 429 with `Retry-After`; clients should wait before retrying. Shared Redis coordinates workers, with a local per-worker floor during an outage.
 
 Readers need `runs:view` before claiming concurrency or spending quota. Active comparisons renew their claims; the 120-second expiry recovers crashed holders. A failed Redis renewal logs the failure and retains the per-worker floor.

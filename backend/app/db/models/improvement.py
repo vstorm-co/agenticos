@@ -209,6 +209,7 @@ class VerdictDetail(TypedDict, total=False):
     """The counts behind a round's verdict - never a question's or an answer's text."""
 
     fixed: int | None
+    criterion_change: float
     crashed: int
     gradable_holdout: int
     held_out: int | None

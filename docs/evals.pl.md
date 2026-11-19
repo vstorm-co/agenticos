@@ -1,5 +1,5 @@
 ---
-source_sha: "b6b7965776e0"
+source_sha: "e1701751410e"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -366,6 +366,8 @@ mierzone względem samej wersji roboczej nie liczy się w żadnym z nich.
 Kryterium sędziego może dotyczyć wszystkich przypadków albo tylko przypadków z dowolnym wybranym tagiem. W **Ocenianie** (Grading) wybierz tagi i sprawdź liczbę objętych przypadków; przypadek z kilkoma pasującymi tagami liczy się raz. Niepasujące kryteria są całkowicie pomijane, więc nie mogą oblać przypadku ani pozostawić go nierozstrzygniętym. Notatka przeglądu może stać się kryterium dla wybranego tagu przypadku. Zmiana zakresu zmienia odcisk oceniania; strażnicy przyjmują ją dopiero po uprawnionym przesunięciu przypięcia.
 
 ## Porównanie z baseline'em { #comparing-with-a-baseline }
+
+`criterion_change` to liczba potwierdzonych napraw kryteriów pomniejszona o potwierdzone pogorszenia, podzielona przez liczbę wszystkich ocen kryteriów porównanych parami. Jest obliczana przed ograniczeniem szczegółów odpowiedzi. Gdy całe pytania nie zmieniają wyniku, a kilka prób poprawia same kryteria, Improve wybiera większą znormalizowaną poprawę kryteriów; dokładny remis pozostawia wcześniejszą próbę.
 
 Interaktywne odczyty porównań dopuszczają do 30 żądań na osobę i 60 na organizację na minutę, z jednym wykonywanym porównaniem na organizację jednocześnie. Konsola i API współdzielą te limity. Nadmiarowe lub równoległe żądania zwracają HTTP 429 z `Retry-After`; klient powinien odczekać przed ponowieniem. Wspólny Redis koordynuje workery, a podczas awarii każdy worker zachowuje lokalny limit.
 

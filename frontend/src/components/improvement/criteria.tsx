@@ -34,19 +34,31 @@ export function movedCriteria(round: ImprovementIteration | undefined) {
   };
 }
 
-function listed(t: Translate, locale: string, items: VerdictCriterion[], named?: number): string {
+function criterionName(item: VerdictCriterion, criteria: VerdictCriterion[]): string {
+  return criteria.filter((other) => other.name === item.name).length > 1
+    ? `${item.name} [${item.scorer}]`
+    : item.name;
+}
+
+function listed(
+  t: Translate,
+  locale: string,
+  items: VerdictCriterion[],
+  context: VerdictCriterion[],
+  named?: number,
+): string {
   const shown = named === undefined ? items : items.slice(0, named);
   const words = shown.map((item) =>
     named === undefined
       ? t("criteria.item", {
-          name: item.name,
+          name: criterionName(item, context),
           before: item.before,
           after: item.after,
           graded: item.graded,
         })
       : item.skill
-        ? t("criteria.failingSkill", { name: item.name, skill: item.skill })
-        : item.name,
+        ? t("criteria.failingSkill", { name: criterionName(item, context), skill: item.skill })
+        : criterionName(item, context),
   );
   if (items.length > shown.length)
     words.push(t("criteria.more", { count: items.length - shown.length }));
@@ -65,6 +77,7 @@ export function criteriaSentences(
   agent: string,
 ): string[] {
   const { better, worse, failing } = movedCriteria(round);
+  const context = criteriaOf(round);
   const sentences: string[] = [];
   if (round.verdict === "criteria_better" && better.length > 0) {
     sentences.push(
@@ -72,12 +85,12 @@ export function criteriaSentences(
         number: round.number,
         agent,
         count: better.length,
-        list: listed(t, locale, better),
+        list: listed(t, locale, better, context),
       }),
     );
     if (failing.length > 0)
       sentences.push(
-        t("criteria.stillFailing", { list: listed(t, locale, failing, NAMED_FAILING) }),
+        t("criteria.stillFailing", { list: listed(t, locale, failing, context, NAMED_FAILING) }),
       );
   }
   if (worse.length > 0)
@@ -86,7 +99,7 @@ export function criteriaSentences(
         number: round.number,
         agent,
         count: worse.length,
-        list: listed(t, locale, worse),
+        list: listed(t, locale, worse, context),
       }),
     );
   return sentences;
@@ -129,7 +142,7 @@ export function CriteriaTable({ criteria }: { criteria: VerdictCriterion[] }) {
           {criteria.map((item) => (
             <tr key={`${item.scorer}:${item.name}`} className="border-t">
               <td className="py-1 pr-3">
-                {item.name}
+                {criterionName(item, criteria)}
                 {item.skill && (
                   <span className="text-muted-foreground block text-xs">
                     {t("skill", { skill: item.skill })}

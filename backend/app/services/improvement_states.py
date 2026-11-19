@@ -341,6 +341,7 @@ class CheckResult:
     suite: SuiteOutcome | None = None
     crashed: int = 0
     held_out: int | None = None
+    criterion_change: float = 0.0
     criteria: tuple[CriterionMove, ...] = ()
     """Each criterion graded on both sides of the held-out questions, confirmed as flips are."""
 
@@ -475,6 +476,7 @@ class RoundResult:
     fixed: int
     broken: int
     held_out: int
+    criterion_change: float = 0.0
 
     @property
     def change(self) -> float:
@@ -500,7 +502,12 @@ def best_round(rounds: list[RoundResult]) -> int | None:
     }
     best = max(
         measured,
-        key=lambda item: (order[item.verdict], item.change, -item.number),
+        key=lambda item: (
+            order[item.verdict],
+            item.change,
+            item.criterion_change if item.verdict == ImprovementVerdict.CRITERIA_BETTER else 0.0,
+            -item.number,
+        ),
         default=None,
     )
     return None if best is None else best.number

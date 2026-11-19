@@ -36,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Distinguish equal criterion names by scorer in result tables and sentences. Select criterion-only improvements by their normalized confirmed movement over all graded pairs, before response and evidence detail limits.
+
 - Authorize comparison readers before shared metering and renew active comparison claims. Keep workflow schema warnings until dependent filters, sort columns and value bindings are edited. Preserve scorer identity in MCP criterion exports and name the selected attempt correctly in notifications.
 
 - Keep busy comparison refusals outside the per-minute read quotas. Price replacement answers from each model's frozen estimate, including grading, instead of averaging cheap and expensive models; older checks without those prices retain incomplete answers.

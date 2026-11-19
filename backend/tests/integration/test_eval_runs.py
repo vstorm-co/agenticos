@@ -1563,6 +1563,11 @@ async def test_a_criterion_that_flipped_in_a_case_still_failing_is_asked_again(d
     assert (days.fixed_confirmed, days.broken_confirmed) == (1, 0)
     receipt = moved["contains 'receipt'"]
     assert (receipt.candidate_passed, receipt.fixed_confirmed) == (0, 0)
+    assert comparison.criterion_change == 0.5
+    from app.services.improvement_pipeline import ImprovementPipelineService
+
+    read = await service.get(ctx, started.id)
+    assert ImprovementPipelineService._check_result(read, comparison).criterion_change == 0.5
 
 
 async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
@@ -3910,7 +3915,7 @@ async def test_latest_training_answers_exclude_an_ordinary_paired_runs_baseline(
 @pytest.mark.security
 async def test_comparison_scratch_work_leaves_the_event_loop_responsive(db, monkeypatch):
     from app.services import eval_run as eval_service
-    from app.services.eval_comparison import CriterionMove, PairedGrades
+    from app.services.eval_comparison import CriterionComparison, PairedGrades
 
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
@@ -3921,15 +3926,15 @@ async def test_comparison_scratch_work_leaves_the_event_loop_responsive(db, monk
     candidate = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
     await _run_to_end(db, Model(db), candidate.id, ctx)
     started, release, finished = Event(), Event(), Event()
-    original = eval_service.criterion_moves
+    original = eval_service.compare_criteria
 
-    def blocked(cases: Iterable[PairedGrades]) -> list[CriterionMove]:
+    def blocked(cases: Iterable[PairedGrades]) -> CriterionComparison:
         started.set()
         release.wait(timeout=5)
         finished.set()
         return original(cases)
 
-    monkeypatch.setattr(eval_service, "criterion_moves", blocked)
+    monkeypatch.setattr(eval_service, "compare_criteria", blocked)
     # An implementation blocking the event loop must fail instead of hanging the suite.
     timer = Timer(5, release.set)
     timer.start()

@@ -73,6 +73,7 @@ def test_an_attempt_lists_its_criteria_in_plain_numbers():
 
     assert _attempt(row, None)["criteria"] == [
         {
+            "scorer": "judge",
             "name": "validity",
             "passed_before": 0,
             "passed_after": 0,

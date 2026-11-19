@@ -513,9 +513,17 @@ MAX_COMPARED_CRITERIA = 200
 """Criteria a comparison reports. A dataset's per-case checks can name thousands."""
 
 
-def criterion_moves(
+@dataclass(frozen=True)
+class CriterionComparison:
+    """Bounded detail and normalized confirmed movement over every graded pair."""
+
+    moves: list[CriterionMove]
+    change: float
+
+
+def compare_criteria(
     cases: Iterable[PairedGrades], *, limit: int = MAX_COMPARED_CRITERIA
-) -> list[CriterionMove]:
+) -> CriterionComparison:
     """The criteria graded on both sides of some case, by scorer and then name.
 
     Past `limit`, the ones that decide a verdict are kept first - every criterion
@@ -550,10 +558,16 @@ def criterion_moves(
             "broken_unconfirmed = broken_unconfirmed + excluded.broken_unconfirmed",
             _criterion_contributions(cases),
         )
+        # Aggregate before limiting detail, so selection sees every criterion.
+        scratch.row_factory = _criterion_change_row
+        change: float = scratch.execute(
+            "SELECT coalesce(sum(fixed_confirmed - broken_confirmed), 0), "
+            "coalesce(sum(graded), 0) FROM moves"
+        ).fetchone()
         scratch.row_factory = _criterion_move_row
         # Rank and limit before constructing response objects. Name tie-breaks
         # match the former stable sort, including criteria with equal counts.
-        return sorted(
+        moves = sorted(
             scratch.execute(
                 "SELECT * FROM moves ORDER BY "
                 "(broken_confirmed = 0), "
@@ -565,6 +579,13 @@ def criterion_moves(
             ),
             key=lambda move: (move.scorer, move.name),
         )
+        return CriterionComparison(moves=moves, change=change)
+
+
+def _criterion_change_row(_cursor: sqlite3.Cursor, row: tuple[int, int]) -> float:
+    # Our aggregate SELECT always returns one pair of integer sums, including empty input.
+    moved, graded = row
+    return moved / graded if graded else 0.0
 
 
 type _CriterionContribution = tuple[str, str, int, int, int, int, int, int, int]

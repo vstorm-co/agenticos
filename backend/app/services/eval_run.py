@@ -136,7 +136,7 @@ from app.services.eval_comparison import (
     Outcome,
     PairedCase,
     PairedGrades,
-    criterion_moves,
+    compare_criteria,
     efficiency,
     flips_by_tag,
     grades,
@@ -2863,7 +2863,7 @@ class EvalRunService:
                 yield from (pair for _, pair in batch)
 
         try:
-            moves = await to_thread.run_sync(criterion_moves, paired_grades())
+            criteria_comparison = await to_thread.run_sync(compare_criteria, paired_grades())
         finally:
             await batches.aclose()
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
@@ -2993,8 +2993,9 @@ class EvalRunService:
                     fixed_unconfirmed=move.fixed_unconfirmed,
                     broken_unconfirmed=move.broken_unconfirmed,
                 )
-                for move in moves
+                for move in criteria_comparison.moves
             ],
+            criterion_change=criteria_comparison.change,
         )
 
     async def _first_attempts(

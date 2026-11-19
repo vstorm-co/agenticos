@@ -20,8 +20,8 @@ from app.db.models.improvement import (
 from app.services.eval_comparison import (
     CriterionMove,
     PairedGrades,
+    compare_criteria,
     criterion_flipped,
-    criterion_moves,
     grades,
 )
 from app.services.improvement_states import (
@@ -62,7 +62,7 @@ def _held_steady() -> PairedGrades:
 def _experiment() -> list[CriterionMove]:
     """The price break went from 9 of 40 to 40 of 40; every quote still fails validity
     and payment terms, so no question flips."""
-    return criterion_moves([_quote(price=True) for _ in range(31)] + [_held_steady()] * 9)
+    return compare_criteria([_quote(price=True) for _ in range(31)] + [_held_steady()] * 9).moves
 
 
 def _named(moves: list[CriterionMove], name: str) -> CriterionMove:
@@ -123,7 +123,7 @@ def test_a_criterion_that_got_worse_is_criteria_worse_whatever_else_improved() -
 
 def test_a_criterion_move_the_reruns_did_not_repeat_is_no_change() -> None:
     wobbling = replace(_quote(price=True), candidate_reruns=({_PRICE: False},))
-    moves = criterion_moves([wobbling])
+    moves = compare_criteria([wobbling]).moves
     price = _named(moves, "price break")
 
     assert price.fixed_unconfirmed == 1 and price.fixed_confirmed == 0
@@ -133,8 +133,8 @@ def test_a_criterion_move_the_reruns_did_not_repeat_is_no_change() -> None:
 def test_a_criterion_flip_the_baseline_was_never_rerun_on_is_unconfirmed() -> None:
     unrerun = replace(_quote(price=True), baseline_reruns=())
 
-    assert _named(criterion_moves([unrerun]), "price break").fixed_confirmed == 0
-    drifted = criterion_moves([replace(unrerun, drift=True)])
+    assert _named(compare_criteria([unrerun]).moves, "price break").fixed_confirmed == 0
+    drifted = compare_criteria([replace(unrerun, drift=True)]).moves
     assert _named(drifted, "price break").fixed_confirmed == 1
 
 
@@ -262,7 +262,7 @@ def test_past_the_limit_the_criteria_that_decide_a_verdict_are_kept() -> None:
         baseline=before, candidate=after, baseline_reruns=(before,), candidate_reruns=(after,)
     )
 
-    moves = criterion_moves([case], limit=3)
+    moves = compare_criteria([case], limit=3).moves
 
     assert [move.name for move in moves] == ["check 000", "price break", "validity"]
     assert _named(moves, "validity").worse and _named(moves, "price break").better
@@ -278,7 +278,7 @@ def test_only_a_criterion_graded_both_ways_counts_as_flipped() -> None:
 def test_a_criterion_undecided_on_either_side_is_left_out_of_its_counts() -> None:
     undecided = PairedGrades(baseline={_PRICE: None}, candidate={_PRICE: True})
 
-    assert criterion_moves([undecided]) == []
+    assert compare_criteria([undecided]).moves == []
 
 
 def test_a_criterion_broken_once_and_not_again_is_an_unconfirmed_break() -> None:
@@ -289,7 +289,7 @@ def test_a_criterion_broken_once_and_not_again_is_an_unconfirmed_break() -> None
         candidate_reruns=({_PRICE: True},),
     )
 
-    move = criterion_moves([broke])[0]
+    move = compare_criteria([broke]).moves[0]
     assert (move.broken_unconfirmed, move.broken_confirmed) == (1, 0)
     assert not move.worse
 
@@ -344,7 +344,7 @@ def test_a_large_single_pass_comparison_constructs_only_the_kept_moves(monkeypat
             baseline=before, candidate=after, baseline_reruns=(before,), candidate_reruns=(after,)
         )
 
-    moves = criterion_moves(cases())
+    moves = compare_criteria(cases()).moves
 
     assert len(moves) == 200
     assert factory.call_count == 200
@@ -354,11 +354,11 @@ def test_a_large_single_pass_comparison_constructs_only_the_kept_moves(monkeypat
 @pytest.mark.parametrize("limit", [-1, 201])
 def test_a_response_limit_cannot_disable_the_resource_bound(limit):
     with pytest.raises(ValueError, match="limit"):
-        criterion_moves([], limit=limit)
+        compare_criteria([], limit=limit)
 
 
 def test_a_zero_limit_returns_no_moves():
-    assert criterion_moves([_quote(price=True)], limit=0) == []
+    assert compare_criteria([_quote(price=True)], limit=0).moves == []
 
 
 def test_a_name_only_skill_report_does_not_claim_another_scorers_criterion():
@@ -392,7 +392,7 @@ def test_scratch_storage_closes_when_reading_criteria_fails(monkeypatch):
         raise RuntimeError("input interrupted")
 
     with pytest.raises(RuntimeError, match="input interrupted"):
-        criterion_moves(interrupted())
+        compare_criteria(interrupted())
     assert connection.closed
 
 
@@ -402,3 +402,68 @@ def test_a_confirmed_break_survives_detail_truncation_ahead_of_many_fixes():
     detail = criterion_details([*fixes, broken], {})
     assert len(detail) == MAX_CRITERIA
     assert detail[0]["name"] == "critical break" and detail[0]["broken"] == 1
+
+
+@pytest.mark.parametrize("limit", [0, 1, 200])
+def test_normalized_criterion_change_includes_rows_outside_the_display_limit(limit):
+    before = {("check", f"check {number}"): False for number in range(205)}
+    after = {**before, ("check", "check 0"): True}
+    pair = PairedGrades(
+        baseline=before, candidate=after, baseline_reruns=(before,), candidate_reruns=(after,)
+    )
+    result = compare_criteria([pair], limit=limit)
+    assert len(result.moves) == limit
+    assert result.change == pytest.approx(1 / 205)
+    assert compare_criteria([PairedGrades(baseline=before, candidate=after)]).change == 0.0
+    reversed_pair = PairedGrades(
+        baseline=after, candidate=before, baseline_reruns=(after,), candidate_reruns=(before,)
+    )
+    assert compare_criteria([reversed_pair], limit=limit).change == pytest.approx(-1 / 205)
+    assert compare_criteria([]).change == 0.0
+
+
+def test_criterion_only_rounds_rank_normalized_confirmed_movement_and_keep_exact_ties():
+    verdict = ImprovementVerdict.CRITERIA_BETTER
+    assert (
+        best_round(
+            [
+                RoundResult(1, verdict, 0, 0, 20, criterion_change=0.1),
+                RoundResult(2, verdict, 0, 0, 20, criterion_change=0.3),
+            ]
+        )
+        == 2
+    )
+    assert (
+        best_round(
+            [
+                RoundResult(1, verdict, 0, 0, 10, criterion_change=0.2),
+                RoundResult(2, verdict, 0, 0, 20, criterion_change=0.15),
+            ]
+        )
+        == 1
+    )
+    assert (
+        best_round(
+            [
+                RoundResult(1, verdict, 0, 0, 10, criterion_change=0.2),
+                RoundResult(2, verdict, 0, 0, 20, criterion_change=0.2),
+            ]
+        )
+        == 1
+    )
+
+
+def test_criterion_change_survives_stored_round_details():
+    from app.db.models.improvement import ImprovementIteration
+    from app.services.improvement_pipeline import ImprovementPipelineService
+
+    result = replace(_no_question_flipped(*_experiment()), criterion_change=0.25)
+    detail = ImprovementPipelineService._result_detail(result)
+    iteration = ImprovementIteration(number=2, verdict="criteria_better", verdict_detail=detail)
+    assert ImprovementPipelineService._round_result(iteration).criterion_change == 0.25
+    assert (
+        ImprovementPipelineService._round_result(
+            ImprovementIteration(number=1, verdict="no_change", verdict_detail=None)
+        ).criterion_change
+        == 0.0
+    )

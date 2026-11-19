@@ -1,5 +1,5 @@
 ---
-source_sha: "b6b7965776e0"
+source_sha: "e1701751410e"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -385,6 +385,8 @@ Prüfung, die am Entwurf selbst gemessen wurde, zählt in keinem von beiden.
 Ein Bewerterkriterium kann für alle Fälle oder nur für Fälle mit mindestens einem ausgewählten Tag gelten. Wählen Sie unter **Bewertung** (Grading) die Tags und prüfen Sie die Anzahl; ein Fall mit mehreren passenden Tags zählt einmal. Nicht passende Kriterien werden vollständig ausgelassen und können den Fall weder scheitern noch unentschieden lassen. Prüfungsnotizen können Kriterien für einen ausgewählten Fall-Tag werden. Eine Bereichsänderung ändert den Bewertungsfingerabdruck; Wächter übernehmen sie erst nach einem autorisierten Verschieben der Anheftung.
 
 ## Mit einer Baseline vergleichen { #comparing-with-a-baseline }
+
+`criterion_change` ist die Zahl bestätigter Kriterienkorrekturen abzüglich bestätigter Verschlechterungen, geteilt durch alle paarweise verglichenen Kriterienbewertungen. Sie wird vor der Begrenzung der Antwortdetails berechnet. Wenn ganze Fragen unverändert bleiben und mehrere Versuche nur Kriterien verbessern, bevorzugt Improve die größere normalisierte Kriterienänderung; bei exaktem Gleichstand bleibt der frühere Versuch.
 
 Interaktive Vergleichsabrufe erlauben bis zu 30 Anfragen pro Person und 60 pro Organisation und Minute; je Organisation wird jeweils ein Vergleich ausgeführt. Konsole und API teilen diese Grenzen. Überschüssige oder gleichzeitige Anfragen erhalten HTTP 429 mit `Retry-After`; Clients sollen vor dem Wiederholen warten. Gemeinsames Redis koordiniert die Worker; bei einem Ausfall bleibt je Worker eine lokale Begrenzung bestehen.
 

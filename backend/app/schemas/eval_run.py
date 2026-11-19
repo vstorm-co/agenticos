@@ -673,6 +673,13 @@ class EvalComparisonRead(BaseSchema):
     efficiency: EfficiencyRead | None
     cases: list[CaseFlipRead]
     flips_by_tag: dict[str, dict[FlipLiteral, int]]
+    criterion_change: float = Field(
+        default=0.0,
+        ge=-1,
+        le=1,
+        description="Net confirmed criterion fixes divided by all paired criterion grades, "
+        "computed before limiting the returned detail",
+    )
     criteria: list[CriterionMoveRead] = Field(
         default_factory=list,
         description=(
