@@ -400,6 +400,7 @@ async def test_replacement_budget_uses_the_lost_answers_arm(lost_expensive, budg
     assert forgotten == ({lost.agent_run_id} if expected else set())
 
 
+@pytest.mark.security
 async def test_an_older_check_without_frozen_prices_does_not_guess_a_replacement_budget(caplog):
     lost = _attempt(status="failed", fault=AttemptFault.INFRASTRUCTURE.value)
     with caplog.at_level("INFO", logger="app.services.eval_run_worker"):
