@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { MessageCircleQuestion, Paperclip, Send } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button, Textarea } from "@/components/ui";
@@ -35,7 +43,8 @@ interface TeamRoomComposerProps {
   readOnly: boolean;
   onTyping: () => void;
   actionsSlot?: ReactNode;
-  initialContent?: string;
+  consumeInitialContent?: () => string;
+  onRoomCreated?: (roomId: string, projectId: string) => boolean;
 }
 
 interface RoomComposerProps {
@@ -52,15 +61,20 @@ export function TeamRoomComposer(props: TeamRoomComposerProps) {
   const draft = useRoomDraft(props.conversationId);
   const seeded = useRef(false);
   useEffect(() => {
-    if (seeded.current) return;
+    if (seeded.current || props.conversationId === null) return;
     seeded.current = true;
-    if (props.initialContent && draft.content.length === 0) draft.setContent(props.initialContent);
-  }, [draft.content, draft.setContent, props.initialContent]);
+    const initialContent = props.consumeInitialContent?.() ?? "";
+    if (initialContent && draft.content.length === 0) draft.setContent(initialContent);
+  }, [draft.content, draft.setContent, props.conversationId, props.consumeInitialContent]);
   if (props.conversationId === null) {
     return props.projectId === null ? (
       <RoomWithoutProject />
     ) : (
-      <ProjectRoomEmptyState projectId={props.projectId} readOnly={props.readOnly} />
+      <ProjectRoomEmptyState
+        projectId={props.projectId}
+        readOnly={props.readOnly}
+        onRoomCreated={props.onRoomCreated}
+      />
     );
   }
   return (
@@ -80,12 +94,24 @@ function RoomWithoutProject() {
   return <p className="text-muted-foreground py-3 text-center text-xs">{t("readOnly")}</p>;
 }
 
-function ProjectRoomEmptyState({ projectId, readOnly }: { projectId: string; readOnly: boolean }) {
+function ProjectRoomEmptyState({
+  projectId,
+  readOnly,
+  onRoomCreated,
+}: {
+  projectId: string;
+  readOnly: boolean;
+  onRoomCreated?: (roomId: string, projectId: string) => boolean;
+}) {
   const t = useTranslations("chat.teamRoom");
   const projectQuery = useProject(projectId);
   return projectQuery.project?.can_use && !readOnly ? (
     <div className="py-3 text-center">
-      <StartTeamRoom key={projectId} projectId={projectId} />
+      <StartTeamRoom
+        key={projectId}
+        projectId={projectId}
+        onCreated={onRoomCreated ? (roomId) => onRoomCreated(roomId, projectId) : undefined}
+      />
     </div>
   ) : (
     <p className="text-muted-foreground py-3 text-center text-xs">
@@ -184,10 +210,16 @@ function TeamRoomForm({
   const { mentionables, isLoading, error, refetch } = useRoomMentionables(conversationId);
   const addParticipant = useAddRoomParticipant(conversationId);
   const textarea = useRef<HTMLTextAreaElement>(null);
+  const mentionEditBeforeInput = useRef<{
+    content: string;
+    selectionStart: number;
+    selectionEnd: number;
+    inputType: string;
+  } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const caretAfterPick = useRef<number | null>(null);
+  const mentionListId = useId();
   const [mentionQuery, setMentionQuery] = useState<RoomMentionQuery | null>(null);
-  const [mentionIndex, setMentionIndex] = useState(0);
   const [pendingAdd, setPendingAdd] = useState<{
     participant: RoomParticipantRead;
     query: RoomMentionQuery;
@@ -260,8 +292,20 @@ function TeamRoomForm({
           ),
     [askingLead, mentionables, mentionQuery],
   );
-
-  useEffect(() => setMentionIndex(0), [mentionQuery?.query, mentionMatches.length]);
+  const mentionOpen = mentionQuery !== null && draft.content.length > 0;
+  const mentionSelectionKey = JSON.stringify([
+    mentionOpen,
+    mentionQuery?.start ?? null,
+    mentionQuery?.query ?? null,
+    mentionMatches.map(({ kind, id }) => [kind, id]),
+  ]);
+  const [mentionSelection, setMentionSelection] = useState({ key: mentionSelectionKey, index: 0 });
+  if (mentionSelection.key !== mentionSelectionKey) {
+    setMentionSelection({ key: mentionSelectionKey, index: 0 });
+  }
+  const mentionIndex = mentionSelection.key === mentionSelectionKey ? mentionSelection.index : 0;
+  const selectMentionIndex = (index: number) =>
+    setMentionSelection({ key: mentionSelectionKey, index });
   useLayoutEffect(() => {
     if (caretAfterPick.current === null) return;
     const caret = caretAfterPick.current;
@@ -291,7 +335,10 @@ function TeamRoomForm({
     if (pendingAdd === null) return;
     setAddError(null);
     try {
-      const added = await addParticipant.add(pendingAdd.participant);
+      const added = await addParticipant.add({
+        kind: pendingAdd.participant.kind,
+        id: pendingAdd.participant.id,
+      });
       if (added !== null) placeMention(added, pendingAdd.query);
     } catch (failure) {
       setAddError(getErrorMessage(failure, tErrors, t("mentionAddFailed")));
@@ -339,11 +386,33 @@ function TeamRoomForm({
       <Textarea
         ref={textarea}
         value={draft.content}
+        onBeforeInput={(event) => {
+          const target = event.currentTarget;
+          const input = event.nativeEvent as InputEvent;
+          mentionEditBeforeInput.current = {
+            content: target.value,
+            selectionStart: target.selectionStart,
+            selectionEnd: target.selectionEnd,
+            inputType: input.inputType,
+          };
+        }}
         onChange={(event) => {
           const next = event.currentTarget.value;
           const caret = event.currentTarget.selectionStart;
           const selectionEnd = event.currentTarget.selectionEnd;
-          draft.setContent(next);
+          const beforeInput = mentionEditBeforeInput.current;
+          mentionEditBeforeInput.current = null;
+          draft.setContent(next, {
+            caret,
+            selectionEnd,
+            ...(beforeInput?.content === draft.content
+              ? {
+                  previousSelectionStart: beforeInput.selectionStart,
+                  previousSelectionEnd: beforeInput.selectionEnd,
+                  inputType: beforeInput.inputType,
+                }
+              : {}),
+          });
           setMentionQuery(roomMentionAt(next, caret, selectionEnd));
           setPendingAdd(null);
           onTyping();
@@ -355,16 +424,19 @@ function TeamRoomForm({
           void uploadFiles(files);
         }}
         onKeyDown={(event) => {
-          if (mentionQuery !== null) {
+          // A key that did not produce input must not leave its beforeinput snapshot
+          // available for a later edit. The matching beforeinput below refreshes it.
+          mentionEditBeforeInput.current = null;
+          if (mentionOpen) {
             if (event.key === "ArrowDown" && mentionMatches.length > 0) {
               event.preventDefault();
-              setMentionIndex((index) => (index + 1) % mentionMatches.length);
+              selectMentionIndex((mentionIndex + 1) % mentionMatches.length);
               return;
             }
             if (event.key === "ArrowUp" && mentionMatches.length > 0) {
               event.preventDefault();
-              setMentionIndex(
-                (index) => (index - 1 + mentionMatches.length) % mentionMatches.length,
+              selectMentionIndex(
+                (mentionIndex - 1 + mentionMatches.length) % mentionMatches.length,
               );
               return;
             }
@@ -390,23 +462,21 @@ function TeamRoomForm({
         }}
         aria-label={inThread ? thread("message") : t("message")}
         placeholder={inThread ? thread("placeholder") : t("placeholder")}
-        aria-expanded={mentionQuery !== null}
-        aria-controls={mentionQuery !== null ? "room-mention-list" : undefined}
+        aria-expanded={mentionOpen}
+        aria-controls={mentionOpen ? mentionListId : undefined}
         aria-activedescendant={
-          mentionQuery !== null && mentionMatches.length > 0
-            ? `room-mention-list-${mentionIndex}`
-            : undefined
+          mentionOpen && mentionMatches.length > 0 ? `${mentionListId}-${mentionIndex}` : undefined
         }
         maxLength={20000}
         disabled={draft.locked || pendingAdd !== null}
         className="mb-3 min-h-20 resize-y border-0 bg-transparent shadow-none focus-visible:ring-0"
       />
-      {mentionQuery !== null && (
+      {mentionOpen && (
         <RoomMentionPalette
-          id="room-mention-list"
+          id={mentionListId}
           items={mentionMatches}
           selectedIndex={mentionIndex}
-          onSelectIndex={setMentionIndex}
+          onSelectIndex={selectMentionIndex}
           onPick={pickMention}
           isLoading={isLoading}
           failed={error !== null}

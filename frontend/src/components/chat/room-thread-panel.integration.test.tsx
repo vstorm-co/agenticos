@@ -372,7 +372,7 @@ describe("RoomThreadPanel", () => {
     await userEvent.click(background);
     await userEvent.keyboard("{Escape}");
     expect(close).not.toHaveBeenCalled();
-    act(() => screen.getByRole("button", { name: "Close thread" }).focus());
+    act(() => screen.getByRole("button", { name: "Close thread panel" }).focus());
     await userEvent.keyboard("{Escape}");
     expect(close).toHaveBeenCalledOnce();
   });
@@ -476,7 +476,7 @@ describe("RoomThreadPanel", () => {
       ),
     );
     expect(useChatStore.getState().replyTo).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Close thread" }));
+    await userEvent.click(screen.getByRole("button", { name: "Close thread panel" }));
     expect(close).toHaveBeenCalledOnce();
   });
 
@@ -488,7 +488,7 @@ describe("RoomThreadPanel", () => {
       expect(screen.queryByRole("textbox", { name: "Reply to thread" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Quote original" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Quote reply-a" })).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Close thread" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Close thread panel" })).toBeEnabled();
     },
   );
 
