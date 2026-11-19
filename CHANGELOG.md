@@ -36,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Combine new-chat Inbox and opening prompts in one manual carousel beneath the composer, starting on Inbox. Keep the input stationary and compact the greeting on short screens.
+
 - Share larger resource gallery cards across agents, tables, workflows, knowledge bases, projects, datasets, MCP, skills, context, Apps and groups. Use persistent collapsible sections for the agent Builder settings, retaining Voice deep links and draft edits.
 
 - Keep disclosure headers and capability artwork still while pressed, improve variable contrast in light mode, simplify conversation filters and open the Architect from the new-agent dialog footer without submitting a prompt.
@@ -59,6 +61,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Apply `0342_personal_coding_sessions.py` and update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
 
 ### Fixed
+
+- Keep prompt variable text readable when the console theme differs from the operating system theme. Apply editor token colors from the selected console theme and preserve a high-contrast fallback.
 
 - Exclude internal workflow transcripts from personal conversation search, even when their parent project is readable.
 

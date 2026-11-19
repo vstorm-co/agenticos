@@ -2663,6 +2663,18 @@
       "empty": "Alles erledigt. Neue Erkenntnisse und wichtige Themen erscheinen hier.",
       "failed": "Dein Posteingang konnte nicht geladen werden.",
       "refreshFailed": "Dein Posteingang konnte nicht aktualisiert werden. Die zuletzt geladenen Einträge werden angezeigt."
+    },
+    "homeCarousel": {
+      "title": "Inbox und vorgeschlagene Prompts",
+      "carousel": "Karussell",
+      "slide": "Folie",
+      "inbox": "Inbox",
+      "prompts": "Vorgeschlagene Prompts",
+      "previous": "Vorherige Seite",
+      "next": "Nächste Seite",
+      "pages": "Seiten",
+      "page": "{name}, {current} von {total}",
+      "position": "Seite {current} von {total}"
     }
   },
   "common": {

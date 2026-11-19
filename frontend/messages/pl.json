@@ -1677,6 +1677,18 @@
       "empty": "Wszystko na bieżąco. Nowe ustalenia i ważne tematy pojawią się tutaj.",
       "failed": "Nie udało się wczytać Inboxa.",
       "refreshFailed": "Nie udało się odświeżyć skrzynki. Wyświetlamy ostatnio pobrane elementy."
+    },
+    "homeCarousel": {
+      "title": "Inbox i proponowane prompty",
+      "carousel": "karuzela",
+      "slide": "slajd",
+      "inbox": "Inbox",
+      "prompts": "Proponowane prompty",
+      "previous": "Poprzednia strona",
+      "next": "Następna strona",
+      "pages": "Strony",
+      "page": "{name}, {current} z {total}",
+      "position": "Strona {current} z {total}"
     }
   },
   "errors": {

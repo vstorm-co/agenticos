@@ -662,3 +662,10 @@ an initial immediate measurement during viewport resizing was premature.
 - Full CI on `58c35ad91`: all four frontend shards and the aggregate coverage gate passed. E2E found one stale journey reading Description before opening the new Identity section; update the journey to expand the section first. Headless DOM confirms the stored description remains after close/reopen.
 - Update the skill gallery browser assertion to the selected three-line description layout; retain the real overflow/clamping assertion. CI measured 68.25px (three lines), while the old journey capped descriptions at two.
 - Headless Chromium confirms the skill description clamp: 68.25px visible, 910px full content, 22.75px line height; no client errors or database writes.
+
+### Laptop chat home
+
+- Combine Inbox and prompt starters in one finite native scroll-snap carousel below the composer. Inbox starts selected; no autoplay. Preserve the existing Inbox cache and mounted portal actions, with named controls, settled announcements, reduced motion and a scrollend fallback.
+- 11 focused carousel/welcome/Inbox tests passed. DOM at 1440×800, 1366×768, 1280×720 and 390×844 confirms composer and panel fit, no horizontal overflow and no composer movement while switching. Zero client errors; no screenshots or model calls.
+
+- Correct variable ink at the actual theme boundary: Tailwind's OS-driven dark variants were applying pale ink in a light console. CodeArea now uses a theme-scoped semantic class with existing violet tokens and a Forced Colors border. Browser measurements in all four OS/console theme combinations: 12.83:1 light and 8.41:1 dark, zero client errors. Add an E2E contrast regression using the seeded prompt text. Combined scoped suites: 17/17 passed; TSC, scoped ESLint and the copy guard passed.

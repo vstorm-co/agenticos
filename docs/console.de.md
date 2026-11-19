@@ -1,5 +1,5 @@
 ---
-source_sha: "09ca314684cf"
+source_sha: "2e8ea526730f"
 ---
 
 # Die Konsole { #the-console }
@@ -131,7 +131,7 @@ Ein fehlgeschlagener Chat-Run zeigt seinen Fehler getrennt von der Antwort und a
 
 Anhänge bleiben innerhalb des Eingabefelds in einer horizontal scrollbaren Zeile. Sichere Bilder zeigen beim Hochladen eine lokale Vorschau; ein Spinner zeigt laufende Uploads ohne erfundene Prozentangabe. Fehler beim Aktualisieren von Hintergrundthemen bleiben in einem eigenen aufklappbaren Bereich und erscheinen nie in einem noch nicht gesendeten Chat. Tab-Unterstreichungen und Segmentmarkierungen gleiten zwischen Optionen; bei reduzierter Bewegung wechselt die Auswahl sofort.
 
-Neue Chats zeigen über dem Eingabefeld einfache veröffentlichte Gesprächseinstiege des ausgewählten Agenten mit konfigurierten Symbolen, Titeln und kurzen Vorschauen. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
+Neue Chats bündeln Inbox und veröffentlichte Gesprächseinstiege des ausgewählten Agenten in einem manuell gesteuerten Karussell unter dem Eingabefeld. Zuerst erscheint Inbox. Benannte Schaltflächen, Pfeile und natives Wischen wechseln die Seiten, ohne das Eingabefeld zu verschieben. Niedrige Bildschirme verwenden eine kleinere Begrüßungsgrafik und engere Abstände. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
 
 Der Hauptchat bietet ein breiteres Eingabefeld und animierte Arbeitsplatzgrafiken. Die Modellbibliothek zeigt verbundene Anbieter zuerst, mit Logos und großgeschriebenen Namen, und trennt Katalog und gespeicherte Modelle. Ein Klick wählt das Modell direkt aus. Fehlende Zugangsdaten lassen sich über die bestehenden Vault-Formulare im Auswahlfenster hinzufügen, auch mehrteilige Anbieterzugangsdaten. Berechtigungen und Modellvalidierung bleiben wirksam. Mikrofon und Senden wechseln beim Schreiben fließend. Posteingangsthemen bleiben unter dem Eingabefeld.
 

@@ -3376,3 +3376,20 @@ button[aria-expanded]:active,
 button[data-press-feedback="surface"]:active {
   background-color: var(--color-control-active);
 }
+
+/* The selected console theme owns editor ink, independently of the OS theme. */
+.code-area-variable {
+  color: var(--color-violet-950);
+  background-color: var(--color-violet-100);
+}
+:root.dark .code-area-variable {
+  color: var(--color-violet-200);
+  background-color: color-mix(in oklab, var(--color-violet-500) 20%, var(--color-card));
+}
+@media (forced-colors: active) {
+  .code-area-variable {
+    color: CanvasText;
+    background-color: Canvas;
+    border-bottom: 1px solid CanvasText;
+  }
+}

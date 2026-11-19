@@ -10239,6 +10239,18 @@
       "empty": "Her şey güncel. Yeni bulgular ve önemli konular burada görünecek.",
       "failed": "Gelen kutun yüklenemedi.",
       "refreshFailed": "Gelen kutunuz yenilenemedi. Son yüklenen öğeler gösteriliyor."
+    },
+    "homeCarousel": {
+      "title": "Gelen kutusu ve önerilen istemler",
+      "carousel": "karusel",
+      "slide": "slayt",
+      "inbox": "Gelen kutusu",
+      "prompts": "Önerilen istemler",
+      "previous": "Önceki sayfa",
+      "next": "Sonraki sayfa",
+      "pages": "Sayfalar",
+      "page": "{name}, {current} / {total}",
+      "position": "Sayfa {current} / {total}"
     }
   },
   "admin": {

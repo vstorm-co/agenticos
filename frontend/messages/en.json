@@ -2663,6 +2663,18 @@
       "empty": "You’re all caught up. New findings and important topics will appear here.",
       "failed": "Your inbox could not be loaded.",
       "refreshFailed": "Could not refresh your inbox. Showing the last loaded items."
+    },
+    "homeCarousel": {
+      "title": "Inbox and suggested prompts",
+      "carousel": "carousel",
+      "slide": "slide",
+      "inbox": "Inbox",
+      "prompts": "Suggested prompts",
+      "previous": "Previous page",
+      "next": "Next page",
+      "pages": "Pages",
+      "page": "{name}, {current} of {total}",
+      "position": "Page {current} of {total}"
     }
   },
   "common": {

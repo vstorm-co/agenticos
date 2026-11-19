@@ -31,7 +31,7 @@ import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
 import { useMainChat } from "./main-chat-context";
-import { ChatHomeInbox } from "./chat-home-inbox";
+import { ChatHomeCarousel } from "./chat-home-carousel";
 import { PersonalModelConnection } from "./personal-model-connection";
 import { SheetRow } from "./composer-sheet";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -1715,7 +1715,7 @@ function ChatUI({
                 transcript because a plan is written in one turn and worked through
                 over the next several: as a step it scrolls away under the work it
                 describes, and what somebody wants is where the agent is now. */}
-              {showWorkspaceHome && !emptyState && (
+              {showWorkspaceHome && !mainChat && !emptyState && (
                 <div
                   ref={setHomeHintsSlot}
                   className="chat-home-starters chat-composer-suggestions mb-4"
@@ -2025,8 +2025,8 @@ function ChatUI({
             </div>
           </div>
           {showWorkspaceHome && !emptyState && (
-            <div className="chat-home-hints mx-auto min-h-40 w-full max-w-5xl shrink-0 px-4 pb-4 sm:px-5">
-              {mainChat && <ChatHomeInbox />}
+            <div className="chat-home-hints mx-auto w-full max-w-5xl shrink-0 px-4 pb-4 sm:px-5">
+              {mainChat && <ChatHomeCarousel suggestionsRef={setHomeHintsSlot} />}
             </div>
           )}
         </div>

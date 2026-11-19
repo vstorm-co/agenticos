@@ -33,7 +33,7 @@ interface ChatWelcomeProps {
   compact?: boolean;
   quiet?: boolean;
   loading?: boolean;
-  /** The main chat places its hints below the composer. Undefined keeps them inline. */
+  /** The main chat places hints in its home carousel. Undefined keeps them inline. */
   suggestionsSlot?: HTMLElement | null;
 }
 
