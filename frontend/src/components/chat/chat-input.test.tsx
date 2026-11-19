@@ -1152,14 +1152,15 @@ describe("clean composer draft actions", () => {
       </MainChatContext.Provider>,
     );
     const mic = screen.getByRole("button", { name: "Voice input" });
-    expect(mic).toHaveAttribute("data-primary", "true");
+    expect(mic).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Send message" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Call" })).toBeNull();
     await userEvent.type(screen.getByRole("textbox"), "Hello");
     expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled();
-    expect(mic).toHaveAttribute("data-primary", "false");
+    expect(screen.getByRole("button", { name: "Send message" })).toBe(mic);
+    expect(screen.queryByRole("button", { name: "Voice input" })).toBeNull();
     await userEvent.clear(screen.getByRole("textbox"));
-    expect(mic).toHaveAttribute("data-primary", "true");
+    expect(screen.getByRole("button", { name: "Voice input" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Send message" })).toBeNull();
     expect(send).not.toHaveBeenCalled();
   });

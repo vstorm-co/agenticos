@@ -17,15 +17,17 @@ export function ToolGroup({
   calls,
   mcpServers,
   children,
+  collapsible = true,
 }: {
   calls: readonly ToolCall[];
   mcpServers: McpServerRef[];
   children: ReactNode;
+  collapsible?: boolean;
 }) {
   const t = useTranslations("chat.steps");
   const tTools = useTranslations("chat.tools");
   const runText = useTranslations("pages.runs");
-  if (calls.length < 2) return children;
+  if (!collapsible || calls.length < 2) return children;
   const finished = calls.every((call) => call.status === "completed");
   const steps = calls.map((call) =>
     toolStep(call.name, call.args, finished, tTools, mcpServers, call),

@@ -30,8 +30,8 @@ import { AgentPicker, isChattable } from "./agent-picker";
 import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
-import { useMainChat } from "./main-chat-context";
-import { ChatHomeCarousel } from "./chat-home-carousel";
+import { useMainChat, useMinimalComposer } from "./main-chat-context";
+import { ChatHomePanels } from "./chat-home-panels";
 import { PersonalModelConnection } from "./personal-model-connection";
 import { SheetRow } from "./composer-sheet";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -113,7 +113,7 @@ import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { Perm } from "@/types/permissions";
 import { BrowserDictationPill, DictationPill } from "./dictation-bar";
-import { browserDictationHint, dictationHint, DictationStrip } from "./dictation-strip";
+import { dictationHint, DictationStrip } from "./dictation-strip";
 import { useAudioLevel } from "@/hooks/use-audio-level";
 import { AGENT_CALLS_ANCHOR, AGENT_DICTATION_ANCHOR } from "@/components/agents/voice-card";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -1167,6 +1167,7 @@ function ChatUI({
   const composerFocusRequest = useConversationStore((state) => state.composerFocusRequest);
   const t = useTranslations("chat");
   const mainChat = useMainChat();
+  const minimalComposer = useMinimalComposer();
   const tDictation = useTranslations("chat.dictation");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
@@ -1289,13 +1290,30 @@ function ChatUI({
     onShowApproval: showVoiceApproval,
     active: onCall,
   });
-  // Browser recognition works for every agent; while it listens for one whose
-  // Dictation switch is off, the strip says so and where to turn it on.
-  const browserStrip =
-    stopBrowserDictation !== null && status?.requested === false
-      ? browserDictationHint(agentVoiceHref, tDictation)
+  const composerStrip = voiceHint ?? callHint ?? dictationStrip;
+  const recordingPill = serverDictating
+    ? {
+        key: "dictation",
+        node: (
+          <DictationPill
+            subtle={minimalComposer}
+            state={dictationState}
+            actions={dictationActions}
+          />
+        ),
+      }
+    : stopBrowserDictation
+      ? {
+          key: "browser",
+          node: (
+            <BrowserDictationPill
+              subtle={minimalComposer}
+              level={browserLevel}
+              onDone={stopBrowserDictation}
+            />
+          ),
+        }
       : null;
-  const composerStrip = voiceHint ?? callHint ?? dictationStrip ?? browserStrip;
   // Focus went into the call bar when the call started. When the call is over
   // it goes to the box after "continue in text", and otherwise back to the call
   // button - but only if it was lost with the bar, never taken from where the
@@ -1722,7 +1740,7 @@ function ChatUI({
                 />
               )}
               {showWorkspaceHome && mainChat && !emptyState && (
-                <ChatHomeCarousel suggestionsRef={setHomeHintsSlot} />
+                <ChatHomePanels suggestionsRef={setHomeHintsSlot} />
               )}
               <BackgroundTasks conversationId={conversationId} />
               <PlanStrip plan={plan} live={isProcessing} />
@@ -1770,49 +1788,35 @@ function ChatUI({
                                 />
                               ),
                             }
-                          : serverDictating
-                            ? {
-                                key: "dictation",
-                                node: (
-                                  <DictationPill
-                                    subtle={mainChat}
-                                    state={dictationState}
-                                    actions={dictationActions}
-                                  />
-                                ),
-                              }
-                            : stopBrowserDictation
-                              ? {
-                                  key: "browser",
-                                  node: (
-                                    <BrowserDictationPill
-                                      subtle={mainChat}
-                                      level={browserLevel}
-                                      onDone={stopBrowserDictation}
-                                    />
-                                  ),
-                                }
-                              : null
+                          : minimalComposer
+                            ? null
+                            : recordingPill
                       }
                     />
-                    {/* No glow under the box: the pill above it says the microphone is
-                    open and how loud, and a second signal below read as a shadow. */}
                     <div>
-                      {/* Every hint on top of the box, beside the pill it belongs to. */}
                       {!readOnly && !onCall && (
                         <NextSteps steps={nextSteps} onPick={(step) => sendMessage(step)} />
                       )}
                       {callAgent?.personal_model_key && (
                         <PersonalModelConnection key={selectedAgentId} agentId={selectedAgentId} />
                       )}
-                      <DictationStrip hint={composerStrip} placement="above" detached={mainChat} />
+                      <DictationStrip
+                        hint={composerStrip}
+                        placement="above"
+                        detached={minimalComposer}
+                      />
                       <div
                         data-tour="chat-composer"
                         className={cn(
                           "panel composer-box focus-within:border-foreground/20 rounded-2xl transition-colors",
-                          composerStrip !== null && !mainChat && "rounded-t-none",
+                          composerStrip !== null && !minimalComposer && "rounded-t-none",
                         )}
                       >
+                        {minimalComposer && (
+                          <div data-chat-dictation>
+                            <FloatingPill embedded pill={onCall ? null : recordingPill} />
+                          </div>
+                        )}
                         <div ref={setAttachmentSlot} />
                         {!agentFixed && (
                           <div className="border-border bg-muted/40 hidden items-center rounded-t-2xl border-b px-3 py-1.5 has-[a]:flex">

@@ -348,11 +348,7 @@ describe("on the server", () => {
 it("keeps dictation actions and recording status on the subtle chat surface", () => {
   const actions = fakeActions();
   const view = render(<DictationPill subtle state={dictationState()} actions={actions} />);
-  expect(screen.getByRole("group", { name: "Dictation" })).toHaveClass(
-    "bg-card",
-    "text-foreground",
-    "rounded-2xl",
-  );
+  expect(screen.getByRole("group", { name: "Dictation" })).toHaveClass("text-foreground");
   expect(screen.getByRole("timer")).toHaveTextContent("0:07");
   fireEvent.click(screen.getByRole("button", { name: "Stop and transcribe" }));
   expect(actions.stop).toHaveBeenCalledOnce();

@@ -1,50 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Inbox, ShieldCheck } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { ArrowUpRight, ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
-import { timeAgo } from "@/lib/utils";
 import { SuggestionMark, urgentFirst, useSuggestionSource } from "./suggestion-actions";
 
+export function useChatHomeInbox() {
+  const suggested = useSuggestions();
+  const pending = usePendingApprovals();
+  return { suggested, pending };
+}
+
 /** Read-only preview: decisions and source details stay in the existing Inbox. */
-export function ChatHomeInbox() {
+export function ChatHomeInbox({ suggested, pending }: ReturnType<typeof useChatHomeInbox>) {
   const t = useTranslations("chat.homeInbox");
   const common = useTranslations("common");
   const inbox = useTranslations("inbox");
-  const time = useTranslations("time");
-  const locale = useLocale();
   const { sourceOf } = useSuggestionSource();
-  const suggested = useSuggestions();
-  const pending = usePendingApprovals();
   const loading = suggested.isLoading || pending.isLoading;
   const failed = suggested.error || pending.error;
   const hasCachedContent = suggested.suggestions.length > 0 || pending.count > 0;
-  const items = urgentFirst(suggested.suggestions).slice(0, 3);
+  const items = urgentFirst(suggested.suggestions).slice(0, pending.count > 0 ? 3 : 4);
   return (
     <section className="chat-home-inbox" aria-label={t("title")} aria-busy={loading}>
-      <div className="chat-home-inbox-header">
-        <h2>
-          <Inbox className="size-3.5" aria-hidden />
-          {t("title")}
-          {!loading && !failed && suggested.suggestions.length + pending.count > 0 && (
-            <span className="chat-home-inbox-count">
-              {inbox("waiting", { count: suggested.suggestions.length + pending.count })}
-            </span>
-          )}
-        </h2>
-        <Link href="/inbox">
-          {t("open")}
-          <ArrowUpRight className="size-3" aria-hidden />
-        </Link>
-      </div>
       {loading ? (
-        <div className="chat-home-inbox-grid">
-          {[0, 1, 2].map((key) => (
-            <Skeleton key={key} className="mx-3 my-2 h-16 rounded-xl" />
+        <div className="space-y-2 p-2">
+          {[0, 1, 2, 3].map((key) => (
+            <Skeleton key={key} className="h-8 rounded-lg" />
           ))}
         </div>
       ) : (
@@ -73,7 +59,7 @@ export function ChatHomeInbox() {
                 </Link>
               )}
               {items.length > 0 ? (
-                <ul className="chat-home-inbox-grid">
+                <ul>
                   {items.map((item) => (
                     <li key={item.id}>
                       <Link href={`/inbox#suggestion-${item.id}`} className="chat-home-inbox-topic">
@@ -84,14 +70,8 @@ export function ChatHomeInbox() {
                             {item.urgent && (
                               <span className="chat-home-inbox-urgent">{t("urgent")}</span>
                             )}
-                            <time dateTime={item.created_at}>
-                              {timeAgo(item.created_at, time, locale)}
-                            </time>
                           </span>
                           <span className="chat-home-inbox-title">{item.title}</span>
-                          {item.detail && (
-                            <span className="chat-home-inbox-detail">{item.detail}</span>
-                          )}
                         </span>
                         <ArrowUpRight className="chat-home-inbox-arrow size-3.5" aria-hidden />
                       </Link>

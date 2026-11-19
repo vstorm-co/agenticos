@@ -229,13 +229,13 @@ Projects show descriptions, and agent rows use the same avatars as chat.
 
 Dashboard cards use the same compact rows, service marks and status labels. Counts and charts adapt to the card width, including custom layouts. Loading placeholders follow the kind of content being loaded; an unavailable briefing shows a retry instead of claiming that no proposals exist.
 
-A new chat greets you by local time and shows a compact composer. Files sit beside the agent; chat settings and the permission shield sit beside the model. Context usage stays an icon until opened. Up to three Inbox topics appear below, with urgent findings first and source marks from the MCP catalog; approval counts link to the approval queue. Opening a preview does not approve or dismiss it. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. Embedded agent and Architect chats retain their own controls.
+A new chat greets you by local time and shows a compact composer. Files sit beside the agent; chat settings and the permission shield sit beside the model. Context usage stays an icon until opened. Up to four Inbox topics appear above the composer, with urgent findings first and source marks from the MCP catalog; approval counts link to the approval queue. Opening a preview does not approve or dismiss it. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. The Architect widget shares the primary action and dictation controls.
 
-Before the first message, Files and context usage remain visible but disabled. The attachment menu shows its available actions directly. Chat controls use compact sections for connections and remembered approvals; Inbox previews show source identity, time and priority.
+Before the first message, Files and context usage remain visible but disabled. The attachment menu shows its available actions directly. Chat controls use compact sections for connections and remembered approvals; Inbox previews show source and priority.
 
 Attachments stay inside the composer on one scrolling row. Safe images show a local thumbnail while uploading; pending uploads show an indeterminate spinner rather than an invented percentage. Background-topic refresh errors stay in their own expandable panel and never appear for an unsent chat. Tab underlines and segmented selections glide between choices, with immediate selection when motion is reduced.
 
-New chats combine Inbox and the selected agent’s published opening prompts in one manually controlled carousel above the composer. Inbox is shown first. Use the named buttons, arrow controls or native swiping to switch pages without moving the composer. Short screens use tighter spacing. Inbox and approval reads reuse cached data immediately across navigation, treat reads as fresh for 30 seconds and retain unused entries for 30 minutes. Refresh failures keep cached items visible with a warning. Account and organization switches retain the existing cache-clearing behavior.
+New chats show Inbox on the left and the selected agent’s opening prompts on the right above the composer. The sections stack in a narrow pane, and the Inbox heading carries the pending count. Inbox and approval reads reuse cached data immediately across navigation, treat reads as fresh for 30 seconds and retain unused entries for 30 minutes. Refresh failures keep cached items visible with a warning. Account and organization switches retain the existing cache-clearing behavior.
 
 Shared console fields, menu rows, pickers, tabs and settings sections use the same compact presentation. Folding an optional form preserves its draft; a required invalid field can reopen its section. Native disclosures share trigger spacing and animate where intrinsic sizing is supported, with ordinary native opening elsewhere. Reduced motion and larger touch targets remain available.
 
@@ -701,22 +701,20 @@ tab of [its Voice card](#an-agents-voice-card):
   limits and what is recorded.
 - Off, or with no key to send it with — the browser's own speech recognition, so
   the audio goes to the browser vendor (Google, Apple) and costs nothing.
-  Firefox has none: its microphone says so when pressed. While it listens, a
-  note above the composer says the agent's Dictation is off, and links whoever
-  may edit the agent to its Dictation tab.
+  Firefox has no built-in speech recognition. The composer reports if the microphone or recognition is unavailable.
 
-With a provider, pressing the microphone floats a **recording pill** above the
-composer, which does not change: Cancel, the level, a timer and Stop. **Enter**
+With a provider, the main chat displays Cancel, audio level, a timer and Stop inside the composer.
+**Enter**
 stops and transcribes, **Escape** cancels, and nothing typed or pressed while a
 recording is running or being transcribed is sent. The recording stops by itself
 at the organization's longest dictation and is transcribed, and a microphone
 unplugged mid-way ends it the same way rather than discarding it. While the
 recording uploads, the pill shows how much has gone up, once that takes longer
-than a second; after that it says **Transcribing** until the text arrives. The
-browser's recognition has a pill of its own, with **Done**.
+than a second; after that it says **Transcribing** until the text arrives.
 
-Everything dictation has to say appears in a strip above the composer, beside
-the pill: the permission prompt, a blocked or missing microphone, the last 30
+The browser's recognition shows **Listening** with **Done**. Typing or sending from the main composer ends browser dictation. The primary button shows Send when a draft is ready.
+
+Dictation notices appear above the composer: the permission prompt, a blocked or missing microphone, the last 30
 seconds, five seconds without sound, a recording under a second (not sent), a
 recording that stopped at the limit, and every failure. How many words were
 inserted is announced to a screen reader rather than shown, since the words are
@@ -1141,7 +1139,7 @@ Member managers can check whether an existing teammate and they can run a common
 
 Completed chat turns keep the text delivered before an agent asks a question visible beside the final answer, including after the question is declined or the run resumes. Tool results and reasoning stay in the expandable work history. This applies to stored conversations and shared chat views; it does not infer answers from text length.
 
-Run history distinguishes the person asking from the publisher whose authority admits an external request. An unlinked channel sender appears as their chat account, explicitly unverified, on desktop and phones; an anonymous request has no invented member identity. The run API retains `user_id` for its authority context and exposes `initiated_by_publisher_fallback` and `asked_in_chat` for truthful attribution. This presentation does not link accounts or grant access to a publisher’s personal connections.
+Run history distinguishes the person asking from the publisher whose authority admits an external request. An unlinked channel sender appears as their chat account, explicitly unverified, on desktop and phones; an anonymous request has no invented member identity. **Asked by** is visible by default. The run API retains `user_id` for its authority context and exposes `initiated_by_publisher_fallback` and `asked_in_chat` for truthful attribution. This presentation does not link accounts or grant access to a publisher’s personal connections.
 
 The period selector sits beside the dashboard view tabs. Recent visuals prefer saved thumbnails; when a thumbnail is unavailable, a drawing is rebuilt for its owner and rendered in the isolated visual frame as its tile approaches the viewport. This fallback does not require a server browser.
 
@@ -1155,6 +1153,6 @@ Settings uses horizontal, scrollable tabs on desktop and phones. Standard settin
 
 Sidebar groups expand and collapse smoothly. Hidden destinations cannot receive focus, and collapsing the sidebar keeps the current destination visible. Motion follows your Appearance settings; reduced motion keeps these controls static.
 
-Settings retains horizontal tabs. API keys and MCP clients share **API & MCP**, with separate access controls and existing URLs; the selected inner view is stored in the URL. Mobile setup is linked from **Account**. Profile groups identity and agent context side by side on wide screens, with separate appearance and linked-account cards. List workspaces stretch to the available height. Organizations and Groups are reached through **Manage organizations** in the workspace switcher rather than duplicated in the sidebar. Page, list and table empty states share the same decorative illustration. Directory waits for permissions and list data before presenting its single empty-state creation action.
+Settings retains horizontal tabs. API keys and MCP clients share **API & MCP**, with separate access controls and existing URLs; MCP is the default view and the URL can select either tab. Mobile setup is linked from **Account**. Profile groups identity and agent context side by side on wide screens, with separate appearance and linked-account cards. List workspaces stretch to the available height. Organizations and Groups are reached through **Manage organizations** in the workspace switcher rather than duplicated in the sidebar. Page, list and table empty states share the same decorative illustration. Directory waits for permissions and list data before presenting its single empty-state creation action.
 
 Personal settings have no separate Assistant tab. Page tips live in **Account**; the old `/settings/assistant` URL redirects there. **Inbox preferences** contains the personal nightly-suggestion delivery switch, while suggestion history and restoration remain in Inbox. Organization models, budgets, memory maintenance and Voice stay in **AI & services**. Form labels share a minimum row height, including inline help; standard inputs and selects use the same height, with larger touch targets on coarse pointers. Compact table filters retain their own size. MCP setup owns its frame rather than being wrapped in a second bordered container.

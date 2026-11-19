@@ -38,13 +38,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Tighten the chat greeting, MCP cards and model library. Keep history groups visible as the chat list grows, give nested fields a complete focus outline and let chat choose among a provider's available key profiles.
 
-- Combine new-chat Inbox and opening prompts in one light manual carousel above the composer, starting on Inbox. Keep the input stationary and compact the greeting on short screens.
+- Place Inbox and opening prompts side by side above the new-chat composer and stack them in a narrow pane. Show the pending count at Inbox and animate the welcome avatar with reduced-motion support.
 
 - Share larger resource gallery cards across agents, tables, workflows, knowledge bases, projects, datasets, MCP, skills, context, Apps and groups. Use matching cards for the agent Builder settings, with Thinking and Answer format inside Model settings, visible default first messages, and Voice deep links.
 
 - Keep disclosure headers and capability artwork still while pressed, improve variable contrast in light mode, simplify conversation filters and open the Architect from the new-agent dialog footer without submitting a prompt.
 
-- Restore simple configured starter prompts above the wider chat composer, retain animated workspace artwork, and keep cached Inbox items visible below during background refresh failures.
+- Group consecutive tool calls and reasoning under a work summary while keeping all prose visible in order. Place dictation controls inside the composer and animate one primary action between dictation and sending in chat and Architect. Default Activity to include Asked by and open the MCP tab in API & MCP.
 - Use a provider library in main chat, with connected providers first, separate saved models, direct model selection and Vault credential forms available inside the picker.
 - Keep chat attachment previews inside the composer, contain background-topic retry errors, and glide shared tab and segmented selection markers between options.
 

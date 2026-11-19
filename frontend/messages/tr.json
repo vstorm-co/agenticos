@@ -9907,13 +9907,11 @@
         "rateLimitedBody": "Bir dakikada çok fazla dikte isteği yapıldı.",
         "keptBody": "{duration} uzunluğundaki kaydınız yeniden deneyene veya silene kadar saklanır.",
         "notSetUpTitle": "Dikte ayarlanmamış.",
-        "notSetUpBody": "Bu Agent'ın speech-to-text provider'ında artık kullanılabilir key yok.",
-        "browserOff": "<strong>Bu Agent için dikte açılmamış,</strong> bu nedenle söylediklerinizi browser metne çeviriyor. Speech-to-text provider'ı kullanmak için dikteyi açın."
+        "notSetUpBody": "Bu Agent'ın speech-to-text provider'ında artık kullanılabilir key yok."
       },
       "pill": "Dikte",
       "listening": "Dinleniyor",
-      "done": "Dikte tamamlandı",
-      "openBuilder": "Agent Builder'da aç"
+      "done": "Dikte tamamlandı"
     },
     "voice": {
       "start": "Voice call başlat",
@@ -10233,24 +10231,15 @@
     "runFailedHint": "Nihai yanıt üretilmedi. Yukarıdaki çalışmayı inceleyebilirsiniz.",
     "homeInbox": {
       "title": "Gelen kutundan",
-      "open": "Gelen kutusunu aç",
       "urgent": "Öncelikli",
       "approvals": "{count, plural, one {# onay kararını bekliyor} other {# onay kararını bekliyor}}",
       "empty": "Her şey güncel. Yeni bulgular ve önemli konular burada görünecek.",
       "failed": "Gelen kutun yüklenemedi.",
       "refreshFailed": "Gelen kutunuz yenilenemedi. Son yüklenen öğeler gösteriliyor."
     },
-    "homeCarousel": {
-      "title": "Gelen kutusu ve önerilen istemler",
-      "carousel": "karusel",
-      "slide": "slayt",
+    "homePanels": {
       "inbox": "Gelen kutusu",
-      "prompts": "Önerilen istemler",
-      "previous": "Önceki sayfa",
-      "next": "Sonraki sayfa",
-      "pages": "Sayfalar",
-      "page": "{name}, {current} / {total}",
-      "position": "Sayfa {current} / {total}"
+      "prompts": "Önerilen istemler"
     }
   },
   "admin": {

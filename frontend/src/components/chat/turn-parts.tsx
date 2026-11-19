@@ -36,6 +36,7 @@ import { ChartMessage, parseChartResult } from "./chart-message";
 import { YouFace } from "./you-face";
 import { ReplyQuote } from "./reply-quote";
 import { useTurnElapsed, WorkFold } from "./work-fold";
+import { useMinimalComposer } from "./main-chat-context";
 
 /**
  * A turn's body: its reasoning, its work and its words, in the order they arrived.
@@ -96,6 +97,7 @@ export function TurnParts({
   /** Includes a delegate paused outside the parent's own tool parts. */
   waitingFor?: "approval" | "answer";
 }) {
+  const directSteps = useMinimalComposer();
   const runs = runsOf(parts);
   const waiting =
     waitingFor === "answer"
@@ -128,7 +130,11 @@ export function TurnParts({
   const render = (run: PartRun, visuals = true, afterWork = false) =>
     run.kind === "tools" ? (
       <div key={run.parts[0].id} className="w-full">
-        <ToolGroup calls={run.parts.map((part) => part.toolCall!)} mcpServers={mcpServers}>
+        <ToolGroup
+          collapsible={!directSteps || visuals}
+          calls={run.parts.map((part) => part.toolCall!)}
+          mcpServers={mcpServers}
+        >
           <AgentSteps showAll>
             {run.parts.map((part, step) => (
               <ToolCallCard
@@ -191,6 +197,43 @@ export function TurnParts({
     );
 
   const active = !failed && (isStreaming || waiting !== undefined);
+  if (directSteps) {
+    const groups = groupWorkParts(runs);
+    const workCount = groups.filter((group) => group.kind === "work").length;
+    const lastWork = groups.findLast((group) => group.kind === "work");
+    return groups.map((group, index) => {
+      if (group.kind === "visible") {
+        return render(group.run, true, groups[index - 1]?.kind === "work");
+      }
+      const latestWork = group === lastWork;
+      const live = latestWork && active && (waiting !== undefined || index === groups.length - 1);
+      const first = group.runs[0];
+      const steps = group.runs.reduce(
+        (count, run) => count + (run.kind === "tools" ? run.parts.length : 0),
+        0,
+      );
+      return (
+        <div key={first.kind === "tools" ? first.parts[0].id : first.part.id} className="space-y-2">
+          <WorkFold
+            steps={steps}
+            live={live}
+            durationMs={workCount === 1 ? (durationMs ?? elapsed) : null}
+            stopped={latestWork && stopped}
+            failed={latestWork && failed}
+            running={live && isStreaming && !waiting}
+            activity={live ? activity : undefined}
+            waiting={live ? waiting : undefined}
+          >
+            {group.runs.map((run) => render(run, false))}
+          </WorkFold>
+          <TurnBrowses calls={browseCalls(group.runs)} />
+          <TurnCharts calls={chartCalls(group.runs)} />
+          <TurnVisuals calls={visualCalls(group.runs)} />
+          <TurnDrafts calls={draftCalls(group.runs)} />
+        </div>
+      );
+    });
+  }
   const split = foldWork(runs, stopped, active);
   if (split === null) {
     return <>{runs.map((run) => render(run))}</>;
@@ -447,6 +490,24 @@ export type PartRun =
       isLast: boolean;
     }
   | { kind: "other"; part: MessagePart; content: string; isLast: boolean };
+
+type WorkPartGroup =
+  { kind: "work"; runs: [PartRun, ...PartRun[]] } | { kind: "visible"; run: PartRun };
+
+/** Text, questions and explicit cards break the work rail and keep their position. */
+function groupWorkParts(runs: PartRun[]): WorkPartGroup[] {
+  const groups: WorkPartGroup[] = [];
+  for (const run of runs) {
+    if (run.kind === "other" && run.part.type !== "thinking") {
+      groups.push({ kind: "visible", run });
+      continue;
+    }
+    const previous = groups.at(-1);
+    if (previous?.kind === "work") previous.runs.push(run);
+    else groups.push({ kind: "work", runs: [run] });
+  }
+  return groups;
+}
 
 /**
  * The turn's parts, with consecutive tool calls gathered into one run.

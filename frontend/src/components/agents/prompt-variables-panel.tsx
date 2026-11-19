@@ -73,9 +73,6 @@ export function PromptVariablesPanel({
       description={t("variablesHint")}
       defaultOpen
     >
-      <div className="flex justify-end">
-        <ContextHelp>{t("variableNameRule")}</ContextHelp>
-      </div>
       <div className="flex flex-wrap gap-1.5">
         {[...system, ...custom].map((variable) => (
           <Button
@@ -131,9 +128,12 @@ export function PromptVariablesPanel({
 
       <div className="flex flex-wrap items-end gap-2">
         <div className="w-full space-y-1 sm:w-auto">
-          <Label htmlFor="new-variable-name" className="text-xs">
-            {t("promptVariableName")}
-          </Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="new-variable-name" className="text-xs">
+              {t("promptVariableName")}
+            </Label>
+            <ContextHelp>{t("variableNameRule")}</ContextHelp>
+          </div>
           <Input
             id="new-variable-name"
             value={adding.name}

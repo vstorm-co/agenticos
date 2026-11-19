@@ -23,20 +23,10 @@ import { RememberedApprovals } from "./remembered-approvals";
 import { MainChatContext } from "./main-chat-context";
 
 /** The main chat composition; embedded agent and Architect chats stay independent. */
-export function ChatLayout({
-  children,
-  steps,
-}: {
-  children: ReactNode;
-  steps?: "timeline" | "cards";
-}) {
+export function ChatLayout({ children }: { children: ReactNode }) {
   return (
     <MainChatContext.Provider value={true}>
-      <div
-        className="chat-layout relative flex h-full min-h-0 flex-1 flex-col"
-        data-chat-layout
-        data-step-preview={steps}
-      >
+      <div className="chat-layout relative flex h-full min-h-0 flex-1 flex-col" data-chat-layout>
         <div className="chat-layout-content min-h-0 flex-1">{children}</div>
       </div>
     </MainChatContext.Provider>

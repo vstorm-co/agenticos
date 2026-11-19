@@ -2324,13 +2324,11 @@
         "rateLimitedBody": "Too many dictations in a minute.",
         "keptBody": "Your {duration} recording is kept until you retry or discard it.",
         "notSetUpTitle": "Dictation isn't set up.",
-        "notSetUpBody": "This agent's speech-to-text provider has no usable key any more.",
-        "browserOff": "<strong>Dictation isn't turned on for this agent,</strong> so your browser transcribes what you say. Turn it on to use a speech-to-text provider."
+        "notSetUpBody": "This agent's speech-to-text provider has no usable key any more."
       },
       "pill": "Dictation",
       "listening": "Listening",
-      "done": "Done dictating",
-      "openBuilder": "Open in the Agent Builder"
+      "done": "Done dictating"
     },
     "voice": {
       "start": "Start a voice call",
@@ -2657,24 +2655,15 @@
     "runFailedHint": "No final answer was produced. You can review the work above.",
     "homeInbox": {
       "title": "From your inbox",
-      "open": "Open inbox",
       "urgent": "Priority",
       "approvals": "{count, plural, one {# approval needs your attention} other {# approvals need your attention}}",
       "empty": "You’re all caught up. New findings and important topics will appear here.",
       "failed": "Your inbox could not be loaded.",
       "refreshFailed": "Could not refresh your inbox. Showing the last loaded items."
     },
-    "homeCarousel": {
-      "title": "Inbox and suggested prompts",
-      "carousel": "carousel",
-      "slide": "slide",
+    "homePanels": {
       "inbox": "Inbox",
-      "prompts": "Suggested prompts",
-      "previous": "Previous page",
-      "next": "Next page",
-      "pages": "Pages",
-      "page": "{name}, {current} of {total}",
-      "position": "Page {current} of {total}"
+      "prompts": "Suggested prompts"
     }
   },
   "common": {

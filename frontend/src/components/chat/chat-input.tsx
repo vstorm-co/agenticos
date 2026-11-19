@@ -12,6 +12,7 @@ import {
 import type { ReactNode } from "react";
 import { isRenderSafeImage } from "@/lib/file-kinds";
 import { getErrorMessage } from "@/lib/api-error";
+import { cn } from "@/lib/utils";
 import { Button, Spinner } from "@/components/ui";
 import { Send, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
@@ -25,7 +26,8 @@ import { AttachmentRow } from "./attachment-row";
 import { ReplyingTo } from "./reply-quote";
 import { browserSpeechFailure } from "./browser-speech-failure";
 import { useChatStore } from "@/stores";
-import { useMainChat } from "./main-chat-context";
+import { useMinimalComposer } from "./main-chat-context";
+import "./composer-action.css";
 import { ComposerSheet, type AttachSource } from "./composer-sheet";
 
 /** Keep upload state here while the owning surface places its attachment tray. */
@@ -284,7 +286,7 @@ export function ChatInput({
   projects,
   onPickProject,
 }: ChatInputProps) {
-  const mainChat = useMainChat();
+  const minimal = useMinimalComposer();
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
   // The message this turn will answer, chosen with Reply on it.
@@ -462,7 +464,20 @@ export function ChatInput({
     caretAfterPick.current = null;
   }, [message]);
 
+  const stopBrowserDictationForDraft = () => {
+    if (!minimal || !isListening) return;
+    const recognition = recognitionRef.current;
+    if (recognition) {
+      // A late result from the old recording could replace the edited draft.
+      recognition.onresult = null;
+      recognition.stop();
+    }
+    mic?.stop();
+    setIsListening(false);
+  };
+
   const typed = (text: string, at: number) => {
+    stopBrowserDictationForDraft();
     setMessage(text);
     setMentionQuery(mentionAt(text, at));
     if (text.trim()) onTyping?.();
@@ -537,10 +552,12 @@ export function ChatInput({
       runSlashCommand(filteredCommands[paletteIndex]);
       return;
     }
-    const trimmed = message.trim();
+    const trimmed =
+      minimal && isListening ? message.replaceAll("\u200B", "").trim() : message.trim();
     if (!trimmed && attachedFiles.length === 0) return;
     if (disabled || isUploading) return;
 
+    stopBrowserDictationForDraft();
     const files = attachedFiles.length > 0 ? attachedFiles.map((a) => a.file) : undefined;
     onSend(
       trimmed || t("analyzeFiles"),
@@ -638,7 +655,8 @@ export function ChatInput({
     recognitionRef.current?.stop();
     micRef.current?.stop();
     setIsListening(false);
-  }, []);
+    if (minimal && !touchKeyboard()) editorRef.current?.focus();
+  }, [minimal]);
   useEffect(() => {
     onListeningChange?.(isListening ? stopListening : null);
   }, [isListening, stopListening, onListeningChange]);
@@ -898,7 +916,12 @@ export function ChatInput({
 
   const hasDraft = message.trim().length > 0 || attachedFiles.length > 0;
   const showPrimary = canStop || isProcessing || hasDraft;
-  const primaryMic = mainChat && !showPrimary;
+  const primary = canStop && onStop ? "stop" : isProcessing ? "busy" : showPrimary ? "send" : "mic";
+  const toggleDictation = server ? startDictation : toggleMic;
+  const micLabel = isListening ? t("stopRecording") : t("voiceInput");
+  const primaryLabel =
+    primary === "mic" ? micLabel : primary === "stop" ? t("stopGenerating") : t("send");
+  const sendDisabled = disabled || isUploading || !hasDraft;
 
   return (
     <form
@@ -1061,34 +1084,59 @@ export function ChatInput({
 
         <div className="chat-input-send ml-auto flex shrink-0 items-center gap-1">
           {actionsSlot}
-          {/* Beside Send and the call, as in ChatGPT; the `+` offers it too. A
-              server recording takes the box over with its own bar, so this
-              button only ever starts one. */}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={server ? startDictation : toggleMic}
-            disabled={disabled}
-            className="chat-input-mic h-9 w-9 shrink-0"
-            data-primary={primaryMic}
-            title={isListening ? t("stopRecording") : t("voiceInput")}
-            aria-label={isListening ? t("stopRecording") : t("voiceInput")}
-          >
-            {isListening ? (
-              <MicOff className="text-destructive h-4 w-4 animate-pulse" />
-            ) : (
-              <Mic className="text-muted-foreground h-4 w-4" />
-            )}
-          </Button>
-
-          <div
-            className={mainChat ? "chat-send-slot" : "contents"}
-            data-visible={showPrimary}
-            inert={mainChat && !showPrimary}
-            aria-hidden={mainChat && !showPrimary ? true : undefined}
-          >
-            <div className={mainChat ? "min-w-0 overflow-hidden" : "contents"}>
+          {minimal ? (
+            <Button
+              type={primary === "send" ? "submit" : "button"}
+              variant="ghost"
+              size="icon"
+              onClick={
+                primary === "mic" ? toggleDictation : primary === "stop" ? onStop : undefined
+              }
+              disabled={
+                primary === "mic"
+                  ? disabled
+                  : primary === "stop"
+                    ? stopDisabled
+                    : primary === "busy" || sendDisabled
+              }
+              aria-label={primaryLabel}
+              title={primaryLabel}
+              className="chat-input-primary group size-9 shrink-0 rounded-full hover:bg-transparent active:bg-transparent"
+            >
+              <span
+                className={cn(PRIMARY_ACTION_FACE, "composer-action-face rounded-full")}
+                aria-hidden
+              >
+                <span className="composer-action-icon" data-active={primary === "mic"}>
+                  {isListening ? <MicOff /> : <Mic />}
+                </span>
+                <span className="composer-action-icon" data-active={primary === "send"}>
+                  <Send />
+                </span>
+                {primary === "stop" && <span className="size-3 rounded-[3px] bg-current" />}
+                {primary === "busy" && <Spinner className="size-4" />}
+              </span>
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={toggleDictation}
+              disabled={disabled}
+              className="h-9 w-9 shrink-0"
+              title={micLabel}
+              aria-label={micLabel}
+            >
+              {isListening ? (
+                <MicOff className="text-destructive motion-safe:animate-pulse" />
+              ) : (
+                <Mic className="text-muted-foreground" />
+              )}
+            </Button>
+          )}
+          {!minimal && (
+            <>
               {canStop && onStop ? (
                 <Button
                   type="button"
@@ -1104,11 +1152,7 @@ export function ChatInput({
                   </span>
                   <span className="sr-only">{t("stopGenerating")}</span>
                 </Button>
-              ) : !mainChat &&
-                idleSlot &&
-                !isProcessing &&
-                !message.trim() &&
-                attachedFiles.length === 0 ? (
+              ) : idleSlot && !isProcessing && !message.trim() && attachedFiles.length === 0 ? (
                 idleSlot
               ) : (
                 <Button
@@ -1126,8 +1170,8 @@ export function ChatInput({
                   <span className="sr-only">{t("send")}</span>
                 </Button>
               )}
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </div>
     </form>

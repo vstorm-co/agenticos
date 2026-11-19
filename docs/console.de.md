@@ -1,5 +1,5 @@
 ---
-source_sha: "7e44c5ec13bc"
+source_sha: "1710e618eca4"
 ---
 
 # Die Konsole { #the-console }
@@ -131,7 +131,7 @@ Ein fehlgeschlagener Chat-Run zeigt seinen Fehler getrennt von der Antwort und a
 
 Anhänge bleiben innerhalb des Eingabefelds in einer horizontal scrollbaren Zeile. Sichere Bilder zeigen beim Hochladen eine lokale Vorschau; ein Spinner zeigt laufende Uploads ohne erfundene Prozentangabe. Fehler beim Aktualisieren von Hintergrundthemen bleiben in einem eigenen aufklappbaren Bereich und erscheinen nie in einem noch nicht gesendeten Chat. Tab-Unterstreichungen und Segmentmarkierungen gleiten zwischen Optionen; bei reduzierter Bewegung wechselt die Auswahl sofort.
 
-Neue Chats bündeln Inbox und veröffentlichte Gesprächseinstiege des ausgewählten Agenten in einem manuell gesteuerten Karussell über dem Eingabefeld. Zuerst erscheint Inbox. Benannte Schaltflächen, Pfeile und natives Wischen wechseln die Seiten, ohne das Eingabefeld zu verschieben. Niedrige Bildschirme verwenden engere Abstände. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
+Neue Chats zeigen links Inbox und rechts die Gesprächseinstiege des ausgewählten Agenten, oberhalb des Eingabefelds. In einem schmalen Bereich stehen die Abschnitte untereinander. Die Zahl der offenen Einträge steht neben Inbox. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
 
 Der Hauptchat bietet ein breites Eingabefeld. Die Modellbibliothek zeigt verbundene Anbieter zuerst, mit Logos und großgeschriebenen Namen, und trennt Katalog und gespeicherte Modelle. Ein Klick wählt das Modell direkt aus. Fehlende Zugangsdaten lassen sich über die bestehenden Vault-Formulare im Auswahlfenster hinzufügen, auch mehrteilige Anbieterzugangsdaten. Berechtigungen und Modellvalidierung bleiben wirksam. Mikrofon und Senden wechseln beim Schreiben fließend.
 
@@ -256,9 +256,9 @@ Avatare wie im Chat.
 
 Dashboard-Karten verwenden einheitliche kompakte Zeilen, Dienstsymbole und Statusbezeichnungen. Kennzahlen und Diagramme passen sich der Kartenbreite an, auch in eigenen Anordnungen. Ladeplatzhalter entsprechen dem Inhaltstyp; ein nicht verfügbares Briefing bietet einen erneuten Versuch an, statt fälschlich keine Vorschläge zu melden.
 
-Ein neuer Chat begrüßt nach lokaler Tageszeit und zeigt ein kompaktes Eingabefeld. Dateien stehen neben dem Agenten, Chat-Einstellungen und Berechtigungsschild neben dem Modell. Die Kontextnutzung bleibt bis zum Öffnen ein Symbol. Darunter erscheinen bis zu drei Inbox-Themen, dringende Erkenntnisse zuerst, mit Quellenmarken aus dem MCP-Katalog; Genehmigungszähler führen zur Entscheidungswarteschlange. Das Öffnen einer Vorschau genehmigt oder verwirft nichts. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Eingebettete Agenten- und Architect-Chats behalten ihre eigenen Bedienelemente.
+Ein neuer Chat begrüßt nach lokaler Tageszeit und zeigt ein kompaktes Eingabefeld. Dateien stehen neben dem Agenten, Chat-Einstellungen und Berechtigungsschild neben dem Modell. Die Kontextnutzung bleibt bis zum Öffnen ein Symbol. Über dem Eingabefeld erscheinen bis zu vier Inbox-Themen, dringende Erkenntnisse zuerst, mit Quellenmarken aus dem MCP-Katalog; Genehmigungszähler führen zur Entscheidungswarteschlange. Das Öffnen einer Vorschau genehmigt oder verwirft nichts. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
 
-Vor der ersten Nachricht bleiben Dateien und Kontextnutzung sichtbar, aber deaktiviert. Das Anhangsmenü zeigt verfügbare Aktionen direkt. Die Chat-Einstellungen verwenden kompakte Abschnitte für Verbindungen und gespeicherte Freigaben; die Inbox-Vorschau zeigt Quelle, Zeit und Priorität.
+Vor der ersten Nachricht bleiben Dateien und Kontextnutzung sichtbar, aber deaktiviert. Das Anhangsmenü zeigt verfügbare Aktionen direkt. Die Chat-Einstellungen verwenden kompakte Abschnitte für Verbindungen und gespeicherte Freigaben; die Inbox-Vorschau zeigt Quelle und Priorität.
 
 Felder, Menüzeilen, Auswahllisten, Tabs und Einstellungsabschnitte verwenden in der gesamten Konsole dieselbe kompakte Gestaltung. Beim Einklappen optionaler Formulare bleiben Entwürfe erhalten; ein ungültiges Pflichtfeld kann seinen Abschnitt wieder öffnen. Native Aufklappbereiche haben einheitliche Abstände und werden bei Unterstützung intrinsischer Größen animiert; andernfalls öffnen sie sich nativ ohne Animation. Reduzierte Bewegung und größere Touchflächen bleiben erhalten.
 
@@ -776,24 +776,21 @@ der Agent, auf dem Reiter Diktieren [seiner Karte Stimme (Voice)](#an-agents-voi
   [Diktieren im Chat](ml-services.md#dictation-in-chat).
 - Aus, oder ohne Schlüssel, mit dem gesendet werden kann — die eigene
   Spracherkennung des Browsers, sodass der Ton an den Browserhersteller geht
-  (Google, Apple) und nichts kostet. Firefox hat keine: Sein Mikrofon sagt das,
-  wenn man es drückt. Während er zuhört, sagt ein Hinweis über dem Eingabefeld,
-  dass Diktieren für den Agent aus ist, und verlinkt für alle, die den Agent
-  bearbeiten dürfen, seinen Reiter Diktieren.
+  (Google, Apple) und nichts kostet.
+  Firefox hat keine integrierte Spracherkennung. Das Eingabefeld meldet, wenn das Mikrofon oder die Spracherkennung nicht verfügbar ist.
 
-Mit einem Anbieter schwebt nach dem Drücken des Mikrofons eine
-**Aufnahme-Pille** über dem Eingabefeld, das sich nicht ändert: Abbrechen, der
-Pegel, ein Timer und Stopp. **Enter** stoppt und transkribiert, **Escape** bricht
+Mit einem Anbieter zeigt der Hauptchat Abbrechen, Pegel, Timer und Stopp direkt im Eingabefeld.
+**Enter** stoppt und transkribiert, **Escape** bricht
 ab, und nichts, was während einer laufenden oder transkribierten Aufnahme
 getippt oder gedrückt wird, wird gesendet. Die Aufnahme stoppt von selbst beim
 längsten Diktat der Organisation und wird transkribiert, und ein mittendrin
 abgestecktes Mikrofon beendet sie genauso, statt sie zu verwerfen. Dauert das
 Hochladen länger als eine Sekunde, zeigt die Pille, wie viel schon oben ist;
-danach sagt sie **Wird transkribiert**, bis der Text da ist. Die Erkennung im
-Browser hat eine eigene Pille, mit **Diktieren beenden**.
+danach sagt sie **Wird transkribiert**, bis der Text da ist.
 
-Alles, was das Diktieren zu sagen hat, erscheint in einem Streifen über dem
-Eingabefeld, neben der Pille: die Berechtigungsabfrage, ein blockiertes oder
+Die Browsererkennung zeigt **Hört zu** und **Diktieren beenden**. Tippen oder Senden beendet das Diktat. Sobald ein Entwurf bereit ist, erscheint die Senden-Schaltfläche.
+
+Hinweise zum Diktieren erscheinen über dem Eingabefeld: die Berechtigungsabfrage, ein blockiertes oder
 fehlendes Mikrofon, die letzten 30 Sekunden, fünf Sekunden ohne Ton, eine
 Aufnahme unter einer Sekunde (nicht gesendet), eine am Limit gestoppte Aufnahme
 und jeder Fehler. Wie viele Wörter eingefügt wurden, wird einem Screenreader
@@ -1272,6 +1269,6 @@ Einstellungen bietet auf Desktop und Telefon horizontale, scrollbare Tabs. Gewö
 
 Gruppen der Seitenleiste öffnen und schließen sich fließend. Verborgene Ziele erhalten keinen Fokus; beim Einklappen bleibt das aktuelle Ziel sichtbar. Animationen beachten deine Darstellungseinstellungen; bei reduzierter Bewegung bleiben diese Bedienelemente statisch.
 
-Einstellungen behalten horizontale Tabs. API-Schlüssel und MCP-Clients teilen **API & MCP**, mit getrennten Zugriffskontrollen und bestehenden URLs; die innere Ansicht steht in der URL. Mobile Einrichtung ist unter **Konto** verlinkt. Das Profil zeigt Identität und Agentenkontext auf breiten Bildschirmen nebeneinander, mit eigenen Karten für Erscheinungsbild und verbundene Konten. Listen füllen die verfügbare Höhe. Organisationen und Gruppen öffnen über **Organisationen verwalten** im Workspace-Wechsler statt über doppelte Sidebar-Einträge. Leere Seiten, Listen und Tabellen teilen dieselbe Illustration. Directory wartet auf Berechtigungen und Daten, bevor es eine einzelne Aktion zum Erstellen einer Zuordnung zeigt.
+Einstellungen behalten horizontale Tabs. API-Schlüssel und MCP-Clients teilen **API & MCP**, mit getrennten Zugriffskontrollen und bestehenden URLs; MCP ist die Standardansicht. Die URL kann beide Tabs auswählen. Mobile Einrichtung ist unter **Konto** verlinkt. Das Profil zeigt Identität und Agentenkontext auf breiten Bildschirmen nebeneinander, mit eigenen Karten für Erscheinungsbild und verbundene Konten. Listen füllen die verfügbare Höhe. Organisationen und Gruppen öffnen über **Organisationen verwalten** im Workspace-Wechsler statt über doppelte Sidebar-Einträge. Leere Seiten, Listen und Tabellen teilen dieselbe Illustration. Directory wartet auf Berechtigungen und Daten, bevor es eine einzelne Aktion zum Erstellen einer Zuordnung zeigt.
 
 Persönliche Einstellungen haben keinen eigenen Assistant-Tab mehr. Seitenhinweise stehen unter **Account**; die alte URL `/settings/assistant` leitet dorthin weiter. **Inbox preferences** enthält den persönlichen Schalter für die Zustellung nächtlicher Vorschläge. Verlauf und Wiederherstellung bleiben im Inbox. Organisationsmodelle, Budgets, Speicherpflege und Voice bleiben unter **AI & services**. Formularbeschriftungen haben eine gemeinsame Mindestzeilenhöhe, auch mit Inline-Hilfe. Standard-Eingaben und Auswahllisten sind gleich hoch; bei groben Zeigegeräten sind die Berührungsflächen größer. Kompakte Tabellenfilter behalten ihre eigene Größe. Die MCP-Einrichtung besitzt einen eigenen Rahmen statt eines zweiten umschließenden Containers.

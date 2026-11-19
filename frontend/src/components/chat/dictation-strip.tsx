@@ -369,32 +369,6 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
   }
 }
 
-/**
- * What the strip says while the browser transcribes for an agent whose Dictation
- * switch is off: it works, but not the way the agent could, and where to change
- * that - the agent's Voice card, for whoever may edit it.
- */
-export function browserDictationHint(agentHref: string | null, t: Translate): StripHint {
-  return {
-    key: "browserOff",
-    tone: "hint",
-    icon: Info,
-    message: (
-      <>
-        {t.rich("hint.browserOff", { strong })}
-        {agentHref !== null && (
-          <>
-            {" "}
-            <Link href={agentHref} className={SETUP_LINK}>
-              {t("openBuilder")}
-            </Link>
-          </>
-        )}
-      </>
-    ),
-  };
-}
-
 /** The visitor's `hint.*` sentence for each way the browser's own recognition fails. */
 const BROWSER_FAILURE_HINTS = {
   micDenied: "micDenied",

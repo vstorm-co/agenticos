@@ -167,7 +167,9 @@ export function ChatWelcome({
           )}
         >
           {!compact && !quiet && <RotatingWorkspaceArt />}
-          <span className="relative">{mark}</span>
+          <span className="relative" data-chat-welcome-avatar={quiet && !compact ? "" : undefined}>
+            {mark}
+          </span>
         </div>
         <h2
           className={cn(

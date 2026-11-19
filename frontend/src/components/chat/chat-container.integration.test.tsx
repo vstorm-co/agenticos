@@ -7,6 +7,7 @@ import { announceChange } from "@/lib/live-updates";
 import type { ChangeEvent } from "@/types/change-events";
 import { messageOf } from "./composer-editor";
 import { ChatContainer } from "./chat-container";
+import { MainChatContext } from "./main-chat-context";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { initialCall } from "@/lib/voice/call-reducer";
@@ -181,11 +182,13 @@ function receive(type: string, data: Record<string, unknown>): void {
   );
 }
 
-function mount(requestedConversationId?: string) {
+function mount(requestedConversationId?: string, mainChat = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ChatContainer requestedConversationId={requestedConversationId} />
+      <MainChatContext.Provider value={mainChat}>
+        <ChatContainer requestedConversationId={requestedConversationId} />
+      </MainChatContext.Provider>
     </QueryClientProvider>,
   );
 }
@@ -729,7 +732,7 @@ describe("the chat container - server dictation", () => {
     expect(screen.queryByText("0:42 of audio")).not.toBeInTheDocument();
   });
 
-  it("says the browser is transcribing for an agent whose Dictation switch is off", async () => {
+  it("shows browser dictation in the composer without a setup prompt", async () => {
     readiness.current = { ...readiness.current, engine: "browser", requested: false };
     class FakeRecognition {
       start = vi.fn();
@@ -737,14 +740,14 @@ describe("the chat container - server dictation", () => {
     }
     vi.stubGlobal("SpeechRecognition", FakeRecognition);
     useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
-    mount();
+    mount(undefined, true);
     await waitFor(() => expect(get).toHaveBeenCalledWith("/agents/a-1/dictation"));
 
     fireEvent.click(await screen.findByRole("button", { name: "Voice input" }));
 
-    expect(
-      await screen.findByText("Dictation isn't turned on for this agent,", { exact: false }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Dictation" })).toBeVisible());
+    expect(screen.getByText("Listening").closest("[data-tour=chat-composer]")).not.toBeNull();
+    expect(screen.queryByRole("link", { name: "Open in the Agent Builder" })).toBeNull();
     vi.unstubAllGlobals();
   });
 

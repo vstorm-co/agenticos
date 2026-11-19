@@ -1,5 +1,5 @@
 ---
-source_sha: "7e44c5ec13bc"
+source_sha: "1710e618eca4"
 ---
 
 # La consola { #the-console }
@@ -131,7 +131,7 @@ Una ejecución fallida muestra el error separado de la respuesta y fuera de las 
 
 Los adjuntos permanecen dentro del cuadro de mensaje en una fila desplazable. Las imágenes seguras muestran una miniatura local durante la carga; un indicador giratorio señala las cargas pendientes sin inventar porcentajes. Los errores al actualizar temas en segundo plano permanecen en su propio panel desplegable y nunca aparecen en un chat sin enviar. Los subrayados de pestañas y las selecciones segmentadas se deslizan entre opciones; con movimiento reducido, cambian de inmediato.
 
-Los chats nuevos combinan Inbox y las propuestas publicadas del agente seleccionado en un carrusel manual encima del editor. Inbox aparece primero. Los botones, las flechas y el deslizamiento nativo cambian de página sin mover el editor. Las pantallas bajas usan menos espacio. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
+Los chats nuevos muestran Inbox a la izquierda y las propuestas del agente seleccionado a la derecha, encima del editor. En un panel estrecho, las secciones se apilan. El contador de pendientes aparece junto a Inbox. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
 
 El chat principal tiene un cuadro de mensaje ancho. La biblioteca muestra primero los proveedores conectados, con logotipos y nombres que empiezan en mayúscula, y separa el catálogo de los modelos guardados. Pulsar un modelo lo selecciona directamente. Las credenciales que falten se añaden mediante los formularios existentes de Vault dentro del selector, incluidas las credenciales de varios campos. Se conservan los permisos y la validación de modelos. El micrófono y el envío cambian suavemente al escribir.
 
@@ -255,9 +255,9 @@ los mismos avatares que en el chat.
 
 Las tarjetas del panel usan filas compactas coherentes, símbolos de servicios y etiquetas de estado. Las cifras y los gráficos se adaptan al ancho de la tarjeta, también en diseños personalizados. Los indicadores de carga reflejan el tipo de contenido; un resumen no disponible permite reintentar en vez de afirmar que no hay propuestas.
 
-Un chat nuevo saluda según la hora local y muestra un editor compacto. Los archivos están junto al agente; los ajustes y el escudo de permisos, junto al modelo. El uso de contexto permanece como icono hasta abrirlo. Debajo aparecen hasta tres temas de Inbox, primero los urgentes, con marcas de origen del catálogo MCP; el contador de aprobaciones enlaza a su cola. Abrir una vista previa no aprueba ni descarta nada. La carga, los errores y la lista vacía tienen estados distintos. El dictado y las llamadas usan la misma superficie ligera que el editor. Los chats integrados de agentes y Architect conservan sus propios controles.
+Un chat nuevo saluda según la hora local y muestra un editor compacto. Los archivos están junto al agente; los ajustes y el escudo de permisos, junto al modelo. El uso de contexto permanece como icono hasta abrirlo. Encima del editor aparecen hasta cuatro temas de Inbox, primero los urgentes, con marcas de origen del catálogo MCP; el contador de aprobaciones enlaza a su cola. Abrir una vista previa no aprueba ni descarta nada. La carga, los errores y la lista vacía tienen estados distintos. El dictado y las llamadas usan la misma superficie ligera que el editor. El widget de Architect comparte el botón principal y los controles de dictado.
 
-Antes del primer mensaje, Archivos y uso de contexto permanecen visibles pero desactivados. El menú de adjuntos muestra directamente sus acciones disponibles. Los ajustes del chat usan secciones compactas para conexiones y aprobaciones recordadas; la vista previa de Inbox muestra origen, tiempo y prioridad.
+Antes del primer mensaje, Archivos y uso de contexto permanecen visibles pero desactivados. El menú de adjuntos muestra directamente sus acciones disponibles. Los ajustes del chat usan secciones compactas para conexiones y aprobaciones recordadas; la vista previa de Inbox muestra origen y prioridad.
 
 Los campos, las filas de menú, los selectores, las pestañas y las secciones de ajustes comparten el mismo estilo compacto en toda la consola. Al plegar un formulario opcional se conserva el borrador; un campo obligatorio no válido puede volver a abrir su sección. Los desplegables nativos comparten espaciado y se animan donde se admiten tamaños intrínsecos; en los demás navegadores se abren de forma nativa sin animación. Se mantienen el movimiento reducido y las áreas táctiles más grandes.
 
@@ -745,22 +745,20 @@ la pestaña Dictado de [su tarjeta Voice](#an-agents-voice-card):
   [Dictado en el chat](ml-services.md#dictation-in-chat).
 - Apagado, o sin clave con la que enviarla — el reconocimiento de voz del propio
   navegador, así que el audio va al fabricante del navegador (Google, Apple) y no
-  cuesta nada. Firefox no tiene: su micrófono lo dice al pulsarlo. Mientras
-  escucha, una nota sobre el compositor dice que el Dictado del agent está
-  apagado, y enlaza a su pestaña Dictado para quien puede editar el agent.
+  cuesta nada.
+  Firefox no cuenta con reconocimiento de voz integrado. El editor avisa si el micrófono o el reconocimiento no están disponibles.
 
-Con un provider, al pulsar el micrófono flota sobre el compositor, que no
-cambia, una **píldora de grabación**: Cancel, el nivel, un temporizador y Stop.
+Con un proveedor, el chat principal muestra los controles de cancelación, nivel de audio, temporizador y parada dentro del editor.
 **Enter** detiene y transcribe, **Escape** cancela, y nada de lo que se escriba
 o pulse mientras una grabación está en curso o transcribiéndose se envía. La
 grabación se detiene sola en el dictado más largo de la organización y se
 transcribe, y un micrófono desconectado a mitad la termina igual, en vez de
 descartarla. Si la subida tarda más de un segundo, la píldora muestra cuánto se
-ha subido; después dice **Transcribing** hasta que llega el texto. El
-reconocimiento del navegador tiene su propia píldora, con **Done dictating**.
+ha subido; después dice **Transcribing** hasta que llega el texto.
 
-Todo lo que el dictado tiene que decir aparece en una franja sobre el
-compositor, junto a la píldora: la petición de permiso, un micrófono bloqueado o
+El reconocimiento del navegador muestra **Listening** y **Done dictating**. Escribir o enviar pone fin al dictado. El botón principal cambia a Enviar cuando hay un borrador.
+
+Los avisos del dictado aparecen sobre el editor: la petición de permiso, un micrófono bloqueado o
 ausente, los últimos 30 segundos, cinco segundos sin sonido, una grabación de
 menos de un segundo (no se envía), una grabación detenida en el límite y cada
 fallo. Cuántas palabras se insertaron se anuncia al lector de pantalla en lugar
@@ -1220,6 +1218,6 @@ Ajustes ofrece pestañas horizontales desplazables en escritorio y teléfono. La
 
 Los grupos de la barra lateral se expanden y contraen con suavidad. Los destinos ocultos no reciben el foco y, al contraer la barra, el destino actual sigue visible. Las animaciones respetan los ajustes de apariencia; el movimiento reducido mantiene estos controles estáticos.
 
-Los ajustes conservan pestañas horizontales. Claves API y clientes MCP comparten **API y MCP**, con controles de acceso separados y las URL existentes; la vista interna se guarda en la URL. La configuración móvil se enlaza desde **Cuenta**. El perfil coloca identidad y contexto de agentes en paralelo en pantallas amplias, con tarjetas de apariencia y cuentas conectadas. Las listas ocupan la altura disponible. Organizaciones y grupos se abren desde **Gestionar organizaciones** en el selector de espacio. Las páginas, listas y tablas vacías comparten ilustración. Directory espera permisos y datos antes de mostrar una única acción para crear una asignación.
+Los ajustes conservan pestañas horizontales. Claves API y clientes MCP comparten **API y MCP**, con controles de acceso separados y las URL existentes; MCP se abre de forma predeterminada y la URL puede seleccionar cualquiera de las pestañas. La configuración móvil se enlaza desde **Cuenta**. El perfil coloca identidad y contexto de agentes en paralelo en pantallas amplias, con tarjetas de apariencia y cuentas conectadas. Las listas ocupan la altura disponible. Organizaciones y grupos se abren desde **Gestionar organizaciones** en el selector de espacio. Las páginas, listas y tablas vacías comparten ilustración. Directory espera permisos y datos antes de mostrar una única acción para crear una asignación.
 
 Los ajustes personales ya no tienen una pestaña Assistant independiente. Los consejos de página están en **Account**; la antigua URL `/settings/assistant` redirige allí. **Inbox preferences** contiene el interruptor personal para recibir sugerencias nocturnas; el historial y la restauración permanecen en Inbox. Los modelos, presupuestos, mantenimiento de memoria y Voice de la organización permanecen en **AI & services**. Las etiquetas de formulario comparten una altura mínima, incluida la ayuda contextual. Los campos y selectores estándar tienen la misma altura, con objetivos táctiles mayores en dispositivos de puntero impreciso. Los filtros compactos conservan su tamaño. La configuración MCP utiliza su propio marco sin un segundo contenedor con borde.

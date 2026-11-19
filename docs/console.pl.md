@@ -1,5 +1,5 @@
 ---
-source_sha: "7e44c5ec13bc"
+source_sha: "1710e618eca4"
 ---
 
 # Konsola { #the-console }
@@ -129,7 +129,7 @@ Nieudany run pokazuje błąd oddzielnie od odpowiedzi agenta, poza zwijanymi nar
 
 Załączniki pozostają wewnątrz pola wiadomości w jednym przewijanym wierszu. Bezpieczne obrazy mają lokalną miniaturę podczas wysyłania; trwające wysyłanie wskazuje animowany wskaźnik bez wymyślonego procentu. Błędy odświeżania tematów w tle pozostają w osobnym rozwijanym panelu i nie pojawiają się w niewysłanej rozmowie. Podkreślenia kart i zaznaczenia segmentów płynnie przechodzą między opcjami; przy ograniczeniu animacji zmiana jest natychmiastowa.
 
-Nowy czat łączy Inbox i opublikowane propozycje wybranego agenta w jednej ręcznie przełączanej karuzeli nad polem wiadomości. Domyślnie pokazuje Inbox. Przyciski, strzałki i natywne przesuwanie przełączają strony bez przesuwania composera. Niższe ekrany mają ciaśniejsze odstępy. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
+Nowy czat pokazuje Inbox po lewej i propozycje wybranego agenta po prawej, nad polem wiadomości. W wąskim panelu sekcje układają się pionowo. Licznik czekających elementów jest obok Inbox. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
 
 Główny czat ma szerokie pole wiadomości. Biblioteka modeli pokazuje najpierw podłączonych dostawców, z logotypami i nazwami od wielkiej litery, oraz rozdziela katalog i zapisane modele. Kliknięcie modelu od razu go wybiera. Brakujące poświadczenia można dodać w formularzach Vaulta z poziomu wyboru modelu, również dla dostawców wymagających kilku pól; nadal obowiązują dotychczasowe uprawnienia i walidacja modeli. Mikrofon i przycisk wysyłania płynnie zmieniają stan podczas pisania.
 
@@ -247,9 +247,9 @@ pokazują opisy, a wiersze agentów używają tych samych avatarów co chat.
 
 Karty dashboardu korzystają ze spójnych, zwartych wierszy, oznaczeń usług i etykiet statusu. Liczniki i wykresy dostosowują się do szerokości karty, również we własnych układach. Placeholdery odpowiadają rodzajowi ładowanej zawartości; niedostępny briefing pokazuje możliwość ponowienia zamiast informacji o braku propozycji.
 
-Nowy chat wita zależnie od lokalnej pory dnia i pokazuje zwarte pole wiadomości. Pliki są obok agenta, a ustawienia i tarcza uprawnień obok modelu. Zużycie kontekstu pozostaje ikoną do chwili otwarcia szczegółów. Poniżej widać do trzech tematów z Inboxa, z pilnymi ustaleniami na początku i ikonami źródeł z katalogu MCP; licznik zgód prowadzi do kolejki decyzji. Otwarcie podglądu niczego nie zatwierdza ani nie odrzuca. Ładowanie, błąd i pusta lista mają osobne stany. Dyktowanie i połączenia korzystają z tej samej lekkiej powierzchni co pole wiadomości. Osadzone chaty agentów i Architecta zachowują własne kontrolki.
+Nowy chat wita zależnie od lokalnej pory dnia i pokazuje zwarte pole wiadomości. Pliki są obok agenta, a ustawienia i tarcza uprawnień obok modelu. Zużycie kontekstu pozostaje ikoną do chwili otwarcia szczegółów. Nad polem widać do czterech tematów z Inboxa, z pilnymi ustaleniami na początku i ikonami źródeł z katalogu MCP; licznik zgód prowadzi do kolejki decyzji. Otwarcie podglądu niczego nie zatwierdza ani nie odrzuca. Ładowanie, błąd i pusta lista mają osobne stany. Dyktowanie i połączenia korzystają z tej samej lekkiej powierzchni co pole wiadomości. Widget Architecta korzysta z tego samego przycisku głównego i kontrolek dyktowania.
 
-Przed pierwszą wiadomością pliki i użycie kontekstu pozostają widoczne, ale nieaktywne. Menu załączników pokazuje dostępne akcje od razu. Ustawienia czatu mają zwarte sekcje połączeń i zapamiętanych zgód; podgląd Inbox pokazuje źródło, czas i priorytet.
+Przed pierwszą wiadomością pliki i użycie kontekstu pozostają widoczne, ale nieaktywne. Menu załączników pokazuje dostępne akcje od razu. Ustawienia czatu mają zwarte sekcje połączeń i zapamiętanych zgód; podgląd Inbox pokazuje źródło i priorytet.
 
 Pola, wiersze menu, listy wyboru, zakładki i sekcje ustawień w całej konsoli mają wspólny, zwarty styl. Zwinięcie opcjonalnego formularza zachowuje wpisane dane; wymagane pole z błędem może ponownie otworzyć swoją sekcję. Natywne rozwinięcia mają wspólne odstępy i animację w przeglądarkach obsługujących rozmiar zależny od treści, a w pozostałych otwierają się standardowo. Nadal działają ograniczenie ruchu i większe obszary dotykowe.
 
@@ -725,23 +725,21 @@ nie naciśniesz Wyślij. Sposób transkrypcji wybiera agent, na zakładce Dyktow
   to, co jest zapisywane, opisuje [Dyktowanie w czacie](ml-services.md#dictation-in-chat).
 - Wyłączone albo bez klucza, którym można wysłać — własne rozpoznawanie mowy
   przeglądarki, więc dźwięk trafia do jej dostawcy (Google, Apple) i nic nie
-  kosztuje. Firefox go nie ma: jego mikrofon mówi o tym po naciśnięciu. Gdy
-  przeglądarka słucha, notka nad kompozytorem mówi, że Dyktowanie agenta jest
-  wyłączone, a temu, kto może edytować agenta, daje link do jego zakładki
-  Dyktowanie.
+  kosztuje.
+  Firefox nie ma wbudowanego rozpoznawania mowy. Kompozytor informuje, jeśli mikrofon lub rozpoznawanie są niedostępne.
 
-Z providerem naciśnięcie mikrofonu wyświetla nad kompozytorem, który się nie
-zmienia, **pigułkę nagrywania**: Anuluj, poziom, licznik czasu i Stop. **Enter**
+Przy dyktowaniu u providera główny czat pokazuje wewnątrz kompozytora Anuluj, poziom dźwięku, licznik czasu i Stop.
+**Enter**
 zatrzymuje i transkrybuje, **Escape** anuluje, a nic, co wpiszesz albo naciśniesz
 w trakcie nagrywania lub transkrypcji, nie zostaje wysłane. Nagranie zatrzymuje
 się samo na najdłuższym dyktowaniu organizacji i jest transkrybowane, a mikrofon
 odłączony w trakcie kończy je tak samo, zamiast je odrzucać. Gdy wysyłanie trwa
 dłużej niż sekundę, pigułka pokazuje, ile już poszło; potem mówi
-**Przepisywanie**, dopóki nie przyjdzie tekst. Rozpoznawanie w przeglądarce ma
-własną pigułkę, z **Zakończ dyktowanie**.
+**Przepisywanie**, dopóki nie przyjdzie tekst.
 
-Wszystko, co dyktowanie ma do powiedzenia, pojawia się w pasku nad kompozytorem,
-obok pigułki: prośba o uprawnienia, zablokowany albo brakujący mikrofon, ostatnie
+Rozpoznawanie w przeglądarce pokazuje **Słuchanie** i akcję **Zakończ dyktowanie**. Wpisanie lub wysłanie tekstu kończy dyktowanie. Główny przycisk zmienia się w Wyślij, gdy wiadomość jest gotowa.
+
+Komunikaty dyktowania pojawiają się nad kompozytorem: prośba o uprawnienia, zablokowany albo brakujący mikrofon, ostatnie
 30 sekund, pięć sekund bez dźwięku, nagranie krótsze niż sekunda (nie wysłane),
 nagranie zatrzymane na limicie i każda porażka. Ile słów wstawiono, słyszy
 czytnik ekranu, ale nie jest to pokazywane, bo słowa są w polu. Nagranie, którego
@@ -1185,6 +1183,6 @@ Ustawienia mają poziome, przewijane zakładki na komputerze i telefonie. Zwykł
 
 Grupy paska bocznego rozwijają się i zwijają płynnie. Ukryte miejsca nie przyjmują fokusu, a po zwinięciu paska bieżąca strona pozostaje widoczna. Animacje respektują ustawienia Wyglądu; ograniczenie ruchu pozostawia kontrolki nieruchome.
 
-Ustawienia zachowują poziome taby. Klucze API i klienci MCP są razem w **API i MCP**, z oddzielnymi kontrolami dostępu i zachowanymi adresami; wybrany widok wewnętrzny zapisuje się w URL. Konfiguracja aplikacji mobilnej jest pod **Account**. Profil układa dane osobowe i kontekst agentów obok siebie na szerokim ekranie, z osobnymi kartami wyglądu i połączonych kont. Kontenery list wypełniają dostępną wysokość. Organizacje i grupy otwiera się przez **Manage organizations** w przełączniku workspace, bez powielania ich w sidebarze. Puste strony, listy i tabele korzystają ze wspólnej ilustracji. Directory czeka na uprawnienia i dane, zanim pokaże pojedynczą akcję utworzenia mapowania.
+Ustawienia zachowują poziome taby. Klucze API i klienci MCP są razem w **API i MCP**, z oddzielnymi kontrolami dostępu i zachowanymi adresami; domyślnie otwiera się MCP, a adres URL może wskazać każdą z zakładek. Konfiguracja aplikacji mobilnej jest pod **Account**. Profil układa dane osobowe i kontekst agentów obok siebie na szerokim ekranie, z osobnymi kartami wyglądu i połączonych kont. Kontenery list wypełniają dostępną wysokość. Organizacje i grupy otwiera się przez **Manage organizations** w przełączniku workspace, bez powielania ich w sidebarze. Puste strony, listy i tabele korzystają ze wspólnej ilustracji. Directory czeka na uprawnienia i dane, zanim pokaże pojedynczą akcję utworzenia mapowania.
 
 Ustawienia osobiste nie mają osobnej zakładki Assistant. Wskazówki stron znajdują się w **Account**, a stary adres `/settings/assistant` przekierowuje do tej zakładki. **Inbox preferences** zawiera osobisty przełącznik dostarczania nocnych sugestii; historia sugestii i ich przywracanie pozostają w Inbox. Modele organizacji, budżety, utrzymanie pamięci i Voice pozostają w **AI & services**. Etykiety formularzy mają wspólną minimalną wysokość, również przy przycisku pomocy. Standardowe pola tekstowe i selecty mają jednakową wysokość oraz większe obszary dotykowe przy niedokładnym wskaźniku. Kompaktowe filtry tabel zachowują własny rozmiar. Konfiguracja MCP ma jedną własną ramkę zamiast dodatkowego obramowanego kontenera.

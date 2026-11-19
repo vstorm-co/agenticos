@@ -1338,13 +1338,11 @@
         "rateLimitedBody": "Za dużo nagrań w ciągu minuty.",
         "keptBody": "Twoje nagranie ({duration}) poczeka, aż ponowisz próbę albo je odrzucisz.",
         "notSetUpTitle": "Dyktowanie nie jest skonfigurowane.",
-        "notSetUpBody": "Provider zamiany mowy na tekst tego agenta nie ma już działającego klucza.",
-        "browserOff": "<strong>Dyktowanie nie jest włączone dla tego agenta,</strong> więc to, co mówisz, przepisuje przeglądarka. Włącz je, aby korzystać z dostawcy speech-to-text."
+        "notSetUpBody": "Provider zamiany mowy na tekst tego agenta nie ma już działającego klucza."
       },
       "pill": "Dyktowanie",
       "listening": "Słucham",
-      "done": "Zakończ dyktowanie",
-      "openBuilder": "Otwórz w Agent Builderze"
+      "done": "Zakończ dyktowanie"
     },
     "voice": {
       "start": "Rozpocznij rozmowę głosową",
@@ -1671,24 +1669,15 @@
     "runFailedHint": "Nie powstała końcowa odpowiedź. Możesz przejrzeć wykonane działania powyżej.",
     "homeInbox": {
       "title": "Z Twojego Inboxa",
-      "open": "Otwórz Inbox",
       "urgent": "Ważne",
       "approvals": "{count, plural, one {# zgoda czeka na Twoją decyzję} few {# zgody czekają na Twoją decyzję} other {# zgód czeka na Twoją decyzję}}",
       "empty": "Wszystko na bieżąco. Nowe ustalenia i ważne tematy pojawią się tutaj.",
       "failed": "Nie udało się wczytać Inboxa.",
       "refreshFailed": "Nie udało się odświeżyć skrzynki. Wyświetlamy ostatnio pobrane elementy."
     },
-    "homeCarousel": {
-      "title": "Inbox i proponowane prompty",
-      "carousel": "karuzela",
-      "slide": "slajd",
+    "homePanels": {
       "inbox": "Inbox",
-      "prompts": "Proponowane prompty",
-      "previous": "Poprzednia strona",
-      "next": "Następna strona",
-      "pages": "Strony",
-      "page": "{name}, {current} z {total}",
-      "position": "Strona {current} z {total}"
+      "prompts": "Proponowane prompty"
     }
   },
   "errors": {

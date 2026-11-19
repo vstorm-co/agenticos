@@ -1,5 +1,5 @@
 ---
-source_sha: "7b83980dd889"
+source_sha: "81c6f1702ff6"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -667,11 +667,13 @@ als Dropdown ausgeliefert, auf das der Provider mit 404 antwortet. Ein Modell,
 das der Snapshot kennt, aber nicht bepreist, hat schlicht kein Fenster — das ist
 das unten beschriebene Null.
 
+Die Modellauswahl verwendet beim Öffnen die Liste des Deployments. Ein kontospezifischer Live-Katalog wird nicht abgerufen. Die GPT-6.2-Einträge wurden über den Codex App Server geprüft. Das Kontextfenster bleibt leer, bis es im Preiskatalog steht.
+
 | Provider | Kuratierte Ids |
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
-| `openai_codex` | dieselben vier wie `openai` |
+| `openai_codex` | GPT-6.2 Sol und Astra, GPT-6.1 Sol und Terra, GPT-6 Sol, Astra und Luna sowie frühere Codex-IDs |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |

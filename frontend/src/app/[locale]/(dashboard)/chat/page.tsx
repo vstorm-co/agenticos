@@ -14,7 +14,6 @@ import { cn } from "@/lib/utils";
 
 export default function ChatPage() {
   const params = useSearchParams();
-  const steps = params.get("steps");
   const example = startGoal(params.get("example"));
   const requestedConversationId = params.get("id");
   // A consent started from the chat comes back here, and the outcome is in the
@@ -32,7 +31,7 @@ export default function ChatPage() {
           the buttons floating over it on a phone. */}
       <div className="relative min-w-0 flex-1 max-md:[&_[data-chat-scroller]]:scroll-pt-20 max-md:[&_[data-transcript]]:pt-20">
         <PhoneChatBar />
-        <ChatLayout steps={steps === "timeline" || steps === "cards" ? steps : undefined}>
+        <ChatLayout>
           <ChatContainer
             requestedConversationId={requestedConversationId}
             emptyState={

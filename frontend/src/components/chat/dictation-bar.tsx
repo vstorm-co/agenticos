@@ -8,7 +8,6 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import {
   PILL_SPRING,
-  VOICE_SURFACE,
   VOICE_SURFACE_BUTTON,
   VOICE_SURFACE_DONE,
 } from "@/components/voice/floating-pill";
@@ -242,6 +241,8 @@ const SWAP = {
   animate: { opacity: 1, filter: "blur(0px)" },
   exit: { opacity: 0, filter: "blur(4px)" },
 } as const;
+const DICTATION_INLINE = "text-foreground flex min-h-10 w-full min-w-0 items-center gap-2 py-1";
+
 const PILL_BUTTON =
   "h-9 w-9 shrink-0 rounded-full pointer-coarse:h-11 pointer-coarse:w-11 text-background hover:bg-background/15 hover:text-background";
 const PILL_DONE =
@@ -268,10 +269,8 @@ function Recording({ seconds, live }: { seconds: number; live: boolean }) {
 }
 
 /**
- * `/chat`'s dictation, as a pill floating above a composer that does not change -
- * the call pill's sibling (#54): Cancel, the time, a short wave and Done while it
- * records, and while it is transcribed how much audio is on its way. The text it
- * returns lands in the box; every hint and error goes in the strip under it.
+ * Dictation controls show elapsed time and audio level while recording, then
+ * upload and transcription progress. The transcript lands in the editor.
  */
 export function DictationPill({
   state,
@@ -309,7 +308,7 @@ export function DictationPill({
       role="group"
       aria-label={t("pill")}
       aria-busy={transcribing || undefined}
-      className={subtle ? VOICE_SURFACE : PILL}
+      className={subtle ? DICTATION_INLINE : PILL}
       // The pill sits outside the composer's form, so Escape is handled here too.
       onKeyDown={(event) => {
         if (event.key !== "Escape") return;
@@ -401,8 +400,19 @@ export function BrowserDictationPill({
 }) {
   const t = useTranslations("chat.dictation");
   const reduced = useReducedMotion();
+  const doneRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (subtle) doneRef.current?.focus({ preventScroll: true });
+  }, [subtle]);
   return (
-    <div role="group" aria-label={t("pill")} className={cn(subtle ? VOICE_SURFACE : PILL, "pl-4")}>
+    <div
+      role="group"
+      aria-label={t("pill")}
+      className={cn(subtle ? DICTATION_INLINE : PILL, "pl-4")}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onDone();
+      }}
+    >
       <span className="inline-flex items-center gap-1.5 text-[13px] font-medium">
         <span
           aria-hidden="true"
@@ -418,6 +428,7 @@ export function BrowserDictationPill({
         <Waveform level={level} flat={false} bars={18} className="h-6 w-20 flex-none" />
       )}
       <Button
+        ref={doneRef}
         type="button"
         size="icon"
         onClick={onDone}

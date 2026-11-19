@@ -2324,13 +2324,11 @@
         "rateLimitedBody": "Zu viele Diktate in einer Minute.",
         "keptBody": "Ihre Aufnahme ({duration}) bleibt erhalten, bis Sie sie erneut senden oder verwerfen.",
         "notSetUpTitle": "Diktieren ist nicht eingerichtet.",
-        "notSetUpBody": "Der Speech-to-Text-Provider dieses Agents hat keinen nutzbaren Schlüssel mehr.",
-        "browserOff": "<strong>Diktieren ist für diesen Agent nicht aktiviert,</strong> deshalb transkribiert Ihr Browser, was Sie sagen. Aktivieren Sie es, um einen Speech-to-Text-Anbieter zu nutzen."
+        "notSetUpBody": "Der Speech-to-Text-Provider dieses Agents hat keinen nutzbaren Schlüssel mehr."
       },
       "pill": "Diktieren",
       "listening": "Hört zu",
-      "done": "Diktieren beenden",
-      "openBuilder": "Im Agent Builder öffnen"
+      "done": "Diktieren beenden"
     },
     "voice": {
       "start": "Sprachanruf starten",
@@ -2657,24 +2655,15 @@
     "runFailedHint": "Es wurde keine abschließende Antwort erstellt. Die bisherigen Schritte stehen oben.",
     "homeInbox": {
       "title": "Aus deinem Posteingang",
-      "open": "Posteingang öffnen",
       "urgent": "Wichtig",
       "approvals": "{count, plural, one {# Genehmigung wartet auf dich} other {# Genehmigungen warten auf dich}}",
       "empty": "Alles erledigt. Neue Erkenntnisse und wichtige Themen erscheinen hier.",
       "failed": "Dein Posteingang konnte nicht geladen werden.",
       "refreshFailed": "Dein Posteingang konnte nicht aktualisiert werden. Die zuletzt geladenen Einträge werden angezeigt."
     },
-    "homeCarousel": {
-      "title": "Inbox und vorgeschlagene Prompts",
-      "carousel": "Karussell",
-      "slide": "Folie",
+    "homePanels": {
       "inbox": "Inbox",
-      "prompts": "Vorgeschlagene Prompts",
-      "previous": "Vorherige Seite",
-      "next": "Nächste Seite",
-      "pages": "Seiten",
-      "page": "{name}, {current} von {total}",
-      "position": "Seite {current} von {total}"
+      "prompts": "Vorgeschlagene Prompts"
     }
   },
   "common": {

@@ -99,7 +99,7 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
   );
   return (
     <div
-      className="grid min-h-64 grid-cols-[124px_minmax(0,1fr)] sm:grid-cols-[172px_minmax(0,1fr)]"
+      className="grid min-h-64 grid-cols-[minmax(112px,32%)_minmax(0,1fr)] sm:grid-cols-[196px_minmax(0,1fr)]"
       data-chat-model-library
     >
       <div
@@ -148,6 +148,7 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
                     )}
                   >
                     <ProviderRow
+                      wrap
                       provider={entry.id}
                       name={entry.label.charAt(0).toLocaleUpperCase() + entry.label.slice(1)}
                     />

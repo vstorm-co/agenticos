@@ -1707,7 +1707,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="build" className="mt-5 space-y-3">
+          <TabsContent value="build" className="mt-5 space-y-4 sm:mt-6">
             <Card data-tour="agent-instructions">
               <CardContent className="p-4 sm:p-5">
                 <InstructionsEditor
@@ -1759,7 +1759,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               onTimeZoneChange={(time_zone) => update({ time_zone })}
             />
 
-            <div data-agent-build-settings className="space-y-3">
+            <div data-agent-build-settings className="space-y-4">
               {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
               <BuildSection

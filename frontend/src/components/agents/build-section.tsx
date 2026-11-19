@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useId, useState, type HTMLAttributes, type ReactNode } from "react";
+import { forwardRef, useState, type HTMLAttributes, type ReactNode } from "react";
 import { ChevronRight, SlidersHorizontal, type LucideIcon } from "lucide-react";
 
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
@@ -34,7 +34,6 @@ export const BuildSection = forwardRef<
   },
   ref,
 ) {
-  const descriptionId = useId();
   const [ownOpen, setOwnOpen] = useState(defaultOpen);
   if (useChanged(defaultOpen) && defaultOpen) setOwnOpen(true);
   const open = controlled ?? ownOpen;
@@ -55,30 +54,24 @@ export const BuildSection = forwardRef<
       >
         <summary
           aria-label={title}
-          aria-describedby={description ? descriptionId : undefined}
-          className="focus-visible:outline-foreground/60 flex min-h-16 cursor-pointer list-none items-start gap-3 rounded-xl p-4 focus-visible:outline-2 focus-visible:outline-offset-[-2px] sm:p-5 [&::-webkit-details-marker]:hidden"
+          className="focus-visible:outline-foreground/60 hover:bg-muted/35 flex min-h-16 cursor-pointer list-none items-center gap-3 rounded-xl p-4 transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] motion-reduce:transition-none sm:p-5 [&::-webkit-details-marker]:hidden"
         >
           <span className="bg-muted text-foreground/80 grid size-9 shrink-0 place-items-center rounded-lg">
             <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
           </span>
+          <span className="min-w-0 flex-1 text-sm font-semibold">{title}</span>
+          {headerEnd}
           <ChevronRight
-            className="text-muted-foreground mt-0.5 size-4 shrink-0 transition-transform group-open/build:rotate-90 motion-reduce:transition-none"
+            className="text-muted-foreground size-4 shrink-0 transition-transform group-open/build:rotate-90 motion-reduce:transition-none"
             aria-hidden
           />
-          <span className="min-w-0 flex-1 space-y-1">
-            <span className="block text-sm font-semibold">{title}</span>
-            {description && (
-              <span
-                id={descriptionId}
-                className="text-muted-foreground block text-[13px] leading-5"
-              >
-                {description}
-              </span>
-            )}
-          </span>
-          {headerEnd}
         </summary>
-        <div className="min-w-0 space-y-4 border-t p-4 sm:p-5">{children}</div>
+        <div className="min-w-0 space-y-4 px-4 pb-4 sm:px-5 sm:pb-5">
+          {description && (
+            <p className="text-muted-foreground text-[13px] leading-5">{description}</p>
+          )}
+          {children}
+        </div>
       </NativeDisclosure>
     </div>
   );
