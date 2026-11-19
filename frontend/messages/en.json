@@ -746,6 +746,8 @@
     "loadTools": "Load its tools",
     "toolsAfterConnecting": "Its tools are listed once a {name} account is connected.",
     "toolsSearch": "Search tools",
+    "toolsAddNew": "Add tools the server gains later",
+    "toolsAddNewHint": "{state, select, on {A tool the server adds later reaches this agent on its own.} narrowed {The agent keeps only the tools chosen here. Choose every tool to turn this on.} other {The agent keeps only the tools listed here; a tool the server adds later is left out.}}",
     "eachPersonsOwnAccountShort": "Everyone connects their own; not for API keys, the widget or routines.",
     "connectYours": "Connect yours",
     "cardOrganizationsAccount": "The organization's · {name}",

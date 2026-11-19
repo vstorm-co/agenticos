@@ -95,7 +95,7 @@ describe("the AgenticOS server in the Builder", () => {
     expect(screen.getByRole("button", { name: "Ask first before publish_agent" })).toBeEnabled();
   });
 
-  it("narrows the tools, and every tool chosen again is no limit at all", async () => {
+  it("narrows the tools, and every tool chosen again is today's tools only", async () => {
     const onChange = vi.fn();
     render(<Harness initial={NEW_PLATFORM_BINDING} onChange={onChange} />);
     await userEvent.click(screen.getByText("Asks before any change"));
@@ -107,7 +107,10 @@ describe("the AgenticOS server in the Builder", () => {
     });
 
     await userEvent.click(screen.getByRole("checkbox", { name: "run_agent" }));
-    expect(onChange).toHaveBeenLastCalledWith({ ...NEW_PLATFORM_BINDING, allowed_tools: null });
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...NEW_PLATFORM_BINDING,
+      allowed_tools: ["list_agents", "run_agent"],
+    });
   });
 
   it("says when a tool runs freely, and is removed from the dialog", async () => {

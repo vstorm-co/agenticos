@@ -17,6 +17,9 @@ const NOTION: McpToolInfo[] = [
   { name: "notion-create-pages", description: "Create pages" },
 ];
 
+/** Every tool the server offers today, as a list: no tool it adds later. */
+const EVERY_TOOL = NOTION.map((tool) => tool.name);
+
 function checklist(
   props: Partial<{
     tools: McpToolInfo[];
@@ -100,7 +103,7 @@ describe("McpToolChecklist", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
-  it("narrows one tool, a whole group, and back to every tool", async () => {
+  it("narrows one tool, a whole group, and back to today's tools only", async () => {
     const onChange = vi.fn();
     const { rerender } = render(checklist({ onChange }));
 
@@ -110,9 +113,37 @@ describe("McpToolChecklist", () => {
     await userEvent.click(screen.getByRole("checkbox", { name: "Every tool in Reads" }));
     expect(onChange).toHaveBeenLastCalledWith(["notion-create-pages"]);
 
+    // Every tool ticked again is not "and whatever comes": that is the switch's.
     rerender(checklist({ onChange, allowed: ["notion-create-pages"] }));
     await userEvent.click(screen.getByRole("checkbox", { name: "Every tool in Reads" }));
+    expect(onChange).toHaveBeenLastCalledWith(EVERY_TOOL);
+  });
+
+  it("takes tools the server adds later only while the switch says so", async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(checklist({ onChange }));
+    const takesNew = () => screen.getByRole("switch", { name: "Add tools the server gains later" });
+    expect(takesNew()).toBeChecked();
+
+    await userEvent.click(takesNew());
+    expect(onChange).toHaveBeenLastCalledWith(EVERY_TOOL);
+
+    rerender(checklist({ onChange, allowed: EVERY_TOOL }));
+    expect(takesNew()).not.toBeChecked();
+    expect(screen.getByText(/a tool the server adds later is left out/)).toBeInTheDocument();
+    await userEvent.click(takesNew());
     expect(onChange).toHaveBeenLastCalledWith(null);
+
+    // Turned on with a tool unticked, it would quietly give that tool back.
+    rerender(checklist({ onChange, allowed: ["notion-search"] }));
+    expect(takesNew()).toBeDisabled();
+    expect(screen.getByText(/Choose every tool to turn this on/)).toBeInTheDocument();
+  });
+
+  it("offers no switch before the server's tools are read", () => {
+    render(checklist({ tools: [] }));
+
+    expect(screen.queryByRole("switch")).toBeNull();
   });
 
   it("says the approval per group, as the binding's one setting", async () => {

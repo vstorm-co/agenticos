@@ -175,6 +175,12 @@ loses that tool rather than the agent losing the server. Null on either side
 means no narrowing from there, so a binding that names nothing gets whatever the
 connection allows, which is what every binding did before this existed.
 
+So a binding's null also takes every tool the server gains later. In the
+Builder, **Add tools the server gains later** says which a binding is: on, it is
+null; off, it lists today's tools and a tool added later stays out. Ticking every
+tool back after narrowing gives today's list, never null, and the switch turns on
+only with every tool ticked - a binding cannot say "these, and whatever comes".
+
 The Builder lists a server's tools from its **last successful probe**, recorded
 on the connection. Probing dials out to a third party and is gated on
 `connections:manage`; an agent author holds `agents:edit` and needs the list to

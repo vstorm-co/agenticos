@@ -1,5 +1,5 @@
 ---
-source_sha: "196f52ebd277"
+source_sha: "4842c6331c4f"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -189,6 +189,14 @@ vinculación pierde esa herramienta en lugar de que el agent pierda el servidor.
 Null en cualquiera de los dos lados significa que desde ahí no se estrecha nada,
 así que una vinculación que no nombra nada obtiene lo que la conexión permita, que
 es lo que hacía toda vinculación antes de que esto existiera.
+
+Así que el null de una vinculación también toma cada herramienta que el servidor
+gane después. En el Builder, **Añadir las herramientas que el servidor gane
+después** dice cuál de las dos es: encendido, es null; apagado, lista las
+herramientas de hoy y una añadida después queda fuera. Volver a marcar todas las
+herramientas tras acotar da la lista de hoy, nunca null, y el interruptor solo se
+enciende con todas marcadas - una vinculación no puede decir «estas, y lo que
+venga».
 
 El Builder lista las herramientas de un servidor a partir de su **último sondeo
 con éxito**, registrado en la conexión. Sondear marca hacia un tercero y está

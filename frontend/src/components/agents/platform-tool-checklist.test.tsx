@@ -204,7 +204,7 @@ describe("the platform's tools, grouped by what they work on", () => {
     expect(shown()).toEqual(["query_virtual_table"]);
   });
 
-  it("narrows by ticking, and every tool chosen again is no limit", async () => {
+  it("narrows by ticking, and every tool chosen again is today's tools only", async () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
 
@@ -213,9 +213,14 @@ describe("the platform's tools, grouped by what they work on", () => {
       ...BINDING,
       allowed_tools: ["run_agent", "list_agents"],
     });
+    expect(screen.getByRole("switch", { name: "Add tools the server gains later" })).toBeDisabled();
 
     await userEvent.click(screen.getByRole("checkbox", { name: "Every tool in Tables" }));
-    expect(onChange).toHaveBeenLastCalledWith({ ...BINDING, allowed_tools: null });
+    const today = TOOLS.map((tool) => tool.name);
+    expect(onChange).toHaveBeenLastCalledWith({ ...BINDING, allowed_tools: today });
+
+    await userEvent.click(screen.getByRole("switch", { name: "Add tools the server gains later" }));
+    expect(onChange).toHaveBeenLastCalledWith(BINDING);
   });
 });
 

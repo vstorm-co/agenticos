@@ -1,5 +1,5 @@
 ---
-source_sha: "196f52ebd277"
+source_sha: "4842c6331c4f"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -191,6 +191,14 @@ ausgeschlossen wurde — das Binding verliert dieses Tool, statt dass der Agent 
 Server verliert. Null auf einer der beiden Seiten heißt: von dort keine
 Eingrenzung; ein Binding, das nichts benennt, bekommt also, was die Connection
 erlaubt — genau das, was jedes Binding tat, bevor es dies gab.
+
+Null auf dem Binding nimmt also auch jedes Tool, das der Server später bekommt.
+Im Builder sagt **Tools hinzufügen, die der Server später bekommt**, welches von
+beiden ein Binding ist: an ist es null; aus listet es die Tools von heute, und ein
+später hinzugefügtes Tool bleibt draußen. Nach dem Eingrenzen wieder alle Tools
+anzuhaken ergibt die Liste von heute, nie null, und der Schalter lässt sich nur
+mit allen angehakten Tools einschalten - ein Binding kann nicht sagen „diese, und
+was noch kommt“.
 
 Der Builder listet die Tools eines Servers aus dessen **letzter erfolgreicher
 Prüfung**, die auf der Connection festgehalten ist. Eine Prüfung wählt nach außen

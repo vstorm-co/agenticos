@@ -9923,6 +9923,8 @@
     "loadTools": "Wczytaj narzędzia",
     "toolsAfterConnecting": "Narzędzia pojawią się po połączeniu konta {name}.",
     "toolsSearch": "Szukaj narzędzi",
+    "toolsAddNew": "Dodawaj narzędzia, które serwer zyska później",
+    "toolsAddNewHint": "{state, select, on {Narzędzie dodane później do serwera trafi do tego agenta samo.} narrowed {Agent zachowuje tylko narzędzia wybrane tutaj. Wybierz wszystkie narzędzia, aby to włączyć.} other {Agent zachowuje tylko narzędzia z tej listy; narzędzie dodane później do serwera zostaje pominięte.}}",
     "eachPersonsOwnAccountShort": "Każdy łączy własne; nie dla kluczy API, widżetu ani rutyn.",
     "connectYours": "Połącz swoje",
     "cardOrganizationsAccount": "Konto organizacji · {name}",

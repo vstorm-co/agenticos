@@ -6749,6 +6749,8 @@
     "loadTools": "Tool'larını yükle",
     "toolsAfterConnecting": "{name} hesabı bağlandığında tool'ları listelenir.",
     "toolsSearch": "Tool'larda ara",
+    "toolsAddNew": "Sunucunun sonradan eklediği tool'ları ekle",
+    "toolsAddNewHint": "{state, select, on {Sunucunun sonradan eklediği bir tool bu agent'a kendiliğinden ulaşır.} narrowed {Agent yalnızca burada seçilen tool'ları tutar. Bunu açmak için tüm tool'ları seçin.} other {Agent yalnızca burada listelenen tool'ları tutar; sonradan eklenen bir tool dışarıda kalır.}}",
     "eachPersonsOwnAccountShort": "Herkes kendi hesabını bağlar; API key'leri, widget veya rutinler için uygun değildir.",
     "connectYours": "Kendi hesabınızı bağlayın",
     "cardOrganizationsAccount": "Kuruluşun hesabı · {name}",

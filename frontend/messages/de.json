@@ -746,6 +746,8 @@
     "loadTools": "Tools laden",
     "toolsAfterConnecting": "Die Tools erscheinen, sobald ein {name}-Konto verbunden ist.",
     "toolsSearch": "Tools suchen",
+    "toolsAddNew": "Tools hinzufügen, die der Server später bekommt",
+    "toolsAddNewHint": "{state, select, on {Ein Tool, das der Server später hinzufügt, erreicht diesen Agenten von selbst.} narrowed {Der Agent behält nur die hier gewählten Tools. Wählen Sie alle Tools, um dies einzuschalten.} other {Der Agent behält nur die hier aufgeführten Tools; ein später hinzugefügtes Tool bleibt außen vor.}}",
     "eachPersonsOwnAccountShort": "Jede Person verbindet ihr eigenes; nicht für API-Schlüssel, Widget oder Routinen.",
     "connectYours": "Deins verbinden",
     "cardOrganizationsAccount": "Konto der Organisation · {name}",

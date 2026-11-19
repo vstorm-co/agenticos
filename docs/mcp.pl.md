@@ -1,5 +1,5 @@
 ---
-source_sha: "196f52ebd277"
+source_sha: "4842c6331c4f"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -186,6 +186,14 @@ powiązanie traci to narzędzie, a nie agent serwer. Null po którejkolwiek stro
 oznacza brak zawężenia z tej strony, więc powiązanie, które nie wymienia niczego,
 dostaje to, na co pozwala połączenie — czyli to, co robiło każde powiązanie,
 zanim to istniało.
+
+Null na powiązaniu bierze więc też każde narzędzie, które serwer zyska później.
+W Builderze przełącznik **Dodawaj narzędzia, które serwer zyska później** mówi,
+które to z dwóch: włączony to null; wyłączony to lista dzisiejszych narzędzi, a
+narzędzie dodane później zostaje poza nią. Zaznaczenie z powrotem wszystkich
+narzędzi po zawężeniu daje dzisiejszą listę, nigdy null, a przełącznik da się
+włączyć tylko przy wszystkich zaznaczonych - powiązanie nie umie powiedzieć „te,
+i cokolwiek dojdzie”.
 
 Builder wypisuje narzędzia serwera z jego **ostatniego udanego odpytania**,
 zapisanego na połączeniu. Odpytanie wydzwania do zewnętrznej firmy i jest

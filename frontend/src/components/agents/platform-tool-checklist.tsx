@@ -4,7 +4,13 @@ import { useState } from "react";
 import { Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { asksFirst, ToolGroup, type GroupApproval } from "@/components/agents/mcp-tool-checklist";
+import {
+  allowedAfterToggle,
+  asksFirst,
+  NewToolsSwitch,
+  ToolGroup,
+  type GroupApproval,
+} from "@/components/agents/mcp-tool-checklist";
 import { Input } from "@/components/ui";
 import type { McpToolInfo } from "@/lib/mcp-connections-api";
 import type { McpApproval, McpToolApproval, PlatformMcpServerRef } from "@/types/agents";
@@ -102,20 +108,8 @@ export function PlatformToolChecklist({
         delete own[name];
       }
     }
-    onChange(
-      withToolApproval(
-        {
-          ...binding,
-          // Every tool chosen is "no limit", so a tool added to the server later is
-          // offered to an agent whose author never narrowed the list.
-          allowed_tools:
-            next.size === tools.length
-              ? null
-              : tools.map((tool) => tool.name).filter((name) => next.has(name)),
-        },
-        own,
-      ),
-    );
+    const allowed = allowedAfterToggle(tools, binding.allowed_tools, next);
+    onChange(withToolApproval({ ...binding, allowed_tools: allowed }, own));
   };
   /**
    * These tools set to ask or not. The default becomes `all` when every read
@@ -160,6 +154,12 @@ export function PlatformToolChecklist({
 
   return (
     <div className="space-y-4">
+      <NewToolsSwitch
+        tools={tools}
+        allowed={binding.allowed_tools}
+        onChange={(allowed) => onChange({ ...binding, allowed_tools: allowed })}
+        disabled={disabled}
+      />
       <div className="relative">
         <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2" />
         <Input
