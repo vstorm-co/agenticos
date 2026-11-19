@@ -1115,10 +1115,10 @@ class TestDelegationCycles:
             agent_id=uuid4(),
         )
 
-        assert problems == [
+        assert (
             "This agent reaches more than 1 pinned delegate versions, which is more than "
             "publish can check. Delegate to fewer agents."
-        ]
+        ) in problems
 
 
 class TestAnAgentThatDoesNotDelegate:
@@ -1169,3 +1169,153 @@ class TestAnAgentThatDoesNotDelegate:
             ),
             agent_id=uuid4(),
         )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("separate_model", [False, True])
+async def test_personal_inline_specialists_validate_their_own_profile_without_an_org_key(
+    monkeypatch: pytest.MonkeyPatch,
+    separate_model: bool,
+) -> None:
+    from unittest.mock import patch
+
+    from app.db.models.credential import ModelProfile
+    from app.services.personal_model_key import PersonalModelKeyService
+
+    held = ModelProfile(
+        id=uuid4(),
+        provider="openai",
+        model="gpt-4.1",
+        base_url=None,
+        secret_id=None,
+        fallback_profile_ids=[],
+        api="chat",
+    )
+    monkeypatch.setattr(agent_registry.credential_repo, "get_profile", AsyncMock(return_value=held))
+    _repos(monkeypatch)
+    specialist = _specialist(model_profile_id=str(held.id))
+    if separate_model:
+        specialist["capabilities"] = [
+            {"id": "web_browser", "config": {"step_model_profile_id": str(uuid4())}}
+        ]
+    chosen = _delegating({"inline": [specialist]}).model_copy(
+        update={"model_credential_mode": "personal", "model_profile_id": held.id}
+    )
+    with patch.object(PersonalModelKeyService, "resolve", AsyncMock()) as key:
+        problems = await AgentRegistryService(_db())._delegation_problems(
+            _ctx(), chosen, agent_id=None
+        )
+    key.assert_not_awaited()  # Publishing never asks for the publisher's private key.
+    if separate_model:
+        assert any("separate capability models" in message for message in problems.messages)
+    else:
+        assert problems.messages == []
+
+
+@pytest.mark.security
+async def test_sharing_a_separate_step_model_with_a_personal_delegate_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ctx = _ctx()
+    delegate = _published(ctx, "Personal")
+    version = _version(delegate.id, spec=_spec(name="Personal", model_credential_mode="personal"))
+    _repos(monkeypatch, agents=_agents(delegate), versions=_versions(version))
+    chosen = _delegating(
+        {"share_with_delegates": ["web_browser"]},
+        subagents=[_pin(delegate.id, version.id)],
+        capabilities=[{"id": "web_browser", "config": {"step_model_profile_id": str(uuid4())}}],
+    )
+    problems = await AgentRegistryService(_db())._delegation_problems(ctx, chosen, agent_id=None)
+    assert any("separate capability models" in message for message in problems.messages)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("personal_root", [False, True])
+@pytest.mark.parametrize("same_profile", [False, True])
+@pytest.mark.parametrize("nested", [False, True])
+async def test_publish_checks_personal_consent_across_the_reachable_pinned_tree(
+    monkeypatch: pytest.MonkeyPatch,
+    personal_root: bool,
+    same_profile: bool,
+    nested: bool,
+) -> None:
+    ctx = _ctx()
+    profile = uuid4()
+    leaf_id, middle_id = uuid4(), uuid4()
+    leaf = _version(
+        leaf_id,
+        spec=_spec(
+            name="Personal leaf",
+            model_credential_mode="personal",
+            model_profile_id=str(profile if same_profile else uuid4()),
+        ),
+    )
+    middle = _version(
+        middle_id,
+        spec=_delegating(
+            {},
+            subagents=[_pin(leaf_id, leaf.id)],
+            name="Organization middle",
+        ),
+    )
+    _repos(monkeypatch, versions=_versions(leaf, middle))
+    root = _delegating(
+        {"max_depth": 2},
+        subagents=[_pin(middle_id, middle.id) if nested else _pin(leaf_id, leaf.id)],
+    ).model_copy(
+        update={
+            "model_profile_id": profile,
+            "model_credential_mode": "personal" if personal_root else "organization",
+        }
+    )
+    registry = AgentRegistryService(_db())
+    problems = await registry.personal_delegation_problems(ctx, root)
+    assert bool(problems) is not (personal_root and same_profile)
+    if not personal_root:
+        with pytest.raises(BadRequestError, match="personal web chat"):
+            await registry.require_organization_spec(ctx, root)
+    if nested:
+        root.capabilities[0].config["max_depth"] = 1
+        assert await registry.personal_delegation_problems(ctx, root) == []
+
+
+@pytest.mark.security
+async def test_personal_consent_walk_handles_repeated_and_missing_pins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ctx = _ctx()
+    leaf_id, middle_id = uuid4(), uuid4()
+    leaf = _version(leaf_id, spec=_spec(name="Leaf"))
+    pin = _pin(leaf_id, leaf.id)
+    middle = _version(middle_id, spec=_delegating({}, subagents=[pin]))
+    missing = _pin(uuid4(), uuid4())
+    _repos(monkeypatch, versions=_versions(leaf, middle))
+    root = _delegating({"max_depth": 2}, subagents=[pin, _pin(middle_id, middle.id), missing])
+    root.subagents.append(root.subagents[0])
+    registry = AgentRegistryService(_db())
+    assert await registry.personal_delegation_problems(ctx, root) == []
+    await registry.require_organization_spec(ctx, root)
+
+
+@pytest.mark.security
+async def test_promotion_refuses_a_legacy_organization_root_with_personal_delegates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ctx = _ctx()
+    leaf = _version(uuid4(), spec=_spec(name="Personal", model_credential_mode="personal"))
+    root = _version(uuid4(), spec=_delegating({}, subagents=[_pin(leaf.agent_id, leaf.id)]))
+    _repos(monkeypatch, versions=_versions(leaf))
+    with pytest.raises(BadRequestError) as refused:
+        await AgentRegistryService(_db()).refuse_borrowed_sign_ins(ctx, root)
+    assert refused.value.code == "PERSONAL_MODEL_CONSENT"
+
+
+@pytest.mark.security
+async def test_personal_inline_specialist_cannot_select_an_unapproved_profile() -> None:
+    root = _delegating({"inline": [_specialist(model_profile_id=str(uuid4()))]}).model_copy(
+        update={"model_credential_mode": "personal"}
+    )
+    problems = await AgentRegistryService(_db()).personal_delegation_problems(_ctx(), root)
+    assert len(problems) == 1
+    assert "Specialist 'summariser'" in problems[0]
+    assert "same model connection" in problems[0]

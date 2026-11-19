@@ -35,7 +35,7 @@ A spec binds a service one of two ways (`McpServerRef` in `app/agents/spec.py`).
 `OrgMcpServerRef` is the organization's connection, answering for everybody.
 `PersonalMcpServerRef` names a catalog key: `build_toolsets_for_agent` looks up
 the *sender's* own connection by that key on every turn - the message's author,
-never the thread's - and where there is none (an API key, the widget, a
+never the thread's - and where there is none (an API key without explicit `mcp:personal:use`, the widget, a
 schedule, an unlinked chat sender) reports the gap instead of skipping the
 server, and `_with_personal_service_gaps` in the runner tells the model what is
 missing and where the person connects it. A member's connection is never named

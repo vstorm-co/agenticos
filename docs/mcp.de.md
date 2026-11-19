@@ -1,5 +1,5 @@
 ---
-source_sha: "26c768f37399"
+source_sha: "ebae77dba31c"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -293,7 +293,7 @@ einem Channel zu verknüpfen, es dem Channel zu übergeben.
 
 !!! info "Wo niemand spricht, fehlen die Tools — und der Agent sagt es"
 
-    Ein API-Key, das eingebettete Widget, ein Zeitplan, ein Trigger und ein
+    Ein API-Key ohne [ausdrückliche MCP-Delegierung](api.md#explicit-personal-mcp-delegation), das eingebettete Widget, ein Zeitplan, ein Trigger und ein
     Channel-Absender, der sein Chat-Konto nicht verknüpft hat, haben kein Konto,
     durch das sie sprechen könnten. Der Run läuft ohne diesen Server weiter, jedes
     andere Binding intakt, und seinen Instruktionen wird eine Zeile hinzugefügt,

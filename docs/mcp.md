@@ -266,7 +266,7 @@ channel.
 
 !!! info "Where nobody is talking, the tools are absent — and the agent says so"
 
-    An API key, the embedded widget, a schedule, a trigger and a channel sender
+    An API key without [explicit personal MCP delegation](api.md#explicit-personal-mcp-delegation), the embedded widget, a schedule, a trigger and a channel sender
     who has not linked their chat account have no account to speak through. The
     run proceeds without that server, every other binding intact, and one line
     is added to its instructions saying which service is missing and why — so

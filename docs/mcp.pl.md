@@ -1,5 +1,5 @@
 ---
-source_sha: "26c768f37399"
+source_sha: "ebae77dba31c"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -286,7 +286,7 @@ oddawałoby go kanałowi.
 
 !!! info "Gdzie nikt nie rozmawia, narzędzi nie ma — i agent to mówi"
 
-    Klucz API, osadzony widget, harmonogram, trigger i nadawca z kanału, który
+    Klucz API bez [jawnego delegowania MCP](api.md#explicit-personal-mcp-delegation), osadzony widget, harmonogram, trigger i nadawca z kanału, który
     nie powiązał swojego konta czatu, nie mają konta, przez które mogliby mówić.
     Run idzie dalej bez tego serwera, z nietkniętymi pozostałymi powiązaniami,
     a do jego instrukcji dokładany jest jeden wiersz mówiący, której usługi

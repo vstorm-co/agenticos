@@ -326,7 +326,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     test: probeMcpConnection,
     isLoading: connectionsLoading,
     error: connectionsError,
-  } = useOrgMcpConnections();
+  } = useOrgMcpConnections({ enabled: can(Perm.mcpManage) });
   const [connectingServer, setConnectingServer] = useState<McpCatalogEntry | null>(null);
   const [connectingOwnServer, setConnectingOwnServer] = useState<McpCatalogEntry | null>(null);
   const connectServer = useConnectEntry("organization", {
@@ -508,7 +508,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // each defaults to `[]` while loading and stays `[]` when the request fails, so
   // gating on "no longer loading" alone would still declare every reference stale
   // when a list 403s - which the org-connections read does for an editor without
-  // `connections:manage` (#1472).
+  // `mcp:manage` (#1472).
   const referenceListsLoaded =
     !collectionsLoading &&
     !collectionsError &&
@@ -516,6 +516,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     !contextError &&
     !skillsLoading &&
     !skillsError &&
+    can(Perm.mcpManage) &&
     !connectionsLoading &&
     !connectionsError &&
     !catalogLoading &&
@@ -1449,7 +1450,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <DialogTitle>{t("connectMcpServer")}</DialogTitle>
               <DialogDescription>{t("connectServerOrganizationBecomes")}</DialogDescription>
             </DialogHeader>
-            <McpServerList canManageOrganization={can(Perm.connectionsManage)} />
+            <McpServerList canManageOrganization={can(Perm.mcpManage)} />
           </DialogContent>
         </Dialog>
 
@@ -1992,7 +1993,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     than a second copy of the connect form - one flow, one set
                     of refusals, and the connection it creates lands in the same
                     cache this picker reads. */}
-                  {can(Perm.connectionsManage) && (
+                  {can(Perm.mcpManage) && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -2041,7 +2042,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     try {
                       const { connection: probed, error } = await toolsForBinding(
                         connection,
-                        can(Perm.connectionsManage) ? probeMcpConnection : null,
+                        can(Perm.mcpManage) ? probeMcpConnection : null,
                       );
                       if (error !== null) toast.error(error);
                       setToolPicker(toolChoice(ref, probed, name));

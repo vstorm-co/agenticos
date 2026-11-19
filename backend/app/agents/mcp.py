@@ -26,10 +26,10 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncGenerator, Iterable, Mapping, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 from uuid import UUID
 
 import httpx2
@@ -194,6 +194,15 @@ MAX_INPUT_SCHEMA_BYTES = 20_000
 
 
 @dataclass(frozen=True)
+class McpSourceIdentity:
+    """A consented endpoint and credential generation, without credential contents."""
+
+    endpoint_hash: str
+    authorization_generation: UUID
+    tool_prefix: str | None = None
+
+
+@dataclass(frozen=True)
 class McpServerSpec:
     """Transport-level description of one MCP server to attach to a run."""
 
@@ -224,18 +233,11 @@ class McpServerSpec:
     # Both personal and organization accounts; independent of usage tracking.
     source_connection_id: UUID | None = None
     authorization_generation: UUID | None = None
+    # An environment replacement still owes the production account its ceiling.
+    ceiling_source: tuple[UUID, McpSourceIdentity] | None = None
     # Tools, by the name the server gives them, that never wait for approval
     # whatever `approval` says. Only this deployment's own server names any.
     ungated: frozenset[str] = frozenset()
-
-
-@dataclass(frozen=True)
-class McpSourceIdentity:
-    """A consented endpoint and credential generation, without credential contents."""
-
-    endpoint_hash: str
-    authorization_generation: UUID
-    tool_prefix: str | None = None
 
 
 MCP_ORIGIN = "agenticos_mcp_origin"
@@ -251,6 +253,34 @@ class McpToolOrigin:
 def tool_origin(tool: ToolDefinition) -> McpToolOrigin | None:
     origin = (tool.metadata or {}).get(MCP_ORIGIN)
     return origin if isinstance(origin, McpToolOrigin) else None
+
+
+@dataclass
+class AuthorityChecked(WrapperToolset[Any]):
+    """Recheck delegated authority before connecting, discovery and tool execution."""
+
+    check: Callable[[], Awaitable[None]]
+
+    async def __aenter__(self) -> Self:
+        await self.check()
+        await super().__aenter__()
+        return self
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        await self.check()
+        return await super().get_tools(ctx)
+
+    async def get_instructions(
+        self, ctx: RunContext[Any]
+    ) -> str | InstructionPart | Sequence[str | InstructionPart] | None:
+        await self.check()
+        return await super().get_instructions(ctx)
+
+    async def call_tool(
+        self, name: str, tool_args: dict[str, Any], ctx: RunContext[Any], tool: ToolsetTool[Any]
+    ) -> Any:
+        await self.check()
+        return await super().call_tool(name, tool_args, ctx, tool)
 
 
 @dataclass

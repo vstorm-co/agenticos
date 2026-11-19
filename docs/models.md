@@ -27,7 +27,13 @@ A signed-in member opens the agent in web chat and connects their key through th
 
 The private-key form submits the expected profile, provider, endpoint and model shown to the user. If that destination changes before saving, the server refuses the key with a conflict; the form reloads the destination and clears the typed key before another attempt.
 
-Personal mode currently excludes channels (private and group), widgets, hosted pages, HTTP API runs, schedules, triggers, background topics, voice, reviewers, delegation and separate capability models. Pause or remove active channels, public surfaces and routines before publishing this mode. Creating or reactivating an incompatible surface is refused, and the runtime enforces the same rule. Hosted pages and widget JWTs do not identify a signed-in member of the instance.
+Personal mode currently excludes channels (private and group), widgets, hosted pages, HTTP API runs, schedules, triggers, background topics, voice, reviewers and separate capability models. Pause or remove active channels, public surfaces and routines before publishing this mode. Creating or reactivating an incompatible surface is refused, and the runtime enforces the same rule. Hosted pages and widget JWTs do not identify a signed-in member of the instance.
+
+Delegation is supported in signed-in web chat. A personal-mode subagent must use the exact model profile selected on a personal-mode root agent. Organization-mode parents cannot spend personal keys, and personal delegates cannot select another model or endpoint. These limits are checked at publication, surface admission, promotion and runtime, including nested delegations and approval resumes.
+
+Organization-mode delegates retain their own credentials. Inline specialists inherit their parent's mode; dynamic specialists in personal mode stay on their parent's configured model. Personal MCP access keeps its existing caller boundaries.
+
+A missing subagent connection names the agent and model connection. Open that agent's chat settings to connect your key; ask its owner for access if it is not visible. The runner checks the delegation tree before model calls and checks again on resume. A key for another endpoint, another member's key or an approver's key never substitutes for the caller's missing connection.
 
 Credentials are encrypted for their owner in the vault, and are deleted when their membership or user account is removed. Changing the approved endpoint requires a new connection. Rotating one member's key does not change another member's key or the shared model profile.
 

@@ -19,7 +19,12 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator, record_audit
-from app.core.exceptions import AuthenticationError, InternalError, NotFoundError
+from app.core.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    InternalError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.api_key import ApiKey
@@ -151,7 +156,11 @@ class ApiKeyService:
             presets.append(ApiKeyPreset(id="knowledge_ingest", scopes=sorted(_KNOWLEDGE_INGEST)))
         # Standing personal consent is a separate, informed opt-in, including
         # when the person chooses the broad organization-access preset.
-        ordinary = [perm.value for perm in held if perm is not Perm.PERSONAL_CONSENT]
+        ordinary = [
+            perm.value
+            for perm in held
+            if perm not in {Perm.PERSONAL_CONSENT, Perm.MCP_PERSONAL_USE}
+        ]
         if ordinary:
             presets.append(ApiKeyPreset(id="full_access", scopes=ordinary))
         return ApiKeyScopeCatalog(scopes=[perm.value for perm in held], presets=presets)
@@ -169,6 +178,8 @@ class ApiKeyService:
             raise refused_field(
                 "scopes", f"You cannot grant what you do not hold: {', '.join(refused)}"
             )
+        if Perm.MCP_PERSONAL_USE in data.scopes and current_impersonator() is not None:
+            raise AuthorizationError(message="Personal MCP delegation requires your own session")
         now = datetime.now(UTC)
         if data.expires_at is not None and data.expires_at <= now:
             raise refused_field("expires_at", "The expiry has to be in the future")
@@ -392,6 +403,22 @@ class ApiKeyService:
         if key is None:
             raise AuthenticationError(message=_REFUSED)
         return (await self._caller(key, datetime.now(UTC), started_earlier=True)).context
+
+    async def personal_mcp_context(
+        self, key_id: UUID, *, organization_id: UUID, user_id: UUID
+    ) -> AuthContext:
+        """Recheck the original credential before using delegated personal MCP.
+
+        Owner and organization come from trusted run state, never tool arguments.
+        Expiry, revocation, active membership and current role are checked anew.
+        """
+        key = await api_key_repo.get(self.db, key_id, organization_id=organization_id)
+        if key is None:
+            raise AuthenticationError(message=_REFUSED)
+        ctx = (await self._caller(key, datetime.now(UTC))).context
+        if ctx.user_id != user_id or not ctx.may_delegate_personal_mcp:
+            raise AuthorizationError(message="Personal MCP delegation is no longer authorized")
+        return ctx
 
     async def _caller(
         self, key: ApiKey, now: datetime, *, started_earlier: bool = False
