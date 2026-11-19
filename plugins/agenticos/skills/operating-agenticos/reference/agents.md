@@ -26,7 +26,7 @@ Write instructions as a working contract: role, source precedence, decision poli
 2. `agenticos:create_agent_draft` with `name`, `instructions` and the bindings. `ask_user` and `drafts` are always included.
 3. `agenticos:get_agent` returns `draft_spec`, `draft_revision` and the published `current_version_id`. Published `starters` are top-level; a draft's are in `draft_spec.starters`.
 
-`agenticos:get_agent` does not return the published spec, and its summary fields (`published_capabilities`, `published_model`, `channels`) can be empty where `agenticos:list_agents` fills them. A publish ships every pending draft edit, not only the one just made: before editing a published agent, tell the user the draft may already differ from what is live.
+`agenticos:get_agent` does not return the published spec. On contract-1 servers, use `list_agent_versions` and `get_agent_version` for the immutable published side. Its summary fields (`published_capabilities`, `published_model`, `channels`) can be empty where `agenticos:list_agents` fills them. A publish ships every pending draft edit, not only the one just made: before editing a published agent, tell the user the draft may already differ from what is live.
 
 `agenticos:update_agent_draft` changes only what is passed, with these whole-value replacements:
 
@@ -61,7 +61,7 @@ Start with the capabilities the job requires. Each extra tool costs context on e
 | `platform` | nothing else | Whoever the agent runs for, on this same MCP server | built in |
 
 - Never put a personal connection ID in a spec. Personal bindings name the catalog key.
-- Personal and platform bindings are absent where nobody is asking: an API key, a public widget, a schedule acting for nobody.
+- Platform bindings are absent when no real caller lends authority, such as a public widget or a schedule acting for nobody. External API runs can use the issuer's personal connections only with explicit `mcp:personal:use`; inspect the connection scopes and the intended run surface.
 - Narrow with `allowed_tools`. Inspect names with `agenticos:list_mcp_connection_tools` and one contract with `agenticos:get_mcp_connection_tool`. Both read the last recorded catalog, not live health.
 - Set `approval: "writes"` or `"all"` for servers the organization does not control. `writes` trusts the server's own read-only hints.
 - A service with no connection yet is connected by a person in the console at `/mcp-servers?connect=<key>`.
@@ -88,7 +88,7 @@ Test an ordinary request, a request the sources cannot answer, a refused access 
 
 ## Publish
 
-`agenticos:publish_agent` runs the console's publish checks and makes the draft live on every surface at once. A refusal says what to fix. Pass a `note` saying why the version exists. Publish only when the user asked; then read the agent back and report the new `current_version_id`.
+`agenticos:publish_agent` runs the console's publish checks and mints a version; environments and `tracks_latest` decide which surfaces start serving it. A refusal says what to fix. Pass a `note` saying why the version exists. Publish only when the user asked; then read the agent back and report the new `current_version_id`.
 
 ## Run a published agent
 

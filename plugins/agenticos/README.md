@@ -1,6 +1,6 @@
 # AgenticOS plugin for Claude
 
-A Claude plugin with one skill, `operating-agenticos`, that teaches Claude to operate an AgenticOS organization through the deployment's own MCP server.
+A Claude plugin for the path from an upstream checkout or fork to a verified deployment, configured organization, tested agent release and reusable solution. The operating skill uses the deployment's own MCP server; installation and host maintenance use an authorized terminal or CI executor.
 
 The MCP server already describes each tool. The skill adds what the tool list does not: which mechanism fits a request, the order of operations, the rules that keep writes safe, what the connection cannot do, and a catalogue of use cases to offer.
 
@@ -83,3 +83,26 @@ Four fresh Claude sessions then used the skill on the scenarios in `evaluations/
 The MCP tool descriptions are the contract; the skill deliberately does not restate parameters. Update it when a tool is added, removed or renamed, when a permission changes, or when the server gains or loses an ability listed under "What the connection cannot do".
 
 `evaluations/` holds scenarios in the format the [skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) describe. Run them against a test organization with and without the plugin when changing the skill.
+
+## Lifecycle skills and reusable solutions
+
+- `getting-started-agenticos`: choose the adoption path and connect the intended organization.
+- `developing-agenticos`: maintain a fork, publish its images and update from upstream.
+- `deploying-agenticos`: install, verify, update and recover a deployment.
+- `operating-agenticos`: work with resources and investigate recorded runs.
+- `releasing-agenticos-resources`: datasets, evals, staging, promotion and rollback.
+- `building-agenticos-solutions`: adapt a bundle or build the user's own case from discovered platform features.
+
+The baseline was tested with server 1.82.2. Lifecycle tools use MCP contract 1;
+read `get_platform_context` rather than assuming a server version has a feature.
+See [compatibility.json](compatibility.json). New assistant-only operations need
+OAuth with the corresponding scopes; ordinary organization API keys retain their
+existing public API boundary.
+
+[Support](solutions/support.json), [repository work](solutions/repository.json) and
+[onboarding](solutions/onboarding.json) are draft-only example bundles. Review and
+plan the exact manifest, then install using its hash and a caller-scoped installation
+key. Installation is atomic and retries replay the receipt. It never publishes,
+runs, schedules or indexes; external model and embedding dependencies remain
+explicit. Read back and test resources before release. Credentials are entered in
+the console, never in a bundle or conversation.

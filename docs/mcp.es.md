@@ -1,5 +1,5 @@
 ---
-source_sha: "775173862ab0"
+source_sha: "9e538473cdb9"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1520,3 +1520,11 @@ Los índices corresponden a esa transcripción filtrada. Devuelve ventanas acota
 La búsqueda por nombre para Improve revisa todas las páginas antes de elegir una coincidencia o indicar ambigüedad; los primeros 100 agentes no se consideran el catálogo completo.
 
 `read_conversation` usa las mismas ventanas acotadas de mensajes y metadatos que la inspección de ejecuciones, con 10 mensajes por defecto. `read_conversation_tool_call` lee una carga registrada concreta, también de mensajes antiguos sin identificador de ejecución, mediante la API de conversaciones propias sin ampliar permisos. Los clientes MCP deben seguir las continuaciones de las ventanas en vez de esperar todos los resultados de herramientas dentro de la transcripción.
+
+## Plugin del cliente de IA y ciclo de gestión { #ai-client-plugin-and-lifecycle-tools }
+
+La [guía del cliente de IA](howto/operate-with-ai.md) explica cómo instalar el
+plugin, configurar dependencias, publicar agentes con evals y entornos e instalar
+paquetes revisados. El contrato 1 distingue funciones del servidor y scopes.
+Las referencias del vault muestran IDs y metadatos, sin valores ni fragmentos;
+los secretos se introducen en la consola. Las nuevas operaciones del asistente requieren OAuth.

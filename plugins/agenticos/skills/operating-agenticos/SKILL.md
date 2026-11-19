@@ -9,11 +9,11 @@ The AgenticOS MCP server (`/mcp` on a deployment) acts as the member who connect
 
 ## Tool names
 
-This skill writes tools as `agenticos:<tool>`. The server name is whatever the connection was called, so match on the tool name: `agenticos:whoami` may appear as `mcp__agenticos__whoami` or `mcp__claude_ai_<connector>__whoami`. If no such tools are connected, stop and point the user at [README.md](../../README.md) for setup.
+This skill writes tools as `agenticos:<tool>`. The server name is whatever the connection was called, so match on the tool name: `agenticos:whoami` may appear as `mcp__agenticos__whoami` or `mcp__claude_ai_<connector>__whoami`. If no such tools are connected, continue with the getting-started or deployment skill when the user asked for setup; otherwise point at [README.md](../../README.md).
 
 ## Start here
 
-1. Call `agenticos:whoami` once per session. It returns the organization ID, the role and the permission list: check a request against them before starting it. It does not say how the connection signed in or which OAuth scopes it holds; those limits show only as a refusal.
+1. Call `agenticos:whoami` once per session. If `get_platform_context` is advertised, read its contract version, features, authentication and granted scopes before lifecycle work. It returns the organization ID, the role and the permission list: check a request against them before starting it. On older servers without context discovery, authentication limits may only appear as a refusal.
 2. Find the resource with its `list_*` tool, then read it with its `get_*` tool. Listings return summaries only.
 3. Treat each tool's own description and schema as the contract. This skill supplies the map, the order of operations and the judgment; it does not restate parameters.
 
@@ -27,14 +27,14 @@ This skill writes tools as `agenticos:<tool>`. The server name is whatever the c
 - **Say what will change before a write.** Writes land in a live organization. Publishing, inviting, starting runs and creating automations are the user's decisions: name the effect, then call.
 - **"Waits for approval"** in a tool description is about agents inside AgenticOS. From an MCP client, this client's own permission prompt is the approval, so the statement to the user before the call is what makes it informed.
 - **Quote the price before spending.** Improve sessions, skill checks and knowledge drafts each have an `estimate_*` tool. Run it and tell the user the price and the limit. Then give the spending step what its schema asks for: session steps take `budget_usd` (the session's limit), the estimate's `total_usd` as `estimate_usd`, and its `candidate_hash`; a skill update check takes neither, and a catch-up takes only `budget_usd`.
-- **Read back consequential writes** before claiming success: `agenticos:get_agent` after a publish, `agenticos:get_workflow_execution_steps` after a workflow test, `agenticos:list_routines` after creating a routine.
+- **Read back consequential writes** before claiming success: `agenticos:get_agent` and environment pointers after a publish, `agenticos:get_workflow_execution_steps` after a workflow test, `agenticos:list_routines` after creating a routine.
 - **Draft, test, then publish.** A draft changes nothing live. Testing still makes real model calls and, for workflows, real external calls.
 
 ## What the connection cannot do
 
 Do not promise these; send the user to the console instead.
 
-- Create, read or rotate credentials. Model keys, embedding keys and MCP tokens are set in the console.
+- Create, read or rotate credential values. Use `list_secret_references` for authorized IDs and metadata, and `get_setup_link` for secure entry in the console. Model profiles and organization embedding endpoints can be configured through contract-1 lifecycle tools.
 - Delete agents, workflows, tables, knowledge bases, skills or documents. The only deletions are an unpublished agent draft the caller created, a routine, a watch and a table record.
 - Upload binary documents. `agenticos:add_document` takes text content (`.md`, `.txt`).
 - Read the Inbox from an external MCP client. `agenticos:list_inbox_cases` and `agenticos:settle_inbox_case` need the person's own chat or console session.
@@ -42,8 +42,8 @@ Do not promise these; send the user to the console instead.
 - Discover channel bots or chat IDs. A workflow's Slack, Telegram or Mattermost step needs a `bot_id` and a channel ID that no tool lists: the user picks the bot in the workflow editor or supplies both.
 - Approve personal routines or watches unless the connection was authorized with the `personal:consent` scope.
 - Run Improve and eval tools through an organization API key. They need a connection signed in with OAuth. A harmless probe is `agenticos:list_improvements`: an API key is refused there.
-- Create datasets (test question sets) or automatic checks. Improve needs one that `agenticos:list_datasets` already shows; the user makes it in the console.
-- List vault secrets or embedding endpoints. The user supplies the ID. A model profile's `secret_id` from `agenticos:list_models` is a chat key and is not an embedding key.
+- On baseline servers, create datasets or automatic checks. Contract-1 servers support dataset creation, scored cases, eval runs and suites; use the release skill.
+- Read vault values. Contract-1 tools discover secret references and embedding endpoints. A model profile's `secret_id` is a chat key and is not automatically an embedding key.
 
 ## Choosing the mechanism
 
@@ -77,7 +77,7 @@ Reading the error: `ToolLoopStopped` is the loop guard ending a run that repeate
 2. `agenticos:create_agent_draft`.
 3. `agenticos:test_agent_draft`. A refusal names what blocks publishing. `status: awaiting_answer` means the agent asked a question: continue with `agenticos:answer_agent_questions` using the user's real answer.
 4. Fix with `agenticos:update_agent_draft` and test again until the answers are right.
-5. `agenticos:publish_agent` only when the user asks for it.
+5. `agenticos:publish_agent` within the user's requested scope. Inspect environments first: publishing only reaches surfaces that follow that version.
 
 Full detail, bindings and Improve: [reference/agents.md](reference/agents.md).
 

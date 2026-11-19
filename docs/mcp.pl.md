@@ -1,5 +1,5 @@
 ---
-source_sha: "775173862ab0"
+source_sha: "9e538473cdb9"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1475,3 +1475,11 @@ Indeksy wiadomości dotyczą przefiltrowanej transkrypcji. Zwraca ograniczone ok
 Wyszukiwanie agenta po nazwie w Improve sprawdza wszystkie strony przed wyborem lub zgłoszeniem niejednoznaczności; pierwsze 100 agentów nie jest uznawane za cały katalog.
 
 `read_conversation` stosuje te same ograniczone okna wiadomości i metadanych wywołań co analiza runów, domyślnie po 10 wiadomości. `read_conversation_tool_call` czyta wybrany zapisany wynik, także w starszych wiadomościach bez identyfikatora runu, przez niezmienione API własnych rozmów. Klienci MCP muszą korzystać ze wskaźników kontynuacji zamiast oczekiwać pełnych wyników narzędzi w transkrypcji.
+
+## Plugin klienta AI i cykl zarządzania { #ai-client-plugin-and-lifecycle-tools }
+
+[Przewodnik klienta AI](howto/operate-with-ai.md) opisuje instalację pluginu,
+konfigurację zależności, wydawanie agentów przez evale i środowiska oraz instalację
+sprawdzonych pakietów. Odkrywanie kontraktu 1 rozróżnia funkcje serwera od scopes.
+Referencje vaultu zwracają ID i metadane, bez wartości ani końcówek kluczy;
+sekrety wprowadza się w konsoli. Nowe operacje tylko dla asystenta wymagają OAuth.

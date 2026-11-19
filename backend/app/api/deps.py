@@ -2504,3 +2504,13 @@ def get_personal_model_key_service(db: DBSession) -> PersonalModelKeyService:
 
 
 PersonalModelKeySvc = Annotated[PersonalModelKeyService, Depends(get_personal_model_key_service)]
+
+
+from app.services.solution import SolutionService
+
+
+def get_solution_service(db: DBSession) -> SolutionService:
+    return SolutionService(db)
+
+
+SolutionSvc = Annotated[SolutionService, Depends(get_solution_service)]

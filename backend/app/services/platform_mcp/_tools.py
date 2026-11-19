@@ -41,6 +41,7 @@ from app.schemas.virtual_table import (
 )
 from app.schemas.workflow import NodeCatalog, WorkflowPreparationCreate
 from app.services.platform_mcp._api import PlatformApi
+from app.services.platform_mcp._lifecycle import lifecycle_operations
 from app.services.workflow_execution import context as workflow_context
 from app.workflows.contracts.input_schema import MAX_DISCOVERY_BYTES
 from app.workflows.contracts.payload import PayloadTooLarge, json_byte_size
@@ -4347,4 +4348,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     return tuple(
         PlatformTool(name=function.__name__, function=function, writes=writes)
         for function, writes in operations
+    ) + tuple(
+        PlatformTool(name=name, function=function, writes=writes)
+        for name, function, writes in lifecycle_operations(api)
     )

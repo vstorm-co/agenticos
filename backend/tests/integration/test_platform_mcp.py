@@ -1115,3 +1115,278 @@ async def test_platform_initialization_outliving_remote_connect_deadline_still_l
         tools = await toolset.get_tools(_run_context())
     assert "agenticos_whoami" in tools
     assert not first
+
+
+async def _oauth_owner_key(db: AsyncSession, *scopes: Perm) -> tuple[str, Organization]:
+    from datetime import UTC, datetime, timedelta
+
+    from app.db.models.oauth import OAuthClient, OAuthGrant
+
+    _plain, org = await _owner_key(db, *scopes)
+    client_id = uuid.uuid4().hex
+    db.add(OAuthClient(client_id=client_id, info={"client_name": "Lifecycle test"}))
+    await db.flush()
+    grant = OAuthGrant(
+        client_id=client_id,
+        user_id=org.created_by_user_id,
+        organization_id=org.id,
+        scopes=[scope.value for scope in scopes],
+    )
+    db.add(grant)
+    await db.flush()
+    token = await ApiKeyService(db).issue_for_grant(
+        grant_id=grant.id,
+        organization_id=org.id,
+        user_id=org.created_by_user_id,
+        client_name="Lifecycle test",
+        scopes=[scope.value for scope in scopes],
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    await db.commit()
+    return token, org
+
+
+@pytest.mark.security
+async def test_oauth_can_create_and_read_a_dataset_through_mcp(
+    db: AsyncSession, served: None
+) -> None:
+    key, org = await _oauth_owner_key(db, Perm.DATASETS_VIEW, Perm.DATASETS_EDIT)
+    async with _connected(key) as session:
+        context = _content(await session.call_tool("get_platform_context", {}))
+        assert context["authentication"] == "mcp"
+        assert context["organization_id"] == str(org.id)
+        assert context["granted_scopes"] == ["datasets:edit", "datasets:view"]
+        assert context["mcp_contract_version"] == 1
+        created = _content(
+            await session.call_tool(
+                "create_dataset", {"dataset": {"name": "MCP test", "visibility": "private"}}
+            )
+        )
+        case = await session.call_tool(
+            "add_dataset_case",
+            {
+                "dataset_id": created["id"],
+                "case": {"input": "Refund?", "checks": [{"type": "contains", "value": "14"}]},
+            },
+        )
+        assert not case.is_error
+        cases = _content(
+            await session.call_tool("list_dataset_cases", {"dataset_id": created["id"]})
+        )
+        assert cases["total"] == 1 and cases["items"][0]["input"] == "Refund?"
+    other, _ = await _oauth_owner_key(db, Perm.DATASETS_VIEW, Perm.DATASETS_EDIT)
+    async with _connected(other) as session:
+        assert (await session.call_tool("get_dataset", {"dataset_id": created["id"]})).is_error
+        assert (
+            await session.call_tool(
+                "add_dataset_case",
+                {
+                    "dataset_id": created["id"],
+                    "case": {"input": "Other?", "reference_answer": "No"},
+                },
+            )
+        ).is_error
+
+
+@pytest.mark.security
+async def test_an_ordinary_key_cannot_use_new_assistant_routes(
+    db: AsyncSession, served: None
+) -> None:
+    key, _ = await _owner_key(
+        db, Perm.DATASETS_VIEW, Perm.DATASETS_EDIT, Perm.SECRETS_VIEW, Perm.CONNECTIONS_MANAGE
+    )
+    async with _connected(key) as session:
+        for name, arguments in [
+            ("create_dataset", {"dataset": {"name": "Refused"}}),
+            ("list_secret_references", {}),
+            ("list_model_providers", {}),
+        ]:
+            result = await session.call_tool(name, arguments)
+            assert result.is_error and "API keys are not accepted" in result.content[0].text
+
+
+@pytest.mark.security
+async def test_vault_reference_discovery_never_returns_a_hint_or_foreign_key(
+    db: AsyncSession, served: None
+) -> None:
+    from pydantic import SecretStr
+
+    from app.core.secret_kinds import ApiKeySecret
+    from app.services.organization_secret import OrganizationSecretService
+
+    key, org = await _oauth_owner_key(db, Perm.SECRETS_VIEW)
+    _other, other_org = await _oauth_owner_key(db, Perm.SECRETS_VIEW)
+    for current in [org, other_org]:
+        ctx = AuthContext(
+            user_id=current.created_by_user_id, organization_id=current.id, role="owner"
+        )
+        await OrganizationSecretService(db).create(
+            ctx,
+            name="Provider key",
+            purpose="anthropic",
+            value=ApiKeySecret(api_key=SecretStr("test-never-expose-hint9876")),
+        )
+    await db.commit()
+    async with _connected(key) as session:
+        result = _content(await session.call_tool("list_secret_references", {}))
+    assert result["total"] == 1
+    assert set(result["items"][0]) == {"id", "name", "kind", "purpose"}
+    assert "9876" not in json.dumps(result)
+
+
+@pytest.mark.security
+async def test_oauth_scope_narrowing_still_refuses_dataset_creation(
+    db: AsyncSession, served: None
+) -> None:
+    key, _ = await _oauth_owner_key(db, Perm.DATASETS_VIEW)
+    async with _connected(key) as session:
+        result = await session.call_tool("create_dataset", {"dataset": {"name": "Refused"}})
+    assert result.is_error and "403" in result.content[0].text
+
+
+async def test_mcp_can_pin_staging_promote_and_roll_back_without_republishing(
+    db: AsyncSession, served: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.services import model_profile
+
+    monkeypatch.setattr(
+        model_profile, "validate_endpoint_url", AsyncMock(return_value="https://model.example/v1")
+    )
+    key, _ = await _oauth_owner_key(
+        db, Perm.AGENTS_VIEW, Perm.AGENTS_EDIT, Perm.AGENTS_PUBLISH, Perm.CONNECTIONS_MANAGE
+    )
+    async with _connected(key) as session:
+        profile = _content(
+            await session.call_tool(
+                "create_model_profile",
+                {
+                    "profile": {
+                        "label": "Local test model",
+                        "provider": "ollama",
+                        "model": "test",
+                        "base_url": "https://model.example/v1",
+                    }
+                },
+            )
+        )
+        assert "error" not in profile
+        agent = _content(
+            await session.call_tool(
+                "create_agent_draft",
+                {
+                    "name": "Versioned",
+                    "instructions": "First policy",
+                    "model_profile_id": profile["id"],
+                },
+            )
+        )
+        published = _content(await session.call_tool("publish_agent", {"agent_id": agent["id"]}))
+        assert "error" not in published
+        versions = _content(
+            await session.call_tool("list_agent_versions", {"agent_id": agent["id"]})
+        )
+        first = versions["items"][0]["id"]
+        environments = _content(
+            await session.call_tool("list_agent_environments", {"agent_id": agent["id"]})
+        )
+        production = environments["items"][0]["id"]
+        pinned = await session.call_tool(
+            "update_agent_environment",
+            {
+                "agent_id": agent["id"],
+                "environment_id": production,
+                "changes": {"tracks_latest": False},
+            },
+        )
+        assert not pinned.is_error
+        staging = _content(
+            await session.call_tool(
+                "create_agent_environment",
+                {"agent_id": agent["id"], "environment": {"name": "staging", "version_id": first}},
+            )
+        )
+        await session.call_tool(
+            "update_agent_draft", {"agent_id": agent["id"], "instructions": "Second policy"}
+        )
+        assert not (await session.call_tool("publish_agent", {"agent_id": agent["id"]})).is_error
+        versions = _content(
+            await session.call_tool("list_agent_versions", {"agent_id": agent["id"]})
+        )
+        second = versions["items"][0]["id"]
+        frozen = _content(
+            await session.call_tool(
+                "get_agent_version", {"agent_id": agent["id"], "version_id": first}
+            )
+        )
+        assert frozen["spec"]["instructions"] == "First policy"
+        environments = _content(
+            await session.call_tool("list_agent_environments", {"agent_id": agent["id"]})
+        )
+        assert (
+            next(item for item in environments["items"] if item["id"] == production)["version_id"]
+            == first
+        )
+        assert not (
+            await session.call_tool(
+                "update_agent_environment",
+                {
+                    "agent_id": agent["id"],
+                    "environment_id": staging["id"],
+                    "changes": {"version_id": second},
+                },
+            )
+        ).is_error
+        gate = _content(
+            await session.call_tool(
+                "get_promotion_gate",
+                {"agent_id": agent["id"], "environment_id": production, "version_id": second},
+            )
+        )
+        assert gate["passing"] is True
+        for target in [second, first]:
+            result = _content(
+                await session.call_tool(
+                    "update_agent_environment",
+                    {
+                        "agent_id": agent["id"],
+                        "environment_id": production,
+                        "changes": {"version_id": target},
+                    },
+                )
+            )
+            assert result["version_id"] == target
+
+
+async def test_solution_plan_install_and_retry_cross_the_real_mcp_boundary(
+    db: AsyncSession, served: None
+) -> None:
+    key, _ = await _oauth_owner_key(
+        db, Perm.AGENTS_VIEW, Perm.AGENTS_EDIT, Perm.CONTEXT_EDIT, Perm.CONTEXT_VIEW
+    )
+    manifest = {
+        "name": "trial",
+        "contexts": [
+            {"key": "policy", "data": {"name": "Trial policy", "content": "Use verified sources."}}
+        ],
+    }
+    async with _connected(key) as session:
+        plan = _content(await session.call_tool("plan_solution", {"manifest": manifest}))
+        assert plan["publishes"] is False and plan["executes"] is False
+        arguments = {
+            "installation": {
+                "installation_key": "trial",
+                "manifest": manifest,
+                "expected_manifest_hash": plan["manifest_hash"],
+            }
+        }
+        first = _content(await session.call_tool("install_solution", arguments))
+        again = _content(await session.call_tool("install_solution", arguments))
+        assert again["replayed"] and first["resources"] == again["resources"]
+        context = _content(
+            await session.call_tool(
+                "get_context_file", {"context_id": first["resources"]["policy"]["id"]}
+            )
+        )
+        assert context["content"] == "Use verified sources."

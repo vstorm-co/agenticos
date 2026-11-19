@@ -1,5 +1,5 @@
 ---
-source_sha: "0d080c65b077"
+source_sha: "16e9c9a79101"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -850,3 +850,18 @@ annehmen.
   selbst.
 - **Sichern Sie `postgres_data` und `backend/.env` zusammen.** Das eine ohne das
   andere ist keine Wiederherstellung.
+
+## Fork-Images und lokale Prüfung { #fork-images-and-local-verification }
+
+Compose und `scripts/deploy.sh` unterstützen `AGENTICOS_IMAGE_PREFIX`, standardmäßig
+`ghcr.io/vstorm-co/agenticos`. Setzen Sie den Image-Präfix des Forks und dessen
+GitHub `owner/repository` in `AGENTICOS_SOURCE_REPOSITORY`. Backend, Frontend und
+Browser nutzen den Präfix; der separat versionierte Sandbox-Daemon bleibt eine
+Upstream-Abhängigkeit. Images verwendet standardmäßig den kleingeschriebenen
+GHCR-Präfix seines eigenen Repositorys. Eine gleichnamige GitHub-Repositoryvariable
+kann ihn ersetzen; Paketberechtigungen müssen dieses Ziel abdecken.
+
+Ein Fork konfiguriert keine SSH-Geheimnisse, Umgebungsprüfer oder Repositoryregeln.
+Prüfen Sie diese vor releasegesteuerten Bereitstellungen. Plugin und isolierte
+lokale Prüfung veröffentlichter Images beschreibt
+[AgenticOS mit einem KI-Client bedienen](howto/operate-with-ai.md).

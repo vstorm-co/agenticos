@@ -1,5 +1,5 @@
 ---
-source_sha: "0d080c65b077"
+source_sha: "16e9c9a79101"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -829,3 +829,18 @@ eso funciona depende de la migración. Léela antes de dar nada por supuesto.
   required reviewers en el entorno `production`, cada merge se despliega solo.
 - **Copia `postgres_data` y `backend/.env` juntos.** Cualquiera de los dos sin el
   otro no es una restauración.
+
+## Imágenes del fork y verificación local { #fork-images-and-local-verification }
+
+Compose y `scripts/deploy.sh` aceptan `AGENTICOS_IMAGE_PREFIX`, cuyo valor por
+defecto es `ghcr.io/vstorm-co/agenticos`. Configure el prefijo de imágenes del fork
+y su GitHub `owner/repository` en `AGENTICOS_SOURCE_REPOSITORY`. Backend, frontend
+y navegador usan ese prefijo; el daemon del sandbox, con versión independiente,
+sigue siendo una dependencia upstream. Images usa por defecto el prefijo GHCR
+de su propio repositorio en minúsculas. Una variable de repositorio GitHub con
+ese nombre puede sustituirlo; los permisos deben incluir el destino.
+
+Crear un fork no configura secretos SSH, revisores de entornos ni protecciones.
+Compruébelos antes de activar despliegues iniciados por publicaciones. El plugin
+y la prueba local aislada de imágenes publicadas se explican en
+[Gestionar AgenticOS con un cliente de IA](howto/operate-with-ai.md).

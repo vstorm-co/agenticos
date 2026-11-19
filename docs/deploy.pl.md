@@ -1,5 +1,5 @@
 ---
-source_sha: "0d080c65b077"
+source_sha: "16e9c9a79101"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -799,3 +799,18 @@ ją, zanim cokolwiek założysz.
   wymaganych recenzentów na środowisku `production` każdy merge wdraża się sam.
 - **Rób kopię `postgres_data` i `backend/.env` razem.** Jedno bez drugiego nie jest
   odtworzeniem.
+
+## Obrazy forka i sprawdzenie lokalne { #fork-images-and-local-verification }
+
+Compose i `scripts/deploy.sh` przyjmują `AGENTICOS_IMAGE_PREFIX`, domyślnie
+`ghcr.io/vstorm-co/agenticos`. Ustaw prefiks obrazów aplikacji forka, a w
+`AGENTICOS_SOURCE_REPOSITORY` jego GitHub `właściciel/repozytorium`. Backend,
+frontend i przeglądarka używają tego prefiksu; osobno wersjonowany daemon sandboxu
+pozostaje zależnością upstream. Workflow Images domyślnie używa prefiksu GHCR
+własnego repozytorium małymi literami. Zmienna repozytorium GitHub o tej samej
+nazwie może go zastąpić; uprawnienia pakietów muszą obejmować ten cel.
+
+Fork nie konfiguruje sekretów SSH, osób zatwierdzających środowisko ani ochrony
+repozytorium. Sprawdź je przed włączeniem wdrożeń uruchamianych wydaniem.
+Plugin i lokalny test opublikowanych obrazów w osobnym środowisku opisuje
+[Zarządzaj AgenticOS przez klienta AI](howto/operate-with-ai.md).

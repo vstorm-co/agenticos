@@ -92,7 +92,7 @@ These need a connection signed in with OAuth, and every step that spends is pric
 |---|---|---|---|
 | Improve an agent against test questions | "Make the support agent better on our test set" | `list_datasets` → `estimate_improvement` → `start_improvement` → `get_improvement` → `estimate_next_improvement_step` → `run_next_improvement_step` → `accept_improvement` | a dataset with `can_run` true |
 | Check where improving stands | "How is the Improve session going?" | `list_improvements` → `get_improvement` | |
-| Improve a shared skill safely | "Fix the refund skill without breaking other agents" | `get_skill` → `estimate_skill_improvement` → `start_skill_improvement` → `get_skill_improvement` → `accept_skill_improvement` | rated or failed runs that used the skill |
+| Improve a shared skill safely | "Fix the refund skill without breaking other agents" | `get_skill` → `estimate_skill_improvement` → `start_skill_improvement` → `get_skill_improvement` → repeat `estimate_next_skill_improvement_step` / `run_next_skill_improvement_step` / inspect until acceptance is offered → `accept_skill_improvement` | rated or failed runs that used the skill |
 | Catch pinned agents up | "Which agents are on an old skill version?" | `list_skills_behind_main` → `estimate_skill_update_check` → `start_skill_update_check` → `get_skill_check` → `change_skill_version` | an agent pinned behind main |
 
 ## People and setup

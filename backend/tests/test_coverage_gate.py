@@ -63,6 +63,8 @@ PLATFORM_MODULES = (
     "app/services/access.py",
     "app/services/agent_chat.py",
     "app/services/agent_environment.py",
+    "app/services/solution.py",
+    "app/repositories/solution_installation.py",
     "app/services/agent_exposure.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",

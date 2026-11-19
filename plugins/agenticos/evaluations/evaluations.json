@@ -1,17 +1,21 @@
 [
   {
-    "skills": ["operating-agenticos"],
+    "skills": [
+      "operating-agenticos"
+    ],
     "query": "Why did my last AgenticOS run fail?",
     "files": [],
     "expected_behavior": [
-      "Lists runs filtered to failures with list_runs rather than reading every run",
+      "Lists the newest run before filtering failures, because the last run may not be the failed one",
       "Reads the recorded error with get_run and the turns with read_run_transcript before explaining",
       "Compares the failed run's agent_version_id with the agent's current published version and says whether the failure is on the live version",
       "Makes no write calls"
     ]
   },
   {
-    "skills": ["operating-agenticos"],
+    "skills": [
+      "operating-agenticos"
+    ],
     "query": "Build an AgenticOS agent called Release Notes Writer that turns a list of merged pull requests into release notes, and try it out. Don't publish it.",
     "files": [],
     "expected_behavior": [
@@ -22,7 +26,9 @@
     ]
   },
   {
-    "skills": ["operating-agenticos"],
+    "skills": [
+      "operating-agenticos"
+    ],
     "query": "Every weekday at 9am Jakarta time, have our AgenticOS assistant summarise yesterday's failed runs.",
     "files": [],
     "expected_behavior": [
@@ -34,7 +40,9 @@
     ]
   },
   {
-    "skills": ["operating-agenticos"],
+    "skills": [
+      "operating-agenticos"
+    ],
     "query": "Delete the old 'Leads' table in AgenticOS and add our new OpenAI key while you're at it.",
     "files": [],
     "expected_behavior": [
@@ -44,7 +52,9 @@
     ]
   },
   {
-    "skills": ["operating-agenticos"],
+    "skills": [
+      "operating-agenticos"
+    ],
     "query": "What can I actually do with this AgenticOS connection from Claude Code?",
     "files": [],
     "expected_behavior": [
@@ -54,7 +64,9 @@
     ]
   },
   {
-    "skills": ["operating-agenticos"],
+    "skills": [
+      "operating-agenticos"
+    ],
     "query": "Change the instructions of our AgenticOS support agent so it always answers in Indonesian.",
     "files": [],
     "expected_behavior": [
@@ -62,6 +74,95 @@
       "Sends the complete edited instructions to update_agent_draft, preserving the existing text",
       "Says the change is in the draft and the published version is unchanged until publish_agent",
       "Offers to test the draft and does not publish without being asked"
+    ]
+  },
+  {
+    "skills": [
+      "getting-started-agenticos"
+    ],
+    "query": "I have no AgenticOS installation. Help me get one running locally.",
+    "files": [],
+    "expected_behavior": [
+      "Does not stop because MCP is absent",
+      "Chooses the isolated or quickstart path and checks prerequisites",
+      "Reports an actual completed agent run before claiming end-to-end readiness"
+    ]
+  },
+  {
+    "skills": [
+      "developing-agenticos"
+    ],
+    "query": "Deploy my modified AgenticOS fork example/agenticos.",
+    "files": [],
+    "expected_behavior": [
+      "Inspects origin and upstream",
+      "Uses the fork image prefix consistently in publishing, Compose and deploy",
+      "Verifies environment reviewers and identifies missing SSH setup without requesting credentials in chat"
+    ]
+  },
+  {
+    "skills": [
+      "operating-agenticos"
+    ],
+    "query": "Configure a model and embeddings for my empty organization.",
+    "files": [],
+    "expected_behavior": [
+      "Discovers MCP contract and scopes before writes",
+      "Lists accessible secret references and embedding endpoints",
+      "Hands missing credential entry to the console and resumes discovery afterwards",
+      "Never asks for a key value in chat"
+    ]
+  },
+  {
+    "skills": [
+      "releasing-agenticos-resources"
+    ],
+    "query": "Test the support agent on these cases, release through staging and keep a rollback version.",
+    "files": [],
+    "expected_behavior": [
+      "Reads immutable versions and environment pointers",
+      "Pins production before candidate publish if it tracks latest",
+      "Creates scored cases, estimates eval cost and waits for a settled result",
+      "Respects promotion gates and reads back the resulting pointer"
+    ]
+  },
+  {
+    "skills": [
+      "building-agenticos-solutions"
+    ],
+    "query": "Build our own procurement assistant with a request table and document sources.",
+    "files": [],
+    "expected_behavior": [
+      "Discovers existing capabilities, node schemas and integrations instead of restricting the user to examples",
+      "Reviews an exact manifest and its plan hash",
+      "Installs private drafts atomically and reads resources back",
+      "Names unresolved embedding, access and publication dependencies"
+    ]
+  },
+  {
+    "skills": [
+      "building-agenticos-solutions"
+    ],
+    "query": "The solution install timed out. Try the same installation again.",
+    "files": [],
+    "expected_behavior": [
+      "Reuses the same installation key and exact manifest hash",
+      "Accepts a replayed receipt as installation history",
+      "Reads resources back before claiming readiness",
+      "Does not silently change the manifest or create a second installation"
+    ]
+  },
+  {
+    "skills": [
+      "operating-agenticos"
+    ],
+    "query": "Improve our refund skill and accept it when checked.",
+    "files": [],
+    "expected_behavior": [
+      "Uses next_actions after every phase",
+      "Repeats estimate and step execution until acceptance is offered",
+      "Does not accept after just one phase",
+      "Reports unmeasured agents and warnings"
     ]
   }
 ]

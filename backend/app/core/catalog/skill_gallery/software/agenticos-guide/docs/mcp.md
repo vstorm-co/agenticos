@@ -1423,3 +1423,11 @@ Its message indexes refer to that filtered transcript. It returns bounded text w
 Named-agent Improve lookup checks every agent page before selecting a match or reporting ambiguity, rather than assuming the first 100 agents are the complete catalog.
 
 `read_conversation` uses the same bounded message and tool-metadata windows as run inspection, with 10 messages by default. `read_conversation_tool_call` reads a selected recorded payload, including older messages without run IDs, through the unchanged owner-scoped conversation API. Existing MCP consumers must follow the window continuations instead of expecting full tool results inline.
+
+## AI client plugin and lifecycle tools
+
+Use the [AI client guide](https://vstorm-co.github.io/agenticos/howto/operate-with-ai/) to install the plugin, configure
+dependencies, release agents through evals and environments, or install reviewed
+solution bundles. Contract-1 discovery distinguishes server features from granted
+scopes. Vault reference discovery returns IDs and metadata, never values or hints;
+credential entry stays in the console. New assistant-only operations require OAuth.

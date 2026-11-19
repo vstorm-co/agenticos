@@ -83,6 +83,7 @@ A skill session proposes changes and checks them on every agent of the line befo
 2. `agenticos:start_skill_improvement` with the agreed `budget_usd`.
 3. `agenticos:get_skill_improvement`. Reply from its `summary`, keeping every fact, a worse agent above all, and end with its `ask` exactly as given.
 4. `agenticos:estimate_next_skill_improvement_step`, then `agenticos:run_next_skill_improvement_step` with its `total_usd` and `candidate_hash`. A failed step is rerun with `agenticos:retry_skill_improvement_step`.
-5. `agenticos:accept_skill_improvement` with the outcome the user chose from the session's `next_actions`, saying which agents each choice moves. Or `agenticos:end_skill_improvement` to leave the skill unchanged.
+5. Repeat steps 3 and 4, using the fresh estimate and the returned `next_actions`, until the session offers acceptance. A single step does not finish every phase.
+6. `agenticos:accept_skill_improvement` with the outcome the user chose from the session's `next_actions`, saying which agents each choice moves. Or `agenticos:end_skill_improvement` to leave the skill unchanged.
 
 Set `acknowledge_unknown` only after the user accepted the agents that could not be checked.

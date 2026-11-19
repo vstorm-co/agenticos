@@ -33,7 +33,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Ship a Claude plugin, `plugins/agenticos`, whose `operating-agenticos` skill guides Claude through the platform MCP server: choosing between agents, routines, watches, workflows and tables, the order of operations, safe-write rules, what the connection cannot do, and a catalogue of use cases. The repository is its own plugin marketplace: `claude plugin marketplace add vstorm-co/agenticos`.
+- Ship the AgenticOS Claude plugin with deployment, fork, organization-operation, release and custom-solution skills; a checked tool map and MCP contract discovery; secure dependency setup, datasets, evals and environment promotion tools; atomic draft-only solution bundles with retry receipts; three example solutions and a disposable published-image smoke check. Compose, image publishing and deployment support a fork's own application image prefix.
 - Let external agent runs use the API key or OAuth token issuer's personal MCP connections with the explicit `mcp:personal:use` scope. Existing credentials and presets retain organization-only access; resumed runs and subagents retain the original caller, with live credential and connected-account checks before tool calls (#3154).
 - Delegate to subagents using each signed-in web chat caller's personal LLM keys for the exact model profile selected on a personal-mode root. Organization-mode parents cannot spend personal delegate keys; inline specialists inherit their parent's mode. Missing connections stop the run without borrowing an organization key, and approval resumes recheck the original caller's connections (#3155).
 
@@ -101,6 +101,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Redirect authenticated visitors from sign-in to their validated local destination, including when another tab signs in. Requested fragment redirects replace the browser-history entry.
 
 ### Upgrading
+
+- Apply `0342_solution_installations.py` for atomic solution-installation receipts. Existing organization API keys retain their public API boundary; new assistant-only lifecycle tools require an OAuth connection with the corresponding scopes.
 
 - Apply `0340_record_batch_receipt_table.py` after `0339_organization_text_to_speech.py`, followed by `0341_workflow_run_tested_step.py`. The latter adds a nullable tested-step reference without rewriting existing runs; older runs retain their draft-test classification.
 

@@ -369,6 +369,7 @@ lint-backend:
 	# still work - until the next one written this way needs 3.10+ too.
 	uv run --directory backend python3 ../scripts/check_backticks.py
 	uv run --directory backend python3 ../scripts/check_routes.py
+	uv run --directory backend python3 ../scripts/check_agenticos_plugin.py
 	uv run --directory backend python3 ../scripts/check_comments.py
 	uv run --directory backend python3 ../scripts/check_docs_paragraphs.py
 	uv run --directory backend python3 ../scripts/check_docs_i18n.py

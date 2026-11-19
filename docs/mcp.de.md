@@ -1,5 +1,5 @@
 ---
-source_sha: "775173862ab0"
+source_sha: "9e538473cdb9"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1538,3 +1538,11 @@ Nachrichtenindizes beziehen sich auf dieses gefilterte Transkript. Zurückgegebe
 Die Namenssuche für Improve prüft alle Agentenseiten, bevor sie einen Treffer auswählt oder Mehrdeutigkeit meldet; die ersten 100 Agenten gelten nicht als vollständiger Katalog.
 
 `read_conversation` verwendet dieselben begrenzten Nachrichten- und Tool-Metadatenfenster wie die Run-Analyse, standardmäßig mit 10 Nachrichten. `read_conversation_tool_call` liest eine ausgewählte gespeicherte Nutzlast, auch bei älteren Nachrichten ohne Run-ID, über die unverändert eigentümergebundene Gesprächs-API. MCP-Clients müssen den Fensterfortsetzungen folgen, statt vollständige Tool-Ergebnisse im Transkript zu erwarten.
+
+## KI-Client-Plugin und Lebenszyklus { #ai-client-plugin-and-lifecycle-tools }
+
+Der [KI-Client-Leitfaden](howto/operate-with-ai.md) beschreibt Plugin-Installation,
+Abhängigkeiten, Agentenfreigaben über Evals und Umgebungen sowie geprüfte Pakete.
+Vertrag 1 trennt Serverfunktionen von gewährten Scopes. Vault-Referenzen liefern
+IDs und Metadaten, keine Werte oder Hinweise; Geheimnisse werden in der Konsole
+eingegeben. Neue Assistentenoperationen benötigen OAuth.

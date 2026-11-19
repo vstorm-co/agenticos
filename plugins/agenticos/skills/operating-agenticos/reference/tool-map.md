@@ -36,7 +36,7 @@ The connected server is the authority: if a tool here is missing from the connec
 | `list_agents`, `get_agent` | `agents:view` | no |
 | `create_agent_draft`, `update_agent_draft` | `agents:edit` | yes, the draft only |
 | `test_agent_draft`, `answer_agent_questions` | `agents:edit` | yes, a recorded and budgeted test run |
-| `publish_agent` | `agents:publish` on that agent | yes, live on every surface |
+| `publish_agent` | `agents:publish` on that agent | yes, publishes a version; environment pointers decide who serves it |
 | `discard_agent_draft` | `agents:edit`, on an unpublished draft the caller created | yes, deletes it |
 | `run_agent` | `agents:run` | yes, a recorded and budgeted run |
 
@@ -159,3 +159,34 @@ Discovery responses are refused in full, never truncated, when they exceed their
 | Listings and transcript windows | 64 KiB | narrow `q`, lower `limit`, or lower `content_chars` / `chars` |
 | `get_workflow_input_schema` | 32 KiB | read the contract through the HTTP API outside the model context |
 | One transcript message | `content_chars` up to 8000 | repeat with `skip` set to its `message_index`, `limit: 1` and `content_offset` set to `next_offset` |
+
+## Dependency setup and release lifecycle
+
+These require MCP contract 1, discovered with `get_platform_context`. Availability
+is distinct from the caller's scopes. OAuth reaches assistant-only routes; an
+ordinary organization API key is refused on those routes.
+
+| Tool | Needs | Changes something |
+|---|---|---|
+| `get_platform_context`, `get_setup_link` | authenticated caller | no |
+| `list_secret_references` | `secrets:view`; metadata only | no |
+| `list_model_providers` | `agents:view` | no |
+| `create_model_profile`, `update_model_profile` | `connections:manage` and access to referenced keys | yes |
+| `list_embedding_endpoints` | `connections:view` | no |
+| `create_embedding_endpoint` | `connections:manage`; organization-owned only | yes |
+| `get_knowledge_base`, `list_knowledge_documents`, `get_knowledge_ingestion` | read access to the base | no |
+| `list_knowledge_connectors`, `list_knowledge_sources`, `list_knowledge_sync_logs` | read access to the base and source | no |
+| `create_knowledge_source`, `sync_knowledge_source` | edit access to the base and referenced key | yes |
+| `create_dataset` | `datasets:edit` | yes |
+| `get_dataset`, `list_dataset_cases` | read access to the dataset | no |
+| `add_dataset_case` | edit access to the dataset | yes, a dataset version |
+| `estimate_eval_run` | agent and dataset access | no |
+| `start_eval_run` | agent access and dataset run access | yes, budgeted background work |
+| `list_agent_versions`, `get_agent_version` | read access to the agent | no |
+| `list_agent_environments`, `get_promotion_gate` | read access to the agent | no |
+| `create_agent_environment`, `update_agent_environment` | publish access; stronger checks for guards and overrides | yes |
+| `run_promotion_gate` | publication/run authority and guarding suite admission | yes, may spend |
+| `list_eval_suites`, `estimate_eval_suite` | agent and dataset access | no |
+| `create_eval_suite`, `update_eval_suite` | agent/dataset access and standing personal authority | yes |
+| `plan_solution` | `agents:view`; validates caller-supplied content only | no |
+| `install_solution` | `agents:edit` and every permission in the plan | yes, private drafts atomically |

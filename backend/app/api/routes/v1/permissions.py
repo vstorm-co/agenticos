@@ -7,19 +7,43 @@ performs the action, so a client that ignores this API gains nothing.
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
+from app import __version__
 from app.api.deps import Auth
 from app.api.public_api import PUBLIC
 from app.core.permissions import RESOURCE_PERMS, ROLE_PERMS, Perm
 from app.schemas.permissions import (
     MyPermissions,
     PermissionEntry,
+    PlatformContextRead,
     RoleCatalog,
     RoleDefinition,
 )
+from app.services.api_key import KeyCaller
 
 router = APIRouter(dependencies=[PUBLIC])
+
+
+@router.get("/me/platform-context", response_model=PlatformContextRead)
+async def get_platform_context(request: Request, ctx: Auth) -> Any:
+    """Versioned MCP feature discovery, distinct from effective authorization.
+
+    Null scopes means a signed-in console session, not an unrestricted token.
+    A token reports only its granted scopes; all routes still recheck access.
+    """
+    caller = getattr(request.state, "api_key_caller", None)
+    return PlatformContextRead(
+        server_version=__version__,
+        mcp_contract_version=1,
+        organization_id=ctx.organization_id,
+        user_id=ctx.user_id,
+        authentication=caller.surface if isinstance(caller, KeyCaller) else "session",
+        granted_scopes=(
+            sorted(perm.value for perm in ctx.key_scopes) if ctx.key_scopes is not None else None
+        ),
+        features=["dependency_setup", "quality_lifecycle", "knowledge_sync", "solution_bundles"],
+    )
 
 
 @router.get("/me/permissions", response_model=MyPermissions)
