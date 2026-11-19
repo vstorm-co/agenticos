@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.85.0] - 2026-11-19
+
 ### Added
 
 - Judge an Improve attempt criterion by criterion when no whole question flips. A question passes only when every criterion passes, so an attempt that fixed one criterion while others still failed was reported as no change. It is now **Better on criteria** and is offered for accepting like a better attempt: the result names each criterion with its passes before and after on the held-out questions, then the criteria still failing, with the skill the helper attributed each one to. A criterion that got worse with no question broken is **Worse on criteria**. `better` and `regression` keep their whole-question meaning. A criterion counts only when asking again confirmed it, so an eval run now also re-asks a case where only a criterion flipped. The attempt row, the Accept step, notifications, the Architect's Improve tools and a skill check's agents show the same criteria. Eval comparisons expose `criteria`, at most 200 with the ones that moved first, and `skill_check_agents` gains a `criteria` column.
@@ -22161,7 +22163,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.84.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...HEAD
+[1.85.0]: https://github.com/vstorm-co/agenticos/compare/v1.84.0...v1.85.0
 [1.84.0]: https://github.com/vstorm-co/agenticos/compare/v1.83.0...v1.84.0
 [1.83.0]: https://github.com/vstorm-co/agenticos/compare/v1.82.2...v1.83.0
 [1.82.2]: https://github.com/vstorm-co/agenticos/compare/v1.82.1...v1.82.2
