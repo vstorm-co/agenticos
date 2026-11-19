@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CircleHelp, Coins, Gauge, Hash, Timer } from "lucide-react";
+import { CircleHelp, Coins, Gauge, Hash, ListChecks, Timer } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
@@ -61,6 +61,9 @@ function SummaryCells({ summary, live }: { summary: ArmSummary | undefined; live
   return (
     <>
       <SummaryCell label={t("passRate")}>{percent(summary?.pass_rate ?? null, locale)}</SummaryCell>
+      <SummaryCell label={t("criteria")}>
+        {percent(summary?.partial_credit ?? null, locale)}
+      </SummaryCell>
       <SummaryCell label={live ? t("pending") : t("undecided")}>
         {summary === undefined ? "—" : summary.incomplete + summary.ungraded}
       </SummaryCell>
@@ -122,6 +125,11 @@ export function ArmsTable({
     single?.failed_alike != null ? undefined : tag === null ? single?.summary : single?.by_tag[tag];
   const metrics = [
     { label: t("passRate"), value: percent(summary?.pass_rate ?? null, locale), icon: Gauge },
+    {
+      label: t("criteria"),
+      value: percent(summary?.partial_credit ?? null, locale),
+      icon: ListChecks,
+    },
     {
       label: live ? t("pending") : t("undecided"),
       value: summary ? summary.incomplete + summary.ungraded : "—",
@@ -190,6 +198,9 @@ export function ArmsTable({
             <tr>
               <th className="py-1 pr-3 font-normal">{t("side")}</th>
               <th className="py-1 pr-3 font-normal">{t("passRate")}</th>
+              <th className="py-1 pr-3 font-normal" title={t("criteriaHint")}>
+                {t("criteria")}
+              </th>
               <th className="py-1 pr-3 font-normal">{live ? t("pending") : t("undecided")}</th>
               <th className="py-1 pr-3 font-normal">{t("costPerPass")}</th>
               <th className="py-1 pr-3 font-normal">{t("tokens")}</th>

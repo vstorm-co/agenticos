@@ -15,6 +15,8 @@ import type { PassRateLine } from "@/components/charts/pass-rate-lines.impl";
 import { caseScore } from "@/test-utils/scores";
 import { ArmsTable } from "./arms-table";
 import { CaseDetail } from "./case-detail";
+import type { ScorerResult, ScorerStatus } from "@/types/scoring";
+import { criteriaOfAttempt } from "./case-table";
 import { ComparisonCard } from "./comparison-card";
 import { EstimateSummary } from "./estimate-summary";
 import { EvalRunVerdict } from "./eval-run-verdict";
@@ -782,7 +784,25 @@ describe("ArmsTable", () => {
       "href",
       "/agents/agent-1/evals/run-0",
     );
-    expect(baseline.getAllByText("—")).toHaveLength(2);
+    // No pass rate, no criteria, no cost per pass on a side with nothing decided.
+    expect(baseline.getAllByText("—")).toHaveLength(3);
+  });
+
+  it("shows each side's criteria passed beside its pass rate", () => {
+    const candidate = arm({ summary: { ...SUMMARY, pass_rate: 0.25, partial_credit: 0.875 } });
+    render(
+      <ArmsTable
+        agentId="agent-1"
+        tag={null}
+        live={false}
+        baseline={null}
+        baselineSummary={null}
+        arms={[candidate, arm({ id: "arm-2", role: "baseline", version_number: 6 })]}
+      />,
+    );
+
+    expect(screen.getByRole("columnheader", { name: "Criteria passed" })).toBeInTheDocument();
+    expect(screen.getByText("88%")).toBeInTheDocument();
   });
 
   it("says a reused result was reused when its run has not finished", () => {
@@ -1092,4 +1112,40 @@ it("keeps dataset identity on sparse run links with the same candidate", () => {
   expect(
     screen.getByText("2 runs so far. A trend needs at least three; run another to see one."),
   ).toBeInTheDocument();
+});
+
+describe("criteriaOfAttempt", () => {
+  const result = (status: ScorerStatus, required = true): ScorerResult => ({
+    scorer: "judge",
+    name: status,
+    required,
+    status,
+    score: null,
+    reason: "",
+    reason_code: null,
+    unverified_quotes: [],
+    rule: null,
+    unverified: false,
+    judge_said: null,
+    judge_run_id: null,
+    knowledge: [],
+  });
+
+  it("counts the required criteria that decided, and how many of them passed", () => {
+    const scored = attempt({
+      score: caseScore({
+        results: [
+          result("pass"),
+          result("pass"),
+          result("fail"),
+          result("skipped"),
+          result("fail", false),
+        ],
+      }),
+    });
+
+    expect(criteriaOfAttempt(scored)).toEqual([2, 3]);
+    expect(criteriaOfAttempt(attempt({ score: null }))).toBeNull();
+    expect(criteriaOfAttempt(undefined)).toBeNull();
+  });
 });

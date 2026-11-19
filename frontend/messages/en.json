@@ -15744,7 +15744,9 @@
       "pending": "Pending",
       "reusedFrom": "result from the run of {date}",
       "singleTitle": "Run metrics",
-      "singleTitleTag": "Run metrics on #{tag}"
+      "singleTitleTag": "Run metrics on #{tag}",
+      "criteria": "Criteria passed",
+      "criteriaHint": "Each question counts the share of its criteria its first answer passed: six of seven counts 6/7, where the pass rate counts it as failed."
     },
     "cases": {
       "title": "{count, plural, =1 {1 case} other {# cases}}",
@@ -15773,7 +15775,9 @@
         "train": "Helps write the changes",
         "holdout": "Kept aside",
         "excluded": "Evidence copy"
-      }
+      },
+      "criteria": "{passed}/{graded}",
+      "criteriaTitle": "{passed} of {graded} criteria passed"
     },
     "case": {
       "firstAnswer": "Answer",

@@ -15517,7 +15517,9 @@
       "pending": "Oczekujące",
       "reusedFrom": "wynik z runu z {date}",
       "singleTitle": "Metryki runa",
-      "singleTitleTag": "Metryki dla #{tag}"
+      "singleTitleTag": "Metryki dla #{tag}",
+      "criteria": "Spełnione kryteria",
+      "criteriaHint": "Każde pytanie liczy udział kryteriów, które spełniła jego pierwsza odpowiedź: sześć z siedmiu to 6/7, podczas gdy w kolumnie Zaliczone liczy się jako niezaliczone."
     },
     "cases": {
       "title": "{count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
@@ -15546,7 +15548,9 @@
         "train": "Pomaga pisać zmiany",
         "holdout": "Odłożone",
         "excluded": "Kopia dowodu"
-      }
+      },
+      "criteria": "{passed}/{graded}",
+      "criteriaTitle": "Spełnione kryteria: {passed} z {graded}"
     },
     "case": {
       "firstAnswer": "Odpowiedź",

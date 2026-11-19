@@ -15430,7 +15430,9 @@
       "pending": "Ausstehend",
       "reusedFrom": "Ergebnis aus dem Run vom {date}",
       "singleTitle": "Laufmetriken",
-      "singleTitleTag": "Laufmetriken für #{tag}"
+      "singleTitleTag": "Laufmetriken für #{tag}",
+      "criteria": "Erfüllte Kriterien",
+      "criteriaHint": "Jede Frage zählt den Anteil ihrer Kriterien, den ihre erste Antwort erfüllt hat: sechs von sieben zählen 6/7, während die Bestehensquote sie als nicht bestanden zählt."
     },
     "cases": {
       "title": "{count, plural, =1 {1 Fall} other {# Fälle}}",
@@ -15459,7 +15461,9 @@
         "train": "Hilft beim Schreiben",
         "holdout": "Zurückgelegt",
         "excluded": "Belegkopie"
-      }
+      },
+      "criteria": "{passed}/{graded}",
+      "criteriaTitle": "{passed} von {graded} Kriterien erfüllt"
     },
     "case": {
       "firstAnswer": "Antwort",

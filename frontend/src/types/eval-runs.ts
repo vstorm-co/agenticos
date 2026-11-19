@@ -145,6 +145,12 @@ export interface ArmSummary {
   avg_tokens: number | null;
   p50_ms: number | null;
   p95_ms: number | null;
+  /** First answers' required criteria that passed, over every case. */
+  criteria_passed?: number;
+  /** First answers' required criteria that decided, over every case. */
+  criteria_graded?: number;
+  /** The mean share of each case's decided criteria its first answer passed; 6 of 7 is 6/7. */
+  partial_credit?: number | null;
 }
 
 export interface EvalRunArm {
@@ -337,6 +343,10 @@ export interface CaseFlip {
   tags: string[];
   /** Why the candidate's first answer failed, when its run crashed rather than answered. */
   candidate_error: string | null;
+  /** The baseline's first answer as [criteria passed, criteria decided]. */
+  baseline_criteria?: [number, number] | null;
+  /** The candidate's first answer as [criteria passed, criteria decided]. */
+  candidate_criteria?: [number, number] | null;
 }
 
 export interface Efficiency {
