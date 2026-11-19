@@ -340,6 +340,8 @@ few lost answers do not repeat the whole test. It ends at the result: `ready` wh
 changes then the waiting suggestion batch, and `stopped`, with the verdict as the
 reason, otherwise.
 
+Replacement answers are priced per model from the check's frozen per-case estimates, including the judge, while reserving the confirmation reruns. Costs, tokens and latency include the failed try. Older checks without frozen arm prices leave lost answers incomplete instead of guessing a retry budget.
+
 No attempt starts by itself. **Try again** is the same
 `/continue` from the result, with an optional `note` the helper reads beside the
 evidence; the attempt writes new changes and stops after **Changes**, since

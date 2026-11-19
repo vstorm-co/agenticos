@@ -44,25 +44,30 @@ async def test_comparison_refuses_either_exhausted_budget(monkeypatch, refused_a
     decisions = [rate_limit.Decision(True, 60)] * refused_at + [rate_limit.Decision(False, 17)]
     consume = AsyncMock(side_effect=decisions)
     monkeypatch.setattr(rate_limit, "consume_with_local_floor", consume)
+    ctx = _ctx()
+    monkeypatch.setattr(rate_limit, "_redis", None)
     with pytest.raises(RateLimitError) as caught:
-        await anext(limit_eval_comparison(_ctx()))
+        await anext(limit_eval_comparison(ctx))
     assert caught.value.details == {"retry_after_seconds": 17}
     assert consume.await_count == refused_at + 1
+    consume.side_effect = None
+    consume.return_value = rate_limit.Decision(True, 60)
+    async with aclosing(limit_eval_comparison(ctx)) as next_read:
+        await anext(next_read)
 
 
 async def test_only_one_org_comparison_runs_and_closing_releases_it(monkeypatch):
     ctx = _ctx()
     second = AuthContext(user_id=uuid4(), organization_id=ctx.organization_id, role="owner")
-    monkeypatch.setattr(
-        rate_limit,
-        "consume_with_local_floor",
-        AsyncMock(return_value=rate_limit.Decision(True, 60)),
-    )
+    consume = AsyncMock(return_value=rate_limit.Decision(True, 60))
+    monkeypatch.setattr(rate_limit, "consume_with_local_floor", consume)
     monkeypatch.setattr(rate_limit, "_redis", None)
     async with aclosing(limit_eval_comparison(ctx)) as first:
         await anext(first)
-        with pytest.raises(RateLimitError):
-            await anext(limit_eval_comparison(second))
+        for _ in range(35):
+            with pytest.raises(RateLimitError):
+                await anext(limit_eval_comparison(second))
+        assert consume.await_count == 2
         async with aclosing(limit_eval_comparison(_ctx())) as other_org:
             await anext(other_org)
     async with aclosing(limit_eval_comparison(second)) as next_read:

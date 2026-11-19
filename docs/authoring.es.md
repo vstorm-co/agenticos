@@ -1,5 +1,5 @@
 ---
-source_sha: "b7fd0d824c2e"
+source_sha: "1897e92263bc"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -357,6 +357,8 @@ que queda del presupuesto lo cubre, así que unas pocas respuestas perdidas no r
 toda la prueba. Termina en el resultado: `ready` cuando el intento mejoró el
 agente - sus cambios pasan a ser el paquete de sugerencias pendiente - y
 `stopped`, con el veredicto como motivo, en otro caso.
+
+Las respuestas de reemplazo se calculan por modelo según la estimación por pregunta guardada, incluido el evaluador, reservando las repeticiones de confirmación. El coste, los tokens y la latencia incluyen el intento fallido. Las comprobaciones antiguas sin precios guardados por modelo dejan incompletas las respuestas perdidas en lugar de adivinar el presupuesto de repetición.
 
 Ningún intento empieza
 solo. **Try again** es el mismo `/continue` desde el resultado, con una `note`

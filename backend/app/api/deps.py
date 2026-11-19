@@ -1591,20 +1591,21 @@ async def limit_eval_comparison(ctx: Auth) -> AsyncGenerator[None]:
     at a time, so parallel reads cannot fill every worker with the same large run.
     Shared Redis owns both controls; the established local floors apply on outage.
     """
-    for caller, attempts in (
-        (f"org:{ctx.organization_id}:user:{ctx.subject_id}", 30),
-        (f"org:{ctx.organization_id}", 60),
-    ):
-        decision = await rate_limit.consume_with_local_floor(
-            surface="eval_comparison", caller=caller, limit=rate_limit.Limit(attempts=attempts)
-        )
-        _refuse_if_over(decision, "Too many comparisons. Wait and try again.")
     async with rate_limit.one_in_flight(
         "eval_comparison",
         f"org:{ctx.organization_id}",
         ttl_seconds=120,
         message="A comparison is already running for this organization. Wait and try again.",
     ):
+        # A busy refusal performs no comparison work and must not spend the read budget.
+        for caller, attempts in (
+            (f"org:{ctx.organization_id}:user:{ctx.subject_id}", 30),
+            (f"org:{ctx.organization_id}", 60),
+        ):
+            decision = await rate_limit.consume_with_local_floor(
+                surface="eval_comparison", caller=caller, limit=rate_limit.Limit(attempts=attempts)
+            )
+            _refuse_if_over(decision, "Too many comparisons. Wait and try again.")
         yield
 
 

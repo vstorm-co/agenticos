@@ -224,9 +224,13 @@ async def test_a_runs_reader_is_its_starter_as_they_stand_or_none(gone: bool) ->
     assert reader is (None if gone else ctx)
 
 
+_ARM_ID = uuid.uuid4()
+
+
 def _attempt(**fields: object) -> EvalRunCase:
     defaults: dict[str, object] = {
         "attempt": 0,
+        "arm_id": _ARM_ID,
         "status": CaseAttemptStatus.DONE.value,
         "agent_run_id": uuid.uuid4(),
     }
@@ -241,13 +245,23 @@ async def _ask_lost_again(
     linked: bool = True,
     budget: str = "10",
     spent: str = "4",
+    prices: dict[uuid.UUID, Decimal] | None = None,
     anonymised: frozenset[uuid.UUID] = frozenset(),
 ) -> tuple[bool, list[EvalRunCase], set[uuid.UUID]]:
     """Run the step on a check of `len(attempts)` first answers estimated at 4 USD with
     1 USD of reruns; what it returned, what it queued and which runs it forgot."""
     org = uuid.uuid4()
+    firsts = [attempt for attempt in attempts if attempt.attempt == 0]
+    price_by_arm = (
+        prices
+        if prices is not None
+        else {attempt.arm_id: Decimal(4) / len(firsts) for attempt in firsts}
+    )
+    arm_ids = list(price_by_arm) or list(dict.fromkeys(attempt.arm_id for attempt in firsts))
+    arms = [EvalRunArm(id=arm_id, position=position) for position, arm_id in enumerate(arm_ids)]
     record = ProposalCheckRecord(
         kind="agent",
+        answer_estimates_usd=list(price_by_arm.values()),
         base_version=None,
         on_draft=True,
         suggestions=1,
@@ -292,6 +306,9 @@ async def _ask_lost_again(
         patch(
             "app.services.eval_run_worker.improvement_repo.spent",
             new=AsyncMock(return_value=Decimal(spent)),
+        ),
+        patch(
+            "app.services.eval_run_worker.eval_run_repo.list_arms", new=AsyncMock(return_value=arms)
         ),
         patch("app.services.eval_run_worker.eval_run_repo.ask_again", new=queued),
         patch("app.services.eval_run_worker.personal_data_repo.forget_runs", new=forgotten),
@@ -360,6 +377,34 @@ async def test_lost_answers_are_asked_again_when_the_budget_just_covers_them() -
     asked, queued, _ = await _ask_lost_again([*lost, _attempt(), _attempt()], budget="7")
 
     assert asked and queued == lost
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("lost_expensive", "budget", "expected"),
+    [(True, "7.5", False), (True, "8.9", True), (False, "5.1", True)],
+)
+async def test_replacement_budget_uses_the_lost_answers_arm(lost_expensive, budget, expected):
+    cheap, expensive = uuid.uuid4(), uuid.uuid4()
+    lost = _attempt(
+        arm_id=expensive if lost_expensive else cheap,
+        status="failed",
+        fault=AttemptFault.INFRASTRUCTURE.value,
+    )
+    answered = _attempt(arm_id=cheap if lost_expensive else expensive)
+    asked, queued, forgotten = await _ask_lost_again(
+        [lost, answered], budget=budget, prices={cheap: Decimal("0.1"), expensive: Decimal("3.9")}
+    )
+    assert asked is expected
+    assert queued == ([lost] if expected else [])
+    assert forgotten == ({lost.agent_run_id} if expected else set())
+
+
+async def test_an_older_check_without_frozen_prices_does_not_guess_a_replacement_budget(caplog):
+    lost = _attempt(status="failed", fault=AttemptFault.INFRASTRUCTURE.value)
+    with caplog.at_level("INFO", logger="app.services.eval_run_worker"):
+        assert await _ask_lost_again([lost], prices={}) == (False, [], set())
+    assert "eval_answer_retry_estimate_missing" in caplog.text
 
 
 async def test_a_check_with_nothing_lost_asks_nothing_again() -> None:

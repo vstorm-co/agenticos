@@ -1,5 +1,5 @@
 ---
-source_sha: "b7fd0d824c2e"
+source_sha: "1897e92263bc"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -371,6 +371,8 @@ einmal, im selben Test, wenn das restliche Budget sie deckt, damit wenige verlor
 Antworten nicht den ganzen Test wiederholen. Er endet beim Ergebnis: `ready`, wenn der Versuch den
 Agent verbessert hat - seine Änderungen werden dann zum wartenden
 Vorschlagspaket -, sonst `stopped`, mit dem Urteil als Grund.
+
+Ersatzantworten werden je Modell anhand der gespeicherten Schätzung pro Frage einschließlich Bewerter berechnet; Bestätigungswiederholungen bleiben reserviert. Kosten, Tokens und Latenz enthalten den fehlgeschlagenen Versuch. Ältere Prüfungen ohne gespeicherte Preise je Modell lassen verlorene Antworten unvollständig, statt ein Wiederholungsbudget zu schätzen.
 
 Kein Versuch
 startet von selbst. **Erneut versuchen** ist dasselbe `/continue` vom Ergebnis

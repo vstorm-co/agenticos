@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import Field, field_validator
@@ -76,6 +76,11 @@ class ProposalCheckRecord(BaseSchema):
     on_draft: bool = False
     suggestions: int = Field(ge=1)
     improvement_run_id: UUID | None = None
+    answer_estimates_usd: list[Annotated[Decimal, Field(ge=0)]] = Field(
+        default_factory=list,
+        description="Frozen replacement answer and judge cost per case, indexed by arm position; "
+        "older records without prices do not automatically replace lost answers",
+    )
     skill_check_id: UUID | None = Field(
         default=None,
         description="The check of a skill change on every agent this run is one stage of",

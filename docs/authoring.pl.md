@@ -1,5 +1,5 @@
 ---
-source_sha: "b7fd0d824c2e"
+source_sha: "1897e92263bc"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -351,6 +351,8 @@ więc kilka utraconych odpowiedzi nie powtarza całego testu.
 Kończy się wynikiem: `ready`, gdy próba poprawiła agenta - jej zmiany stają się
 wtedy oczekującym pakietem sugestii - a w przeciwnym razie `stopped`, z
 werdyktem jako powodem.
+
+Ponawiane odpowiedzi są wyceniane osobno dla każdego modelu według zapisanej wyceny pytania, z kosztem oceniającego i rezerwą na ponowienia potwierdzające wynik. Koszt, tokeny i czas uwzględniają nieudaną odpowiedź. Starsze sprawdzenia bez zapisanych cen poszczególnych modeli pozostawiają utracone odpowiedzi niekompletne zamiast zgadywać budżet ponowienia.
 
 Żadna próba nie rusza sama. **Spróbuj ponownie** to ten
 sam `/continue` z wyniku, z opcjonalnym polem `note`, które pomocnik czyta obok

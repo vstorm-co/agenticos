@@ -907,8 +907,8 @@ class EvalRunWorker:
 
         An answer a provider timed out on, or failed, leaves its case incomplete, and
         an incomplete case makes the whole check inconclusive - which the session then
-        pays to run again in full. Asking just those answers again costs their share
-        of the estimate, and is done only when the session's budget still covers it
+        pays to run again in full. Asking just those answers again uses their arm's frozen
+        answer and judge estimate, and is done only when the session's budget still covers it
         beside the confirming reruns still to come. It happens once, before the flips
         are confirmed, so a case it settles is confirmed like any other; an answer
         that fails again stays incomplete. A case anonymised meanwhile is not asked.
@@ -926,7 +926,8 @@ class EvalRunWorker:
                 or run.proposal_check is None
             ):
                 return False
-            session_id = ProposalCheckRecord.model_validate(run.proposal_check).improvement_run_id
+            record = ProposalCheckRecord.model_validate(run.proposal_check)
+            session_id = record.improvement_run_id
             if session_id is None:
                 return False
             firsts = [
@@ -955,7 +956,21 @@ class EvalRunWorker:
             if session is None:
                 return False
             spent = await improvement_repo.spent(db, session_id, organization_id=org)
-            price = run.estimate_usd * len(lost) / len(firsts) + run.rerun_ceiling_usd
+            arms = await eval_run_repo.list_arms(db, [run.id], organization_id=org)
+            prices = {
+                arm.id: record.answer_estimates_usd[arm.position]
+                for arm in arms
+                if 0 <= arm.position < len(record.answer_estimates_usd)
+            }
+            if any(attempt.arm_id not in prices for attempt in lost):
+                logger.info(
+                    "eval_answer_retry_estimate_missing", extra={"eval_run_id": str(run.id)}
+                )
+                return False
+            price = (
+                sum((prices[attempt.arm_id] for attempt in lost), Decimal(0))
+                + run.rerun_ceiling_usd
+            )
             if not affordable(spent=spent, step_estimate=price, budget=session.budget_usd):
                 return False
             await personal_data_repo.forget_runs(

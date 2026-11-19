@@ -1250,7 +1250,30 @@ class EvalRunService:
                 }
             )
         estimate = self._knowledge_cost(await self._estimate(ctx, plan), proposal_check)
+        proposal_check = self._priced_check(proposal_check, estimate)
         return estimate.model_copy(update={"proposal_check": proposal_check})
+
+    @staticmethod
+    def _priced_check(
+        record: ProposalCheckRecord | None, estimate: EvalRunEstimate
+    ) -> ProposalCheckRecord | None:
+        """Freeze each arm's replacement price, including its share of judge work."""
+        if record is None:
+            return None
+        fresh = sum(arm.basis != "cached" for arm in estimate.arms)
+        judge = (
+            estimate.judge_usd / (estimate.cases * fresh)
+            if fresh and estimate.cases
+            else Decimal(0)
+        )
+        return record.model_copy(
+            update={
+                "answer_estimates_usd": [
+                    arm.cost_per_case_usd + judge if arm.basis != "cached" else Decimal(0)
+                    for arm in estimate.arms
+                ]
+            }
+        )
 
     @staticmethod
     def _knowledge_cost(
@@ -1615,6 +1638,7 @@ class EvalRunService:
                 }
             )
         estimate = self._knowledge_cost(await self._estimate(ctx, plan), proposal_check)
+        proposal_check = self._priced_check(proposal_check, estimate)
         if not estimate.affordable:
             raise PaymentRequiredError(
                 message=(
