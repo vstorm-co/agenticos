@@ -2381,6 +2381,22 @@ class ImprovementPipelineService:
                 item["skill"] not in owners for item in criteria if "skill" in item
             ):
                 criteria = []
+        sources = None
+        if criteria:
+            assert reader is not None
+            skills = await skill_repo.get_by_names(
+                self.db, names, organization_id=run.organization_id
+            )
+            visible = await accessible_ids(
+                self.db, reader, list(skills.values()), Perm.SKILLS_VIEW, resource_type=SKILL
+            )
+            if set(skills) != names or any(skill.id not in visible for skill in skills.values()):
+                criteria = []
+            else:
+                sources = CriterionSources(
+                    dataset_id=run.dataset_id,
+                    skill_ids=sorted(skill.id for skill in skills.values()),
+                )
         await NotificationService(self.db).improvement_finished(
             agent=agent,
             run_id=run.id,
@@ -2391,12 +2407,7 @@ class ImprovementPipelineService:
             next_step_blocked=blocked_next_step(run, current),
             verdict=None if described is None else described.verdict,
             criteria=criteria,
-            criterion_sources=CriterionSources(
-                dataset_id=run.dataset_id,
-                skill_names=sorted({item["skill"] for item in criteria if "skill" in item}),
-            )
-            if criteria
-            else None,
+            criterion_sources=sources,
         )
 
     async def check_finished(self, check: EvalRun) -> None:

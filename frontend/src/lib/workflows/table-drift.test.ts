@@ -176,6 +176,10 @@ describe("orphanValueBindings", () => {
     ["Cost~0gross", "Cost~gross"],
     ["Cost~01gross", "Cost~1gross"],
     ["STRASSE", "Straße"],
+    ["SS", "ẞ"],
+    ["Ꭰ", "ꭰ"],
+    ["σ", "ς"],
+    ["𐐀", "𐐨"],
   ])("preserves the live label binding %s", (field, label) => {
     const graph = {
       ...writer,
@@ -183,6 +187,12 @@ describe("orphanValueBindings", () => {
     };
     const live = new Map([["t1", { version: 2, columns: [{ id: "c1", label }] }]]);
     expect(orphanValueBindings(graph, live)).toEqual([]);
+  });
+
+  it("drops an i binding for a dotless-i column, as the server treats them as distinct", () => {
+    const graph = { ...writer, bindings: [{ ...writer.bindings[0]!, target_field: "values/i" }] };
+    const live = new Map([["t1", { version: 2, columns: [{ id: "c1", label: "ı" }] }]]);
+    expect(orphanValueBindings(graph, live)).toEqual([{ nodeId: "w", field: "values/i" }]);
   });
 
   it("retains ambiguous live labels for server validation instead of erasing input", () => {

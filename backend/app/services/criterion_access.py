@@ -41,3 +41,15 @@ async def criterion_source_access(
     if not visible:
         return set(), set()
     return visible, await readable_criterion_owners(db, ctx, names)
+
+
+async def readable_criterion_skill_ids(
+    db: AsyncSession, ctx: AuthContext, ids: set[UUID]
+) -> set[UUID]:
+    """Exact original skill identities; a reused name never revives old evidence."""
+    if not ids:
+        return set()
+    skills = await skill_repo.get_many(db, sorted(ids), organization_id=ctx.organization_id)
+    return await accessible_ids(
+        db, ctx, list(skills.values()), Perm.SKILLS_VIEW, resource_type=SKILL
+    )

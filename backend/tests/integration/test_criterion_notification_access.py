@@ -35,6 +35,9 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
         "malformed_sources",
         "deleted_dataset",
         "deleted_skill",
+        "reused_skill_name",
+        "renamed_skill",
+        "legacy_names",
     ],
 )
 async def test_stored_criterion_notifications_recheck_their_sources(
@@ -43,12 +46,12 @@ async def test_stored_criterion_notifications_recheck_their_sources(
     ctx = await _owner(db)
     dataset = await _dataset(db, ctx, cases=1)
     skill = await _skill(db, ctx)
-    sources = CriterionSources(dataset_id=dataset.id, skill_names=[skill.name]).model_dump(
-        mode="json"
-    )
+    sources = CriterionSources(dataset_id=dataset.id, skill_ids=[skill.id]).model_dump(mode="json")
     context = {"criteria": [{"name": "private rubric"}], "criterion_sources": sources}
     if denied == "missing_sources":
         del context["criterion_sources"]
+    elif denied == "legacy_names":
+        context["criterion_sources"] = {"dataset_id": str(dataset.id), "skill_names": [skill.name]}
     elif denied == "malformed_sources":
         context["criterion_sources"] = {"dataset_id": "invalid"}
     row = Notification(
@@ -74,8 +77,13 @@ async def test_stored_criterion_notifications_recheck_their_sources(
     db.add_all([row, coarse])
     if denied == "deleted_dataset":
         await db.delete(dataset)
-    elif denied == "deleted_skill":
+    elif denied in {"deleted_skill", "reused_skill_name"}:
         await db.delete(skill)
+        await db.flush()
+        if denied == "reused_skill_name":
+            await _skill(db, ctx, name=skill.name)
+    elif denied == "renamed_skill":
+        skill.name = "renamed-source"
     await db.flush()
     scopes = {Perm.RUNS_VIEW, Perm.DATASETS_VIEW, Perm.SKILLS_VIEW}
     removed = {
@@ -86,9 +94,9 @@ async def test_stored_criterion_notifications_recheck_their_sources(
     reader = replace(ctx, key_scopes=frozenset(scopes - {removed})) if removed else ctx
     center = NotificationCenterService(db)
     rows, _, _ = await center.list_inbox(reader, after=None, limit=20)
-    assert (row.id in {item.id for item in rows}) is (denied is None)
+    assert (row.id in {item.id for item in rows}) is (denied in {None, "renamed_skill"})
     assert coarse.id in {item.id for item in rows}
-    assert (await center.gate_for(reader, row)).visible is (denied is None)
+    assert (await center.gate_for(reader, row)).visible is (denied in {None, "renamed_skill"})
 
 
 @pytest.mark.parametrize("revoked", [False, True])
@@ -130,7 +138,7 @@ async def test_delayed_criterion_email_rechecks_membership_before_sending(
                 }
             ],
             "criterion_sources": CriterionSources(
-                dataset_id=dataset.id, skill_names=[skill.name]
+                dataset_id=dataset.id, skill_ids=[skill.id]
             ).model_dump(mode="json"),
         },
     )
@@ -193,7 +201,7 @@ async def test_a_criterion_notice_keeps_provenance_and_refuses_missing_sources(d
         verdict="criteria_better",
         criteria=[criterion],
     )
-    sources = CriterionSources(dataset_id=dataset.id)
+    sources = CriterionSources(dataset_id=dataset.id, skill_ids=[])
     await service.improvement_finished(
         agent=agent,
         run_id=run_id,

@@ -59,7 +59,7 @@ class CriterionSources(BaseSchema):
     """Sources to recheck before exposing a persisted criterion-bearing notification."""
 
     dataset_id: UUID
-    skill_names: list[str] = Field(default_factory=list, max_length=200)
+    skill_ids: list[UUID] = Field(max_length=200)
 
 
 class NotificationOutcome(BaseSchema):

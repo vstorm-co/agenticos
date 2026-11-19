@@ -410,7 +410,9 @@ async def test_a_metric_without_named_criteria_keeps_its_shape_for_an_authorized
 
 
 @pytest.mark.security
-@pytest.mark.parametrize("denied", [None, "membership", "runs", "dataset", "skill"])
+@pytest.mark.parametrize(
+    "denied", [None, "membership", "runs", "dataset", "skill", "source_missing", "source_revoked"]
+)
 async def test_result_notifications_filter_criterion_evidence_for_the_current_recipient(
     service, monkeypatch, denied
 ):
@@ -462,6 +464,17 @@ async def test_result_notifications_filter_criterion_evidence_for_the_current_re
         "readable_criterion_owners",
         AsyncMock(return_value=set() if denied == "skill" else {"private skill"}),
     )
+    skill = Skill(id=uuid.uuid4(), organization_id=ORG, name="private skill")
+    monkeypatch.setattr(
+        improvement_pipeline.skill_repo,
+        "get_by_names",
+        AsyncMock(return_value={} if denied == "source_missing" else {skill.name: skill}),
+    )
+    monkeypatch.setattr(
+        improvement_pipeline,
+        "accessible_ids",
+        AsyncMock(return_value=set() if denied == "source_revoked" else {skill.id}),
+    )
     send = AsyncMock()
     monkeypatch.setattr(improvement_pipeline.NotificationService, "improvement_finished", send)
 
@@ -478,3 +491,25 @@ async def test_an_empty_criterion_source_batch_reads_nothing(monkeypatch):
         AsyncMock(), OWNER, dataset_ids=set(), names={"unused"}
     ) == (set(), set())
     fetch.assert_not_awaited()
+
+
+async def test_an_empty_skill_identity_batch_reads_nothing(monkeypatch):
+    fetch = AsyncMock()
+    monkeypatch.setattr(criterion_access.skill_repo, "get_many", fetch)
+    assert await criterion_access.readable_criterion_skill_ids(AsyncMock(), OWNER, set()) == set()
+    fetch.assert_not_awaited()
+
+
+@pytest.mark.parametrize("visible", [False, True])
+async def test_skill_identity_access_batches_exact_resources(monkeypatch, visible):
+    skill = Skill(id=uuid.uuid4(), organization_id=ORG, name="source")
+    fetch = AsyncMock(return_value={skill.id: skill})
+    monkeypatch.setattr(criterion_access.skill_repo, "get_many", fetch)
+    monkeypatch.setattr(
+        criterion_access, "accessible_ids", AsyncMock(return_value={skill.id} if visible else set())
+    )
+    db = AsyncMock()
+    assert await criterion_access.readable_criterion_skill_ids(db, OWNER, {skill.id}) == (
+        {skill.id} if visible else set()
+    )
+    fetch.assert_awaited_once_with(db, [skill.id], organization_id=ORG)

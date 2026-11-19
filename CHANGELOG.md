@@ -36,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep persisted criterion notifications bound to original skill IDs across renames, deletion and name reuse. Workflow column labels now use the server’s exact Unicode case folding.
+
 - Recheck dataset and skill access for stored criterion-bearing notifications in the inbox and before delayed delivery, including after permissions are revoked.
 
 - Preserve record-writer bindings keyed by live labels, including escaped keys, and retain a result headline when criterion evidence is hidden.

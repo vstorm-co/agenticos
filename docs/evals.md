@@ -344,6 +344,8 @@ A judge criterion can apply to every case or only cases carrying any of its sele
 
 Criterion names, per-criterion grades and skill attributions require `runs:view`, access to the session's pinned dataset and access to every named skill. Skill-check details require all contributing datasets. Hidden or missing sources hide these details without changing stored results. Result notifications check the recipient's current access before including criterion details. Stored criterion-bearing notifications recheck those sources whenever the inbox is read and before delayed delivery; missing provenance or revoked access hides the notification.
 
+Stored skill sources use stable IDs: renaming a skill preserves its identity, while deleting it and reusing its name never restores access to old evidence.
+
 Interactive comparison reads allow up to 30 requests per person and 60 per organization per minute, with one comparison executing per organization at a time. Console and API requests share these limits. Excess or overlapping requests return HTTP 429 with `Retry-After`; clients should wait before retrying. Shared Redis coordinates workers, with a local per-worker floor during an outage. Manual verdict updates for eval-backed scores use the same budget and claim, after dataset authorization and before changing the score or cached results.
 
 Readers need `runs:view` before claiming concurrency or spending quota. Active comparisons renew their claims; the 120-second expiry recovers crashed holders. A failed Redis renewal logs the failure and retains the per-worker floor.

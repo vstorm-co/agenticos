@@ -43,7 +43,7 @@ from app.schemas.notification import CriterionSources
 from app.services import rate_limit
 from app.services.access import ARTIFACT, PROJECT, WORKFLOW, resolve_access
 from app.services.collection_access import readable_kb
-from app.services.criterion_access import criterion_source_access
+from app.services.criterion_access import criterion_source_access, readable_criterion_skill_ids
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
 from app.services.outcome import OutcomeService
 from app.services.push import PushService
@@ -1352,11 +1352,22 @@ class NotificationCenterService:
                 self.db, sorted(project_ids), organization_id=ctx.organization_id
             )
         }
-        datasets, owners = await criterion_source_access(
+        datasets, _ = await criterion_source_access(
             self.db,
             ctx,
             dataset_ids={source.dataset_id for source in criterion_sources.values()},
-            names={name for source in criterion_sources.values() for name in source.skill_names},
+            names=set(),
+        )
+        skills = (
+            (
+                await readable_criterion_skill_ids(
+                    self.db,
+                    ctx,
+                    {id_ for source in criterion_sources.values() for id_ in source.skill_ids},
+                )
+            )
+            if datasets
+            else set()
         )
         return _GateCache(
             kb_by_id=kb_by_id,
@@ -1367,7 +1378,7 @@ class NotificationCenterService:
             project_visible_by_id=project_visible_by_id,
             conversation_visible_by_id=await self._conversation_visibility(ctx, conversation_ids),
             criterion_visible_by_id={
-                notification_id: source.dataset_id in datasets and set(source.skill_names) <= owners
+                notification_id: source.dataset_id in datasets and set(source.skill_ids) <= skills
                 for notification_id, source in criterion_sources.items()
             },
         )

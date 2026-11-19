@@ -1,5 +1,5 @@
 ---
-source_sha: "e392578c3e92"
+source_sha: "175de11a066f"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -370,6 +370,8 @@ Kryterium sędziego może dotyczyć wszystkich przypadków albo tylko przypadkó
 `criterion_change` to liczba potwierdzonych napraw kryteriów pomniejszona o potwierdzone pogorszenia, podzielona przez liczbę wszystkich ocen kryteriów porównanych parami. Jest obliczana przed ograniczeniem szczegółów odpowiedzi. Gdy całe pytania nie zmieniają wyniku, a kilka prób poprawia same kryteria, Improve wybiera większą znormalizowaną poprawę kryteriów; dokładny remis pozostawia wcześniejszą próbę. Nieporównywalne testy nie powodują agregacji ani zwracania zmian kryteriów. Nieporównywalny wynik bazowy nie uruchamia płatnych powtórzeń potwierdzających.
 
 Nazwy kryteriów, oceny poszczególnych kryteriów i przypisania do skilli wymagają `runs:view`, dostępu do datasetu przypisanego do sesji i do każdego wskazanego skilla. Szczegóły sprawdzania skilla wymagają dostępu do wszystkich użytych datasetów. Ukryte lub usunięte źródła powodują ukrycie tych szczegółów bez zmiany zapisanych wyników. Powiadomienia o wynikach sprawdzają aktualny dostęp odbiorcy przed dołączeniem szczegółów kryteriów. Zapisane powiadomienia zawierające kryteria ponownie sprawdzają te źródła przy odczycie skrzynki i przed opóźnioną wysyłką; brak informacji o źródłach lub cofnięty dostęp ukrywa powiadomienie.
+
+Zapisane źródła skilli używają stałych ID: zmiana nazwy zachowuje tożsamość skilla, a jego usunięcie i ponowne użycie nazwy nie przywraca dostępu do dawnych dowodów.
 
 Interaktywne odczyty porównań dopuszczają do 30 żądań na osobę i 60 na organizację na minutę, z jednym wykonywanym porównaniem na organizację jednocześnie. Konsola i API współdzielą te limity. Nadmiarowe lub równoległe żądania zwracają HTTP 429 z `Retry-After`; klient powinien odczekać przed ponowieniem. Wspólny Redis koordynuje workery, a podczas awarii każdy worker zachowuje lokalny limit. Ręczne zmiany oceny odpowiedzi pochodzących z ewaluacji korzystają z tego samego budżetu i blokady, po sprawdzeniu dostępu do datasetu, a przed zmianą oceny lub zapisanych wyników.
 

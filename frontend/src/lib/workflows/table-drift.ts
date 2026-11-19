@@ -1,3 +1,4 @@
+import { columnLabelFold } from "./column-label-fold";
 /**
  * Table references in a workflow draft whose table's schema has moved on.
  *
@@ -226,7 +227,7 @@ export function orphanValueBindings(
     if (current?.version === table.schema_version)
       columnsOf.set(node.id, {
         ids: new Set(current.columns.map((column) => column.id)),
-        labels: new Set(current.columns.map((column) => column.label.toUpperCase().toLowerCase())),
+        labels: new Set(current.columns.map((column) => columnLabelFold(column.label))),
       });
   }
   return graph.bindings.flatMap((binding) => {
@@ -235,7 +236,7 @@ export function orphanValueBindings(
     if (!columns || !match) return [];
     const key = match[1]!.replace(/~1/g, "/").replace(/~0/g, "~");
     // Ambiguous labels remain for server validation rather than losing the author's input.
-    if (columns.ids.has(key) || columns.labels.has(key.toUpperCase().toLowerCase())) return [];
+    if (columns.ids.has(key) || columns.labels.has(columnLabelFold(key))) return [];
     return [{ nodeId: binding.target_node_id, field: binding.target_field }];
   });
 }
