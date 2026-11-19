@@ -36,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Skip paid confirmation reruns when scoring settings or judge pins make the baseline incomparable.
+
 - Admit eval-backed verdict writes through the shared comparison budget before changing scores or cached results.
 
 - Skip criterion aggregation for invalid comparisons and retain scorer labels when notification details are shortened.

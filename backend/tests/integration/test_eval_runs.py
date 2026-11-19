@@ -1007,11 +1007,29 @@ async def test_reading_runs_needs_runs_view(db) -> None:
     assert [run.id for run in listed.items] == [started.id]
 
 
-async def test_a_different_scoring_makes_the_comparison_invalid(db, monkeypatch) -> None:
+@pytest.mark.security
+@pytest.mark.parametrize("extra_failing_check", [False, True])
+async def test_a_different_scoring_makes_the_comparison_invalid(
+    db, monkeypatch, extra_failing_check
+) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
     dataset = await _dataset(db, ctx, cases=2)
     service = EvalRunService(db)
+    if extra_failing_check:
+        cases = await DatasetService(db).list_cases(ctx, dataset.id)
+        for case in cases.items:
+            await DatasetService(db).update_case(
+                ctx,
+                dataset.id,
+                case.case_id,
+                DatasetCaseUpdate(
+                    checks=[
+                        {"type": "contains", "value": "30 days"},
+                        {"type": "contains", "value": "receipt"},
+                    ]
+                ),
+            )
 
     v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
     await _run_to_end(db, Model(db), v6.id, ctx)
@@ -1020,9 +1038,18 @@ async def test_a_different_scoring_makes_the_comparison_invalid(db, monkeypatch)
     # Graded another way, v6's run is no default baseline; named, it does not compare.
     unnamed = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
     v7 = await service.start(
-        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, baseline_run_id=v6.id)
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, baseline_run_id=v6.id, reruns=1)
     )
-    await _run_to_end(db, Model(db), v7.id, ctx)
+    model = Model(db)
+    with patch.object(
+        EvalRunService,
+        "criterion_batches",
+        side_effect=AssertionError(
+            "incomparable runs must not read criterion grades or pay for confirmation"
+        ),
+    ):
+        await _run_to_end(db, model, v7.id, ctx)
+    assert len(model.calls) == 2
 
     from unittest.mock import Mock
 

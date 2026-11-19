@@ -1023,6 +1023,8 @@ class EvalRunWorker:
                     baseline = await service.baseline_for(ctx, run, arm)
                     if baseline is None:
                         continue
+                    if await service._incomparable(ctx, run, arm, baseline, attempts) is not None:
+                        continue
                     mine = await service.outcomes(ctx, arm, attempts)
                     their_attempts = (
                         attempts

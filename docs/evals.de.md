@@ -1,5 +1,5 @@
 ---
-source_sha: "585a8d5139e6"
+source_sha: "069eece86423"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -386,7 +386,7 @@ Ein Bewerterkriterium kann für alle Fälle oder nur für Fälle mit mindestens 
 
 ## Mit einer Baseline vergleichen { #comparing-with-a-baseline }
 
-`criterion_change` ist die Zahl bestätigter Kriterienkorrekturen abzüglich bestätigter Verschlechterungen, geteilt durch alle paarweise verglichenen Kriterienbewertungen. Sie wird vor der Begrenzung der Antwortdetails berechnet. Wenn ganze Fragen unverändert bleiben und mehrere Versuche nur Kriterien verbessern, bevorzugt Improve die größere normalisierte Kriterienänderung; bei exaktem Gleichstand bleibt der frühere Versuch. Bei ungültigen Vergleichen werden Kriterienänderungen weder aggregiert noch zurückgegeben.
+`criterion_change` ist die Zahl bestätigter Kriterienkorrekturen abzüglich bestätigter Verschlechterungen, geteilt durch alle paarweise verglichenen Kriterienbewertungen. Sie wird vor der Begrenzung der Antwortdetails berechnet. Wenn ganze Fragen unverändert bleiben und mehrere Versuche nur Kriterien verbessern, bevorzugt Improve die größere normalisierte Kriterienänderung; bei exaktem Gleichstand bleibt der frühere Versuch. Bei ungültigen Vergleichen werden Kriterienänderungen weder aggregiert noch zurückgegeben. Nicht vergleichbare Baselines lösen keine kostenpflichtigen Bestätigungswiederholungen aus.
 
 Kriteriennamen, Einzelbewertungen und Skill-Zuordnungen erfordern `runs:view`, Zugriff auf den festgelegten Datensatz der Sitzung und auf jeden genannten Skill. Details einer Skill-Prüfung erfordern Zugriff auf alle beteiligten Datensätze. Verborgene oder fehlende Quellen blenden diese Details aus, ohne gespeicherte Ergebnisse zu ändern. Ergebnisbenachrichtigungen prüfen die aktuellen Zugriffsrechte des Empfängers, bevor sie Kriteriendetails enthalten.
 

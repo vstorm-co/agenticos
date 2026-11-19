@@ -340,7 +340,7 @@ A judge criterion can apply to every case or only cases carrying any of its sele
 
 ## Comparing with a baseline { #comparing-with-a-baseline }
 
-`criterion_change` is the net number of confirmed criterion fixes, divided by every paired criterion grade. It is computed before limiting the response detail. When whole questions do not change and several attempts improve criteria alone, Improve prefers the larger normalized criterion change; exact ties retain the earlier attempt. Invalid comparisons do not aggregate or return criterion movement.
+`criterion_change` is the net number of confirmed criterion fixes, divided by every paired criterion grade. It is computed before limiting the response detail. When whole questions do not change and several attempts improve criteria alone, Improve prefers the larger normalized criterion change; exact ties retain the earlier attempt. Invalid comparisons do not aggregate or return criterion movement. Incomparable baselines do not trigger paid confirmation reruns.
 
 Criterion names, per-criterion grades and skill attributions require `runs:view`, access to the session's pinned dataset and access to every named skill. Skill-check details require all contributing datasets. Hidden or missing sources hide these details without changing stored results. Result notifications check the recipient's current access before including criterion details.
 
