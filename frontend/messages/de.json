@@ -10286,11 +10286,9 @@
       "revokeAll": "Alle widerrufen",
       "save": "Freigaben speichern",
       "search": "Aktionen suchen",
-      "bulkScope": "Die Sammelauswahl gilt für die ganze Gruppe oder Liste, auch für ausgefilterte Aktionen. Verbindliche Freigaben bleiben erforderlich.",
       "selectGroup": "Zulässige Aktionen in {name} auswählen",
       "noMatches": "Keine Aktionen entsprechen der Suche.",
       "reselectPrevious": "Zuvor geprüfte Aktionen erneut auswählen",
-      "selected": "{count, plural, =1 {1 Aktion ausgewählt} other {# Aktionen ausgewählt}} · Grenze {limit}",
       "tooMany": "{count} Aktionen ausgewählt; die Grenze ist {limit}. Wähle vor dem Speichern Aktionen ab.",
       "changed": {
         "version": "Die veröffentlichte Agent-Version hat sich geändert. Prüfe ihre Aktionen erneut.",
@@ -10299,9 +10297,10 @@
         "actions": "Einige zuvor ausgewählte Aktionen sind nicht verfügbar, benötigen eine Freigabe oder haben eine andere Kontoautorisierung. Sie werden nicht erneut ausgewählt."
       },
       "capabilitiesSection": "Capabilities",
-      "copyAgent": "Einstellungen des Agenten übernehmen",
-      "copyAgentHint": "Wählt genau die Aktionen, die dieser Agent im Chat schon ohne Nachfrage ausführt. Aktionen, vor denen der Agent fragt, stehen nicht in der Liste und lassen sich hier nicht freigeben.",
-      "groupCount": "{selected} von {total}"
+      "groupCount": "{selected} von {total}",
+      "useAgent": "Einstellungen des Agenten verwenden",
+      "useAgentHint": "Wählt genau die Aktionen, die dieser Agent im Chat schon ohne Nachfrage ausführt, und ersetzt die aktuelle Auswahl. Eine Freigabe hier kann nur eingrenzen, was die Einstellungen des Agenten erlauben, nie erweitern: Eine Aktion, vor der der Agent fragt, wird nicht angeboten. Gespeichert wird erst mit Freigaben speichern.",
+      "allowHeading": "Diese Aktionen ohne Bestätigung ausführen lassen"
     },
     "sourceConsents": {
       "title": "Geprüfte Quellen",

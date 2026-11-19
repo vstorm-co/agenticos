@@ -137,12 +137,11 @@ export function ActionConsentsDialog({
                     {t("reselectPrevious")}
                   </Button>
                 )}
-                <p role={overLimit ? "alert" : "status"} className="text-sm">
-                  {t(overLimit ? "tooMany" : "selected", {
-                    count: selected.size,
-                    limit: maxActions,
-                  })}
-                </p>
+                {overLimit && (
+                  <p role="alert" className="text-sm">
+                    {t("tooMany", { count: selected.size, limit: maxActions })}
+                  </p>
+                )}
                 <ActionSelection
                   items={data.items}
                   selected={selected}

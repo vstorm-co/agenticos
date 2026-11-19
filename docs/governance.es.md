@@ -1,5 +1,5 @@
 ---
-source_sha: "9ff1469ca8a4"
+source_sha: "753163fbbe69"
 ---
 
 # Governance { #governance }
@@ -854,7 +854,7 @@ El creador abre **Consentimiento para acciones** en su rutina y elige acciones d
 
 Una excepción MCP identifica la cuenta concreta, el hash de la dirección, la generación de autorización y el nombre original de la acción. Enviar correo no autoriza borrar ni escribir en otra cuenta. Las cuentas personales solo aparecen si la rutina actúa como su creador. El selector usa la lista de herramientas guardada; comprueba la conexión o pide ayuda a su administrador cuando no esté disponible. Revocar todo el consentimiento no requiere una lista operativa.
 
-La revisión muestra las capabilities del agente, AgenticOS y cada otra cuenta MCP como secciones separadas, cada una con sus grupos. Solo aparecen las acciones que el agente ya ejecuta sin preguntar: una ante la que pregunta no admite consentimiento aquí, así que no se muestra. **Copiar la configuración del agente** selecciona exactamente esas acciones y reemplaza la selección actual; nada se guarda hasta elegir **Guardar consentimiento**.
+La revisión muestra las capabilities del agente, AgenticOS y cada otra cuenta MCP como secciones separadas, cada una con sus grupos. Solo aparecen las acciones que el agente ya ejecuta sin preguntar: una ante la que pregunta no admite consentimiento aquí, así que no se muestra. **Usar la configuración del agente** selecciona exactamente esas acciones y reemplaza la selección actual; nada se guarda hasta elegir **Guardar consentimiento**.
 
 El panel **Fuentes revisadas** de arriba lista las fuentes de la rutina por tipo - capabilities, skills, bases de conocimiento, tablas, cuentas -, cada tipo plegado a un recuento y cada fuente con su nombre. Una fuente que ya no existe aparece como no disponible; su identificador se ve al pasar el cursor.
 

@@ -9107,11 +9107,9 @@
       "revokeAll": "Cofnij wszystkie",
       "save": "Zapisz zgody",
       "search": "Szukaj akcji",
-      "bulkScope": "Zaznaczanie grupowe obejmuje całą grupę lub listę, także akcje ukryte przez wyszukiwanie. Obowiązkowe akceptacje pozostają wymagane.",
       "selectGroup": "Zaznacz dozwolone akcje w {name}",
       "noMatches": "Brak akcji pasujących do wyszukiwania.",
       "reselectPrevious": "Zaznacz ponownie wcześniej sprawdzone akcje",
-      "selected": "{count, plural, one {Zaznaczono # akcję} few {Zaznaczono # akcje} many {Zaznaczono # akcji} other {Zaznaczono # akcji}} · limit {limit}",
       "tooMany": "Zaznaczono {count} akcji; limit to {limit}. Odznacz akcje przed zapisaniem.",
       "changed": {
         "version": "Zmieniła się opublikowana wersja agenta. Sprawdź ponownie jej akcje.",
@@ -9120,9 +9118,10 @@
         "actions": "Niektóre poprzednio wybrane akcje są niedostępne, wymagają akceptacji lub mają inną autoryzację konta. Nie zostaną zaznaczone ponownie."
       },
       "capabilitiesSection": "Capabilities",
-      "copyAgent": "Skopiuj ustawienia agenta",
-      "copyAgentHint": "Zaznacza dokładnie te działania, które agent już w czacie wykonuje bez pytania. Działań, przed którymi agent pyta, nie ma na liście i nie można tu na nie zgodzić.",
-      "groupCount": "{selected} z {total}"
+      "groupCount": "{selected} z {total}",
+      "useAgent": "Użyj ustawień agenta",
+      "useAgentHint": "Zaznacza dokładnie te działania, które agent już w czacie wykonuje bez pytania, i zastępuje obecne zaznaczenie. Zgoda tutaj może tylko zawęzić to, na co pozwalają ustawienia agenta, nigdy tego nie poszerza: działania, przed którym agent pyta, nie ma na liście. Nic się nie zapisuje, dopóki nie wybierzesz Zapisz zgody.",
+      "allowHeading": "Pozwól tym działaniom działać bez pytania o zgodę"
     },
     "sourceConsents": {
       "title": "Zatwierdzone źródła",

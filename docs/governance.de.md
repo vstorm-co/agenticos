@@ -1,5 +1,5 @@
 ---
-source_sha: "9ff1469ca8a4"
+source_sha: "753163fbbe69"
 ---
 
 # Governance { #governance }
@@ -895,7 +895,7 @@ Die erstellende Person öffnet **Aktionsfreigaben** ihrer Routine und wählt Fä
 
 Eine MCP-Ausnahme benennt das konkrete Konto, den Adresshash, die Autorisierungsgeneration und den ursprünglichen Aktionsnamen. E-Mail-Versand erlaubt weder Löschen noch Schreibzugriffe auf ein anderes Konto. Persönliche Konten stehen nur Routinen zur Verfügung, die als ihre erstellende Person handeln. Die Auswahl verwendet die gespeicherte Werkzeugliste; prüfe die Verbindung oder bitte deren Administration, wenn sie fehlt. Alle Freigaben lassen sich auch ohne funktionierende Werkzeugliste widerrufen.
 
-Die Prüfung zeigt die Capabilities des Agenten, AgenticOS und jedes andere MCP-Konto als eigene Abschnitte, jeweils mit ihren Gruppen. Es erscheinen nur Aktionen, die der Agent schon ohne Nachfrage ausführt: Einer Aktion, vor der er fragt, lässt sich hier nicht zustimmen, also fehlt sie. **Einstellungen des Agenten übernehmen** wählt genau diese Aktionen und ersetzt die aktuelle Auswahl; gespeichert wird erst mit **Freigaben speichern**.
+Die Prüfung zeigt die Capabilities des Agenten, AgenticOS und jedes andere MCP-Konto als eigene Abschnitte, jeweils mit ihren Gruppen. Es erscheinen nur Aktionen, die der Agent schon ohne Nachfrage ausführt: Einer Aktion, vor der er fragt, lässt sich hier nicht zustimmen, also fehlt sie. **Einstellungen des Agenten verwenden** wählt genau diese Aktionen und ersetzt die aktuelle Auswahl; gespeichert wird erst mit **Freigaben speichern**.
 
 Das Feld **Geprüfte Quellen** darüber listet die Quellen der Routine nach Art - Capabilities, Skills, Wissensdatenbanken, Tabellen, Konten -, jede Art auf eine Anzahl eingeklappt und jede Quelle mit ihrem Namen. Eine Quelle, die es nicht mehr gibt, erscheint als nicht mehr verfügbar; ihre Kennung steht im Tooltip.
 

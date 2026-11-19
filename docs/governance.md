@@ -788,7 +788,7 @@ The creator can open **Action consent** on their routine and select capability a
 
 An MCP exception names the concrete account, endpoint hash, authorization generation and original action name. Sending mail does not authorize deletion or another account's writes. Personal accounts are offered only when the routine acts as its creator. The picker uses the connection's recorded tool list; check the connection, or ask its administrator, when that list is unavailable. Revoking all consent remains available without a working tool list.
 
-The review lists the agent's capabilities, AgenticOS and each other MCP account as separate sections, each with its groups. Only actions the agent already runs without asking appear: one it asks before cannot be consented to, so it is left out. **Copy the agent's settings** selects exactly those actions and replaces the current selection; nothing is saved until you choose **Save consent**.
+The review lists the agent's capabilities, AgenticOS and each other MCP account as separate sections, each with its groups. Only actions the agent already runs without asking appear: one it asks before cannot be consented to, so it is left out. **Use the agent's settings** selects exactly those actions and replaces the current selection; nothing is saved until you choose **Save consent**.
 
 The **Reviewed sources** panel above it lists the routine's sources by kind - capabilities, skills, knowledge bases, tables, accounts - each kind folded to a count, and each source by its name. A source that no longer exists shows as no longer available; its id is on hover.
 

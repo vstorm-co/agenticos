@@ -10406,11 +10406,9 @@
       "revokeAll": "Revoke all",
       "save": "Save consent",
       "search": "Search actions",
-      "bulkScope": "Bulk controls cover the whole group or inventory, including actions hidden by the search. Required approvals stay enforced.",
       "selectGroup": "Select eligible actions in {name}",
       "noMatches": "No actions match your search.",
       "reselectPrevious": "Reselect previously reviewed actions",
-      "selected": "{count, plural, =1 {1 action selected} other {# actions selected}} · limit {limit}",
       "tooMany": "{count} actions selected; the limit is {limit}. Deselect actions before saving.",
       "changed": {
         "version": "The published agent version changed. Review its actions again.",
@@ -10419,9 +10417,10 @@
         "actions": "Some previously selected actions are unavailable, require approval, or have different account authorization. They are not reselected."
       },
       "capabilitiesSection": "Capabilities",
-      "copyAgent": "Copy the agent's settings",
-      "copyAgentHint": "Selects exactly the actions this agent already runs without asking in a chat. Actions the agent asks before are not listed and cannot be consented to here.",
-      "groupCount": "{selected} of {total}"
+      "groupCount": "{selected} of {total}",
+      "useAgent": "Use the agent's settings",
+      "useAgentHint": "Selects exactly the actions this agent already runs without asking in a chat, replacing the current selection. Consent here can only narrow what the agent's settings grant, never widen it: an action the agent asks before is not offered. Nothing is saved until you choose Save consent.",
+      "allowHeading": "Allow these actions to run without asking for approval"
     },
     "sourceConsents": {
       "title": "Reviewed sources",

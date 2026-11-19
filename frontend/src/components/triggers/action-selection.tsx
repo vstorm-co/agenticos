@@ -3,7 +3,16 @@
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useBranding } from "@/components/branding/branding-provider";
-import { Button, Checkbox, Input, Label } from "@/components/ui";
+import {
+  Button,
+  Checkbox,
+  Input,
+  Label,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui";
 import {
   routineActionIdentity as identity,
   type RoutineActionOption,
@@ -120,17 +129,6 @@ export function ActionSelection({
   return (
     <div className="space-y-4">
       <div className="space-y-1">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled}
-          onClick={() => onChange(new Set(eligible.map(identity)))}
-        >
-          {t("copyAgent")}
-        </Button>
-        <p className="text-muted-foreground text-xs">{t("copyAgentHint")}</p>
-      </div>
-      <div className="space-y-1">
         <Label htmlFor={`${id}-search`}>{t("search")}</Label>
         <Input
           id={`${id}-search`}
@@ -139,7 +137,23 @@ export function ActionSelection({
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
-      <p className="text-muted-foreground text-xs">{t("bulkScope")}</p>
+      {/* Its own provider: the dialog opens from places that mount none. */}
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              onClick={() => onChange(new Set(eligible.map(identity)))}
+            >
+              {t("useAgent")}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t("useAgentHint")}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <h3 className="text-sm font-medium">{t("allowHeading")}</h3>
       {shown.map(({ sectionKey, section, groups }, sectionIndex) => {
         const all = [...section.groups.values()].flatMap((group) => group.items);
         return (

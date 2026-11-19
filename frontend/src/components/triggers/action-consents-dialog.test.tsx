@@ -216,7 +216,7 @@ describe("routine action consent", () => {
     render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
     expect(screen.getByRole("group", { name: "Sandbox" })).toBeVisible();
     await userEvent.click(screen.getByRole("checkbox", { name: "write_file" }));
-    await userEvent.click(screen.getByRole("button", { name: "Copy the agent's settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "Use the agent's settings" }));
     expect(screen.getByRole("checkbox", { name: "execute" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "write_file" })).toBeChecked();
   });
@@ -228,7 +228,7 @@ describe("routine action consent", () => {
     ).toBeVisible();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Copy the agent's settings" }),
+      screen.queryByRole("button", { name: "Use the agent's settings" }),
     ).not.toBeInTheDocument();
   });
   it("distinguishes an empty review from a failed connection check", () => {
@@ -278,7 +278,7 @@ it("bulk selects a large inventory with individual exclusions and keeps mandator
   }));
   state.data.max_actions = 1000;
   render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
-  await userEvent.click(screen.getByRole("button", { name: "Copy the agent's settings" }));
+  await userEvent.click(screen.getByRole("button", { name: "Use the agent's settings" }));
   expect(screen.queryByRole("checkbox", { name: "Action 100" })).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("checkbox", { name: "Action 4" }));
   expect(
@@ -338,7 +338,7 @@ it("refuses an oversized selection visibly without dropping its items", async ()
   }));
   state.data.max_actions = 100;
   render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
-  await userEvent.click(screen.getByRole("button", { name: "Copy the agent's settings" }));
+  await userEvent.click(screen.getByRole("button", { name: "Use the agent's settings" }));
   expect(screen.getByRole("alert")).toHaveTextContent("101 actions selected; the limit is 100");
   expect(screen.getByRole("button", { name: "Save consent" })).toBeDisabled();
   await userEvent.click(screen.getByRole("checkbox", { name: "Action 100" }));
@@ -472,8 +472,27 @@ it("waits for the action inventory instead of presenting an empty selection", ()
   expect(screen.queryByRole("checkbox", { name: "execute" })).toBeNull();
 });
 
-it("uses the compatibility selection limit when the server omits it", () => {
+it("uses the compatibility selection limit when the server omits it", async () => {
   delete state.data.max_actions;
+  state.data.items = Array.from({ length: 101 }, (_, index) => ({
+    capability_id: "sandbox",
+    tool_id: `action_${index}`,
+    name: `Action ${index}`,
+    consented: false,
+    waivable: true,
+  }));
   render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
-  expect(screen.getByRole("status")).toHaveTextContent("0 actions selected · limit 100");
+  // Nothing about the count is said until it is over the limit.
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Use the agent's settings" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("101 actions selected; the limit is 100");
+});
+
+it("explains the agent's settings on hover and heads the actions it allows", async () => {
+  render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+  expect(
+    screen.getByRole("heading", { name: "Allow these actions to run without asking for approval" }),
+  ).toBeVisible();
+  await userEvent.hover(screen.getByRole("button", { name: "Use the agent's settings" }));
+  expect(await screen.findByRole("tooltip")).toHaveTextContent("only narrow");
 });

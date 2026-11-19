@@ -11071,11 +11071,9 @@
       "revokeAll": "Tümünü iptal et",
       "save": "İzni kaydet",
       "search": "Eylemleri ara",
-      "bulkScope": "Toplu seçim, aramada gizlenenler dahil tüm grubu veya listeyi kapsar. Zorunlu onaylar geçerliliğini korur.",
       "selectGroup": "{name} içindeki izin verilebilir eylemleri seç",
       "noMatches": "Aramayla eşleşen eylem yok.",
       "reselectPrevious": "Daha önce incelenen eylemleri yeniden seç",
-      "selected": "{count, plural, =1 {1 eylem seçildi} other {# eylem seçildi}} · sınır {limit}",
       "tooMany": "{count} eylem seçildi; sınır {limit}. Kaydetmeden önce bazı eylemlerin seçimini kaldırın.",
       "changed": {
         "version": "Yayımlanan agent sürümü değişti. Eylemlerini yeniden inceleyin.",
@@ -11084,9 +11082,10 @@
         "actions": "Önceden seçilen bazı eylemler kullanılamıyor, onay gerektiriyor veya hesap yetkilendirmesi değişmiş. Bunlar yeniden seçilmez."
       },
       "capabilitiesSection": "Capabilities",
-      "copyAgent": "Agent ayarlarını kopyala",
-      "copyAgentHint": "Bu agent'ın sohbette zaten sormadan çalıştırdığı eylemleri tam olarak seçer. Agent'ın önce sorduğu eylemler listelenmez ve burada onaylanamaz.",
-      "groupCount": "{selected} / {total}"
+      "groupCount": "{selected} / {total}",
+      "useAgent": "Agent ayarlarını kullan",
+      "useAgentHint": "Bu agent'ın sohbette zaten sormadan çalıştırdığı eylemleri tam olarak seçer ve mevcut seçimin yerine koyar. Buradaki onay yalnızca agent ayarlarının izin verdiğini daraltabilir, asla genişletmez: agent'ın önce sorduğu bir eylem sunulmaz. Onayı kaydet seçilene kadar hiçbir şey kaydedilmez.",
+      "allowHeading": "Bu eylemlerin onay istemeden çalışmasına izin ver"
     },
     "sourceConsents": {
       "kind": "{kind, select, capability {Capabilities} skill {Skill'ler} context {Bağlam dosyaları} knowledge {Bilgi tabanları} table {Tablolar} delegate {Delege agent'lar} remote_agent {Uzak agent'lar} platform {Platform} mcp_account {MCP hesapları} chat_connection {Sohbet bağlantıları} phone {Telefon} terminal_account {Terminal hesapları} terminal_credential {Terminal kimlik bilgileri} event_source {Olay kaynağı} other {Diğer}}",

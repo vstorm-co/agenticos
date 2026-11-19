@@ -1,5 +1,5 @@
 ---
-source_sha: "9ff1469ca8a4"
+source_sha: "753163fbbe69"
 ---
 
 # Governance { #governance }
@@ -839,7 +839,7 @@ Twórca może otworzyć **Zgody na działania** swojej rutyny i wybrać działan
 
 Wyjątek MCP wskazuje konkretne konto, skrót adresu, generację autoryzacji i oryginalną nazwę działania. Wysyłanie poczty nie upoważnia do kasowania ani zapisów na innym koncie. Konta osobiste są dostępne tylko dla rutyny działającej jako jej twórca. Wybór korzysta z zapisanej listy narzędzi połączenia; gdy jest niedostępna, sprawdź połączenie lub poproś jego administratora. Cofnięcie wszystkich zgód nie wymaga działającej listy narzędzi.
 
-Przegląd pokazuje capabilities agenta, AgenticOS i każde inne konto MCP jako osobne sekcje, każdą z jej grupami. Widać tylko działania, które agent już wykonuje bez pytania: na działanie, przed którym pyta, nie można się tu zgodzić, więc go nie ma. **Skopiuj ustawienia agenta** zaznacza dokładnie te działania i zastępuje obecne zaznaczenie; nic nie zapisuje się przed wybraniem **Zapisz zgody**.
+Przegląd pokazuje capabilities agenta, AgenticOS i każde inne konto MCP jako osobne sekcje, każdą z jej grupami. Widać tylko działania, które agent już wykonuje bez pytania: na działanie, przed którym pyta, nie można się tu zgodzić, więc go nie ma. **Użyj ustawień agenta** zaznacza dokładnie te działania i zastępuje obecne zaznaczenie; nic nie zapisuje się przed wybraniem **Zapisz zgody**.
 
 Panel **Zatwierdzone źródła** nad nim pokazuje źródła rutyny według rodzaju - capabilities, skille, bazy wiedzy, tabele, konta - każdy rodzaj zwinięty do licznika, a każde źródło z nazwą. Źródło, którego już nie ma, jest oznaczone jako niedostępne; jego identyfikator widać po najechaniu.
 
