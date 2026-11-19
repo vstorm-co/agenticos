@@ -70,8 +70,14 @@ export function getTable(tableId: string): Promise<TableRead> {
 }
 
 /** Every version of a table's schema, each with the columns it had. */
-export function listSchemaVersions(tableId: string): Promise<{ items: SchemaVersionRead[] }> {
-  return apiClient.get<{ items: SchemaVersionRead[] }>(`/tables/${tableId}/schema-versions`);
+export function listSchemaVersions(
+  tableId: string,
+  version?: number,
+): Promise<{ items: SchemaVersionRead[] }> {
+  const path = `/tables/${tableId}/schema-versions`;
+  return version === undefined
+    ? apiClient.get<{ items: SchemaVersionRead[] }>(path)
+    : apiClient.get<{ items: SchemaVersionRead[] }>(path, { params: { version: String(version) } });
 }
 
 export function updateTable(tableId: string, data: TableUpdate): Promise<TableRead> {

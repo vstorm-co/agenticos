@@ -90,11 +90,23 @@ export function useWorkflowTableDrift(enabled: boolean): void {
     })),
   });
   const histories = useQueries({
-    queries: staleIds.map((id) => ({
-      queryKey: qk.tables.schemaVersions(id),
-      queryFn: () => listSchemaVersions(id),
-      enabled,
-    })),
+    queries: staleIds.map((id) => {
+      const versions = [
+        ...new Set([
+          ...stale.filter(({ ref }) => ref.table_id === id).map(({ ref }) => ref.schema_version),
+          listedVersion(id)!,
+        ]),
+      ].sort((a, b) => a - b);
+      return {
+        queryKey: [...qk.tables.schemaVersions(id), versions],
+        queryFn: async () => ({
+          items: (
+            await Promise.all(versions.map((version) => listSchemaVersions(id, version)))
+          ).flatMap((result) => result.items),
+        }),
+        enabled,
+      };
+    }),
   });
   const detail = (id: string) => details[detailIds.indexOf(id)]?.data;
   const history = (id: string) => histories[staleIds.indexOf(id)]?.data;

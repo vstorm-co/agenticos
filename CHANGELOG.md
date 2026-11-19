@@ -36,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Bound criterion aggregation in temporary scratch storage before selecting results, preserve current-agent training answers, cap earlier-attempt prompt excerpts, include criterion-only gains in fork defaults, and keep skill attribution within the judge namespace. Workflow rebinding requests only the schema versions it needs, and saved MCP connections resolve catalog keys to their compiled service logos.
+
 - Preserve every criterion when a literal name already uses a duplicate's numbered suffix, so its confirmed improvement or regression is still counted.
 
 - **Improve proposals on Anthropic models through OpenRouter.** The Improve helper's **Changes** step failed with HTTP 400, because the answer tool was sent strict and a proposal's free JSON value has no type in its schema. An answer schema a strict tool cannot express (a free JSON value, numeric or length bounds, `minItems` above one) now goes through a non-strict tool, still checked against the schema and sent back when it breaks it; any other schema keeps the provider's default, so Gemini still validates every call (#3146).

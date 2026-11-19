@@ -819,6 +819,10 @@ async def train_answers(
             EvalRun.status == "completed",
             EvalRun.created_at >= since,
             EvalRun.created_at < until if until is not None else true(),
+            or_(
+                EvalRunArm.role == "candidate",
+                and_(EvalRun.proposal_check.is_not(None), EvalRunArm.role == "baseline"),
+            ),
             EvalRunArm.source != "explicit",
             EvalRunCase.attempt == 0,
         )

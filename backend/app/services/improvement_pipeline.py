@@ -281,22 +281,31 @@ class EarlierAttempt:
     criteria: tuple[CriterionMoveRead, ...]
 
 
+def _change_excerpt(text: str | None) -> str | None:
+    """Clip a value before adding its structural delimiters to the prompt."""
+    if text is None or len(text) <= 700:
+        return text
+    return text[:350] + "\n[... change excerpt clipped ...]\n" + text[-350:]
+
+
 def _change_text(hunk: SpecProposalHunk) -> str:
+    """A bounded description that keeps old and new excerpts separately labeled."""
     if hunk.kind in (HunkKind.INSTRUCTIONS.value, HunkKind.SKILL_BODY.value):
         replaced = hunk.edited_text if hunk.edited_text is not None else hunk.new_text
         where = "the instructions" if hunk.kind == HunkKind.INSTRUCTIONS.value else "a skill's body"
         return (
-            f"In {where}, replaced:\n<old>\n{hunk.old_text}\n</old>\n"
-            f"with:\n<new>\n{replaced}\n</new>"
+            f"In {where}, replaced:\n<old>\n{_change_excerpt(hunk.old_text)}\n</old>\n"
+            f"with:\n<new>\n{_change_excerpt(replaced)}\n</new>"
         )
     if hunk.kind == HunkKind.SPEC_FIELD.value:
-        return f"{hunk.op} {hunk.path}: {json.dumps(hunk.new_value)}"
+        return f"{hunk.op} {hunk.path}: {_change_excerpt(json.dumps(hunk.new_value))}"
     if hunk.kind == HunkKind.TOOL_OVERRIDE.value:
         return (
-            f"Tool {hunk.capability_id}/{hunk.tool_id}: name {hunk.new_name!r}, "
-            f"description {hunk.new_description!r}"
+            f"Tool {hunk.capability_id}/{hunk.tool_id}: "
+            f"name {_change_excerpt(hunk.new_name)!r}, "
+            f"description {_change_excerpt(hunk.new_description)!r}"
         )
-    return f"{hunk.kind}: {hunk.new_text or hunk.new_description or ''}"
+    return f"{hunk.kind}: {_change_excerpt(hunk.new_text or hunk.new_description or '')}"
 
 
 class ImprovementPipelineService:

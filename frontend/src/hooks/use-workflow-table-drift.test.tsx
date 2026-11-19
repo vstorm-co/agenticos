@@ -128,6 +128,11 @@ describe("useWorkflowTableDrift", () => {
     ]);
     expect(store.getState().graph!.nodes[0]!.config.table).toEqual(ref(["c1"]));
     expect(store.getState().isDirty).toBe(false);
+    expect(api.listSchemaVersions).toHaveBeenCalledWith("t1", 1);
+    expect(api.listSchemaVersions).toHaveBeenCalledWith("t1", 2);
+    expect(vi.mocked(api.listSchemaVersions).mock.calls.every((args) => args.length === 2)).toBe(
+      true,
+    );
 
     // Accepting it - the toolbar's one click - clears the drift.
     store

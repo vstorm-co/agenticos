@@ -205,3 +205,44 @@ class TestEarlierAttempts:
         )
 
         assert attempt.criteria == ()
+
+
+def test_a_large_instruction_replacement_is_an_explicit_bounded_excerpt():
+    text = _change_text(_hunk(kind="instructions", old_text="a" * 100_000, new_text="b" * 100_000))
+    assert len(text) < 4100
+    assert "change excerpt clipped" in text
+    assert text.startswith("In the instructions") and text.endswith("</new>")
+    assert all(text.count(tag) == 1 for tag in ("<old>", "</old>", "<new>", "</new>"))
+
+
+def test_earlier_attempts_have_a_total_prompt_bound_and_keep_recent_evidence():
+    attempts = [
+        EarlierAttempt(
+            number=n,
+            verdict=ImprovementVerdict.NO_CHANGE,
+            changes=("x" * 5000,) * 20,
+            held_out=10,
+            fixed=0,
+            broken=0,
+            criteria=(),
+        )
+        for n in range(10)
+    ]
+    text = _earlier_section(attempts)
+    assert len(text) < 25_000
+    assert "## Attempt 9:" in text
+    assert "## Attempt 0:" not in text
+    assert "clipped" in text
+
+
+def test_an_unchanged_tool_name_remains_absent_in_the_change_description():
+    text = _change_text(
+        _hunk(
+            kind="tool_override",
+            capability_id="knowledge",
+            tool_id="search",
+            new_name=None,
+            new_description="Search first",
+        )
+    )
+    assert "name None," in text

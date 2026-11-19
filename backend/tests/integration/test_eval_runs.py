@@ -3872,3 +3872,35 @@ async def test_a_run_that_is_not_a_stability_run_says_nothing_of_stability(db) -
     read = await service.get(ctx, started.id)
 
     assert read.stability is None
+
+
+async def test_latest_training_answers_exclude_an_ordinary_paired_runs_baseline(db):
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    baseline = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), baseline.id, ctx)
+    # PostgreSQL now() is fixed for this fixture's outer transaction; model the
+    # earlier run's real creation time before applying the evidence cutoff.
+    stored_baseline = await db.get(EvalRun, baseline.id)
+    assert stored_baseline is not None
+    stored_baseline.created_at -= timedelta(minutes=1)
+    await db.flush()
+    candidate = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), candidate.id, ctx)
+    cases = (await DatasetService(db).list_cases(ctx, dataset.id)).items
+
+    rows = await authoring_repo.train_answers(
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        dataset_ids=[dataset.id],
+        since=candidate.created_at,
+        case_ids=[case.case_id for case in cases],
+        limit=2,
+    )
+
+    assert len({row.case.case_id for row in rows}) == 2
+    assert {row.arm.role for row in rows} == {"candidate"}
+    assert {row.arm.version_number for row in rows} == {7}

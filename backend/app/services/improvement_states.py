@@ -428,7 +428,7 @@ def criterion_details(
             "fixed": move.fixed_confirmed,
             "broken": move.broken_confirmed,
         }
-        owner = owners.get(move.name.casefold())
+        owner = owners.get(move.name.casefold()) if move.scorer == "judge" else None
         if owner is not None and move.candidate_passed < move.graded:
             detail["skill"] = owner
         details.append(detail)

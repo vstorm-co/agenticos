@@ -151,7 +151,7 @@ Copies of training questions or source evidence are excluded using normalized in
 
 An improvement session pins its dataset version and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats and new dataset cases cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
 
-A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke.
+A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
 
 A check counts as the draft's test once the draft is exactly what it checked -
 every checked suggestion accepted and nothing else changed - so the publish

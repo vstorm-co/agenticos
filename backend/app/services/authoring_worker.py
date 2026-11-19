@@ -288,15 +288,31 @@ def _earlier_section(attempts: Sequence[EarlierAttempt]) -> str:
             )
         )
 
+    def excerpt(text: str, limit: int) -> str:
+        return text if len(text) <= limit else text[:limit] + "\n[... excerpt clipped ...]"
+
+    def changes(attempt: EarlierAttempt) -> str:
+        kept: list[str] = []
+        size = 0
+        for change in attempt.changes:
+            item = "- " + excerpt(change, 2000)
+            if size + len(item) > 2500:
+                kept.append("[Further changes omitted]")
+                break
+            kept.append(item)
+            size += len(item) + 1
+        return "\n".join(kept)
+
     blocks = "\n\n".join(
         f"## Attempt {attempt.number}: {attempt.verdict.value}\n"
-        + "\n".join(f"- {change}" for change in attempt.changes)
+        + changes(attempt)
         + f"\nOn {attempt.held_out} held-out questions it fixed {attempt.fixed} and broke "
-        f"{attempt.broken}. Which ones stays hidden.\n{moved(attempt)}"
-        for attempt in attempts
+        f"{attempt.broken}. Which ones stays hidden.\n" + excerpt(moved(attempt), 1000)
+        for attempt in attempts[-6:]
     )
     return (
         "\n\n# Earlier attempts in this session\n"
+        "Up to six recent measured attempts; long change and criterion excerpts are clipped.\n"
         "None of these changes is in the draft above: each attempt changes the same draft, "
         "and the answers above are the draft's own. Keep what an attempt's criteria show "
         "worked. Where an attempt broke questions, leave out or narrow the part of it most "

@@ -1,7 +1,7 @@
 """How two eval arms compare: per case, per tag, and as one verdict.
 
-Pure arithmetic over outcomes the scorers already produced, kept apart from the
-service that gathers them so every rule here can be checked without a database.
+Comparison arithmetic over outcomes the scorers already produced, kept apart from the
+service that gathers them so every rule can be checked without the application database.
 
 The rules are the ones a gate can trust:
 
@@ -35,8 +35,10 @@ The rules are the ones a gate can trust:
 
 import enum
 import math
+import sqlite3
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
+from contextlib import closing
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Literal
@@ -521,44 +523,78 @@ def criterion_moves(
     ones failing most often - so a verdict read from the kept list is the one
     the whole list gives.
     """
-    counts: dict[Criterion, Counter[str]] = {}
+    if not 0 <= limit <= MAX_COMPARED_CRITERIA:
+        raise ValueError("Criterion response limit must be between 0 and 200")
+    # A private, automatically deleted scratch database spills beyond its 2 MiB
+    # cache. A dict of every distinct criterion can exhaust a worker on valid data.
+    with closing(sqlite3.connect("")) as scratch:
+        scratch.execute("PRAGMA cache_size = -2048")
+        scratch.execute("PRAGMA temp_store = FILE")
+        scratch.execute("PRAGMA journal_mode = OFF")
+        scratch.execute("PRAGMA synchronous = OFF")
+        scratch.execute(
+            "CREATE TABLE moves (scorer TEXT, name TEXT, graded INTEGER, "
+            "baseline_passed INTEGER, candidate_passed INTEGER, fixed_confirmed INTEGER, "
+            "broken_confirmed INTEGER, fixed_unconfirmed INTEGER, broken_unconfirmed INTEGER, "
+            "PRIMARY KEY (scorer, name)) WITHOUT ROWID"
+        )
+        scratch.executemany(
+            "INSERT INTO moves VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT (scorer, name) DO UPDATE SET "
+            "graded = graded + excluded.graded, "
+            "baseline_passed = baseline_passed + excluded.baseline_passed, "
+            "candidate_passed = candidate_passed + excluded.candidate_passed, "
+            "fixed_confirmed = fixed_confirmed + excluded.fixed_confirmed, "
+            "broken_confirmed = broken_confirmed + excluded.broken_confirmed, "
+            "fixed_unconfirmed = fixed_unconfirmed + excluded.fixed_unconfirmed, "
+            "broken_unconfirmed = broken_unconfirmed + excluded.broken_unconfirmed",
+            _criterion_contributions(cases),
+        )
+        scratch.row_factory = _criterion_move_row
+        # Rank and limit before constructing response objects. Name tie-breaks
+        # match the former stable sort, including criteria with equal counts.
+        return sorted(
+            scratch.execute(
+                "SELECT * FROM moves ORDER BY "
+                "(broken_confirmed = 0), "
+                "NOT (broken_confirmed = 0 AND fixed_confirmed > 0 "
+                "AND candidate_passed >= baseline_passed), "
+                "NOT (fixed_unconfirmed OR broken_unconfirmed OR fixed_confirmed), "
+                "candidate_passed - graded, scorer, name LIMIT ?",
+                (limit,),
+            ),
+            key=lambda move: (move.scorer, move.name),
+        )
+
+
+type _CriterionContribution = tuple[str, str, int, int, int, int, int, int, int]
+
+
+def _criterion_contributions(cases: Iterable[PairedGrades]) -> Iterable[_CriterionContribution]:
+    """Stream contributions without retaining all criterion names."""
     for case in cases:
-        for criterion, before in case.baseline.items():
+        for (scorer, name), before in case.baseline.items():
+            criterion = (scorer, name)
             after = case.candidate.get(criterion)
             if before is None or after is None:
                 continue
-            row = counts.setdefault(criterion, Counter())
-            row["graded"] += 1
-            row["baseline_passed"] += int(before)
-            row["candidate_passed"] += int(after)
             flip = case.flip(criterion)
-            if flip in (Flip.FIXED, Flip.REGRESSION):
-                which = "fixed" if flip is Flip.FIXED else "broken"
-                state = "confirmed" if case.confirmed(criterion) else "unconfirmed"
-                row[f"{which}_{state}"] += 1
-    moves = [
-        CriterionMove(
-            scorer=scorer,
-            name=name,
-            graded=row["graded"],
-            baseline_passed=row["baseline_passed"],
-            candidate_passed=row["candidate_passed"],
-            fixed_confirmed=row["fixed_confirmed"],
-            broken_confirmed=row["broken_confirmed"],
-            fixed_unconfirmed=row["fixed_unconfirmed"],
-            broken_unconfirmed=row["broken_unconfirmed"],
-        )
-        for (scorer, name), row in sorted(counts.items())
-    ]
-    if len(moves) <= limit:
-        return moves
-    kept = sorted(
-        moves,
-        key=lambda move: (
-            not move.worse,
-            not move.better,
-            not (move.fixed_unconfirmed or move.broken_unconfirmed or move.fixed_confirmed),
-            move.candidate_passed - move.graded,
-        ),
-    )[:limit]
-    return sorted(kept, key=lambda move: (move.scorer, move.name))
+            confirmed = case.confirmed(criterion)
+            fixed = flip is Flip.FIXED
+            broken = flip is Flip.REGRESSION
+            yield (
+                scorer,
+                name,
+                1,
+                int(before),
+                int(after),
+                int(fixed and confirmed),
+                int(broken and confirmed),
+                int(fixed and not confirmed),
+                int(broken and not confirmed),
+            )
+
+
+def _criterion_move_row(_cursor: sqlite3.Cursor, row: _CriterionContribution) -> CriterionMove:
+    # The SELECT reads exactly the nine columns of our private scratch table.
+    return CriterionMove(*row)

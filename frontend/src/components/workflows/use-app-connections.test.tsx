@@ -151,6 +151,19 @@ describe("the server list", () => {
 });
 
 describe("useMcpAppStep", () => {
+  it.each([
+    ["google-drive", "gdrive"],
+    ["work-iq", "microsoft"],
+    ["google-sheets", "googlesheets"],
+  ])(
+    "resolves the catalog key %s to its compiled glyph %s without metadata",
+    (catalogKey, glyph) => {
+      state.connections = [{ ...other, catalog_key: catalogKey }];
+      const { result } = renderHook(() => useMcpAppStep({ connection_id: "c2", tool: "find" }));
+      expect(result.current?.app.brand).toBe(glyph);
+    },
+  );
+
   it.each(["github", "hubspot"])(
     "keeps %s's compiled logo while its catalog entry is unavailable",
     (catalogKey) => {

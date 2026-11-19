@@ -263,3 +263,11 @@ it("loads table-specific authorized assignees", async () => {
   expect(await getTableAssignees("t1")).toEqual([]);
   expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/assignee-options");
 });
+
+it("listSchemaVersions requests only the needed version", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
+  await listSchemaVersions("t1", 7);
+  expect(apiClient.get).toHaveBeenCalledWith("/tables/t1/schema-versions", {
+    params: { version: "7" },
+  });
+});

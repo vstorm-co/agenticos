@@ -323,3 +323,74 @@ def test_a_verdict_keeps_the_criteria_that_moved_before_the_rest() -> None:
 
     assert len(details) == MAX_CRITERIA
     assert details[0]["name"] == "zz moved"
+
+
+@pytest.mark.security
+def test_a_large_single_pass_comparison_constructs_only_the_kept_moves(monkeypatch):
+    from unittest.mock import Mock
+
+    from app.services import eval_comparison
+
+    factory = Mock(wraps=CriterionMove)
+    monkeypatch.setattr(eval_comparison, "CriterionMove", factory)
+
+    def cases():
+        for number in range(5000):
+            unchanged = {("check", f"check {number:05}"): True}
+            yield PairedGrades(baseline=unchanged, candidate=unchanged)
+        before = {_PRICE: True}
+        after = {_PRICE: False}
+        yield PairedGrades(
+            baseline=before, candidate=after, baseline_reruns=(before,), candidate_reruns=(after,)
+        )
+
+    moves = criterion_moves(cases())
+
+    assert len(moves) == 200
+    assert factory.call_count == 200
+    assert _named(moves, "price break").worse
+
+
+@pytest.mark.parametrize("limit", [-1, 201])
+def test_a_response_limit_cannot_disable_the_resource_bound(limit):
+    with pytest.raises(ValueError, match="limit"):
+        criterion_moves([], limit=limit)
+
+
+def test_a_zero_limit_returns_no_moves():
+    assert criterion_moves([_quote(price=True)], limit=0) == []
+
+
+def test_a_name_only_skill_report_does_not_claim_another_scorers_criterion():
+    judge = CriterionMove("judge", "Validity", 2, 0, 1, 1, 0)
+    check = replace(judge, scorer="check")
+
+    details = criterion_details([judge, check], {"validity": "Quote rules"})
+
+    assert next(row for row in details if row["scorer"] == "judge")["skill"] == "Quote rules"
+    assert "skill" not in next(row for row in details if row["scorer"] == "check")
+
+
+def test_scratch_storage_closes_when_reading_criteria_fails(monkeypatch):
+    import sqlite3
+
+    from app.services import eval_comparison
+
+    class TrackedConnection(sqlite3.Connection):
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+            super().close()
+
+    connect = sqlite3.connect
+    connection = connect("", factory=TrackedConnection)
+    monkeypatch.setattr(eval_comparison.sqlite3, "connect", lambda _name: connection)
+
+    def interrupted():
+        yield _quote(price=True)
+        raise RuntimeError("input interrupted")
+
+    with pytest.raises(RuntimeError, match="input interrupted"):
+        criterion_moves(interrupted())
+    assert connection.closed
