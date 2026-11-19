@@ -38,6 +38,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
+from anyio import to_thread
 from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -2777,16 +2778,19 @@ class EvalRunService:
         ]
         my_grades = await self.criterion_outcomes(ctx, candidate, attempts)
         their_grades = await self.criterion_outcomes(ctx, their_arm, their_attempts)
-        moves = criterion_moves(
-            PairedGrades(
-                baseline=their_grades[case_id][0],
-                candidate=my_grades[case_id][0],
-                baseline_reruns=their_grades[case_id][1] if confirmed_here else (),
-                candidate_reruns=my_grades[case_id][1],
-                drift=drift,
-            )
-            for case_id in common
-            if case_id in my_grades and case_id in their_grades
+        moves = await to_thread.run_sync(
+            criterion_moves,
+            (
+                PairedGrades(
+                    baseline=their_grades[case_id][0],
+                    candidate=my_grades[case_id][0],
+                    baseline_reruns=their_grades[case_id][1] if confirmed_here else (),
+                    candidate_reruns=my_grades[case_id][1],
+                    drift=drift,
+                )
+                for case_id in common
+                if case_id in my_grades and case_id in their_grades
+            ),
         )
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
         invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None

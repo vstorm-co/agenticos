@@ -16,12 +16,13 @@ attribution - is covered where it lives. What only a database shows is here:
 import asyncio
 import contextlib
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from functools import partial
+from threading import Event, Timer
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -3904,3 +3905,42 @@ async def test_latest_training_answers_exclude_an_ordinary_paired_runs_baseline(
     assert len({row.case.case_id for row in rows}) == 2
     assert {row.arm.role for row in rows} == {"candidate"}
     assert {row.arm.version_number for row in rows} == {7}
+
+
+@pytest.mark.security
+async def test_comparison_scratch_work_leaves_the_event_loop_responsive(db, monkeypatch):
+    from app.services import eval_run as eval_service
+    from app.services.eval_comparison import CriterionMove, PairedGrades
+
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    baseline = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), baseline.id, ctx)
+    candidate = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), candidate.id, ctx)
+    started, release, finished = Event(), Event(), Event()
+    original = eval_service.criterion_moves
+
+    def blocked(cases: Iterable[PairedGrades]) -> list[CriterionMove]:
+        started.set()
+        release.wait(timeout=5)
+        finished.set()
+        return original(cases)
+
+    monkeypatch.setattr(eval_service, "criterion_moves", blocked)
+    # An implementation blocking the event loop must fail instead of hanging the suite.
+    timer = Timer(5, release.set)
+    timer.start()
+    task = asyncio.create_task(service.compare(ctx, candidate.id))
+    try:
+        assert await asyncio.to_thread(started.wait, 5)
+        assert not finished.is_set(), "comparison scratch I/O blocked the event loop"
+    finally:
+        release.set()
+        timer.cancel()
+        try:
+            await task
+        finally:
+            timer.join()
