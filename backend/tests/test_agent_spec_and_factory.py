@@ -1320,7 +1320,7 @@ _SCORE = {
 
 
 def _shaped(field: dict[str, object]) -> dict[str, object]:
-    return {"type": "object", "properties": {"field": field}}
+    return {"type": "object", "properties": {"field": field}, "additionalProperties": False}
 
 
 class TestAStructuredAnswer:
@@ -1421,6 +1421,10 @@ class TestAStructuredAnswer:
         ("schema", "strict"),
         [
             (_SCORE, None),
+            ({"type": "object"}, False),
+            (_shaped({"type": "array"}), False),
+            (_shaped({"type": ["array", "null"]}), False),
+            (_shaped({"type": ["object", "null"]}), False),
             (_shaped({"type": "object", "additionalProperties": True}), False),
             (_shaped({"type": "array", "items": True}), False),
             (_shaped({"type": "object", "additionalProperties": False}), None),

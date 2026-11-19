@@ -828,13 +828,19 @@ class EvalRunWorker:
 
     @staticmethod
     def _spend(agent_run: AgentRun, attempt: EvalRunCase) -> dict[str, Any]:
-        """What an answer spent, with what an earlier try of an attempt asked again spent."""
+        """What an answer spent, including earlier tries of an attempt asked again."""
+
+        def tokens(current: int | None, previous: int | None) -> int | None:
+            return (
+                None if current is None and previous is None else (current or 0) + (previous or 0)
+            )
+
         return {
             "agent_run_id": agent_run.id,
             "cost_usd": agent_run.cost_usd + (attempt.cost_usd or Decimal(0)),
             "cost_is_partial": agent_run.cost_is_partial or bool(attempt.cost_is_partial),
-            "input_tokens": agent_run.input_tokens,
-            "output_tokens": agent_run.output_tokens,
+            "input_tokens": tokens(agent_run.input_tokens, attempt.input_tokens),
+            "output_tokens": tokens(agent_run.output_tokens, attempt.output_tokens),
             "latency_ms": _latency_ms(agent_run),
         }
 

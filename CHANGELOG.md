@@ -36,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Bound interactive comparison reads with shared caller and organization rate budgets and one in-flight comparison per organization. Preserve confirmed regressions in truncated evidence, apply net pass counts consistently when naming gains, keep scorer identity in retry prompts, and accumulate tokens across replacement answers.
+
 - Stream paired criterion grades in bounded batches before aggregation, including worker rerun detection, and keep scratch I/O off the API event loop.
 - Include filter, sort and record-write columns when checking safe workflow table rebinding.
 - Handle boolean free-value output schemas in strict-tool fallback, report criterion gains consistently through MCP, and exclude unconfirmed criterion noise from retry prompts.
@@ -53,6 +55,8 @@ Two things are versioned separately from this file and worth knowing about:
 - **An Improve check that lost a few answers to timeouts.** An answer the model provider timed out on or failed left its question incomplete, so the comparison came out invalid and the session ran the whole check again at its full price. The check now asks just those answers once more before confirming the flips, when the session's budget still covers them; an answer that fails again leaves the check inconclusive as before.
 
 ### Upgrading
+
+- Comparison clients must honor HTTP 429 and `Retry-After`: the console and API share 30 reads per person and 60 per organization per minute, with one comparison executing per organization.
 
 - Migration `backend/alembic/versions/0342_criterion_verdicts.py` widens the improvement verdict, stop reason and skill-check agent state constraints and adds `skill_check_agents.criteria`. Its downgrade reads the new verdicts and states as `no_change`.
 

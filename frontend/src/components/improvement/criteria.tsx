@@ -24,7 +24,9 @@ export function criteriaOf(round: ImprovementIteration | undefined): VerdictCrit
 export function movedCriteria(round: ImprovementIteration | undefined) {
   const criteria = criteriaOf(round);
   return {
-    better: criteria.filter((item) => item.fixed > 0 && item.broken === 0),
+    better: criteria.filter(
+      (item) => item.fixed > 0 && item.broken === 0 && item.after >= item.before,
+    ),
     worse: criteria.filter((item) => item.broken > 0),
     failing: criteria.filter(
       (item) => item.after < item.graded && item.fixed === 0 && item.broken === 0,

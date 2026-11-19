@@ -2739,7 +2739,7 @@ def moved_criteria(
             "direction": "worse" if item["broken"] else "better",
         }
         for item in criteria
-        if item["broken"] or item["fixed"]
+        if item["broken"] or (item["fixed"] and item["after"] >= item["before"])
     ]
     moved.sort(key=lambda item: item["direction"] != "worse")
     return moved[:NOTIFIED_CRITERIA]

@@ -464,7 +464,11 @@ def _criterion(item: dict[str, Any]) -> str:
 def _criteria_sentences(detail: dict[str, Any], verdict: str) -> list[str]:
     """What an attempt moved criterion by criterion, and what still fails, in plain words."""
     criteria = detail.get("criteria") or []
-    better = [item for item in criteria if item["fixed"] and not item["broken"]]
+    better = [
+        item
+        for item in criteria
+        if item["fixed"] and not item["broken"] and item["after"] >= item["before"]
+    ]
     worse = [item for item in criteria if item["broken"]]
     failing = [
         item

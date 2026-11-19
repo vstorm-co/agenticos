@@ -506,3 +506,36 @@ async def test_paired_criteria_read_score_json_in_bounded_batches(mock_db_sessio
     assert read_sizes == [50, 50, 1, 1]
     assert {case_id for page in pages for case_id, _ in page} == set(case_ids)
     assert criterion_flipped(pages[-1][0][1].baseline, pages[-1][0][1].candidate)
+
+
+@pytest.mark.parametrize(
+    ("before", "current", "expected"),
+    [(7, 10, 17), (None, 10, 10), (7, None, 7), (None, None, None)],
+)
+async def test_requeueing_an_answer_retains_and_accumulates_its_token_spend(
+    mock_db_session, before, current, expected
+):
+    from app.repositories import eval_run_repo
+
+    attempt = EvalRunCase(
+        status="failed",
+        input_tokens=before,
+        output_tokens=before,
+        cost_usd=Decimal("0.02"),
+        agent_run_id=uuid.uuid4(),
+    )
+    await eval_run_repo.ask_again(mock_db_session, cases=[attempt])
+    assert attempt.input_tokens == attempt.output_tokens == before
+    assert attempt.agent_run_id is None and attempt.status == "pending"
+    agent_run = SimpleNamespace(
+        id=uuid.uuid4(),
+        cost_usd=Decimal("0.01"),
+        cost_is_partial=False,
+        input_tokens=current,
+        output_tokens=current,
+        started_at=None,
+        ended_at=None,
+    )
+    spent = EvalRunWorker._spend(cast(AgentRun, agent_run), attempt)
+    assert spent["input_tokens"] == spent["output_tokens"] == expected
+    assert spent["cost_usd"] == Decimal("0.03")

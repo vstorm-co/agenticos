@@ -139,3 +139,15 @@ it("says no more than what moved when no criterion is left failing", () => {
     screen.getByText("Attempt 1 made Desk better on 1 criterion: price break 9/40 → 40/40."),
   ).toBeInTheDocument();
 });
+
+it("does not label a confirmed fix as better when its total passes declined", () => {
+  const declined = { ...PRICE_BREAK, name: "net decline", before: 30, after: 20, fixed: 1 };
+  render(
+    <CriteriaNote
+      round={attempt("criteria_better", [PRICE_BREAK, declined])}
+      agent="Quote Builder"
+    />,
+  );
+  expect(screen.getByText(/better on 1 criterion: price break/)).toBeVisible();
+  expect(screen.queryByText(/better on 2 criteria/)).not.toBeInTheDocument();
+});

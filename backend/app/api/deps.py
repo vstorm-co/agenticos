@@ -13,7 +13,7 @@ is why every write in this API used to be acknowledged before it was durable
 """
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -1581,6 +1581,31 @@ async def limit_table_write(ctx: Auth) -> None:
         limit=rate_limit.table_write_limit(),
     )
     _refuse_if_over(decision, "Too many table writes in the last minute. Wait and try again.")
+
+
+async def limit_eval_comparison(ctx: Auth) -> AsyncGenerator[None]:
+    """Bound interactive comparisons per person and organization, including the console.
+
+    Thirty reads per person and sixty per organization per minute leave room for
+    the console's three-second polling. One comparison may execute per organization
+    at a time, so parallel reads cannot fill every worker with the same large run.
+    Shared Redis owns both controls; the established local floors apply on outage.
+    """
+    for caller, attempts in (
+        (f"org:{ctx.organization_id}:user:{ctx.subject_id}", 30),
+        (f"org:{ctx.organization_id}", 60),
+    ):
+        decision = await rate_limit.consume_with_local_floor(
+            surface="eval_comparison", caller=caller, limit=rate_limit.Limit(attempts=attempts)
+        )
+        _refuse_if_over(decision, "Too many comparisons. Wait and try again.")
+    async with rate_limit.one_in_flight(
+        "eval_comparison",
+        f"org:{ctx.organization_id}",
+        ttl_seconds=120,
+        message="A comparison is already running for this organization. Wait and try again.",
+    ):
+        yield
 
 
 async def limit_coding_revert(ctx: Auth) -> None:

@@ -881,6 +881,9 @@ def _grammar_expresses(node: object) -> bool:
         return node is not True
     if not _TYPED & node.keys() or _BOUNDS & node.keys() or node.get("minItems", 0) > 1:
         return False
+    declared = node.get("type")
+    array = declared == "array" or (isinstance(declared, list) and "array" in declared)
+    object_ = declared == "object" or (isinstance(declared, list) and "object" in declared)
     children: list[object] = [
         *node.get("properties", {}).values(),
         *node.get("$defs", {}).values(),
@@ -888,8 +891,10 @@ def _grammar_expresses(node: object) -> bool:
         *node.get("anyOf", []),
         *node.get("oneOf", []),
         *node.get("allOf", []),
-        node.get("items"),
-        node.get("additionalProperties"),
+        node.get("items", True) if array or "items" in node or "prefixItems" in node else None,
+        node.get("additionalProperties", True)
+        if object_ or "properties" in node or "additionalProperties" in node
+        else None,
     ]
     return all(_grammar_expresses(child) for child in children)
 

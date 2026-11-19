@@ -394,3 +394,11 @@ def test_scratch_storage_closes_when_reading_criteria_fails(monkeypatch):
     with pytest.raises(RuntimeError, match="input interrupted"):
         criterion_moves(interrupted())
     assert connection.closed
+
+
+def test_a_confirmed_break_survives_detail_truncation_ahead_of_many_fixes():
+    fixes = [CriterionMove("judge", f"fix {n}", 100, 0, 1, 1, 0) for n in range(MAX_CRITERIA)]
+    broken = CriterionMove("check", "critical break", 100, 100, 99, 0, 1)
+    detail = criterion_details([*fixes, broken], {})
+    assert len(detail) == MAX_CRITERIA
+    assert detail[0]["name"] == "critical break" and detail[0]["broken"] == 1

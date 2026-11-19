@@ -411,6 +411,8 @@ def criterion_details(
     ranked = sorted(
         moves,
         key=lambda move: (
+            not move.worse,
+            not move.better,
             not (move.fixed_confirmed or move.broken_confirmed),
             move.candidate_passed - move.graded,
             move.scorer,

@@ -109,3 +109,10 @@ def test_a_chosen_criterion_gain_is_also_a_best_attempt():
     assert _attempt(row, "it-1")["chosen"] is True
     assert _attempt(row, "it-1")["best"] is True
     assert _attempt(_attempt_row(2, "criteria_worse", _LENGTH), "it-1")["best"] is False
+
+
+def test_a_net_pass_decline_is_not_described_as_a_criterion_gain():
+    declined = {**_PRICE_BREAK, "name": "net decline", "before": 30, "after": 20, "fixed": 1}
+    sentence = _attempt_sentence(_attempt_row(1, "criteria_better", _PRICE_BREAK, declined))
+    assert "Criteria that got better: price break" in sentence
+    assert "net decline" not in sentence.split("Criteria that got better:")[1].split(".")[0]

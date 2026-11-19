@@ -1,0 +1,69 @@
+"""Authenticated comparison reads have shared work budgets, including the console."""
+
+from contextlib import aclosing
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+import pytest
+
+from app.api.deps import limit_eval_comparison
+from app.core.exceptions import RateLimitError
+from app.core.permissions import AuthContext
+from app.services import rate_limit
+
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
+
+
+def _ctx() -> AuthContext:
+    return AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
+
+
+async def test_comparison_counts_the_person_and_organization(monkeypatch):
+    ctx = _ctx()
+    consume = AsyncMock(return_value=rate_limit.Decision(True, 60))
+    monkeypatch.setattr(rate_limit, "consume_with_local_floor", consume)
+    monkeypatch.setattr(rate_limit, "_redis", None)
+    async with aclosing(limit_eval_comparison(ctx)) as guard:
+        await anext(guard)
+    assert [call.kwargs for call in consume.await_args_list] == [
+        {
+            "surface": "eval_comparison",
+            "caller": f"org:{ctx.organization_id}:user:{ctx.subject_id}",
+            "limit": rate_limit.Limit(30),
+        },
+        {
+            "surface": "eval_comparison",
+            "caller": f"org:{ctx.organization_id}",
+            "limit": rate_limit.Limit(60),
+        },
+    ]
+
+
+@pytest.mark.parametrize("refused_at", [0, 1])
+async def test_comparison_refuses_either_exhausted_budget(monkeypatch, refused_at):
+    decisions = [rate_limit.Decision(True, 60)] * refused_at + [rate_limit.Decision(False, 17)]
+    consume = AsyncMock(side_effect=decisions)
+    monkeypatch.setattr(rate_limit, "consume_with_local_floor", consume)
+    with pytest.raises(RateLimitError) as caught:
+        await anext(limit_eval_comparison(_ctx()))
+    assert caught.value.details == {"retry_after_seconds": 17}
+    assert consume.await_count == refused_at + 1
+
+
+async def test_only_one_org_comparison_runs_and_closing_releases_it(monkeypatch):
+    ctx = _ctx()
+    second = AuthContext(user_id=uuid4(), organization_id=ctx.organization_id, role="owner")
+    monkeypatch.setattr(
+        rate_limit,
+        "consume_with_local_floor",
+        AsyncMock(return_value=rate_limit.Decision(True, 60)),
+    )
+    monkeypatch.setattr(rate_limit, "_redis", None)
+    async with aclosing(limit_eval_comparison(ctx)) as first:
+        await anext(first)
+        with pytest.raises(RateLimitError):
+            await anext(limit_eval_comparison(second))
+        async with aclosing(limit_eval_comparison(_ctx())) as other_org:
+            await anext(other_org)
+    async with aclosing(limit_eval_comparison(second)) as next_read:
+        await anext(next_read)

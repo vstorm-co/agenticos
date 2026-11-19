@@ -1,5 +1,5 @@
 ---
-source_sha: "638c32454e3b"
+source_sha: "71b2551adf3f"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -357,6 +357,8 @@ Una comprobación medida contra el propio borrador no cuenta en ninguno de los d
 Un criterio del juez puede aplicarse a todos los casos o solo a casos con alguna de las etiquetas elegidas. En **Grading**, elija las etiquetas y revise la cobertura; un caso con varias etiquetas coincidentes cuenta una vez. Los criterios que no coinciden se omiten por completo, sin suspender el caso ni dejarlo indeciso. Las notas de Review pueden convertirse en criterios para una etiqueta del caso. Cambiar el ámbito cambia la huella de evaluación; las suites guardianas lo adoptan solo al mover la fijación con autorización.
 
 ## Comparar con un baseline { #comparing-with-a-baseline }
+
+Las lecturas interactivas de comparaciones permiten hasta 30 solicitudes por persona y 60 por organización por minuto, con una comparación en ejecución por organización. La consola y la API comparten estos límites. Las solicitudes excesivas o simultáneas reciben HTTP 429 con `Retry-After`; los clientes deben esperar antes de reintentar. Redis compartido coordina los workers; durante una caída se conserva un límite local por worker.
 
 Una comparación empareja los dos lados caso por caso según el id estable del
 caso, e informa de cada caso como **regresión** (aprobaba, ahora no),

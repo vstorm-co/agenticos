@@ -209,3 +209,8 @@ def test_an_attempt_only_worse_on_a_criterion_names_no_gain():
         "graded on got worse, though no question broke. The latest attempt is worse on under "
         "200 words 40/40 → 30/40; no whole question flipped."
     )
+
+
+def test_a_confirmed_fix_with_a_net_pass_decline_is_not_notified_as_better():
+    declined = {**_PRICE_BREAK, "before": 30, "after": 20, "fixed": 1}
+    assert moved_criteria("criteria_better", [declined]) == []

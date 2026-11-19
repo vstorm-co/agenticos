@@ -111,7 +111,7 @@ class TestEarlierSection:
         assert "None of these changes is in the draft above" in text
         assert "## Attempt 1: regression\n- add capabilities: {}" in text
         assert "On 35 held-out questions it fixed 0 and broke 2. Which ones stays hidden." in text
-        assert "- Names the next price band: 1/4 -> 4/4" in text
+        assert "- [judge] Names the next price band: 1/4 -> 4/4" in text
         assert "## Attempt 2: no_change" in text
         assert "No criterion moved on the questions it learned from." in text
 
@@ -251,3 +251,23 @@ def test_an_unchanged_tool_name_remains_absent_in_the_change_description():
         )
     )
     assert "name None," in text
+
+
+def test_retry_evidence_distinguishes_equal_names_from_different_scorers():
+    judge = _move("Validity", 1, 2).model_copy(update={"fixed_confirmed": 1})
+    check = _move("Validity", 2, 1).model_copy(update={"scorer": "check", "broken_confirmed": 1})
+    text = _earlier_section(
+        [
+            EarlierAttempt(
+                number=1,
+                verdict=ImprovementVerdict.CRITERIA_WORSE,
+                changes=(),
+                held_out=5,
+                fixed=0,
+                broken=0,
+                criteria=(judge, check),
+            )
+        ]
+    )
+    assert "[judge] Validity: 1/4 -> 2/4; confirmed fixes: 1" in text
+    assert "[check] Validity: 2/4 -> 1/4; confirmed fixes: 0, confirmed breaks: 1" in text
