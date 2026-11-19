@@ -46,7 +46,7 @@ const ORG_HEADER = "X-Organization-Id";
 const WITH_BODY = new Set(["POST", "PUT", "PATCH"]);
 
 /**
- * Response headers that describe the body and must survive the hop.
+ * Response headers that describe the body or its retry policy and must survive the hop.
  *
  * A proxy forwards what the origin said rather than inventing a policy of its
  * own: `Content-Disposition` is how a download gets its filename, and a
@@ -58,11 +58,12 @@ const WITH_BODY = new Set(["POST", "PUT", "PATCH"]);
  * detected against. It is dropped when the backend compressed the body: `fetch`
  * hands that body over decoded, and the length it declared counts the gzip.
  */
-const DESCRIBES_THE_BODY = [
+const FORWARDED_RESPONSE_HEADERS = [
   "content-type",
   "content-disposition",
   "cache-control",
   "content-length",
+  "retry-after",
 ];
 
 /**
@@ -94,7 +95,7 @@ export type ProxyHandlers = {
 function describingHeaders(source: Headers): Headers {
   const headers = new Headers();
   const decoded = source.has("content-encoding");
-  for (const name of DESCRIBES_THE_BODY) {
+  for (const name of FORWARDED_RESPONSE_HEADERS) {
     if (decoded && name === "content-length") continue;
     const value = source.get(name);
     if (value) headers.set(name, value);

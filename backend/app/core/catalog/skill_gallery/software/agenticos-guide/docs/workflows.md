@@ -431,9 +431,17 @@ step names a real thing your organization has:
 Each picker disambiguates same-named rows with context and marks a reference
 whose target has gone away. The **Agent** and **Secret** pickers also carry a
 create-new link — always, not only when the list is empty — while the **Table**
-picker has none. A table whose schema changed since it was bound says so and offers
-**Rebind to the current schema**, so a stale column set is a visible prompt
-rather than a silent break.
+picker has none.
+
+When a table's schema changes after a step was bound to it, the editor moves the
+step onto the new schema by itself as long as every column the step reads still
+exists with the same type - an added column, or a change to one the step does not
+read, needs nothing from you. When a column it reads was removed or changed type,
+the step shows a problem instead, and both the step's **Table** field and the
+toolbar's problem list offer **Update to the current schema**, which keeps every
+chosen column that still exists. Check what reads the step afterwards.
+
+Filters, sort columns and value bindings are checked too. Remove or replace dependent settings that use changed columns before updating the table schema; the bulk update leaves those steps unchanged. A whole-record value binding also requires this manual review.
 
 ### Evals for a model step { #evals-for-a-model-step }
 
@@ -645,12 +653,11 @@ failed — will retry** if it did not.
 
 Each save is written against the revision you opened, so a draft edited in two
 places at once cannot silently overwrite. When that happens the editor raises a
-banner titled **This draft changed elsewhere**: *Someone edited this workflow
-since you opened it. Overwrite keeps your changes; reload replaces them with the
-latest saved draft.* You choose:
+banner titled **Someone else also edited this workflow**: *They saved changes while you were editing. Keep your changes, or load
+their version and lose your unsaved edits.* You choose:
 
-- **Overwrite** — keep your version and write it over the one saved elsewhere.
-- **Reload** — discard your unsaved edits and take the latest saved draft.
+- **Keep my changes** — keep your version and write it over the one saved elsewhere.
+- **Load their version** — discard your unsaved edits and take the latest saved draft.
 
 ## Publishing a version and version history { #publishing-a-version-and-version-history }
 
@@ -1411,7 +1418,7 @@ Inline-agent skill and context galleries load every metadata page and offer Retr
 - A parameter is **a value or data from a step** — **Data** reads one from a
   reachable, type-compatible upstream output, or puts it into text.
 - The draft **saves itself**, and an edit from two places raises a banner with
-  **Overwrite** or **Reload**.
+  **Keep my changes** or **Load their version**.
 - **Publish** is blocked while a problem stands and re-validates on the server;
   past versions stay viewable read-only, and **Restore to draft** makes one the
   draft again.

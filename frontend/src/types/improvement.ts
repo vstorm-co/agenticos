@@ -68,6 +68,24 @@ export interface CheckAnswers {
   total: number;
   reused?: boolean;
 }
+/** One criterion on an attempt's held-out questions, first answers counted. */
+export interface VerdictCriterion {
+  scorer: string;
+  name: string;
+  graded: number;
+  before: number;
+  after: number;
+  /** Questions it went from fail to pass on, confirmed by asking again. */
+  fixed: number;
+  /** Questions it went from pass to fail on, confirmed by asking again. */
+  broken: number;
+  /** The skill the session's improver put this still-failing criterion down to. */
+  skill?: string | null;
+  skill_id?: string | null;
+}
+export type ImprovementVerdict =
+  "better" | "criteria_better" | "no_change" | "criteria_worse" | "regression" | "inconclusive";
+export type VerdictDetail = Record<string, string | number | null | VerdictCriterion[]>;
 export interface ImprovementIteration {
   id: string;
   number: number;
@@ -82,8 +100,8 @@ export interface ImprovementIteration {
   attribution_eval_run_ids: Record<string, string>;
   dropped_hunk_ids: string[];
   dropped: { hunk_id: string; reason: string }[];
-  verdict: "better" | "no_change" | "regression" | "inconclusive" | null;
-  verdict_detail: Record<string, string | number | null> | null;
+  verdict: ImprovementVerdict | null;
+  verdict_detail: VerdictDetail | null;
   /** How many questions the attempt is measured on; null until known. */
   held_out?: number | null;
   cost_usd: string;

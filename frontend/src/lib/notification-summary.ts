@@ -1,6 +1,6 @@
 import type { Translate } from "@/lib/agent-step-captions";
 import { ATTEMPT_RESULT_REASONS } from "@/lib/improvement-steps";
-import type { Notification } from "@/lib/notifications-api";
+import type { MovedCriterion, Notification } from "@/lib/notifications-api";
 import { usd, wordedSummary } from "@/lib/notification-wording";
 import { formatCostUsd } from "@/lib/utils";
 
@@ -25,6 +25,7 @@ const STOP_REASONS = [
   "knowledge_only",
   "draft",
   "expired",
+  "criteria_worse",
 ];
 
 /**
@@ -59,15 +60,32 @@ export function notificationSummary(item: Notification, t: Translate, tStop: Tra
           ? "attemptFinished"
           : outcome.status;
     const head = t(`outcome.improvement.${status}`, { agent: item.agent.name });
-    return outcome.status !== "ready" && outcome.reason && STOP_REASONS.includes(outcome.reason)
-      ? `${head} ${tStop(outcome.reason)}`
-      : head;
+    const line =
+      outcome.status !== "ready" && outcome.reason && STOP_REASONS.includes(outcome.reason)
+        ? `${head} ${tStop(outcome.reason)}`
+        : head;
+    return outcome.criteria?.length ? `${line} ${criteriaSentence(outcome.criteria, t)}` : line;
   }
   if (item.event_type === "eval_run_finished" && TEST.includes(outcome.status))
     return t(`outcome.test.${outcome.status}`);
   if (item.event_type === "case_generation_finished" && GENERATION.includes(outcome.status))
     return t(`outcome.questions.${outcome.status}`);
   return item.summary;
+}
+
+/** What an attempt moved criterion by criterion, when no whole question flipped. */
+function criteriaSentence(criteria: MovedCriterion[], t: Translate): string {
+  const listed = (direction: MovedCriterion["direction"]) =>
+    criteria
+      .filter((item) => item.direction === direction)
+      .map((item) => {
+        const { scorer, display_name, ...counts } = item;
+        const duplicate = criteria.filter((other) => other.name === item.name).length > 1;
+        const name = display_name ?? (scorer && duplicate ? `${item.name} [${scorer}]` : item.name);
+        return t("outcome.improvement.criterion", { ...counts, name });
+      })
+      .join(", ") || "none";
+  return t("outcome.improvement.criteria", { better: listed("better"), worse: listed("worse") });
 }
 
 /** A row worded from the values the server kept: by its `wording` when it names one. */

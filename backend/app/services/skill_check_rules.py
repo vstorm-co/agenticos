@@ -8,7 +8,10 @@ regression one stage confirmed completely on its own decides beside a stage
 that measured nothing. The agent improvement verdict reads that the same way
 here: a confirmed regression is
 `worse`; confirmed fixes and a pass rate that did not drop are `better`; anything
-not measured is `unknown`. Flips its re-asks could not confirm make it
+not measured is `unknown`. With no question flipped, a criterion its re-asks
+confirmed better is `criteria_better` and one confirmed worse `criteria_worse`;
+neither moves the change's own verdict, which stays about whole questions.
+Flips its re-asks could not confirm make it
 `within_noise` - the check saw a difference it cannot tell from the grading
 moving; a better agent with such flips stays better, and its row is marked
 noisy. An inconclusive agent is not asked again: it is `unknown`, and a person
@@ -39,6 +42,7 @@ from uuid import UUID
 
 from app.db.models.improvement import ImprovementVerdict
 from app.db.models.skill_check import AgentState, CheckOutcome, CheckVerdict
+from app.services.eval_comparison import CriterionMove
 from app.services.improvement_states import CheckResult, judge
 
 SAMPLE_SIZE = 4
@@ -86,6 +90,10 @@ def stage_state(stage: StageResult) -> AgentState:
         return AgentState.UNKNOWN
     if verdict is ImprovementVerdict.BETTER:
         return AgentState.BETTER
+    if verdict is ImprovementVerdict.CRITERIA_WORSE:
+        return AgentState.CRITERIA_WORSE
+    if verdict is ImprovementVerdict.CRITERIA_BETTER:
+        return AgentState.CRITERIA_BETTER
     if stage.regressions_unconfirmed or stage.fixed_unconfirmed:
         return AgentState.WITHIN_NOISE
     return AgentState.NO_CHANGE
@@ -113,6 +121,29 @@ class StageComparison:
     compared: int
     candidate_pass_rate: float | None
     baseline_pass_rate: float | None
+    criteria: tuple[CriterionMove, ...] = ()
+
+
+def _pooled_criteria(stages: Sequence[StageComparison]) -> tuple[CriterionMove, ...]:
+    """Each criterion's counts over every stage that graded it, as one measurement."""
+    by_key: dict[tuple[str, str], list[CriterionMove]] = {}
+    for stage in stages:
+        for move in stage.criteria:
+            by_key.setdefault((move.scorer, move.name), []).append(move)
+    return tuple(
+        CriterionMove(
+            scorer=scorer,
+            name=name,
+            graded=sum(move.graded for move in moves),
+            baseline_passed=sum(move.baseline_passed for move in moves),
+            candidate_passed=sum(move.candidate_passed for move in moves),
+            fixed_confirmed=sum(move.fixed_confirmed for move in moves),
+            broken_confirmed=sum(move.broken_confirmed for move in moves),
+            fixed_unconfirmed=sum(move.fixed_unconfirmed for move in moves),
+            broken_unconfirmed=sum(move.broken_unconfirmed for move in moves),
+        )
+        for (scorer, name), moves in sorted(by_key.items())
+    )
 
 
 def pooled(stages: Sequence[StageComparison], *, minimum: int) -> StageResult:
@@ -144,6 +175,7 @@ def pooled(stages: Sequence[StageComparison], *, minimum: int) -> StageResult:
             fixed_confirmed=sum(stage.fixed_confirmed for stage in stages),
             candidate_pass_rate=rate(lambda stage: stage.candidate_pass_rate),
             baseline_pass_rate=rate(lambda stage: stage.baseline_pass_rate),
+            criteria=_pooled_criteria(stages),
         ),
         fixed_unconfirmed=sum(stage.fixed_unconfirmed for stage in stages),
         regressions_unconfirmed=sum(stage.regressions_unconfirmed for stage in stages),

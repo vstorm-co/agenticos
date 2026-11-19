@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { createTranslator } from "next-intl";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import en from "../../messages/en.json";
 import pl from "../../messages/pl.json";
@@ -44,6 +44,20 @@ const CONFLICT = envelope("ALREADY_EXISTS", "An agent with the handle 'support' 
 
 const VALIDATION = envelope("VALIDATION_ERROR", "Some fields need fixing: spec.name", {
   fields: [{ field: "spec.name", message: "String should have at most 128 characters" }],
+});
+
+describe("retry deadlines", () => {
+  it.each(["20", "Thu, 19 Nov 2026 13:00:20 GMT"])("reads Retry-After %s", (header) => {
+    const now = new Date("2026-11-19T13:00:00Z");
+    vi.spyOn(Date, "now").mockReturnValue(now.getTime());
+    try {
+      expect(new ApiError(429, "Busy", undefined, header).retryAt).toBe(now.getTime() + 20_000);
+      expect(new ApiError(429, "Busy", undefined, "invalid").retryAt).toBe(now.getTime() + 60_000);
+      expect(new ApiError(500, "Failed").retryAt).toBeNull();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
 });
 
 describe("parseErrorMessage", () => {

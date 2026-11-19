@@ -7,7 +7,7 @@ transition without repeating a model call. Only an explicit human finish accepts
 
 import hashlib
 import json
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -88,6 +88,7 @@ from app.schemas.authoring import AuthoringStart, HunkDecision, HunkRead, Propos
 from app.schemas.change_event import ChangeEvent
 from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
 from app.schemas.eval_run import (
+    CriterionMoveRead,
     EvalComparisonRead,
     EvalRunRead,
     EvalRunRequest,
@@ -130,19 +131,23 @@ from app.schemas.improvement import (
     SelectionEstimate,
     TopicDeferral,
     TryAgainBlocked,
+    VerdictCriterion,
 )
+from app.schemas.notification import CriterionSources
 from app.schemas.scoring import DatasetScoring
 from app.services import authoring_fields, authoring_hunks, change_feed
 from app.services import improvement_states as rules
-from app.services.access import SKILL, accessible_ids
+from app.services.access import SKILL, accessible_ids, member_context
 from app.services.agent_registry import AgentRegistryService
 from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import MAX_EVIDENCE_RUNS, EvidencePack
 from app.services.background_jobs import enqueue
 from app.services.collection_access import readable_kb, writable_kb
+from app.services.criterion_access import criterion_source_access
 from app.services.dataset import DatasetService, redact_credentials
 from app.services.embedding_resolution import embeddings_for_collection
+from app.services.eval_comparison import CriterionMove
 from app.services.eval_run import EvalRunService, scoring_hash, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.improvement_data import (
@@ -152,7 +157,11 @@ from app.services.improvement_data import (
     input_hash,
     split_seed,
 )
-from app.services.improvement_skills import ImprovementSkillService, SkillSeed
+from app.services.improvement_skills import (
+    ImprovementSkillService,
+    SkillSeed,
+)
+from app.services.improvement_states import criterion_details, criterion_owners, criterion_skill_ids
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.notifications import NotificationService
 from app.worker.jobs import (
@@ -238,6 +247,10 @@ class ContinuationPlan:
     quote: ContinuationEstimate
 
 
+_DECIDING_ON_BEST = frozenset({Status.READY, Status.ACCEPTED, Status.PUBLISHED, Status.REJECTED})
+"""Ends that offer or decide the kept attempt, which is not always the latest one."""
+
+
 def blocked_next_step(
     run: ImprovementRun, iteration: ImprovementIteration | None
 ) -> NextStepBlocked | None:
@@ -249,6 +262,56 @@ def blocked_next_step(
     if not isinstance(missing, int) or missing < 1:
         return None
     return NextStepBlocked(reason="missing_holdout", needed=missing)
+
+
+@dataclass(frozen=True)
+class EarlierAttempt:
+    """What one measured attempt of a session changed, and what its check found.
+
+    Attributes:
+        number: The attempt's number in its session.
+        verdict: The check's verdict on it.
+        changes: Each change it made, as the helper would read it.
+        held_out: How many held-out questions the check measured.
+        fixed: Held-out questions confirmed fixed - a count, never which.
+        broken: Held-out questions confirmed broken - a count, never which.
+        criteria: The criteria that moved on the questions it learned from.
+    """
+
+    number: int
+    verdict: ImprovementVerdict
+    changes: tuple[str, ...]
+    held_out: int
+    fixed: int
+    broken: int
+    criteria: tuple[CriterionMoveRead, ...]
+
+
+def _change_excerpt(text: str | None) -> str | None:
+    """Clip a value before adding its structural delimiters to the prompt."""
+    if text is None or len(text) <= 700:
+        return text
+    return text[:350] + "\n[... change excerpt clipped ...]\n" + text[-350:]
+
+
+def _change_text(hunk: SpecProposalHunk) -> str:
+    """A bounded description that keeps old and new excerpts separately labeled."""
+    if hunk.kind in (HunkKind.INSTRUCTIONS.value, HunkKind.SKILL_BODY.value):
+        replaced = hunk.edited_text if hunk.edited_text is not None else hunk.new_text
+        where = "the instructions" if hunk.kind == HunkKind.INSTRUCTIONS.value else "a skill's body"
+        return (
+            f"In {where}, replaced:\n<old>\n{_change_excerpt(hunk.old_text)}\n</old>\n"
+            f"with:\n<new>\n{_change_excerpt(replaced)}\n</new>"
+        )
+    if hunk.kind == HunkKind.SPEC_FIELD.value:
+        return f"{hunk.op} {hunk.path}: {_change_excerpt(json.dumps(hunk.new_value))}"
+    if hunk.kind == HunkKind.TOOL_OVERRIDE.value:
+        return (
+            f"Tool {hunk.capability_id}/{hunk.tool_id}: "
+            f"name {_change_excerpt(hunk.new_name)!r}, "
+            f"description {_change_excerpt(hunk.new_description)!r}"
+        )
+    return f"{hunk.kind}: {_change_excerpt(hunk.new_text or hunk.new_description or '')}"
 
 
 class ImprovementPipelineService:
@@ -1045,6 +1108,7 @@ class ImprovementPipelineService:
             self.db, run.id, organization_id=run.organization_id
         )
         result.iterations = [ImprovementIterationRead.model_validate(item) for item in iterations]
+        await self._redact_criteria(ctx, run, result.iterations)
         for attempt in result.iterations:
             detail = attempt.verdict_detail or {}
             counted = detail.get("held_out", detail.get("gradable_holdout"))
@@ -1090,6 +1154,56 @@ class ImprovementPipelineService:
             result.error = None
         return result
 
+    async def _redact_criteria(
+        self,
+        ctx: AuthContext,
+        run: ImprovementRun,
+        iterations: list[ImprovementIterationRead],
+    ) -> None:
+        """Criterion text and grades inherit the pinned dataset and named skills' access.
+
+        A suite-based session also pins this one dataset at start. Reading the
+        shared agent alone grants no access to its private measurement evidence.
+        """
+        details = [
+            (attempt, detail)
+            for attempt in iterations
+            if (detail := attempt.verdict_detail) is not None
+            and ("criteria" in detail or "criterion_change" in detail)
+        ]
+        if not details:
+            return
+        ids: set[UUID] = set()
+        for _, detail in details:
+            criteria = detail.get("criteria")
+            if isinstance(criteria, list):
+                ids.update(item.skill_id for item in criteria if item.skill_id is not None)
+        owners = await self._criterion_access(ctx, run, ids)
+        for attempt, detail in details:
+            criteria = detail.get("criteria")
+            if owners is None or (
+                isinstance(criteria, list)
+                and any(
+                    (item.skill is not None or item.skill_id is not None)
+                    and (item.skill_id is None or item.skill_id not in owners)
+                    for item in criteria
+                )
+            ):
+                attempt.verdict_detail = {
+                    key: value
+                    for key, value in detail.items()
+                    if key not in {"criteria", "criterion_change"}
+                }
+
+    async def _criterion_access(
+        self, ctx: AuthContext, run: ImprovementRun, ids: set[UUID]
+    ) -> set[UUID] | None:
+        """Readable original owners, or None when the measurement itself is private."""
+        datasets, owners = await criterion_source_access(
+            self.db, ctx, dataset_ids={run.dataset_id}, skill_ids=ids
+        )
+        return owners if run.dataset_id in datasets else None
+
     async def _answers(
         self, run: ImprovementRun, round_: ImprovementIteration | None, role: ArmRole
     ) -> CheckAnswers | None:
@@ -1100,6 +1214,62 @@ class ImprovementPipelineService:
             self.db, round_.eval_run_ids[-1], role=role, organization_id=run.organization_id
         )
         return None if counted is None else CheckAnswers(**counted._asdict())
+
+    async def earlier_attempts(
+        self, ctx: AuthContext, run_id: UUID, *, before: int
+    ) -> list[EarlierAttempt]:
+        """The measured attempts numbered below `before`, for the helper writing the next one.
+
+        Every attempt changes the same draft, so the next one needs to know what the
+        others tried and how it went. Held-out questions stay counts; only the
+        questions an attempt learned from say which criteria moved.
+        """
+        iterations = await improvement_repo.list_iterations(
+            self.db, organization_id=ctx.organization_id, run_id=run_id
+        )
+        attempts: list[EarlierAttempt] = []
+        for iteration in iterations:
+            if (
+                iteration.number >= before
+                or iteration.verdict is None
+                or iteration.batch_id is None
+            ):
+                continue
+            hunks = await authoring_repo.list_hunks(
+                self.db, organization_id=ctx.organization_id, batch_id=iteration.batch_id
+            )
+            included = iteration.included_hunk_ids
+            criteria: tuple[CriterionMoveRead, ...] = ()
+            if iteration.eval_run_ids:
+                try:
+                    comparison = await self.evals.compare(
+                        ctx, iteration.eval_run_ids[-1], training_only=True
+                    )
+                except NotFoundError:
+                    comparison = None
+                if comparison is not None and comparison.verdict != "invalid":
+                    criteria = tuple(
+                        move
+                        for move in comparison.criteria
+                        if move.fixed_confirmed or move.broken_confirmed
+                    )
+            detail = iteration.verdict_detail or {}
+            attempts.append(
+                EarlierAttempt(
+                    number=iteration.number,
+                    verdict=ImprovementVerdict(iteration.verdict),
+                    changes=tuple(
+                        _change_text(hunk)
+                        for hunk in hunks
+                        if included is None or hunk.id in included
+                    ),
+                    held_out=detail.get("held_out") or 0,
+                    fixed=detail.get("fixed") or 0,
+                    broken=detail.get("broken") or 0,
+                    criteria=criteria,
+                )
+            )
+        return attempts
 
     async def _checked(
         self, ctx: AuthContext, run: ImprovementRun, iterations: list[ImprovementIteration]
@@ -1118,7 +1288,9 @@ class ImprovementPipelineService:
             ):
                 continue
             try:
-                comparison = await self.evals.compare(ctx, iteration.eval_run_ids[-1])
+                comparison = await self.evals.compare(
+                    ctx, iteration.eval_run_ids[-1], include_criteria=False
+                )
             except NotFoundError:
                 continue
             if comparison.verdict == "invalid":
@@ -2197,6 +2369,29 @@ class ImprovementPipelineService:
         current = await improvement_repo.get_iteration(
             self.db, organization_id=run.organization_id, run_id=run.id, number=run.iteration
         )
+        described = current
+        if run.status in _DECIDING_ON_BEST and run.best_iteration_id is not None:
+            rounds = await improvement_repo.list_iterations(
+                self.db, organization_id=run.organization_id, run_id=run.id
+            )
+            described = next((item for item in rounds if item.id == run.best_iteration_id), current)
+        criteria = [] if described is None else (described.verdict_detail or {}).get("criteria", [])
+        sources = None
+        if criteria:
+            parsed = [VerdictCriterion.model_validate(item) for item in criteria]
+            ids = {item.skill_id for item in parsed if item.skill_id is not None}
+            reader = await member_context(
+                self.db, organization_id=run.organization_id, user_id=user_id
+            )
+            owners = None if reader is None else await self._criterion_access(reader, run, ids)
+            if owners is None or any(
+                (item.skill is not None or item.skill_id is not None)
+                and (item.skill_id is None or item.skill_id not in owners)
+                for item in parsed
+            ):
+                criteria = []
+            else:
+                sources = CriterionSources(dataset_id=run.dataset_id, skill_ids=sorted(ids))
         await NotificationService(self.db).improvement_finished(
             agent=agent,
             run_id=run.id,
@@ -2205,6 +2400,9 @@ class ImprovementPipelineService:
             reason=reason or (run.stage if run.status == Status.WAITING else run.stop_reason),
             end=end,
             next_step_blocked=blocked_next_step(run, current),
+            verdict=None if described is None else described.verdict,
+            criteria=criteria,
+            criterion_sources=sources,
         )
 
     async def check_finished(self, check: EvalRun) -> None:
@@ -2922,6 +3120,8 @@ class ImprovementPipelineService:
             held_out=None
             if child.proposal_check is None or child.proposal_check.measurement is None
             else len(child.proposal_check.measurement.holdout_case_ids),
+            criterion_change=comparison.criterion_change,
+            criteria=tuple(CriterionMove(**move.model_dump()) for move in comparison.criteria),
         )
 
     @staticmethod
@@ -2934,11 +3134,18 @@ class ImprovementPipelineService:
             detail.get("fixed") or 0,
             detail.get("broken") or 0,
             detail.get("held_out") or 0,
+            criterion_change=detail.get("criterion_change", 0.0),
         )
 
     @staticmethod
-    def _result_detail(result: rules.CheckResult) -> VerdictDetail:
+    def _result_detail(
+        result: rules.CheckResult,
+        owners: Mapping[str, str] | None = None,
+        owner_ids: Mapping[str, str] | None = None,
+    ) -> VerdictDetail:
         return {
+            "criteria": criterion_details(result.criteria, owners or {}, owner_ids),
+            "criterion_change": result.criterion_change,
             "reason": None,
             "broken": result.regressions_confirmed,
             "fixed": result.fixed_confirmed,
@@ -2949,6 +3156,14 @@ class ImprovementPipelineService:
             "baseline_pass_rate": result.baseline_pass_rate,
             "held_out": result.held_out,
         }
+
+    async def _criterion_owners(self, run: ImprovementRun) -> tuple[dict[str, str], dict[str, str]]:
+        """Which skill the session's improver put each criterion down to, by criterion name."""
+        requests = await authoring_repo.requests_of_improvement(
+            self.db, run.id, organization_id=run.organization_id
+        )
+        reports = [request.report for request in requests]
+        return criterion_owners(reports), criterion_skill_ids(reports)
 
     async def recompute_after_review(self, ctx: AuthContext, check_ids: list[UUID]) -> None:
         """Refresh measured verdicts in the review transaction without new work or publication.
@@ -3006,7 +3221,7 @@ class ImprovementPipelineService:
                         )
                 else:
                     verdict = rules.judge(result)
-                    detail = self._result_detail(result)
+                    detail = self._result_detail(result, *(await self._criterion_owners(run)))
                 await improvement_repo.update_iteration(
                     self.db,
                     iteration=iteration,
@@ -3038,7 +3253,7 @@ class ImprovementPipelineService:
                 "verdict": verdict.value,
                 "verdict_detail": {
                     **(iteration.verdict_detail or {}),
-                    **self._result_detail(result),
+                    **self._result_detail(result, *(await self._criterion_owners(run))),
                 },
                 "cost_usd": max(Decimal(0), spent - previous_cost),
                 "ended_at": datetime.now(UTC),

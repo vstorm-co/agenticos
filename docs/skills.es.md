@@ -1,5 +1,5 @@
 ---
-source_sha: "9bc0bd6a3c5a"
+source_sha: "54b551bbe389"
 ---
 
 # Skills { #skills }
@@ -332,6 +332,12 @@ el paso se rechaza antes de empezar, con el dataset al que añadir otras pregunt
 - Al menos un agent tiene que quedar **mejor**.
 - Una diferencia que la comprobación no pudo confirmar está **dentro del
   ruido**: un aviso, no un bloqueo.
+- Un agent para el que no cambió ninguna pregunta entera, pero con un criterio
+  que volver a preguntar confirmó mejor y ninguno peor, está **mejor en
+  criterios**; uno con un criterio confirmado peor está **peor en criterios**.
+  Ninguno cambia la regla de arriba, que trata de preguntas enteras: en la barra
+  cuentan con los agents mejores y peores, y los detalles del agent enumeran cada
+  criterio con sus aciertos antes y después.
 - Un agent que no se pudo comprobar - sin preguntas, con preguntas que nada
   califica o tomadas todas de las conversaciones del propio cambio, sin acceso,
   sin budget, sin versión publicada, con un run fallido, con la comprobación
@@ -872,8 +878,8 @@ que no pudo calificar todas las respuestas. Los agents que no puedes ver se
 cuentan.
 
 El resultado empieza con una barra que cuenta los agents que salieron mejor, sin
-cambios, peor o desconocidos. Debajo hay una fila por agent: mejor, sin cambios,
-dentro del ruido, peor o desconocido, con los que hay que mirar primero arriba. Cada
+cambios, peor o desconocidos. Debajo hay una fila por agent: mejor, mejor en criterios,
+sin cambios, dentro del ruido, peor en criterios, peor o desconocido, con los que hay que mirar primero arriba. Cada
 fila tiene una pequeña barra de las preguntas que arregló frente a las que estropeó.
 
 Una fila entera se abre a sus detalles con un clic en cualquier parte o con Intro
