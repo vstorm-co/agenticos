@@ -1,5 +1,5 @@
 ---
-source_sha: "930dd9673a27"
+source_sha: "a162c69a93ae"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1872,6 +1872,12 @@ las encuestas no están en la especificación, así que una petición lista sus
 opciones como líneas numeradas en el hilo. Una respuesta que es solo el número
 la decide, como con [SMS](#sms). El bot reacciona con 👀 a una pregunta en cuanto
 llega, y muestra que está escribiendo mientras trabaja.
+
+**Comandos en Element.** Element lee un mensaje que empieza por `/` como uno de
+sus propios comandos. `/help` abre la ayuda de Element y nunca llega al bot.
+Cualquier otro comando del bot, como `/new` o `/link`, abre el diálogo *Comando
+desconocido* de Element, donde **Enviar como mensaje** lo envía. Si el mensaje
+empieza por `//`, como `//help`, se envía directamente.
 
 **Los archivos** que publica la gente se descargan por los medios autenticados
 del homeserver con el token del bot, hasta el límite de subida; los archivos y

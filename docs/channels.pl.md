@@ -1,5 +1,5 @@
 ---
-source_sha: "930dd9673a27"
+source_sha: "a162c69a93ae"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1833,6 +1833,12 @@ ma w specyfikacji, więc prośba wypisuje swoje opcje jako ponumerowane wiersze 
 wątku. Odpowiedź, która jest samym numerem, rozstrzyga ją, tak jak w
 [SMS](#sms). Bot reaguje 👀 na pytanie, gdy ono przychodzi, i pokazuje, że pisze,
 gdy pracuje.
+
+**Polecenia w Element.** Element traktuje wiadomość zaczynającą się od `/` jako
+własne polecenie. `/help` otwiera pomoc Element i nigdy nie trafia do bota.
+Każde inne polecenie bota, np. `/new` lub `/link`, otwiera okno *Nieznane
+polecenie* w Element, w którym **Wyślij jako wiadomość** je wysyła. Wiadomość
+zaczynająca się od `//`, np. `//help`, jest wysyłana od razu.
 
 **Pliki** wrzucane przez ludzi są pobierane przez uwierzytelnione media
 homeservera tokenem bota, do limitu wysyłania; pliki i wykresy, które wysyła

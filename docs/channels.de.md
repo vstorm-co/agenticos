@@ -1,5 +1,5 @@
 ---
-source_sha: "930dd9673a27"
+source_sha: "a162c69a93ae"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1968,6 +1968,12 @@ Auswahlmöglichkeiten als nummerierte Zeilen im Thread auf. Eine Antwort, die nu
 aus der Nummer besteht, entscheidet sie, wie bei [SMS](#sms). Der Bot reagiert
 mit 👀 auf eine Frage, sobald sie ankommt, und zeigt an, dass er tippt, während
 er arbeitet.
+
+**Befehle in Element.** Element liest eine Nachricht, die mit `/` beginnt, als
+eigenen Befehl. `/help` öffnet die Hilfe von Element und erreicht den Bot nie.
+Jeder andere Bot-Befehl, etwa `/new` oder `/link`, öffnet den Dialog *Unbekannter
+Befehl* von Element, in dem **Als Nachricht senden** ihn sendet. Beginnt die
+Nachricht mit `//`, etwa `//help`, wird sie sofort gesendet.
 
 **Dateien**, die Leute posten, werden über die authentifizierten Medien des
 Homeservers mit dem Token des Bots geholt, bis zum Upload-Limit; Dateien und

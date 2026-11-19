@@ -1784,6 +1784,12 @@ thread. A reply that is just the number decides it, as with
 [SMS](#sms). The bot reacts with 👀 to a question as it arrives, and shows that
 it is typing while it works.
 
+**Commands in Element.** Element reads a message that starts with `/` as one of
+its own commands. `/help` opens Element's own help and never reaches the bot.
+Any other bot command, such as `/new` or `/link`, opens Element's *Unknown
+command* dialog, where **Send as message** sends it. Starting the message with
+`//`, as in `//help`, sends it straight away.
+
 **Files** people post are fetched over the homeserver's authenticated media with
 the bot's token, up to the upload limit; files and charts the agent sends are
 uploaded the same way. **A thread the bot is brought into partway is read first**,
