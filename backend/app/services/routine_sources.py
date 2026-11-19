@@ -68,6 +68,15 @@ def spec_fingerprint(spec: AgentSpec) -> str:
     ).hexdigest()
 
 
+def covers_spec(policy: RoutineSourcePolicy, spec: dict[str, object]) -> bool:
+    """Whether a stored review still covers a published version's spec.
+
+    The same comparison `require_current` makes, without resolving the delegates
+    or opening a provider, so a listing can afford it on every row.
+    """
+    return policy.spec_hash == spec_fingerprint(AgentSpec.model_validate(spec))
+
+
 def source_scope(trigger: AgentTrigger) -> str:
     """Reprioritizing work grants no source; changing actor, origin or audience does.
 

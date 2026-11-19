@@ -1,5 +1,5 @@
 ---
-source_sha: "ef824da65bb6"
+source_sha: "74adde9ea057"
 ---
 
 # Governance { #governance }
@@ -2666,7 +2666,7 @@ Die Liste zeigt automatische Pause und Fehlerzahl. Höchstens 50 Beobachtungen p
 
 ## Geprüfte Routinequellen { #routine-sources }
 
-Beim Erstellen hält eine Routine ihre veröffentlichte Quellenkonfiguration, konkreten MCP-Konten, Zustimmungsgenerationen und bekannten Werkzeugnamen fest. Die Prüfung umfasst fixierte Delegaten, Wissenssammlungen, Skills, Kontext und Fähigkeitenkonfiguration; entfernte A2A-Registrierungen behalten außerdem ihre Endpunkt-, Karten- und Zugangsdatenbindung. Reine Änderungen an Anweisungen oder Modelleinstellungen können einer Veröffentlichung folgen. Neue Quellen, geänderte Konten und erneuerte Kontozustimmungen erfordern eine Prüfung im Quellenbereich des Zustimmungsdialogs durch den Eigentümer. Diese Prüfung hebt keine Aktionsfreigaben auf und gewährt keinen Ressourcenzugriff. Aktuelle Berechtigungen gelten weiterhin.
+Beim Erstellen hält eine Routine ihre veröffentlichte Quellenkonfiguration, konkreten MCP-Konten, Zustimmungsgenerationen und bekannten Werkzeugnamen fest. Die Prüfung umfasst fixierte Delegaten, Wissenssammlungen, Skills, Kontext und Fähigkeitenkonfiguration; entfernte A2A-Registrierungen behalten außerdem ihre Endpunkt-, Karten- und Zugangsdatenbindung. Reine Änderungen an Anweisungen oder Modelleinstellungen können einer Veröffentlichung folgen. Neue Quellen, geänderte Konten und erneuerte Kontozustimmungen erfordern eine Prüfung im Quellenbereich des Zustimmungsdialogs durch den Eigentümer. Bis dahin zeigt die Routinenliste die Kachel der Routine hellrot und ihr Steuerelement **Aktionsfreigaben** rot. Diese Prüfung hebt keine Aktionsfreigaben auf und gewährt keinen Ressourcenzugriff. Aktuelle Berechtigungen gelten weiterhin.
 
 Eingereihte Aktivierungen, auf Computer wartende Arbeit und geparkte Läufe behalten ihre ursprüngliche Prüfungsidentität. Eine spätere Prüfung erweitert alte Arbeit nicht. Der Postfach-Poll prüft das Eingangskonto vor dem Lesen; Ereignisse behalten die davor gültige Zustimmung. MCP-Aufrufe verwenden geprüfte Aliase und schließen ungeprüfte Werkzeuge aus. Nicht verfügbare geprüfte Quellen führen zu einer ausdrücklichen Ablehnung. Eine vor der Ausführung erforderliche Prüfung erscheint im bestehenden Aufmerksamkeitsfall des Eigentümers und zählt nicht als Modellfehler.
 

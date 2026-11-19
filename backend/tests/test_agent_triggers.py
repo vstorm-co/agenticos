@@ -25,6 +25,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from pydantic import ValidationError as PydanticValidationError
 
+from app.agents.spec import AgentSpec
 from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
@@ -35,6 +36,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.schemas.agent_trigger import TriggerAttemptRead, TriggerCreate, TriggerRead, TriggerUpdate
+from app.schemas.routine_sources import RoutineSourcePolicy
 from app.services.agent_trigger import (
     AgentTriggerService,
     EventFireDecision,
@@ -44,6 +46,7 @@ from app.services.agent_trigger import (
 )
 from app.services.portal_catalog import DeliveryMode
 from app.services.portals import PortalTarget, RegisteredWebhook, WebhookRegistrationForbidden
+from app.services.routine_sources import spec_fingerprint
 from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
 _SIGNING_SECRET = "a-signing-secret-16-plus"
@@ -73,6 +76,7 @@ def _agent(*, agent_id: uuid.UUID | None = None, name: str = "Nightly") -> Magic
         avatar_color=3,
         system_key=None,
         kind="agent",
+        current_version_id=None,
     )
 
 
@@ -5758,3 +5762,116 @@ async def test_github_filter_diagnostics_never_inspect_a_different_event_source(
         await service._record_filtered_event(trigger, {}, {})
     reason.assert_not_called()
     store.assert_not_awaited()
+
+
+_SOURCE_CHANGE = {"name": "Nightly", "model_credential_mode": "personal"}
+
+
+class TestSourcesOutdated:
+    """The listing marks a routine whose agent moved past its source review."""
+
+    @staticmethod
+    def _reviewed(**overrides: object) -> tuple[MagicMock, uuid.UUID]:
+        reviewed_version = uuid.uuid4()
+        policy = RoutineSourcePolicy(
+            id=uuid.uuid4(),
+            consented_by=_CALLER,
+            reviewed_at=datetime.now(UTC),
+            version_id=reviewed_version,
+            scope_hash="a" * 64,
+            spec_hash=spec_fingerprint(AgentSpec(name="Nightly")),
+        )
+        row = _trigger(approved_sources=policy.model_dump(mode="json"), **overrides)
+        return row, reviewed_version
+
+    @staticmethod
+    async def _mark(
+        rows: list[MagicMock],
+        agent: MagicMock,
+        versions: dict[uuid.UUID, SimpleNamespace],
+        environment: SimpleNamespace | None = None,
+    ) -> tuple[list[TriggerRead], AsyncMock]:
+        service = _service(agent)
+        reads = [_read() for _ in rows]
+        lookup = AsyncMock(return_value=versions)
+        with (
+            patch("app.services.agent_trigger.agent_repo.get_versions_by_ids", new=lookup),
+            patch(
+                "app.services.agent_trigger.agent_environment_repo.get",
+                new=AsyncMock(return_value=environment),
+            ),
+        ):
+            await service._mark_sources_outdated(
+                [(read, row, agent) for read, row in zip(reads, rows, strict=True)],
+                organization_id=_ORG,
+            )
+        return reads, lookup
+
+    async def test_a_republish_that_changes_a_source_field_marks_the_routine(self):
+        row, _ = self._reviewed()
+        agent = _agent()
+        agent.current_version_id = uuid.uuid4()
+
+        reads, _ = await self._mark(
+            [row], agent, {agent.current_version_id: SimpleNamespace(spec=_SOURCE_CHANGE)}
+        )
+
+        assert reads[0].sources_outdated is True
+
+    async def test_a_republish_of_instructions_alone_is_not_marked(self):
+        row, _ = self._reviewed()
+        agent = _agent()
+        agent.current_version_id = uuid.uuid4()
+        reworded = SimpleNamespace(spec={"name": "Nightly", "instructions": "Be brief."})
+
+        reads, _ = await self._mark([row], agent, {agent.current_version_id: reworded})
+
+        assert reads[0].sources_outdated is False
+
+    async def test_the_reviewed_version_opens_no_spec(self):
+        row, reviewed = self._reviewed()
+        agent = _agent()
+        agent.current_version_id = reviewed
+
+        reads, lookup = await self._mark([row], agent, {})
+
+        assert reads[0].sources_outdated is False
+        lookup.assert_not_awaited()
+
+    async def test_an_environment_bound_routine_follows_its_environment(self):
+        row, reviewed = self._reviewed(environment_id=uuid.uuid4())
+        agent = _agent()
+        agent.current_version_id = reviewed
+        promoted = uuid.uuid4()
+
+        reads, _ = await self._mark(
+            [row],
+            agent,
+            {promoted: SimpleNamespace(spec=_SOURCE_CHANGE)},
+            environment=SimpleNamespace(version_id=promoted),
+        )
+
+        assert reads[0].sources_outdated is True
+
+    async def test_rows_with_nothing_to_compare_are_left_alone(self):
+        pinned, _ = self._reviewed(pinned_version_id=uuid.uuid4())
+        unreviewed, _ = self._reviewed(setup_required=True)
+        lost_environment, _ = self._reviewed(environment_id=uuid.uuid4())
+        unreadable = _trigger(approved_sources={"pending_review": True})
+        vanished_version, _ = self._reviewed()
+        agent = _agent()
+        agent.current_version_id = uuid.uuid4()
+
+        reads, _ = await self._mark(
+            [pinned, unreviewed, lost_environment, unreadable, vanished_version], agent, {}
+        )
+
+        assert [read.sources_outdated for read in reads] == [False] * 5
+
+    async def test_an_unpublished_agent_has_nothing_to_compare(self):
+        row, _ = self._reviewed()
+
+        reads, lookup = await self._mark([row], _agent(), {})
+
+        assert reads[0].sources_outdated is False
+        lookup.assert_not_awaited()

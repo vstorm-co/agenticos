@@ -114,7 +114,11 @@ from app.schemas.local_target import LocalTarget
 from app.schemas.portal import PortalPresetRead, PortalRead
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
 from app.schemas.routine_notifications import ROUTINE_RESULT_INSTRUCTIONS, RoutineReading
-from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
+from app.schemas.routine_sources import (
+    RoutineSourceConsent,
+    RoutineSourcePolicy,
+    RoutineSourceReview,
+)
 from app.services import (
     change_feed,
     device_hub,
@@ -151,6 +155,7 @@ from app.services.routine_sources import (
     PlatformRoutineIdentityRequired,
     RoutineSourceService,
     RoutineSourcesRequired,
+    covers_spec,
     read_policy,
 )
 from app.services.spend import month_start
@@ -550,6 +555,10 @@ class AgentTriggerService:
             read.can_manage = can_run and (can_edit or trigger.created_by_user_id == ctx.subject_id)
             reads.append(read)
         await self._mark_spend(list(zip(reads, rows, strict=True)))
+        await self._mark_sources_outdated(
+            [(read, row, agent) for read, row in zip(reads, rows, strict=True)],
+            organization_id=ctx.organization_id,
+        )
         return reads
 
     async def filtered_event(
@@ -697,6 +706,10 @@ class AgentTriggerService:
             )
             triggers.append(read)
         await self._mark_spend(list(zip(triggers, [row for row, _ in rows], strict=True)))
+        await self._mark_sources_outdated(
+            [(read, row, agent) for read, (row, agent) in zip(triggers, rows, strict=True)],
+            organization_id=ctx.organization_id,
+        )
         return triggers, total
 
     async def list_portals(self, ctx: AuthContext) -> list[PortalRead]:
@@ -3685,6 +3698,42 @@ class AgentTriggerService:
             routine_kind="trigger",
         )
         return False
+
+    async def _mark_sources_outdated(
+        self, reads: list[tuple[TriggerRead, AgentTrigger, Agent]], *, organization_id: UUID
+    ) -> None:
+        """Flag each read whose agent was republished past what its source review covered.
+
+        A pinned version never moves, and a routine still awaiting its first review
+        already says so through `setup_required`. Only a version other than the
+        reviewed one is opened, and all of them in one statement.
+        """
+        resolved: list[tuple[TriggerRead, RoutineSourcePolicy, UUID]] = []
+        for read, row, agent in reads:
+            if row.pinned_version_id is not None or row.setup_required:
+                continue
+            version_id = agent.current_version_id
+            if row.environment_id is not None:
+                environment = await agent_environment_repo.get(
+                    self.db, row.environment_id, organization_id=organization_id
+                )
+                version_id = None if environment is None else environment.version_id
+            if version_id is None:
+                continue
+            try:
+                policy = read_policy(row.approved_sources)
+            except RoutineSourcesRequired:
+                continue
+            if version_id != policy.version_id:
+                resolved.append((read, policy, version_id))
+        if not resolved:
+            return
+        versions = await agent_repo.get_versions_by_ids(
+            self.db, [version_id for _, _, version_id in resolved], organization_id=organization_id
+        )
+        for read, policy, version_id in resolved:
+            version = versions.get(version_id)
+            read.sources_outdated = version is not None and not covers_spec(policy, version.spec)
 
     async def _mark_spend(self, reads: list[tuple[TriggerRead, AgentTrigger]]) -> None:
         """Say, on each read that has a budget, what it has spent and whether that is all of it."""

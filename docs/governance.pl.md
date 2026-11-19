@@ -1,5 +1,5 @@
 ---
-source_sha: "ef824da65bb6"
+source_sha: "74adde9ea057"
 ---
 
 # Governance { #governance }
@@ -2507,7 +2507,7 @@ Lista pokazuje automatyczne wstrzymanie i liczbę błędów. Metadane zachowują
 
 ## Zatwierdzone źródła rutyn { #routine-sources }
 
-Podczas tworzenia rutyna utrwala opublikowaną konfigurację źródeł, konkretne konta MCP, generacje zgody na uwierzytelnienie i znane nazwy narzędzi. Przegląd obejmuje przypiętych delegatów, kolekcje wiedzy, umiejętności, kontekst i konfigurację możliwości; zdalne rejestracje A2A zachowują powiązanie endpointu, karty i poświadczenia. Sama zmiana instrukcji lub ustawień modelu może podążać za publikacją. Dodanie źródła, zmiana konta lub ponowne udzielenie zgody na konto wymaga przeglądu panelu źródeł w oknie zgód rutyny przez jej właściciela. Ten przegląd nie znosi zatwierdzeń działań ani nie przyznaje dostępu do zasobów. Nadal obowiązują aktualne uprawnienia.
+Podczas tworzenia rutyna utrwala opublikowaną konfigurację źródeł, konkretne konta MCP, generacje zgody na uwierzytelnienie i znane nazwy narzędzi. Przegląd obejmuje przypiętych delegatów, kolekcje wiedzy, umiejętności, kontekst i konfigurację możliwości; zdalne rejestracje A2A zachowują powiązanie endpointu, karty i poświadczenia. Sama zmiana instrukcji lub ustawień modelu może podążać za publikacją. Dodanie źródła, zmiana konta lub ponowne udzielenie zgody na konto wymaga przeglądu panelu źródeł w oknie zgód rutyny przez jej właściciela. Do tego czasu lista rutyn pokazuje kafelek rutyny na jasnoczerwonym tle, a jej przycisk **Zgody na działania** na czerwono. Ten przegląd nie znosi zatwierdzeń działań ani nie przyznaje dostępu do zasobów. Nadal obowiązują aktualne uprawnienia.
 
 Zakolejkowane uruchomienia, oczekiwanie na komputer i zaparkowane przebiegi zachowują identyfikator pierwotnego przeglądu. Późniejszy przegląd nie rozszerza uprawnień starej pracy. Polling skrzynki sprawdza konto wejściowe przed odczytem, a zdarzenia zachowują zgodę obowiązującą przed nim. Wywołania MCP używają zatwierdzonych aliasów i wykluczają niezatwierdzone narzędzia; niedostępne źródła powodują jawną odmowę. Konieczność przeglądu przed wykonaniem pojawia się w istniejącej sprawie właściciela i nie jest błędem modelu.
 

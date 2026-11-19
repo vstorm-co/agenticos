@@ -876,3 +876,53 @@ describe("GitHub filtered delivery diagnostics", () => {
     },
   );
 });
+
+describe("a routine whose agent changed past its source review", () => {
+  const outdatedLabel =
+    "This routine's agent changed since its sources were reviewed. Review its access before the next run.";
+
+  beforeEach(async () => {
+    const { useAuthStore } = await import("@/stores/auth-store");
+    useAuthStore.setState({
+      user: {
+        id: "creator",
+        email: "creator@example.com",
+        is_active: true,
+        created_at: "2026-11-16T00:00:00Z",
+      },
+    });
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+  });
+
+  it("tints the tile and turns its access control red for the owner", () => {
+    const { container } = render(
+      <TriggerRow trigger={trigger({ created_by_user_id: "creator", sources_outdated: true })} />,
+      { wrapper },
+    );
+    expect(container.firstElementChild).toHaveClass("bg-destructive/5");
+    expect(screen.getByRole("button", { name: outdatedLabel })).toHaveClass("text-destructive");
+  });
+
+  it("tells somebody else who must review it", () => {
+    const { container } = render(
+      <TriggerRow trigger={trigger({ created_by_user_id: "someone", sources_outdated: true })} />,
+      { wrapper },
+    );
+    expect(container.firstElementChild).toHaveAttribute(
+      "title",
+      "This routine's agent changed since its sources were reviewed. Its creator must review them before the next run.",
+    );
+    expect(screen.queryByRole("button", { name: outdatedLabel })).toBeNull();
+  });
+
+  it("keeps a current routine's tile and access control neutral", () => {
+    const { container } = render(
+      <TriggerRow trigger={trigger({ created_by_user_id: "creator" })} />,
+      { wrapper },
+    );
+    expect(container.firstElementChild).not.toHaveClass("bg-destructive/5");
+    expect(screen.getByRole("button", { name: "Action consent" })).not.toHaveClass(
+      "text-destructive",
+    );
+  });
+});

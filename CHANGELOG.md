@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- See at a glance which routine will be refused because its agent was republished past its source review: the routine's tile turns light red and its **Action consent** control turns red until its creator reviews the sources again. Trigger listings return `sources_outdated`.
+
 ## [1.84.0] - 2026-11-18
 
 ### Added

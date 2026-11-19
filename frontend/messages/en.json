@@ -10444,6 +10444,8 @@
     "setupRequired": "Setup required",
     "setupRequiredHint": "Saved and paused. Repair the sources, review access, then enable this routine.",
     "setupOwnerRequired": "Saved and paused. Its creator must repair and review the sources.",
+    "sourcesOutdated": "This routine's agent changed since its sources were reviewed. Review its access before the next run.",
+    "sourcesOutdatedOwner": "This routine's agent changed since its sources were reviewed. Its creator must review them before the next run.",
     "filteredEventTitle": "Latest filtered GitHub event",
     "filteredEventHint": "The latest retained sample of verified filter rejections is shown, updated at most once a minute. It did not start a run. Payload content is not stored.",
     "filteredEventEmpty": "No filtered event has been recorded yet. This does not confirm that a webhook has arrived.",

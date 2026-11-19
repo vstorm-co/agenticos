@@ -16,6 +16,7 @@ import { Badge, Button, ConfirmDialog, TooltipProvider } from "@/components/ui";
 import { ActionConsentsDialog } from "@/components/triggers/action-consents-dialog";
 import { useAuthStore } from "@/stores";
 import { useTriggers } from "@/hooks/use-triggers";
+import { cn } from "@/lib/utils";
 import type { Trigger } from "@/types/triggers";
 
 /**
@@ -73,6 +74,9 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [viewing, setViewing] = useState(false);
+  const isOwner = me != null && me === trigger.created_by_user_id && !impersonating;
+  const outdated = trigger.sources_outdated === true;
+  const consentLabel = outdated ? t("sourcesOutdated") : t("actionConsents.title");
   const runDisabled =
     !trigger.is_active || runNow.isPending || (trigger.waiting_device_count ?? 0) > 0;
   // Compare history identities rather than clocks from the browser and worker.
@@ -98,7 +102,15 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   return (
     // On a phone the actions take a line of their own under the routine: four
     // icons beside it squeezed its name and schedule down to "Getti... Ever...".
-    <div className="border-foreground/8 bg-card hover:border-foreground/20 flex flex-wrap items-center gap-3 rounded-xl border p-3 transition-colors sm:flex-nowrap">
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-3 rounded-xl border p-3 transition-colors sm:flex-nowrap",
+        outdated
+          ? "border-destructive/30 bg-destructive/5 hover:border-destructive/50"
+          : "border-foreground/8 bg-card hover:border-foreground/20",
+      )}
+      title={outdated && !isOwner ? t("sourcesOutdatedOwner") : undefined}
+    >
       <button
         type="button"
         onClick={openRuns}
@@ -146,7 +158,7 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
         <Badge variant="secondary">{t("deliveryUnavailable")}</Badge>
       )}
       {trigger.setup_required &&
-        (trigger.can_manage && me != null && me === trigger.created_by_user_id && !impersonating ? (
+        (trigger.can_manage && isOwner ? (
           <Button
             variant="outline"
             size="sm"
@@ -177,14 +189,14 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
       {trigger.can_manage && (
         <TooltipProvider>
           <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:ml-0">
-            {me != null && me === trigger.created_by_user_id && !impersonating && (
-              <RoutineActionTooltip label={t("actionConsents.title")}>
+            {isOwner && (
+              <RoutineActionTooltip label={consentLabel}>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className={cn("h-8 w-8", outdated && "text-destructive hover:text-destructive")}
                   data-tour="routine-access"
-                  aria-label={t("actionConsents.title")}
+                  aria-label={consentLabel}
                   onClick={() => setConsenting(true)}
                 >
                   <ShieldCheck className="h-4 w-4" />

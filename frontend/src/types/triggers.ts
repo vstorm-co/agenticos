@@ -63,6 +63,8 @@ export interface Trigger {
   created_by_user_id: string | null;
   setup_required?: boolean;
   setup_issues?: string[];
+  /** The agent was republished past what the source review covered; fires are refused until it is reviewed again. */
+  sources_outdated?: boolean;
   is_active: boolean;
   /**
    * Whether *this* caller may edit, pause, run-now or delete this trigger. The

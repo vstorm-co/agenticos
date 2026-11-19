@@ -868,6 +868,9 @@ class TriggerRead(BaseSchema, TimestampSchema):
     created_by_user_id: UUID | None = None
     setup_required: bool = False
     setup_issues: list[str] = Field(default_factory=list)
+    sources_outdated: bool = False
+    """The agent version this routine now resolves to changed what its source review
+    covered, so fires are refused until the owner reviews the sources again."""
     is_active: bool
     environment_id: UUID | None = None
     pinned_version_id: UUID | None = Field(

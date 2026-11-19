@@ -10324,6 +10324,8 @@
     "setupRequired": "Einrichtung erforderlich",
     "setupRequiredHint": "Gespeichert und pausiert. Quellen reparieren, Zugriff prüfen und die Routine anschließend aktivieren.",
     "setupOwnerRequired": "Gespeichert und pausiert. Der Ersteller muss die Quellen reparieren und prüfen.",
+    "sourcesOutdated": "Der Agent dieser Routine hat sich seit der Prüfung ihrer Quellen geändert. Prüfe den Zugriff vor dem nächsten Run.",
+    "sourcesOutdatedOwner": "Der Agent dieser Routine hat sich seit der Prüfung ihrer Quellen geändert. Der Ersteller muss sie vor dem nächsten Run prüfen.",
     "filteredEventTitle": "Zuletzt gefiltertes GitHub-Ereignis",
     "filteredEventHint": "Angezeigt wird die zuletzt gespeicherte Stichprobe verifizierter Filterablehnungen, höchstens einmal pro Minute aktualisiert. Sie hat keinen Run gestartet. Payload-Inhalte werden nicht gespeichert.",
     "filteredEventEmpty": "Noch kein gefiltertes Ereignis erfasst. Dies bestätigt keinen Webhook-Eingang.",
