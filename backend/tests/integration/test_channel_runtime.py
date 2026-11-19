@@ -453,7 +453,7 @@ async def test_native_turn_receipts_and_controls_are_bound_to_the_actual_sender(
     ) == {"question", "answer"}
 
 
-@pytest.mark.parametrize("platform", ["slack", "mattermost", "telegram", "discord"])
+@pytest.mark.parametrize("platform", ["slack", "mattermost", "telegram", "discord", "matrix"])
 async def test_native_redeliveries_are_durable_and_thread_queues_stay_isolated(
     db: AsyncSession, platform: str
 ) -> None:
@@ -883,3 +883,65 @@ async def test_one_sender_cannot_spend_another_senders_retained_quota(
     assert await jobs.channel_queue_has_room(
         db, organization_id=org, bot_id=bot, control=control, size=1, sender="bob"
     )
+
+
+async def test_a_matrix_room_with_a_colon_queues_per_thread_and_restores_whole(
+    db: AsyncSession,
+) -> None:
+    """A Matrix room id carries a colon, so its chat key is percent-encoded (#2081).
+
+    The key reaches the durable queue and comes back from it unchanged, and two
+    threads in one room are two queues, as on every other platform.
+    """
+    from dataclasses import replace
+
+    from sqlalchemy import select
+
+    from app.db.models.channel_bot import ChannelBot
+    from app.services.channels.base import IncomingMessage, split_thread
+    from app.services.channels.ingress import conversation_queue, queue_message, restore
+    from app.services.channels.matrix_protocol import room_key, room_of
+    from app.worker.jobs import ChannelMessage
+
+    bot = ChannelBot(
+        id=uuid4(),
+        organization_id=uuid4(),
+        authorization_generation=uuid4(),
+        platform="matrix",
+        access_policy={"mode": "open"},
+        name="Matrix queue test",
+        token_encrypted="unused",
+        secret_key_version=1,
+    )
+    room = "!room:example.org"
+    incoming = IncomingMessage(
+        platform="matrix",
+        bot_id=str(bot.id),
+        platform_user_id="@ada:example.org",
+        platform_chat_id=f"{room_key(room)}:$root",
+        chat_type="group",
+        text="Use Friday",
+        message_id="$question",
+        addressed=True,
+        raw={"room_id": room, "event_id": "$question"},
+    )
+    await queue_message(db, bot, incoming)
+    await queue_message(
+        db, bot, replace(incoming, message_id="$other", platform_chat_id=f"{room_key(room)}:$other")
+    )
+    rows = list(
+        await db.scalars(
+            select(BackgroundJob).where(
+                BackgroundJob.organization_id == bot.organization_id,
+                BackgroundJob.kind == PROCESS_CHANNEL_MESSAGE.kind,
+            )
+        )
+    )
+    assert {row.concurrency_key for row in rows} == {
+        conversation_queue(bot.id, f"{room_key(room)}:$root"),
+        conversation_queue(bot.id, f"{room_key(room)}:$other"),
+    }
+    first = next(row for row in rows if row.payload["message_id"] == "$question")
+    restored = restore(ChannelMessage.model_validate(first.payload))
+    channel, thread = split_thread(restored.platform_chat_id)
+    assert (room_of(channel), thread) == (room, "$root")
