@@ -17683,7 +17683,8 @@
         "unscorable": "Nie sprawdzono: nic nie oceni jego pytań - brak sprawdzeń, oczekiwanych wywołań narzędzi i sędziego.",
         "all_evidence": "Nie sprawdzono: każde pytanie pochodzi z rozmów, z których zmiana się uczyła.",
         "cancelled": "Nie sprawdzono: sprawdzenie zatrzymano, zanim jego runy się skończyły.",
-        "own_not_asked": "Nie sprawdzono: jego własnych pytań nie zadano, a teraz to one o nim decydują."
+        "own_not_asked": "Nie sprawdzono: jego własnych pytań nie zadano, a teraz to one o nim decydują.",
+        "too_few_questions": "Za mało pytań, by mieć pewność: {fixed} z {heldOut} wypadło lepiej i {broken} gorzej, a to mniej pytań, niż potrzeba do wyniku."
       },
       "skillSetOnly": "Sprawdzony tylko na pytaniach skilla: nie miał własnych tam, gdzie wczytał skill.",
       "stage": {

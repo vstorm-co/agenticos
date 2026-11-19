@@ -326,7 +326,9 @@ the dataset to add other questions to.
 - An agent that could not be checked - no questions, questions nothing can grade
   or all taken from the change's own conversations, no access, no budget left, no
   published version, a run that failed, a check that was stopped - is
-  **unknown**, and a person acknowledges it before applying.
+  **unknown**, and a person acknowledges it before applying. So is one whose runs
+  graded every answer on fewer held-out questions than a result needs: its row
+  says how many came out better and worse, and that they are too few to be sure.
 
 A check where no agent can be checked still starts, and finishes at once with
 every agent unknown, for a person to acknowledge. The dialog says so before the

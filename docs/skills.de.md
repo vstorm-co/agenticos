@@ -1,5 +1,5 @@
 ---
-source_sha: "d29185145591"
+source_sha: "cbdc4136f927"
 ---
 
 # Skills { #skills }
@@ -363,7 +363,10 @@ andere Fragen hinzuzufügen sind.
   bewerten kann oder die alle aus den Unterhaltungen der Änderung selbst stammen,
   kein Zugriff, kein Budget mehr, keine veröffentlichte Version, ein
   fehlgeschlagener Run, eine angehaltene Prüfung - ist **unbekannt**, und eine
-  Person bestätigt das vor dem Anwenden.
+  Person bestätigt das vor dem Anwenden. Ebenso einer, dessen Runs jede Antwort
+  auf weniger zurückgelegten Fragen bewertet haben, als ein Ergebnis braucht:
+  Seine Zeile sagt, wie viele besser und schlechter ausfielen und dass es zu
+  wenige sind, um sicher zu sein.
 
 Eine Prüfung, in der kein Agent geprüft werden kann, startet trotzdem und endet
 sofort, mit jedem Agent unbekannt, damit eine Person das bestätigt. Der Dialog sagt das vor dem Start und bietet die Testfragen des Skills an oder die Bewertung, die seinen Fragen fehlt.

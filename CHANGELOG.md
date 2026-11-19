@@ -38,6 +38,7 @@ Two things are versioned separately from this file and worth knowing about:
 - An Improve session started from a draft nobody edited since publishing reuses that version's own eval as its baseline, priced at nothing in the estimate, when it left out the same cases as the check (#3178).
 - A skill check asks each agent the dataset its newest Improve session measures on, so a set kept back for a final measurement stays unasked (#3178).
 - A skill check keeps each agent's families of criteria, so its details table one row per family - every case's check of one thing together - instead of one row per case's check. Agents expose `families`; `skill_check_agents` gains the column (#3178).
+- A skill check's agent whose runs graded every answer on fewer held-out questions than a result needs is unknown for `too_few_questions` rather than `inconclusive`, and its row says how many came out better and worse and that they are too few to be sure (#3178).
 
 ### Fixed
 
@@ -53,6 +54,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Migration `0342_criterion_verdicts` widens the improvement verdict, stop reason and skill-check agent state constraints and adds `skill_check_agents.criteria`. Its downgrade reads the new verdicts and states as `no_change`.
 - Migration `0343_skill_check_families` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `0344_skill_check_too_few` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
 
 ## [1.82.2] - 2026-11-18
 

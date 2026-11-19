@@ -17596,7 +17596,8 @@
         "unscorable": "Nicht geprüft: Nichts kann seine Fragen bewerten - keine Prüfung, kein erwarteter Tool-Aufruf und kein Bewerter.",
         "all_evidence": "Nicht geprüft: Jede Frage stammt aus den Unterhaltungen, aus denen die Änderung gelernt hat.",
         "cancelled": "Nicht geprüft: Die Prüfung wurde angehalten, bevor ihre Runs fertig waren.",
-        "own_not_asked": "Nicht geprüft: Seine eigenen Fragen blieben ungestellt, und jetzt entscheiden sie über ihn."
+        "own_not_asked": "Nicht geprüft: Seine eigenen Fragen blieben ungestellt, und jetzt entscheiden sie über ihn.",
+        "too_few_questions": "Zu wenige Fragen, um sicher zu sein: {fixed} von {heldOut} fielen besser aus und {broken} schlechter, weniger Fragen, als ein Ergebnis braucht."
       },
       "skillSetOnly": "Nur auf den eigenen Fragen des Skills geprüft: Er hatte keine eigenen, bei denen er den Skill geladen hat.",
       "stage": {

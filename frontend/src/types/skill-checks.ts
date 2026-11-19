@@ -29,7 +29,8 @@ export type UnknownReason =
   | "unscorable"
   | "all_evidence"
   | "cancelled"
-  | "own_not_asked";
+  | "own_not_asked"
+  | "too_few_questions";
 export type CheckOutcome =
   "improve_further" | "apply" | "apply_and_pin" | "fork_for_helped" | "discard";
 

@@ -105,6 +105,30 @@ describe("CheckAgents", () => {
     ).toHaveLength(2);
   });
 
+  it("says an agent had too few questions to be sure, with what they showed", async () => {
+    render(
+      <CheckAgents
+        check={skillCheck({
+          agents: [
+            checkAgent("Quotes", "unknown", {
+              unknown_reason: "too_few_questions",
+              fixed: 3,
+              broken: 0,
+              held_out: 4,
+            }),
+          ],
+        })}
+      />,
+    );
+
+    await openAll();
+    expect(
+      screen.getByText(
+        "Too few questions to be sure: 3 of 4 came out better and 0 worse, fewer questions than a result needs.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("says what each agent fixed and broke, with a link to the run", async () => {
     render(<CheckAgents check={skillCheck({ agents: [checkAgent("Refunds", "worse")] })} />);
     await openAll();

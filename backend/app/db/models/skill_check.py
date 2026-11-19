@@ -138,6 +138,9 @@ class UnknownReason(StrEnum):
     OWN_NOT_ASKED = "own_not_asked"
     """A quick check left its own questions unasked once the skill's made it worse, and a
     person's verdict has since taken that back: its own questions would decide it."""
+    TOO_FEW_QUESTIONS = "too_few_questions"
+    """Its runs graded every answer, but its held-out questions fell short of the
+    minimum a result needs, so whatever they showed cannot make it better."""
 
 
 class SampleKind(StrEnum):

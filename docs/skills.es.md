@@ -1,5 +1,5 @@
 ---
-source_sha: "d29185145591"
+source_sha: "cbdc4136f927"
 ---
 
 # Skills { #skills }
@@ -348,7 +348,10 @@ el paso se rechaza antes de empezar, con el dataset al que añadir otras pregunt
 - Un agent que no se pudo comprobar - sin preguntas, con preguntas que nada
   califica o tomadas todas de las conversaciones del propio cambio, sin acceso,
   sin budget, sin versión publicada, con un run fallido, con la comprobación
-  detenida - es **desconocido**, y una persona lo reconoce antes de aplicar.
+  detenida - es **desconocido**, y una persona lo reconoce antes de aplicar. Lo
+  mismo uno cuyos runs calificaron cada respuesta en menos preguntas apartadas de
+  las que necesita un resultado: su fila dice cuántas salieron mejor y peor, y que
+  son demasiado pocas para estar seguros.
 
 Una comprobación en la que no se puede comprobar ningún agent empieza igualmente
 y termina enseguida, con todos los agents desconocidos, para que una persona lo

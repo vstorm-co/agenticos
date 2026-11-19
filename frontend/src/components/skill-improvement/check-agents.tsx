@@ -44,6 +44,7 @@ const REASONS: (UnknownReason | "other" | null)[] = [
   "unscorable",
   "all_evidence",
   "own_not_asked",
+  "too_few_questions",
   "cancelled",
   "other",
   null,
@@ -323,7 +324,13 @@ function AgentDetails({ row, measured }: { row: SkillCheckAgent; measured: boole
         </p>
       )}
       {row.unknown_reason !== null && (
-        <p className="text-muted-foreground text-sm">{t(`unknown.${reasonOf(row)}`)}</p>
+        <p className="text-muted-foreground text-sm">
+          {t(`unknown.${reasonOf(row)}`, {
+            fixed: row.fixed,
+            broken: row.broken,
+            heldOut: row.held_out,
+          })}
+        </p>
       )}
       <CriteriaTable criteria={verdictRows(row.criteria ?? [], row.families ?? [])} />
       {row.sample === "skill_set_only" && (

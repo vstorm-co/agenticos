@@ -25,6 +25,7 @@ from app.services.skill_check_rules import (
     sample,
     sample_size,
     stage_state,
+    too_few_questions,
     total,
     verdict,
 )
@@ -112,6 +113,24 @@ def _compared(
         candidate_pass_rate=candidate,
         baseline_pass_rate=baseline,
     )
+
+
+class TestTooFewQuestions:
+    """An agent unknown only because its stages asked too few held-out questions."""
+
+    def test_stages_that_measured_everything_but_too_little_are_too_few(self) -> None:
+        assert too_few_questions([_compared(held_out=4, fixed=3)], minimum=5)
+        assert not too_few_questions([_compared(held_out=3), _compared(held_out=2)], minimum=5)
+        assert not too_few_questions([], minimum=5)
+
+    @pytest.mark.parametrize("field", ["incomplete", "ungraded", "crashed"])
+    def test_a_stage_that_left_an_answer_unmeasured_is_not_only_too_few(self, field) -> None:
+        stage = replace(_compared(held_out=4, fixed=3), **{field: 1})
+
+        assert not too_few_questions([stage], minimum=5)
+
+    def test_a_stage_that_could_not_be_compared_is_not_only_too_few(self) -> None:
+        assert not too_few_questions([_compared(held_out=4, comparable=False)], minimum=5)
 
 
 class TestPooled:

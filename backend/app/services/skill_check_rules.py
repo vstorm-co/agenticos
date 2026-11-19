@@ -240,6 +240,19 @@ def agent_state(stages: Sequence[StageComparison], *, minimum: int, alpha: float
     return stage_state(pooled(stages, minimum=minimum, alpha=alpha))
 
 
+def too_few_questions(stages: Sequence[StageComparison], *, minimum: int) -> bool:
+    """Whether the stages measured everything they asked, and asked fewer held-out
+    questions than a result needs - the one thing that kept the agent unknown."""
+    return (
+        bool(stages)
+        and all(
+            stage.comparable and not stage.incomplete and not stage.ungraded and not stage.crashed
+            for stage in stages
+        )
+        and sum(stage.gradable_holdout for stage in stages) < minimum
+    )
+
+
 def verdict(states: Iterable[AgentState]) -> CheckVerdict:
     """The rule over every agent of the line, hidden ones included.
 

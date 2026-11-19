@@ -1100,7 +1100,13 @@ class SkillCheckService:
         state = rules.agent_state(
             stages, minimum=MIN_HOLDOUT_CASES, alpha=settings.EVAL_SIGNIFICANCE
         )
-        reason = UnknownReason.INCONCLUSIVE if state is AgentState.UNKNOWN else None
+        reason = (
+            None
+            if state is not AgentState.UNKNOWN
+            else UnknownReason.TOO_FEW_QUESTIONS
+            if rules.too_few_questions(stages, minimum=MIN_HOLDOUT_CASES)
+            else UnknownReason.INCONCLUSIVE
+        )
         if row.sample == SampleKind.OWN_NOT_ASKED.value and state is not AgentState.WORSE:
             # Its own questions were left for the regression the skill's showed; without
             # it they are what would decide the agent, and nothing asks them by itself.
@@ -2432,6 +2438,7 @@ def _rejudged(row: SkillCheckAgent, eval_run_ids: Collection[UUID]) -> bool:
     if state is AgentState.UNKNOWN:
         return row.unknown_reason in (
             UnknownReason.INCONCLUSIVE.value,
+            UnknownReason.TOO_FEW_QUESTIONS.value,
             UnknownReason.OWN_NOT_ASKED.value,
         )
     return state.settled

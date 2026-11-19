@@ -1,5 +1,5 @@
 ---
-source_sha: "d29185145591"
+source_sha: "cbdc4136f927"
 ---
 
 # Skille { #skills }
@@ -339,7 +339,10 @@ startem, ze wskazaniem datasetu, do którego trzeba dodać inne pytania.
 - Agent, którego nie dało się sprawdzić - brak pytań, pytania, których nic nie
   ocenia albo wzięte w całości z rozmów samej zmiany, brak dostępu, brak
   budżetu, brak opublikowanej wersji, nieudany run, zatrzymane sprawdzenie - jest
-  **nieznany**, a osoba potwierdza to przed zastosowaniem.
+  **nieznany**, a osoba potwierdza to przed zastosowaniem. Tak samo agent, którego
+  runy oceniły każdą odpowiedź na mniejszej liczbie odłożonych pytań, niż
+  potrzeba do wyniku: jego wiersz mówi, ile wypadło lepiej i gorzej, i że to za
+  mało, by mieć pewność.
 
 Sprawdzenie, w którym nie da się sprawdzić żadnego agenta, i tak startuje i od
 razu się kończy, ze wszystkimi agentami nieznanymi, do potwierdzenia przez osobę. Okno mówi to przed startem i proponuje pytania testowe skilla albo ocenianie, którego brakuje jego pytaniom.

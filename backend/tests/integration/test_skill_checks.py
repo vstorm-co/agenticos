@@ -528,7 +528,18 @@ class TestWhoIsChecked:
         assert {row.agent.name: row.state for row in read.agents} == states
         assert read.verdict is result
 
-    async def test_one_stage_too_small_on_its_own_leaves_the_agent_unknown(self, db, monkeypatch):
+    @pytest.mark.parametrize(
+        ("outcome", "reason"),
+        [
+            (Outcome(fixed=3), UnknownReason.TOO_FEW_QUESTIONS),
+            (Outcome(fixed=2, incomplete=1), UnknownReason.INCONCLUSIVE),
+        ],
+    )
+    async def test_one_stage_too_small_on_its_own_leaves_the_agent_unknown(
+        self, db, monkeypatch, outcome, reason
+    ):
+        """Three confirmed fixes on three questions are too few to call the agent better,
+        and say so; a run that also left an answer ungraded could not tell."""
         lab = await _lab(db)
         evals = FakeEvals(held_out=3)
         evals.install(monkeypatch)
@@ -536,12 +547,13 @@ class TestWhoIsChecked:
         check = await service.start(
             lab.ctx, lab.skill.id, _start(), source=CheckSource.SESSION, only=[lab.c.id]
         )
-        evals.outcomes = {lab.c.id: Outcome(fixed=1)}
+        evals.outcomes = {lab.c.id: outcome}
 
         read = await _run_to_end(service, evals, lab, check.id)
 
         [c] = read.agents
-        assert (c.state, c.unknown_reason) == (AgentState.UNKNOWN, UnknownReason.INCONCLUSIVE)
+        assert (c.state, c.unknown_reason) == (AgentState.UNKNOWN, reason)
+        assert (c.fixed, c.broken) == (outcome.fixed, 0)
 
     async def test_a_changed_description_is_always_checked_thoroughly(self, db, monkeypatch):
         lab = await _lab(db)

@@ -17910,7 +17910,8 @@
         "unscorable": "Not checked: nothing can grade its questions - no check, expected tool call or judge.",
         "all_evidence": "Not checked: every question came from the conversations the change was learned from.",
         "cancelled": "Not checked: the check was stopped before its runs finished.",
-        "own_not_asked": "Not checked: its own questions were left unasked, and they now decide it."
+        "own_not_asked": "Not checked: its own questions were left unasked, and they now decide it.",
+        "too_few_questions": "Too few questions to be sure: {fixed} of {heldOut} came out better and {broken} worse, fewer questions than a result needs."
       },
       "skillSetOnly": "Checked only on the skill's own questions: it had none of its own where it loaded the skill.",
       "stage": {
