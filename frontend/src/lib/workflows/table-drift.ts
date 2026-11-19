@@ -188,7 +188,7 @@ export function isTableRefusalField(field: string, graph: WorkflowGraph | null):
   return binding !== null && graph?.bindings[Number(binding[1])]?.source.kind === "table";
 }
 
-/** Steps that write a record's values, one binding per column (`values/<column id>`). */
+/** Steps that write record values, keyed by column id or label. */
 const RECORD_WRITERS = new Set([
   "table.record.create",
   "table.record.update",
@@ -206,26 +206,36 @@ export interface BindingAt {
  * archived or deleted since. The step's form stops showing such a field, so it
  * cannot be removed by hand, yet every run sends it and fails with
  * `UNKNOWN_COLUMN`. `live` maps a table id to its current schema version and
- * live column ids; a step whose reference names another version is skipped.
+ * live column ids and labels; a step whose reference names another version is skipped.
  */
 export function orphanValueBindings(
   graph: WorkflowGraph,
-  live: ReadonlyMap<string, { version: number; columns: ReadonlySet<string> }>,
+  live: ReadonlyMap<
+    string,
+    { version: number; columns: readonly Pick<ColumnDef, "id" | "label">[] }
+  >,
 ): BindingAt[] {
   // Per step, and only one already on the version the live columns belong to: a
   // stale writer of the same table is the author's to update, bindings and all.
-  const columnsOf = new Map<Uuid, ReadonlySet<string>>();
+  const columnsOf = new Map<Uuid, { ids: ReadonlySet<string>; labels: ReadonlySet<string> }>();
   for (const node of graph.nodes) {
     if (node.disabled) continue;
     const table = (node.config as Record<string, unknown>).table;
     if (!RECORD_WRITERS.has(node.definition_id) || !isTableRef(table)) continue;
     const current = live.get(table.table_id);
-    if (current?.version === table.schema_version) columnsOf.set(node.id, current.columns);
+    if (current?.version === table.schema_version)
+      columnsOf.set(node.id, {
+        ids: new Set(current.columns.map((column) => column.id)),
+        labels: new Set(current.columns.map((column) => column.label.toUpperCase().toLowerCase())),
+      });
   }
   return graph.bindings.flatMap((binding) => {
     const columns = columnsOf.get(binding.target_node_id);
     const match = /^values\/([^/]+)$/.exec(binding.target_field);
-    if (!columns || !match || columns.has(match[1]!)) return [];
+    if (!columns || !match) return [];
+    const key = match[1]!.replace(/~1/g, "/").replace(/~0/g, "~");
+    // Ambiguous labels remain for server validation rather than losing the author's input.
+    if (columns.ids.has(key) || columns.labels.has(key.toUpperCase().toLowerCase())) return [];
     return [{ nodeId: binding.target_node_id, field: binding.target_field }];
   });
 }

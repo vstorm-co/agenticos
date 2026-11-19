@@ -460,3 +460,19 @@ it("says an attempt made a criterion worse once, beside the attempts that did no
     ),
   ).toBeInTheDocument();
 });
+
+it.each(["ready", "accepted", "published"] as const)(
+  "keeps a result headline when criterion evidence is hidden: %s",
+  (status) => {
+    const gained = round(1, "criteria_better");
+    show(
+      { ...SESSION, status, best_iteration_id: gained.id, iterations: [gained] },
+      { candidate: status === "ready" },
+    );
+    expect(
+      screen.getByText(
+        /Attempt 1 improved some grading criteria for Refund desk; no whole question changed\./,
+      ),
+    ).toBeVisible();
+  },
+);

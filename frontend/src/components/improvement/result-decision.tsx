@@ -114,17 +114,21 @@ function headline(
   const chosen = session.iterations.find((round) => round.id === session.best_iteration_id);
   const decided = session.status === "accepted" || session.status === "published";
   const sentences: string[] = [];
-  const better = (round: (typeof rounds)[number]) =>
-    round.verdict === "better"
-      ? [
-          t("resultDecision.better", {
-            number: round.number,
-            agent,
-            fixed: Number(round.verdict_detail?.fixed ?? 0),
-          }),
-          ...criteriaSentences(t, locale, round, agent),
-        ]
-      : criteriaSentences(t, locale, round, agent);
+  const better = (round: (typeof rounds)[number]) => {
+    const criteria = criteriaSentences(t, locale, round, agent);
+    if (round.verdict === "better")
+      return [
+        t("resultDecision.better", {
+          number: round.number,
+          agent,
+          fixed: Number(round.verdict_detail?.fixed ?? 0),
+        }),
+        ...criteria,
+      ];
+    return criteria.length
+      ? criteria
+      : [t("resultDecision.criteriaBetter", { number: round.number, agent })];
+  };
   const gained = chosen !== undefined && GAINS.includes(chosen.verdict);
   if (session.status === "ready" && chosen) {
     sentences.push(

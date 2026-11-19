@@ -162,7 +162,7 @@ export function useWorkflowTableDrift(enabled: boolean): void {
         id,
         {
           version: detail(id)!.schema_version,
-          columns: new Set(liveColumns(detail(id)!).map((column) => column.id)),
+          columns: liveColumns(detail(id)!),
         },
       ]),
     );

@@ -36,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Preserve record-writer bindings keyed by live labels, including escaped keys, and retain a result headline when criterion evidence is hidden.
+
 - Skip paid confirmation reruns when scoring settings or judge pins make the baseline incomparable.
 
 - Admit eval-backed verdict writes through the shared comparison budget before changing scores or cached results.

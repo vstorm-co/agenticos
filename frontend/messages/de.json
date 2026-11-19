@@ -16355,7 +16355,8 @@
       "tryAgain": "Erneut versuchen",
       "end": "Ohne Änderungen beenden",
       "newSession": "Neue Sitzung starten",
-      "newSessionHint": "Eine neue Sitzung hat mehr Material, wenn Sie Testfragen dort ergänzen, wo {agent} schlecht antwortet."
+      "newSessionHint": "Eine neue Sitzung hat mehr Material, wenn Sie Testfragen dort ergänzen, wo {agent} schlecht antwortet.",
+      "criteriaBetter": "Versuch {number} verbesserte einige Bewertungskriterien für {agent}, ohne das Ergebnis einer ganzen Frage zu ändern."
     },
     "keep": {
       "title": "Welcher Versuch bleiben soll",

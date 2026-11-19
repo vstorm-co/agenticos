@@ -159,14 +159,50 @@ describe("orphanValueBindings", () => {
   } as unknown as WorkflowGraph;
 
   it("names a writer's value bound to a column no longer live, and nothing else", () => {
-    const live = new Map([["t1", { version: 2, columns: new Set(["c1"]) }]]);
+    const live = new Map([["t1", { version: 2, columns: [{ id: "c1", label: "Score" }] }]]);
     expect(orphanValueBindings(writer, live)).toEqual([{ nodeId: "w", field: "values/gone" }]);
   });
 
   it("leaves a writer still on an older schema to its author", () => {
     // The same table, but this step was bound at version 1: its drift is pending.
-    const live = new Map([["t1", { version: 3, columns: new Set(["c1"]) }]]);
+    const live = new Map([["t1", { version: 3, columns: [{ id: "c1", label: "Score" }] }]]);
     expect(orphanValueBindings(writer, live)).toEqual([]);
+  });
+
+  it.each([
+    ["Score", "Score"],
+    ["sCoRe", "Score"],
+    ["Score~1Delta", "Score/Delta"],
+    ["Cost~0gross", "Cost~gross"],
+    ["Cost~01gross", "Cost~1gross"],
+    ["STRASSE", "Straße"],
+  ])("preserves the live label binding %s", (field, label) => {
+    const graph = {
+      ...writer,
+      bindings: [{ ...writer.bindings[0]!, target_field: `values/${field}` }],
+    };
+    const live = new Map([["t1", { version: 2, columns: [{ id: "c1", label }] }]]);
+    expect(orphanValueBindings(graph, live)).toEqual([]);
+  });
+
+  it("retains ambiguous live labels for server validation instead of erasing input", () => {
+    const graph = {
+      ...writer,
+      bindings: [{ ...writer.bindings[0]!, target_field: "values/Score" }],
+    };
+    const live = new Map([
+      [
+        "t1",
+        {
+          version: 2,
+          columns: [
+            { id: "c1", label: "Score" },
+            { id: "c2", label: "score" },
+          ],
+        },
+      ],
+    ]);
+    expect(orphanValueBindings(graph, live)).toEqual([]);
   });
 
   it("leaves a writer whose table's columns are not known", () => {
@@ -178,7 +214,7 @@ describe("orphanValueBindings", () => {
       ...writer,
       nodes: writer.nodes.map((node) => ({ ...node, disabled: true })),
     };
-    const live = new Map([["t1", { version: 2, columns: new Set(["c1"]) }]]);
+    const live = new Map([["t1", { version: 2, columns: [{ id: "c1", label: "Score" }] }]]);
     expect(recordWriterTables(disabled)).toEqual([]);
     expect(orphanValueBindings(disabled, live)).toEqual([]);
     expect(orphanValueBindings(writer, live)).toHaveLength(1);

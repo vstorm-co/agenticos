@@ -16442,7 +16442,8 @@
       "tryAgain": "Spróbuj ponownie",
       "end": "Zakończ bez zmian",
       "newSession": "Rozpocznij nową sesję",
-      "newSessionHint": "Nowa sesja będzie miała więcej materiału, gdy dodasz pytania testowe tam, gdzie agent {agent} odpowiada źle."
+      "newSessionHint": "Nowa sesja będzie miała więcej materiału, gdy dodasz pytania testowe tam, gdzie agent {agent} odpowiada źle.",
+      "criteriaBetter": "Próba {number} poprawiła część kryteriów oceny agenta {agent}; wynik żadnego pytania się nie zmienił."
     },
     "keep": {
       "title": "Którą próbę zachować",
