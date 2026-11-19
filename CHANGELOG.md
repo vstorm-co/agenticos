@@ -58,6 +58,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Exclude internal workflow transcripts from personal conversation search, even when their parent project is readable.
+
 - Fill unused chat-sidebar height by opening older date groups automatically; preserve manual date and project folds, including across active-conversation changes.
 
 - Keep model selectors and popup anchors stationary when pressed; reserve scale feedback for action buttons so opening a list does not shrink its field or move its anchor.

@@ -645,3 +645,8 @@ an initial immediate measurement during viewport resizing was premature.
 - All four component shards passed on `c0d181a5a`; the aggregate exposed three uncovered paths rather than a behavior failure. Add meaningful coverage for opening Architect without a prompt, revealing an invalid collapsed service field and measuring a padded/full chat list. Nine service/list tests passed; the widget regression is included above.
 - Update the E2E period preset role. The workspace scroll fixture now includes a first user turn because empty-chat Files controls are intentionally disabled. No model is invoked by that fixture.
 - Phone E2E found the agent selector squeezed to 22px wide. Main-chat phone controls now use two short rows; headless touch DOM measured the agent at 220×44px before/after typing, with no horizontal overflow and a working + menu. No screenshots.
+
+### Access review correction
+
+- Tracing search through `readable_by` and `ConversationService._may_read` found an internal workflow transcript could match through project access although ordinary transcript reads refuse it. A real-database regression failed before the correction.
+- Exclude `origin=workflow` in the shared search predicate, retaining null origins with `IS DISTINCT FROM`. All 26 search repository integration tests now pass; both listing and single-result reads use the same predicate. No schema change.
