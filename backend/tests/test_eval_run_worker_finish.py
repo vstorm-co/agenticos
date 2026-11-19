@@ -3,7 +3,7 @@ and tells when it closes a run."""
 
 import uuid
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
@@ -512,7 +512,7 @@ async def test_paired_criteria_read_score_json_in_bounded_batches(mock_db_sessio
     ("before", "current", "expected"),
     [(7, 10, 17), (None, 10, 10), (7, None, 7), (None, None, None)],
 )
-async def test_requeueing_an_answer_retains_and_accumulates_its_token_spend(
+async def test_requeueing_an_answer_retains_and_accumulates_its_usage(
     mock_db_session, before, current, expected
 ):
     from app.repositories import eval_run_repo
@@ -521,11 +521,12 @@ async def test_requeueing_an_answer_retains_and_accumulates_its_token_spend(
         status="failed",
         input_tokens=before,
         output_tokens=before,
+        latency_ms=before,
         cost_usd=Decimal("0.02"),
         agent_run_id=uuid.uuid4(),
     )
     await eval_run_repo.ask_again(mock_db_session, cases=[attempt])
-    assert attempt.input_tokens == attempt.output_tokens == before
+    assert attempt.input_tokens == attempt.output_tokens == attempt.latency_ms == before
     assert attempt.agent_run_id is None and attempt.status == "pending"
     agent_run = SimpleNamespace(
         id=uuid.uuid4(),
@@ -533,9 +534,11 @@ async def test_requeueing_an_answer_retains_and_accumulates_its_token_spend(
         cost_is_partial=False,
         input_tokens=current,
         output_tokens=current,
-        started_at=None,
-        ended_at=None,
+        started_at=datetime(2026, 11, 19, tzinfo=UTC),
+        ended_at=None
+        if current is None
+        else datetime(2026, 11, 19, tzinfo=UTC) + timedelta(milliseconds=current),
     )
     spent = EvalRunWorker._spend(cast(AgentRun, agent_run), attempt)
-    assert spent["input_tokens"] == spent["output_tokens"] == expected
+    assert spent["input_tokens"] == spent["output_tokens"] == spent["latency_ms"] == expected
     assert spent["cost_usd"] == Decimal("0.03")

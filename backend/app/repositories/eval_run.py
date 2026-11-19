@@ -572,7 +572,6 @@ async def ask_again(db: AsyncSession, *, cases: Sequence[EvalRunCase]) -> None:
         case.answer = None
         case.calls = []
         case.knowledge_overlay_topic_ids = []
-        case.latency_ms = None
         case.error = None
         case.fault = None
         case.started_at = None

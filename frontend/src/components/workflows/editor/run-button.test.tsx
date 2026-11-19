@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -115,6 +115,22 @@ describe("RunButton", () => {
     expect(
       (await screen.findAllByText(/hand on their pinned test data instead\. Fetch lead/))[0],
     ).toBeInTheDocument();
+  });
+
+  it("does not count or name pins on switched-off steps", async () => {
+    seed();
+    const graph = store.getState().graph!;
+    const active = { ...graph.nodes[0]!, label: "Fetch lead", pinned_output: { id: 1 } };
+    const disabled = { ...active, id: "off", label: "Disabled pin", disabled: true };
+    store.getState().seedGraph({ ...graph, nodes: [active, disabled] });
+    const { rerender } = render(
+      <RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "1 step pinned" }));
+    expect(screen.queryByText(/Disabled pin/)).toBeNull();
+    act(() => store.getState().seedGraph({ ...graph, nodes: [disabled] }));
+    rerender(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /step pinned/ })).toBeNull();
   });
 
   it("opens pinned test data from the keyboard even when testing is blocked", async () => {

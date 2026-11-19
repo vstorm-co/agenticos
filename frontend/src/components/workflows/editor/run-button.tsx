@@ -85,7 +85,7 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
   // builder should know before starting a test run which ones will.
   const pinnedSteps =
     graph?.nodes
-      .filter((node) => node.pinned_output != null)
+      .filter((node) => !node.disabled && node.pinned_output != null)
       .map(
         (node) =>
           node.label ??

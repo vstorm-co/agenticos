@@ -36,7 +36,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Bound interactive comparison reads with shared caller and organization rate budgets and one in-flight comparison per organization. Preserve confirmed regressions in truncated evidence, apply net pass counts consistently when naming gains, keep scorer identity in retry prompts, and accumulate tokens across replacement answers.
+- Bound interactive comparison reads with shared caller and organization rate budgets and one in-flight comparison per organization. Preserve confirmed regressions in truncated evidence, apply net pass counts consistently when naming gains, keep scorer identity in retry prompts, and accumulate tokens and latency across replacement answers.
 
 - Stream paired criterion grades in bounded batches before aggregation, including worker rerun detection, and keep scratch I/O off the API event loop.
 - Include filter, sort and record-write columns when checking safe workflow table rebinding.
