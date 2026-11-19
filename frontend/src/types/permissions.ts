@@ -82,4 +82,5 @@ export const Perm = {
   apiKeysCreate: "api_keys:create",
   apiKeysManage: "api_keys:manage",
   personalConsent: "personal:consent",
+  mcpPersonalUse: "mcp:personal:use",
 } as const satisfies Record<string, Permission>;

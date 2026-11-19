@@ -1,5 +1,5 @@
 ---
-source_sha: "4d8a6c479c11"
+source_sha: "55bdedc91bc7"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -439,7 +439,7 @@ externe ID wiederholt, die die Datei schon genannt hat, wird aufgeführt statt g
 und der Batch lehnt eine Zeile, die eine ID wiederholt, die er schon enthält, mit
 `INVALID_RECORD` ab.
 
-**New table** beginnt mit einer Spalte **Name**. Geben Sie zuerst den Tabellennamen und die Spalten an; Beschreibung und Sichtbarkeit stehen unter **More options**, standardmäßig privat. Stattdessen kann sie mit einer Datei
+**New table** beginnt mit einer Spalte **Name**. Geben Sie den Tabellennamen an, wählen Sie, wer sie sehen kann, und fügen Sie die Spalten hinzu; die Beschreibung steht unter **More options**. Eine Tabelle beginnt als **Only me**; **Everyone** öffnet sie für die Organisation, und **Some people** teilt sie mit den gewählten Gruppen und Mitgliedern, jeweils auf `read`, in derselben Anfrage (`group_ids` und `user_ids` bei `POST /tables`). Stattdessen kann sie mit einer Datei
 beginnen: **Start from a CSV file** macht aus der Kopfzeile Spalten und gibt jeder den engsten Typ, als den
 sich alle ihre Werte lesen lassen - Ganzzahl, Zahl, Ja/Nein, Datum, Datum und
 Uhrzeit in ISO, eine E-Mail-Adresse oder ein Link - und sonst Text, oder langen Text, sobald ein Wert einen Zeilenumbruch
