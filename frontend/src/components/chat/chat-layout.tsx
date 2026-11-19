@@ -2,7 +2,14 @@
 
 import { useState, type ReactNode } from "react";
 import "./chat-layout.css";
-import { Check, ChevronDown, SlidersHorizontal, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  SlidersHorizontal,
+  ShieldCheck,
+  SquareTerminal,
+  X,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { useModelProviders, usePermissions } from "@/hooks";
@@ -188,6 +195,7 @@ export function ChatComposerControls({
   const t = useTranslations("chat.controls");
   const chat = useTranslations("chat");
   const common = useTranslations("common");
+  const coding = useTranslations("codingAccounts");
   const { can } = usePermissions();
   const [open, setOpen] = useState(false);
   return (
@@ -221,13 +229,17 @@ export function ChatComposerControls({
               )
                 event.preventDefault();
             }}
+            data-chat-settings-panel
             aria-label={t("label")}
             side="top"
             align="end"
-            className="max-h-[min(460px,var(--radix-popover-content-available-height))] w-[min(340px,calc(100vw-1.5rem))] overflow-y-auto rounded-xl p-3"
+            className="max-h-[min(520px,var(--radix-popover-content-available-height))] w-[min(360px,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl p-0"
           >
-            <div className="mb-3 flex items-center justify-between text-sm font-medium">
-              {t("label")}
+            <div className="chat-settings-heading">
+              <span className="inline-flex items-center gap-2">
+                <SlidersHorizontal className="size-3.5" aria-hidden />
+                {t("label")}
+              </span>
               <button
                 type="button"
                 aria-label={common("close")}
@@ -237,14 +249,23 @@ export function ChatComposerControls({
                 <X className="size-3.5" aria-hidden />
               </button>
             </div>
-            <div className="space-y-3 text-xs">
+            <div className="chat-settings-body">
               <YourConnections />
               {(desktop || harnesses.length > 0) && (
-                <details className="rounded-lg border p-2.5">
-                  <summary className="cursor-pointer font-medium">{t("toolsTab")}</summary>
-                  <div className="mt-3 space-y-3">
+                <details className="chat-settings-section" open>
+                  <summary>
+                    <SquareTerminal className="size-4" aria-hidden />
+                    <span>{t("toolsTab")}</span>
+                    <ChevronDown className="chat-settings-chevron size-3.5" aria-hidden />
+                  </summary>
+                  <div className="chat-settings-section-body">
+                    {harnesses.length > 0 && (
+                      <p className="text-muted-foreground mb-1 text-xs leading-relaxed">
+                        {coding("chatHelp")}
+                      </p>
+                    )}
                     {harnesses.map((harness) => (
-                      <PersonalCodingAccount key={harness} harness={harness} />
+                      <PersonalCodingAccount compact key={harness} harness={harness} />
                     ))}
                     {desktop && <WorkOn agentCapabilities={agentCapabilities} />}
                   </div>
@@ -252,16 +273,19 @@ export function ChatComposerControls({
               )}
               <ConversationNotifications />
               {can(Perm.approvalsDecide) && (
-                <details className="rounded-lg border p-2.5">
-                  <summary className="cursor-pointer font-medium">
-                    {chat("approvalRememberedTitle")}
+                <details className="chat-settings-section">
+                  <summary>
+                    <ShieldCheck className="size-4" aria-hidden />
+                    <span>{chat("approvalRememberedTitle")}</span>
+                    <ChevronDown className="chat-settings-chevron size-3.5" aria-hidden />
                   </summary>
-                  <div className="mt-3">
-                    <RememberedApprovals />
+                  <div className="chat-settings-section-body">
+                    <RememberedApprovals showTitle={false} />
                   </div>
                 </details>
               )}
             </div>
+            <p className="chat-settings-footer">{t("savedAutomatically")}</p>
           </PopoverContent>
         </Popover>
       )}

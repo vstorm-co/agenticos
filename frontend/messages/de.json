@@ -1438,7 +1438,8 @@
         "follow_agent": "Agent-Regeln",
         "approve_all": "Alles erlauben",
         "ask_all": "Immer fragen"
-      }
+      },
+      "afterFirstMessage": "Nach der ersten Nachricht verfügbar."
     },
     "conversationArchived": "Diese Unterhaltung ist archiviert",
     "conversationDeleted": "Unterhaltung gelöscht",

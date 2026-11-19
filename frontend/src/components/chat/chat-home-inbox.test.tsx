@@ -30,6 +30,7 @@ vi.mock("@/hooks/use-pending-approvals", () => ({
   }),
 }));
 vi.mock("./suggestion-actions", () => ({
+  useSuggestionSource: () => ({ sourceOf: () => ({ name: "Notion" }) }),
   urgentFirst: (items: Suggestion[]) =>
     [...items].sort((a, b) => Number(!!b.urgent) - Number(!!a.urgent)),
   SuggestionMark: ({ suggestion }: { suggestion: Suggestion }) => (

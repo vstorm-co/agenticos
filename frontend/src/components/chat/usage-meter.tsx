@@ -10,6 +10,8 @@ import type { ConversationWorkspace } from "@/lib/conversation-workspace-api";
 import type { ConversationCost, TurnUsage } from "@/types";
 
 interface UsageMeterProps {
+  /** This conversation has not sent a first message yet. */
+  beforeFirstMessage?: boolean;
   /** Keep numeric readings in the popover rather than beside the context ring. */
   iconOnly?: boolean;
   /** The last turn's usage, or `null` before one has been measured. */
@@ -74,11 +76,13 @@ type Translate = (key: string, values?: Record<string, string | number>) => stri
 export function UsageMeter({
   usage,
   iconOnly = false,
+  beforeFirstMessage = false,
   workspace = null,
   total = null,
   contextWindow = null,
 }: UsageMeterProps) {
   const t = useTranslations("chat.usage");
+  const controls = useTranslations("chat.controls");
   const context = contextOf(usage, contextWindow);
   const fill = usage === null ? null : fillOf(usage, workspace, t);
   const agentShare = usage?.agent_budget_percent ?? null;
@@ -100,10 +104,17 @@ export function UsageMeter({
       <PopoverTrigger asChild>
         <button
           type="button"
+          disabled={beforeFirstMessage}
           aria-label={level === "calm" ? t("label") : t("labelNearLimit")}
-          title={level === "calm" ? t("label") : t("labelNearLimit")}
+          title={
+            beforeFirstMessage
+              ? controls("afterFirstMessage")
+              : level === "calm"
+                ? t("label")
+                : t("labelNearLimit")
+          }
           className={cn(
-            "hover:bg-foreground/[0.06] relative inline-flex h-9 min-w-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 transition-colors",
+            "hover:bg-foreground/[0.06] relative inline-flex h-9 min-w-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 transition-colors disabled:cursor-not-allowed disabled:opacity-35",
             // The ring and its share are the context's own colour: a budget near
             // its limit painted "0.9%" amber, which reads as the context being
             // nearly full. Another reading near its limit is the dot instead.

@@ -25,44 +25,24 @@ it("keeps the file action compact and closes after selection", async () => {
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
-it("opens secondary controls without closing the parent, then restores keyboard focus", async () => {
+it("shows every secondary action in the first panel and restores focus on Escape", async () => {
+  const call = vi.fn();
   render(
     <MainChatContext.Provider value={true}>
       <ChatComposerMenu actions={[]}>
-        <button type="button">Call agent</button>
+        <button type="button" onClick={call}>
+          Call agent
+        </button>
       </ChatComposerMenu>
     </MainChatContext.Provider>,
   );
   const plus = screen.getByRole("button", { name: "Add to message" });
   await userEvent.click(plus);
-  const more = screen.getByRole("button", { name: "More" });
-  await userEvent.click(more);
-  expect(screen.getByRole("dialog", { name: "More" })).toHaveFocus();
-  expect(screen.getByRole("button", { name: "Call agent" })).toBeVisible();
-  expect(screen.getByRole("dialog", { name: "Add to message" })).toBeVisible();
-  await userEvent.keyboard("{Escape}");
-  expect(screen.queryByRole("dialog", { name: "More" })).toBeNull();
-  expect(more).toHaveFocus();
+  expect(screen.getByRole("dialog", { name: "Add to message" })).toHaveFocus();
+  expect(screen.queryByRole("button", { name: "More" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Call agent" }));
+  expect(call).toHaveBeenCalledOnce();
   await userEvent.keyboard("{Escape}");
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(plus).toHaveFocus();
-});
-
-it("opens the secondary panel above its trigger on narrow screens", async () => {
-  const query = window.matchMedia("(max-width: 767px)");
-  const viewport = vi.spyOn(window, "matchMedia").mockReturnValue({ ...query, matches: true });
-  try {
-    render(
-      <ChatComposerMenu actions={[]}>
-        <button type="button">Settings</button>
-      </ChatComposerMenu>,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Add to message" }));
-    const more = screen.getByRole("button", { name: "More" });
-    vi.spyOn(more, "getBoundingClientRect").mockReturnValue(new DOMRect(20, 400, 200, 40));
-    await userEvent.click(more);
-    expect(screen.getByRole("dialog", { name: "More" })).toHaveAttribute("data-side", "top");
-  } finally {
-    viewport.mockRestore();
-  }
 });

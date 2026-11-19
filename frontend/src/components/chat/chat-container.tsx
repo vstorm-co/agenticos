@@ -1984,7 +1984,9 @@ function ChatUI({
                                       <div className="text-muted-foreground flex items-center gap-2 text-xs">
                                         <span>{t("input.contextUsed")}</span>{" "}
                                         <UsageMeter
+                                          key={`${conversationId ?? "new"}:${messages.length === 0}`}
                                           iconOnly={mainChat}
+                                          beforeFirstMessage={mainChat && messages.length === 0}
                                           usage={lastUsage}
                                           workspace={workspace}
                                           total={conversationCost}
@@ -2048,6 +2050,8 @@ function ChatUI({
         className={mainChat ? "h-full min-h-0 shrink-0" : "hidden h-full min-h-0 shrink-0 lg:block"}
       >
         <WorkspaceFiles
+          key={conversationId ?? "new"}
+          beforeFirstMessage={mainChat && messages.length === 0}
           conversationId={conversationId}
           revision={turns}
           attachments={attachments}

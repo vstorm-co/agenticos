@@ -30,6 +30,7 @@ import type { ConversationFile } from "@/lib/conversation-workspace-api";
 import type { ChatMessageFile } from "@/types";
 
 interface WorkspaceFilesProps {
+  beforeFirstMessage?: boolean;
   conversationId: string | null;
   /** Bumped when a turn ends, because a turn is what changes the files. */
   revision: number;
@@ -81,17 +82,21 @@ export function WorkspaceFiles({
   attachments,
   buttonSlot,
   overlay = false,
+  beforeFirstMessage = false,
 }: WorkspaceFilesProps) {
   const t = useTranslations("chat.files");
+  const controls = useTranslations("chat.controls");
   // A chat working on this computer keeps its files in the folder there, which
   // only the desktop app can list (#2305); everywhere else it is the server's.
   const shell = useShell();
   const target = useWorkOnStore((state) => state.targetFor(conversationId));
   const localRoot =
     isDesktopShell(shell) && target !== null && !target.computer_grant ? target.folder : null;
-  const cloud = useConversationWorkspace(localRoot === null ? conversationId : null);
+  const cloud = useConversationWorkspace(
+    !beforeFirstMessage && localRoot === null ? conversationId : null,
+  );
   const local = useLocalWorkspace(
-    localRoot,
+    beforeFirstMessage ? null : localRoot,
     t("onThisComputer", { folder: localRoot?.split(/[\\/]/).filter(Boolean).at(-1) ?? "" }),
   );
   const { workspace, error, refresh } = localRoot === null ? cloud : local;
@@ -99,7 +104,7 @@ export function WorkspaceFiles({
   const [open, setOpen] = useState(false);
   const sourcesOpen = useSourcesPanelStore((state) => state.isOpen);
   const closeSources = useSourcesPanelStore((state) => state.close);
-  const visible = open && !sourcesOpen;
+  const visible = open && !sourcesOpen && !beforeFirstMessage;
   const panelId = useId();
   const toggle = useRef<HTMLButtonElement>(null);
   const reduceMotion = useReducedMotion();
@@ -120,23 +125,9 @@ export function WorkspaceFiles({
     void refresh();
   }, [revision, refresh]);
 
-  // **Always drawn**, a new chat included, where the panel says what will land
-  // in it. It used to wait
-  // for the listing to report a workspace, and the reasoning was about flicker: a
-  // workspace has no row until a turn flushes one, so the button appeared as the id
-  // arrived, vanished when the listing said `none`, and came back when the turn
-  // ended - three states in one turn for a panel whose job is to sit still.
-  //
-  // Hiding it fixed the flicker by making the panel unreachable exactly when
-  // somebody wants it. A turn that writes a file and then parks for approval has
-  // not flushed anything, so the strip was absent for the whole time the file was
-  // the thing on screen; a page reload was the only way to get it back. The same
-  // gap swallowed uploads, which are written into the workspace before the agent
-  // has done anything at all.
-  //
-  // One icon answers "does this agent keep files" the moment somebody wonders. Flicker is solved where it belongs: the
-  // count only appears once there is something to count, so the button itself never
-  // changes shape.
+  // Keep the trigger stable while the workspace is created or a turn parks.
+  // The main chat disables it before its first message; embedded chats keep
+  // their existing access to pre-run uploads.
   const files = workspace?.items.filter((file) => !file.is_dir) ?? [];
 
   // An attachment an agent *with* a workspace already holds is one file, not
@@ -182,12 +173,21 @@ export function WorkspaceFiles({
           <button
             ref={toggle}
             type="button"
+            disabled={beforeFirstMessage}
             aria-label={
               visible ? t("title") : count === 0 ? t("show") : t("showWithCount", { count })
             }
             aria-controls={panelId}
             aria-expanded={visible}
-            title={visible ? t("close") : count === 0 ? t("show") : t("showWithCount", { count })}
+            title={
+              beforeFirstMessage
+                ? controls("afterFirstMessage")
+                : visible
+                  ? t("close")
+                  : count === 0
+                    ? t("show")
+                    : t("showWithCount", { count })
+            }
             onClick={() => {
               if (sourcesOpen) {
                 closeSources();
@@ -195,7 +195,7 @@ export function WorkspaceFiles({
               } else setOpen((current) => !current);
             }}
             className={cn(
-              "text-muted-foreground hover:text-foreground hover:bg-accent/60 relative inline-flex size-8 items-center justify-center rounded-lg transition-colors",
+              "text-muted-foreground hover:text-foreground hover:bg-accent/60 relative inline-flex size-8 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-35",
               visible && "bg-foreground/[0.06] text-foreground",
             )}
           >

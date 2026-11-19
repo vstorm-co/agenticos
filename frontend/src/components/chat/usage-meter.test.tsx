@@ -84,6 +84,17 @@ function valueOf(label: string) {
 }
 
 describe("UsageMeter, closed", () => {
+  it("disables usage before the first message and enables it when history exists", async () => {
+    const view = render(<UsageMeter usage={null} beforeFirstMessage iconOnly />);
+    expect(trigger()).toBeDisabled();
+    await userEvent.click(trigger());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    view.rerender(<UsageMeter usage={null} beforeFirstMessage={false} iconOnly />);
+    expect(trigger()).toBeEnabled();
+    await userEvent.click(trigger());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
   it("is one icon, there before anything was measured, saying what it will show", async () => {
     // "0 tokens" under a conversation that has not run anything is a claim, so
     // the popover says what comes rather than showing a zero.

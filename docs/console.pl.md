@@ -1,5 +1,5 @@
 ---
-source_sha: "17968be8dd30"
+source_sha: "6e9a8b41b6fa"
 ---
 
 # Konsola { #the-console }
@@ -237,6 +237,8 @@ pokazują opisy, a wiersze agentów używają tych samych avatarów co chat.
 Karty dashboardu korzystają ze spójnych, zwartych wierszy, oznaczeń usług i etykiet statusu. Liczniki i wykresy dostosowują się do szerokości karty, również we własnych układach. Placeholdery odpowiadają rodzajowi ładowanej zawartości; niedostępny briefing pokazuje możliwość ponowienia zamiast informacji o braku propozycji.
 
 Nowy chat wita zależnie od lokalnej pory dnia i pokazuje zwarte pole wiadomości. Pliki są obok agenta, a ustawienia i tarcza uprawnień obok modelu. Zużycie kontekstu pozostaje ikoną do chwili otwarcia szczegółów. Poniżej widać do trzech tematów z Inboxa, z pilnymi ustaleniami na początku i ikonami źródeł z katalogu MCP; licznik zgód prowadzi do kolejki decyzji. Otwarcie podglądu niczego nie zatwierdza ani nie odrzuca. Ładowanie, błąd i pusta lista mają osobne stany. Dyktowanie i połączenia korzystają z tej samej lekkiej powierzchni co pole wiadomości. Osadzone chaty agentów i Architecta zachowują własne kontrolki.
+
+Przed pierwszą wiadomością pliki i użycie kontekstu pozostają widoczne, ale nieaktywne. Menu załączników pokazuje dostępne akcje od razu. Ustawienia czatu mają zwarte sekcje połączeń i zapamiętanych zgód; podgląd Inbox pokazuje źródło, czas i priorytet.
 
 Zapisana rozmowa od razu pokazuje placeholdery historii, bez migania powitania; sidebar i historia ładują się niezależnie. Ręcznie wysłana wiadomość łagodnie przesuwa się pod górę; wiadomości z kolejki nie przestawiają widoku. Scrollowanie, dotyk i klawiatura przerywają ruch. Wspólne menu i modale używają niewielkich, łagodnych przejść; preferencja Motion wyłącza ruch.
 

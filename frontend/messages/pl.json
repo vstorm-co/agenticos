@@ -453,7 +453,8 @@
         "follow_agent": "Zasady agenta",
         "approve_all": "Zatwierdzaj wszystko",
         "ask_all": "Zawsze pytaj"
-      }
+      },
+      "afterFirstMessage": "Dostępne po pierwszej wiadomości."
     },
     "conversationArchived": "Ta rozmowa jest zarchiwizowana",
     "conversationDeleted": "Rozmowa usunięta",

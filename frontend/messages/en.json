@@ -1438,7 +1438,8 @@
         "follow_agent": "Agent rules",
         "approve_all": "Approve all",
         "ask_all": "Ask always"
-      }
+      },
+      "afterFirstMessage": "Available after the first message."
     },
     "conversationArchived": "This conversation is archived",
     "conversationDeleted": "Conversation deleted",

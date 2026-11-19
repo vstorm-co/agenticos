@@ -227,6 +227,8 @@ Dashboard cards use the same compact rows, service marks and status labels. Coun
 
 A new chat greets you by local time and shows a compact composer. Files sit beside the agent; chat settings and the permission shield sit beside the model. Context usage stays an icon until opened. Up to three Inbox topics appear below, with urgent findings first and source marks from the MCP catalog; approval counts link to the approval queue. Opening a preview does not approve or dismiss it. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. Embedded agent and Architect chats retain their own controls.
 
+Before the first message, Files and context usage remain visible but disabled. The attachment menu shows its available actions directly. Chat controls use compact sections for connections and remembered approvals; Inbox previews show source identity, time and priority.
+
 Opening a saved conversation shows transcript placeholders directly, without flashing welcome suggestions; the sidebar and transcript load independently. Explicit sends glide the message near the top; queued messages do not reposition the reader. Scroll, touch and keyboard input cancel the glide. Shared menus and dialogs use small, eased transitions; the Motion preference disables movement.
 
 ## The inbox { #the-inbox }

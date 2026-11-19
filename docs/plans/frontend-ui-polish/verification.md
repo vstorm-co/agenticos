@@ -466,5 +466,31 @@ under the main page. No screenshot or native browser tool was used for promotion
 
 The final five-file composer/context batch passed 119 tests; the separate
 container integration file passed 75 tests. The earlier Inbox file passed three
-tests. Targeted ESLint and translation fingerprints passed. TypeScript and copy
-guards are being rechecked on the completed cleanup before committing.
+tests. Targeted ESLint and translation fingerprints passed. TypeScript, ESLint, copy guards and the remaining commit checks passed on
+`5a3f4b566`.
+
+
+## Chat refinements and component-system inventory (2026-11-19)
+
+The attachment menu exposes all available actions directly. Chat settings use
+compact disclosure sections and account rows; Inbox topics use a unified list
+with source identity, relative time, priority and a waiting count. Main-chat
+Files and Usage remain visible but disabled before the first message; file
+listing hooks also stay inactive. Embedded-chat behavior remains unchanged.
+
+The menu/Inbox/controls/sheet batch passed 55 tests. The account and remembered
+approval files passed 8 tests. The final files/usage batch passed 80 tests,
+including regressions for disabling, no pre-message file requests and enabling
+after history exists. Initial regression testing exposed a premature workspace
+request; disabling its cloud/local hook input fixed it. jsdom emitted its existing
+canvas/navigation limitations; these were not real microphone or browser runs.
+
+[Component-system plan](component-system-plan.md) and
+[static inventory](component-inventory.md) record all shared UI modules,
+component directories and page routes, concrete inconsistencies, migration waves
+and acceptance checks. The broad migration is planned, not implemented or
+visually certified. No screenshots or Computer Use/Browser Use were used.
+
+The final ChatContainer integration file also passed all 75 tests. Local
+`/chat` returned HTTP 200 after the changes. Shared-account tests retained their
+existing connection and revoke behavior. Full CI for the next SHA remains pending.
