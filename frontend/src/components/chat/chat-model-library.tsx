@@ -27,6 +27,7 @@ interface ChatModelLibraryProps {
   models: ProviderModel[];
   profiles: ModelProfile[];
   loading: boolean;
+  catalogRefreshing?: boolean;
   loadingProviders?: boolean;
   needsCredential?: boolean;
   credentialPicker?: ReactNode;
@@ -65,7 +66,11 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
     context?: number | null,
   ) => (
     <Command.Item
-      disabled={props.disabled || props.applying || (tab === "catalog" && props.loading)}
+      disabled={
+        props.disabled ||
+        props.applying ||
+        (tab === "catalog" && (props.loading || props.catalogRefreshing))
+      }
       key={id}
       value={id}
       onSelect={onSelect}
@@ -247,6 +252,7 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
                           props.disabled ||
                           props.applying ||
                           props.loading ||
+                          props.catalogRefreshing ||
                           !modelIdIsWellFormed(props.providerId, query.trim())
                         }
                         value={`custom:${query.trim()}`}

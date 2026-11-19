@@ -966,7 +966,7 @@ _PLATFORM_PREFIXES = (
 
 def _is_platform(tail: str) -> bool:
     """Whether a path belongs to the platform layer rather than the template."""
-    return tail.startswith(_PLATFORM_PREFIXES)
+    return tail == "/conversations/search" or tail.startswith(_PLATFORM_PREFIXES)
 
 
 def _api_routes() -> Iterator[RouteContext]:

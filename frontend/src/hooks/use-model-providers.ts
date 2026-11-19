@@ -323,7 +323,14 @@ export function useProviderModels(
   const refused = decision
     ? []
     : items.filter((entry) => !runsAgents(entry)).map((entry) => entry.id);
-  return { models, refused, source: data?.source ?? null, isLoading: isFetching && !data, refetch };
+  return {
+    models,
+    refused,
+    source: data?.source ?? null,
+    isLoading: isFetching,
+    hasCachedListing: data !== undefined,
+    refetch,
+  };
 }
 
 /** One model that draws. */

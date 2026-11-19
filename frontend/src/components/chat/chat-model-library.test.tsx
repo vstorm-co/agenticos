@@ -52,3 +52,18 @@ it("clears a search when changing provider and keeps credential forms in the pan
   expect(screen.getByRole("combobox")).toHaveValue("");
   expect(screen.getByRole("button", { name: "Add provider key" })).toBeVisible();
 });
+
+it("keeps cached models visible while their metadata refreshes", async () => {
+  const p = props();
+  const { rerender } = render(<ChatModelLibrary {...p} catalogRefreshing />);
+  const model = screen.getByRole("option", { name: /Claude/ });
+  expect(model).toBeVisible();
+  expect(model).toHaveAttribute("aria-disabled", "true");
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  await userEvent.click(model);
+  expect(p.onModelChange).not.toHaveBeenCalled();
+
+  rerender(<ChatModelLibrary {...p} catalogRefreshing={false} />);
+  await userEvent.click(model);
+  expect(p.onModelChange).toHaveBeenCalledWith("anthropic/claude");
+});

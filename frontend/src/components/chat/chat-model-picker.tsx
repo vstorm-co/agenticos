@@ -130,6 +130,7 @@ export function ChatModelPicker({
     refused,
     source,
     isLoading: loadingModels,
+    hasCachedListing,
     refetch: refetchModels,
   } = useProviderModels(
     providerId,
@@ -343,7 +344,8 @@ export function ChatModelPicker({
           (profile) =>
             usableForAgents(profile) && (!explicitKey || profile.secret_id === explicitKey.id),
         )}
-        loading={loadingModels || loadingProfiles}
+        loading={(loadingModels && !hasCachedListing) || loadingProfiles}
+        catalogRefreshing={loadingModels}
         applying={createProfile.isPending}
         disabled={
           loadingProfiles || profilesStatus === "failed" || !!secretReadError || !!loadingSecrets
