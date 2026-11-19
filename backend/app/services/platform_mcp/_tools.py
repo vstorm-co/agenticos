@@ -456,14 +456,18 @@ def _person_chose(session: dict[str, Any]) -> str | None:
     return last.get("actor_name") or last["actor_user_id"]
 
 
-def _criterion(item: dict[str, Any]) -> str:
+def _criterion(item: dict[str, Any], names: list[str]) -> str:
     owner = f' (skill "{item["skill"]}")' if item.get("skill") else ""
-    return f"{item['name']} {item['before']}/{item['graded']} → {item['after']}/{item['graded']}{owner}"
+    name = item["name"]
+    if names.count(name) > 1:
+        name = f"{name} [{item['scorer']}]"
+    return f"{name} {item['before']}/{item['graded']} → {item['after']}/{item['graded']}{owner}"
 
 
 def _criteria_sentences(detail: dict[str, Any], verdict: str) -> list[str]:
     """What an attempt moved criterion by criterion, and what still fails, in plain words."""
     criteria = detail.get("criteria") or []
+    names = [item["name"] for item in criteria]
     better = [
         item
         for item in criteria
@@ -477,13 +481,19 @@ def _criteria_sentences(detail: dict[str, Any], verdict: str) -> list[str]:
     ]
     sentences = []
     if worse:
-        sentences.append("Criteria that got worse: " + ", ".join(map(_criterion, worse)) + ".")
+        sentences.append(
+            "Criteria that got worse: " + ", ".join(_criterion(item, names) for item in worse) + "."
+        )
     if verdict == "criteria_better" and better:
-        sentences.append("Criteria that got better: " + ", ".join(map(_criterion, better)) + ".")
+        sentences.append(
+            "Criteria that got better: "
+            + ", ".join(_criterion(item, names) for item in better)
+            + "."
+        )
         if failing:
             sentences.append(
                 "No additional question passes yet: other criteria still fail - "
-                + ", ".join(map(_criterion, failing))
+                + ", ".join(_criterion(item, names) for item in failing)
                 + "."
             )
     return sentences

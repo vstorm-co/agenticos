@@ -117,3 +117,23 @@ def test_a_net_pass_decline_is_not_described_as_a_criterion_gain():
     sentence = _attempt_sentence(_attempt_row(1, "criteria_better", _PRICE_BREAK, declined))
     assert "Criteria that got better: price break" in sentence
     assert "net decline" not in sentence.split("Criteria that got better:")[1].split(".")[0]
+
+
+def test_equal_criterion_names_keep_the_scorer_across_opposite_movements():
+    gained = {**_PRICE_BREAK, "name": "Validity"}
+    lost = {**_LENGTH, "name": "Validity"}
+
+    sentence = _attempt_sentence(_attempt_row(1, "criteria_better", gained, lost))
+
+    assert "Criteria that got worse: Validity [check] 40/40 → 30/40." in sentence
+    assert "Criteria that got better: Validity [judge] 9/40 → 40/40." in sentence
+
+
+def test_equal_criterion_names_are_qualified_even_in_separate_result_sentences():
+    gained = {**_PRICE_BREAK, "name": "Validity"}
+    failing = {**_VALIDITY, "scorer": "check", "name": "Validity"}
+
+    sentence = _attempt_sentence(_attempt_row(1, "criteria_better", gained, failing))
+
+    assert "Criteria that got better: Validity [judge] 9/40 → 40/40." in sentence
+    assert 'criteria still fail - Validity [check] 0/40 → 0/40 (skill "Quote rules").' in sentence
