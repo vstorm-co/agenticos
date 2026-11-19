@@ -266,9 +266,9 @@ function CountBadge({
             paddingInline: dot ? 0 : size * PAD,
             fontSize: size * FONT,
           }}
-          initial={{ scale: 0.97, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.97, opacity: 0 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           transition={reduced ? FADE : ENTER_SPRING}
         >
           {!dot && (
@@ -386,7 +386,7 @@ export function BellGlyph({
       // - it does not own the element - and keeps the hidden span instead.
       aria-label={label}
       className={cn(
-        "focus-visible:ring-ring relative grid place-items-center rounded-full transition-transform outline-none focus-visible:ring-2 active:scale-90 motion-reduce:active:scale-100",
+        "focus-visible:ring-ring relative grid place-items-center rounded-full outline-none focus-visible:ring-2",
         SURFACE,
         GLYPH,
         className,

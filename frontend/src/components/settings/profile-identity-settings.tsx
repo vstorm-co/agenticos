@@ -207,7 +207,7 @@ export function ProfileIdentitySettings({
                     ) : (
                       <AvatarFace seed={user.id} colorSlot={user.avatar_color} />
                     )}
-                    <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                       <Camera className="size-5 text-white" aria-hidden />
                     </span>
                   </button>
@@ -220,22 +220,21 @@ export function ProfileIdentitySettings({
                     className="hidden"
                   />
                   <div className="min-w-0">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => avatarInputRef.current?.click()}
-                      disabled={busy}
-                      data-guidance={
-                        (!!onContinue && !user.avatar_url && user.avatar_color == null) || undefined
-                      }
-                    >
-                      {avatarUploading
-                        ? t("uploading3")
-                        : user.avatar_url
-                          ? t("replaceAvatar4")
-                          : t("uploadAvatar4")}
-                    </Button>
+                    {!onContinue && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => avatarInputRef.current?.click()}
+                        disabled={busy}
+                      >
+                        {avatarUploading
+                          ? t("uploading3")
+                          : user.avatar_url
+                            ? t("replaceAvatar4")
+                            : t("uploadAvatar4")}
+                      </Button>
+                    )}
                     <p className="text-muted-foreground mt-2 text-xs">
                       {isAppAdmin(user) ? t("admin") : ""}
                       {t("memberSince", { date: formatDate(user.created_at, locale) })}
@@ -245,15 +244,23 @@ export function ProfileIdentitySettings({
                     </p>
                   </div>
                 </div>
-                <MoreOptions label={t("avatarColour")}>
-                  <p className="text-muted-foreground text-xs">{t("avatarColourHint")}</p>
+                {onContinue ? (
                   <AvatarColorPicker
                     value={user.avatar_color ?? null}
                     disabled={busy}
                     onChange={handleColorChange}
-                    className={onContinue ? "justify-center" : undefined}
+                    className="max-w-full justify-center"
                   />
-                </MoreOptions>
+                ) : (
+                  <MoreOptions label={t("avatarColour")}>
+                    <p className="text-muted-foreground text-xs">{t("avatarColourHint")}</p>
+                    <AvatarColorPicker
+                      value={user.avatar_color ?? null}
+                      disabled={busy}
+                      onChange={handleColorChange}
+                    />
+                  </MoreOptions>
+                )}
               </div>
               <div className={cn("grid items-start gap-4", !unifiedSave && "md:grid-cols-2")}>
                 <FormField label={t("displayName")} htmlFor="profile-name">

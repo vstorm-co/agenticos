@@ -13,7 +13,6 @@ import { Button } from "@/components/ui";
 import { ProfileIdentitySettings } from "@/components/settings/profile-identity-settings";
 import type { Onboarding } from "@/lib/onboarding-api";
 import { StartLanguage } from "./start-language";
-import { StartTour } from "./start-tour";
 import { StartCompanions } from "./start-companions";
 import { StartGuide } from "./start-guide";
 import { StartStageArtwork } from "./start-stage-artwork";
@@ -158,12 +157,11 @@ export function StartMember({ data }: { data: Onboarding }) {
                         saveLabel={admin("saveContinue")}
                         onContinue={() => advance(item, item === "profile" ? "context" : "task")}
                         secondaryAction={
-                          <Button
-                            variant="ghost"
-                            onClick={() => go(item === "profile" ? "context" : "task")}
-                          >
-                            {admin("skipOptional")}
-                          </Button>
+                          item === "context" && (
+                            <Button variant="ghost" onClick={() => go("task")}>
+                              {admin("skipOptional")}
+                            </Button>
+                          )
                         }
                       />
                     </div>
@@ -181,9 +179,6 @@ export function StartMember({ data }: { data: Onboarding }) {
             </section>
           )}
         </div>
-        <footer className="mt-6 flex justify-end">
-          <StartTour />
-        </footer>
       </div>
     </div>
   );

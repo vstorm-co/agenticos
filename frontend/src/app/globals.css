@@ -82,28 +82,6 @@
   }
 }
 
-/* Shared press feedback also covers feature controls that do not use Button.
- * Fields and popup anchors stay still so their text and positioned panels do not jump.
- * Low specificity lets specialized controls keep their own transitions. */
-:where(
-  :root:not([data-motion="reduce"])
-    button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not([role="slider"]):not(
-      [role="combobox"]
-    ):not([aria-haspopup]):not([aria-expanded]):not([data-press-feedback])
-) {
-  transition: scale 150ms ease-out;
-}
-:where(
-  :root:not([data-motion="reduce"])
-    button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not([role="slider"]):not(
-      [role="combobox"]
-    ):not([aria-haspopup]):not([aria-expanded]):not([data-press-feedback]):not(:disabled):not(
-      [aria-disabled="true"]
-    ):not([data-loading="true"])
-):active {
-  scale: 0.97;
-}
-
 /* =========================================================================
    Design tokens.
 
@@ -855,15 +833,15 @@
    ========================================================================= */
 
 @layer utilities {
-  /* Tiny fade+scale entrance for popovers / dropdowns. */
+  /* Short entrance for popovers and dropdowns. */
   @keyframes lsFadeIn {
     from {
       opacity: 0;
-      transform: translateY(-4px) scale(0.97);
+      transform: translateY(-4px);
     }
     to {
       opacity: 1;
-      transform: translateY(0) scale(1);
+      transform: translateY(0);
     }
   }
 
@@ -947,11 +925,6 @@
         0 14px 34px -18px oklch(0% 0 0 / 0.28);
     }
   }
-  @media (hover: hover) {
-    :root:not([data-motion="reduce"]) .dash-editable:hover {
-      transform: scale(1.012);
-    }
-  }
   /* The card being dragged: dimmed and held in place while the drop target is
      ringed, so nothing shuffles under the cursor. The reorder is applied on
      drop, where FLIP glides every moved card to its new place at once. */
@@ -965,7 +938,6 @@
   @keyframes dash-pop {
     from {
       opacity: 0;
-      transform: scale(0.97);
     }
     to {
       opacity: 1;
@@ -1139,14 +1111,14 @@
 @keyframes step-card-in {
   0% {
     opacity: 0;
-    transform: translateY(6px) scale(0.97);
+    transform: translateY(6px);
   }
   60% {
     opacity: 1;
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
@@ -1190,7 +1162,7 @@
 @keyframes bubble-rise {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.97);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -1318,7 +1290,6 @@
 @keyframes pop-in {
   from {
     opacity: 0;
-    transform: scale(0.97);
   }
   to {
     opacity: 1;
@@ -1333,7 +1304,7 @@
 @keyframes map-tile-in {
   from {
     opacity: 0;
-    transform: translateY(3px) scale(0.97);
+    transform: translateY(3px);
   }
   to {
     opacity: 1;
@@ -2632,7 +2603,7 @@ body .tour-spotlight {
 /* =========================================================================
    Enter and exit motion for overlays - dialogs, menus, selects, popovers,
    sheets. The primitives were written against the `tw-animate-css` class
-   vocabulary (`data-[state=open]:animate-in fade-in-0 zoom-in-95 …`), and that
+   vocabulary (`data-[state=open]:animate-in fade-in-0 …`), and that
    plugin was never installed, so every one of those classes compiled to
    nothing: a dialog, a dropdown and a select all appeared in a single frame
    and vanished in one. These are the same names, so the ten call sites need
@@ -2645,15 +2616,13 @@ body .tour-spotlight {
 @keyframes overlay-enter {
   from {
     opacity: var(--tw-enter-opacity, 1);
-    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0)
-      scale(var(--tw-enter-scale, 1));
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0);
   }
 }
 @keyframes overlay-exit {
   to {
     opacity: var(--tw-exit-opacity, 1);
-    transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0)
-      scale(var(--tw-exit-scale, 1));
+    transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0);
   }
 }
 
@@ -2669,12 +2638,6 @@ body .tour-spotlight {
 }
 @utility fade-out-* {
   --tw-exit-opacity: calc(--value(integer) * 1%);
-}
-@utility zoom-in-* {
-  --tw-enter-scale: calc(--value(integer) * 1%);
-}
-@utility zoom-out-* {
-  --tw-exit-scale: calc(--value(integer) * 1%);
 }
 @utility slide-in-from-top-* {
   --tw-enter-translate-y: calc(var(--spacing) * --value(integer) * -1);
@@ -3117,11 +3080,9 @@ body .tour-spotlight {
 @keyframes soft-enter {
   from {
     opacity: 0;
-    scale: 0.97;
   }
   to {
     opacity: 1;
-    scale: 1;
   }
 }
 .soft-enter {
@@ -3163,27 +3124,13 @@ body .tour-spotlight {
       background-color var(--duration-fast),
       border-color var(--duration-fast),
       color var(--duration-fast),
-      box-shadow var(--duration-fast),
-      scale var(--duration-fast) var(--ease-out);
-  }
-  .pressable-control:not(.pressable-icon):not([role="combobox"]):not([aria-haspopup]):not(
-      [aria-expanded]
-    ):not([data-press-feedback]):not(:disabled):not([aria-disabled="true"]):not(
-      [data-loading="true"]
-    ):active {
-    scale: 0.97;
+      box-shadow var(--duration-fast);
   }
   .pressable-icon {
     transition:
       background-color var(--duration-fast),
       color var(--duration-fast),
-      box-shadow var(--duration-fast),
-      scale var(--duration-fast) var(--ease-out);
-  }
-  .pressable-icon:not([role="combobox"]):not([aria-haspopup]):not([aria-expanded]):not(
-      [data-press-feedback]
-    ):active {
-    scale: 0.97;
+      box-shadow var(--duration-fast);
   }
 }
 
@@ -3244,7 +3191,7 @@ body .tour-spotlight {
 @keyframes chat-panel-enter {
   from {
     opacity: 0;
-    transform: translateY(0.25rem) scale(0.97);
+    transform: translateY(0.25rem);
   }
   to {
     opacity: 1;

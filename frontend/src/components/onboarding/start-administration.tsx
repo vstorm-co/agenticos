@@ -24,7 +24,6 @@ import { StartOrganizationSettings } from "./start-organization-settings";
 import { StartTasks } from "./start-tasks";
 import { StartFinish } from "./start-finish";
 import { StartLanguage } from "./start-language";
-import { StartTour } from "./start-tour";
 import styles from "./administration.module.css";
 const STEPS = [
   "workspace",
@@ -44,16 +43,26 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
   const { appName } = useBranding();
   const { activeOrg, activeOrgId, switchOrg } = useOrganizations();
   const organizations = useOrganizationList();
-  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(
-    activeOrg && !activeOrg.is_personal ? activeOrg.id : null,
-  );
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(activeOrg?.id ?? null);
   const org = activeOrg?.id === selectedOrgId ? activeOrg : null;
   const steps = STEPS.filter((item) => appAdmin || item !== "deployment");
   const search = useSearchParams();
+  const requestedStep = steps.find((item) => `admin.${item}` === search.get("start-step"));
+  const requestedWorkspace = requestedStep ? search.get("workspace") : null;
   const initialStep =
-    activeOrg && !activeOrg.is_personal && search.get("workspace") === activeOrg.id
-      ? (steps.find((item) => `admin.${item}` === search.get("start-step")) ?? "workspace")
-      : "workspace";
+    activeOrg && requestedWorkspace === activeOrg.id ? (requestedStep ?? "workspace") : "workspace";
+  const attemptedWorkspace = useRef<string | null>(null);
+  const canResumeWorkspace = organizations.data?.some((item) => item.id === requestedWorkspace);
+  useEffect(() => {
+    if (
+      !requestedWorkspace ||
+      !canResumeWorkspace ||
+      attemptedWorkspace.current === requestedWorkspace
+    )
+      return;
+    attemptedWorkspace.current = requestedWorkspace;
+    if (activeOrgId !== requestedWorkspace) switchOrg(requestedWorkspace);
+  }, [activeOrgId, canResumeWorkspace, requestedWorkspace, switchOrg]);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [step, setStep] = useState<Step>(initialStep);
   const [visited, setVisited] = useState<readonly Step[]>(
@@ -72,17 +81,15 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
     };
   }, []);
   const resumeChanged = useChanged(`${activeOrg?.id}|${initialStep}`);
-  if (
-    resumeChanged &&
-    initialStep !== "workspace" &&
-    step === "workspace" &&
-    visited.length === 1
-  ) {
+  const resuming =
+    resumeChanged && initialStep !== "workspace" && step === "workspace" && visited.length === 1;
+  if (resuming) {
     setSelectedOrgId(activeOrg?.id ?? null);
     setStep(initialStep);
     setVisited(steps.slice(0, steps.indexOf(initialStep) + 1));
   }
-  const scopeChanged = useChanged(activeOrgId) && selectedOrgId && activeOrgId !== selectedOrgId;
+  const activeChanged = useChanged(activeOrgId);
+  const scopeChanged = !resuming && activeChanged && selectedOrgId && activeOrgId !== selectedOrgId;
   if (scopeChanged || !steps.includes(step)) {
     if (scopeChanged) setSelectedOrgId(null);
     setStep("workspace");
@@ -225,11 +232,6 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
                     section="identity"
                     onContinue={() => advance("profile", "context")}
                     saveLabel={t("saveContinue")}
-                    secondaryAction={
-                      <Button variant="ghost" onClick={() => go("context")}>
-                        {t("skipOptional")}
-                      </Button>
-                    }
                   />
                 </div>
                 <StartStageArtwork stage="profile" />
@@ -315,9 +317,6 @@ export function StartAdministration({ appAdmin }: { appAdmin: boolean }) {
             </section>
           )}
         </div>
-        <footer className="mt-6 flex justify-end">
-          <StartTour />
-        </footer>
       </div>
     </div>
   );

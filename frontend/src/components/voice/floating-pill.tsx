@@ -50,9 +50,9 @@ export function FloatingPill({
             data-testid="floating-pill"
             data-floating-pill
             className={cn("pointer-events-auto", embedded && "w-full")}
-            initial={{ opacity: 0, y: 10, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.97 }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
             transition={transition}
           >
             {pill.node}

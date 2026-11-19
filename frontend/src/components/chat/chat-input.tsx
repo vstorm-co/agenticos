@@ -1174,7 +1174,7 @@ export function ChatInput({
                   type="submit"
                   size="icon"
                   variant="ghost"
-                  className="chat-input-primary group shrink-0 transition-transform hover:bg-transparent active:scale-[0.97] active:bg-transparent"
+                  className="chat-input-primary group shrink-0 hover:bg-transparent active:bg-transparent"
                   disabled={
                     disabled || isUploading || (!message.trim() && attachedFiles.length === 0)
                   }

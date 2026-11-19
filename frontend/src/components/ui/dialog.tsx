@@ -33,7 +33,6 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     /** Keep the operation visible until its write has settled. */
     dismissible?: boolean;
-    motion?: "default" | "fade";
   }
 >(
   (
@@ -44,7 +43,6 @@ const DialogContent = React.forwardRef<
       onEscapeKeyDown,
       onOpenAutoFocus,
       dismissible = true,
-      motion = "default",
       ...props
     },
     ref,
@@ -99,8 +97,6 @@ const DialogContent = React.forwardRef<
             // Dialogs use the form surface; popover gray is reserved for short-lived menus.
             // A short entrance keeps small forms responsive without moving their fields far.
             "bg-card text-card-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 border-border fixed top-[var(--dialog-center)] left-[50%] z-50 grid max-h-[var(--dialog-available-height)] w-[calc(100%-1.5rem)] max-w-lg min-w-0 translate-x-[-50%] translate-y-[-50%] grid-cols-1 gap-3 overflow-y-auto overscroll-contain rounded-2xl border p-5 shadow-[var(--shadow-dialog)] duration-[var(--duration-panel)] data-[state=closed]:duration-120 data-[state=open]:ease-[var(--ease-out)] sm:gap-5 sm:p-6",
-            motion === "default" &&
-              "data-[state=closed]:zoom-out-97 data-[state=open]:zoom-in-97 data-[state=open]:slide-in-from-bottom-1",
             className,
           )}
           {...props}

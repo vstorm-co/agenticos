@@ -24,7 +24,7 @@ const ContextMenuTrigger = ContextMenuPrimitive.Trigger;
 const ContextMenuGroup = ContextMenuPrimitive.Group;
 const ContextMenuSub = ContextMenuPrimitive.Sub;
 
-const MENU_PANEL = `${FLOATING_PANEL} data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-97 data-[state=open]:zoom-in-97 z-50 min-w-[8rem] max-h-[var(--radix-context-menu-content-available-height)] max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain p-1.5`;
+const MENU_PANEL = `${FLOATING_PANEL} data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 z-50 min-w-[8rem] max-h-[var(--radix-context-menu-content-available-height)] max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain p-1.5`;
 
 const ContextMenuSubTrigger = React.forwardRef<
   React.ComponentRef<typeof ContextMenuPrimitive.SubTrigger>,

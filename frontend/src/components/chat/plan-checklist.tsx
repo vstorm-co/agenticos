@@ -95,8 +95,8 @@ function TaskCheck({ timing }: { timing: (t: Transition) => Transition }) {
         r="12"
         fill="currentColor"
         style={{ transformBox: "view-box", transformOrigin: "12px 12px" }}
-        initial={{ scale: 0.97, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         transition={timing(FILL)}
       />
       <motion.path

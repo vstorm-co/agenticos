@@ -67,11 +67,7 @@ export function NoteDetail({
   return (
     <>
       <Dialog open onOpenChange={(open) => !open && close()}>
-        <DialogContent
-          motion="fade"
-          dismissible={!busy}
-          className={`${DIALOG_WIDE} ${DIALOG_COLUMN}`}
-        >
+        <DialogContent dismissible={!busy} className={`${DIALOG_WIDE} ${DIALOG_COLUMN}`}>
           <DialogHeader>
             <DialogTitle>{note.name}</DialogTitle>
             <DialogDescription>{view("editNoteHint")}</DialogDescription>

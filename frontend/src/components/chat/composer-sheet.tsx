@@ -168,7 +168,7 @@ export function ComposerSheet({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {trigger("h-9 w-9 shrink-0 active:scale-90 md:hidden", () => setSheetOpen(true))}
+      {trigger("h-9 w-9 shrink-0 md:hidden", () => setSheetOpen(true))}
       {/* A phone's sheet, the way a messenger's is: where a file comes from as
           three tiles, then the rest as grouped rows (#2066, #2097). */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
