@@ -13131,16 +13131,13 @@
       "finding": "Rutin"
     },
     "discuss": "Ajanla konuş",
-    "discussPrompt": "Inbox öğesini aç: {id}. Konuyu kısaca açıkla ve bir sonraki adımı öner.",
+    "discussPrompt": "Inbox öğesi {id} için bir şey yapmam gerekiyor mu?",
     "openWorkingChat": "Sohbeti aç",
     "preferences": "Gelen kutusu tercihleri",
     "preferencesDescription": "Gelen kutuna hangi otomatik önerilerin ulaşacağını seç.",
     "approvals": {
       "title": "Onay bekleyenler",
-      "open": "Onayları aç",
-      "fromWorkflow": "Workflow {workflow}",
-      "fromAgent": "Agent {agent}",
-      "anAgent": "Bir agent"
+      "open": "Onayları aç"
     }
   },
   "agentLimit": {

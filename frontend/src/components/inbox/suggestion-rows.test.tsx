@@ -68,7 +68,7 @@ describe("SuggestionRows", () => {
     render(<SuggestionRows items={[item(id)]} />);
     expect(screen.getByRole("link", { name: "Discuss with agent" })).toHaveAttribute(
       "href",
-      `/chat?new=inbox-${id}&discuss=${id}&agent=agenticos`,
+      `/chat?new=inbox-${id}&discuss=${id}&answerer=agenticos`,
     );
     expect(state.accept).not.toHaveBeenCalled();
     expect(state.dismiss).not.toHaveBeenCalled();

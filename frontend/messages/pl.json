@@ -14129,16 +14129,13 @@
       "finding": "Rutyna"
     },
     "discuss": "Porozmawiaj z agentem",
-    "discussPrompt": "Otwórz pozycję Inboxa {id}. Wyjaśnij krótko, czego dotyczy, i zaproponuj następny krok.",
+    "discussPrompt": "Czy pozycja {id} w Inboxie wymaga mojego działania?",
     "openWorkingChat": "Otwórz rozmowę",
     "preferences": "Ustawienia Inbox",
     "preferencesDescription": "Wybierz, jakie automatyczne sugestie trafiają do Twojego Inbox.",
     "approvals": {
       "title": "Do zatwierdzenia",
-      "open": "Otwórz zatwierdzenia",
-      "fromWorkflow": "Workflow {workflow}",
-      "fromAgent": "Agent {agent}",
-      "anAgent": "Agent"
+      "open": "Otwórz zatwierdzenia"
     }
   },
   "agentLimit": {

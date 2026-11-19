@@ -1063,6 +1063,19 @@ describe("conversations opened over the API (#2122)", () => {
 });
 
 describe("who a row is with", () => {
+  it.each(["answerer=agenticos", "agent=agenticos"])(
+    "shows all agents when a link addresses AgenticOS using %s",
+    async (query) => {
+      urlParams = new URLSearchParams(query);
+      mount();
+      expect(await within(list()).findByText("Quarterly numbers")).toBeVisible();
+      await userEvent.click(within(list()).getByRole("button", { name: "Filter and sort" }));
+      expect(screen.getByRole("combobox", { name: "Filter by agent" })).toHaveTextContent(
+        "All agents",
+      );
+    },
+  );
+
   it("shows the addressed agent on the open thread before any run has named one", async () => {
     // A thread whose first run failed, or has not been listed yet, used to wear
     // a generic chat mark - while the console knew exactly whom it had asked.

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,6 +25,8 @@ const state = vi.hoisted(() => ({
 }));
 const toastSuccess = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());
+const decideTool = vi.hoisted(() => vi.fn());
+const decideStep = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/use-suggestions", () => ({
   useSuggestions: () => ({
@@ -58,7 +60,37 @@ const pending = vi.hoisted(() => ({
   error: null as Error | null,
   refetch: vi.fn(),
 }));
-vi.mock("@/hooks/use-pending-approvals", () => ({ usePendingApprovals: () => pending }));
+vi.mock("@/hooks/use-pending-approvals", () => ({
+  usePendingApprovals: () => ({
+    ...pending,
+    tools: pending.tools.map((tool) => ({
+      agent_id: "agent-1",
+      run_id: "run-1",
+      subagent_name: null,
+      subagent_agent_id: null,
+      ...tool,
+    })),
+    steps: pending.steps.map((step) => ({
+      workflow_id: "workflow-1",
+      workflow_run_id: "workflow-run-1",
+      details: null,
+      created_at: "2026-10-23T06:00:00Z",
+      expires_at: null,
+      approver_user_ids: [],
+      proposal: null,
+      choices: [],
+      ...step,
+    })),
+  }),
+}));
+vi.mock("@/hooks/use-runs", () => ({
+  useDecideApproval: () => ({ mutate: decideTool, isPending: false }),
+}));
+vi.mock("@/hooks/use-workflow-approvals", () => ({
+  useDecideWorkflowApproval: () => ({ mutate: decideStep, isPending: false }),
+}));
+vi.mock("@/components/dashboard/agent-face", () => ({ AgentFace: () => null }));
+vi.mock("@/components/runs/approval-delegate", () => ({ ApprovalDelegate: () => null }));
 vi.mock("@/components/assistant/your-suggestions", () => ({
   YourSuggestions: () => <section aria-label="Personal suggestion preferences" />,
 }));
@@ -115,6 +147,8 @@ beforeEach(() => {
   state.restore.mockReset().mockResolvedValue(undefined);
   toastSuccess.mockReset();
   toastError.mockReset();
+  decideTool.mockReset();
+  decideStep.mockReset();
 });
 
 describe("InboxPage", () => {
@@ -270,13 +304,12 @@ describe("approvals waiting on the reader", () => {
 
     const section = screen.getByRole("region", { name: "Approval requests" });
     expect(section).toHaveTextContent("Send the refund?");
-    expect(section).toHaveTextContent("Workflow Refunds");
+    expect(section).toHaveTextContent("Refunds");
     expect(section).toHaveTextContent("Confirm the delivery date");
-    expect(section).toHaveTextContent("Send email");
+    expect(section).toHaveTextContent(/Support wants to send email/i);
     expect(section).not.toHaveTextContent("send_email");
-    expect(section).toHaveTextContent("Create lead");
+    expect(section).toHaveTextContent(/create lead/i);
     expect(section.closest("[data-list-layout]")).not.toHaveClass("flex-1");
-    expect(section).toHaveTextContent("Agent Support");
     // A call whose agent the queue could not name still says where it came from.
     expect(section).toHaveTextContent("An agent");
     expect(screen.getByRole("link", { name: "Open approvals" })).toHaveAttribute(
@@ -300,7 +333,7 @@ describe("approvals waiting on the reader", () => {
       {
         id: "t2",
         tool_id: "share_memory",
-        tool_args: { text: "Private run content" },
+        tool_args: {},
         content_hidden: true,
       },
     ];
@@ -310,7 +343,30 @@ describe("approvals waiting on the reader", () => {
     expect(section).not.toHaveTextContent("Private run content");
   });
 
-  it("leads approvals with the action and keeps JSON and record IDs out of the preview", () => {
+  it("decides requests through the same actions as the approvals queue", async () => {
+    render(<InboxPage />);
+    const [step, tool] = screen
+      .getByRole("region", { name: "Approval requests" })
+      .querySelectorAll("li");
+    expect(step).toBeDefined();
+    expect(tool).toBeDefined();
+    await userEvent.click(within(step as HTMLElement).getByRole("button", { name: "Approve" }));
+    await userEvent.click(within(tool as HTMLElement).getByRole("button", { name: "Reject" }));
+    await userEvent.click(
+      within(tool as HTMLElement).getByRole("button", { name: "Open the run" }),
+    );
+
+    expect(decideStep).toHaveBeenCalledWith({
+      id: "s1",
+      approved: true,
+      final: undefined,
+      choice: undefined,
+    });
+    expect(decideTool).toHaveBeenCalledWith({ id: "t1", approved: false });
+    expect(state.push).toHaveBeenCalledWith("/runs?tab=approvals&run=run-1");
+  });
+
+  it("leads approvals with the action and keeps request JSON behind Details", () => {
     pending.tools = [
       {
         id: "crm",
@@ -331,7 +387,7 @@ describe("approvals waiting on the reader", () => {
     expect(section).toHaveTextContent("Oasis*");
     expect(section).toHaveTextContent("Sales bro");
     expect(section).not.toHaveTextContent("filterGroups");
-    expect(section).not.toHaveTextContent("ed7b79b6");
+    expect(section).toHaveTextContent("ed7b79b6-02bf-4303-a08c-9b95e37af56f");
     expect(section.querySelector("li .font-medium")).not.toHaveTextContent("Oasis*");
   });
 

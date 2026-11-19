@@ -23,6 +23,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Open an Inbox item in a new private chat with an editable question. The assistant can read the signed-in person's findings and suggestions and link back to them.
 
+- Show the same approval cards in Inbox and Activity, with details and inline approval and rejection.
+
 - Let agent authors hide suggested first messages. The new-chat Inbox uses the extra space to show more items.
 
 - Search readable chat message text as well as conversation titles, with highlighted excerpts, matching-message counts and keyboard navigation. Reuse the existing full-text index and transcript access checks.

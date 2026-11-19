@@ -885,7 +885,11 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   const [view, setView] = useState<ConversationView>(
     searchParams.get("view") === "archived" ? "archived" : "active",
   );
-  const [agentId, setAgentId] = useState<string | null>(searchParams.get("agent"));
+  const [agentId, setAgentId] = useState<string | null>(() => {
+    const filter = searchParams.get("agent");
+    // Older Inbox notifications used the starter slug to address the composer.
+    return filter === "agenticos" ? null : filter;
+  });
   // Hidden unless asked for: an organization key's runs open a conversation
   // each, and a script calling the API every minute buried the chats a person
   // came here for. `?api=show` brings them back.

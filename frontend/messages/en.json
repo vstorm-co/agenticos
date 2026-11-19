@@ -14910,16 +14910,13 @@
       "finding": "Routine"
     },
     "discuss": "Discuss with agent",
-    "discussPrompt": "Open Inbox item {id}. Briefly explain what it is about and suggest the next step.",
+    "discussPrompt": "Does Inbox item {id} need my attention?",
     "openWorkingChat": "Open conversation",
     "preferences": "Inbox preferences",
     "preferencesDescription": "Choose which automatic suggestions reach your Inbox.",
     "approvals": {
       "title": "Approval requests",
-      "open": "Open approvals",
-      "fromWorkflow": "Workflow {workflow}",
-      "fromAgent": "Agent {agent}",
-      "anAgent": "An agent"
+      "open": "Open approvals"
     }
   },
   "datasets": {

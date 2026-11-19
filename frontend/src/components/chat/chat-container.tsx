@@ -1674,14 +1674,21 @@ function ChatUI({
               </div>
             )}
             {pendingApproval && onResumeDecisions && (
-              <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
-                <ToolApprovalDialog
-                  actionRequests={pendingApproval.actionRequests}
-                  reviewConfigs={pendingApproval.reviewConfigs}
-                  onDecisions={onResumeDecisions}
-                  mayRemember={mayRememberApproval}
-                  disabled={readOnly || !isConnected || isStopping}
-                />
+              <div
+                className={cn(
+                  "pointer-events-auto mx-auto w-full pb-2",
+                  compact ? "px-3" : "max-w-5xl px-2 sm:px-4",
+                )}
+              >
+                <div className="chat-composer-width">
+                  <ToolApprovalDialog
+                    actionRequests={pendingApproval.actionRequests}
+                    reviewConfigs={pendingApproval.reviewConfigs}
+                    onDecisions={onResumeDecisions}
+                    mayRemember={mayRememberApproval}
+                    disabled={readOnly || !isConnected || isStopping}
+                  />
+                </div>
               </div>
             )}
             {pendingConnection && onConnectionResponse && (
@@ -1816,7 +1823,7 @@ function ChatUI({
                       <div
                         data-tour="chat-composer"
                         className={cn(
-                          "panel composer-box focus-within:border-foreground/20 rounded-2xl transition-colors",
+                          "panel composer-box chat-composer-width focus-within:border-foreground/20 rounded-2xl transition-colors",
                           composerStrip !== null && !minimalComposer && "rounded-t-none",
                         )}
                       >

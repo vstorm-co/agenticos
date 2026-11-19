@@ -156,7 +156,7 @@ export function SuggestionRows({
                 {!dense && (
                   <Button asChild size="sm" variant="ghost" className="h-8">
                     <Link
-                      href={`/chat?new=inbox-${suggestion.id}&discuss=${suggestion.id}&agent=agenticos`}
+                      href={`/chat?new=inbox-${suggestion.id}&discuss=${suggestion.id}&answerer=agenticos`}
                     >
                       <MessageSquare className="size-3.5" aria-hidden />
                       {tInbox("discuss")}

@@ -160,8 +160,7 @@ export function ConversationFilters({
             onValueChange={(value) => onAgentChange(value === "all" ? null : value)}
           >
             <SelectTrigger
-              className="hover:bg-control border-transparent bg-transparent"
-              size="sm"
+              className="w-full"
               id="conversation-agent"
               aria-label={t("agentFilterLabel")}
             >
@@ -198,12 +197,7 @@ export function ConversationFilters({
             {t("sortLabel")}
           </Label>
           <Select value={sort} onValueChange={(value) => onSortChange(value as ConversationSort)}>
-            <SelectTrigger
-              className="hover:bg-control border-transparent bg-transparent"
-              size="sm"
-              id="conversation-sort"
-              aria-label={t("sortLabel")}
-            >
+            <SelectTrigger className="w-full" id="conversation-sort" aria-label={t("sortLabel")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
