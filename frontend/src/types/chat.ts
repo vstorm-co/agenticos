@@ -1,5 +1,6 @@
 import type { AssistantPageContext } from "@/lib/assistant-page-context";
-import type { ChatPerson } from "./conversation";
+import type { ChatPerson, RoomMessageMention, RoomThreadSummary } from "./conversation";
+import type { RoomMessageReactionSummary } from "./room-message-reaction";
 import type { Mentionable } from "./mention";
 
 export type MessageRole = "user" | "assistant" | "system";
@@ -105,6 +106,10 @@ export interface ChatMessage {
   files?: ChatMessageFile[];
   /** What a person's message pointed the agent at with `@`, drawn as chips (#2189). */
   mentions?: Mentionable[];
+  /** Structured room recipients, distinct from resource mentions in ordinary chat. */
+  roomMentions?: RoomMessageMention[];
+  /** Current room reaction totals, with the reader's selected state. */
+  reactions?: RoomMessageReactionSummary[];
   /** The source recorded when this turn ran. Absent on older transcripts. */
   fileSource?: TurnFileSource;
   /** Conversation ID for this message */
@@ -121,6 +126,7 @@ export interface ChatMessage {
   threadRootMessageId?: string;
   threadReplyCount?: number;
   threadLastActivityAt?: string | null;
+  threadSummary?: RoomThreadSummary | null;
   /** The published agent that produced this assistant turn. Absent means the
    *  general assistant, which is what a turn sent without an `agent_id` runs.
    *  Recorded per message on both paths - live and reloaded - because the
@@ -359,6 +365,9 @@ export type WSEventType =
   | "presence"
   | "room_message"
   | "room_request"
+  | "room_reaction"
+  | "room_participants"
+  | "room_thread"
   | "typing"
   | "turn_followed_to_end"
   // Sent on every turn and deliberately unread, because each only announces a step

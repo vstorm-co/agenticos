@@ -160,7 +160,7 @@ function frame(nth = 0): Record<string, unknown> {
 }
 
 describe("room persistence events", () => {
-  it("announces only the selected room's message and request changes", () => {
+  it("announces only the selected room's message, request, reaction and thread changes", () => {
     useConversationStore.getState().setCurrentConversationId("c-1");
     renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
     const changed = vi.fn();
@@ -169,7 +169,9 @@ describe("room persistence events", () => {
     expect(changed).not.toHaveBeenCalled();
     receive("room_message", { conversation_id: "c-1", message_id: "saved-human" });
     receive("room_request", { conversation_id: "c-1", request_id: "request" });
-    expect(changed).toHaveBeenCalledTimes(2);
+    receive("room_reaction", { conversation_id: "c-1", message_id: "saved-human" });
+    receive("room_thread", { conversation_id: "c-1", thread_root_message_id: "root-1" });
+    expect(changed).toHaveBeenCalledTimes(4);
     expect(changed).toHaveBeenLastCalledWith({
       conversationId: "c-1",
       accountId: undefined,

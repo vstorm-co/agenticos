@@ -709,7 +709,7 @@ describe("the chat container - project room workspace", () => {
       ]) {
         await userEvent.click(screen.getByRole("button", { name: opener }));
         const guidance = canPost
-          ? "Choose a responder in the room composer and ask them to open the browser or computer."
+          ? "Mention the agent you want in the room composer and ask them to open the browser or computer."
           : "You can view this conversation, but cannot start a session here.";
         expect(screen.getByText(guidance)).toBeVisible();
         if (canPost) {
@@ -728,7 +728,7 @@ describe("the chat container - project room workspace", () => {
         screen.queryByText(
           canPost
             ? "You can view this conversation, but cannot start a session here."
-            : "Choose a responder in the room composer and ask them to open the browser or computer.",
+            : "Mention the agent you want in the room composer and ask them to open the browser or computer.",
         ),
       ).toBeNull();
       await userEvent.click(screen.getByRole("button", { name: "Close workspace panel" }));

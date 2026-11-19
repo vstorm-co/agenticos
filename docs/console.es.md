@@ -1,5 +1,5 @@
 ---
-source_sha: "da2b712157b6"
+source_sha: "d7152984acda"
 ---
 
 # La consola { #the-console }
@@ -693,9 +693,19 @@ Introduce la dirección de la página en el panel Navegador antes de iniciarlo. 
 capability alojada correspondiente y puedes ejecutarlo, una acción explícita de
 inicio le pide que abra el navegador o capture el escritorio. De lo contrario,
 el panel explica qué no está disponible. Siguen vigentes la configuración
-publicada y los controles de acceso del agent. En las salas de equipo, elige quién
-debe responder en el cuadro de mensaje de la sala y pídele que abra el navegador
-o el equipo. Los paneles siguen disponibles para verlos.
+publicada y los controles de acceso del agent. En las salas de equipo, escribe `@`
+en el cuadro de mensaje y selecciona un agent; pídele que abra el navegador o el
+equipo. Los paneles siguen disponibles para verlos.
+
+**Chat compartido.** La lista de participantes permite añadir personas a una
+conversación con un agent o añadir agents a una sala para personas. El historial
+existente se conserva y se comparte explícitamente. Usa el explorador de salas de
+la barra lateral para crear salas privadas o públicas para la organización, y
+únete a una sala pública antes de escribir. Menciona a una persona con `@` para
+notificarla o a un agent para pedirle una respuesta. Los archivos adjuntos, las
+reacciones con emoji, el seguimiento de hilos y los indicadores de mensajes sin
+leer usan la misma transcripción guardada. Consulta [salas de equipo](projects.md#team-rooms)
+para conocer la pertenencia, las respuestas y el comportamiento de los hilos.
 
 Las vistas de navegador y equipo permanecen separadas. Los paneles empiezan
 cerrados; al cerrar uno, permanece cerrado cuando llegan nuevos resultados de

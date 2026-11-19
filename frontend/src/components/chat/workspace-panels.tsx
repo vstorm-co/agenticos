@@ -50,7 +50,7 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
   const surface = useBrowserPanelStore((state) => state.surface);
   const open = useBrowserPanelStore((state) => state.openSurface);
   const close = useBrowserPanelStore((state) => state.close);
-  // Room responders are selected independently of the personal-chat agent.
+  // Room mentions are independent of the personal-chat agent.
   const settingsAgentId = props.teamRoom ? null : props.agentId;
   const [filesSlot, setFilesSlot] = useState<HTMLSpanElement | null>(null);
   const panelPrefix = useId();

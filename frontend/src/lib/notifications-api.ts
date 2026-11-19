@@ -36,6 +36,16 @@ export interface Notification {
   outcome_id?: string | null;
   /** An approval request's or a budget limit's named values, for the reader's own wording. */
   params?: Record<string, string> | null;
+  /** Safe, event-specific names and navigation ids. Message bodies are never included. */
+  render_context?: {
+    resource_kind?: string | null;
+    resource_id?: string | null;
+    conversation_id?: string | null;
+    message_id?: string | null;
+    thread_root_message_id?: string | null;
+    sender?: string | null;
+    title?: string | null;
+  } | null;
 }
 
 export interface NotificationAgent {

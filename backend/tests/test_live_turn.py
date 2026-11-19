@@ -1377,7 +1377,13 @@ class TestTheRoom:
         assert reads.await_count == 1
 
     @pytest.mark.parametrize(
-        ("kind", "field"), [("room_message", "message_id"), ("room_request", "request_id")]
+        ("kind", "field"),
+        [
+            ("room_message", "message_id"),
+            ("room_request", "request_id"),
+            ("room_reaction", "message_id"),
+            ("room_thread", "thread_root_message_id"),
+        ],
     )
     async def test_saved_room_events_name_the_room_and_durable_row_without_following_a_turn(
         self,
@@ -1398,6 +1404,33 @@ class TestTheRoom:
             {"conversation_id": CONVERSATION, field: "saved-1"}
         ]
         follow.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("allowed", [False, True])
+    async def test_membership_event_invalidates_cached_access_before_relay(self, allowed) -> None:
+        session = _session()
+        session._room = CONVERSATION
+        session._reads_until = float("inf")
+        room = self._room(events=[{"type": "room_participants", "members": ["private"]}])
+        reads, follow, stop = AsyncMock(return_value=allowed), AsyncMock(), AsyncMock()
+        with (
+            patch.object(session, "_send_presence", AsyncMock()),
+            patch.object(session, "_still_reads", reads),
+            patch.object(session, "_follow_if_running", follow),
+            patch.object(session, "_stop_following", stop),
+            patch.multiple("app.services.agent_session.chat_room", **room),
+        ):
+            await session._hear_room(CONVERSATION)
+        reads.assert_awaited_once_with(CONVERSATION)
+        sent = [data for kind, data in _sent_events(session) if kind == "room_participants"]
+        assert sent == ([{"conversation_id": CONVERSATION}] if allowed else [])
+        follow.assert_not_awaited()
+        if allowed:
+            stop.assert_not_awaited()
+        else:
+            stop.assert_awaited_once()
+            room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id, session._socket)
+            assert session._room is None
 
     async def test_an_open_chat_keeps_saying_its_reader_is_here(self) -> None:
         session = _session()

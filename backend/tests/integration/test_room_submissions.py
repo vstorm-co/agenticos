@@ -316,3 +316,229 @@ async def test_concurrent_http_retries_persist_one_message_and_one_request(
         )
         == 1
     )
+
+
+async def seed_multiplayer(db: AsyncSession):
+    from app.schemas.room_participant import RoomParticipantRef
+    from app.services.room_participant import RoomParticipantService
+
+    room = await seed(db)
+    room.conversation.project_id = None
+    second = Agent(
+        id=uuid4(),
+        organization_id=room.ctx.organization_id,
+        owner_user_id=room.user.id,
+        slug=f"agent-{uuid4().hex}",
+        name="Reviewer",
+        status="published",
+        draft_spec={},
+    )
+    person = User(id=uuid4(), email=f"{uuid4()}@example.com", hashed_password="x", is_active=True)
+    db.add_all([second, person])
+    await db.flush()
+    db.add(
+        OrganizationMember(
+            id=uuid4(), organization_id=room.ctx.organization_id, user_id=person.id, role="viewer"
+        )
+    )
+    version = AgentVersion(
+        id=uuid4(),
+        organization_id=room.ctx.organization_id,
+        agent_id=second.id,
+        version=1,
+        spec={"name": "Reviewer", "model_profile_id": str(uuid4())},
+    )
+    db.add(version)
+    await db.flush()
+    second.current_version_id = version.id
+    await db.flush()
+    roster = RoomParticipantService(db)
+    for kind, principal in (("agent", room.agent.id), ("agent", second.id), ("user", person.id)):
+        await roster.add(
+            room.ctx, room.conversation.id, RoomParticipantRef(kind=kind, id=principal)
+        )
+    return room, second, person
+
+
+@pytest.mark.security
+async def test_multi_bot_post_retries_preserve_one_message_and_two_ordered_jobs(db: AsyncSession):
+    from app.db.models.notification import Notification, NotificationEventType
+    from app.schemas.room_participant import RoomParticipantRef
+
+    room, second, person = await seed_multiplayer(db)
+    service = RoomSubmissionService(db)
+    data = RoomMessageCreate(
+        client_message_id="multi",
+        content="@Responder @Reviewer @Alex compare the approaches",
+        mentions=[
+            RoomParticipantRef(kind="agent", id=room.agent.id),
+            RoomParticipantRef(kind="agent", id=second.id),
+            RoomParticipantRef(kind="user", id=person.id),
+        ],
+    )
+    first = await service.post(room.ctx, room.conversation.id, data, room.user)
+    again = await service.post(room.ctx, room.conversation.id, data, room.user)
+    assert first == again and len(first.requests) == 2
+    root = await room_repo.for_client(
+        db,
+        organization_id=room.ctx.organization_id,
+        conversation_id=room.conversation.id,
+        requester_id=room.user.id,
+        client_message_id="multi",
+    )
+    assert root is not None
+    rows = await room_repo.for_post(db, root=root)
+    assert [row.agent_id for row in rows] == [room.agent.id, second.id]
+    assert rows[1].parent_submission_id == rows[0].id
+    assert rows[0].ordinal < rows[1].ordinal
+    assert {row.message_id for row in rows} == {first.message.id}
+    assert (
+        await db.scalar(
+            select(func.count())
+            .select_from(Message)
+            .where(Message.conversation_id == room.conversation.id)
+        )
+        == 1
+    )
+    jobs = list(
+        (
+            await db.scalars(
+                select(BackgroundJob).where(
+                    BackgroundJob.kind == RUN_ROOM_REQUEST.kind,
+                    BackgroundJob.organization_id == room.ctx.organization_id,
+                )
+            )
+        ).all()
+    )
+    assert len(jobs) == 2 and len({job.dedupe_key for job in jobs}) == 2
+    notices = list(
+        (
+            await db.scalars(
+                select(Notification).where(
+                    Notification.event_type == NotificationEventType.ROOM_MENTION,
+                    Notification.organization_id == room.ctx.organization_id,
+                )
+            )
+        ).all()
+    )
+    assert len(notices) == 1 and notices[0].recipient_user_id == person.id
+    assert notices[0].occurrence_id == str(first.message.id)
+    assert await room_repo.head(db, room.conversation.id) is rows[0]
+    discard_deferred(db)
+
+
+@pytest.mark.security
+async def test_second_bot_history_includes_first_answer_but_not_later_human_questions(
+    db: AsyncSession,
+):
+    from app.repositories import conversation as conversation_repo
+    from app.schemas.room_participant import RoomParticipantRef
+
+    room, second, _ = await seed_multiplayer(db)
+    result = await RoomSubmissionService(db).post(
+        room.ctx,
+        room.conversation.id,
+        RoomMessageCreate(
+            client_message_id="shared",
+            content="Please compare",
+            mentions=[
+                RoomParticipantRef(kind="agent", id=agent.id) for agent in (room.agent, second)
+            ],
+        ),
+        room.user,
+    )
+    root = await room_repo.get(db, result.requests[0].id, organization_id=room.ctx.organization_id)
+    child = await room_repo.get(db, result.requests[1].id, organization_id=room.ctx.organization_id)
+    assert root is not None and child is not None
+    later = await post(db, room, "later", agent=False)
+    runs = []
+    answers = []
+    for row, agent in ((root, room.agent), (child, second)):
+        run = await run_repo.create_run(
+            db,
+            organization_id=room.ctx.organization_id,
+            agent_id=agent.id,
+            agent_version_id=row.version_id,
+            user_id=room.user.id,
+            conversation_id=room.conversation.id,
+            surface="web",
+            model_label="test",
+            provider="test",
+            started_at=datetime.now(UTC),
+        )
+        row.run_id, row.status = run.id, "completed"
+        await room_repo.save(db, row)
+        answer = Message(
+            id=uuid4(),
+            conversation_id=room.conversation.id,
+            role="assistant",
+            content=f"{agent.name} answer",
+            agent_id=agent.id,
+            run_id=run.id,
+        )
+        db.add(answer)
+        await db.flush()
+        runs.append(run)
+        answers.append(answer)
+    await conversation_repo.link_message_to_run(
+        db, message_id=result.message.id, run_id=runs[0].id, conversation_id=room.conversation.id
+    )
+    history = await conversation_repo.get_room_history_messages(
+        db,
+        room.conversation.id,
+        request_message_id=result.message.id,
+        request_id=child.id,
+        limit=60,
+    )
+    assert history is not None
+    assert [message.id for message in history] == [answers[0].id]
+    assert later.message.id not in {message.id for message in history}
+    assert (
+        await conversation_repo.question_of_run(
+            db, run_id=runs[1].id, organization_id=room.ctx.organization_id
+        )
+        == "Please compare"
+    )
+    assert (
+        await conversation_repo.question_of_run(db, run_id=runs[1].id, organization_id=uuid4())
+        is None
+    )
+    assert await conversation_repo.prompt_for_answer(db, answers[1]) == "Please compare"
+    discard_deferred(db)
+
+
+@pytest.mark.security
+async def test_removed_person_cannot_read_a_previous_private_room_mention(db: AsyncSession):
+    from app.db.models.notification import Notification, NotificationEventType
+    from app.schemas.room_participant import RoomParticipantRef
+    from app.services.notification_center import NotificationCenterService
+    from app.services.room_participant import RoomParticipantService
+
+    room, _, person = await seed_multiplayer(db)
+    await RoomSubmissionService(db).post(
+        room.ctx,
+        room.conversation.id,
+        RoomMessageCreate(
+            client_message_id="person",
+            content="Could you review?",
+            mentions=[RoomParticipantRef(kind="user", id=person.id)],
+        ),
+        room.user,
+    )
+    notice = await db.scalar(
+        select(Notification).where(
+            Notification.event_type == NotificationEventType.ROOM_MENTION,
+            Notification.recipient_user_id == person.id,
+        )
+    )
+    assert notice is not None
+    reader = AuthContext(user_id=person.id, organization_id=room.ctx.organization_id, role="viewer")
+    center = NotificationCenterService(db)
+    assert (await center.gate_for(reader, notice)).visible
+    await RoomParticipantService(db).remove(
+        room.ctx, room.conversation.id, RoomParticipantRef(kind="user", id=person.id)
+    )
+    assert not (await center.gate_for(reader, notice)).visible
+    inbox, _, _ = await center.list_inbox(reader, after=None, limit=50)
+    assert notice.id not in {item.id for item in inbox}
+    discard_deferred(db)

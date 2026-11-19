@@ -7,15 +7,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import { announceRoomChange } from "@/lib/room-events";
+import { useRoomDraft } from "@/hooks/use-room-draft";
 import { useAuthStore, useChatStore, useConversationStore, useOrgStore } from "@/stores";
 import type { Agent } from "@/types/agents";
 import type { Project } from "@/types/projects";
-import type { RoomAgentRequest, RoomMessageResult } from "@/types/room";
+import type { FileUploadResponse } from "@/lib/file-api";
+import type { RoomAgentRequest, RoomMessageResult, RoomParticipantRead } from "@/types/room";
 import { StartTeamRoom } from "@/components/projects/start-team-room";
-import { TeamRoomComposer } from "./team-room-composer";
+import { RoomComposer, TeamRoomComposer } from "./team-room-composer";
 import { TeamRoomHeader } from "./team-room-header";
 
-vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn() } }));
+vi.mock("@/lib/api-client", () => ({
+  apiClient: { get: vi.fn(), post: vi.fn(), upload: vi.fn() },
+}));
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
 const push = vi.fn();
 vi.mock("@/lib/locale-navigation", () => ({
@@ -35,6 +39,7 @@ vi.mock("@/hooks/use-projects", () => ({
 let client: QueryClient;
 let canPost: boolean;
 let requestItems: RoomAgentRequest[];
+let mentionables: RoomParticipantRead[];
 let leadPolicy: {
   enabled: boolean;
   revision: number;
@@ -78,6 +83,24 @@ function request(
     created_at: "2026-11-13T00:00:00Z",
   };
 }
+function participant(
+  kind: "user" | "agent",
+  id: string,
+  name: string,
+  changes: Partial<RoomParticipantRead> = {},
+): RoomParticipantRead {
+  return {
+    kind,
+    id,
+    name,
+    avatar_url: null,
+    is_member: true,
+    can_add: false,
+    can_mention: true,
+    auto_reply: false,
+    ...changes,
+  };
+}
 const saved: RoomMessageResult = {
   message: {
     id: "saved",
@@ -94,6 +117,21 @@ function room(id = "room-a") {
       key={id}
       projectId="project-a"
       conversationId={id}
+      readOnly={false}
+      onTyping={vi.fn()}
+    />
+  );
+}
+function threadRoom(rootId: string) {
+  return <ThreadRoom rootId={rootId} />;
+}
+function ThreadRoom({ rootId }: { rootId: string }) {
+  const draft = useRoomDraft("room-a", rootId);
+  return (
+    <RoomComposer
+      conversationId="room-a"
+      draft={draft}
+      threadRootMessageId={rootId}
       readOnly={false}
       onTyping={vi.fn()}
     />
@@ -143,14 +181,25 @@ beforeEach(() => {
     can_edit: true,
     can_ask: false,
   };
+  mentionables = [];
   vi.mocked(apiClient.get).mockImplementation(async (path) =>
     path === "/orgs"
       ? { items: [] }
-      : path.endsWith("/lead-policy")
-        ? leadPolicy
-        : { items: requestItems, total: requestItems.length, can_post: canPost },
+      : path.endsWith("/room-mentionables")
+        ? { items: mentionables }
+        : path.endsWith("/lead-policy")
+          ? leadPolicy
+          : { items: requestItems, total: requestItems.length, can_post: canPost },
   );
   vi.mocked(apiClient.post).mockResolvedValue(saved);
+  vi.mocked(apiClient.upload).mockResolvedValue({
+    id: "file-a",
+    filename: "notes.txt",
+    mime_type: "text/plain",
+    size: 5,
+    file_type: "text",
+    preview: null,
+  } satisfies FileUploadResponse);
 });
 afterEach(() => client.clear());
 
@@ -188,11 +237,10 @@ describe("the room composer", () => {
     };
     const user = userEvent.setup();
     render(room(), { wrapper });
-    await user.click(await screen.findByRole("combobox", { name: "Who should answer" }));
-    await user.click(await screen.findByRole("option", { name: "Ask lead: Writer" }));
-    expect(apiClient.post).not.toHaveBeenCalled();
-    await user.type(screen.getByRole("textbox"), "Propose the next steps");
-    await user.click(screen.getByRole("button", { name: "Ask lead" }));
+    await user.click(await screen.findByRole("button", { name: "Ask lead" }));
+    const input = screen.getByRole("textbox");
+    await user.type(input, "Propose the next steps");
+    await user.keyboard("{Enter}");
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith("/conversations/room-a/room-messages", {
         client_message_id: expect.any(String),
@@ -217,10 +265,9 @@ describe("the room composer", () => {
     vi.mocked(apiClient.post).mockRejectedValueOnce(failure);
     const user = userEvent.setup();
     render(room(), { wrapper });
-    await user.click(await screen.findByRole("combobox", { name: "Who should answer" }));
-    await user.click(await screen.findByRole("option", { name: "Ask lead: Writer" }));
+    await user.click(await screen.findByRole("button", { name: "Ask lead" }));
     await user.type(screen.getByRole("textbox"), "Plan this once");
-    await user.click(screen.getByRole("button", { name: "Ask lead" }));
+    await user.keyboard("{Enter}");
     await screen.findByRole("button", { name: "Retry same message" });
     const first = vi.mocked(apiClient.post).mock.calls[0]![1];
     expect(first).toMatchObject({ intent: "ask_lead", expected_policy_revision: 7 });
@@ -250,25 +297,23 @@ describe("the room composer", () => {
     });
     const user = userEvent.setup();
     render(room(), { wrapper });
-    await user.click(await screen.findByRole("combobox", { name: "Who should answer" }));
-    await user.click(await screen.findByRole("option", { name: "Ask lead: Writer" }));
+    await user.click(await screen.findByRole("button", { name: "Ask lead" }));
     await user.type(screen.getByRole("textbox"), "Plan this once");
-    await user.click(screen.getByRole("button", { name: "Ask lead" }));
+    await user.keyboard("{Enter}");
     const first = vi.mocked(apiClient.post).mock.calls[0]![1] as {
       client_message_id: string;
     };
-    await waitFor(() => expect(screen.getByRole("button", { name: "Ask lead" })).toBeEnabled());
-    await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: "Who should answer" })).toHaveTextContent(
-        "Ask lead: Analyst",
-      ),
+    await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue("Plan this once"));
+    expect(screen.getAllByRole("button", { name: "Ask lead" })[0]).toHaveAttribute(
+      "aria-pressed",
+      "true",
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
       "The room lead changed. Review the current lead and send again.",
     );
     expect(screen.getByRole("textbox")).toHaveValue("Plan this once");
     await user.type(screen.getByRole("textbox"), " reviewed");
-    await user.click(screen.getByRole("button", { name: "Ask lead" }));
+    await user.keyboard("{Enter}");
     await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(2));
     expect(vi.mocked(apiClient.post).mock.calls[1]![1]).toMatchObject({
       content: "Plan this once reviewed",
@@ -297,10 +342,9 @@ describe("the room composer", () => {
       );
     const user = userEvent.setup();
     render(room(), { wrapper });
-    await user.click(await screen.findByRole("combobox", { name: "Who should answer" }));
-    await user.click(await screen.findByRole("option", { name: "Ask lead: Writer" }));
+    await user.click(await screen.findByRole("button", { name: "Ask lead" }));
     await user.type(screen.getByRole("textbox"), "Plan this once");
-    await user.click(screen.getByRole("button", { name: "Ask lead" }));
+    await user.keyboard("{Enter}");
     const first = vi.mocked(apiClient.post).mock.calls[0]![1];
     await user.click(await screen.findByRole("button", { name: "Retry same message" }));
     await waitFor(() =>
@@ -312,32 +356,309 @@ describe("the room composer", () => {
     expect(vi.mocked(apiClient.post).mock.calls[2]![1]).toEqual(first);
   });
 
-  it("requires explicit selection of a published runnable cloud responder", async () => {
-    agents.push(
-      agent("Draft", { status: "draft" }),
-      agent("Forbidden", { can_run: false }),
-      agent("Computer", { local_workspace: true }),
-      agent("Local coder", { local_coding_agent: { harness: "codex", access: "edit" } }),
-      agent("Subscription", { personal_coding_harness: "codex" }),
-    );
+  it("does not silently add an eligible outsider when it is selected for mention", async () => {
+    const outsider = participant("agent", "writer", "Writer", {
+      is_member: false,
+      can_add: true,
+      can_mention: false,
+    });
+    mentionables = [outsider];
     const user = userEvent.setup();
     render(room(), { wrapper });
-    await user.click(await screen.findByRole("combobox", { name: "Who should answer" }));
-    expect(screen.queryByRole("option", { name: "Ask @Draft" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Ask @Forbidden" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Ask @Computer" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Ask @Local coder" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Ask @Subscription" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("option", { name: "Ask @Writer" }));
-    expect(apiClient.post).not.toHaveBeenCalled();
-    await user.type(screen.getByRole("textbox"), "Check this");
+    const input = await screen.findByRole("textbox");
+    await user.type(input, "Please ask @Writer");
+    await user.click(await screen.findByRole("option", { name: "Writer Add before mention" }));
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("Add Writer to this room?");
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      "/conversations/room-a/participants",
+      expect.anything(),
+    );
+    vi.mocked(apiClient.post).mockImplementation(async (path) =>
+      String(path).endsWith("/participants")
+        ? participant("agent", "writer", "Writer", { can_mention: true })
+        : saved,
+    );
+    await user.click(screen.getByRole("button", { name: "Add and mention" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/conversations/room-a/participants", {
+        kind: "agent",
+        id: "writer",
+      }),
+    );
     await user.click(screen.getByRole("button", { name: "Post message" }));
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith(
         "/conversations/room-a/room-messages",
-        expect.objectContaining({ content: "Check this", agent_id: "Writer" }),
+        expect.objectContaining({
+          content: "Please ask @Writer ",
+          mentions: [{ kind: "agent", id: "writer" }],
+        }),
       ),
     );
+  });
+
+  it("keeps the converted room draft and hides the project-only Ask Lead control", async () => {
+    render(
+      <TeamRoomComposer
+        conversationId="room-a"
+        projectId={null}
+        readOnly={false}
+        onTyping={vi.fn()}
+        initialContent="A draft from the existing chat"
+      />,
+      { wrapper },
+    );
+    expect(await screen.findByRole("textbox")).toHaveValue("A draft from the existing chat");
+    expect(screen.queryByRole("button", { name: "Ask lead" })).not.toBeInTheDocument();
+    expect(apiClient.get).not.toHaveBeenCalledWith("/conversations/room-a/lead-policy");
+  });
+
+  it("submits duplicate visible names as distinct structured people and agent mentions", async () => {
+    mentionables = [participant("agent", "writer", "Alex"), participant("user", "person", "Alex")];
+    const user = userEvent.setup();
+    render(room(), { wrapper });
+    const input = await screen.findByRole("textbox");
+    await user.type(input, "Hi @");
+    const options = await screen.findAllByRole("option", { name: "Alex" });
+    expect(options).toHaveLength(2);
+    await user.click(options[0]!);
+    await user.type(input, "@");
+    await user.keyboard("{ArrowDown}{Enter}");
+    await user.click(screen.getByRole("button", { name: "Post message" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-messages",
+        expect.objectContaining({
+          content: "Hi @Alex @Alex ",
+          mentions: [
+            { kind: "user", id: "person" },
+            { kind: "agent", id: "writer" },
+          ],
+        }),
+      ),
+    );
+  });
+
+  it("blocks posting after an upload failure and allows a captionless attachment retry", async () => {
+    vi.mocked(apiClient.upload).mockRejectedValueOnce(new Error("Upload unavailable"));
+    const user = userEvent.setup();
+    const { container } = render(room(), { wrapper });
+    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const file = new File(["notes"], "notes.txt", { type: "text/plain" });
+
+    fireEvent.change(picker, { target: { files: [file] } });
+    await screen.findByRole("alert");
+    expect(screen.getByRole("button", { name: "Post message" })).toBeDisabled();
+    expect(apiClient.post).not.toHaveBeenCalled();
+
+    fireEvent.change(picker, { target: { files: [file] } });
+    await screen.findByText("notes.txt");
+    await user.click(screen.getByRole("button", { name: "Post message" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-messages",
+        expect.objectContaining({ content: "", file_ids: ["file-a"] }),
+      ),
+    );
+    expect(apiClient.upload).toHaveBeenCalledTimes(2);
+  });
+
+  it("lets the person discard a failed upload and send the remaining draft", async () => {
+    vi.mocked(apiClient.upload).mockRejectedValueOnce(new Error("Upload unavailable"));
+    const user = userEvent.setup();
+    const { container } = render(room(), { wrapper });
+    await user.type(await screen.findByRole("textbox"), "Keep this text");
+    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(picker, {
+      target: { files: [new File(["notes"], "notes.txt", { type: "text/plain" })] },
+    });
+    await screen.findByRole("alert");
+    expect(screen.getByRole("button", { name: "Post message" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Discard failed upload" }));
+    expect(screen.getByRole("button", { name: "Post message" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Post message" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-messages",
+        expect.objectContaining({ content: "Keep this text" }),
+      ),
+    );
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      "/conversations/room-a/room-messages",
+      expect.objectContaining({ file_ids: expect.anything() }),
+    );
+  });
+
+  it("keeps an upload pending across a room remount and attaches it after returning", async () => {
+    let resolveUpload!: (file: FileUploadResponse) => void;
+    vi.mocked(apiClient.upload).mockReturnValueOnce(
+      new Promise<FileUploadResponse>((resolve) => {
+        resolveUpload = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    const { container, rerender } = render(room("room-a"), { wrapper });
+    const file = new File(["notes"], "notes.txt", { type: "text/plain" });
+    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(picker, { target: { files: [file] } });
+    expect(await screen.findByText("notes.txt")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Post message" })).toBeDisabled();
+
+    act(() => useConversationStore.setState({ currentConversationId: "room-b" }));
+    rerender(room("room-b"));
+    await user.type(await screen.findByRole("textbox"), "Room B remains independent");
+    expect(screen.getByRole("button", { name: "Post message" })).toBeEnabled();
+
+    act(() => useConversationStore.setState({ currentConversationId: "room-a" }));
+    rerender(room("room-a"));
+    expect(screen.getByText("notes.txt")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Post message" })).toBeDisabled();
+
+    await act(async () =>
+      resolveUpload({
+        id: "file-a",
+        filename: "notes.txt",
+        mime_type: "text/plain",
+        size: 5,
+        file_type: "text",
+        preview: null,
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Post message" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Post message" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-messages",
+        expect.objectContaining({ content: "", file_ids: ["file-a"] }),
+      ),
+    );
+  });
+
+  it("keeps a failed upload blocked across a room remount until the user retries it", async () => {
+    vi.mocked(apiClient.upload).mockRejectedValueOnce(new Error("Upload unavailable"));
+    const user = userEvent.setup();
+    const { container, rerender } = render(room("room-a"), { wrapper });
+    const file = new File(["notes"], "notes.txt", { type: "text/plain" });
+    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(picker, { target: { files: [file] } });
+    await screen.findByRole("alert");
+
+    act(() => useConversationStore.setState({ currentConversationId: "room-b" }));
+    rerender(room("room-b"));
+    act(() => useConversationStore.setState({ currentConversationId: "room-a" }));
+    rerender(room("room-a"));
+    expect(screen.getByRole("alert")).toHaveTextContent("notes.txt: Upload unavailable");
+    expect(screen.getByRole("button", { name: "Post message" })).toBeDisabled();
+
+    const retryPicker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(retryPicker, { target: { files: [file] } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Post message" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Post message" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-messages",
+        expect.objectContaining({ content: "", file_ids: ["file-a"] }),
+      ),
+    );
+  });
+
+  it("does not start another file upload after the account organization scope changes", async () => {
+    let resolveFirst!: (file: FileUploadResponse) => void;
+    vi.mocked(apiClient.upload).mockReturnValueOnce(
+      new Promise<FileUploadResponse>((resolve) => {
+        resolveFirst = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    const { container } = render(room("room-a"), { wrapper });
+    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const first = new File(["one"], "one.txt", { type: "text/plain" });
+    const second = new File(["two"], "two.txt", { type: "text/plain" });
+    fireEvent.change(picker, { target: { files: [first, second] } });
+    expect(apiClient.upload).toHaveBeenCalledTimes(1);
+
+    act(() => useOrgStore.setState({ activeOrgId: "org-b" }));
+    await act(async () =>
+      resolveFirst({
+        id: "file-a",
+        filename: "one.txt",
+        mime_type: "text/plain",
+        size: 3,
+        file_type: "text",
+        preview: null,
+      }),
+    );
+    expect(apiClient.upload).toHaveBeenCalledTimes(1);
+
+    act(() => useOrgStore.setState({ activeOrgId: "org-a" }));
+    await screen.findByText(/An upload stopped after your account or organization changed\./);
+    expect(screen.getByRole("button", { name: "Post message" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Discard failed upload" }));
+    expect(screen.getByRole("button", { name: "Post message" })).toBeEnabled();
+  });
+
+  it("keeps an upload attached to its original thread draft when switching roots", async () => {
+    let resolveUpload!: (file: FileUploadResponse) => void;
+    vi.mocked(apiClient.upload).mockReturnValueOnce(
+      new Promise<FileUploadResponse>((resolve) => {
+        resolveUpload = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    const { container, rerender } = render(threadRoom("root-a"), { wrapper });
+    const file = new File(["notes"], "notes.txt", { type: "text/plain" });
+    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    fireEvent.change(picker, { target: { files: [file] } });
+    expect(await screen.findByText("notes.txt")).toBeVisible();
+
+    rerender(threadRoom("root-b"));
+    expect(screen.getByRole("button", { name: "Post reply" })).toBeDisabled();
+    rerender(threadRoom("root-a"));
+    expect(screen.getByText("notes.txt")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Post reply" })).toBeDisabled();
+
+    await act(async () =>
+      resolveUpload({
+        id: "file-a",
+        filename: "notes.txt",
+        mime_type: "text/plain",
+        size: 5,
+        file_type: "text",
+        preview: null,
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Post reply" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Post reply" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-messages",
+        expect.objectContaining({
+          content: "",
+          file_ids: ["file-a"],
+          thread_root_message_id: "root-a",
+        }),
+      ),
+    );
+  });
+
+  it("retries an uncertain attachment post with the same uploaded file id", async () => {
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new TypeError("Acknowledgement lost"));
+    const user = userEvent.setup();
+    const { container } = render(room(), { wrapper });
+    const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const file = new File(["notes"], "notes.txt", { type: "text/plain" });
+    fireEvent.change(picker, { target: { files: [file] } });
+    await screen.findByText("notes.txt");
+
+    await user.click(screen.getByRole("button", { name: "Post message" }));
+    await screen.findByRole("button", { name: "Retry same message" });
+    const first = vi.mocked(apiClient.post).mock.calls[0]![1];
+    expect(first).toMatchObject({ content: "", file_ids: ["file-a"] });
+
+    await user.click(screen.getByRole("button", { name: "Retry same message" }));
+    await waitFor(() => expect(vi.mocked(apiClient.post).mock.calls[1]![1]).toEqual(first));
+    expect(apiClient.upload).toHaveBeenCalledTimes(1);
   });
 
   it("hides posting and cancellation for a reader without project use", async () => {

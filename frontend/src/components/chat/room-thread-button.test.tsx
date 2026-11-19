@@ -51,6 +51,29 @@ describe("a saved message's thread action", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
+  it("keeps an unread thread openable for a read-only reader and announces the unread count", async () => {
+    const open = vi.fn();
+    render(
+      <RoomThreadButton
+        message={saved({
+          threadSummary: {
+            state: "open",
+            following: false,
+            unread: 4,
+            can_manage: false,
+          },
+        })}
+        canStart={false}
+        onOpen={open}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Reply in thread" });
+    expect(button).toHaveAttribute("aria-describedby", "room-thread-unread-root-a");
+    expect(screen.getByText("4 unread replies")).toBeInTheDocument();
+    await userEvent.click(button);
+    expect(open).toHaveBeenCalledExactlyOnceWith("root-a");
+  });
+
   it.each([
     [1, "1 reply"],
     [4, "4 replies"],

@@ -22,8 +22,11 @@ from app.core.permissions import AuthContext
 from app.db.models.conversation import Conversation, Message
 from app.db.models.room_submission import RoomSubmission
 from app.db.models.user import User
+from app.schemas.room_participant import RoomParticipantRead, RoomParticipantRef
 from app.schemas.room_submission import RoomMessageCreate
 from app.services import room_submission as module
+from app.services.notifications import NotificationService
+from app.services.room_participant import RoomParticipantService
 
 pytestmark = pytest.mark.anyio
 
@@ -66,6 +69,10 @@ def room(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(service.conversations, "add_message", add_message)
     monkeypatch.setattr(service.conversations, "get_message", AsyncMock(return_value=message))
     monkeypatch.setattr(service.conversations, "reply_quoted", AsyncMock(return_value=None))
+    monkeypatch.setattr(module.chat_file_repo, "for_message", AsyncMock(return_value=[]))
+    monkeypatch.setattr(module.reaction_repo, "list_aggregates", AsyncMock(return_value={}))
+    monkeypatch.setattr(service.conversations, "list_attached_files", AsyncMock(return_value=[]))
+    monkeypatch.setattr(service.conversations, "link_files_to_message", AsyncMock())
     rows = []
 
     async def add(_db, row):
@@ -94,6 +101,7 @@ def room(monkeypatch: pytest.MonkeyPatch):
         get_pinned_spec=AsyncMock(return_value=(MagicMock(), MagicMock(), uuid4())),
     )
     monkeypatch.setattr(module, "AgentRegistryService", MagicMock(return_value=registry))
+    monkeypatch.setattr(RoomParticipantService, "automatic_agents", AsyncMock(return_value=[]))
     enqueue = AsyncMock(return_value=uuid4())
     monkeypatch.setattr(module, "enqueue", enqueue)
     deferred = []
@@ -163,7 +171,8 @@ async def test_a_planning_run_cannot_resume_as_the_full_published_agent(room, mo
         {"client_message_id": "x" * 129},
         {"role": "assistant"},
         {"author_user_id": str(uuid4())},
-        {"file_ids": [str(uuid4())]},
+        {"file_ids": ["not-a-file-id"]},
+        {"file_ids": [str(uuid4()) for _ in range(11)]},
         {"local": {"folder": "/private"}},
         {"model_profile_id": str(uuid4())},
         {"intent": "ask_lead"},
@@ -278,11 +287,13 @@ async def test_user_argument_cannot_change_the_authenticated_author(room) -> Non
 @pytest.mark.parametrize(
     "field,value,match",
     [
-        ("project_id", None, "project chat"),
+        ("project_id", None, "make this conversation a room"),
         ("is_archived", True, "archived"),
     ],
 )
-async def test_only_open_project_rooms_accept_posts(room, field, value, match) -> None:
+async def test_ordinary_or_archived_conversations_cannot_accept_room_posts(
+    room, field, value, match
+) -> None:
     setattr(room.topic, field, value)
     with pytest.raises(BadRequestError, match=match):
         await room.service.post(room.ctx, room.topic.id, request(), room.user)
@@ -524,4 +535,351 @@ async def test_a_parked_request_cannot_resume_with_lost_original_authority(
 async def test_human_message_response_cannot_launder_an_assistant_turn(room) -> None:
     room.message.role = "assistant"
     with pytest.raises(BadRequestError, match="human post"):
-        await room.service.read_message(room.message, room.user)
+        await room.service.read_message(
+            room.message, room.user, organization_id=room.ctx.organization_id
+        )
+
+
+@pytest.fixture
+def multiplayer(room, monkeypatch: pytest.MonkeyPatch):
+    room.topic.project_id = None
+    room.topic.room_visibility = "private"
+    room.topic.title = "Design team"
+    room.message.room_mentions = []
+    first = RoomParticipantRead(
+        kind="agent",
+        id=uuid4(),
+        name="Analyst",
+        avatar_url=None,
+        is_member=True,
+        can_add=False,
+        can_mention=True,
+        auto_reply=True,
+    )
+    second = first.model_copy(update={"id": uuid4(), "name": "Reviewer"})
+    human = first.model_copy(
+        update={"kind": "user", "id": uuid4(), "name": "Alex", "auto_reply": False}
+    )
+    members = [first, second, human]
+
+    async def validate(_ctx, _conversation_id, refs):
+        return [
+            next(item for item in members if (item.kind, item.id) == (ref.kind, ref.id))
+            for ref in refs
+        ]
+
+    async def keep(_db, *, message, mentions):
+        message.room_mentions = mentions
+
+    validate_mentions = AsyncMock(side_effect=validate)
+    automatic = AsyncMock(return_value=[])
+    monkeypatch.setattr(RoomParticipantService, "validate_mentions", validate_mentions)
+    monkeypatch.setattr(RoomParticipantService, "automatic_agents", automatic)
+    monkeypatch.setattr(module.room_repo, "keep_mentions", AsyncMock(side_effect=keep))
+    monkeypatch.setattr(
+        module.room_repo,
+        "for_post",
+        AsyncMock(
+            side_effect=lambda _db, *, root: [
+                row for row in room.rows if row.id == root.id or row.parent_submission_id == root.id
+            ]
+        ),
+    )
+    notify = AsyncMock()
+    monkeypatch.setattr(NotificationService, "room_mentioned", notify)
+    return SimpleNamespace(
+        room=room,
+        first=first,
+        second=second,
+        human=human,
+        members=members,
+        validate=validate_mentions,
+        automatic=automatic,
+        notify=notify,
+    )
+
+
+def refs(*participants):
+    return [RoomParticipantRef(kind=item.kind, id=item.id) for item in participants]
+
+
+async def test_multiple_bot_mentions_share_one_post_and_retry_returns_all_original_requests(
+    multiplayer,
+):
+    m, room = multiplayer, multiplayer.room
+    data = request(mentions=refs(m.first, m.second, m.human))
+    first = await room.service.post(room.ctx, room.topic.id, data, room.user)
+    versions = [row.version_id for row in room.rows]
+    # Reordered recipient ids and a later rename still describe the accepted post.
+    m.first.name = "Renamed later"
+    again = await room.service.post(
+        room.ctx,
+        room.topic.id,
+        data.model_copy(update={"mentions": list(reversed(data.mentions))}),
+        room.user,
+    )
+    assert first == again
+    assert first.request == first.requests[0]
+    assert [item.agent_id for item in first.requests] == [m.first.id, m.second.id]
+    assert len(room.rows) == 2 and room.rows[1].parent_submission_id == room.rows[0].id
+    assert {row.message_id for row in room.rows} == {room.message.id}
+    assert {row.client_message_id for row in room.rows} == {"client-1"}
+    assert all(row.dispatch == "mention" for row in room.rows)
+    assert [row.version_id for row in room.rows] == versions
+    assert first.message.room_mentions[0].name == "Analyst"
+    room.add_message.assert_awaited_once()
+    assert room.enqueue.await_count == 2
+    m.validate.assert_awaited_once()
+    m.notify.assert_awaited_once()
+    assert m.notify.await_args.kwargs["recipients"] == [m.human.id]
+    m.automatic.assert_not_awaited()
+
+
+async def test_human_mentions_notify_without_spending_or_enabling_automatic_replies(multiplayer):
+    m, room = multiplayer, multiplayer.room
+    own = m.human.model_copy(update={"id": room.ctx.subject_id})
+    m.members.append(own)
+    data = request(mentions=refs(m.human, own))
+    result = await room.service.post(room.ctx, room.topic.id, data, room.user)
+    await room.service.post(room.ctx, room.topic.id, data, room.user)
+    assert result.request is None and result.requests == []
+    assert [item.id for item in result.message.room_mentions] == [m.human.id, own.id]
+    room.enqueue.assert_not_awaited()
+    room.registry.get_runnable_spec.assert_not_awaited()
+    m.automatic.assert_not_awaited()
+    m.notify.assert_awaited_once()
+    assert m.notify.await_args.kwargs["recipients"] == [m.human.id]
+
+
+@pytest.mark.security
+async def test_unknown_or_removed_mention_is_rejected_before_saving_any_post(multiplayer):
+    m, room = multiplayer, multiplayer.room
+    m.validate.side_effect = AuthorizationError(message="Recipient is no longer a member")
+    with pytest.raises(AuthorizationError):
+        await room.service.post(room.ctx, room.topic.id, request(mentions=refs(m.first)), room.user)
+    room.add_message.assert_not_awaited()
+    room.enqueue.assert_not_awaited()
+    m.notify.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_every_mentioned_agent_must_be_runnable_before_any_message_is_written(multiplayer):
+    m, room = multiplayer, multiplayer.room
+    room.registry.get_runnable_spec.side_effect = [
+        (MagicMock(), MagicMock(), uuid4()),
+        AuthorizationError(message="Agent use revoked"),
+    ]
+    with pytest.raises(AuthorizationError):
+        await room.service.post(
+            room.ctx, room.topic.id, request(mentions=refs(m.first, m.second)), room.user
+        )
+    room.add_message.assert_not_awaited()
+    room.enqueue.assert_not_awaited()
+
+
+async def test_fanout_capacity_is_checked_for_all_agents_together(multiplayer, monkeypatch):
+    m, room = multiplayer, multiplayer.room
+    monkeypatch.setattr(module.room_repo, "active_count", AsyncMock(return_value=49))
+    with pytest.raises(AlreadyExistsError, match="fifty"):
+        await room.service.post(
+            room.ctx, room.topic.id, request(mentions=refs(m.first, m.second)), room.user
+        )
+    room.add_message.assert_not_awaited()
+
+
+async def test_automatic_dispatch_is_frozen_across_retries_and_visible_in_the_queue(multiplayer):
+    m, room = multiplayer, multiplayer.room
+    m.automatic.return_value = [m.first, m.second]
+    room.message.content = "Please review"
+    data = request(content=room.message.content)
+    first = await room.service.post(room.ctx, room.topic.id, data, room.user)
+    m.automatic.return_value = [m.second]
+    again = await room.service.post(room.ctx, room.topic.id, data, room.user)
+    assert first == again and first.request.dispatch == "automatic"
+    assert [item.agent_id for item in first.requests] == [m.first.id]
+    m.automatic.assert_awaited_once()
+    room.enqueue.assert_awaited_once()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("fault", ["none", "removed", "disabled", "retargeted", "parent"])
+async def test_child_dequeue_rechecks_membership_and_original_post(multiplayer, monkeypatch, fault):
+    m, room = multiplayer, multiplayer.room
+    data = request(mentions=refs(m.first, m.second))
+    result = await room.service.post(room.ctx, room.topic.id, data, room.user)
+    child, parent = room.rows[1], room.rows[0]
+    monkeypatch.setattr(module, "acting_member", AsyncMock(return_value=room.ctx))
+    monkeypatch.setattr(
+        module.conversation_repo, "get_message_by_id", AsyncMock(return_value=room.message)
+    )
+    monkeypatch.setattr(module.room_repo, "get", AsyncMock(return_value=parent))
+    if fault == "removed":
+        m.validate.side_effect = AuthorizationError(message="Agent removed")
+    elif fault == "disabled":
+        child.dispatch = "automatic"
+        m.second.auto_reply = False
+    elif fault == "retargeted":
+        room.message.room_mentions = [room.message.room_mentions[0]]
+    elif fault == "parent":
+        parent.client_message_id = "another-post"
+    if fault == "none":
+        assert result.requests[1].id == child.id
+        assert await room.service.authority(child) == (room.ctx, room.topic, room.message)
+    else:
+        with pytest.raises((AuthorizationError, AlreadyExistsError)):
+            await room.service.authority(child)
+
+
+def test_mention_identity_and_fingerprint_use_kind_and_id_not_display_names():
+    same_id = uuid4()
+    one = RoomParticipantRef(kind="user", id=same_id)
+    two = RoomParticipantRef(kind="agent", id=same_id)
+    data = request(mentions=[one, two])
+    assert module.fingerprint(data) == module.fingerprint(request(mentions=[two, one]))
+    assert module.fingerprint(data) != module.fingerprint(request(mentions=[one]))
+    with pytest.raises(ValidationError):
+        request(mentions=[one, one])
+    with pytest.raises(ValidationError):
+        request(mentions=[two], agent_id=uuid4())
+    with pytest.raises(ValidationError):
+        request(mentions=[two], intent="ask_lead", expected_policy_revision=1)
+    assert request(mentions=[one], intent="ask_lead", expected_policy_revision=1).mentions == [one]
+
+
+def test_automatic_router_only_uses_opted_in_candidates_and_bounds_broad_replies(multiplayer):
+    m = multiplayer
+    candidates = [m.first, m.second] + [
+        m.first.model_copy(update={"id": uuid4(), "name": f"Bot {i}"}) for i in range(5)
+    ]
+    assert module.automatic_targets("Thanks!", candidates) == []
+    assert module.automatic_targets("Nothing to route", []) == []
+    assert module.automatic_targets("Reviewer, can you check this?", candidates) == [m.second]
+    assert module.automatic_targets("All agents please review", candidates) == candidates[:4]
+    short = m.first.model_copy(update={"name": "Al"})
+    assert module.automatic_targets("Call Reviewer", [short, m.second]) == [m.second]
+
+
+def test_room_upload_contract_accepts_captionless_files_and_freezes_their_identities():
+    first, second = uuid4(), uuid4()
+    data = request(content="", file_ids=[first, second])
+    assert data.content == "" and data.file_ids == [first, second]
+    assert module.fingerprint(data) == module.fingerprint(
+        request(content="", file_ids=[second, first])
+    )
+    assert module.fingerprint(data) != module.fingerprint(request(content="", file_ids=[first]))
+    with pytest.raises(ValidationError, match="Attach each file once"):
+        request(file_ids=[first, first])
+    with pytest.raises(ValidationError, match="Write a message"):
+        request(content="", file_ids=[])
+
+
+async def test_room_uploads_link_once_and_a_retry_returns_the_same_file_cards(room, monkeypatch):
+    upload = SimpleNamespace(
+        id=uuid4(), filename="diagram.png", mime_type="image/png", file_type="image"
+    )
+    room.message.content = ""
+    reads = module.chat_file_repo.for_message
+    room.service.conversations.list_attached_files.return_value = [upload]
+
+    async def linked(*_args, **_kwargs):
+        reads.return_value = [upload]
+
+    room.service.conversations.link_files_to_message.side_effect = linked
+    monkeypatch.setattr(module.room_repo, "for_post", AsyncMock(return_value=room.rows))
+    data = request(content="", file_ids=[upload.id])
+    first = await room.service.post(room.ctx, room.topic.id, data, room.user)
+    second = await room.service.post(room.ctx, room.topic.id, data, room.user)
+    assert first == second and first.message.content == ""
+    assert first.message.files[0].id == upload.id
+    room.add_message.assert_awaited_once()
+    room.service.conversations.link_files_to_message.assert_awaited_once_with(
+        room.message.id, [str(upload.id)], user_id=room.user.id
+    )
+    room.service.conversations.list_attached_files.assert_awaited_once()
+    room.enqueue.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_foreign_or_already_claimed_upload_refuses_the_entire_room_post(room):
+    room.service.conversations.list_attached_files.side_effect = BadRequestError(
+        message="Those files cannot be attached"
+    )
+    with pytest.raises(BadRequestError, match="cannot be attached"):
+        await room.service.post(
+            room.ctx, room.topic.id, request(agent_id=uuid4(), file_ids=[uuid4()]), room.user
+        )
+    room.add_message.assert_not_awaited()
+    room.enqueue.assert_not_awaited()
+    assert room.rows == []
+
+
+async def test_thread_reply_notifies_once_and_direct_mentions_are_not_duplicated(
+    multiplayer, monkeypatch
+):
+    from app.services.room_thread import RoomThreadService
+
+    m, room = multiplayer, multiplayer.room
+    root_id = uuid4()
+    room.message.thread_root_message_id = root_id
+    replyable = AsyncMock()
+    notify = AsyncMock()
+    monkeypatch.setattr(RoomThreadService, "assert_replyable", replyable)
+    monkeypatch.setattr(RoomThreadService, "reply_saved", notify)
+    data = request(thread_root_message_id=root_id, mentions=refs(m.human))
+
+    first = await room.service.post(room.ctx, room.topic.id, data, room.user)
+    again = await room.service.post(room.ctx, room.topic.id, data, room.user)
+
+    assert first == again
+    replyable.assert_awaited_once_with(room.topic.id, root_id)
+    notify.assert_awaited_once_with(
+        organization_id=room.ctx.organization_id,
+        conversation_id=room.topic.id,
+        root_message_id=root_id,
+        reply_message_id=room.message.id,
+        actor_user_id=room.ctx.subject_id,
+        sender="Writer",
+        excluded_user_ids={m.human.id},
+    )
+    m.notify.assert_awaited_once()
+
+
+@pytest.mark.security
+async def test_archived_thread_refuses_new_posts_before_saving_or_queuing(room, monkeypatch):
+    from app.services.room_thread import RoomThreadService
+
+    monkeypatch.setattr(
+        RoomThreadService,
+        "assert_replyable",
+        AsyncMock(side_effect=BadRequestError(message="Thread is archived")),
+    )
+    with pytest.raises(BadRequestError, match="archived"):
+        await room.service.post(
+            room.ctx,
+            room.topic.id,
+            request(thread_root_message_id=uuid4(), agent_id=uuid4()),
+            room.user,
+        )
+    room.add_message.assert_not_awaited()
+    room.enqueue.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_archiving_a_thread_revokes_an_already_queued_agents_reply(room, monkeypatch):
+    from app.services.room_thread import RoomThreadService
+
+    row = pending(room)
+    root_id = uuid4()
+    room.message.thread_root_message_id = root_id
+    row.fingerprint = module.fingerprint(
+        request(agent_id=row.agent_id, thread_root_message_id=root_id)
+    )
+    monkeypatch.setattr(module, "acting_member", AsyncMock(return_value=room.ctx))
+    monkeypatch.setattr(
+        module.conversation_repo, "get_message_by_id", AsyncMock(return_value=room.message)
+    )
+    replyable = AsyncMock(side_effect=BadRequestError(message="Thread is archived"))
+    monkeypatch.setattr(RoomThreadService, "assert_replyable", replyable)
+    with pytest.raises(BadRequestError, match="archived"):
+        await room.service.authority(row)
+    replyable.assert_awaited_once_with(room.topic.id, root_id)

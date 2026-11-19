@@ -46,6 +46,8 @@ class ContentGate(enum.Enum):
 # paths' own organization scoping.
 CONTENT_GATE: dict[NotificationEventType, ContentGate] = {
     NotificationEventType.RESOURCE_SHARED: ContentGate.SHARED_CONVERSATION,
+    NotificationEventType.ROOM_MENTION: ContentGate.SHARED_CONVERSATION,
+    NotificationEventType.ROOM_THREAD_REPLY: ContentGate.SHARED_CONVERSATION,
     NotificationEventType.APPROVAL_REQUESTED: ContentGate.DEGRADE,
     NotificationEventType.USAGE_REPORT: ContentGate.RUNS_VIEW,
     NotificationEventType.AGENT_USAGE_REPORT: ContentGate.RUNS_VIEW,

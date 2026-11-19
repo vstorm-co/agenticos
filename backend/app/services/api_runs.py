@@ -40,6 +40,7 @@ from app.services.api_key import ApiKeyService
 from app.services.attachments import load_attached_files
 from app.services.background_jobs import enqueue
 from app.services.conversation import ConversationService
+from app.services.conversation_turns import claim
 from app.worker.jobs import RUN_AGENT, RunAgent
 
 _STATUS: dict[JobStatus, RunRequestStatus] = {
@@ -171,37 +172,42 @@ class ApiRunService:
     async def run(self, job: RunAgent) -> AgentRunResult:
         """What the worker does with a queued request: the synchronous call, made now."""
         ctx = await self._context(job, ApiKeyService(self.db))
-        _conversation_id, history = await ConversationService(self.db).for_api_run(
-            ctx, job.conversation_id, prompt=job.prompt
-        )
-        attachments = await load_attached_files(
-            self.db, [str(file_id) for file_id in job.file_ids], user_id=ctx.subject_id
-        )
-        runner = AgentRunnerService(self.db)
-        output, run = await runner.execute(
-            ctx,
-            job.agent_id,
-            job.prompt,
-            surface=RunSurface.API,
-            conversation_id=job.conversation_id,
-            message_history=history,
-            environment_id=job.environment_id,
-            attachments=attachments,
-            reports_failure=True,
-        )
-        return AgentRunResult(
-            run_id=run.id,
-            conversation_id=job.conversation_id,
-            output=output,
-            status=run.status,
-            cost_usd=run.cost_usd,
-            cost_is_partial=run.cost_is_partial,
-            input_tokens=run.input_tokens,
-            output_tokens=run.output_tokens,
-            cache_read_tokens=run.cache_read_tokens,
-            cache_write_tokens=run.cache_write_tokens,
-            parked=await runner.parked_calls(ctx, run),
-        )
+        # Re-read the conversation while holding the same admission claim used
+        # by chat turns and room conversion. Otherwise a saved direct chat could
+        # pass this check, be converted while the worker was loading its history,
+        # then persist a legacy API turn in the new shared room.
+        async with claim(job.conversation_id, background=False):
+            _conversation_id, history = await ConversationService(self.db).for_api_run(
+                ctx, job.conversation_id, prompt=job.prompt
+            )
+            attachments = await load_attached_files(
+                self.db, [str(file_id) for file_id in job.file_ids], user_id=ctx.subject_id
+            )
+            runner = AgentRunnerService(self.db)
+            output, run = await runner.execute(
+                ctx,
+                job.agent_id,
+                job.prompt,
+                surface=RunSurface.API,
+                conversation_id=job.conversation_id,
+                message_history=history,
+                environment_id=job.environment_id,
+                attachments=attachments,
+                reports_failure=True,
+            )
+            return AgentRunResult(
+                run_id=run.id,
+                conversation_id=job.conversation_id,
+                output=output,
+                status=run.status,
+                cost_usd=run.cost_usd,
+                cost_is_partial=run.cost_is_partial,
+                input_tokens=run.input_tokens,
+                output_tokens=run.output_tokens,
+                cache_read_tokens=run.cache_read_tokens,
+                cache_write_tokens=run.cache_write_tokens,
+                parked=await runner.parked_calls(ctx, run),
+            )
 
     async def _context(self, job: RunAgent, keys: ApiKeyService) -> AuthContext:
         """The asker's authority as it stands now, not as it stood when they asked."""

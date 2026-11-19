@@ -2887,3 +2887,91 @@ def test_opensandbox_upgrade_and_guarded_downgrade_preserve_connection_settings(
         assert drift.returncode == 0, drift.stderr
     finally:
         engine.dispose()
+
+
+def test_room_message_reactions_migration_rehearses_upgrade_and_guarded_rollback() -> None:
+    """The reaction table upgrades cleanly and refuses a lossy rollback."""
+    prior = _alembic("upgrade", "0347_room_mention_requests")
+    assert prior.returncode == 0, prior.stderr
+    upgraded = _alembic("upgrade", "0348_room_message_reactions")
+    assert upgraded.returncode == 0, upgraded.stderr
+
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    row_id = uuid4()
+    try:
+        with engine.connect() as connection:
+            columns = {
+                row[0]
+                for row in connection.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema = 'public' AND table_name = 'room_message_reactions'"
+                    )
+                )
+            }
+            assert columns >= {
+                "id",
+                "organization_id",
+                "conversation_id",
+                "message_id",
+                "user_id",
+                "emoji",
+                "created_at",
+            }
+            assert (
+                connection.execute(
+                    text("SELECT to_regclass('public.ix_room_message_reactions_message')")
+                ).scalar_one()
+                is not None
+            )
+
+        with engine.begin() as connection:
+            # This migration test only needs a durable row to exercise the
+            # rollback guard; replica mode avoids seeding the unrelated parent rows.
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(
+                text(
+                    "INSERT INTO room_message_reactions "
+                    "(id, organization_id, conversation_id, message_id, user_id, emoji) "
+                    "VALUES (:id, :org, :conversation, :message, :user, '👍')"
+                ),
+                {
+                    "id": row_id,
+                    "org": uuid4(),
+                    "conversation": uuid4(),
+                    "message": uuid4(),
+                    "user": uuid4(),
+                },
+            )
+
+        refused = _alembic("downgrade", "0347_room_mention_requests")
+        assert refused.returncode != 0
+        assert "reaction evidence exists" in refused.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT to_regclass('public.room_message_reactions')")
+                ).scalar_one()
+                is not None
+            )
+
+        with engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM room_message_reactions WHERE id = :id"), {"id": row_id}
+            )
+        downgraded = _alembic("downgrade", "0347_room_mention_requests")
+        assert downgraded.returncode == 0, downgraded.stderr
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT to_regclass('public.room_message_reactions')")
+                ).scalar_one()
+                is None
+            )
+
+        restored = _alembic("upgrade", "head")
+        assert restored.returncode == 0, restored.stderr
+        drift = _alembic("check")
+        assert drift.returncode == 0, drift.stderr
+    finally:
+        engine.dispose()
