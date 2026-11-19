@@ -2,6 +2,7 @@
 one, read from the checks it stored and shown only to whoever may read runs."""
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
@@ -11,8 +12,10 @@ import pytest
 
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.db.models.dataset import Dataset
 from app.db.models.improvement import ImprovementRun
-from app.services import improvement_pipeline
+from app.db.models.skill import Skill
+from app.services import improvement_pipeline, improvement_skills
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_states import (
     NOISE_EXAMPLES,
@@ -315,3 +318,91 @@ async def test_an_invalid_comparison_is_not_used_as_measurement_noise(
     assert [attempt.number for attempt in noise.by_attempt] == [2]
     assert not noise.noisy
     assert noise.between is None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("denied", ["runs", "dataset", "missing_dataset", "skill", None])
+async def test_criterion_metadata_needs_its_dataset_and_named_skill(service, monkeypatch, denied):
+    pipeline, _, _ = service
+    run = _session("stopped")
+    detail = {
+        "criteria": [
+            {
+                "scorer": "judge",
+                "name": "private rubric",
+                "skill": "private skill",
+                "graded": 5,
+                "before": 0,
+                "after": 5,
+                "fixed": 5,
+                "broken": 0,
+            }
+        ],
+        "criterion_change": 1.0,
+        "fixed": 0,
+    }
+    attempt = improvement_pipeline.improvement_repo.list_iterations.return_value[0]
+    attempt.verdict_detail = detail
+    dataset = Dataset(id=run.dataset_id, organization_id=ORG, name="private")
+    monkeypatch.setattr(
+        improvement_pipeline.dataset_repo,
+        "get",
+        AsyncMock(return_value=None if denied == "missing_dataset" else dataset),
+    )
+    monkeypatch.setattr(
+        improvement_pipeline,
+        "accessible_ids",
+        AsyncMock(return_value=set() if denied == "dataset" else {dataset.id}),
+    )
+    monkeypatch.setattr(
+        improvement_pipeline,
+        "readable_criterion_owners",
+        AsyncMock(return_value=set() if denied == "skill" else {"private skill"}),
+    )
+    ctx = replace(OWNER, key_scopes=frozenset({Perm.AGENTS_VIEW})) if denied == "runs" else OWNER
+
+    read = await pipeline._read(ctx, run, noise=False)
+
+    returned = read.iterations[0].verdict_detail
+    assert returned is not None and returned["fixed"] == 0
+    assert ("criteria" in returned) is (denied is None)
+    assert ("criterion_change" in returned) is (denied is None)
+    assert attempt.verdict_detail == detail
+    assert "private rubric" in str(detail)
+    if denied == "runs":
+        improvement_pipeline.dataset_repo.get.assert_not_awaited()
+    if denied is not None:
+        assert "private rubric" not in read.model_dump_json()
+        assert "private skill" not in read.model_dump_json()
+
+
+@pytest.mark.security
+async def test_criterion_owner_names_are_resolved_and_filtered_in_one_tenant(monkeypatch):
+    visible = Skill(id=uuid.uuid4(), organization_id=ORG, name="visible")
+    hidden = Skill(id=uuid.uuid4(), organization_id=ORG, name="hidden")
+    fetch = AsyncMock(return_value={visible.name: visible, hidden.name: hidden})
+    monkeypatch.setattr(improvement_skills.skill_repo, "get_by_names", fetch)
+    monkeypatch.setattr(improvement_skills, "accessible_ids", AsyncMock(return_value={visible.id}))
+    db = AsyncMock()
+    assert await improvement_skills.readable_criterion_owners(db, OWNER, set()) == set()
+    fetch.assert_not_awaited()
+    names = {"visible", "hidden", "deleted"}
+    assert await improvement_skills.readable_criterion_owners(db, OWNER, names) == {"visible"}
+    fetch.assert_awaited_once_with(db, names, organization_id=ORG)
+
+
+@pytest.mark.parametrize("criteria", [None, []])
+async def test_a_metric_without_named_criteria_keeps_its_shape_for_an_authorized_reader(
+    service, monkeypatch, criteria
+):
+    pipeline, _, _ = service
+    run = ImprovementRun(**vars(_session("stopped")))
+    attempt = improvement_pipeline.improvement_repo.list_iterations.return_value[0]
+    attempt.verdict_detail = {"criterion_change": 0.0, "criteria": criteria}
+    dataset = Dataset(id=run.dataset_id, organization_id=ORG, name="visible")
+    monkeypatch.setattr(improvement_pipeline.dataset_repo, "get", AsyncMock(return_value=dataset))
+    monkeypatch.setattr(
+        improvement_pipeline, "accessible_ids", AsyncMock(return_value={dataset.id})
+    )
+    read = await pipeline._read(OWNER, run, noise=False)
+    assert read.iterations[0].verdict_detail == attempt.verdict_detail

@@ -117,6 +117,7 @@ from app.services.dataset import DatasetService
 from app.services.eval_comparison import CriterionMove
 from app.services.eval_run import EvalRunService
 from app.services.improvement_data import MIN_HOLDOUT_CASES
+from app.services.improvement_skills import readable_criterion_owners
 from app.services.improvement_states import criterion_details
 from app.services.notifications import NotificationService
 from app.services.scoring import ScoringService
@@ -1558,6 +1559,16 @@ class SkillCheckService:
         readable = await accessible_ids(
             self.db, ctx, list(datasets.values()), Perm.DATASETS_VIEW, resource_type=DATASET
         )
+        owners = await readable_criterion_owners(
+            self.db,
+            ctx,
+            {
+                name
+                for row in rows
+                for item in row.criteria or []
+                if (name := item.get("skill")) is not None
+            },
+        )
         reads: list[SkillCheckAgentRead] = []
         hidden = hidden_unknown = 0
         for row in rows:
@@ -1567,6 +1578,21 @@ class SkillCheckService:
                 hidden_unknown += row.state == AgentState.UNKNOWN.value
                 continue
             counted = {entry["eval_run_id"]: entry for entry in row.stages}
+            mine = stages.get(row.agent_id, [])
+            expected_runs = {
+                run_id
+                for run_id in (row.skill_set_run_id, row.dataset_run_id)
+                if run_id is not None
+            }
+            criteria = [VerdictCriterion.model_validate(item) for item in row.criteria or []]
+            if (
+                not ctx.has(Perm.RUNS_VIEW)
+                or not expected_runs
+                or not expected_runs <= {_run_of(row, stage.kind) for stage in mine}
+                or any(stage.dataset.id not in readable for stage in mine)
+                or any(item.skill is not None and item.skill not in owners for item in criteria)
+            ):
+                criteria = []
             reads.append(
                 SkillCheckAgentRead(
                     agent=AgentRef(id=agent.id, name=agent.name),
@@ -1605,7 +1631,7 @@ class SkillCheckService:
                     fixed_confirmed=row.fixed_confirmed or 0,
                     regressions_confirmed=row.regressions_confirmed or 0,
                     noisy=bool(row.noisy),
-                    criteria=[VerdictCriterion.model_validate(item) for item in row.criteria or []],
+                    criteria=criteria,
                     expected_usd=row.expected_usd,
                     at_most_usd=row.at_most_usd,
                 )

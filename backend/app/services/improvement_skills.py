@@ -32,6 +32,19 @@ from app.services.access import SKILL, accessible_ids, resolve_access
 from app.services.skill_agents import SkillAgentService, lines_of
 
 
+async def readable_criterion_owners(
+    db: AsyncSession, ctx: AuthContext, names: set[str]
+) -> set[str]:
+    """Stored criterion attributions name only skills the reader can still open."""
+    if not names:
+        return set()
+    skills = await skill_repo.get_by_names(db, names, organization_id=ctx.organization_id)
+    visible = await accessible_ids(
+        db, ctx, list(skills.values()), Perm.SKILLS_VIEW, resource_type=SKILL
+    )
+    return {name for name, skill in skills.items() if skill.id in visible}
+
+
 @dataclass(frozen=True)
 class SkillSeed:
     """What a skill's Improve starts from when an agent's session hands a skill over.

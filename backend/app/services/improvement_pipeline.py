@@ -135,7 +135,7 @@ from app.schemas.improvement import (
 from app.schemas.scoring import DatasetScoring
 from app.services import authoring_fields, authoring_hunks, change_feed
 from app.services import improvement_states as rules
-from app.services.access import SKILL, accessible_ids
+from app.services.access import DATASET, SKILL, accessible_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
@@ -154,7 +154,11 @@ from app.services.improvement_data import (
     input_hash,
     split_seed,
 )
-from app.services.improvement_skills import ImprovementSkillService, SkillSeed
+from app.services.improvement_skills import (
+    ImprovementSkillService,
+    SkillSeed,
+    readable_criterion_owners,
+)
 from app.services.improvement_states import criterion_details, criterion_owners
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.notifications import NotificationService
@@ -1102,6 +1106,7 @@ class ImprovementPipelineService:
             self.db, run.id, organization_id=run.organization_id
         )
         result.iterations = [ImprovementIterationRead.model_validate(item) for item in iterations]
+        await self._redact_criteria(ctx, run, result.iterations)
         for attempt in result.iterations:
             detail = attempt.verdict_detail or {}
             counted = detail.get("held_out", detail.get("gradable_holdout"))
@@ -1146,6 +1151,51 @@ class ImprovementPipelineService:
         if not ctx.has(Perm.RUNS_VIEW):
             result.error = None
         return result
+
+    async def _redact_criteria(
+        self,
+        ctx: AuthContext,
+        run: ImprovementRun,
+        iterations: list[ImprovementIterationRead],
+    ) -> None:
+        """Criterion text and grades inherit the pinned dataset and named skills' access.
+
+        A suite-based session also pins this one dataset at start. Reading the
+        shared agent alone grants no access to its private measurement evidence.
+        """
+        details = [
+            (attempt, detail)
+            for attempt in iterations
+            if (detail := attempt.verdict_detail) is not None
+            and ("criteria" in detail or "criterion_change" in detail)
+        ]
+        if not details:
+            return
+        readable = ctx.has(Perm.RUNS_VIEW)
+        if readable:
+            dataset = await dataset_repo.get(
+                self.db, run.dataset_id, organization_id=ctx.organization_id
+            )
+            readable = dataset is not None and dataset.id in await accessible_ids(
+                self.db, ctx, [dataset], Perm.DATASETS_VIEW, resource_type=DATASET
+            )
+        names: set[str] = set()
+        for _, detail in details:
+            criteria = detail.get("criteria")
+            if isinstance(criteria, list):
+                names.update(item.skill for item in criteria if item.skill is not None)
+        owners = await readable_criterion_owners(self.db, ctx, names) if readable else set()
+        for attempt, detail in details:
+            criteria = detail.get("criteria")
+            if not readable or (
+                isinstance(criteria, list)
+                and any(item.skill is not None and item.skill not in owners for item in criteria)
+            ):
+                attempt.verdict_detail = {
+                    key: value
+                    for key, value in detail.items()
+                    if key not in {"criteria", "criterion_change"}
+                }
 
     async def _answers(
         self, run: ImprovementRun, round_: ImprovementIteration | None, role: ArmRole

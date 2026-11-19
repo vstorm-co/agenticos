@@ -1011,3 +1011,71 @@ async def test_a_session_and_its_authoring_child_keep_the_admitted_dataset_instr
     request = await db.get(AuthoringRequest, current.iterations[0].authoring_request_id)
     assert request is not None
     assert request.helper_settings == original.model_dump(mode="json")
+
+
+@pytest.mark.security
+async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_access(db):
+    from dataclasses import replace
+
+    from app.core.permissions import OrgRoleName, Perm
+    from app.repositories import improvement_repo
+    from tests.integration.test_authoring import _member
+    from tests.integration.test_skill_bindings import _skill
+
+    ctx, agent, dataset, started = await _started(db)
+    dataset.visibility = "private"
+    skill = await _skill(db, ctx, name="private-grading-owner")
+    [attempt] = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=started.id
+    )
+    attempt.verdict = "criteria_better"
+    attempt.verdict_detail = {
+        "criteria": [
+            {
+                "scorer": "judge",
+                "name": "private rubric text",
+                "skill": skill.name,
+                "graded": 5,
+                "before": 0,
+                "after": 5,
+                "fixed": 5,
+                "broken": 0,
+            }
+        ],
+        "criterion_change": 1.0,
+        "fixed": 0,
+    }
+    await db.flush()
+    service = ImprovementPipelineService(db)
+    owner = await service.read(ctx, agent.id, started.id)
+    assert owner.iterations[0].verdict_detail["criteria"][0].name == "private rubric text"
+    contexts = [
+        replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW})),
+        replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.RUNS_VIEW})),
+        replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.RUNS_VIEW, Perm.DATASETS_VIEW})),
+        await _member(db, ctx, OrgRoleName.MEMBER),
+        await _member(db, ctx, OrgRoleName.VIEWER),
+    ]
+    for reader in contexts:
+        read = await service.read(reader, agent.id, started.id)
+        [listed] = await service.list_for_agent(reader, agent.id)
+        for response in (read, listed):
+            detail = response.iterations[0].verdict_detail
+            assert "criteria" not in detail and "criterion_change" not in detail
+            assert "private rubric text" not in response.model_dump_json()
+            assert "private-grading-owner" not in response.model_dump_json()
+    # Redaction is per response; neither the stored detail nor an owner's later read loses it.
+    assert attempt.verdict_detail["criteria"][0]["name"] == "private rubric text"
+    assert (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail["criteria"]
+    await db.delete(skill)
+    await db.flush()
+    assert (
+        "criteria"
+        not in (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail
+    )
+    await db.delete(dataset)
+    await db.flush()
+    assert (
+        "criteria"
+        not in (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail
+    )
