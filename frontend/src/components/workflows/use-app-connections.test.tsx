@@ -151,6 +151,25 @@ describe("the server list", () => {
 });
 
 describe("useMcpAppStep", () => {
+  it.each(["github", "hubspot"])(
+    "keeps %s's compiled logo while its catalog entry is unavailable",
+    (catalogKey) => {
+      state.connections = [{ ...other, catalog_key: catalogKey }];
+      const { result } = renderHook(() => useMcpAppStep({ connection_id: "c2", tool: "find" }));
+      expect(result.current?.app.brand).toBe(catalogKey);
+    },
+  );
+
+  it.each([null, "private-crm", "constructor", "toString"])(
+    "keeps an unknown %s server's own identity",
+    (catalogKey) => {
+      state.connections = [{ ...other, catalog_key: catalogKey }];
+      const { result } = renderHook(() => useMcpAppStep({ connection_id: "c2", tool: "find" }));
+      expect(result.current?.app.name).toBe("crm");
+      expect(result.current?.app.brand).toBeUndefined();
+    },
+  );
+
   it("retains a registry service's logo after the picker search is closed", () => {
     state.entry = {
       key: "hubspot",

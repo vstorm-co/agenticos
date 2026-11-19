@@ -81,6 +81,7 @@ const WORKFLOW: WorkflowDetail = {
 };
 
 vi.mock("@/hooks", () => ({
+  useWorkflowTableDrift: () => undefined,
   useWorkflow: () => ({
     // What the server answers: `can_edit` is this caller's reach to this
     // workflow, and false for an archived one whatever the role.

@@ -2,7 +2,7 @@ import type { UsableMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import { connectionLabel } from "@/lib/mcp-servers";
 import type { McpCatalogEntry } from "@/types/mcp";
 import { connectorBrand } from "@/components/icons/brand-icon";
-import { type BrandName, brandMark } from "@/components/icons/brand-icon";
+import { type BrandName, brandMark, isBrandName } from "@/components/icons/brand-icon";
 
 /**
  * A service the step picker groups by: its native trigger and the actions of
@@ -293,9 +293,12 @@ export function catalogWorkflowApp(entry: McpCatalogEntry): WorkflowApp {
 
 /** A custom or registry server is still a named app when the curated catalog lacks it. */
 export function connectionWorkflowApp(connection: UsableMcpConnectionRecord): WorkflowApp {
+  const key = connection.catalog_key;
+  const brand = key !== null && isBrandName(key) ? key : undefined;
   return {
     id: `mcp-connection:${connection.id}`,
     name: connectionLabel(connection),
+    brand,
     connectionId: connection.id,
     triggers: [],
     fallback: true,

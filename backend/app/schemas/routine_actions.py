@@ -84,11 +84,21 @@ type RoutineOption = RoutineActionOption | RoutineMcpActionOption
 
 type RoutineReviewChange = Literal["version", "intent", "instructions", "actions"]
 
+type WaiveBlockedReason = Literal["permission", "organization"]
+
 
 class RoutineActionOptions(BaseModel):
     max_actions: int = MAX_ROUTINE_ACTIONS
     review_changes: list[RoutineReviewChange] = Field(default_factory=list)
     can_waive: bool
+    waive_blocked_reason: WaiveBlockedReason | None = Field(
+        default=None,
+        description=(
+            "Why `can_waive` is false: the caller lacks `approvals:decide` (`permission`), "
+            "or the organization does not allow standing consent (`organization`). "
+            "Null when consent can be given."
+        ),
+    )
     review_token: str
     items: list[RoutineOption]
     unavailable_sources: list[str] = Field(

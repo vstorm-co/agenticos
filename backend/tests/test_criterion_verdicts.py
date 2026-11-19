@@ -9,6 +9,8 @@ got worse reads as plainly as one that got better.
 from dataclasses import replace
 from decimal import Decimal
 
+import pytest
+
 from app.db.models.improvement import (
     ImprovementStage,
     ImprovementStatus,
@@ -228,6 +230,28 @@ def test_two_results_under_one_name_stay_two_criteria() -> None:
         ("check", "json_schema at $.total"): True,
         ("check", "json_schema at $.total #2"): False,
     }
+
+
+@pytest.mark.parametrize("suffix_first", [False, True])
+def test_a_literal_duplicate_suffix_does_not_hide_a_confirmed_criterion_flip(
+    suffix_first: bool,
+) -> None:
+    repeated = [
+        {"scorer": "check", "name": "json_schema at $.total", "status": "pass"},
+        {"scorer": "check", "name": "json_schema at $.total", "status": "fail"},
+    ]
+    literal = {"scorer": "check", "name": "json_schema at $.total #2", "status": "pass"}
+    stored = [literal, *repeated] if suffix_first else [*repeated, literal]
+
+    before = grades(iter(stored))
+    after = grades({**row, "status": "pass"} for row in stored)
+
+    assert before == {
+        ("check", "json_schema at $.total"): True,
+        ("check", "json_schema at $.total #2"): True,
+        ("check", "json_schema at $.total #3"): False,
+    }
+    assert criterion_flipped(before, after)
 
 
 def test_past_the_limit_the_criteria_that_decide_a_verdict_are_kept() -> None:

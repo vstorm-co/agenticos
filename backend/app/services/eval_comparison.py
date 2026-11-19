@@ -411,17 +411,23 @@ def grades(results: Iterable[Mapping[str, object]]) -> dict[Criterion, Outcome]:
     A skipped or failed scorer decides none. An optional result is left out, as
     `case_passed` leaves it out of the question. Two results under one scorer and
     name - two schema checks at one path - are told apart by their order, which
-    the same scoring repeats on every answer: the second is `name #2`.
+    the same scoring repeats on every answer. Repeats get an unused numbered
+    suffix without overwriting a criterion whose literal name includes it.
     """
+    required = [result for result in results if result.get("required") is not False]
+    original_names = {(str(result["scorer"]), str(result["name"])) for result in required}
     outcomes: dict[Criterion, Outcome] = {}
     seen: Counter[Criterion] = Counter()
-    for result in results:
-        if result.get("required") is False:
-            continue
+    for result in required:
         criterion = (str(result["scorer"]), str(result["name"]))
         seen[criterion] += 1
         if seen[criterion] > 1:
-            criterion = (criterion[0], f"{criterion[1]} #{seen[criterion]}")
+            original = criterion
+            criterion = (original[0], f"{original[1]} #{seen[original]}")
+            # A literal criterion name may already use the generated suffix.
+            while criterion in original_names or criterion in outcomes:
+                seen[original] += 1
+                criterion = (original[0], f"{original[1]} #{seen[original]}")
         outcomes[criterion] = _STATUS_OUTCOME.get(result.get("status"))
     return outcomes
 
