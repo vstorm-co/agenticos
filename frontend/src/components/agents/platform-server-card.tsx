@@ -34,10 +34,14 @@ export const NEW_PLATFORM_BINDING: PlatformMcpServerRef = {
   approval: "writes",
 };
 
-/** What the card says about approval: a tool let run freely is worth saying. */
+/** What the card says about approval: a tool the agent can call let run freely is worth saying. */
 function ApprovalStatus({ binding }: { binding: PlatformMcpServerRef }) {
   const t = useTranslations("agents");
-  if (Object.values(binding.tool_approval ?? {}).includes("never")) {
+  const callable = (name: string) => binding.allowed_tools?.includes(name) ?? true;
+  const released = Object.entries(binding.tool_approval ?? {}).filter(
+    ([name, mode]) => mode === "never" && callable(name),
+  );
+  if (released.length > 0) {
     return t("platformSomeRunFreely");
   }
   return binding.approval === "all" ? t("platformAsksEveryCall") : t("platformAsksBeforeWrites");

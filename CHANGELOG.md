@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Group the AgenticOS server's tools in the agent Builder by what they work on - tables, tasks, workflows, agents, knowledge bases, skills, projects, automations, apps, runs, connections and the account - with an icon on each tool that changes something. Each group and each tool runs freely or asks first, as on other MCP servers; the spec keeps a tool's own setting in the platform binding's new `tool_approval`, and publishing refuses a name the platform does not offer. The binding's default stays at `writes`.
+- Group the AgenticOS server's tools in the agent Builder by what they work on - tables, tasks, workflows, agents, knowledge bases, skills, projects, automations, apps, runs, connections and the account - with an icon on each tool that changes something. Each group and each tool runs freely or asks first, as on other MCP servers; the spec keeps a tool's own setting in the platform binding's new `tool_approval`, and publishing refuses a name the platform does not offer. The binding's default stays at `writes`, or becomes `all` once every read asks, so a read added later asks too. `invite_member` and `update_proactivity_settings` always ask: they run with the authority of whoever the agent runs for, so publishing refuses `never` on them and a run ignores one already stored.
 
 ## [1.84.0] - 2026-11-18
 

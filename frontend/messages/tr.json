@@ -6968,6 +6968,7 @@
     "newStarter": "Yeni ilk mesaj",
     "newStarterPlaceholder": "Size nasıl yardımcı olabilirim?",
     "addStarter": "Ekle",
+    "platformAlwaysAsksBadge": "her zaman sorar: burada kimin yetkisi olduğunu değiştirir",
     "platformUngatedBadge": "kendi ayarınız, onay istemez",
     "noKeyForEndpoint": "Key yok - endpoint gerektirmiyor",
     "notAChatModel": "chat modeli değil",

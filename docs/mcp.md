@@ -1326,7 +1326,13 @@ named after this deployment; switching it on binds it as
   tools, and the shield beside a tool sets that one. The spec keeps a tool's own
   setting in the binding's `tool_approval`, keyed by the tool's name; publishing
   refuses a name the platform does not offer. Letting a change run freely is a
-  decision about that tool alone: the binding's default stays at `writes`.
+  decision about that tool alone: the binding's default stays at `writes`, or
+  `all` once every read asks, so a read the platform adds later asks too.
+- **Some tools always ask.** `invite_member` and `update_proactivity_settings`
+  change who has authority in the organization, and they run with the authority
+  of the person the agent runs for, not of its author - so an agent a Builder
+  publishes cannot invite an Admin through an Owner's run unasked. Their shield
+  cannot be switched off, and publishing refuses `never` on either.
 
 The **AgenticOS** template binds it this way, and so does every agent created from
 scratch, so an agent can look the platform up - and set up a routine, or switch the

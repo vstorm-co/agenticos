@@ -1,5 +1,5 @@
 ---
-source_sha: "ebae77dba31c"
+source_sha: "196f52ebd277"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1422,7 +1422,14 @@ con los propios registros de la plataforma. En el Builder es la primera tarjeta 
   del vínculo, con el nombre de la herramienta; publicar rechaza un nombre que la
   plataforma no ofrece. Dejar que un cambio se ejecute sin preguntar es una
   decisión sobre esa herramienta sola: el valor por defecto del vínculo sigue
-  siendo `writes`.
+  siendo `writes`, o `all` en cuanto todas las lecturas preguntan, de modo que
+  una lectura que la plataforma añada después también pregunta.
+- **Algunas herramientas siempre preguntan.** `invite_member` y
+  `update_proactivity_settings` cambian quién tiene autoridad en la organización,
+  y se ejecutan con la autoridad de la persona para la que trabaja el agent, no
+  de su autor - así que un agent publicado por un Builder no puede invitar a un
+  Admin sin preguntar en el run de un Owner. Su escudo no se puede desactivar, y
+  publicar rechaza `never` en cualquiera de las dos.
 
 La plantilla **AgenticOS** lo enlaza así, igual que cada agent creado desde cero,
 de modo que un agent consulta la plataforma desde el principio - y configura una

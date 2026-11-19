@@ -116,7 +116,7 @@ describe("the platform's tools, grouped by what they work on", () => {
     });
   });
 
-  it("leaves the write no policy holds out of its group's choice", async () => {
+  it("leaves the tools whose approval is fixed out of their group's choice", async () => {
     const onChange = vi.fn();
     const account: PlatformMcpTool[] = [
       { name: "whoami", description: "Who is asking.", group: "account", writes: false },
@@ -127,16 +127,59 @@ describe("the platform's tools, grouped by what they work on", () => {
         writes: true,
         ungated: true,
       },
+      {
+        name: "invite_member",
+        description: "Invite a member.",
+        group: "account",
+        writes: true,
+        always_asks: true,
+      },
     ];
-    render(<Harness tools={account} onChange={onChange} />);
+    render(
+      <Harness
+        tools={account}
+        initial={{ ...BINDING, tool_approval: { invite_member: "never" } }}
+        onChange={onChange}
+      />,
+    );
     const choice = () => within(group("Organization and account")).getByRole("combobox");
+    const invite = screen.getByRole("button", { name: "Ask first before invite_member" });
+    expect(invite).toBeDisabled();
+    expect(invite).toHaveAttribute("aria-pressed", "true");
+    expect(invite).toHaveAttribute("title", "always asks: it changes who has authority here");
 
+    // Every read asking is the default `all`, so a read added later asks too; the
+    // `never` nobody may set on inviting is not carried forward.
     await userEvent.click(choice());
     await userEvent.click(screen.getByRole("option", { name: "Ask first" }));
-
-    const whoami = { whoami: "required" };
-    expect(onChange).toHaveBeenLastCalledWith({ ...BINDING, tool_approval: whoami });
+    expect(onChange).toHaveBeenLastCalledWith({ ...BINDING, approval: "all" });
     expect(choice()).toHaveTextContent("Ask first");
+  });
+
+  it("goes back to `writes` once one read runs freely again", async () => {
+    const onChange = vi.fn();
+    render(<Harness initial={{ ...BINDING, approval: "all" }} onChange={onChange} />);
+
+    const shield = screen.getByRole("button", { name: "Ask first before list_agents" });
+    await userEvent.click(shield);
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...BINDING,
+      tool_approval: { query_virtual_table: "required" },
+    });
+  });
+
+  it("drops a tool's own approval when the tool is no longer chosen", async () => {
+    const onChange = vi.fn();
+    const initial = { ...BINDING, tool_approval: { run_agent: "never" as const } };
+    render(<Harness initial={initial} onChange={onChange} />);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "run_agent" }));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...BINDING,
+      allowed_tools: ["add_virtual_table_record", "query_virtual_table", "list_agents"],
+    });
   });
 
   it("reads a binding saved as `none` the way the server does - changes ask", () => {

@@ -10,7 +10,8 @@ it will be refused. Nothing here touches a credential. What deletes is undoing a
 agent draft its caller owns and never published, and removing a routine; what
 publishes is `publish_agent`, and `accept_improvement` when the person asked to
 publish, each held for the person's approval like every write here but
-`UNGATED` (#2301).
+`UNGATED` (#2301). `ALWAYS_ASKS` are held even where a binding names them
+`never`.
 """
 
 import json as json_module
@@ -62,11 +63,23 @@ UNGATED = frozenset({"set_my_language"})
 Changing the console's language changes the person asking's own account on their
 own word, and Settings undoes it. Persistent routine/watch changes retain their
 binding's write gate: private-human identity alone is not consent to model output.
-Publishing, inviting, deletion and running now keep their normal approval policies.
+Publishing, deletion and running now keep their normal approval policies, and
+inviting is held always - see `ALWAYS_ASKS`.
 `set_my_profile` is not here: what it saves is told to
 every agent the person runs, in every organization, so a page an agent read must
 not be able to write it unseen. `app.agents.mcp` names the same set as
 `PLATFORM_UNGATED_TOOLS`, and a test holds the two equal.
+"""
+
+ALWAYS_ASKS = frozenset({"invite_member", "update_proactivity_settings"})
+"""Writes every binding holds for the person's approval, a tool's own `never` included.
+
+They widen who has authority in the organization - a member and their role, the
+organization's initiative and what it may spend - and they run with the authority
+of whoever the agent runs for, not of whoever published it. A Builder must not be
+able to publish an agent that makes an Owner's run invite an Admin unasked.
+`app.agents.mcp` names the same set as `PLATFORM_ALWAYS_ASK_TOOLS`, and a test
+holds the two equal.
 """
 
 
@@ -215,6 +228,11 @@ class PlatformTool:
     def ungated(self) -> bool:
         """Whether no binding holds a call to it for approval - see `UNGATED`."""
         return self.name in UNGATED
+
+    @property
+    def always_asks(self) -> bool:
+        """Whether every binding holds a call to it for approval - see `ALWAYS_ASKS`."""
+        return self.name in ALWAYS_ASKS
 
     @property
     def summary(self) -> str:

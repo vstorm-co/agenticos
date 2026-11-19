@@ -1,5 +1,5 @@
 ---
-source_sha: "ebae77dba31c"
+source_sha: "196f52ebd277"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1438,7 +1438,15 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
   Die Spec speichert die eigene Einstellung eines Werkzeugs im `tool_approval` des
   Bindings, unter dem Namen des Werkzeugs; das Veröffentlichen lehnt einen Namen
   ab, den die Plattform nicht anbietet. Eine Änderung ohne Rückfrage zuzulassen
-  betrifft nur dieses Werkzeug: Die Voreinstellung des Bindings bleibt `writes`.
+  betrifft nur dieses Werkzeug: Die Voreinstellung des Bindings bleibt `writes`,
+  oder `all`, sobald jeder Lesezugriff fragt, sodass auch ein später von der
+  Plattform hinzugefügter Lesezugriff fragt.
+- **Manche Werkzeuge fragen immer.** `invite_member` und
+  `update_proactivity_settings` ändern, wer in der Organisation Befugnisse hat,
+  und laufen mit den Rechten der Person, für die der Agent läuft, nicht seines
+  Autors - ein von einem Builder veröffentlichter Agent kann also im Run eines
+  Owners keinen Admin ohne Rückfrage einladen. Ihr Schild lässt sich nicht
+  ausschalten, und das Veröffentlichen lehnt `never` für beide ab.
 
 Die Vorlage **AgenticOS** bindet ihn genau so, ebenso jeder von Grund auf
 angelegte Agent, sodass ein Agent die Plattform sofort nachschlagen kann - und eine

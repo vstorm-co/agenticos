@@ -965,6 +965,7 @@
     "newStarter": "Neue erste Nachricht",
     "newStarterPlaceholder": "Wobei kannst du mir helfen?",
     "addStarter": "Hinzufügen",
+    "platformAlwaysAsksBadge": "fragt immer: ändert, wer hier Befugnisse hat",
     "platformUngatedBadge": "eigene Einstellung, ohne Freigabe",
     "noKeyForEndpoint": "Kein Schlüssel - der Endpunkt braucht keinen",
     "notAChatModel": "kein Chat-Modell",

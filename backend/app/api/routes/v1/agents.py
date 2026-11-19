@@ -257,6 +257,7 @@ async def list_platform_mcp_tools() -> Any:
             group=tool.group,
             writes=tool.writes,
             ungated=tool.ungated,
+            always_asks=tool.always_asks,
         )
         for tool in platform_tool_catalog()
     ]

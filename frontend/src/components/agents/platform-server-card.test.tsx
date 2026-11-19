@@ -129,6 +129,16 @@ describe("the AgenticOS server in the Builder", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("does not count a tool the agent cannot call as running freely", () => {
+    const binding = {
+      ...NEW_PLATFORM_BINDING,
+      allowed_tools: ["list_agents"],
+      tool_approval: { run_agent: "never" as const },
+    };
+    render(<Harness initial={binding} onChange={vi.fn()} />);
+    expect(screen.getByText("Asks before any change")).toBeInTheDocument();
+  });
+
   it("says a binding that asks before every call does", () => {
     render(<Harness initial={{ ...NEW_PLATFORM_BINDING, approval: "all" }} onChange={vi.fn()} />);
     expect(screen.getByText("Asks before every call")).toBeInTheDocument();

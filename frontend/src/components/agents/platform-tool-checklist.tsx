@@ -58,10 +58,12 @@ export function withToolApproval(
  * tools, and every tool with its own beside it.
  *
  * Unlike another server's reads and changes, a group here mixes the two, so the
- * group's choice is written to each of its tools rather than to the binding's
- * default: that stays `writes`, and letting a change run freely is always a
- * decision about one named tool. A tool that changes something carries an icon
- * saying so; one that never asks - the person's own language - cannot be set.
+ * group's choice is written to each of its tools, and letting a change run
+ * freely is always a decision about one named tool. The binding's default is
+ * `all` while every read asks, so a read the platform adds later asks too, and
+ * `writes` otherwise. A tool that changes something carries an icon saying so;
+ * one that never asks - the person's own language - and one that always does -
+ * inviting a member, the organization's initiative - cannot be set.
  */
 export function PlatformToolChecklist({
   tools,
@@ -77,46 +79,68 @@ export function PlatformToolChecklist({
   const t = useTranslations("agents");
   const [query, setQuery] = useState("");
   const ungatedNames = new Set(tools.filter((tool) => tool.ungated).map((tool) => tool.name));
+  const alwaysNames = new Set(tools.filter((tool) => tool.always_asks).map((tool) => tool.name));
   const approval = floor(binding.approval);
   const toolApproval = binding.tool_approval ?? {};
   const chosen = new Set(binding.allowed_tools ?? tools.map((tool) => tool.name));
   const needle = query.trim().toLowerCase();
 
   const ungated = (info: McpToolInfo) => ungatedNames.has(info.name);
-  const asks = (info: McpToolInfo) => !ungated(info) && asksFirst(info, approval, toolApproval);
-  /** The approval a tool has with nothing of its own - what its group falls back to. */
-  const byDefault = (info: McpToolInfo) => asksFirst(info, approval, {});
+  const alwaysAsks = (info: McpToolInfo) => alwaysNames.has(info.name);
+  const settable = (info: McpToolInfo) => !ungated(info) && !alwaysAsks(info);
+  const asks = (info: McpToolInfo) =>
+    alwaysAsks(info) || (!ungated(info) && asksFirst(info, approval, toolApproval));
 
   const toggle = (names: string[], on: boolean) => {
     const next = new Set(chosen);
+    const own = { ...toolApproval };
     for (const name of names) {
       if (on) next.add(name);
-      else next.delete(name);
+      else {
+        next.delete(name);
+        // A tool the agent cannot call has no approval worth keeping or reporting.
+        delete own[name];
+      }
     }
-    onChange({
-      ...binding,
-      // Every tool chosen is "no limit", so a tool added to the server later is
-      // offered to an agent whose author never narrowed the list.
-      allowed_tools:
-        next.size === tools.length
-          ? null
-          : tools.map((tool) => tool.name).filter((name) => next.has(name)),
-    });
+    onChange(
+      withToolApproval(
+        {
+          ...binding,
+          // Every tool chosen is "no limit", so a tool added to the server later is
+          // offered to an agent whose author never narrowed the list.
+          allowed_tools:
+            next.size === tools.length
+              ? null
+              : tools.map((tool) => tool.name).filter((name) => next.has(name)),
+        },
+        own,
+      ),
+    );
   };
-  /** These tools set to ask or not, each kept only where it differs from its default. */
+  /**
+   * These tools set to ask or not. The default becomes `all` when every read
+   * then asks, and each tool keeps its own approval only where it differs.
+   */
   const setAsks = (infos: McpToolInfo[], ask: boolean) => {
-    const next = { ...toolApproval };
-    for (const info of infos) {
-      if (ungated(info)) continue;
-      delete next[info.name];
-      if (ask !== byDefault(info)) next[info.name] = ask ? "required" : "never";
+    const changed = new Set(infos.map((info) => info.name));
+    const wanted = tools
+      .map(asInfo)
+      .filter(settable)
+      .map((info) => ({ info, asking: changed.has(info.name) ? ask : asks(info) }));
+    const everyReadAsks = wanted.every(({ info, asking }) => asking || info.read_only !== true);
+    const nextDefault: McpApproval = everyReadAsks ? "all" : "writes";
+    const own: McpToolApproval = {};
+    for (const { info, asking } of wanted) {
+      if (asking !== asksFirst(info, nextDefault, {})) {
+        own[info.name] = asking ? "required" : "never";
+      }
     }
-    onChange(withToolApproval(binding, next));
+    onChange(withToolApproval({ ...binding, approval: nextDefault }, own));
   };
   const summary = (infos: McpToolInfo[]): GroupApproval => {
-    const settable = infos.filter((info) => !ungated(info));
-    const asking = settable.filter(asks).length;
-    return asking === 0 ? "run" : asking === settable.length ? "ask" : "mixed";
+    const open = infos.filter(settable);
+    const asking = open.filter(asks).length;
+    return asking === 0 ? "run" : asking === open.length ? "ask" : "mixed";
   };
 
   const groups = GROUP_ORDER.map((group) => {
@@ -160,7 +184,13 @@ export function PlatformToolChecklist({
           onToggle={toggle}
           prefix={null}
           changes={(info) => info.read_only !== true}
-          fixed={(info) => (ungated(info) ? t("platformUngatedBadge") : null)}
+          fixed={(info) =>
+            ungated(info)
+              ? t("platformUngatedBadge")
+              : alwaysAsks(info)
+                ? t("platformAlwaysAsksBadge")
+                : null
+          }
           disabled={disabled}
         />
       ))}

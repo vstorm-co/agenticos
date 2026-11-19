@@ -911,6 +911,13 @@ class PlatformMcpTool(BaseSchema):
             "only the caller's own preference, such as the console's language"
         ),
     )
+    always_asks: bool = Field(
+        default=False,
+        description=(
+            "Whether every binding asks before it, whatever the binding or the tool's own "
+            "approval says - a write that widens who has authority in the organization"
+        ),
+    )
     held: bool = Field(
         default=False,
         description=(

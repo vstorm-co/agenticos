@@ -628,6 +628,27 @@ class TestApprovalMarks:
         }
 
     @pytest.mark.security
+    def test_a_stored_never_cannot_release_a_tool_that_always_asks(self):
+        """Publishing refuses one; a spec that reached the store another way asks anyway."""
+        from app.agents.mcp import platform_spec
+
+        platform = platform_spec(
+            "aos_key",
+            allowed_tools=None,
+            approval="writes",
+            tool_approval={
+                "invite_member": "never",
+                "update_proactivity_settings": "required",
+                "add_virtual_table_record": "never",
+            },
+        )
+
+        assert platform.tool_approval == {
+            "update_proactivity_settings": "required",
+            "add_virtual_table_record": "never",
+        }
+
+    @pytest.mark.security
     @pytest.mark.parametrize(
         ("policy", "read_only", "own", "expected"),
         [

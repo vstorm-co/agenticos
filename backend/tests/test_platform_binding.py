@@ -172,6 +172,24 @@ class TestPublishing:
             "This platform's server has no tool named add_table_row to set approval for"
         ]
 
+    @pytest.mark.security
+    async def test_a_tool_that_widens_authority_cannot_be_published_to_run_freely(self) -> None:
+        """Codex on #3172: a Builder's agent, run by an Owner, invited an Admin unasked."""
+        registry = AgentRegistryService(MagicMock())
+
+        def binding(mode: str) -> list[PlatformMcpServerRef]:
+            approvals = {"invite_member": mode, "update_proactivity_settings": mode}
+            return [PlatformMcpServerRef(account="platform", tool_approval=approvals)]
+
+        released = await registry._mcp_problems(CTX, binding("never"), taken={})
+        asked = await registry._mcp_problems(CTX, binding("required"), taken={})
+
+        assert released == [
+            "invite_member, update_proactivity_settings always asks the person the agent "
+            "runs for, so it cannot run freely"
+        ]
+        assert asked == []
+
 
 class TestTheStoredBinding:
     def test_a_binding_with_no_tool_of_its_own_stores_as_before(self) -> None:

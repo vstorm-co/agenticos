@@ -10142,6 +10142,7 @@
     "newStarter": "Nowa pierwsza wiadomość",
     "newStarterPlaceholder": "W czym możesz mi pomóc?",
     "addStarter": "Dodaj",
+    "platformAlwaysAsksBadge": "zawsze pyta: zmienia, kto ma tu uprawnienia",
     "platformUngatedBadge": "własne ustawienie, bez zgody",
     "noKeyForEndpoint": "Bez klucza - endpoint go nie wymaga",
     "notAChatModel": "to nie model czatu",

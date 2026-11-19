@@ -1419,6 +1419,15 @@ class TestWhatNeverWaitsForApproval:
 
         assert PLATFORM_UNGATED_TOOLS == UNGATED
 
+    def test_the_agent_layer_names_the_same_tools_that_always_ask(self) -> None:
+        from app.agents.mcp import PLATFORM_ALWAYS_ASK_TOOLS
+        from app.services.platform_mcp._tools import ALWAYS_ASKS
+
+        assert PLATFORM_ALWAYS_ASK_TOOLS == ALWAYS_ASKS
+        catalog = {tool.name: tool for tool in platform_tool_catalog()}
+        assert all(catalog[name].writes and catalog[name].always_asks for name in ALWAYS_ASKS)
+        assert not catalog["add_virtual_table_record"].always_asks
+
 
 def _token() -> AccessToken:
     return AccessToken(token="aos_0123abcdsecret", client_id="aos_0123abcd", scopes=[])

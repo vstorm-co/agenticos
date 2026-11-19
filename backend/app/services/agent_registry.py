@@ -1260,21 +1260,33 @@ permission is a change, which only the step makes."""
 
 
 def _platform_tool_approval_problems(ref: PlatformMcpServerRef) -> list[str]:
-    """A per-tool approval naming a tool this platform's server does not offer.
+    """A per-tool approval the platform cannot honour as written.
 
-    The same silence as a capability's mistyped `tool_approval`: the tool the
-    author meant to gate, or to let run, behaves as the binding's default and
-    nobody is told.
+    A name its server does not offer is the same silence as a capability's
+    mistyped `tool_approval`: the tool the author meant to gate, or to let run,
+    behaves as the binding's default and nobody is told. A `never` on a tool that
+    always asks would be dropped at run time just as silently.
     """
     # Imported here: the platform's tools reach workflow execution, whose node
     # handlers import this module back.
     from app.services.platform_mcp import platform_tool_catalog
 
-    offered = {tool.name for tool in platform_tool_catalog()}
-    unknown = sorted(set(ref.tool_approval) - offered)
-    if not unknown:
-        return []
-    return [f"This platform's server has no tool named {', '.join(unknown)} to set approval for"]
+    catalog = platform_tool_catalog()
+    offered = {tool.name for tool in catalog}
+    always = {tool.name for tool in catalog if tool.always_asks}
+    problems: list[str] = []
+    if unknown := sorted(set(ref.tool_approval) - offered):
+        problems.append(
+            f"This platform's server has no tool named {', '.join(unknown)} to set approval for"
+        )
+    if released := sorted(
+        name for name, mode in ref.tool_approval.items() if mode == "never" and name in always
+    ):
+        problems.append(
+            f"{', '.join(released)} always asks the person the agent runs for, "
+            "so it cannot run freely"
+        )
+    return problems
 
 
 class AgentRegistryService:

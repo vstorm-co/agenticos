@@ -1,5 +1,5 @@
 ---
-source_sha: "ebae77dba31c"
+source_sha: "196f52ebd277"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1377,7 +1377,13 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
   przechowuje własne ustawienie narzędzia w `tool_approval` powiązania, pod nazwą
   narzędzia; publikacja odrzuca nazwę, której platforma nie oferuje. Zgoda na
   zmianę bez pytania dotyczy tylko tego narzędzia: domyślne ustawienie powiązania
-  pozostaje `writes`.
+  pozostaje `writes` albo staje się `all`, gdy pytają wszystkie odczyty, więc
+  odczyt dodany później do platformy też pyta.
+- **Niektóre narzędzia zawsze pytają.** `invite_member` i
+  `update_proactivity_settings` zmieniają, kto ma uprawnienia w organizacji, a
+  działają z uprawnieniami osoby, dla której agent działa, nie jego autora - więc
+  agent opublikowany przez Buildera nie zaprosi Admina bez pytania w runie
+  Ownera. Ich tarczy nie da się wyłączyć, a publikacja odrzuca dla nich `never`.
 
 Szablon **AgenticOS** wiąże go właśnie tak, podobnie jak każdy agent tworzony od
 zera, więc agent od razu sięga do platformy - i ustawia rutynę albo przełącza język

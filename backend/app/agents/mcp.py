@@ -869,6 +869,12 @@ Named again rather than imported: the platform's server imports the application,
 which imports this layer.
 """
 
+PLATFORM_ALWAYS_ASK_TOOLS = frozenset({"invite_member", "update_proactivity_settings"})
+"""The platform's writes no binding lets run unasked - `platform_mcp._tools.ALWAYS_ASKS`.
+
+Named again for the same reason as `PLATFORM_UNGATED_TOOLS`.
+"""
+
 PLATFORM_MCP_URL = "http://agenticos/mcp"
 """Where the in-process client addresses `/mcp`. The host is never resolved."""
 
@@ -880,14 +886,24 @@ def platform_spec(
     approval: McpApproval,
     tool_approval: Mapping[str, ApprovalMode] | None = None,
 ) -> McpServerSpec:
-    """This deployment's own MCP server, as the holder of `credential`."""
+    """This deployment's own MCP server, as the holder of `credential`.
+
+    A `never` on a tool in `PLATFORM_ALWAYS_ASK_TOOLS` is dropped, so the tool
+    falls back to the default, which holds every write: publishing refuses one,
+    and this keeps a spec that reached the store another way from releasing it.
+    """
+    own = {
+        name: mode
+        for name, mode in (tool_approval or {}).items()
+        if not (mode == "never" and name in PLATFORM_ALWAYS_ASK_TOOLS)
+    }
     return McpServerSpec(
         name=PLATFORM_MCP_NAME,
         url=PLATFORM_MCP_URL,
         headers={"Authorization": f"Bearer {credential}"},
         allowed_tools=allowed_tools,
         approval=approval,
-        tool_approval=dict(tool_approval or {}),
+        tool_approval=own,
         in_process=True,
         ungated=PLATFORM_UNGATED_TOOLS,
     )

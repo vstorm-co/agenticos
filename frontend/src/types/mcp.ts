@@ -123,6 +123,8 @@ export interface PlatformMcpTool {
   writes: boolean;
   /** Runs without approval under every policy: it changes only the caller's own preference. */
   ungated?: boolean;
+  /** Asks under every binding, its own `never` included: it widens who has authority. */
+  always_asks?: boolean;
   /** A read held for approval all the same: it releases a whole past conversation. */
   held?: boolean;
 }

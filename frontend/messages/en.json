@@ -965,6 +965,7 @@
     "newStarter": "New first message",
     "newStarterPlaceholder": "What can you help me with?",
     "addStarter": "Add",
+    "platformAlwaysAsksBadge": "always asks: it changes who has authority here",
     "platformUngatedBadge": "your own setting, never asks",
     "noKeyForEndpoint": "No key - the endpoint needs none",
     "notAChatModel": "not a chat model",
