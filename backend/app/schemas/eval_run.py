@@ -256,6 +256,19 @@ class ArmSummaryRead(BaseSchema):
         )
     )
     first_pass_rate: float | None = Field(description="The pass rate of the first attempts alone")
+    criteria_passed: int = Field(
+        default=0, description="First answers' required criteria that passed, over every case"
+    )
+    criteria_graded: int = Field(
+        default=0, description="First answers' required criteria that decided, over every case"
+    )
+    partial_credit: float | None = Field(
+        default=None,
+        description=(
+            "The mean share of each case's decided criteria its first answer passed - a case "
+            "passing six of seven counts 6/7; null with no criterion decided"
+        ),
+    )
     cost_usd: Decimal
     cost_per_pass_usd: Decimal | None
     avg_tokens: float | None
@@ -590,6 +603,14 @@ class CaseFlipRead(BaseSchema):
     candidate_error: str | None = Field(
         default=None,
         description="Why the candidate's first answer failed, when its run crashed rather than answered",
+    )
+    baseline_criteria: list[int] | None = Field(
+        default=None,
+        description="The baseline's first answer as [criteria passed, criteria decided]",
+    )
+    candidate_criteria: list[int] | None = Field(
+        default=None,
+        description="The candidate's first answer as [criteria passed, criteria decided]",
     )
 
 

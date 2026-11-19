@@ -137,6 +137,7 @@ from app.services.eval_comparison import (
     Outcome,
     PairedCase,
     PairedGrades,
+    criteria_count,
     criterion_moves,
     efficiency,
     families,
@@ -461,7 +462,16 @@ def _summary_read(summary: ArmSummary) -> ArmSummaryRead:
         avg_tokens=summary.avg_tokens,
         p50_ms=summary.p50_ms,
         p95_ms=summary.p95_ms,
+        criteria_passed=summary.criteria_passed,
+        criteria_graded=summary.criteria_graded,
+        partial_credit=summary.partial_credit,
     )
+
+
+def _counted(graded: tuple[Grades, tuple[Grades, ...]] | None) -> list[int] | None:
+    """A case's first answer as `[passed, decided]` criteria, for a person to read."""
+    counted = None if graded is None else criteria_count(graded[0])
+    return None if counted is None else list(counted)
 
 
 def _attempt(
@@ -486,6 +496,7 @@ def _attempt(
         tags=tuple(tags),
         reruns=tuple(reruns),
         by_person=score is not None and score.human_passed is not None,
+        criteria=None if score is None else criteria_count(grades(score.results)),
     )
 
 
@@ -2989,6 +3000,8 @@ class EvalRunService:
                     candidate_reruns=list(c.candidate_reruns),
                     tags=list(c.tags),
                     candidate_error=crashed.get(c.case_id),
+                    baseline_criteria=_counted(their_grades.get(c.case_id)),
+                    candidate_criteria=_counted(my_grades.get(c.case_id)),
                 )
                 for c in paired_cases
             ],

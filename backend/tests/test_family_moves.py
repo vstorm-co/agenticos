@@ -10,13 +10,16 @@ import pytest
 
 from app.services.eval_comparison import (
     MIN_FAMILY_CASES,
+    Attempt,
     FamilyMove,
     PairedGrades,
+    criteria_count,
     families,
     family_flipped,
     family_moves,
     family_of,
     family_outcomes,
+    summarize,
 )
 
 ALPHA = 0.05
@@ -190,3 +193,26 @@ class TestFamilyFlipped:
         assert family_flipped(before, after, _NAMED, {"total including VAT"})
         assert not family_flipped(before, after, _NAMED, {"Payment terms stated"})
         assert not family_flipped(before, before, _NAMED, {"total including VAT", _PRICE[1]})
+
+
+class TestPartialCredit:
+    def test_a_question_passing_six_of_seven_criteria_counts_six_sevenths(self) -> None:
+        attempts = [
+            Attempt(outcome=False, criteria=(6, 7)),
+            Attempt(outcome=True, criteria=(3, 3)),
+            Attempt(outcome=None, ungraded=True),
+        ]
+
+        summary = summarize(attempts)
+
+        assert (summary.pass_rate, summary.criteria_passed, summary.criteria_graded) == (
+            0.5,
+            9,
+            10,
+        )
+        assert summary.partial_credit == pytest.approx((6 / 7 + 1) / 2)
+        assert summarize([Attempt(outcome=None)]).partial_credit is None
+
+    def test_only_decided_criteria_are_counted(self) -> None:
+        assert criteria_count({_PRICE: True, _TERMS: None, _vat("1"): False}) == (1, 2)
+        assert criteria_count({_TERMS: None}) is None

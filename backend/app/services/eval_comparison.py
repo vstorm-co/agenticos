@@ -256,6 +256,9 @@ class Attempt:
     """Undecided because nothing could grade it, rather than because something failed."""
     crashed: bool = False
     """The agent's run failed before it answered, rather than answering wrong."""
+    criteria: tuple[int, int] | None = None
+    """Of the first answer's required criteria that decided, how many passed and how many
+    there were; `None` with none decided."""
 
     @property
     def settled(self) -> Outcome:
@@ -282,6 +285,10 @@ class ArmSummary:
         avg_tokens: Mean tokens per attempt that recorded any.
         p50_ms: Median latency.
         p95_ms: 95th percentile latency.
+        criteria_passed: First answers' required criteria that passed, summed over cases.
+        criteria_graded: First answers' required criteria that decided, summed over cases.
+        partial_credit: The mean, over cases with a criterion decided, of the share of
+            its criteria that passed - a question passing six of seven counts 6/7.
         by_tag: The same summary per tag.
     """
 
@@ -298,6 +305,9 @@ class ArmSummary:
     avg_tokens: float | None
     p50_ms: float | None
     p95_ms: float | None
+    criteria_passed: int = 0
+    criteria_graded: int = 0
+    partial_credit: float | None = None
     by_tag: dict[str, ArmSummary] = field(default_factory=dict)
 
 
@@ -326,6 +336,7 @@ def summarize(attempts: Sequence[Attempt], *, with_tags: bool = True) -> ArmSumm
     cost = sum((a.cost_usd for a in attempts if a.cost_usd is not None), Decimal(0))
     tokens = [a.tokens for a in attempts if a.tokens is not None]
     latencies = [float(a.latency_ms) for a in attempts if a.latency_ms is not None]
+    criteria = [a.criteria for a in attempts if a.criteria is not None and a.criteria[1]]
     by_tag: dict[str, ArmSummary] = {}
     if with_tags:
         for tag in sorted({tag for a in attempts for tag in a.tags}):
@@ -344,6 +355,11 @@ def summarize(attempts: Sequence[Attempt], *, with_tags: bool = True) -> ArmSumm
         avg_tokens=sum(tokens) / len(tokens) if tokens else None,
         p50_ms=percentile(latencies, 0.5),
         p95_ms=percentile(latencies, 0.95),
+        criteria_passed=sum(passed for passed, _ in criteria),
+        criteria_graded=sum(graded for _, graded in criteria),
+        partial_credit=sum(passed / graded for passed, graded in criteria) / len(criteria)
+        if criteria
+        else None,
         by_tag=by_tag,
     )
 
@@ -740,3 +756,9 @@ def family_flipped(
         for family in among
         if family in before
     )
+
+
+def criteria_count(graded: Grades) -> tuple[int, int] | None:
+    """How many of an answer's decided criteria passed, and how many decided; `None` with none."""
+    decided = [outcome for outcome in graded.values() if outcome is not None]
+    return (sum(decided), len(decided)) if decided else None

@@ -1584,6 +1584,13 @@ async def test_a_family_that_moved_too_little_to_settle_is_asked_again(db) -> No
     assert (receipt.candidate_passed, receipt.fixed) == (0, 0)
     moved = {item.name: item for item in comparison.criteria}
     assert moved["contains '30 days'"].fixed_confirmed == 2
+    # Every question still fails, yet half its criteria now pass.
+    assert {tuple(case.baseline_criteria or ()) for case in comparison.cases} == {(0, 2)}
+    assert {tuple(case.candidate_criteria or ()) for case in comparison.cases} == {(1, 2)}
+    after, before = comparison.candidate_summary, comparison.baseline_summary
+    assert before is not None
+    assert (after.pass_rate, after.criteria_passed, after.criteria_graded) == (0.0, 2, 4)
+    assert (after.partial_credit, before.partial_credit) == (0.5, 0.0)
 
 
 async def test_a_criterion_that_moved_on_one_case_is_not_asked_again(db) -> None:
@@ -2685,7 +2692,17 @@ async def test_the_judges_run_names_the_eval_case_it_graded(db) -> None:
     score = await db.scalar(select(CaseScore).where(CaseScore.eval_run_id == run.id))
     assert score is not None
     judge_run = uuid.uuid4()
-    score.results = [*score.results, {"scorer": "judge", "judge_run_id": str(judge_run)}]
+    score.results = [
+        *score.results,
+        {
+            "scorer": "judge",
+            "name": "Tone",
+            "required": True,
+            "status": "pass",
+            "reason": "4/5: Polite",
+            "judge_run_id": str(judge_run),
+        },
+    ]
     await db.flush()
 
     link = await service.case_link(ctx, judge_run)
