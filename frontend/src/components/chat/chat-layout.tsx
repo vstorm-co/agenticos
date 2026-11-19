@@ -20,29 +20,25 @@ import { ConversationNotifications, WorkOn } from "./work-on";
 import { YourConnections } from "./your-connections";
 import { RememberedApprovals } from "./remembered-approvals";
 
-import { ChatHomePlacement, MainChatContext } from "./main-chat-context";
+import { MainChatContext } from "./main-chat-context";
 
 /** The main chat composition; embedded agent and Architect chats stay independent. */
 export function ChatLayout({
   children,
-  home = "below",
   steps,
 }: {
   children: ReactNode;
-  home?: "below" | "above" | "split";
   steps?: "timeline" | "cards";
 }) {
   return (
     <MainChatContext.Provider value={true}>
-      <ChatHomePlacement.Provider value={home}>
-        <div
-          className="chat-layout relative flex h-full min-h-0 flex-1 flex-col"
-          data-chat-layout
-          data-step-preview={steps}
-        >
-          <div className="chat-layout-content min-h-0 flex-1">{children}</div>
-        </div>
-      </ChatHomePlacement.Provider>
+      <div
+        className="chat-layout relative flex h-full min-h-0 flex-1 flex-col"
+        data-chat-layout
+        data-step-preview={steps}
+      >
+        <div className="chat-layout-content min-h-0 flex-1">{children}</div>
+      </div>
     </MainChatContext.Provider>
   );
 }

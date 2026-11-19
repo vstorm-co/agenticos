@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useId, useState, type HTMLAttributes, type ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, SlidersHorizontal, type LucideIcon } from "lucide-react";
 
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { useChanged } from "@/hooks/use-changed";
@@ -12,6 +12,8 @@ export const BuildSection = forwardRef<
   HTMLDivElement,
   HTMLAttributes<HTMLDivElement> & {
     title: string;
+    icon?: LucideIcon;
+    headerEnd?: ReactNode;
     description?: ReactNode;
     defaultOpen?: boolean;
     open?: boolean;
@@ -20,6 +22,8 @@ export const BuildSection = forwardRef<
 >(function BuildSection(
   {
     title,
+    icon: Icon = SlidersHorizontal,
+    headerEnd,
     description,
     defaultOpen = false,
     open: controlled,
@@ -38,7 +42,7 @@ export const BuildSection = forwardRef<
     <div
       ref={ref}
       data-slot="build-section"
-      className={cn("min-w-0 border-b last:border-b-0", className)}
+      className={cn("bg-card min-w-0 rounded-xl border", className)}
       {...props}
     >
       <NativeDisclosure
@@ -52,8 +56,11 @@ export const BuildSection = forwardRef<
         <summary
           aria-label={title}
           aria-describedby={description ? descriptionId : undefined}
-          className="focus-visible:outline-foreground/60 flex min-h-16 cursor-pointer list-none items-start gap-3 rounded-lg p-5 focus-visible:outline-2 focus-visible:outline-offset-[-2px] [&::-webkit-details-marker]:hidden"
+          className="focus-visible:outline-foreground/60 flex min-h-16 cursor-pointer list-none items-start gap-3 rounded-xl p-4 focus-visible:outline-2 focus-visible:outline-offset-[-2px] sm:p-5 [&::-webkit-details-marker]:hidden"
         >
+          <span className="bg-muted text-foreground/80 grid size-9 shrink-0 place-items-center rounded-lg">
+            <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
+          </span>
           <ChevronRight
             className="text-muted-foreground mt-0.5 size-4 shrink-0 transition-transform group-open/build:rotate-90 motion-reduce:transition-none"
             aria-hidden
@@ -69,8 +76,9 @@ export const BuildSection = forwardRef<
               </span>
             )}
           </span>
+          {headerEnd}
         </summary>
-        <div className="min-w-0 space-y-5 px-5 pb-5">{children}</div>
+        <div className="min-w-0 space-y-4 border-t p-4 sm:p-5">{children}</div>
       </NativeDisclosure>
     </div>
   );

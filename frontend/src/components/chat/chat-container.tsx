@@ -5,7 +5,6 @@ import { useWorkingStore } from "@/stores/working-store";
 import { onRemoteChange } from "@/lib/live-updates";
 import type { Mentionable } from "@/types/mention";
 import {
-  useContext,
   useEffect,
   useEffectEvent,
   useLayoutEffect,
@@ -31,7 +30,7 @@ import { AgentPicker, isChattable } from "./agent-picker";
 import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
-import { ChatHomePlacement, useMainChat } from "./main-chat-context";
+import { useMainChat } from "./main-chat-context";
 import { ChatHomeCarousel } from "./chat-home-carousel";
 import { PersonalModelConnection } from "./personal-model-connection";
 import { SheetRow } from "./composer-sheet";
@@ -1168,7 +1167,6 @@ function ChatUI({
   const composerFocusRequest = useConversationStore((state) => state.composerFocusRequest);
   const t = useTranslations("chat");
   const mainChat = useMainChat();
-  const homePlacement = useContext(ChatHomePlacement);
   const tDictation = useTranslations("chat.dictation");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
@@ -1723,13 +1721,8 @@ function ChatUI({
                   className="chat-home-starters chat-composer-suggestions mb-4"
                 />
               )}
-              {showWorkspaceHome && mainChat && !emptyState && homePlacement !== "below" && (
-                <div className="chat-home-hints">
-                  <ChatHomeCarousel
-                    suggestionsRef={setHomeHintsSlot}
-                    split={homePlacement === "split"}
-                  />
-                </div>
+              {showWorkspaceHome && mainChat && !emptyState && (
+                <ChatHomeCarousel suggestionsRef={setHomeHintsSlot} />
               )}
               <BackgroundTasks conversationId={conversationId} />
               <PlanStrip plan={plan} live={isProcessing} />
@@ -2034,11 +2027,6 @@ function ChatUI({
               )}
             </div>
           </div>
-          {showWorkspaceHome && !emptyState && mainChat && homePlacement === "below" && (
-            <div className="chat-home-hints mx-auto w-full max-w-5xl shrink-0 px-4 pb-4 sm:px-5">
-              <ChatHomeCarousel suggestionsRef={setHomeHintsSlot} />
-            </div>
-          )}
         </div>
         <FilePreviewDialog />
         {/* The browser shares the chat's width; a narrow chat opens it full screen. */}

@@ -110,7 +110,7 @@ export function ChatWelcome({
                     >
                       {suggestion.title}
                     </span>
-                    {suggestion.description !== "" && (
+                    {suggestionsSlot === undefined && suggestion.description !== "" && (
                       <span
                         className={cn(
                           "text-muted-foreground mt-0.5 block text-[13px] leading-relaxed",

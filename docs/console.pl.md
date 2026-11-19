@@ -1,10 +1,10 @@
 ---
-source_sha: "2e8ea526730f"
+source_sha: "7e44c5ec13bc"
 ---
 
 # Konsola { #the-console }
 
-Katalogi zasobów mają większe karty z ikoną, tytułem, opisem i osobną stopką statusu oraz akcji. Agenci, tabele, workflowy, bazy wiedzy, projekty, datasety, serwery MCP, skille, pliki kontekstu, Apps i grupy używają wspólnej ramki, zachowując własne akcje. W Builderze ustawienia od Model w dół są rozwijanymi sekcjami jednego panelu. Model jest początkowo otwarty; zwinięcie zachowuje edytory, a linki Voice otwierają odpowiednią sekcję.
+Katalogi zasobów mają większe karty z ikoną, tytułem, opisem i osobną stopką statusu oraz akcji. Agenci, tabele, workflowy, bazy wiedzy, projekty, datasety, serwery MCP, skille, pliki kontekstu, Apps i grupy używają wspólnej ramki, zachowując własne akcje. W Builderze ustawienia są dostępne w spójnych, rozwijanych kartach. Thinking i Answer format są częścią Model settings. First messages pokazuje wbudowane podpowiedzi, gdy agent nie ma własnych. Model jest początkowo otwarty; zwinięcie zachowuje edytory, a linki Voice otwierają odpowiednią sekcję.
 
 Organizacje mają wyszukiwanie po nazwie i slugu członkostwa, z liczbą wyników w tym samym pasku. Wyczyszczenie wyszukiwania przywraca pełną listę organizacji użytkownika.
 
@@ -129,9 +129,9 @@ Nieudany run pokazuje błąd oddzielnie od odpowiedzi agenta, poza zwijanymi nar
 
 Załączniki pozostają wewnątrz pola wiadomości w jednym przewijanym wierszu. Bezpieczne obrazy mają lokalną miniaturę podczas wysyłania; trwające wysyłanie wskazuje animowany wskaźnik bez wymyślonego procentu. Błędy odświeżania tematów w tle pozostają w osobnym rozwijanym panelu i nie pojawiają się w niewysłanej rozmowie. Podkreślenia kart i zaznaczenia segmentów płynnie przechodzą między opcjami; przy ograniczeniu animacji zmiana jest natychmiastowa.
 
-Nowy czat łączy Inbox i opublikowane propozycje wybranego agenta w jednej ręcznie przełączanej karuzeli pod polem wiadomości. Domyślnie pokazuje Inbox. Przyciski, strzałki i natywne przesuwanie przełączają strony bez przesuwania composera. Niższe ekrany mają mniejszą grafikę powitania i ciaśniejsze odstępy. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
+Nowy czat łączy Inbox i opublikowane propozycje wybranego agenta w jednej ręcznie przełączanej karuzeli nad polem wiadomości. Domyślnie pokazuje Inbox. Przyciski, strzałki i natywne przesuwanie przełączają strony bez przesuwania composera. Niższe ekrany mają ciaśniejsze odstępy. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
 
-Główny czat ma szersze pole wiadomości i animowaną grafikę obszaru roboczego. Biblioteka modeli pokazuje najpierw podłączonych dostawców, z logotypami i nazwami od wielkiej litery, oraz rozdziela katalog i zapisane modele. Kliknięcie modelu od razu go wybiera. Brakujące poświadczenia można dodać w formularzach Vaulta z poziomu wyboru modelu, również dla dostawców wymagających kilku pól; nadal obowiązują dotychczasowe uprawnienia i walidacja modeli. Mikrofon i przycisk wysyłania płynnie zmieniają stan podczas pisania. Tematy ze skrzynki pozostają pod polem wiadomości.
+Główny czat ma szerokie pole wiadomości. Biblioteka modeli pokazuje najpierw podłączonych dostawców, z logotypami i nazwami od wielkiej litery, oraz rozdziela katalog i zapisane modele. Kliknięcie modelu od razu go wybiera. Brakujące poświadczenia można dodać w formularzach Vaulta z poziomu wyboru modelu, również dla dostawców wymagających kilku pól; nadal obowiązują dotychczasowe uprawnienia i walidacja modeli. Mikrofon i przycisk wysyłania płynnie zmieniają stan podczas pisania.
 
 Wyszukiwanie rozmów obejmuje tytuły i indeksowaną treść wiadomości, także w dostępnych archiwach. Wyniki pokazują fragmenty tekstu, podświetlenia i liczbę pasujących wiadomości. Strzałki i Enter pozwalają otworzyć wynik. Błąd wyszukiwania ma przycisk ponowienia zamiast udawać brak wyników.
 

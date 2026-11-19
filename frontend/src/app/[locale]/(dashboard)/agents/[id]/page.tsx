@@ -12,6 +12,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   SlidersHorizontal,
+  FileText,
+  IdCard,
+  Tags,
   Wrench,
   ShieldCheck,
   Archive,
@@ -267,8 +270,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // A link from an eval run lands on the tab it names: its Evals, the History
   // comparing the two versions it measured, or Build with the publish asked for.
   const searchParams = useSearchParams();
-  const buildPreview = searchParams.get("layout");
-  const mcpPreview = searchParams.get("cards");
   const compareFrom = Number(searchParams.get("from")) || null;
   const testedRun = searchParams.get("run");
   const testedArm = searchParams.get("arm");
@@ -1706,13 +1707,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent
-            value="build"
-            className="mt-4 space-y-4"
-            data-build-preview={
-              buildPreview === "workspace" || buildPreview === "settings" ? buildPreview : undefined
-            }
-          >
+          <TabsContent value="build" className="mt-5 space-y-3">
             <Card data-tour="agent-instructions">
               <CardContent className="p-4 sm:p-5">
                 <InstructionsEditor
@@ -1726,6 +1721,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
                         data-tour="agent-instructions-header"
                         className="flex min-w-0 flex-1 items-center gap-1"
                       >
+                        <span className="bg-muted text-foreground/80 mr-2 grid size-9 shrink-0 place-items-center rounded-lg">
+                          <FileText className="size-[18px]" strokeWidth={1.75} aria-hidden />
+                        </span>
                         <CardTitle className="min-w-0 truncate text-sm">
                           {t("instructions")}
                         </CardTitle>
@@ -1761,10 +1759,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               onTimeZoneChange={(time_zone) => update({ time_zone })}
             />
 
-            <div
-              data-agent-build-settings
-              className="bg-card overflow-hidden rounded-2xl border [&>div]:rounded-none [&>div]:border-x-0 [&>div]:border-t-0 [&>div:last-child]:border-b-0"
-            >
+            <div data-agent-build-settings className="space-y-3">
               {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
               <BuildSection
@@ -1831,59 +1826,54 @@ export default function AgentBuilderPage({ params }: PageProps) {
                       disabled={!canEdit}
                       verdict={verdictKind(agent.kind)}
                     />
+                    {capabilities
+                      .filter((entry) => entry.id === THINKING_ID)
+                      .map((definition) => (
+                        <div key={definition.id} className="border-t pt-4">
+                          <ThinkingSetting
+                            definition={definition}
+                            binding={spec.capabilities.find(
+                              (binding) => binding.id === THINKING_ID,
+                            )}
+                            onToggle={() => toggleCapability(THINKING_ID)}
+                            onChange={updateCapability}
+                            disabled={!canEdit}
+                          />
+                        </div>
+                      ))}
+                    <div data-tour="agent-answer-format" className="space-y-3 border-t pt-4">
+                      <div>
+                        <h3 className="text-sm font-medium">{tAnswer("title")}</h3>
+                        <p className="text-muted-foreground text-xs">{tAnswer("description")}</p>
+                      </div>
+                      <AnswerFormatForm
+                        value={spec.output_schema ?? null}
+                        onChange={(output_schema) => update({ output_schema })}
+                        disabled={!canEdit}
+                      />
+                    </div>
                   </MoreOptions>
                 </div>
               </BuildSection>
 
-              {capabilities
-                .filter((entry) => entry.id === THINKING_ID)
-                .map((definition) => (
-                  <BuildSection
-                    key={definition.id}
-                    title={definition.name}
-                    description={definition.description}
-                  >
-                    <ThinkingSetting
-                      definition={definition}
-                      binding={spec.capabilities.find((binding) => binding.id === THINKING_ID)}
-                      onToggle={() => toggleCapability(THINKING_ID)}
-                      onChange={updateCapability}
-                      disabled={!canEdit}
-                    />
-                  </BuildSection>
-                ))}
-              {
-                <>
-                  <BuildSection
-                    data-tour="agent-answer-format"
-                    title={tAnswer("title")}
-                    description={tAnswer("description")}
-                  >
-                    <AnswerFormatForm
-                      value={spec.output_schema ?? null}
-                      onChange={(output_schema) => update({ output_schema })}
-                      disabled={!canEdit}
-                    />
-                  </BuildSection>
-
-                  <VoiceCard
-                    collapsible
-                    value={spec.speech_to_text}
-                    onChange={(speech_to_text) => update({ speech_to_text })}
-                    conversation={{
-                      agentId: id,
-                      value: spec.voice,
-                      onChange: (voice) => update({ voice }),
-                      hasGuardrails: spec.capabilities.some(
-                        (binding) => binding.id === "guardrails" && binding.enabled !== false,
-                      ),
-                    }}
-                    disabled={!canEdit}
-                  />
-                </>
-              }
-
+              <VoiceCard
+                collapsible
+                value={spec.speech_to_text}
+                onChange={(speech_to_text) => update({ speech_to_text })}
+                conversation={{
+                  agentId: id,
+                  value: spec.voice,
+                  onChange: (voice) => update({ voice }),
+                  hasGuardrails: spec.capabilities.some(
+                    (binding) => binding.id === "guardrails" && binding.enabled !== false,
+                  ),
+                }}
+                disabled={!canEdit}
+              />
               <StartersPanel
+                draws={spec.capabilities.some(
+                  (binding) => binding.id === VISUALS_ID && binding.enabled !== false,
+                )}
                 starters={spec.starters ?? []}
                 icons={spec.starter_icons ?? {}}
                 titles={spec.starter_titles ?? {}}
@@ -1897,7 +1887,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               avatar, so it hangs off the same `canEdit` every other editing
               control on this page does. */}
               {canEdit && (
-                <BuildSection title={t("discovery")} description={t("discoveryHelp")}>
+                <BuildSection icon={Tags} title={t("discovery")} description={t("discoveryHelp")}>
                   <MetadataEditor
                     agentId={id}
                     categories={agent.categories ?? []}
@@ -1913,6 +1903,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 never breaks a delegation or an @mention wired to it. */}
               <BuildSection
                 data-tour="agent-identity"
+                icon={IdCard}
                 title={t("identity")}
                 description={t("identityHelp", { slug: agent.slug })}
                 defaultOpen={!spec.name.trim()}
@@ -1988,13 +1979,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             outside the deployment for - and the picker embeds the whole server
             catalog, so it pushed the capability workbench off the top of the
             screen on any organization with more than a handful of servers. */}
-          <TabsContent
-            value="mcp"
-            className="mt-4 space-y-4"
-            data-mcp-preview={
-              mcpPreview === "list" || mcpPreview === "tiles" ? mcpPreview : undefined
-            }
-          >
+          <TabsContent value="mcp" className="mt-5 space-y-4">
             <Card data-tour="agent-mcp">
               {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past

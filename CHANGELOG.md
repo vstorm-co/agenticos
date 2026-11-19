@@ -38,9 +38,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Tighten the chat greeting, MCP cards and model library. Keep history groups visible as the chat list grows, give nested fields a complete focus outline and let chat choose among a provider's available key profiles.
 
-- Combine new-chat Inbox and opening prompts in one manual carousel beneath the composer, starting on Inbox. Keep the input stationary and compact the greeting on short screens.
+- Combine new-chat Inbox and opening prompts in one light manual carousel above the composer, starting on Inbox. Keep the input stationary and compact the greeting on short screens.
 
-- Share larger resource gallery cards across agents, tables, workflows, knowledge bases, projects, datasets, MCP, skills, context, Apps and groups. Use persistent collapsible sections for the agent Builder settings, retaining Voice deep links and draft edits.
+- Share larger resource gallery cards across agents, tables, workflows, knowledge bases, projects, datasets, MCP, skills, context, Apps and groups. Use matching cards for the agent Builder settings, with Thinking and Answer format inside Model settings, visible default first messages, and Voice deep links.
 
 - Keep disclosure headers and capability artwork still while pressed, improve variable contrast in light mode, simplify conversation filters and open the Architect from the new-agent dialog footer without submitting a prompt.
 

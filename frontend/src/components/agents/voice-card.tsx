@@ -286,35 +286,41 @@ export function VoiceCard({
       </Tabs>
     </CardContent>
   );
+  const dictationAnchor = (
+    <span id={AGENT_DICTATION_ANCHOR} className="block scroll-mt-20" aria-hidden />
+  );
+  if (collapsible) {
+    return (
+      <BuildSection
+        id={AGENT_CALLS_ANCHOR}
+        data-tour="agent-voice"
+        className="scroll-mt-20"
+        icon={Headphones}
+        title={t("voiceTitle")}
+        description={t("voiceDescription")}
+        defaultOpen={
+          typeof window !== "undefined" &&
+          [`#${AGENT_CALLS_ANCHOR}`, `#${AGENT_DICTATION_ANCHOR}`].includes(window.location.hash)
+        }
+      >
+        {dictationAnchor}
+        {fields}
+      </BuildSection>
+    );
+  }
   return (
-    // The anchors the composer's call button and dictation hint link to.
     <Card id={AGENT_CALLS_ANCHOR} data-tour="agent-voice" className="scroll-mt-20">
-      <span id={AGENT_DICTATION_ANCHOR} className="block scroll-mt-20" aria-hidden />
-      {collapsible ? (
-        <BuildSection
-          title={t("voiceTitle")}
-          description={t("voiceDescription")}
-          defaultOpen={
-            typeof window !== "undefined" &&
-            ["#" + AGENT_CALLS_ANCHOR, "#" + AGENT_DICTATION_ANCHOR].includes(window.location.hash)
-          }
-        >
-          {fields}
-        </BuildSection>
-      ) : (
-        <>
-          <CardHeader className="flex-row items-start gap-3 space-y-0">
-            <span className="bg-foreground/[0.05] text-foreground/80 flex size-10 shrink-0 items-center justify-center rounded-xl">
-              <Headphones className="size-5" aria-hidden />
-            </span>
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <CardTitle>{t("voiceTitle")}</CardTitle>
-              <CardDescription>{t("voiceDescription")}</CardDescription>
-            </div>
-          </CardHeader>
-          {fields}
-        </>
-      )}
+      {dictationAnchor}
+      <CardHeader className="flex-row items-start gap-3 space-y-0">
+        <span className="bg-foreground/[0.05] text-foreground/80 flex size-10 shrink-0 items-center justify-center rounded-xl">
+          <Headphones className="size-5" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <CardTitle>{t("voiceTitle")}</CardTitle>
+          <CardDescription>{t("voiceDescription")}</CardDescription>
+        </div>
+      </CardHeader>
+      {fields}
     </Card>
   );
 }

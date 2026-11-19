@@ -14,7 +14,6 @@ import { cn } from "@/lib/utils";
 
 export default function ChatPage() {
   const params = useSearchParams();
-  const home = params.get("home");
   const steps = params.get("steps");
   const example = startGoal(params.get("example"));
   const requestedConversationId = params.get("id");
@@ -33,10 +32,7 @@ export default function ChatPage() {
           the buttons floating over it on a phone. */}
       <div className="relative min-w-0 flex-1 max-md:[&_[data-chat-scroller]]:scroll-pt-20 max-md:[&_[data-transcript]]:pt-20">
         <PhoneChatBar />
-        <ChatLayout
-          home={home === "above" || home === "split" ? home : "below"}
-          steps={steps === "timeline" || steps === "cards" ? steps : undefined}
-        >
+        <ChatLayout steps={steps === "timeline" || steps === "cards" ? steps : undefined}>
           <ChatContainer
             requestedConversationId={requestedConversationId}
             emptyState={

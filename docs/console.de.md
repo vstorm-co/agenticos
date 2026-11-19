@@ -1,10 +1,10 @@
 ---
-source_sha: "2e8ea526730f"
+source_sha: "7e44c5ec13bc"
 ---
 
 # Die Konsole { #the-console }
 
-Ressourcenkataloge verwenden größere Karten mit Symbol, Titel, Beschreibung und einer separaten Fußzeile für Status und Aktionen. Agenten, Tabellen, Workflows, Wissensbasen, Projekte, Datensätze, MCP-Server, Skills, Kontextdateien, Apps und Gruppen teilen diesen Rahmen und behalten ihre eigenen Aktionen. Im Agent Builder stehen die Einstellungen ab Model in aufklappbaren Abschnitten eines Panels. Model ist anfangs geöffnet; das Schließen erhält die Editoren, und Voice-Links öffnen den passenden Abschnitt.
+Ressourcenkataloge verwenden größere Karten mit Symbol, Titel, Beschreibung und einer separaten Fußzeile für Status und Aktionen. Agenten, Tabellen, Workflows, Wissensbasen, Projekte, Datensätze, MCP-Server, Skills, Kontextdateien, Apps und Gruppen teilen diesen Rahmen und behalten ihre eigenen Aktionen. Im Agent Builder stehen die Einstellungen in einheitlichen aufklappbaren Karten. Thinking und Answer format liegen in Model settings. First messages zeigt die eingebauten Vorschläge, wenn keine eigenen hinterlegt sind. Model ist anfangs geöffnet; das Schließen erhält die Editoren, und Voice-Links öffnen den passenden Abschnitt.
 
 Organisationen bietet eine Suche nach Namen und Slugs der Mitgliedschaften; die Trefferzahl steht in derselben Leiste. Leeren der Suche zeigt wieder alle Mitgliedschaften.
 
@@ -131,9 +131,9 @@ Ein fehlgeschlagener Chat-Run zeigt seinen Fehler getrennt von der Antwort und a
 
 Anhänge bleiben innerhalb des Eingabefelds in einer horizontal scrollbaren Zeile. Sichere Bilder zeigen beim Hochladen eine lokale Vorschau; ein Spinner zeigt laufende Uploads ohne erfundene Prozentangabe. Fehler beim Aktualisieren von Hintergrundthemen bleiben in einem eigenen aufklappbaren Bereich und erscheinen nie in einem noch nicht gesendeten Chat. Tab-Unterstreichungen und Segmentmarkierungen gleiten zwischen Optionen; bei reduzierter Bewegung wechselt die Auswahl sofort.
 
-Neue Chats bündeln Inbox und veröffentlichte Gesprächseinstiege des ausgewählten Agenten in einem manuell gesteuerten Karussell unter dem Eingabefeld. Zuerst erscheint Inbox. Benannte Schaltflächen, Pfeile und natives Wischen wechseln die Seiten, ohne das Eingabefeld zu verschieben. Niedrige Bildschirme verwenden eine kleinere Begrüßungsgrafik und engere Abstände. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
+Neue Chats bündeln Inbox und veröffentlichte Gesprächseinstiege des ausgewählten Agenten in einem manuell gesteuerten Karussell über dem Eingabefeld. Zuerst erscheint Inbox. Benannte Schaltflächen, Pfeile und natives Wischen wechseln die Seiten, ohne das Eingabefeld zu verschieben. Niedrige Bildschirme verwenden engere Abstände. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
 
-Der Hauptchat bietet ein breiteres Eingabefeld und animierte Arbeitsplatzgrafiken. Die Modellbibliothek zeigt verbundene Anbieter zuerst, mit Logos und großgeschriebenen Namen, und trennt Katalog und gespeicherte Modelle. Ein Klick wählt das Modell direkt aus. Fehlende Zugangsdaten lassen sich über die bestehenden Vault-Formulare im Auswahlfenster hinzufügen, auch mehrteilige Anbieterzugangsdaten. Berechtigungen und Modellvalidierung bleiben wirksam. Mikrofon und Senden wechseln beim Schreiben fließend. Posteingangsthemen bleiben unter dem Eingabefeld.
+Der Hauptchat bietet ein breites Eingabefeld. Die Modellbibliothek zeigt verbundene Anbieter zuerst, mit Logos und großgeschriebenen Namen, und trennt Katalog und gespeicherte Modelle. Ein Klick wählt das Modell direkt aus. Fehlende Zugangsdaten lassen sich über die bestehenden Vault-Formulare im Auswahlfenster hinzufügen, auch mehrteilige Anbieterzugangsdaten. Berechtigungen und Modellvalidierung bleiben wirksam. Mikrofon und Senden wechseln beim Schreiben fließend.
 
 Die Gesprächssuche durchsucht Titel und indexierte Nachrichtentexte, einschließlich lesbarer Archive. Ergebnisse zeigen Textauszüge mit hervorgehobenen Treffern und der Anzahl passender Nachrichten. Pfeiltasten und Enter öffnen ein Ergebnis. Suchfehler bieten eine Wiederholung, statt eine leere Liste vorzutäuschen.
 

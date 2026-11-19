@@ -1,9 +1,7 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import {
   Background,
-  BackgroundVariant,
   type Connection,
   Controls,
   ReactFlow,
@@ -107,7 +105,6 @@ const EMPTY_GRAPH: WorkflowGraph = {
  * Must render inside a `<ReactFlowProvider>` (the canvas shell supplies it).
  */
 export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps) {
-  const preview = useSearchParams()?.get("canvas");
   const t = useTranslations("workflows");
   const colorMode = useResolvedTheme();
   const narrow = useNarrowScreen();
@@ -464,7 +461,6 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
           tabIndex={-1}
           aria-label={t("canvasTitle")}
           data-workflow-region="canvas"
-          data-canvas-preview={preview === "grid" || preview === "paper" ? preview : undefined}
           data-connecting={connectSource !== null}
           onKeyDown={onKeyDown}
           onDragOver={onDragOver}
@@ -541,13 +537,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
               proOptions={{ hideAttribution: true }}
               aria-label={t("canvasGraphLabel")}
             >
-              {preview !== "paper" && (
-                <Background
-                  gap={preview === "grid" ? 24 : 28}
-                  size={1}
-                  variant={preview === "grid" ? BackgroundVariant.Lines : BackgroundVariant.Dots}
-                />
-              )}
+              <Background gap={28} size={1} />
               {/* Bottom-left, in a row with the minimap above it: the bottom-right
                   corner is the assistant's launcher on every dashboard page. */}
               <Controls showInteractive={false} position="bottom-left" orientation="horizontal" />

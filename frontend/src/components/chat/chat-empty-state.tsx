@@ -66,6 +66,16 @@ const VISUAL_PROMPTS = [
   { icon: MapPinned, id: "visualMap" },
 ] as const;
 
+export function useDefaultChatSuggestions(draws: boolean): WelcomeSuggestion[] {
+  const t = useTranslations("chat.empty");
+  return (draws ? VISUAL_PROMPTS : PROMPTS).map((p) => ({
+    key: p.id,
+    icon: p.icon,
+    title: t(`${p.id}Title`),
+    prompt: t(`${p.id}Prompt`),
+  }));
+}
+
 interface ChatEmptyStateProps {
   onPick: (prompt: string) => void;
   suggestionsSlot?: HTMLElement | null;
@@ -116,6 +126,7 @@ function Welcome({ agent, starters, loading, onPick, suggestionsSlot }: WelcomeP
   // The published list already carries capabilities; no second request for home hints.
   const draws = agent?.published_capabilities?.includes(VISUALS_ID) === true;
   const isStarter = agent?.slug === STARTER_SLUG;
+  const defaults = useDefaultChatSuggestions(draws);
   // Without first messages, an agent that draws opens on what it can draw (#2302).
   const suggestions: WelcomeSuggestion[] = starters.length
     ? starters.slice(0, 4).map((starter, index) => ({
@@ -125,12 +136,7 @@ function Welcome({ agent, starters, loading, onPick, suggestionsSlot }: WelcomeP
         prompt: starter,
         description: agent?.starter_titles?.[starter]?.trim() ? starter : "",
       }))
-    : (draws ? VISUAL_PROMPTS : PROMPTS).map((p) => ({
-        key: p.id,
-        icon: p.icon,
-        title: t(`${p.id}Title`),
-        prompt: t(`${p.id}Prompt`),
-      }));
+    : defaults;
 
   return (
     <ChatWelcome

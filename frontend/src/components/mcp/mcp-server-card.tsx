@@ -66,12 +66,11 @@ export function McpServerCard({
       role="group"
       aria-label={name}
       className={cn(
-        "h-auto min-h-0 self-start p-4 transition-colors",
+        "bg-muted h-full min-h-0 p-4 transition-colors",
         selected && "border-foreground/40",
         onOpen && "hover:border-foreground/25 cursor-pointer",
       )}
       data-tour={dataTour}
-      data-mcp-resource-card
       onClick={
         onOpen &&
         ((event) => {
@@ -80,7 +79,7 @@ export function McpServerCard({
         })
       }
     >
-      <div className="flex min-w-0 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <ResourceCardHeader>
           {/* A white tile in both themes: the logos are drawn for a light ground. */}
           <span className="border-foreground/10 grid size-10 shrink-0 place-items-center rounded-xl border bg-white">
@@ -107,7 +106,7 @@ export function McpServerCard({
         <ResourceCardDescription className="my-3 flex-none text-xs">
           {description}
         </ResourceCardDescription>
-        <ResourceCardFooter className="mt-0 min-h-8 min-w-0 pt-2.5">
+        <ResourceCardFooter className="mt-auto min-h-8 min-w-0 pt-2.5">
           <span className="text-muted-foreground flex min-w-0 flex-1 items-center gap-1.5 text-xs">
             {status}
           </span>

@@ -12,6 +12,14 @@ function panel(starters: string[], disabled = false) {
 }
 
 describe("StartersPanel", () => {
+  it("shows the visual fallbacks without writing them into the agent draft", () => {
+    const onChange = vi.fn();
+    render(<StartersPanel starters={[]} draws disabled={false} onChange={onChange} />);
+    expect(screen.getByText(/Show me in 3D how a plane turns/)).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "New first message" })).toHaveValue("");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("keeps existing first messages folded until their section is opened", async () => {
     render(<StartersPanel starters={["Keep this message"]} disabled={false} onChange={vi.fn()} />);
     expect(screen.getByLabelText("First message 1")).not.toBeVisible();
