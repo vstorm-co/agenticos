@@ -374,8 +374,12 @@ def judge(result: CheckResult) -> ImprovementVerdict:
         or result.suite is SuiteOutcome.INCONCLUSIVE
     ):
         return ImprovementVerdict.INCONCLUSIVE
-    if result.fixed_confirmed and result.candidate_pass_rate >= result.baseline_pass_rate:
-        return ImprovementVerdict.BETTER
+    if result.fixed_confirmed:
+        return (
+            ImprovementVerdict.BETTER
+            if result.candidate_pass_rate >= result.baseline_pass_rate
+            else ImprovementVerdict.NO_CHANGE
+        )
     if any(move.worse for move in result.criteria):
         return ImprovementVerdict.CRITERIA_WORSE
     if any(move.better for move in result.criteria):

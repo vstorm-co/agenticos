@@ -1068,6 +1068,26 @@ async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_acces
     # Redaction is per response; neither the stored detail nor an owner's later read loses it.
     assert attempt.verdict_detail["criteria"][0]["name"] == "private rubric text"
     assert (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail["criteria"]
+    # The stable ID remains authoritative when a historical display label is absent.
+    saved_detail = attempt.verdict_detail
+    attempt.verdict_detail = {
+        **saved_detail,
+        "criteria": [
+            {key: value for key, value in saved_detail["criteria"][0].items() if key != "skill"}
+        ],
+    }
+    await db.flush()
+    assert (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail["criteria"]
+    denied_source = replace(
+        ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.RUNS_VIEW, Perm.DATASETS_VIEW})
+    )
+    for response in (
+        await service.read(denied_source, agent.id, started.id),
+        *(await service.list_for_agent(denied_source, agent.id)),
+    ):
+        assert "criteria" not in response.iterations[0].verdict_detail
+    attempt.verdict_detail = saved_detail
+    await db.flush()
     original_name = skill.name
     skill.name = "renamed-original-owner"
     await db.flush()

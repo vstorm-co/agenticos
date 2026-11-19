@@ -78,7 +78,10 @@ class VerdictCriterion(BaseSchema):
     after: int
     fixed: int
     broken: int
-    skill_id: UUID | None = None
+    skill_id: UUID | None = Field(
+        default=None,
+        description="Original source identity, checked even when the optional display label is absent",
+    )
     skill: str | None = Field(
         default=None,
         description="The skill the session's improver put this still-failing criterion down to",

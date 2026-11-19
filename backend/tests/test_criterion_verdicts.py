@@ -510,3 +510,22 @@ def test_malformed_historical_attributions_authorize_no_identity(report):
     from app.services.improvement_states import criterion_skill_ids
 
     assert criterion_skill_ids([report]) == {}
+
+
+@pytest.mark.parametrize(
+    "moves", [(), _experiment(), (CriterionMove("check", "length", 40, 40, 9, 0, 31),)]
+)
+def test_confirmed_whole_question_movement_never_becomes_a_criterion_only_verdict(moves):
+    result = replace(
+        _no_question_flipped(*moves),
+        fixed_confirmed=1,
+        candidate_pass_rate=0.1,
+        baseline_pass_rate=0.5,
+    )
+    verdict = judge(result)
+    assert verdict is ImprovementVerdict.NO_CHANGE
+    transition = after_judging(
+        verdict, reruns_used=0, spent=Decimal(0), rerun_estimate=Decimal(0), budget=Decimal(1)
+    )
+    assert transition.status is ImprovementStatus.STOPPED
+    assert transition.stop_reason is StopReason.NO_CHANGE

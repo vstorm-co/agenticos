@@ -1,5 +1,5 @@
 ---
-source_sha: "1f44febbb5c4"
+source_sha: "32a6c0a170f0"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -362,7 +362,7 @@ Un criterio del juez puede aplicarse a todos los casos o solo a casos con alguna
 
 Los nombres de criterios, sus calificaciones y las atribuciones a skills requieren `runs:view`, acceso al dataset fijado para la sesión y a cada skill mencionado. Los detalles de una comprobación de skills requieren acceso a todos los datasets utilizados. Si alguna fuente está oculta o ya no existe, estos detalles se ocultan sin modificar los resultados guardados. Las notificaciones de resultados comprueban el acceso actual del destinatario antes de incluir los detalles de los criterios. Las notificaciones guardadas con criterios vuelven a comprobar estas fuentes al leer la bandeja y antes de una entrega retrasada; si falta la procedencia o se ha revocado el acceso, la notificación se oculta.
 
-Las fuentes de skills guardadas usan ID estables: cambiar el nombre conserva su identidad, mientras que eliminarlo y reutilizar el nombre nunca restablece el acceso a pruebas antiguas. Los detalles de criterios de sesión que nombran un skill sin su ID original también se ocultan.
+Las fuentes de skills guardadas usan ID estables: cambiar el nombre conserva su identidad, mientras que eliminarlo y reutilizar el nombre nunca restablece el acceso a pruebas antiguas. Los detalles de criterios de sesión que nombran un skill sin su ID original también se ocultan. El nombre visible opcional del skill no concede acceso: el ID original se comprueba también cuando falta su etiqueta.
 
 Las lecturas interactivas de comparaciones permiten hasta 30 solicitudes por persona y 60 por organización por minuto, con una comparación en ejecución por organización. La consola y la API comparten estos límites. Las solicitudes excesivas o simultáneas reciben HTTP 429 con `Retry-After`; los clientes deben esperar antes de reintentar. Redis compartido coordina los workers; durante una caída se conserva un límite local por worker. Los cambios manuales de veredicto en respuestas de evaluaciones comparten el mismo presupuesto y bloqueo, después de autorizar el acceso al dataset y antes de modificar la calificación o los resultados guardados.
 

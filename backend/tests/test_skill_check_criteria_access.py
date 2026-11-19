@@ -26,6 +26,7 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
         "skill",
         "identity",
         "id_only",
+        "id_only_readable",
         "missing_stage",
         "missing_run",
         "removed_history",
@@ -66,7 +67,7 @@ async def test_criterion_metadata_requires_all_sources(monkeypatch, denied):
     )
     if denied == "identity":
         del row.criteria[0]["skill_id"]
-    if denied == "id_only":
+    if denied in {"id_only", "id_only_readable"}:
         del row.criteria[0]["skill"]
     if denied in {"removed_history", "replaced_dataset"}:
         row.stages = [
@@ -101,8 +102,8 @@ async def test_criterion_metadata_requires_all_sources(monkeypatch, denied):
     stages = {agent.id: [] if denied == "missing_stage" else [Stage("dataset", dataset)]}
     reads, hidden, _ = await SkillCheckService(AsyncMock())._agent_reads(ctx, [row], stages)
     assert hidden == 0
-    assert bool(reads[0].criteria) is (denied is None)
+    assert bool(reads[0].criteria) is (denied in {None, "id_only_readable"})
     assert row.criteria[0]["name"] == "private rubric"
-    if denied is not None:
+    if denied not in {None, "id_only_readable"}:
         assert "private rubric" not in reads[0].model_dump_json()
         assert "private skill" not in reads[0].model_dump_json()

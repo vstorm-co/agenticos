@@ -324,7 +324,17 @@ async def test_an_invalid_comparison_is_not_used_as_measurement_noise(
 
 @pytest.mark.security
 @pytest.mark.parametrize(
-    "denied", ["runs", "dataset", "missing_dataset", "skill", "identity", "id_only", None]
+    "denied",
+    [
+        "runs",
+        "dataset",
+        "missing_dataset",
+        "skill",
+        "identity",
+        "id_only",
+        "id_only_readable",
+        None,
+    ],
 )
 async def test_criterion_metadata_needs_its_dataset_and_named_skill(service, monkeypatch, denied):
     pipeline, _, _ = service
@@ -348,7 +358,7 @@ async def test_criterion_metadata_needs_its_dataset_and_named_skill(service, mon
     }
     if denied == "identity":
         del detail["criteria"][0]["skill_id"]
-    if denied == "id_only":
+    if denied in {"id_only", "id_only_readable"}:
         del detail["criteria"][0]["skill"]
     attempt = improvement_pipeline.improvement_repo.list_iterations.return_value[0]
     attempt.verdict_detail = detail
@@ -374,13 +384,13 @@ async def test_criterion_metadata_needs_its_dataset_and_named_skill(service, mon
 
     returned = read.iterations[0].verdict_detail
     assert returned is not None and returned["fixed"] == 0
-    assert ("criteria" in returned) is (denied is None)
-    assert ("criterion_change" in returned) is (denied is None)
+    assert ("criteria" in returned) is (denied in {None, "id_only_readable"})
+    assert ("criterion_change" in returned) is (denied in {None, "id_only_readable"})
     assert attempt.verdict_detail == detail
     assert "private rubric" in str(detail)
     if denied == "runs":
         criterion_access.eval_run_repo.datasets.assert_not_awaited()
-    if denied is not None:
+    if denied not in {None, "id_only_readable"}:
         assert "private rubric" not in read.model_dump_json()
         assert "private skill" not in read.model_dump_json()
 
@@ -417,7 +427,8 @@ async def test_a_metric_without_named_criteria_keeps_its_shape_for_an_authorized
 
 @pytest.mark.security
 @pytest.mark.parametrize(
-    "denied", [None, "membership", "runs", "dataset", "skill", "identity", "id_only"]
+    "denied",
+    [None, "membership", "runs", "dataset", "skill", "identity", "id_only", "id_only_readable"],
 )
 async def test_result_notifications_filter_criterion_evidence_for_the_current_recipient(
     service, monkeypatch, denied
@@ -473,14 +484,14 @@ async def test_result_notifications_filter_criterion_evidence_for_the_current_re
     )
     if denied == "identity":
         del attempt.verdict_detail["criteria"][0]["skill_id"]
-    if denied == "id_only":
+    if denied in {"id_only", "id_only_readable"}:
         del attempt.verdict_detail["criteria"][0]["skill"]
     send = AsyncMock()
     monkeypatch.setattr(improvement_pipeline.NotificationService, "improvement_finished", send)
 
     await pipeline._notify_end(run, end="one")
 
-    assert bool(send.await_args.kwargs["criteria"]) is (denied is None)
+    assert bool(send.await_args.kwargs["criteria"]) is (denied in {None, "id_only_readable"})
     assert attempt.verdict_detail["criteria"][0]["name"] == "private rubric"
 
 
