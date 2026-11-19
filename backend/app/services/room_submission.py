@@ -16,8 +16,8 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     NotFoundError,
-    refused_field,
 )
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.db.locks import LockScope, hold_subject
 from app.db.models.chat_file import ChatFile

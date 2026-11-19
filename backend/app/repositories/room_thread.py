@@ -278,4 +278,4 @@ async def follower_ids(
             )
         )
     )
-    return set(explicit_true.all()) | set(implicit.all())
+    return set(explicit_true.all()) | {user_id for user_id in implicit.all() if user_id is not None}
