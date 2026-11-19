@@ -42,6 +42,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Keep Discuss visible on Inbox items and put secondary actions in a menu. Highlight links to console resources and inline code in chat, and show compact approval cards aligned with the composer, including after reload.
+
 - Ground automatic memory updates in the user's words and give the daily briefing current memory and previous decisions. Check evidence for recurring suggestions and suppress repeats across suggestion types.
 
 - Guide the shipped AgenticOS assistant to check live task and Inbox evidence for planning questions and to use the installed platform's tools and official references when helping build agents and workflows.

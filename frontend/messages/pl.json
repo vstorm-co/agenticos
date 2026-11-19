@@ -14129,6 +14129,7 @@
       "finding": "Rutyna"
     },
     "discuss": "Porozmawiaj z agentem",
+    "moreActions": "Więcej działań dla {title}",
     "discussPrompt": "Czy pozycja {id} w Inboxie wymaga mojego działania?",
     "openWorkingChat": "Otwórz rozmowę",
     "preferences": "Ustawienia Inbox",

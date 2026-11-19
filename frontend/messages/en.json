@@ -14910,6 +14910,7 @@
       "finding": "Routine"
     },
     "discuss": "Discuss with agent",
+    "moreActions": "More actions for {title}",
     "discussPrompt": "Does Inbox item {id} need my attention?",
     "openWorkingChat": "Open conversation",
     "preferences": "Inbox preferences",

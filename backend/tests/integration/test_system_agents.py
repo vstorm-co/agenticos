@@ -960,6 +960,32 @@ async def test_memory_extraction_reads_the_end_of_a_long_run_in_chronological_or
     assert prompt.index("Fact number 015") < prompt.index("Fact number 074")
 
 
+async def test_memory_extraction_keeps_the_end_of_a_turn_that_fills_the_budget(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user, org, agent, version, _, _ = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(
+        db,
+        conversation,
+        run,
+        [
+            ("user", "An older turn"),
+            (
+                "user",
+                "Start of the turn" + "x" * extraction.MAX_TRANSCRIPT_CHARS + "End of the turn",
+            ),
+        ],
+    )
+    think = _think(monkeypatch, [])
+
+    assert await extraction.extract(db, org.id, run.id) == 0
+    prompt = think.await_args.kwargs["prompt"]
+    assert "End of the turn" in prompt
+    assert "Start of the turn" not in prompt
+    assert "An older turn" not in prompt
+
+
 async def test_removing_a_maintenance_model_disables_its_role(db: AsyncSession) -> None:
     from app.services.model_profile import ModelProfileService
 

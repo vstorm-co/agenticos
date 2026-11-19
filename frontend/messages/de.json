@@ -14596,6 +14596,7 @@
       "finding": "Routine"
     },
     "discuss": "Mit dem Agenten besprechen",
+    "moreActions": "Weitere Aktionen für {title}",
     "discussPrompt": "Muss ich beim Inbox-Eintrag {id} etwas tun?",
     "openWorkingChat": "Gespräch öffnen",
     "preferences": "Inbox-Einstellungen",

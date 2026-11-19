@@ -159,6 +159,7 @@ async def test_private_inbox_overview_matches_personal_cards_and_refuses_shared_
     result = await service.inbox_items(private)
     assert result.total == 1 and result.pending_approvals == 0
     assert [item.id for item in result.items] == [mine.id]
+    assert await service.inbox_items(ctxs[0]) == result
     assert "do not include" not in result.model_dump_json()
     assert (await service.inbox_items(private, item_id=mine.id)).items[0].detail == "Read this"
     with pytest.raises(NotFoundError):

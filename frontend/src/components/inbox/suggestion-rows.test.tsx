@@ -89,7 +89,9 @@ describe("SuggestionRows", () => {
     expect(screen.getByText("Full context and the requested next step.")).not.toHaveClass(
       "line-clamp-2",
     );
-    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Title selected" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Done" }));
     expect(state.accept).toHaveBeenCalledWith("selected");
   });
   it("keeps compact briefing actions while leaving details to the inbox", async () => {
@@ -106,12 +108,15 @@ describe("SuggestionRows", () => {
     expect(state.dismiss).toHaveBeenCalledWith("idea");
   });
 
-  it("keeps an acknowledged finding actionable and labels its shared state", () => {
+  it("keeps an acknowledged finding actionable and labels its shared state", async () => {
     render(
       <SuggestionRows items={[item("ack", { kind: "finding", outcome_status: "acknowledged" })]} />,
     );
     expect(screen.getByText("Acknowledged")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Done" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Title ack" }));
+    expect(screen.getByRole("menuitem", { name: "Done" })).not.toHaveAttribute("data-disabled");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Not now" }));
+    expect(state.dismiss).toHaveBeenCalledWith("ack");
   });
   it("leads with what cannot wait and says where each came from", () => {
     render(
@@ -194,14 +199,15 @@ it("opens the working chat without marking its draft as completed", async () => 
       items={[item("draft", { kind: "finding", payload: { conversation_id: chat } })]}
     />,
   );
-  expect(screen.getByRole("link", { name: "Open conversation" })).toHaveAttribute(
+  await userEvent.click(screen.getByRole("button", { name: "More actions for Title draft" }));
+  expect(screen.getByRole("menuitem", { name: "Open conversation" })).toHaveAttribute(
     "href",
     `/chat?id=${chat}`,
   );
   expect(state.accept).not.toHaveBeenCalled();
 });
 
-it("does not turn a malformed working chat reference into a navigation link", () => {
+it("does not turn a malformed working chat reference into a navigation link", async () => {
   render(
     <SuggestionRows
       items={[
@@ -209,7 +215,8 @@ it("does not turn a malformed working chat reference into a navigation link", ()
       ]}
     />,
   );
-  expect(screen.queryByRole("link", { name: "Open conversation" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "More actions for Title bad" }));
+  expect(screen.queryByRole("menuitem", { name: "Open conversation" })).toBeNull();
 });
 
 it("links task titles to their table without a separate Open table action", () => {

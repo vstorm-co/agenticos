@@ -316,6 +316,16 @@ describe("DictationPill", () => {
 });
 
 describe("BrowserDictationPill", () => {
+  it("finishes listening on Escape", () => {
+    const onDone = vi.fn();
+    render(<BrowserDictationPill level={0.4} onDone={onDone} />);
+    const done = screen.getByRole("button", { name: "Done dictating" });
+    fireEvent.keyDown(done, { key: "Tab" });
+    expect(onDone).not.toHaveBeenCalled();
+    fireEvent.keyDown(done, { key: "Escape" });
+    expect(onDone).toHaveBeenCalledOnce();
+  });
+
   it("listens with a wave and stops on Done", () => {
     const onDone = vi.fn();
     render(<BrowserDictationPill level={0.4} onDone={onDone} />);

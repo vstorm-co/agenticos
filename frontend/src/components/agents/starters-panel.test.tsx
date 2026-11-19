@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -97,6 +97,40 @@ describe("StartersPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "Edit One" }));
     await userEvent.click(screen.getByRole("button", { name: "Remove first message 1" }));
     expect(onChange).toHaveBeenCalledWith(["Two"], {}, {});
+  });
+
+  it("keeps a draft title local when the editor is dismissed", async () => {
+    const onChange = vi.fn();
+    render(<StartersPanel starters={["One"]} disabled={false} onChange={onChange} />);
+    await userEvent.click(screen.getByText("First messages"));
+    const edit = screen.getByRole("button", { name: "Edit One" });
+    await userEvent.click(edit);
+    await userEvent.type(screen.getByRole("textbox", { name: "Short title (optional)" }), "Draft");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await userEvent.click(edit);
+    expect(screen.getByRole("textbox", { name: "Short title (optional)" })).toHaveValue("");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps invalid submissions from overwriting or exceeding the configured prompts", async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <StartersPanel starters={[]} disabled={false} onChange={onChange} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    const message = screen.getByRole("textbox", { name: "Message sent on click" });
+    const form = message.closest("form")!;
+    fireEvent.submit(form);
+    expect(onChange).not.toHaveBeenCalled();
+    await userEvent.type(message, "Draft prompt");
+    rerender(
+      <StartersPanel starters={["1", "2", "3", "4"]} disabled={false} onChange={onChange} />,
+    );
+    fireEvent.submit(form);
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("offers no fifth starter", async () => {

@@ -13131,6 +13131,7 @@
       "finding": "Rutin"
     },
     "discuss": "Ajanla konuş",
+    "moreActions": "{title} için diğer işlemler",
     "discussPrompt": "Inbox öğesi {id} için bir şey yapmam gerekiyor mu?",
     "openWorkingChat": "Sohbeti aç",
     "preferences": "Gelen kutusu tercihleri",

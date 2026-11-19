@@ -556,7 +556,7 @@ The live timeline follows the page flow; completed, expanded history has a heigh
 
 Successful MCP writes show linked cards for projects, tables, tasks, records, agents, workflows, skills and Context. Errors do not become success cards. After sending a message, the chat places it near the top with space for the answer; scrolling manually keeps your position. Person and Agent pickers scroll inside record dialogs. Questions remain available after an approval resumes a chat through HTTP.
 
-Finding notices sit beside the composer. When you reopen or refresh a conversation, pending tool approvals reappear as decision cards with details and Approve and Reject for people who can decide them. Inbox and the bell also surface approval notifications.
+Finding notices sit beside the composer. When you reopen or refresh a conversation, pending tool approvals reappear as decision cards with details and Approve and Reject for people who can decide them. Inbox and the bell also surface approval notifications. A single request uses a compact bar with expandable details. In Inbox, Discuss with agent stays visible and other actions move into the row menu. Chat highlights links to console resources and gives inline code its own neutral background.
 
 **Under an answer.** An agent with [Follow-ups](reference/capabilities.md#follow-ups)
 offers up to three next steps as buttons under its latest answer, and a click
