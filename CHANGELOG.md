@@ -37,6 +37,7 @@ Two things are versioned separately from this file and worth knowing about:
 - An unchanged draft baseline answers once per Improve session: a later check reuses the earlier check's baseline answers when the draft's fingerprint, the cases left out, the dataset version, model, scoring, environment and judge all match (#3178).
 - An Improve session started from a draft nobody edited since publishing reuses that version's own eval as its baseline, priced at nothing in the estimate, when it left out the same cases as the check (#3178).
 - A skill check asks each agent the dataset its newest Improve session measures on, so a set kept back for a final measurement stays unasked (#3178).
+- A skill check keeps each agent's families of criteria, so its details table one row per family - every case's check of one thing together - instead of one row per case's check. Agents expose `families`; `skill_check_agents` gains the column (#3178).
 
 ### Fixed
 
@@ -51,6 +52,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Upgrading
 
 - Migration `0342_criterion_verdicts` widens the improvement verdict, stop reason and skill-check agent state constraints and adds `skill_check_agents.criteria`. Its downgrade reads the new verdicts and states as `no_change`.
+- Migration `0343_skill_check_families` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
 
 ## [1.82.2] - 2026-11-18
 

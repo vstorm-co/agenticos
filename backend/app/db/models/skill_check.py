@@ -353,6 +353,12 @@ class SkillCheckAgent(Base):
     """Each criterion over the stages' held-out questions taken together: its `scorer`
     and `name`, how many `graded`, passed `before` and `after`, and the flips the
     re-asks confirmed, `fixed` and `broken`. Empty until judged."""
+    families: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    """Each family of criteria over the stages' held-out questions taken together, as
+    an improvement attempt's verdict keeps them (`FamilyDetail`). Empty until judged,
+    and for an agent judged before families were kept."""
 
     __table_args__ = (
         ForeignKeyConstraint(

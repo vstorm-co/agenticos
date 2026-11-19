@@ -1,5 +1,5 @@
 ---
-source_sha: "433e0ca4ef82"
+source_sha: "d29185145591"
 ---
 
 # Skille { #skills }
@@ -332,7 +332,10 @@ startem, ze wskazaniem datasetu, do którego trzeba dodać inne pytania.
   kryteriach**; agent z kryterium potwierdzonym jako gorsze jest **gorzej w
   kryteriach**. Żaden z nich nie zmienia powyższej reguły, która dotyczy całych
   pytań: na pasku liczą się z agentami lepszymi i gorszymi, a szczegóły agenta
-  wymieniają każde kryterium ze spełnieniami przed i po.
+  wymieniają każdą [rodzinę](evals.md#a-flip-is-confirmed-before-it-counts)
+  kryteriów ze spełnieniami przed i po - sprawdzenie jednej rzeczy w każdym
+  przypadku w jednym wierszu - albo każde kryterium, dla agenta sprawdzonego,
+  zanim rodziny były zapisywane.
 - Agent, którego nie dało się sprawdzić - brak pytań, pytania, których nic nie
   ocenia albo wzięte w całości z rozmów samej zmiany, brak dostępu, brak
   budżetu, brak opublikowanej wersji, nieudany run, zatrzymane sprawdzenie - jest

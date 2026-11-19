@@ -83,7 +83,7 @@ from app.repositories import (
 )
 from app.schemas.dataset import AnswerAs, DatasetCreate, DatasetRead
 from app.schemas.eval_run import EvalComparisonRead, EvalRunRequest, ProposalCheckRecord
-from app.schemas.improvement import VerdictCriterion
+from app.schemas.improvement import VerdictCriterion, VerdictFamily
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
     AgentRef,
@@ -115,12 +115,11 @@ from app.services import skill_check_rules as rules
 from app.services.access import AGENT, DATASET, SKILL, accessible_ids
 from app.services.api_key import job_context
 from app.services.background_jobs import enqueue
-from app.services.criterion_access import readable_criterion_skill_ids
 from app.services.dataset import DatasetService
 from app.services.eval_comparison import CriterionMove
 from app.services.eval_run import EvalRunService, family_move
 from app.services.improvement_data import MIN_HOLDOUT_CASES
-from app.services.improvement_states import criterion_details
+from app.services.improvement_states import criterion_details, family_details
 from app.services.notifications import NotificationService
 from app.services.scoring import ScoringService
 from app.services.skill_agents import LineAgent, SkillAgentService
@@ -1120,6 +1119,7 @@ class SkillCheckService:
                 "noisy": rules.noisy(result),
                 "stages": counted,
                 "criteria": criterion_details(result.check.criteria, {}),
+                "families": family_details(result.check.families, {}),
             },
         )
 
@@ -1580,16 +1580,6 @@ class SkillCheckService:
         readable = await accessible_ids(
             self.db, ctx, list(datasets.values()), Perm.DATASETS_VIEW, resource_type=DATASET
         )
-        owners = await readable_criterion_skill_ids(
-            self.db,
-            ctx,
-            {
-                parsed.skill_id
-                for row in rows
-                for item in row.criteria or []
-                if (parsed := VerdictCriterion.model_validate(item)).skill_id is not None
-            },
-        )
         reads: list[SkillCheckAgentRead] = []
         hidden = hidden_unknown = 0
         for row in rows:
@@ -1599,32 +1589,6 @@ class SkillCheckService:
                 hidden_unknown += row.state == AgentState.UNKNOWN.value
                 continue
             counted = {entry["eval_run_id"]: entry for entry in row.stages}
-            mine = stages.get(row.agent_id, [])
-            # FK columns can be cleared by retention; the stored result still
-            # remembers every source that contributed to its pooled criteria.
-            expected_runs = {
-                str(run_id)
-                for run_id in (row.skill_set_run_id, row.dataset_run_id)
-                if run_id is not None
-            } | set(counted)
-            represented_runs = {
-                str(run_id) for stage in mine if (run_id := _run_of(row, stage.kind)) is not None
-            }
-            expected_datasets = {entry["dataset_id"] for entry in row.stages}
-            criteria = [VerdictCriterion.model_validate(item) for item in row.criteria or []]
-            if (
-                not ctx.has(Perm.RUNS_VIEW)
-                or not expected_runs
-                or not expected_runs <= represented_runs
-                or not expected_datasets <= {str(stage.dataset.id) for stage in mine}
-                or any(stage.dataset.id not in readable for stage in mine)
-                or any(
-                    (item.skill is not None or item.skill_id is not None)
-                    and (item.skill_id is None or item.skill_id not in owners)
-                    for item in criteria
-                )
-            ):
-                criteria = []
             reads.append(
                 SkillCheckAgentRead(
                     agent=AgentRef(id=agent.id, name=agent.name),
@@ -1663,7 +1627,8 @@ class SkillCheckService:
                     fixed_confirmed=row.fixed_confirmed or 0,
                     regressions_confirmed=row.regressions_confirmed or 0,
                     noisy=bool(row.noisy),
-                    criteria=criteria,
+                    criteria=[VerdictCriterion.model_validate(item) for item in row.criteria or []],
+                    families=[VerdictFamily.model_validate(item) for item in row.families or []],
                     expected_usd=row.expected_usd,
                     at_most_usd=row.at_most_usd,
                 )

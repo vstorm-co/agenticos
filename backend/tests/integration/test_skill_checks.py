@@ -840,6 +840,11 @@ class TestAPersonsVerdict:
         assert [(item.name, item.before, item.after, item.fixed) for item in row.criteria] == [
             ("validity", 0, 5, 5)
         ]
+        assert [
+            (item.family, item.criteria, item.cases, item.before, item.after, item.fixed)
+            for item in row.families
+        ] == [("validity", 1, 5, 0, 5, 5)]
+        assert row.families[0].better
         assert read.verdict is CheckVerdict.NO_BETTER
 
     async def test_a_verdict_on_a_run_no_check_asked_changes_nothing(self, db, monkeypatch):

@@ -319,8 +319,10 @@ the dataset to add other questions to.
   confirmed better and none worse, is **better on criteria**; one with a
   criterion confirmed worse is **worse on criteria**. Neither moves the rule
   above, which is about whole questions: they count with the better and the
-  worse agents in the bar, and the agent's details list each criterion with its
-  passes before and after.
+  worse agents in the bar, and the agent's details list each
+  [family](evals.md#a-flip-is-confirmed-before-it-counts) of criteria with its
+  passes before and after - every case's check of one thing on one row - or each
+  criterion, for an agent checked before families were kept.
 - An agent that could not be checked - no questions, questions nothing can grade
   or all taken from the change's own conversations, no access, no budget left, no
   published version, a run that failed, a check that was stopped - is

@@ -4,7 +4,7 @@
  * Mirrors `backend/app/schemas/skill_check.py`. Money arrives as decimal strings.
  */
 
-import type { VerdictCriterion } from "@/types/improvement";
+import type { VerdictCriterion, VerdictFamily } from "@/types/improvement";
 
 export type CheckMode = "quick" | "thorough";
 export type CheckStatus = "running" | "done" | "cancelled" | "applied" | "forked" | "discarded";
@@ -80,6 +80,8 @@ export interface SkillCheckAgent {
   held_out: number;
   /** Each criterion over the held-out questions, both stages together. */
   criteria?: VerdictCriterion[];
+  /** Each family of criteria over the held-out questions, both stages together. */
+  families?: VerdictFamily[];
   fixed_confirmed: number;
   regressions_confirmed: number;
   noisy: boolean;

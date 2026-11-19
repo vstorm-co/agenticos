@@ -1,5 +1,5 @@
 ---
-source_sha: "433e0ca4ef82"
+source_sha: "d29185145591"
 ---
 
 # Skills { #skills }
@@ -341,7 +341,10 @@ el paso se rechaza antes de empezar, con el dataset al que añadir otras pregunt
   criterios**; uno con un criterio confirmado peor está **peor en criterios**.
   Ninguno cambia la regla de arriba, que trata de preguntas enteras: en la barra
   cuentan con los agents mejores y peores, y los detalles del agent enumeran cada
-  criterio con sus aciertos antes y después.
+  [familia](evals.md#a-flip-is-confirmed-before-it-counts) de criterios con sus
+  aciertos antes y después - la comprobación de una cosa en cada caso en una
+  fila - o cada criterio, para un agent comprobado antes de que se guardaran las
+  familias.
 - Un agent que no se pudo comprobar - sin preguntas, con preguntas que nada
   califica o tomadas todas de las conversaciones del propio cambio, sin acceso,
   sin budget, sin versión publicada, con un run fallido, con la comprobación

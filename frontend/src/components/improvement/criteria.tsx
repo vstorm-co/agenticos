@@ -79,8 +79,15 @@ export function familyRows(families: FamilyMove[]): CriterionRow[] {
 
 /** The rows an attempt is read by: its families when it has them, else its criteria. */
 export function rowsOf(round: ImprovementIteration | undefined): CriterionRow[] {
-  const families = familiesOf(round);
-  if (families.length === 0) return criterionRows(criteriaOf(round));
+  return verdictRows(criteriaOf(round), familiesOf(round));
+}
+
+/** A verdict's families as rows, or its single criteria when it kept no families. */
+export function verdictRows(
+  criteria: VerdictCriterion[],
+  families: VerdictFamily[],
+): CriterionRow[] {
+  if (families.length === 0) return criterionRows(criteria);
   return families.map((item) => ({
     key: `family:${item.family}`,
     name: item.family,

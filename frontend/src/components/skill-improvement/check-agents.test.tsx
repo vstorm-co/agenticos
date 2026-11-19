@@ -199,6 +199,51 @@ describe("CheckAgents", () => {
     expect(within(table).getByText("+10 fixed")).toBeInTheDocument();
   });
 
+  it("tables an agent's families in place of the single criteria they count", async () => {
+    const helped = checkAgent("Quotes", "criteria_better");
+    helped.criteria = [
+      {
+        scorer: "judge",
+        name: "Names Aisha Khan",
+        graded: 2,
+        before: 0,
+        after: 2,
+        fixed: 2,
+        broken: 0,
+      },
+      {
+        scorer: "judge",
+        name: "Names Tom Ellery",
+        graded: 1,
+        before: 0,
+        after: 1,
+        fixed: 1,
+        broken: 0,
+      },
+    ];
+    helped.families = [
+      {
+        family: "account manager",
+        criteria: 2,
+        cases: 3,
+        before: 0,
+        after: 3,
+        fixed: 3,
+        broken: 0,
+        settled: false,
+        better: true,
+        worse: false,
+      },
+    ];
+    render(<CheckAgents check={skillCheck({ agents: [helped] })} />);
+
+    await openAll();
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("account manager")).toBeInTheDocument();
+    expect(within(table).queryByText("Names Aisha Khan")).not.toBeInTheDocument();
+    expect(within(table).getByText("+3 fixed")).toBeInTheDocument();
+  });
+
   it("names an agent within the test's noise as no change, as its group and count do", () => {
     render(
       <CheckAgents

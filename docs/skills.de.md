@@ -1,5 +1,5 @@
 ---
-source_sha: "433e0ca4ef82"
+source_sha: "d29185145591"
 ---
 
 # Skills { #skills }
@@ -354,8 +354,11 @@ andere Fragen hinzuzufügen sind.
   Kriterien**; einer mit einem als schlechter bestätigten Kriterium ist
   **schlechter bei Kriterien**. Keines davon ändert die Regel oben, die ganze
   Fragen betrifft: Im Balken zählen sie zu den besseren und den schlechteren
-  Agents, und die Details des Agents nennen jedes Kriterium mit seinen Treffern
-  vorher und nachher.
+  Agents, und die Details des Agents nennen jede
+  [Familie](evals.md#a-flip-is-confirmed-before-it-counts) von Kriterien mit
+  ihren Treffern vorher und nachher - die Prüfung einer Sache in jedem Fall in
+  einer Zeile - oder jedes Kriterium, für einen Agent, der geprüft wurde, bevor
+  Familien gespeichert wurden.
 - Ein Agent, der nicht geprüft werden konnte - keine Fragen, Fragen, die nichts
   bewerten kann oder die alle aus den Unterhaltungen der Änderung selbst stammen,
   kein Zugriff, kein Budget mehr, keine veröffentlichte Version, ein
