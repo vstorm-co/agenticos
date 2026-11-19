@@ -36,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Validate Draft-07 tuple-form output schemas locally instead of retaining an incompatible strict provider grammar.
+
 - Keep an Improve attempt with a confirmed whole-question change and a falling pass rate from being offered as **Better on criteria**. Criterion-only verdicts require no confirmed whole-question movement.
 
 - Preserve original skill IDs in stored Improve criterion evidence and reject name-only attributions when checking access. Resolve label-keyed record bindings to the same stable column before automatically rebinding a workflow to a newer table schema.

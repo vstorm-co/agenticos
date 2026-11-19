@@ -896,7 +896,8 @@ def _grammar_expresses(node: object) -> bool:
     non-strict path rather than hiding an unvisited child schema.
     """
     if not isinstance(node, dict):
-        return node is not True
+        # Draft-07 tuple-form items are outside the strict compatibility contract.
+        return node is not True and not isinstance(node, list)
     if not _TYPED & node.keys() or node.keys() - _GRAMMAR_KEYS or node.get("minItems", 0) > 1:
         return False
     declared = node.get("type")

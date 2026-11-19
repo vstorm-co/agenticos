@@ -39,6 +39,7 @@ from app.agents.factory import (
     _AUDIENCE_AWARE,
     DEFAULT_MAX_STEPS,
     BuiltAgent,
+    OutputSchemaRetry,
     _fits_schema,
     answer_text,
     build_agent,
@@ -1422,6 +1423,27 @@ class TestAStructuredAnswer:
         [
             (_SCORE, None),
             (
+                {
+                    "$schema": "http://json-schema.org/draft-07/schema#",
+                    **_shaped(
+                        {
+                            "type": "array",
+                            "items": [{"type": "integer"}, {"type": "string", "maxLength": 2}],
+                        }
+                    ),
+                },
+                False,
+            ),
+            (
+                {
+                    "$schema": "http://json-schema.org/draft-07/schema#",
+                    **_shaped(
+                        {"type": "array", "items": [{"type": "integer"}, {"type": "string"}]}
+                    ),
+                },
+                False,
+            ),
+            (
                 _shaped(
                     {
                         "type": "object",
@@ -1487,6 +1509,21 @@ class TestAStructuredAnswer:
         answer = built.agent.output_type[0]
         assert isinstance(answer, ToolOutput)
         assert answer.strict is strict
+
+    def test_a_non_strict_draft7_tuple_is_still_validated_locally(self):
+        schema = {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            **_shaped(
+                {
+                    "type": "array",
+                    "items": [{"type": "integer"}, {"type": "string", "maxLength": 2}],
+                }
+            ),
+        }
+        validate = _fits_schema(schema)
+        assert validate({"field": [1, "ab"]}) == {"field": [1, "ab"]}
+        with pytest.raises(OutputSchemaRetry, match="field/1"):
+            validate({"field": [1, "too long"]})
 
     def test_a_parked_run_passes_the_schema_check_untouched(self):
         """What a parked run ends with is not an answer, and is handed on untouched."""
