@@ -254,6 +254,7 @@ retranslated is how a stale translation stops being visible.
 | Agent and team tasks: research and proposal only | `docs/design/agent-tasks.md` (repo only) |
 | Room lead routing and handoffs over existing tasks | `docs/design/room-lead-task-handoffs.md` (repo only; implementation and acceptance status) |
 | Shared human/agent chat, mentions, room membership and Agentes comparison | `docs/design/agentes-chat-parity.md` (repo only; behavior and validation boundaries) |
+| Thread context ranges and moving messages: specification only | `docs/design/agentes-thread-ranges.md` (repo only; planned behavior and acceptance criteria) |
 | Workflows — the visual editor: canvas, palette, bindings, autosave, publish, versions | `docs/workflows.md` |
 | Projects: shared files, instructions and chats | `docs/projects.md` |
 | Agent messages: direct messages between agents, in a thread the console shows | `docs/agent-messages.md` |
