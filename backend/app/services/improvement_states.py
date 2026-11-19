@@ -401,8 +401,42 @@ def criterion_owners(reports: Iterable[Mapping[str, Any] | None]) -> dict[str, s
     return owners
 
 
+def criterion_skill_ids(reports: Iterable[Mapping[str, object] | None]) -> dict[str, str]:
+    """Original source identities from the same newest report that supplies each name.
+
+    Historical reports without a valid ID remain name-only; readers fail closed
+    for their attributed evidence rather than resolving a reused display name.
+    """
+    ids: dict[str, str] = {}
+    seen: set[str] = set()
+    for report in reports:
+        problems = (report or {}).get("skill_problems", [])
+        if not isinstance(problems, list):
+            continue
+        for problem in problems:
+            if not isinstance(problem, dict):
+                continue
+            names = problem.get("criteria", [])
+            if not isinstance(names, list):
+                continue
+            for name in names:
+                if not isinstance(name, str):
+                    continue
+                key = name.casefold()
+                if key in seen:
+                    continue
+                seen.add(key)
+                try:
+                    ids[key] = str(UUID(str(problem.get("skill_id"))))
+                except ValueError:
+                    continue
+    return ids
+
+
 def criterion_details(
-    moves: Sequence[CriterionMove], owners: Mapping[str, str]
+    moves: Sequence[CriterionMove],
+    owners: Mapping[str, str],
+    owner_ids: Mapping[str, str] | None = None,
 ) -> list[CriterionDetail]:
     """What a verdict keeps of its criteria: counts and names, never a question's text.
 
@@ -434,6 +468,8 @@ def criterion_details(
         owner = owners.get(move.name.casefold()) if move.scorer == "judge" else None
         if owner is not None and move.candidate_passed < move.graded:
             detail["skill"] = owner
+            if (source_id := (owner_ids or {}).get(move.name.casefold())) is not None:
+                detail["skill_id"] = source_id
         details.append(detail)
     return details
 

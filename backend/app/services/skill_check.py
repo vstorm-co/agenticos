@@ -113,7 +113,7 @@ from app.services import skill_check_rules as rules
 from app.services.access import AGENT, DATASET, SKILL, accessible_ids
 from app.services.api_key import job_context
 from app.services.background_jobs import enqueue
-from app.services.criterion_access import readable_criterion_owners
+from app.services.criterion_access import readable_criterion_skill_ids
 from app.services.dataset import DatasetService
 from app.services.eval_comparison import CriterionMove
 from app.services.eval_run import EvalRunService
@@ -1559,14 +1559,14 @@ class SkillCheckService:
         readable = await accessible_ids(
             self.db, ctx, list(datasets.values()), Perm.DATASETS_VIEW, resource_type=DATASET
         )
-        owners = await readable_criterion_owners(
+        owners = await readable_criterion_skill_ids(
             self.db,
             ctx,
             {
-                name
+                parsed.skill_id
                 for row in rows
                 for item in row.criteria or []
-                if (name := item.get("skill")) is not None
+                if (parsed := VerdictCriterion.model_validate(item)).skill_id is not None
             },
         )
         reads: list[SkillCheckAgentRead] = []
@@ -1597,7 +1597,11 @@ class SkillCheckService:
                 or not expected_runs <= represented_runs
                 or not expected_datasets <= {str(stage.dataset.id) for stage in mine}
                 or any(stage.dataset.id not in readable for stage in mine)
-                or any(item.skill is not None and item.skill not in owners for item in criteria)
+                or any(
+                    (item.skill is not None or item.skill_id is not None)
+                    and (item.skill_id is None or item.skill_id not in owners)
+                    for item in criteria
+                )
             ):
                 criteria = []
             reads.append(

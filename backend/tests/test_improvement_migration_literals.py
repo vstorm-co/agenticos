@@ -105,3 +105,41 @@ def test_the_latest_constraints_match_the_model(
     matched = re.fullmatch(pattern, conditions[name])
     assert matched is not None
     assert set(re.findall(r"'([^']+)'", matched.group(1))) == {member.value for member in members}
+
+
+def test_criterion_migration_drops_the_original_postgres_constraint_names():
+    from io import StringIO
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+
+    def sql(path: Path) -> str:
+        output = StringIO()
+        context = MigrationContext.configure(
+            dialect_name="postgresql",
+            opts={
+                "as_sql": True,
+                "output_buffer": output,
+                "target_metadata": Base.metadata,
+            },
+        )
+        with Operations.context(context):
+            _migration(path).upgrade()
+        return output.getvalue()
+
+    original = sql(_VERSIONS / "0180_improvement_sessions.py") + sql(
+        _VERSIONS / "0308_skill_improvement_sessions.py"
+    )
+    current = sql(_CRITERIA)
+    drops = re.findall(r"ALTER TABLE (\w+) DROP CONSTRAINT (\w+);", current)
+    reported_tables = {
+        "improvement_iterations",
+        "skill_improvement_iterations",
+        "skill_improvement_runs",
+    }
+    checked = 0
+    for table, constraint in drops:
+        if table in reported_tables:
+            assert f"CONSTRAINT {constraint} CHECK" in original
+            checked += 1
+    assert checked == 3

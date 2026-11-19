@@ -294,3 +294,98 @@ describe("node column dependencies", () => {
     );
   });
 });
+
+describe("label-keyed writer dependencies", () => {
+  function writer(field: string): WorkflowGraph {
+    const graph = structuredClone(GRAPH);
+    graph.nodes[0]!.definition_id = "table.record.create";
+    graph.bindings = [
+      {
+        target_node_id: "a",
+        target_field: `values/${field}`,
+        source: { kind: "literal", value: 1 },
+      },
+    ];
+    return graph;
+  }
+
+  it.each([
+    ["sCoRe", "Score"],
+    ["Score~1Delta", "Score/Delta"],
+    ["Cost~0gross", "Cost~gross"],
+    ["SS", "ẞ"],
+  ])(
+    "rebinds an unchanged labelled dependency %s after adding an unrelated column",
+    (key, label) => {
+      const before = [{ ...column("c1"), label }];
+      const after = [...before, column("added")];
+      const used = nodeTableColumns(writer(key), { nodeId: "a", binding: null }, { before, after });
+      expect(used).toEqual(["c1"]);
+      expect(safeToRebind(ref(["c1"]), table(after), versions(before), used)).toBe(true);
+    },
+  );
+
+  it.each(["renamed", "reassigned", "ambiguous", "archived", "missing"])(
+    "requires review when a label is %s",
+    (change) => {
+      const before = [{ ...column("c1"), label: "Score" }];
+      const after =
+        change === "renamed"
+          ? [{ ...column("c1"), label: "New" }]
+          : change === "reassigned"
+            ? [
+                { ...column("c1"), label: "New" },
+                { ...column("c2"), label: "Score" },
+              ]
+            : change === "ambiguous"
+              ? [...before, { ...column("c2"), label: "score" }]
+              : change === "archived"
+                ? [{ ...before[0]!, archived: true }]
+                : [];
+      expect(
+        nodeTableColumns(writer("Score"), { nodeId: "a", binding: null }, { before, after }),
+      ).toBeNull();
+    },
+  );
+
+  it.each([
+    { before: [] },
+    {
+      before: [
+        { ...column("c1"), label: "Score" },
+        { ...column("c2"), label: "score" },
+      ],
+    },
+  ])("requires review if the historical label was missing or ambiguous", ({ before }) => {
+    const after = [{ ...column("c1"), label: "Score" }];
+    expect(
+      nodeTableColumns(writer("Score"), { nodeId: "a", binding: null }, { before, after }),
+    ).toBeNull();
+  });
+
+  it("keeps a type change blocked after resolving a label to its ID", () => {
+    const before = [{ ...column("c1"), label: "Score" }];
+    const after = [{ ...column("c1", "number"), label: "sCoRe" }];
+    const used = nodeTableColumns(
+      writer("Score"),
+      { nodeId: "a", binding: null },
+      { before, after },
+    );
+    expect(used).toEqual(["c1"]);
+    expect(safeToRebind(ref(["c1"]), table(after), versions(before), used)).toBe(false);
+  });
+
+  it("gives an exact ID precedence over a conflicting label", () => {
+    const columns = [
+      { ...column("c1"), label: "Score" },
+      { ...column("c2"), label: "c1" },
+    ];
+    expect(
+      nodeTableColumns(
+        writer("c1"),
+        { nodeId: "a", binding: null },
+        { before: columns, after: columns },
+      ),
+    ).toEqual(["c1"]);
+  });
+});

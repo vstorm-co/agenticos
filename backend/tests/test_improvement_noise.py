@@ -26,6 +26,7 @@ from app.services.improvement_states import (
 
 pytestmark = pytest.mark.anyio
 
+SOURCE_ID = uuid.uuid4()
 ORG = uuid.uuid4()
 OWNER = AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role=OrgRoleName.OWNER.value)
 
@@ -322,7 +323,9 @@ async def test_an_invalid_comparison_is_not_used_as_measurement_noise(
 
 
 @pytest.mark.security
-@pytest.mark.parametrize("denied", ["runs", "dataset", "missing_dataset", "skill", None])
+@pytest.mark.parametrize(
+    "denied", ["runs", "dataset", "missing_dataset", "skill", "identity", "id_only", None]
+)
 async def test_criterion_metadata_needs_its_dataset_and_named_skill(service, monkeypatch, denied):
     pipeline, _, _ = service
     run = _session("stopped")
@@ -332,6 +335,7 @@ async def test_criterion_metadata_needs_its_dataset_and_named_skill(service, mon
                 "scorer": "judge",
                 "name": "private rubric",
                 "skill": "private skill",
+                "skill_id": str(SOURCE_ID),
                 "graded": 5,
                 "before": 0,
                 "after": 5,
@@ -342,6 +346,10 @@ async def test_criterion_metadata_needs_its_dataset_and_named_skill(service, mon
         "criterion_change": 1.0,
         "fixed": 0,
     }
+    if denied == "identity":
+        del detail["criteria"][0]["skill_id"]
+    if denied == "id_only":
+        del detail["criteria"][0]["skill"]
     attempt = improvement_pipeline.improvement_repo.list_iterations.return_value[0]
     attempt.verdict_detail = detail
     dataset = Dataset(id=run.dataset_id, organization_id=ORG, name="private")
@@ -357,8 +365,8 @@ async def test_criterion_metadata_needs_its_dataset_and_named_skill(service, mon
     )
     monkeypatch.setattr(
         criterion_access,
-        "readable_criterion_owners",
-        AsyncMock(return_value=set() if denied == "skill" else {"private skill"}),
+        "readable_criterion_skill_ids",
+        AsyncMock(return_value=set() if denied in {"skill", "id_only"} else {SOURCE_ID}),
     )
     ctx = replace(OWNER, key_scopes=frozenset({Perm.AGENTS_VIEW})) if denied == "runs" else OWNER
 
@@ -378,18 +386,16 @@ async def test_criterion_metadata_needs_its_dataset_and_named_skill(service, mon
 
 
 @pytest.mark.security
-async def test_criterion_owner_names_are_resolved_and_filtered_in_one_tenant(monkeypatch):
+async def test_criterion_owner_ids_are_resolved_and_filtered_in_one_tenant(monkeypatch):
     visible = Skill(id=uuid.uuid4(), organization_id=ORG, name="visible")
     hidden = Skill(id=uuid.uuid4(), organization_id=ORG, name="hidden")
-    fetch = AsyncMock(return_value={visible.name: visible, hidden.name: hidden})
-    monkeypatch.setattr(criterion_access.skill_repo, "get_by_names", fetch)
+    fetch = AsyncMock(return_value={visible.id: visible, hidden.id: hidden})
+    monkeypatch.setattr(criterion_access.skill_repo, "get_many", fetch)
     monkeypatch.setattr(criterion_access, "accessible_ids", AsyncMock(return_value={visible.id}))
     db = AsyncMock()
-    assert await criterion_access.readable_criterion_owners(db, OWNER, set()) == set()
-    fetch.assert_not_awaited()
-    names = {"visible", "hidden", "deleted"}
-    assert await criterion_access.readable_criterion_owners(db, OWNER, names) == {"visible"}
-    fetch.assert_awaited_once_with(db, names, organization_id=ORG)
+    ids = {visible.id, hidden.id, uuid.uuid4()}
+    assert await criterion_access.readable_criterion_skill_ids(db, OWNER, ids) == {visible.id}
+    fetch.assert_awaited_once_with(db, sorted(ids), organization_id=ORG)
 
 
 @pytest.mark.parametrize("criteria", [None, []])
@@ -411,7 +417,7 @@ async def test_a_metric_without_named_criteria_keeps_its_shape_for_an_authorized
 
 @pytest.mark.security
 @pytest.mark.parametrize(
-    "denied", [None, "membership", "runs", "dataset", "skill", "source_missing", "source_revoked"]
+    "denied", [None, "membership", "runs", "dataset", "skill", "identity", "id_only"]
 )
 async def test_result_notifications_filter_criterion_evidence_for_the_current_recipient(
     service, monkeypatch, denied
@@ -428,6 +434,7 @@ async def test_result_notifications_filter_criterion_evidence_for_the_current_re
                 "scorer": "judge",
                 "name": "private rubric",
                 "skill": "private skill",
+                "skill_id": str(SOURCE_ID),
                 "graded": 5,
                 "before": 0,
                 "after": 5,
@@ -461,20 +468,13 @@ async def test_result_notifications_filter_criterion_evidence_for_the_current_re
     )
     monkeypatch.setattr(
         criterion_access,
-        "readable_criterion_owners",
-        AsyncMock(return_value=set() if denied == "skill" else {"private skill"}),
+        "readable_criterion_skill_ids",
+        AsyncMock(return_value=set() if denied in {"skill", "id_only"} else {SOURCE_ID}),
     )
-    skill = Skill(id=uuid.uuid4(), organization_id=ORG, name="private skill")
-    monkeypatch.setattr(
-        improvement_pipeline.skill_repo,
-        "get_by_names",
-        AsyncMock(return_value={} if denied == "source_missing" else {skill.name: skill}),
-    )
-    monkeypatch.setattr(
-        improvement_pipeline,
-        "accessible_ids",
-        AsyncMock(return_value=set() if denied == "source_revoked" else {skill.id}),
-    )
+    if denied == "identity":
+        del attempt.verdict_detail["criteria"][0]["skill_id"]
+    if denied == "id_only":
+        del attempt.verdict_detail["criteria"][0]["skill"]
     send = AsyncMock()
     monkeypatch.setattr(improvement_pipeline.NotificationService, "improvement_finished", send)
 
@@ -488,7 +488,7 @@ async def test_an_empty_criterion_source_batch_reads_nothing(monkeypatch):
     fetch = AsyncMock()
     monkeypatch.setattr(criterion_access.eval_run_repo, "datasets", fetch)
     assert await criterion_access.criterion_source_access(
-        AsyncMock(), OWNER, dataset_ids=set(), names={"unused"}
+        AsyncMock(), OWNER, dataset_ids=set(), skill_ids={SOURCE_ID}
     ) == (set(), set())
     fetch.assert_not_awaited()
 

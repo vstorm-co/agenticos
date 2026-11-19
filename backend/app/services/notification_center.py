@@ -1356,7 +1356,7 @@ class NotificationCenterService:
             self.db,
             ctx,
             dataset_ids={source.dataset_id for source in criterion_sources.values()},
-            names=set(),
+            skill_ids=set(),
         )
         skills = (
             (

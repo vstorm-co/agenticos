@@ -9,26 +9,13 @@ from app.repositories import eval_run_repo, skill_repo
 from app.services.access import DATASET, SKILL, accessible_ids
 
 
-async def readable_criterion_owners(
-    db: AsyncSession, ctx: AuthContext, names: set[str]
-) -> set[str]:
-    """Stored criterion attributions name only skills the reader can still open."""
-    if not names:
-        return set()
-    skills = await skill_repo.get_by_names(db, names, organization_id=ctx.organization_id)
-    visible = await accessible_ids(
-        db, ctx, list(skills.values()), Perm.SKILLS_VIEW, resource_type=SKILL
-    )
-    return {name for name, skill in skills.items() if skill.id in visible}
-
-
 async def criterion_source_access(
     db: AsyncSession,
     ctx: AuthContext,
     *,
     dataset_ids: set[UUID],
-    names: set[str],
-) -> tuple[set[UUID], set[str]]:
+    skill_ids: set[UUID],
+) -> tuple[set[UUID], set[UUID]]:
     """Readable datasets and named owners; no grade access without runs:view."""
     if not ctx.has(Perm.RUNS_VIEW) or not dataset_ids:
         return set(), set()
@@ -40,7 +27,7 @@ async def criterion_source_access(
     )
     if not visible:
         return set(), set()
-    return visible, await readable_criterion_owners(db, ctx, names)
+    return visible, await readable_criterion_skill_ids(db, ctx, skill_ids)
 
 
 async def readable_criterion_skill_ids(

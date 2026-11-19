@@ -137,7 +137,10 @@ export function useWorkflowTableDrift(enabled: boolean): void {
       const table = detail(ref.table_id)!;
       const next = rebindRef(ref, table.schema_version, liveColumns(table));
       const versions = history(ref.table_id)!.items;
-      const dependencies = nodeTableColumns(graph, site);
+      const dependencies = nodeTableColumns(graph, site, {
+        before: versions.find((version) => version.version === ref.schema_version)?.columns ?? [],
+        after: liveColumns(table),
+      });
       if (safeToRebind(ref, table, versions, dependencies)) {
         result.rebound.push({ site, ref: next });
       } else {

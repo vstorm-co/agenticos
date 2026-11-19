@@ -78,6 +78,7 @@ class VerdictCriterion(BaseSchema):
     after: int
     fixed: int
     broken: int
+    skill_id: UUID | None = None
     skill: str | None = Field(
         default=None,
         description="The skill the session's improver put this still-failing criterion down to",

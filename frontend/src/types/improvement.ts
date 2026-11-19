@@ -81,6 +81,7 @@ export interface VerdictCriterion {
   broken: number;
   /** The skill the session's improver put this still-failing criterion down to. */
   skill?: string | null;
+  skill_id?: string | null;
 }
 export type ImprovementVerdict =
   "better" | "criteria_better" | "no_change" | "criteria_worse" | "regression" | "inconclusive";

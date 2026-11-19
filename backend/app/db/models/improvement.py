@@ -202,6 +202,7 @@ class CriterionDetail(TypedDict):
     fixed: int
     broken: int
     skill: NotRequired[str]
+    skill_id: NotRequired[str]
     """The skill the session's improver put a criterion that still fails down to."""
 
 

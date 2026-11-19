@@ -131,6 +131,7 @@ from app.schemas.improvement import (
     SelectionEstimate,
     TopicDeferral,
     TryAgainBlocked,
+    VerdictCriterion,
 )
 from app.schemas.notification import CriterionSources
 from app.schemas.scoring import DatasetScoring
@@ -160,7 +161,7 @@ from app.services.improvement_skills import (
     ImprovementSkillService,
     SkillSeed,
 )
-from app.services.improvement_states import criterion_details, criterion_owners
+from app.services.improvement_states import criterion_details, criterion_owners, criterion_skill_ids
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.notifications import NotificationService
 from app.worker.jobs import (
@@ -1172,17 +1173,21 @@ class ImprovementPipelineService:
         ]
         if not details:
             return
-        names: set[str] = set()
+        ids: set[UUID] = set()
         for _, detail in details:
             criteria = detail.get("criteria")
             if isinstance(criteria, list):
-                names.update(item.skill for item in criteria if item.skill is not None)
-        owners = await self._criterion_access(ctx, run, names)
+                ids.update(item.skill_id for item in criteria if item.skill_id is not None)
+        owners = await self._criterion_access(ctx, run, ids)
         for attempt, detail in details:
             criteria = detail.get("criteria")
             if owners is None or (
                 isinstance(criteria, list)
-                and any(item.skill is not None and item.skill not in owners for item in criteria)
+                and any(
+                    (item.skill is not None or item.skill_id is not None)
+                    and (item.skill_id is None or item.skill_id not in owners)
+                    for item in criteria
+                )
             ):
                 attempt.verdict_detail = {
                     key: value
@@ -1191,11 +1196,11 @@ class ImprovementPipelineService:
                 }
 
     async def _criterion_access(
-        self, ctx: AuthContext, run: ImprovementRun, names: set[str]
-    ) -> set[str] | None:
-        """Readable named owners, or None when the measurement itself is private."""
+        self, ctx: AuthContext, run: ImprovementRun, ids: set[UUID]
+    ) -> set[UUID] | None:
+        """Readable original owners, or None when the measurement itself is private."""
         datasets, owners = await criterion_source_access(
-            self.db, ctx, dataset_ids={run.dataset_id}, names=names
+            self.db, ctx, dataset_ids={run.dataset_id}, skill_ids=ids
         )
         return owners if run.dataset_id in datasets else None
 
@@ -2371,32 +2376,22 @@ class ImprovementPipelineService:
             )
             described = next((item for item in rounds if item.id == run.best_iteration_id), current)
         criteria = [] if described is None else (described.verdict_detail or {}).get("criteria", [])
+        sources = None
         if criteria:
+            parsed = [VerdictCriterion.model_validate(item) for item in criteria]
+            ids = {item.skill_id for item in parsed if item.skill_id is not None}
             reader = await member_context(
                 self.db, organization_id=run.organization_id, user_id=user_id
             )
-            names = {item["skill"] for item in criteria if "skill" in item}
-            owners = None if reader is None else await self._criterion_access(reader, run, names)
+            owners = None if reader is None else await self._criterion_access(reader, run, ids)
             if owners is None or any(
-                item["skill"] not in owners for item in criteria if "skill" in item
+                (item.skill is not None or item.skill_id is not None)
+                and (item.skill_id is None or item.skill_id not in owners)
+                for item in parsed
             ):
                 criteria = []
-        sources = None
-        if criteria:
-            assert reader is not None
-            skills = await skill_repo.get_by_names(
-                self.db, names, organization_id=run.organization_id
-            )
-            visible = await accessible_ids(
-                self.db, reader, list(skills.values()), Perm.SKILLS_VIEW, resource_type=SKILL
-            )
-            if set(skills) != names or any(skill.id not in visible for skill in skills.values()):
-                criteria = []
             else:
-                sources = CriterionSources(
-                    dataset_id=run.dataset_id,
-                    skill_ids=sorted(skill.id for skill in skills.values()),
-                )
+                sources = CriterionSources(dataset_id=run.dataset_id, skill_ids=sorted(ids))
         await NotificationService(self.db).improvement_finished(
             agent=agent,
             run_id=run.id,
@@ -3144,10 +3139,12 @@ class ImprovementPipelineService:
 
     @staticmethod
     def _result_detail(
-        result: rules.CheckResult, owners: Mapping[str, str] | None = None
+        result: rules.CheckResult,
+        owners: Mapping[str, str] | None = None,
+        owner_ids: Mapping[str, str] | None = None,
     ) -> VerdictDetail:
         return {
-            "criteria": criterion_details(result.criteria, owners or {}),
+            "criteria": criterion_details(result.criteria, owners or {}, owner_ids),
             "criterion_change": result.criterion_change,
             "reason": None,
             "broken": result.regressions_confirmed,
@@ -3160,12 +3157,13 @@ class ImprovementPipelineService:
             "held_out": result.held_out,
         }
 
-    async def _criterion_owners(self, run: ImprovementRun) -> dict[str, str]:
+    async def _criterion_owners(self, run: ImprovementRun) -> tuple[dict[str, str], dict[str, str]]:
         """Which skill the session's improver put each criterion down to, by criterion name."""
         requests = await authoring_repo.requests_of_improvement(
             self.db, run.id, organization_id=run.organization_id
         )
-        return criterion_owners(request.report for request in requests)
+        reports = [request.report for request in requests]
+        return criterion_owners(reports), criterion_skill_ids(reports)
 
     async def recompute_after_review(self, ctx: AuthContext, check_ids: list[UUID]) -> None:
         """Refresh measured verdicts in the review transaction without new work or publication.
@@ -3223,7 +3221,7 @@ class ImprovementPipelineService:
                         )
                 else:
                     verdict = rules.judge(result)
-                    detail = self._result_detail(result, await self._criterion_owners(run))
+                    detail = self._result_detail(result, *(await self._criterion_owners(run)))
                 await improvement_repo.update_iteration(
                     self.db,
                     iteration=iteration,
@@ -3255,7 +3253,7 @@ class ImprovementPipelineService:
                 "verdict": verdict.value,
                 "verdict_detail": {
                     **(iteration.verdict_detail or {}),
-                    **self._result_detail(result, await self._criterion_owners(run)),
+                    **self._result_detail(result, *(await self._criterion_owners(run))),
                 },
                 "cost_usd": max(Decimal(0), spent - previous_cost),
                 "ended_at": datetime.now(UTC),

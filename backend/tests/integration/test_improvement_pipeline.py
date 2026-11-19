@@ -1035,6 +1035,7 @@ async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_acces
                 "scorer": "judge",
                 "name": "private rubric text",
                 "skill": skill.name,
+                "skill_id": str(skill.id),
                 "graded": 5,
                 "before": 0,
                 "after": 5,
@@ -1067,12 +1068,19 @@ async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_acces
     # Redaction is per response; neither the stored detail nor an owner's later read loses it.
     assert attempt.verdict_detail["criteria"][0]["name"] == "private rubric text"
     assert (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail["criteria"]
+    original_name = skill.name
+    skill.name = "renamed-original-owner"
+    await db.flush()
+    assert (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail["criteria"]
     await db.delete(skill)
     await db.flush()
-    assert (
-        "criteria"
-        not in (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail
-    )
+    await _skill(db, ctx, name=original_name)
+    for response in (
+        await service.read(ctx, agent.id, started.id),
+        *(await service.list_for_agent(ctx, agent.id)),
+    ):
+        assert "criteria" not in response.iterations[0].verdict_detail
+
     await db.delete(dataset)
     await db.flush()
     assert (

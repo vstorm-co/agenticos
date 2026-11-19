@@ -24,6 +24,8 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
         "runs",
         "dataset",
         "skill",
+        "identity",
+        "id_only",
         "missing_stage",
         "missing_run",
         "removed_history",
@@ -31,6 +33,7 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
     ],
 )
 async def test_criterion_metadata_requires_all_sources(monkeypatch, denied):
+    source_id = uuid4()
     org = uuid4()
     ctx = AuthContext(user_id=uuid4(), organization_id=org, role="owner")
     agent = Agent(id=uuid4(), organization_id=org, name="Agent")
@@ -52,6 +55,7 @@ async def test_criterion_metadata_requires_all_sources(monkeypatch, denied):
                 "scorer": "judge",
                 "name": "private rubric",
                 "skill": "private skill",
+                "skill_id": str(source_id),
                 "graded": 5,
                 "before": 0,
                 "after": 5,
@@ -60,6 +64,10 @@ async def test_criterion_metadata_requires_all_sources(monkeypatch, denied):
             }
         ],
     )
+    if denied == "identity":
+        del row.criteria[0]["skill_id"]
+    if denied == "id_only":
+        del row.criteria[0]["skill"]
     if denied in {"removed_history", "replaced_dataset"}:
         row.stages = [
             {
@@ -85,8 +93,8 @@ async def test_criterion_metadata_requires_all_sources(monkeypatch, denied):
     monkeypatch.setattr(skill_check, "accessible_ids", accessible)
     monkeypatch.setattr(
         skill_check,
-        "readable_criterion_owners",
-        AsyncMock(return_value=set() if denied == "skill" else {"private skill"}),
+        "readable_criterion_skill_ids",
+        AsyncMock(return_value=set() if denied in {"skill", "id_only"} else {source_id}),
     )
     if denied == "runs":
         ctx = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.DATASETS_VIEW}))

@@ -467,3 +467,46 @@ def test_criterion_change_survives_stored_round_details():
         ).criterion_change
         == 0.0
     )
+
+
+@pytest.mark.parametrize("source", [None, "invalid", "00000000-0000-0000-0000-000000000123"])
+def test_criterion_identity_comes_from_the_same_newest_report(source):
+    from app.services.improvement_states import criterion_skill_ids
+
+    older = {
+        "skill_problems": [
+            {
+                "skill_name": "old",
+                "skill_id": "00000000-0000-0000-0000-000000000001",
+                "criteria": ["Validity"],
+            }
+        ]
+    }
+    newer = {
+        "skill_problems": [
+            {"skill_name": "new", "skill_id": source, "criteria": ["validity", "VALIDITY"]}
+        ]
+    }
+    expected = {} if source in {None, "invalid"} else {"validity": source}
+    assert criterion_skill_ids([newer, None, {}, older]) == expected
+    details = criterion_details(_experiment(), criterion_owners([newer, older]), expected)
+    attributed = [detail for detail in details if detail.get("skill") == "new"]
+    assert attributed
+    assert [detail.get("skill_id") for detail in attributed] == [expected.get("validity")] * len(
+        attributed
+    )
+
+
+@pytest.mark.parametrize(
+    "report",
+    [
+        {"skill_problems": None},
+        {"skill_problems": [None]},
+        {"skill_problems": [{"criteria": None}]},
+        {"skill_problems": [{"criteria": [None]}]},
+    ],
+)
+def test_malformed_historical_attributions_authorize_no_identity(report):
+    from app.services.improvement_states import criterion_skill_ids
+
+    assert criterion_skill_ids([report]) == {}

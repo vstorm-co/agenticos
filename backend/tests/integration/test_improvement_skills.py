@@ -330,11 +330,11 @@ async def test_an_erased_persons_quotes_leave_the_problems_and_the_seed(db):
 
 
 @pytest.mark.security
-async def test_criterion_metadata_owner_names_respect_tenants_and_explicit_grants(db):
+async def test_criterion_metadata_owner_ids_respect_tenants_and_explicit_grants(db):
     from app.db.models.resource_grant import GrantLevel
     from app.repositories import resource_grant_repo
     from app.services.access import SKILL
-    from app.services.criterion_access import readable_criterion_owners
+    from app.services.criterion_access import readable_criterion_skill_ids
 
     owner = await _owner(db)
     other = await _owner(db)
@@ -343,9 +343,9 @@ async def test_criterion_metadata_owner_names_respect_tenants_and_explicit_grant
     foreign = await _skill(db, other, name="foreign-owner")
     member = await _member(db, owner, OrgRoleName.MEMBER)
     await db.flush()
-    names = {skill.name, foreign.name, "deleted-owner"}
-    assert await readable_criterion_owners(db, owner, names) == {skill.name}
-    assert await readable_criterion_owners(db, member, names) == set()
+    ids = {skill.id, foreign.id, uuid.uuid4()}
+    assert await readable_criterion_skill_ids(db, owner, ids) == {skill.id}
+    assert await readable_criterion_skill_ids(db, member, ids) == set()
     await resource_grant_repo.upsert(
         db,
         organization_id=owner.organization_id,
@@ -355,4 +355,4 @@ async def test_criterion_metadata_owner_names_respect_tenants_and_explicit_grant
         level=GrantLevel.READ,
         created_by_user_id=owner.user_id,
     )
-    assert await readable_criterion_owners(db, member, names) == {skill.name}
+    assert await readable_criterion_skill_ids(db, member, ids) == {skill.id}

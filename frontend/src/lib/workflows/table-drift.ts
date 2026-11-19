@@ -60,7 +60,11 @@ export function graphTableRefs(graph: WorkflowGraph): TableRefAt[] {
 }
 
 /** Additional column dependencies; null means a whole-record input needs review. */
-export function nodeTableColumns(graph: WorkflowGraph, site: TableRefSite): string[] | null {
+export function nodeTableColumns(
+  graph: WorkflowGraph,
+  site: TableRefSite,
+  schema?: { before: readonly ColumnDef[]; after: readonly ColumnDef[] },
+): string[] | null {
   if (site.binding !== null) return [];
   const node = graph.nodes.find((entry) => entry.id === site.nodeId);
   if (!node || node.disabled) return [];
@@ -94,10 +98,29 @@ export function nodeTableColumns(graph: WorkflowGraph, site: TableRefSite): stri
     for (const binding of graph.bindings) {
       if (binding.target_node_id === node.id && binding.target_field === "values") return null;
       const match = /^values\/([^/]+)$/.exec(binding.target_field);
-      if (binding.target_node_id === node.id && match) columns.add(match[1]!);
+      if (binding.target_node_id === node.id && match) {
+        const key = match[1]!.replace(/~1/g, "/").replace(/~0/g, "~");
+        if (schema) {
+          const before = resolveColumnKey(schema.before, key);
+          if (before === null || before !== resolveColumnKey(schema.after, key)) return null;
+          columns.add(before);
+        } else {
+          columns.add(key);
+        }
+      }
     }
   }
   return [...columns];
+}
+
+/** Match the server's ID precedence and unique, live, caseless label lookup. */
+function resolveColumnKey(columns: readonly ColumnDef[], key: string): string | null {
+  const live = columns.filter((column) => !column.archived);
+  const id = live.find((column) => column.id === key);
+  if (id) return id.id;
+  const folded = columnLabelFold(key);
+  const matches = live.filter((column) => columnLabelFold(column.label) === folded);
+  return matches.length === 1 ? matches[0]!.id : null;
 }
 
 /** The table's live columns, the ones a reference can read. */
