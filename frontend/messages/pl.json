@@ -1668,7 +1668,8 @@
     "runFailedTitle": "Uruchomienie nie zostało ukończone",
     "runFailedHint": "Nie powstała końcowa odpowiedź. Możesz przejrzeć wykonane działania powyżej.",
     "homeInbox": {
-      "title": "Z Twojego Inboxa",
+      "title": "Podsumowanie dnia",
+      "openInbox": "Otwórz Inbox",
       "urgent": "Ważne",
       "approvals": "{count, plural, one {# zgoda czeka na Twoją decyzję} few {# zgody czekają na Twoją decyzję} other {# zgód czeka na Twoją decyzję}}",
       "empty": "Wszystko na bieżąco. Nowe ustalenia i ważne tematy pojawią się tutaj.",
@@ -1676,8 +1677,7 @@
       "refreshFailed": "Nie udało się odświeżyć skrzynki. Wyświetlamy ostatnio pobrane elementy."
     },
     "homePanels": {
-      "inbox": "Inbox",
-      "prompts": "Proponowane prompty"
+      "prompt": "Dodaj proponowany prompt do szkicu"
     }
   },
   "errors": {

@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { Suggestion } from "@/lib/suggestions-api";
-import { ChatHomeInbox, useChatHomeInbox } from "./chat-home-inbox";
+import { ChatHomeInbox } from "./chat-home-inbox";
 
 const state = vi.hoisted(() => ({
   items: [] as Suggestion[],
@@ -37,10 +37,6 @@ vi.mock("./suggestion-actions", () => ({
     <span>{String(suggestion.payload.server)}</span>
   ),
 }));
-function Preview({ expanded = false }: { expanded?: boolean }) {
-  return <ChatHomeInbox {...useChatHomeInbox()} expanded={expanded} />;
-}
-
 beforeEach(() => {
   state.items = [];
   state.loading = false;
@@ -63,7 +59,7 @@ const suggestion = (id: string, urgent = false): Suggestion => ({
 it("prioritizes urgent topics, limits the preview and links to actual inbox rows", () => {
   state.items = [suggestion("a"), suggestion("b"), suggestion("c"), suggestion("urgent", true)];
   state.pending = 2;
-  render(<Preview />);
+  render(<ChatHomeInbox />);
   const list = screen.getByRole("list");
   expect(within(list).getAllByRole("listitem")).toHaveLength(3);
   expect(within(list).getAllByRole("link")[0]).toHaveAttribute("href", "/inbox#suggestion-urgent");
@@ -72,20 +68,20 @@ it("prioritizes urgent topics, limits the preview and links to actual inbox rows
     "href",
     "/runs?tab=approvals",
   );
-  expect(screen.queryByRole("heading")).toBeNull();
-  expect(screen.queryByRole("link", { name: "Open inbox" })).toBeNull();
+  expect(screen.getByRole("heading", { name: "Daily briefing" })).toBeVisible();
+  expect(screen.getByRole("link", { name: "Open inbox" })).toHaveAttribute("href", "/inbox");
 });
 
 it("shows up to eight entries in the expanded Inbox", () => {
   state.items = Array.from({ length: 10 }, (_, index) => suggestion(String(index)));
-  render(<Preview expanded />);
+  render(<ChatHomeInbox expanded />);
   expect(within(screen.getByRole("list")).getAllByRole("listitem")).toHaveLength(8);
   expect(screen.getByRole("link", { name: /Topic 7/ })).toBeVisible();
 });
 
 it("does not turn a failed read into an empty inbox and retries both reads", async () => {
   state.pendingError = new Error("offline");
-  render(<Preview />);
+  render(<ChatHomeInbox />);
   expect(screen.getByRole("status")).toHaveTextContent("Your inbox could not be loaded.");
   expect(screen.queryByText(/all caught up/)).toBeNull();
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -95,21 +91,21 @@ it("does not turn a failed read into an empty inbox and retries both reads", asy
 
 it("shows loading before declaring the inbox empty", () => {
   state.loading = true;
-  const { rerender } = render(<Preview />);
-  expect(screen.getByRole("region", { name: "From your inbox" })).toHaveAttribute(
+  const { rerender } = render(<ChatHomeInbox />);
+  expect(screen.getByRole("region", { name: "Daily briefing" })).toHaveAttribute(
     "aria-busy",
     "true",
   );
   expect(screen.queryByText(/all caught up/)).toBeNull();
   state.loading = false;
-  rerender(<Preview />);
+  rerender(<ChatHomeInbox />);
   expect(screen.getByText(/all caught up/)).toBeVisible();
 });
 
 it("keeps cached topics visible when a background refresh fails", () => {
   state.items = [suggestion("cached")];
   state.error = new Error("offline");
-  render(<Preview />);
+  render(<ChatHomeInbox />);
   expect(screen.getByRole("status")).toHaveTextContent(
     "Could not refresh your inbox. Showing the last loaded items.",
   );

@@ -1,5 +1,5 @@
 ---
-source_sha: "f4015dc1e0c1"
+source_sha: "0a7095c66943"
 ---
 
 # Konsola { #the-console }
@@ -131,7 +131,7 @@ Nieudany run pokazuje błąd oddzielnie od odpowiedzi agenta, poza zwijanymi nar
 
 Załączniki pozostają wewnątrz pola wiadomości w jednym przewijanym wierszu. Bezpieczne obrazy mają lokalną miniaturę podczas wysyłania; trwające wysyłanie wskazuje animowany wskaźnik bez wymyślonego procentu. Błędy odświeżania tematów w tle pozostają w osobnym rozwijanym panelu i nie pojawiają się w niewysłanej rozmowie. Podkreślenia kart i zaznaczenia segmentów płynnie przechodzą między opcjami; przy ograniczeniu animacji zmiana jest natychmiastowa.
 
-Nowy czat pokazuje Inbox po lewej i propozycje wybranego agenta po prawej, nad polem wiadomości. W wąskim panelu sekcje układają się pionowo. Licznik czekających elementów jest obok Inbox. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
+Nowy czat pokazuje nad polem wiadomości jeden losowo wybrany prompt bieżącego agenta. Kliknięcie dodaje go do edytowalnego szkicu. Pod polem znajduje się Podsumowanie dnia z maksymalnie czterema pozycjami z Inboxa, w tym linkiem do oczekujących zgód. Wyłączenie proponowanych promptów w Builderze rozszerza podsumowanie do ośmiu pozycji. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
 
 Główny czat ma szerokie pole wiadomości. Biblioteka modeli pokazuje najpierw podłączonych dostawców, z logotypami i nazwami od wielkiej litery, oraz rozdziela katalog i zapisane modele. Kliknięcie modelu od razu go wybiera. Brakujące poświadczenia można dodać w formularzach Vaulta z poziomu wyboru modelu, również dla dostawców wymagających kilku pól; nadal obowiązują dotychczasowe uprawnienia i walidacja modeli. Mikrofon i przycisk wysyłania płynnie zmieniają stan podczas pisania.
 
@@ -249,7 +249,7 @@ pokazują opisy, a wiersze agentów używają tych samych avatarów co chat.
 
 Karty dashboardu korzystają ze spójnych, zwartych wierszy, oznaczeń usług i etykiet statusu. Liczniki i wykresy dostosowują się do szerokości karty, również we własnych układach. Placeholdery odpowiadają rodzajowi ładowanej zawartości; niedostępny briefing pokazuje możliwość ponowienia zamiast informacji o braku propozycji.
 
-Nowy chat wita zależnie od lokalnej pory dnia i pokazuje zwarte pole wiadomości. Pliki są obok agenta, a ustawienia i tarcza uprawnień obok modelu. Zużycie kontekstu pozostaje ikoną do chwili otwarcia szczegółów. Nad polem widać do czterech tematów z Inboxa, z pilnymi ustaleniami na początku i ikonami źródeł z katalogu MCP; licznik zgód prowadzi do kolejki decyzji. Otwarcie podglądu niczego nie zatwierdza ani nie odrzuca. Ładowanie, błąd i pusta lista mają osobne stany. Dyktowanie i połączenia korzystają z tej samej lekkiej powierzchni co pole wiadomości. Widget Architecta korzysta z tego samego przycisku głównego i kontrolek dyktowania.
+Nowy chat wita zależnie od lokalnej pory dnia i pokazuje zwarte pole wiadomości. Pliki są obok agenta, a ustawienia i tarcza uprawnień obok modelu. Zużycie kontekstu pozostaje ikoną do chwili otwarcia szczegółów. Pod polem wiadomości w Podsumowaniu dnia widać tematy z Inboxa, z pilnymi ustaleniami na początku i ikonami źródeł z katalogu MCP; licznik zgód prowadzi do kolejki decyzji. Otwarcie podglądu niczego nie zatwierdza ani nie odrzuca. Ładowanie, błąd i pusta lista mają osobne stany. Dyktowanie i połączenia korzystają z tej samej lekkiej powierzchni co pole wiadomości. Widget Architecta korzysta z tego samego przycisku głównego i kontrolek dyktowania.
 
 Przed pierwszą wiadomością pliki i użycie kontekstu pozostają widoczne, ale nieaktywne. Menu załączników pokazuje dostępne akcje od razu. Ustawienia czatu mają zwarte sekcje połączeń i zapamiętanych zgód; podgląd Inbox pokazuje źródło i priorytet.
 

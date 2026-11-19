@@ -79,9 +79,10 @@ export function useDefaultChatSuggestions(draws: boolean): WelcomeSuggestion[] {
 interface ChatEmptyStateProps {
   onPick: (prompt: string) => void;
   suggestionsSlot?: HTMLElement | null;
+  singleSuggestion?: boolean;
 }
 
-export function ChatEmptyState({ onPick, suggestionsSlot }: ChatEmptyStateProps) {
+export function ChatEmptyState({ onPick, suggestionsSlot, singleSuggestion }: ChatEmptyStateProps) {
   // Whoever will answer, so the page opens on them rather than on a generic
   // sparkle and a line about streaming and tool calls. The list is the one the
   // picker already holds.
@@ -105,6 +106,7 @@ export function ChatEmptyState({ onPick, suggestionsSlot }: ChatEmptyStateProps)
       starters={own.length ? own : agent?.slug === STARTER_SLUG ? (personal.data ?? []) : []}
       loading={waiting}
       suggestionsSlot={showStarters ? suggestionsSlot : null}
+      singleSuggestion={singleSuggestion}
       onPick={onPick}
     />
   );
@@ -117,7 +119,14 @@ interface WelcomeProps extends ChatEmptyStateProps {
   loading?: boolean;
 }
 
-function Welcome({ agent, starters, loading, onPick, suggestionsSlot }: WelcomeProps) {
+function Welcome({
+  agent,
+  starters,
+  loading,
+  onPick,
+  suggestionsSlot,
+  singleSuggestion,
+}: WelcomeProps) {
   const t = useTranslations("chat.empty");
   const th = useTranslations("workspaceHome");
   const { user } = useAuth();
@@ -144,6 +153,7 @@ function Welcome({ agent, starters, loading, onPick, suggestionsSlot }: WelcomeP
       quiet
       loading={loading}
       suggestionsSlot={suggestionsSlot}
+      singleSuggestion={singleSuggestion}
       mark={
         agent ? (
           <AgentAvatar

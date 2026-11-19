@@ -1,26 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, ShieldCheck, Sunrise } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
+import { ROUTES } from "@/lib/constants";
 import { SuggestionMark, urgentFirst, useSuggestionSource } from "./suggestion-actions";
 
-export function useChatHomeInbox() {
+/** A preview of the same findings and proposals the Inbox shows. */
+export function ChatHomeInbox({ expanded = false }: { expanded?: boolean }) {
   const suggested = useSuggestions();
   const pending = usePendingApprovals();
-  return { suggested, pending };
-}
-
-/** Read-only preview: decisions and source details stay in the existing Inbox. */
-export function ChatHomeInbox({
-  suggested,
-  pending,
-  expanded = false,
-}: ReturnType<typeof useChatHomeInbox> & { expanded?: boolean }) {
   const t = useTranslations("chat.homeInbox");
   const common = useTranslations("common");
   const inbox = useTranslations("inbox");
@@ -34,7 +27,26 @@ export function ChatHomeInbox({
     previewLimit - Number(pending.count > 0),
   );
   return (
-    <section className="chat-home-inbox" aria-label={t("title")} aria-busy={loading}>
+    <section
+      className="chat-home-inbox chat-home-hints chat-composer-width bg-card border-border mt-4 rounded-2xl border p-2 sm:p-3"
+      aria-label={t("title")}
+      aria-busy={loading}
+    >
+      <header className="flex min-h-10 flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2 pb-2">
+        <h3 className="flex min-w-0 items-center gap-2 text-sm font-medium">
+          <span className="bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-lg">
+            <Sunrise className="size-4" aria-hidden />
+          </span>
+          {t("title")}
+        </h3>
+        <Link
+          href={ROUTES.INBOX}
+          className="text-muted-foreground hover:text-foreground flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs pointer-coarse:min-h-11"
+        >
+          {t("openInbox")}
+          <ArrowUpRight className="size-3" aria-hidden />
+        </Link>
+      </header>
       {loading ? (
         <div className="space-y-2 p-2">
           {[0, 1, 2, 3].map((key) => (
@@ -67,7 +79,7 @@ export function ChatHomeInbox({
                 </Link>
               )}
               {items.length > 0 ? (
-                <ul>
+                <ul className="chat-home-briefing-items">
                   {items.map((item) => (
                     <li key={item.id}>
                       <Link href={`/inbox#suggestion-${item.id}`} className="chat-home-inbox-topic">

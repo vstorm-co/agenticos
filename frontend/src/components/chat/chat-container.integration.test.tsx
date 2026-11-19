@@ -1941,6 +1941,73 @@ it("keeps findings beside the composer and leaves approvals to decision cards", 
   expect(screen.queryByText("Review the pending operation")).not.toBeInTheDocument();
 });
 
+describe("starting a new chat", () => {
+  it("puts a single opener above the composer and the Daily briefing below it", async () => {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/agents"
+        ? Promise.resolve({
+            items: [
+              {
+                id: "first-agent",
+                slug: "first-agent",
+                name: "First agent",
+                status: "published",
+                starters: ["Draft a summary", "Find open questions"],
+              },
+            ],
+            total: 1,
+          })
+        : base(url),
+    );
+    useAgentSelectionStore.setState({ selectedAgentId: "first-agent" });
+    mount(undefined, true);
+    const opener = await screen.findByRole("button", {
+      name: /^(Draft a summary|Find open questions)$/,
+    });
+    const editor = screen.getByRole("textbox");
+    const briefing = screen.getByRole("region", { name: "Daily briefing" });
+    expect(opener.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      editor.compareDocumentPosition(briefing) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await userEvent.click(opener);
+    await waitFor(() => expect(editor.textContent).toContain(opener.textContent));
+    expect(
+      socket.send.mock.calls.some(([frame]) =>
+        JSON.stringify(frame).includes(opener.textContent ?? ""),
+      ),
+    ).toBe(false);
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
+  it("keeps the briefing when the selected agent turns off suggested prompts", async () => {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/agents"
+        ? Promise.resolve({
+            items: [
+              {
+                id: "quiet-agent",
+                slug: "quiet-agent",
+                name: "Quiet agent",
+                status: "published",
+                show_starters: false,
+                starters: ["Hidden suggested prompt"],
+              },
+            ],
+            total: 1,
+          })
+        : base(url),
+    );
+    useAgentSelectionStore.setState({ selectedAgentId: "quiet-agent" });
+    mount(undefined, true);
+    await screen.findByText("Quiet agent", { selector: ".chat-empty-state p span" });
+    expect(screen.queryByTitle("Add suggested prompt to draft")).toBeNull();
+    expect(screen.getByRole("region", { name: "Daily briefing" })).toBeVisible();
+  });
+});
+
 describe("opening a saved chat", () => {
   it("never shows welcome prompts while the requested transcript is unresolved", () => {
     useConversationStore.setState({ currentConversationId: null, currentMessages: [] });

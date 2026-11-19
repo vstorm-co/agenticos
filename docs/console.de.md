@@ -1,5 +1,5 @@
 ---
-source_sha: "f4015dc1e0c1"
+source_sha: "0a7095c66943"
 ---
 
 # Die Konsole { #the-console }
@@ -133,7 +133,7 @@ Ein fehlgeschlagener Chat-Run zeigt seinen Fehler getrennt von der Antwort und a
 
 Anhänge bleiben innerhalb des Eingabefelds in einer horizontal scrollbaren Zeile. Sichere Bilder zeigen beim Hochladen eine lokale Vorschau; ein Spinner zeigt laufende Uploads ohne erfundene Prozentangabe. Fehler beim Aktualisieren von Hintergrundthemen bleiben in einem eigenen aufklappbaren Bereich und erscheinen nie in einem noch nicht gesendeten Chat. Tab-Unterstreichungen und Segmentmarkierungen gleiten zwischen Optionen; bei reduzierter Bewegung wechselt die Auswahl sofort.
 
-Neue Chats zeigen links Inbox und rechts die Gesprächseinstiege des ausgewählten Agenten, oberhalb des Eingabefelds. In einem schmalen Bereich stehen die Abschnitte untereinander. Die Zahl der offenen Einträge steht neben Inbox. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
+Neue Chats zeigen über dem Eingabefeld einen zufällig ausgewählten Einstieg des aktiven Agenten. Ein Klick fügt ihn zum bearbeitbaren Entwurf hinzu. Das Tagesbriefing unter dem Eingabefeld zeigt bis zu vier Einträge aus dem Posteingang, einschließlich eines Links zu offenen Genehmigungen. Ohne vorgeschlagene Prompts im Builder zeigt es bis zu acht Einträge. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
 
 Der Hauptchat bietet ein breites Eingabefeld. Die Modellbibliothek zeigt verbundene Anbieter zuerst, mit Logos und großgeschriebenen Namen, und trennt Katalog und gespeicherte Modelle. Ein Klick wählt das Modell direkt aus. Fehlende Zugangsdaten lassen sich über die bestehenden Vault-Formulare im Auswahlfenster hinzufügen, auch mehrteilige Anbieterzugangsdaten. Berechtigungen und Modellvalidierung bleiben wirksam. Mikrofon und Senden wechseln beim Schreiben fließend.
 
@@ -258,7 +258,7 @@ Avatare wie im Chat.
 
 Dashboard-Karten verwenden einheitliche kompakte Zeilen, Dienstsymbole und Statusbezeichnungen. Kennzahlen und Diagramme passen sich der Kartenbreite an, auch in eigenen Anordnungen. Ladeplatzhalter entsprechen dem Inhaltstyp; ein nicht verfügbares Briefing bietet einen erneuten Versuch an, statt fälschlich keine Vorschläge zu melden.
 
-Ein neuer Chat begrüßt nach lokaler Tageszeit und zeigt ein kompaktes Eingabefeld. Dateien stehen neben dem Agenten, Chat-Einstellungen und Berechtigungsschild neben dem Modell. Die Kontextnutzung bleibt bis zum Öffnen ein Symbol. Über dem Eingabefeld erscheinen bis zu vier Inbox-Themen, dringende Erkenntnisse zuerst, mit Quellenmarken aus dem MCP-Katalog; Genehmigungszähler führen zur Entscheidungswarteschlange. Das Öffnen einer Vorschau genehmigt oder verwirft nichts. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
+Ein neuer Chat begrüßt nach lokaler Tageszeit und zeigt ein kompaktes Eingabefeld. Dateien stehen neben dem Agenten, Chat-Einstellungen und Berechtigungsschild neben dem Modell. Die Kontextnutzung bleibt bis zum Öffnen ein Symbol. Das Tagesbriefing unter dem Eingabefeld zeigt Themen aus dem Posteingang, dringende Erkenntnisse zuerst, mit Quellenmarken aus dem MCP-Katalog; Genehmigungszähler führen zur Entscheidungswarteschlange. Das Öffnen einer Vorschau genehmigt oder verwirft nichts. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
 
 Vor der ersten Nachricht bleiben Dateien und Kontextnutzung sichtbar, aber deaktiviert. Das Anhangsmenü zeigt verfügbare Aktionen direkt. Die Chat-Einstellungen verwenden kompakte Abschnitte für Verbindungen und gespeicherte Freigaben; die Inbox-Vorschau zeigt Quelle und Priorität.
 

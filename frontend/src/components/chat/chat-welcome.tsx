@@ -1,11 +1,12 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import type { ReactNode } from "react";
-import { ArrowUpRight, X, type LucideIcon } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { ArrowUpRight, CornerDownLeft, X, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { RotatingWorkspaceArt } from "@/components/illustrations/rotating-workspace-art";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 export interface WelcomeSuggestion {
@@ -35,6 +36,7 @@ interface ChatWelcomeProps {
   loading?: boolean;
   /** The main chat places hints in its home carousel. Undefined keeps them inline. */
   suggestionsSlot?: HTMLElement | null;
+  singleSuggestion?: boolean;
 }
 
 /**
@@ -55,6 +57,7 @@ export function ChatWelcome({
   quiet = false,
   loading = false,
   suggestionsSlot,
+  singleSuggestion = false,
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
   // The centered composer must stay put when agent metadata replaces skeletons.
@@ -193,8 +196,50 @@ export function ChatWelcome({
 
       {suggestionsSlot === undefined
         ? hints
-        : suggestionsSlot && createPortal(hints, suggestionsSlot)}
+        : suggestionsSlot &&
+          createPortal(
+            singleSuggestion ? (
+              <RandomPrompt suggestions={suggestions} onPick={onPick} loading={loading} />
+            ) : (
+              hints
+            ),
+            suggestionsSlot,
+          )}
     </div>
+  );
+}
+
+function RandomPrompt({
+  suggestions,
+  onPick,
+  loading,
+}: Pick<ChatWelcomeProps, "suggestions" | "onPick" | "loading">) {
+  const t = useTranslations("chat.homePanels");
+  // The portal mounts on the client. Keep the draw stable across refetches,
+  // typing and parent renders while this empty conversation is open.
+  const [draw] = useState(() => Math.random());
+  const suggestion = suggestions[Math.floor(draw * suggestions.length)];
+  if (loading) return <Skeleton className="h-9 w-52 max-w-full rounded-lg" />;
+  if (!suggestion) return null;
+  return (
+    <button
+      type="button"
+      // Blurring the editor can resize the dock on narrow screens between
+      // pointer-down and click. Keep it in place until the prompt is picked.
+      onMouseDown={(event) => {
+        if (event.button === 0) event.preventDefault();
+      }}
+      onClick={() => onPick(suggestion.prompt)}
+      className="bg-muted/50 hover:bg-muted focus-visible:ring-ring inline-flex min-h-9 max-w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm focus-visible:ring-2 focus-visible:outline-none pointer-coarse:min-h-11"
+      title={t("prompt")}
+    >
+      <suggestion.icon
+        className="size-3.5 shrink-0 text-violet-700 dark:text-violet-300"
+        aria-hidden
+      />
+      <span className="min-w-0 truncate">{suggestion.title}</span>
+      <CornerDownLeft className="text-muted-foreground size-3 shrink-0" aria-hidden />
+    </button>
   );
 }
 

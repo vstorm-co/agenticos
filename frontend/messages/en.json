@@ -2653,7 +2653,8 @@
     "runFailedTitle": "Run did not finish",
     "runFailedHint": "No final answer was produced. You can review the work above.",
     "homeInbox": {
-      "title": "From your inbox",
+      "title": "Daily briefing",
+      "openInbox": "Open inbox",
       "urgent": "Priority",
       "approvals": "{count, plural, one {# approval needs your attention} other {# approvals need your attention}}",
       "empty": "You’re all caught up. New findings and important topics will appear here.",
@@ -2661,8 +2662,7 @@
       "refreshFailed": "Could not refresh your inbox. Showing the last loaded items."
     },
     "homePanels": {
-      "inbox": "Inbox",
-      "prompts": "Suggested prompts"
+      "prompt": "Add suggested prompt to draft"
     }
   },
   "common": {

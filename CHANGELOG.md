@@ -50,7 +50,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Tighten the chat greeting, MCP cards and model library. Keep history groups visible as the chat list grows, give nested fields a complete focus outline and let chat choose among a provider's available key profiles.
 
-- Place Inbox and opening prompts side by side above the new-chat composer and stack them in a narrow pane. Show the pending count at Inbox and animate the welcome avatar with reduced-motion support.
+- Offer one random opening prompt above the new-chat composer and add it to the draft on click. Show Daily briefing below the composer with priority items and a link to Inbox. Keep the animated welcome avatar responsive to reduced motion.
 
 - Share larger resource gallery cards across agents, tables, workflows, knowledge bases, projects, datasets, MCP, skills, context, Apps and groups. Use matching cards for the agent Builder settings, with Thinking and Answer format inside Model settings, visible default first messages, and Voice deep links.
 

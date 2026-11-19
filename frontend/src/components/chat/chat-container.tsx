@@ -31,7 +31,7 @@ import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
 import { useMainChat, useMinimalComposer } from "./main-chat-context";
-import { ChatHomePanels } from "./chat-home-panels";
+import { ChatHomeInbox } from "./chat-home-inbox";
 import { PersonalModelConnection } from "./personal-model-connection";
 import { SheetRow } from "./composer-sheet";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -1457,6 +1457,7 @@ function ChatUI({
   );
   const showWorkspaceHome =
     !compact && messages.length === 0 && voice.call.phase === "idle" && !isLoadingConversation;
+  const showDailyBriefing = showWorkspaceHome && mainChat && !emptyState && !conversationId;
   return (
     <div className="chat-surface @container/sources-layout relative flex h-full min-h-0 w-full overflow-hidden">
       <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
@@ -1524,7 +1525,12 @@ function ChatUI({
                   ) : (
                     <ChatEmptyState
                       suggestionsSlot={!compact ? homeHintsSlot : undefined}
-                      onPick={(picked) => sendMessage(picked)}
+                      singleSuggestion={showDailyBriefing}
+                      onPick={
+                        showDailyBriefing
+                          ? (text) => setIncoming({ id: Date.now(), files: [], text })
+                          : (picked) => sendMessage(picked)
+                      }
                     />
                   )}
                 </div>
@@ -1734,16 +1740,13 @@ function ChatUI({
                 transcript because a plan is written in one turn and worked through
                 over the next several: as a step it scrolls away under the work it
                 describes, and what somebody wants is where the agent is now. */}
-              {showWorkspaceHome && !mainChat && !emptyState && (
+              {showWorkspaceHome && !emptyState && (!mainChat || showDailyBriefing) && (
                 <div
                   ref={setHomeHintsSlot}
-                  className="chat-home-starters chat-composer-suggestions mb-4"
-                />
-              )}
-              {showWorkspaceHome && mainChat && !emptyState && (
-                <ChatHomePanels
-                  suggestionsRef={setHomeHintsSlot}
-                  showPrompts={callAgent?.show_starters !== false}
+                  className={cn(
+                    "chat-composer-suggestions empty:hidden",
+                    showDailyBriefing ? "chat-composer-width mb-2" : "chat-home-starters mb-4",
+                  )}
                 />
               )}
               <BackgroundTasks conversationId={conversationId} />
@@ -2034,6 +2037,7 @@ function ChatUI({
                   <ComposerStatus isConnected={isConnected} />
                 </div>
               )}
+              {showDailyBriefing && <ChatHomeInbox expanded={callAgent?.show_starters === false} />}
             </div>
           </div>
         </div>

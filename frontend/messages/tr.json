@@ -10240,7 +10240,8 @@
     "runFailedTitle": "Çalıştırma tamamlanmadı",
     "runFailedHint": "Nihai yanıt üretilmedi. Yukarıdaki çalışmayı inceleyebilirsiniz.",
     "homeInbox": {
-      "title": "Gelen kutundan",
+      "title": "Günlük brifing",
+      "openInbox": "Gelen kutusunu aç",
       "urgent": "Öncelikli",
       "approvals": "{count, plural, one {# onay kararını bekliyor} other {# onay kararını bekliyor}}",
       "empty": "Her şey güncel. Yeni bulgular ve önemli konular burada görünecek.",
@@ -10248,8 +10249,7 @@
       "refreshFailed": "Gelen kutunuz yenilenemedi. Son yüklenen öğeler gösteriliyor."
     },
     "homePanels": {
-      "inbox": "Gelen kutusu",
-      "prompts": "Önerilen istemler"
+      "prompt": "Önerilen istemi taslağa ekle"
     }
   },
   "admin": {
