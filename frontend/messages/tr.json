@@ -1696,12 +1696,7 @@
       "nameLabel": "Ad",
       "descriptionPlaceholder": "Kayıtların ne olduğunu ve bunları kimin doldurduğunu açıklayın",
       "descriptionLabel": "Açıklama",
-      "visibilityLabel": "Görünürlük",
-      "visibility": {
-        "private": "Özel",
-        "team": "Ekip",
-        "org": "Kuruluş"
-      },
+      "audienceLabel": "Kimler görebilir?",
       "columnPlaceholder": "Sütun etiketi",
       "columnLabel": "Sütun etiketi",
       "columnType": "Sütun türü",
@@ -8753,7 +8748,7 @@
       },
       "flow-table-field-visibility": {
         "title": "Kimler görebilir?",
-        "body": "Görünürlüğü değiştirmek için Daha fazla seçenek’i açın. Özel tabloyu yalnızca size açar; Ekip ve Kuruluş daha fazla kişiye açar. Daha sonra tek tek kişilerle de paylaşabilirsiniz. Ardından İleri’yi seçin."
+        "body": "Tablonun kime ulaşacağını seçin: yalnızca size, tüm kuruluşa ya da seçtiğiniz gruplara ve kişilere. Bunu daha sonra Paylaş altından değiştirebilirsiniz. Ardından İleri’yi seçin."
       },
       "flow-table-field-create": {
         "title": "Tabloyu oluşturun",
