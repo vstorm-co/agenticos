@@ -375,3 +375,31 @@ it.each([
   );
   expect(parseExternalAgents([{ ...registration, provider }])[0]?.provider).toBe(provider);
 });
+
+it("registers Hermes with an explicit Python environment and owned foreground setup", async () => {
+  mount();
+  await userEvent.selectOptions(screen.getByLabelText("Setup template"), "hermes");
+  expect(screen.getByLabelText("Arguments (JSON array)")).toHaveValue("[]");
+  expect(
+    screen.getByText(/Select the Python executable in the documented Hermes environment/),
+  ).toBeVisible();
+  await userEvent.type(
+    screen.getByLabelText("Absolute executable path"),
+    "/hermes/.venv/bin/python",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+      registration: {
+        provider: "hermes",
+        id: "hermes",
+        name: "Hermes",
+        program: "/hermes/.venv/bin/python",
+        args: [],
+      },
+    }),
+  );
+  expect(
+    parseExternalAgents([{ ...registration, provider: "hermes", args: [] }])[0]?.provider,
+  ).toBe("hermes");
+});

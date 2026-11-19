@@ -79,3 +79,11 @@ required; account and legal acceptance remain explicit PR follow-up conditions.
 - `desktop/runtime/package.json` and its lockfile record the ACP/SDK versions actually shipped by this implementation.
 
 `CLAUDE_NATIVE_CONVERSATION_ENABLED` also defaults to false and is enforced independently. The SDK documentation requires prior approval to offer claude.ai login or consumer rate limits in a third-party product. Verify API/cloud credential eligibility or obtain that approval before enabling; never disable authentication methods inside the vendor binary. The feature is named “Claude Agent” under the SDK branding rules.
+
+## Hermes ownership decision
+
+The current public `hermes acp` entry point constructs a shared-gateway viewer. Killing that viewer cannot establish that its admitted work stopped. Instead, the installed Python environment hosts the existing `HermesACPAgent` with an explicit `SessionManager`. The constructor retains this foreground branch at source revision `91cb42b51bddc6841c4e50183c41c96d59e48516`. We pin the server/session/entry source fingerprints, refuse incompatible environments before inference, and reuse ACP streaming, model discovery, permissions, platform tools and durable session IDs. No shared gateway is attached, started or stopped.
+
+The native app allocates a home from an opaque backend private-conversation scope plus native folder, connection and registration revision. Model arguments cannot choose a home or executable. Setup occurs in that empty home through the vendor CLI; credentials, refresh, model availability and billing remain vendor-owned. Account/setup and real-runtime acceptance require an operator's prepared environment and Nous Portal or other configured account. They remain PR acceptance conditions, not evidence supplied by protocol mocks.
+
+Source: [foreground constructor](https://github.com/NousResearch/hermes-agent/blob/91cb42b51bddc6841c4e50183c41c96d59e48516/acp_adapter/server.py), [session persistence](https://github.com/NousResearch/hermes-agent/blob/91cb42b51bddc6841c4e50183c41c96d59e48516/acp_adapter/session.py), [ACP documentation](https://hermes-agent.nousresearch.com/docs/user-guide/features/acp).

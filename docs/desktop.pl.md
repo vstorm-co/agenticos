@@ -1,5 +1,5 @@
 ---
-source_sha: "d387a7eefc3e"
+source_sha: "26ac48acc5f2"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -980,3 +980,13 @@ Prywatne pliki sesji są ograniczone do osoby, agenta, czatu, folderu, rejestrac
 Operator może ustawić `CODEX_NATIVE_CONVERSATION_ENABLED=true` wyłącznie dla uprawnionego wdrożenia lokalnego/open source lub po uzyskaniu zgody dostawcy. Przełącznik nie potwierdza uprawnień konta. Uwierzytelnianie App Server nie jest dozwolone w usługach komercyjnych ani hostowanych bez odpowiedniej zgody. Zmiana logowania w aplikacji zatrzymuje procesy tego środowiska i usuwa zapisane wznowienia; przed kontynuacją zresetuj sesję natywną. Ręczna zmiana konta poza aplikacją również wymaga resetu.
 
 Claude Agent korzysta z istniejącego adaptera ACP Claude Code jako głównego środowiska rozmowy. Obowiązują te same zasady prywatnej sesji, strumieniowania, narzędzi i odzyskiwania co dla Codexa. Osobny przełącznik `CLAUDE_NATIVE_CONVERSATION_ENABLED` jest domyślnie wyłączony. Operator musi sprawdzić uprawnienia do wdrożenia Agent SDK oraz wybraną metodę uwierzytelniania API/cloud. Oferowanie logowania claude.ai lub limitów planu konsumenckiego w cudzym produkcie SDK wymaga wcześniejszej zgody Anthropic; przełącznik jej nie zapewnia. Program dostawcy i metody logowania pozostają niezmienione. Interfejs używa dozwolonej nazwy „Claude Agent”.
+
+## Hermes w osobnym procesie {#hermes-runtime}
+
+Zarejestruj **plik wykonywalny Pythona** z przygotowanego środowiska Hermesa, wybierając szablon Hermes i pozostawiając argumenty puste. Integracja używa rewizji `91cb42b51bddc6841c4e50183c41c96d59e48516`. Przygotuj ten checkout według instrukcji zależności projektu i wybierz jego środowisko Pythona. Desktop sprawdza trzy pliki granicy adaptera przed wywołaniem modelu. Inna rewizja wymaga ponownej weryfikacji zgodności.
+
+Desktop uruchamia `HermesACPAgent(session_manager=SessionManager())` we własnym procesie. Zwykłe `hermes acp` wybiera połączenie ze współdzielonym gatewayem. Jawny menedżer sesji pozwala zatrzymać wyłącznie własne drzewo procesów, bez korzystania z osobistego gatewaya i bez jego zamykania. Odkrywanie modeli, kolejne tury, strumieniowanie, uprawnienia natywne i opcjonalne narzędzia platformy korzystają z istniejącego ACP.
+
+Każda prywatna rozmowa inicjującego użytkownika ma osobny katalog Hermesa, powiązany również z agentem, folderem, połączeniem i rewizją rejestracji. Rozmowy współdzielone i podszywanie się są odrzucane. Pierwszy start pokazuje katalog oraz lokalną instrukcję konfiguracji. Ustaw `HERMES_HOME` na ten katalog i uruchom wybrany Python z `-m hermes_cli.main --profile default setup`; dla Nous Portal użyj `-m hermes_cli.main --profile default auth add nous --type oauth`. Ustaw tam model i dostawcę. Istniejące katalogi, pamięć, umiejętności i pliki tokenów nie są importowane.
+
+Hermes zarządza poświadczeniami, odświeżaniem, rozliczaniem API/subskrypcji i własnymi narzędziami. Logowanie i katalog modeli nie potwierdzają uprawnień planu. Koszt pozostaje nieznany. Przed zmianą konta zatrzymaj zadanie i zarejestruj środowisko ponownie, aby unieważnić wznowienia i wybrać nowy profil. Usunięcie rejestracji nie usuwa plików profilu dostawcy; usuń katalog osobno po zakończeniu używania konta. Natywne narzędzia zachowują jawnie zatwierdzony pełny dostęp lokalny. Testy kont są opisane osobno w PR.

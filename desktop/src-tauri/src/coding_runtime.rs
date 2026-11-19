@@ -11,6 +11,7 @@ const NODE_VERSION: &str = "24.19.0";
 const MANIFEST: &str = include_str!("../../runtime/package.json");
 const MUSE: &str = include_str!("../../runtime/muse.mts");
 const BRIDGE: &str = include_str!("../../runtime/platform-bridge.mts");
+const HERMES: &str = include_str!("../../runtime/hermes_owned.py");
 const PI_TOOLS: &str = include_str!("../../runtime/pi-tools.mjs");
 const PLATFORM_HTTP: &str = include_str!("../../runtime/platform-http.mjs");
 const LOCK: &str = include_str!("../../runtime/package-lock.json");
@@ -22,6 +23,10 @@ pub struct Runtime {
 }
 
 impl Runtime {
+    pub fn hermes_adapter(&self) -> PathBuf {
+        self.directory.join("hermes_owned.py")
+    }
+
     pub fn platform_bridge(&self) -> PathBuf {
         self.directory.join("platform-bridge.mts")
     }
@@ -136,6 +141,7 @@ fn complete(runtime: &Runtime) -> bool {
     present(&runtime.node)
         && present(&runtime.muse_adapter())
         && present(&runtime.platform_bridge())
+        && present(&runtime.hermes_adapter())
         && present(&runtime.directory.join("pi-tools.mjs"))
         && present(&runtime.directory.join("platform-http.mjs"))
         && present(&runtime.directory.join("node_modules/@muse-code/sdk/dist/src/index.js"))
@@ -157,7 +163,7 @@ fn revision() -> String {
     format!(
         "{:x}",
         Sha256::digest(
-            format!("{NODE_VERSION}\n{MANIFEST}\n{LOCK}\n{MUSE}\n{BRIDGE}\n{PI_TOOLS}\n{PLATFORM_HTTP}").as_bytes()
+            format!("{NODE_VERSION}\n{MANIFEST}\n{LOCK}\n{MUSE}\n{BRIDGE}\n{PI_TOOLS}\n{PLATFORM_HTTP}\n{HERMES}").as_bytes()
         )
     )
 }
@@ -294,6 +300,9 @@ async fn install(directory: &Path, archive: &str, checksum: &str) -> Result<(), 
     tokio::fs::write(directory.join("package-lock.json"), LOCK)
         .await
         .map_err(|e| e.to_string())?;
+    tokio::fs::write(directory.join("hermes_owned.py"), HERMES)
+        .await
+        .map_err(|error| format!("Cannot prepare the owned Hermes adapter: {error}"))?;
     tokio::fs::write(directory.join("platform-http.mjs"), PLATFORM_HTTP)
         .await
         .map_err(|error| format!("Cannot prepare the loopback transport: {error}"))?;

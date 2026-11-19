@@ -27,6 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Run Hermes through an owned foreground ACP host with isolated private-conversation profiles, Nous Portal setup handoff, model discovery and optional scoped platform tools.
+
 - Use Claude Agent as a private Desktop conversation runtime, with an independent eligibility switch, native session recovery and scoped platform tools.
 
 - Choose Codex as the primary Desktop conversation runtime, with native streamed answers, scoped session receipts, platform-tool policy, explicit reset and no cloud credential fallback.

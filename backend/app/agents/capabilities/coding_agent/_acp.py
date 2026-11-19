@@ -13,6 +13,7 @@ its `access`. The agent's requests in between are not put to a person one by one
 reads. That is the same trade the sandbox harness makes, for the same reason.
 """
 
+import hashlib
 import itertools
 import json
 import logging
@@ -39,6 +40,7 @@ from app.agents.capabilities.coding_agent._harness import (
     clip,
     last_steps,
 )
+from app.agents.deps import AgentDeps
 from app.agents.model_context import check_model_context
 from app.agents.pi_keys import PiRuntimeKey
 from app.agents.runtime_questions import RuntimeQuestionsCallback
@@ -128,6 +130,29 @@ class AgentCalls(Protocol):
     ) -> dict[str, Any]: ...
 
 
+def private_state_scope(deps: AgentDeps) -> str | None:
+    audience = deps.audience
+    if (
+        deps.organization_id is None
+        or deps.run_person is None
+        or deps.conversation_id is None
+        or deps.user_id != str(deps.run_person)
+        or deps.impersonated
+        or audience is None
+        or audience.user_id != deps.run_person
+        or audience.room_key is not None
+        or audience.shared_transcript
+    ):
+        return None
+    identity = [
+        str(deps.organization_id),
+        str(deps.run_person),
+        str(deps.agent_id),
+        str(deps.conversation_id),
+    ]
+    return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
+
+
 class DevicePipe:
     """An agent running on the person's computer, reached through the device hub."""
 
@@ -136,6 +161,7 @@ class DevicePipe:
         device: AgentCalls,
         harness: AcpHarness,
         *,
+        state_scope: str | None = None,
         resume_key: str | None = None,
         fresh_session: bool = False,
         root: str | None = None,
@@ -151,6 +177,7 @@ class DevicePipe:
         self._resume_key = resume_key
         self._root = root
         self._fresh_session = fresh_session
+        self._state_scope = state_scope
         self.session_id: str | None = None
         self.auth_method: str | None = None
         self.runtime_name: str | None = None
@@ -166,6 +193,8 @@ class DevicePipe:
 
     async def open(self) -> None:
         args: dict[str, Any] = {"agent": self._harness}
+        if self._state_scope is not None:
+            args["state_scope"] = self._state_scope
         if self._platform_tools:
             args["platform_tools"] = True
         if self._harness == "custom":

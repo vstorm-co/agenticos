@@ -40,6 +40,7 @@ from app.agents.capabilities.coding_agent._acp import (
     AcpError,
     CredentialProbe,
     DevicePipe,
+    private_state_scope,
     run_task,
 )
 from app.agents.capabilities.coding_agent._harness import (
@@ -771,6 +772,7 @@ async def run_local_task(
     pipe = DevicePipe(
         workspace,
         chosen,
+        state_scope=private_state_scope(ctx.deps),
         resume_key=resume_key,
         fresh_session=fresh_session,
         root=root if folder else None,

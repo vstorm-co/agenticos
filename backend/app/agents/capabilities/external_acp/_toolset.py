@@ -9,7 +9,7 @@ from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities.budget import assert_ambient_budget, record_ambient_usage
-from app.agents.capabilities.coding_agent._acp import AcpError, DevicePipe
+from app.agents.capabilities.coding_agent._acp import AcpError, DevicePipe, private_state_scope
 from app.agents.capabilities.coding_agent._task import MAIN_SESSION, SESSION_NAME
 from app.agents.capabilities.coding_agent._toolset import run_local_task
 from app.agents.capabilities.external_acp._catalog import inspect_session
@@ -124,7 +124,12 @@ def build_acp_toolset(
         await assert_ambient_budget()
         key = await selected_key(ctx, api_provider, secret_id)
         pipe = DevicePipe(
-            workspace, "custom", custom_agent_id=agent_id, pi_key=key, pi_model=model_id
+            workspace,
+            "custom",
+            custom_agent_id=agent_id,
+            pi_key=key,
+            pi_model=model_id,
+            state_scope=private_state_scope(ctx.deps),
         )
         try:
             root = await workspace.working_dir()

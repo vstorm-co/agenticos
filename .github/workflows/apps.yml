@@ -31,6 +31,8 @@ jobs:
           cd ../desktop/runtime && npm ci --ignore-scripts --omit=optional --no-audit --no-fund
       - name: Check typed runtime adapters
         run: frontend/node_modules/.bin/tsc -p desktop/runtime/tsconfig.json
+      - name: Exercise the owned Hermes host
+        run: python3 -m unittest discover -s desktop/runtime -p test_hermes_owned.py -q
       - name: Exercise the SDK boundary
         run: node --test desktop/runtime/muse.test.mts desktop/runtime/pi-key.test.mjs desktop/runtime/platform-bridge.test.mts
 

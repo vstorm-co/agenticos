@@ -94,6 +94,7 @@ export function ExternalAgentSettings() {
                 selected !== "mistral_vibe" &&
                 selected !== "grok" &&
                 selected !== "kimi" &&
+                selected !== "hermes" &&
                 selected !== "muse" &&
                 selected !== "muse_api_key" &&
                 selected !== "pi" &&
@@ -119,6 +120,7 @@ export function ExternalAgentSettings() {
                 mistral_vibe: "Mistral Vibe",
                 grok: "Grok",
                 kimi: "Kimi Code",
+                hermes: "Hermes",
                 muse: "Muse",
                 muse_api_key: t("museApi"),
                 pi: "Pi",
@@ -146,7 +148,7 @@ export function ExternalAgentSettings() {
                           ? '["--acp","--auth-type=qwen-subscription"]'
                           : selected === "grok"
                             ? '["--no-auto-update","agent","stdio"]'
-                            : selected === "mistral_vibe"
+                            : selected === "mistral_vibe" || selected === "hermes"
                               ? "[]"
                               : selected === "cline" || selected === "cline_api_key"
                                 ? '["--acp"]'
@@ -169,6 +171,8 @@ export function ExternalAgentSettings() {
             <option value="pi_deepseek">Pi · DeepSeek</option>
             {/* i18n-exempt: product names */}
             <option value="pi_openrouter">Pi · OpenRouter</option>
+            {/* i18n-exempt: product name */}
+            <option value="hermes">Hermes</option>
             {/* i18n-exempt: product name */}
             <option value="muse">Muse</option>
             <option value="muse_api_key">{t("museApi")}</option>
@@ -197,6 +201,9 @@ export function ExternalAgentSettings() {
         )}
         {provider === "qwen_subscription" && (
           <p className="text-muted-foreground text-xs">{t("qwenHelp")}</p>
+        )}
+        {provider === "hermes" && (
+          <p className="text-muted-foreground text-xs">{t("hermesHelp")}</p>
         )}
         {(provider === "muse" || provider === "muse_api_key") && (
           <p className="text-muted-foreground text-xs">{t("museHelp")}</p>

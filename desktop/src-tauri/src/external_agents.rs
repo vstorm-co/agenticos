@@ -13,6 +13,7 @@ use crate::settings;
 pub enum Provider {
     #[default]
     Custom,
+    Hermes,
     Antigravity,
     Cursor,
     Cline,
@@ -102,6 +103,9 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
                 .into(),
         );
     }
+    if input.provider == Provider::Hermes && !input.args.is_empty() {
+        return Err("Hermes requires its prepared Python executable without arguments; Desktop owns the foreground ACP adapter.".into());
+    }
     if input.provider == Provider::MistralVibe && !input.args.is_empty() {
         return Err("Mistral Vibe requires the vibe-acp executable without arguments.".into());
     }
@@ -179,6 +183,7 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
         Provider::Antigravity => "Google personal OAuth is required; inherited Gemini API key variables are removed.",
         Provider::OpenCode => "OpenCode uses its own configured providers and credentials. Its model choices may include free models, Go and paid APIs.",
         Provider::OpenCodeGo => "Only an opencode-go primary model may receive a prompt. Connect Go under opencode-go in OpenCode itself; no key is copied by AgenticOS. Go Extra Usage and OpenCode auxiliary-model settings can incur additional charges. Coding tasks only.",
+        Provider::Hermes => "Select the Python executable in the documented Hermes environment, not the hermes command. Desktop starts a source-verified foreground ACP host, never the shared gateway. Each private conversation has a separate Hermes home; the native setup dialog identifies that home. Complete provider setup and Nous Portal login there. No existing home, memory, skills or token files are copied. Credentials, configured APIs, native tools and charges remain Hermes-owned. Changing the registration clears continuation and selects a fresh home. Usage is unpriced.",
         Provider::Custom => "The program's own configuration decides subscription or API billing.",
     };
     app.dialog().message(format!(

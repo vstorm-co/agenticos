@@ -16,6 +16,7 @@
 pub mod accounts;
 mod pi_keys;
 
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -495,6 +496,8 @@ struct OpenArgs {
     pi_key: Option<pi_keys::SelectedKey>,
     #[serde(default)]
     platform_tools: bool,
+    #[serde(default)]
+    state_scope: Option<String>,
     root: String,
     mode: Mode,
     #[serde(default)]
@@ -649,6 +652,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         accepted_protocols,
         pi_key,
         platform_tools,
+        state_scope,
         root,
         mode,
         resume_key,
@@ -790,7 +794,13 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
             "A Pi vault-key launch requires the matching native provider template and a selected vault key.",
         ));
     }
-    let runtime = if agent.builtin().is_some() || needs_muse || platform_tools {
+    let runtime = if agent.builtin().is_some()
+        || needs_muse
+        || platform_tools
+        || external
+            .as_ref()
+            .is_some_and(|item| item.provider == crate::external_agents::Provider::Hermes)
+    {
         Some(
             crate::coding_runtime::prepare(app)
                 .await
@@ -830,71 +840,123 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         if !crate::settings::current(app).external_agents.contains(external) {
             return Err(Refusal::new("denied", "The ACP registration changed. Start again."));
         }
-        if let Some(selected) = pi_key {
-            let prepared = pi_keys::Prepared::new(app, Path::new(&external.program), key.as_ref(), selected)
+
+        if external.provider == crate::external_agents::Provider::Hermes {
+            let scope = state_scope.as_deref().ok_or_else(|| {
+                Refusal::new(
+                    "denied",
+                    "Hermes requires an initiating member's private conversation scope.",
+                )
+            })?;
+            let profile = hermes_profile_id(scope, &root, external, &before.connection_revision)?;
+            let home = app
+                .path()
+                .app_data_dir()
+                .map_err(|_| Refusal::new("io", "The native profile directory is unavailable."))?
+                .join("hermes-profiles")
+                .join(profile);
+            tokio::fs::create_dir_all(&home)
                 .await
-                .map_err(|message| Refusal::new("denied", message))?;
-            let current = crate::settings::current(app);
-            if current.connection_revision != before.connection_revision || !current.external_agents.contains(external)
+                .map_err(|_| Refusal::new("io", "The private Hermes profile could not be created."))?;
+            #[cfg(unix)]
             {
-                let _ = tokio::fs::remove_dir_all(&prepared.agent_dir).await;
+                use std::os::unix::fs::PermissionsExt;
+                tokio::fs::set_permissions(&home, std::fs::Permissions::from_mode(0o700))
+                    .await
+                    .map_err(|_| Refusal::new("io", "The private Hermes profile permissions could not be set."))?;
+            }
+            if !home.join("config.yaml").is_file() {
+                app.dialog().message(format!("Set up this isolated Hermes profile before retrying.\n\nHERMES_HOME: {}\nPython: {}\n\nSet HERMES_HOME to this directory in your terminal, then use this Python with -m hermes_cli.main --profile default setup. For Nous Portal use -m hermes_cli.main --profile default auth add nous --type oauth. Do not copy an existing Hermes home or token files. This setup is specific to this private conversation and registration.", home.display(), external.program))
+                    .title("Set up Hermes for this conversation").kind(MessageDialogKind::Info).show(|_| {});
                 return Err(Refusal::new(
                     "denied",
-                    "The connection or Pi registration changed. Start again.",
-                ));
-            }
-            if let Err(error) = authorized_root(app, args, &root.to_string_lossy()) {
-                let _ = tokio::fs::remove_dir_all(&prepared.agent_dir).await;
-                return Err(error);
-            }
-            let spawned = spawn_with_bridge(
-                Path::new(&external.program),
-                &external.args,
-                &root,
-                path_with(Path::new(&external.program)),
-                external.provider,
-                Some(&prepared),
-                runtime.as_ref().filter(|_| platform_tools),
-            );
-            if spawned.is_err() {
-                let _ = tokio::fs::remove_dir_all(&prepared.agent_dir).await;
-            }
-            spawned?
-        } else if matches!(
-            external.provider,
-            crate::external_agents::Provider::Muse | crate::external_agents::Provider::MuseApiKey
-        ) {
-            if app.state::<accounts::AccountFlows>().is_busy() {
-                return Err(Refusal::new(
-                    "denied",
-                    "Finish the Muse account operation before starting a task.",
+                    "Complete the isolated Hermes setup shown on this computer, then retry. No model prompt was sent.",
                 ));
             }
             let runtime = runtime
                 .as_ref()
-                .ok_or_else(|| Refusal::new("io", "Prepare the managed SDK runtime first."))?;
+                .ok_or_else(|| Refusal::new("io", "Prepare the managed runtime first."))?;
             spawn_with_bridge(
-                &runtime.node,
+                Path::new(&external.program),
                 &[
-                    runtime.muse_adapter().to_string_lossy().into_owned(),
-                    external.program.clone(),
+                    "-I".into(),
+                    runtime.hermes_adapter().to_string_lossy().into_owned(),
+                    home.to_string_lossy().into_owned(),
                 ],
-                &root,
-                path_with(&runtime.node),
+                &runtime.directory,
+                path_with(Path::new(&external.program)),
                 external.provider,
                 None,
                 platform_tools.then_some(runtime),
             )?
         } else {
-            spawn_with_bridge(
-                Path::new(&external.program),
-                &external.args,
-                &root,
-                path_with(Path::new(&external.program)),
+            if let Some(selected) = pi_key {
+                let prepared = pi_keys::Prepared::new(app, Path::new(&external.program), key.as_ref(), selected)
+                    .await
+                    .map_err(|message| Refusal::new("denied", message))?;
+                let current = crate::settings::current(app);
+                if current.connection_revision != before.connection_revision
+                    || !current.external_agents.contains(external)
+                {
+                    let _ = tokio::fs::remove_dir_all(&prepared.agent_dir).await;
+                    return Err(Refusal::new(
+                        "denied",
+                        "The connection or Pi registration changed. Start again.",
+                    ));
+                }
+                if let Err(error) = authorized_root(app, args, &root.to_string_lossy()) {
+                    let _ = tokio::fs::remove_dir_all(&prepared.agent_dir).await;
+                    return Err(error);
+                }
+                let spawned = spawn_with_bridge(
+                    Path::new(&external.program),
+                    &external.args,
+                    &root,
+                    path_with(Path::new(&external.program)),
+                    external.provider,
+                    Some(&prepared),
+                    runtime.as_ref().filter(|_| platform_tools),
+                );
+                if spawned.is_err() {
+                    let _ = tokio::fs::remove_dir_all(&prepared.agent_dir).await;
+                }
+                spawned?
+            } else if matches!(
                 external.provider,
-                None,
-                runtime.as_ref().filter(|_| platform_tools),
-            )?
+                crate::external_agents::Provider::Muse | crate::external_agents::Provider::MuseApiKey
+            ) {
+                if app.state::<accounts::AccountFlows>().is_busy() {
+                    return Err(Refusal::new(
+                        "denied",
+                        "Finish the Muse account operation before starting a task.",
+                    ));
+                }
+                let runtime = runtime
+                    .as_ref()
+                    .ok_or_else(|| Refusal::new("io", "Prepare the managed SDK runtime first."))?;
+                spawn_with_bridge(
+                    &runtime.node,
+                    &[
+                        runtime.muse_adapter().to_string_lossy().into_owned(),
+                        external.program.clone(),
+                    ],
+                    &root,
+                    path_with(&runtime.node),
+                    external.provider,
+                    None,
+                    platform_tools.then_some(runtime),
+                )?
+            } else {
+                spawn_with_bridge(
+                    Path::new(&external.program),
+                    &external.args,
+                    &root,
+                    path_with(Path::new(&external.program)),
+                    external.provider,
+                    None,
+                    runtime.as_ref().filter(|_| platform_tools),
+                )?
+            }
         }
     } else if let (Some(runtime), Some(builtin)) = (&runtime, agent.builtin()) {
         spawn_with_bridge(
@@ -1118,6 +1180,29 @@ fn remove_for_folder(map: &mut HashMap<String, Session>, root: &Path) {
     });
 }
 
+fn hermes_profile_id(
+    scope: &str,
+    root: &Path,
+    registration: &crate::external_agents::Registration,
+    connection: &str,
+) -> Result<String, Refusal> {
+    if scope.len() != 64 || !scope.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(Refusal::new(
+            "denied",
+            "A private Hermes conversation scope is required.",
+        ));
+    }
+    let identity = serde_json::to_vec(&(
+        scope,
+        root.to_string_lossy(),
+        &registration.id,
+        &registration.revision,
+        connection,
+    ))
+    .map_err(bad)?;
+    Ok(format!("{:x}", Sha256::digest(identity)))
+}
+
 /// Account mutation holds CHANGING, so no native launch can race credential replacement.
 pub async fn close_builtin(app: &AppHandle, id: crate::local_agents::AgentId) -> Result<(), String> {
     let sessions = app.state::<Sessions>();
@@ -1126,10 +1211,14 @@ pub async fn close_builtin(app: &AppHandle, id: crate::local_agents::AgentId) ->
         tokio::time::timeout(Duration::from_secs(15), async {
             loop {
                 let changed = output.changed.notified();
-                if output.with(|kept| kept.exit.is_some()) { break; }
+                if output.with(|kept| kept.exit.is_some()) {
+                    break;
+                }
                 changed.await;
             }
-        }).await.map_err(|_| "The previous agent has not stopped; credentials were not changed.".to_owned())?;
+        })
+        .await
+        .map_err(|_| "The previous agent has not stopped; credentials were not changed.".to_owned())?;
     }
     let agent = match id {
         crate::local_agents::AgentId::Codex => AgentId::Codex,
@@ -1145,8 +1234,12 @@ pub async fn close_builtin(app: &AppHandle, id: crate::local_agents::AgentId) ->
 fn take_builtin(map: &mut HashMap<String, Session>, id: crate::local_agents::AgentId) -> Vec<Arc<Output>> {
     let mut stopped = Vec::new();
     map.retain(|_, session| {
-        if session.builtin_id != Some(id) { return true; }
-        if let Some(kill) = session.kill.take() { let _ = kill.send(()); }
+        if session.builtin_id != Some(id) {
+            return true;
+        }
+        if let Some(kill) = session.kill.take() {
+            let _ = kill.send(());
+        }
         stopped.push(session.output.clone());
         false
     });
@@ -1275,6 +1368,41 @@ mod tests {
         );
     }
 
+    #[test]
+    fn hermes_state_is_bound_to_private_scope_registration_folder_and_connection() {
+        let registration = crate::external_agents::Registration {
+            provider: crate::external_agents::Provider::Hermes,
+            id: "hermes".into(),
+            name: "Hermes".into(),
+            program: "/python".into(),
+            args: vec![],
+            revision: "one".into(),
+        };
+        let scope = "a".repeat(64);
+        let first = hermes_profile_id(&scope, Path::new("/work"), &registration, "connection").unwrap();
+        assert_eq!(first.len(), 64);
+        assert_eq!(
+            first,
+            hermes_profile_id(&scope, Path::new("/work"), &registration, "connection").unwrap()
+        );
+        for (scope, root, revision, connection) in [
+            ("b".repeat(64), "/work", "one", "connection"),
+            (scope.clone(), "/other", "one", "connection"),
+            (scope.clone(), "/work", "two", "connection"),
+            (scope.clone(), "/work", "one", "other"),
+        ] {
+            let changed = crate::external_agents::Registration {
+                revision: revision.into(),
+                ..registration.clone()
+            };
+            assert_ne!(
+                first,
+                hermes_profile_id(&scope, Path::new(root), &changed, connection).unwrap()
+            );
+        }
+        assert!(hermes_profile_id("../../shared", Path::new("/work"), &registration, "connection").is_err());
+    }
+
     #[tokio::test]
     async fn an_account_change_stops_only_its_builtin_sessions() {
         let mut codex = shell("sleep 60");
@@ -1282,14 +1410,20 @@ mod tests {
         let mut claude = shell("sleep 60");
         claude.builtin_id = Some(crate::local_agents::AgentId::ClaudeCode);
         let custom = shell("sleep 60");
-        let mut map = HashMap::from([("codex".into(), codex), ("claude".into(), claude), ("custom".into(), custom)]);
+        let mut map = HashMap::from([
+            ("codex".into(), codex),
+            ("claude".into(), claude),
+            ("custom".into(), custom),
+        ]);
         let stopped = take_builtin(&mut map, crate::local_agents::AgentId::Codex);
         assert_eq!(stopped.len(), 1);
         assert!(!map.contains_key("codex"));
         assert!(map.contains_key("claude") && map.contains_key("custom"));
         let (_, _, exit) = drain(&stopped[0], 0).await;
         assert!(exit.is_some());
-        for (_, mut session) in map { let _ = session.kill.take().unwrap().send(()); }
+        for (_, mut session) in map {
+            let _ = session.kill.take().unwrap().send(());
+        }
     }
 
     #[tokio::test]
