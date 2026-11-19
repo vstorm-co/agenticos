@@ -12,8 +12,10 @@ import { useAgentSelectionStore } from "@/stores";
 import { useAgents } from "@/hooks/use-agents";
 import { ModelIcon } from "@/components/icons/model-icon";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
 import { Perm } from "@/types/permissions";
+import { cn } from "@/lib/utils";
 import { ChatModelPicker } from "./chat-model-picker";
 import { PersonalModelConnection } from "./personal-model-connection";
 import { ConversationNotifications, WorkOn } from "./work-on";
@@ -40,6 +42,7 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
   const { agents } = useAgents();
   const agent = agents.find((entry) => entry.id === selectedAgentId);
   const { profiles } = useModelProviders();
+  const { can, isLoading: permissionsLoading } = usePermissions();
   const { modelProfileId, update } = useSavedChatControls();
   const model =
     modelProfileId === null
@@ -51,6 +54,7 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
     onChange?.(id);
   };
   const caption = model?.model.split("/").at(-1) || t("modelSection");
+  const library = !agent?.personal_model_key && (permissionsLoading || can(Perm.connectionsManage));
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -78,7 +82,11 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
         aria-label={t("modelSection")}
         side="top"
         align="end"
-        className="max-h-[min(600px,var(--radix-popover-content-available-height))] w-[min(640px,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl p-0"
+        className={cn(
+          "max-h-[min(600px,var(--radix-popover-content-available-height))] w-[min(640px,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl p-0",
+          // Keep the anchor stable while permissions and the catalog settle.
+          library && "h-[min(29rem,var(--radix-popover-content-available-height,29rem))]",
+        )}
       >
         <div className="border-border flex items-center justify-between border-b px-4 py-2 text-xs font-medium">
           {t("modelSection")}
@@ -93,6 +101,11 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
         </div>
         {agent?.personal_model_key ? (
           <PersonalModelConnection agentId={selectedAgentId} manage />
+        ) : permissionsLoading ? (
+          <div aria-busy="true" className="grid gap-3 p-4">
+            <Skeleton className="h-8 w-1/3" />
+            <Skeleton className="h-36 w-full" />
+          </div>
         ) : (
           <ChatModelPicker
             compact

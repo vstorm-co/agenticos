@@ -322,12 +322,13 @@
 }
 
 .chat-layout .chat-home-column {
-  padding-block: clamp(24px, 5vh, 64px) 32px;
+  padding-block: clamp(24px, 12dvh, 128px) 32px;
 }
 .chat-layout .chat-home-starters [data-chat-welcome-hints] {
   margin-top: 0;
   grid-template-columns: minmax(0, 1fr);
 }
+.chat-layout .chat-home-starters [data-chat-welcome-hints][aria-busy="true"] > div,
 .chat-layout .chat-home-starters [data-chat-welcome-hints] button:first-child {
   min-block-size: 2.75rem;
   align-items: center;
@@ -398,9 +399,6 @@
   }
   .chat-layout .chat-empty-state h2 {
     font-size: 24px;
-  }
-  .chat-layout .chat-empty-state p {
-    min-height: 0;
   }
 }
 

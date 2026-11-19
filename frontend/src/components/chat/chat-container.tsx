@@ -1472,7 +1472,7 @@ function ChatUI({
         <div
           className={cn(
             "@container/chat relative flex h-full min-w-0 flex-1 flex-col",
-            showWorkspaceHome && "chat-home-column justify-center-safe overflow-y-auto",
+            showWorkspaceHome && "chat-home-column overflow-y-auto",
           )}
         >
           {!compact && <TurnRail entries={railEntries} />}

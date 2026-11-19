@@ -76,6 +76,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep the model library and its anchor stable while a new chat loads. Teach the shipped AgenticOS to reuse existing automations, choose the right monitoring mode and ask about responsibilities when they affect priorities.
+
 - Keep prompt variable text readable when the console theme differs from the operating system theme. Apply editor token colors from the selected console theme and preserve a high-contrast fallback.
 
 - Exclude internal workflow transcripts from personal conversation search, even when their parent project is readable.

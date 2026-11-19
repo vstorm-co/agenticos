@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   // Both halves of "may this session waive approvals": the caller's permission
   // and the organization's ceiling (#925).
   mayDecide: true,
+  permissionsLoading: false,
   orgAllowsWaiving: true,
   orgLoaded: true,
   pathname: "/chat",
@@ -59,7 +60,7 @@ vi.mock("@/hooks", () => ({
   useProviderModels: () => ({ models: [], refused: [], source: "curated", isLoading: false }),
   useSecretPurposes: () => ({ purposes: [], isLoading: false }),
   useSecrets: () => ({ secrets: [] }),
-  usePermissions: () => ({ can: () => state.mayDecide }),
+  usePermissions: () => ({ can: () => state.mayDecide, isLoading: state.permissionsLoading }),
   useOrganizationList: () => ({
     data: state.orgLoaded
       ? [{ id: "org-1", chat_may_waive_approvals: state.orgAllowsWaiving }]
@@ -128,6 +129,7 @@ beforeEach(() => {
   state.profiles = [{ id: "p-1", label: "openai default", provider: "openai", model: "gpt-4.1" }];
   state.conversationId = null;
   state.mayDecide = true;
+  state.permissionsLoading = false;
   state.orgAllowsWaiving = true;
   state.orgLoaded = true;
   state.pathname = "/chat";
@@ -620,6 +622,34 @@ describe("main chat composition", () => {
       "data-presentation",
       "library",
     );
+  });
+
+  it("keeps the library's panel while the initial permissions load", async () => {
+    state.permissionsLoading = true;
+    state.mayDecide = false;
+    const chat = (
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>
+    );
+    const { rerender } = render(chat);
+    await userEvent.click(screen.getByRole("button", { name: "Model" }));
+    const panel = screen.getByRole("dialog", { name: "Model" });
+    const size = "h-[min(29rem,var(--radix-popover-content-available-height,29rem))]";
+    expect(panel).toHaveClass(size);
+    expect(panel.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /pick a model/ })).toBeNull();
+
+    state.permissionsLoading = false;
+    state.mayDecide = true;
+    rerender(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    expect(screen.getByRole("dialog", { name: "Model" })).toBe(panel);
+    expect(panel).toHaveClass(size);
+    expect(screen.getByRole("button", { name: /pick a model/ })).toBeVisible();
   });
 
   it("saves model overrides through the existing scoped controls", async () => {
