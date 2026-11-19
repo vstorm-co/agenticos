@@ -399,6 +399,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // Only where an agent has drawn something in the conversation on screen.
   { id: "chat-visual", page: ROUTES.CHAT, target: "chat-visual", optional: true },
   {
+    id: "chat-workspace-tabs",
+    page: ROUTES.CHAT,
+    target: "chat-workspace-tabs",
+    optional: true,
+  },
+  {
     id: "chat-visual-workspace",
     page: ROUTES.CHAT,
     target: "chat-visual-workspace",

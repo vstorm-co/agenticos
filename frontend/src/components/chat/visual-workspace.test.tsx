@@ -16,12 +16,16 @@ import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { VisualDownload } from "./visual-download";
 import { VisualFrame } from "./visual-frame";
 import { VisualWorkspace } from "./visual-workspace";
+import { ChatWorkspaceFrame } from "./chat-workspace-frame";
+import { ChatWorkspaceTabs } from "./chat-workspace-tabs";
+import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import {
-  VisualWorkspaceBoundary,
-  VisualWorkspaceProvider,
+  ChatWorkspaceBoundary,
+  ChatWorkspaceProvider,
   VisualWorkspaceSlot,
   useVisualWorkspace,
-} from "./visual-workspace-context";
+  useRequiredChatWorkspace,
+} from "./chat-workspace-context";
 
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect/></svg>';
 const showPopover = vi.fn();
@@ -65,28 +69,48 @@ function Harness({
   conversationId = "c1",
   two = false,
   visible = true,
+  shared = false,
 }: {
   conversationId?: string | null;
   two?: boolean;
   visible?: boolean;
+  shared?: boolean;
 }) {
   return (
-    <VisualWorkspaceProvider conversationId={conversationId}>
+    <ChatWorkspaceProvider shared={shared} conversationId={conversationId}>
       <div>
         {visible && (
-          <VisualWorkspaceBoundary>
+          <ChatWorkspaceBoundary>
             <Example />
-          </VisualWorkspaceBoundary>
+          </ChatWorkspaceBoundary>
         )}
         {two && <Example id="two" />}
         <VisualWorkspaceSlot />
+        {shared && <SharedPanes />}
       </div>
-    </VisualWorkspaceProvider>
+    </ChatWorkspaceProvider>
+  );
+}
+
+function SharedPanes() {
+  const workspace = useRequiredChatWorkspace();
+  return (
+    <>
+      <button onClick={() => workspace.openPanel("files")}>Open files</button>
+      <button onClick={workspace.close}>Hide workspace</button>
+      <ChatWorkspaceFrame>
+        {() => <input aria-label="Browser state" defaultValue="initial page" />}
+      </ChatWorkspaceFrame>
+      <ChatWorkspaceFrame panel="files">
+        {() => <input aria-label="File state" defaultValue="initial file" />}
+      </ChatWorkspaceFrame>
+    </>
   );
 }
 
 beforeEach(() => {
   wide = true;
+  useSourcesPanelStore.getState().close();
   vi.clearAllMocks();
   useBrowserPanelStore.setState({ openCallId: null });
   vi.spyOn(HTMLElement.prototype, "showPopover").mockImplementation(showPopover);
@@ -224,7 +248,7 @@ describe("a visual workspace", () => {
     useBrowserPanelStore.setState({ openCallId: "browse" });
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: "Open one" }));
-    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+    expect(useBrowserPanelStore.getState().openCallId).toBe("browse");
     expect(screen.getByRole("region")).toBeInTheDocument();
     act(() => useBrowserPanelStore.getState().open("next-browse"));
     expect(screen.queryByRole("region")).toBeNull();
@@ -232,9 +256,9 @@ describe("a visual workspace", () => {
 
   it("supports standalone transcripts with no docking slot", () => {
     render(
-      <VisualWorkspaceBoundary>
+      <ChatWorkspaceBoundary>
         <Example />
-      </VisualWorkspaceBoundary>,
+      </ChatWorkspaceBoundary>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Open one" }));
     expect(screen.getByRole("region")).toHaveAttribute("data-visual-workspace", "fullscreen");
@@ -247,7 +271,7 @@ describe("a visual workspace", () => {
     const view = render(<VisualWorkspaceSlot />);
     expect(view.container).toBeEmptyDOMElement();
     expect(() => renderHook(() => useVisualWorkspace("missing"))).toThrow(
-      "A visual requires VisualWorkspaceProvider",
+      "A workspace requires ChatWorkspaceProvider",
     );
   });
 
@@ -272,5 +296,105 @@ describe("a visual workspace", () => {
     await waitFor(() => expect(screen.queryByRole("region")).toBeNull());
     expect(screen.getByTitle("one")).toBe(frame);
     dialog.remove();
+  });
+});
+
+describe("shared workspace tabs", () => {
+  it("retains the same visual, browser and file nodes across tabs, hiding and expansion", async () => {
+    useBrowserPanelStore.getState().open("browse");
+    render(<Harness shared />);
+    const user = userEvent.setup();
+    const browser = screen.getByRole("textbox", { name: "Browser state" });
+    await user.type(browser, " kept");
+    await user.click(screen.getByRole("tab", { name: "Files" }));
+    const file = screen.getByRole("textbox", { name: "File state" });
+    await user.type(file, " kept");
+    await user.click(screen.getByRole("button", { name: "Open one" }));
+    const frame = screen.getByTitle("one") as HTMLIFrameElement;
+    const context = frame.contentWindow!;
+    Reflect.set(context, "scenario", "retained");
+    const visuals = screen.getByRole("tab", { name: "Visuals" });
+    expect(visuals).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel", { name: "Visuals" })).toHaveAttribute(
+      "id",
+      visuals.getAttribute("aria-controls"),
+    );
+    await user.click(screen.getByRole("button", { name: "Full screen" }));
+    await user.click(screen.getByRole("tab", { name: "Browser" }));
+    expect(screen.getByRole("textbox", { name: "Browser state" })).toBe(browser);
+    expect(browser).toHaveValue("initial page kept");
+    expect(screen.getByRole("tabpanel", { name: "Browser" })).toHaveAttribute(
+      "data-browser-panel",
+      "fullscreen",
+    );
+    await user.click(screen.getByRole("tab", { name: "Files" }));
+    expect(screen.getByRole("textbox", { name: "File state" })).toBe(file);
+    expect(file).toHaveValue("initial file kept");
+    expect(browser.closest("aside")).toHaveAttribute("inert");
+    await user.click(screen.getByRole("button", { name: "Hide workspace" }));
+    expect(screen.queryByRole("tabpanel", { name: /^(Visuals|Browser|Files)$/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Open files" }));
+    await user.click(screen.getByRole("tab", { name: "Visuals" }));
+    expect(screen.getByTitle("one")).toBe(frame);
+    expect(frame.contentWindow).toBe(context);
+    expect(Reflect.get(context, "scenario")).toBe("retained");
+    expect(useBrowserPanelStore.getState().openCallId).toBe("browse");
+  });
+
+  it("disables unavailable tabs and supports keyboard selection without losing focus", async () => {
+    render(<Harness shared />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Open files" }));
+    expect(screen.getByRole("tab", { name: "Visuals" })).toBeDisabled();
+    expect(screen.getByRole("tab", { name: "Browser" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Open one" }));
+    screen.getByRole("tab", { name: "Visuals" }).focus();
+    await user.keyboard("{ArrowRight}");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Files" })).toHaveFocus());
+    await user.keyboard("{ArrowLeft}");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Visuals" })).toHaveFocus());
+    await user.keyboard("{End}");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Files" })).toHaveFocus());
+    await user.keyboard("{Home}");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Visuals" })).toHaveFocus());
+    await user.keyboard("x");
+    expect(screen.getByRole("tab", { name: "Visuals" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("opens explicit browser requests but leaves the selected tab alone for automatic activity", () => {
+    render(<Harness shared />);
+    act(() => useBrowserPanelStore.getState().open("browse", true));
+    expect(screen.getByRole("tab", { name: "Browser" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByRole("tab", { name: "Files" }));
+    act(() => useBrowserPanelStore.getState().open("next", true));
+    expect(screen.getByRole("tab", { name: "Files" })).toHaveAttribute("aria-selected", "true");
+    act(() => useBrowserPanelStore.getState().open("next"));
+    expect(screen.getByRole("tab", { name: "Browser" })).toHaveAttribute("aria-selected", "true");
+    act(() => useBrowserPanelStore.getState().close());
+    expect(screen.queryByRole("tabpanel", { name: /^(Visuals|Browser|Files)$/ })).toBeNull();
+  });
+
+  it("coordinates sources and leaves them open for background browser activity", () => {
+    render(<Harness shared />);
+    const sources = () =>
+      useSourcesPanelStore
+        .getState()
+        .open([{ index: 1, type: "web", title: "Source", url: "https://example.org" }]);
+    fireEvent.click(screen.getByRole("button", { name: "Open files" }));
+    act(sources);
+    expect(screen.queryByRole("tabpanel", { name: /^(Visuals|Browser|Files)$/ })).toBeNull();
+    act(() => useBrowserPanelStore.getState().open("browse", true));
+    expect(useSourcesPanelStore.getState().isOpen).toBe(true);
+    act(() => useBrowserPanelStore.getState().open("browse"));
+    expect(screen.getByRole("tab", { name: "Browser" })).toHaveAttribute("aria-selected", "true");
+    expect(useSourcesPanelStore.getState().isOpen).toBe(false);
+    act(sources);
+    fireEvent.click(screen.getByRole("button", { name: "Open one" }));
+    expect(useSourcesPanelStore.getState().isOpen).toBe(false);
+  });
+
+  it("renders no shared tab strip outside its host", () => {
+    const view = render(<ChatWorkspaceTabs panel="files" />);
+    expect(view.container).toBeEmptyDOMElement();
   });
 });

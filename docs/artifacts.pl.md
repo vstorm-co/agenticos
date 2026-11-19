@@ -1,5 +1,5 @@
 ---
-source_sha: "a36968126561"
+source_sha: "312d519f5202"
 ---
 
 # Aplikacje { #artifacts }
@@ -953,6 +953,10 @@ także w pełnym ekranie. Podczas przygotowania pobieranie jest zablokowane. Je�
 eksport się nie powiedzie, komunikat informuje o możliwości ponownej próby.
 
 **Otwórz panel boczny** wyświetla wizualizację obok rozmowy i pola wiadomości na szerokim ekranie. Przeciągnij granicę panelu lub zmień szerokość klawiszami strzałek i przełączaj **Podgląd** oraz **Kod**. Wąska rozmowa wykorzystuje całe okno. Ta sama strona pozostaje zamontowana po zmianie widoku i zamknięciu panelu, więc pola formularzy, suwaki i pozycja kamery 3D zachowują stan. Otwarcie innej wizualizacji nie resetuje poprzedniej strony. Zmiana rozmowy kończy ten workspace.
+
+Karty **Wizualizacje**, **Przeglądarka** i **Pliki** współdzielą ten obszar roboczy. Zmiana karty pozostawia wybraną wizualizację i plik zamontowane, wraz ze stanem kontrolek i pozycją przewijania. Sesja przeglądarki także pozostaje wybrana; podgląd na żywo wstrzymuje się, gdy jej karta jest ukryta. Automatyczne przeglądanie nie zastępuje wybranej karty. Otwarcie załącznika wybiera Pliki, gdzie **Wróć do wszystkich plików** przywraca listę. Zamknięcie obszaru zachowuje wybór do zmiany rozmowy.
+
+**Sprawdź przed zapisaniem.** Poproś agenta o wywołanie `preview_visual` po utworzeniu lub poprawieniu wizualizacji. Narzędzie zwraca zrzut ekranu i diagnostykę z tego samego izolowanego renderera co Aplikacje. Możesz wskazać szerokość telefonu lub ciemny motyw. Sprawdzana jest nowa kopia źródła, a nie aktualne wartości w Twoim podglądzie. Wymagany jest renderer Aplikacji wdrożenia; bez niego narzędzie wyraźnie informuje, że zrzut nie powstał.
 
 **Dalsze pytania (follow-upy).** Kontrolka w rysunku może oddać wybór osoby do
 rozmowy - *Zaplanuj ten przystanek*, *Użyj tych liczb* - wywołując

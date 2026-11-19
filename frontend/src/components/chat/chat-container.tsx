@@ -46,7 +46,7 @@ import { FilePreviewDialog } from "./file-preview-dialog";
 import type { Browse } from "@/lib/browse";
 import { BrowserPanelAutoOpen, LiveBrowsesProvider } from "./browser-card";
 import { ConversationVisualsProvider } from "./visual-panel";
-import { VisualWorkspaceProvider, VisualWorkspaceSlot } from "./visual-workspace-context";
+import { ChatWorkspaceProvider, VisualWorkspaceSlot } from "./chat-workspace-context";
 import { BrowserPanel } from "./browser-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList, coalesceActivity } from "./message-list";
@@ -1086,9 +1086,9 @@ interface ChatUIProps {
 
 function ChatUI(props: ChatUIProps) {
   return (
-    <VisualWorkspaceProvider conversationId={props.conversationId}>
+    <ChatWorkspaceProvider shared conversationId={props.conversationId}>
       <ChatUIContent {...props} />
-    </VisualWorkspaceProvider>
+    </ChatWorkspaceProvider>
   );
 }
 
@@ -2003,6 +2003,12 @@ function ChatUIContent({
           onComment={commentOnPage}
           onResume={() => sendMessage(t("browserResumePrompt"))}
         />
+        <WorkspaceFiles
+          conversationId={conversationId}
+          revision={turns}
+          attachments={attachments}
+          buttonSlot={filesSlot}
+        />
         <VisualWorkspaceSlot />
       </div>
       {/* Beside the transcript rather than under it: what the agent is holding is
@@ -2013,15 +2019,6 @@ function ChatUIContent({
           ones where the agent keeps nothing. Hidden on a narrow screen, where there
           is no room for it. */}
       <SourcesPanel contained={compact} conversationId={conversationId} />
-      <div className="hidden h-full min-h-0 shrink-0 lg:block">
-        <WorkspaceFiles
-          conversationId={conversationId}
-          revision={turns}
-          attachments={attachments}
-          buttonSlot={filesSlot}
-          overlay={compact}
-        />
-      </div>
     </div>
   );
 }

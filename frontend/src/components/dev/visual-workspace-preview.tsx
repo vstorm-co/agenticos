@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { ConversationVisualsProvider, TurnVisuals } from "@/components/chat/visual-panel";
-import { VisualWorkspaceSlot } from "@/components/chat/visual-workspace-context";
+import { VisualWorkspaceSlot } from "@/components/chat/chat-workspace-context";
 import { ThemeToggle } from "@/components/theme";
 import type { ChatMessage, ToolCall } from "@/types";
 

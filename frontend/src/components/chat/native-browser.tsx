@@ -9,11 +9,13 @@ import { BrowserNavigation } from "./browser-navigation";
 export function NativeBrowser({
   id,
   onClose,
+  onCloseTab,
   fullscreen = false,
   onToggleFullscreen,
 }: {
   id: string;
   onClose: () => void;
+  onCloseTab?: () => void;
   fullscreen?: boolean;
   onToggleFullscreen?: () => void;
 }) {
@@ -56,7 +58,7 @@ export function NativeBrowser({
             aria-label={t("nativeCloseTab")}
             title={t("nativeCloseTab")}
             onClick={async () => {
-              if (await send("close")) onClose();
+              if (await send("close")) (onCloseTab ?? onClose)();
             }}
           >
             <X className="size-4" aria-hidden />

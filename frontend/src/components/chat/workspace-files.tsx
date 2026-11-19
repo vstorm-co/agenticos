@@ -1,21 +1,19 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
-import { AlertTriangle, Download, FolderOpen, Info, X } from "lucide-react";
+import { AlertTriangle, Download, FolderOpen, Info, Maximize2, Minimize2, X } from "lucide-react";
 import { toast } from "sonner";
 
-import { FileCard, FileViewer, FileIcon, PathTree } from "@/components/files";
+import { FileCard, FileIcon, PathTree } from "@/components/files";
 import { useConversationWorkspace } from "@/hooks";
 import { useWorkOnStore } from "@/stores/work-on-store";
 import { useShell } from "@/hooks/use-shell";
 import { isDesktopShell } from "@/lib/desktop/shell";
 import { useLocalWorkspace } from "@/hooks/use-desktop";
 import { useFilePreviewStore } from "@/stores";
-import { useSourcesPanelStore } from "@/stores/sources-panel-store";
-import { getFileUrl } from "@/lib/file-api";
+import { attachmentAccess, getFileUrl } from "@/lib/file-api";
 import { cn, formatBytes } from "@/lib/utils";
 import { isRenderSafeImage } from "@/lib/file-kinds";
 import { treeOf, type WorkspaceTreeNode } from "@/lib/workspace-tree";
@@ -28,6 +26,9 @@ import {
 } from "@/lib/workspace-files";
 import type { ConversationFile } from "@/lib/conversation-workspace-api";
 import type { ChatMessageFile } from "@/types";
+import { ChatWorkspaceFrame } from "./chat-workspace-frame";
+import { useRequiredChatWorkspace } from "./chat-workspace-context";
+import { WorkspaceFilePreview } from "./workspace-file-preview";
 
 interface WorkspaceFilesProps {
   conversationId: string | null;
@@ -48,41 +49,26 @@ interface WorkspaceFilesProps {
   attachments: ChatMessageFile[];
   /** Where the closed panel's button is drawn - among the composer's controls. */
   buttonSlot: HTMLElement | null;
-  /**
-   * Lie over the conversation rather than beside it - in a narrow window (the
-   * Architect's, the test panel), where a column of its own squeezed the
-   * composer until its buttons fell out of it.
-   */
-  overlay?: boolean;
 }
 
-/**
- * What the agent is keeping in this conversation, behind a button.
+type Selection =
+  | { kind: "workspace"; file: ConversationFile; source: FileSource }
+  | { kind: "attachment"; file: ChatMessageFile };
+
+/** Conversation files and attachments in the shared workspace, with an inline reader.
  *
- * **Closed by default, and that is the change.** A permanent third column took
- * space from the transcript in every conversation, including the ones where the
- * agent keeps nothing — so closed it is one icon among the composer's controls,
- * and the count on that icon is what says there is something to open. A strip
- * of its own down the right edge cost the conversation a margin for one button.
- *
- * `owner_label` is shown and is not decoration. Under `agent` scope one workspace is
- * shared by everybody who talks to that agent, so somebody opens a chat and finds a
- * file they never created — and without a line saying whose files these are, the
- * reasonable reading is that something leaked.
- *
- * A file opens into the shared viewer rather than into a `<pre>` under its own row.
- * A 288-pixel column can list what the agent is keeping; it cannot show a report, a
- * chart or a PDF, and the panel used to answer "open this" with the first 60
- * characters of a line.
+ * Keep the owner label visible: an agent-scoped workspace is shared between chats.
+ * The reader stays mounted when another tab is selected or the workspace closes.
  */
 export function WorkspaceFiles({
   conversationId,
   revision,
   attachments,
   buttonSlot,
-  overlay = false,
 }: WorkspaceFilesProps) {
   const t = useTranslations("chat.files");
+  const tWorkspace = useTranslations("chat.workspace");
+  const host = useRequiredChatWorkspace();
   // A chat working on this computer keeps its files in the folder there, which
   // only the desktop app can list (#2305); everywhere else it is the server's.
   const shell = useShell();
@@ -96,14 +82,46 @@ export function WorkspaceFiles({
   );
   const { workspace, error, refresh } = localRoot === null ? cloud : local;
   const openAttachment = useFilePreviewStore((state) => state.open);
-  const [open, setOpen] = useState(false);
-  const sourcesOpen = useSourcesPanelStore((state) => state.isOpen);
-  const closeSources = useSourcesPanelStore((state) => state.close);
-  const visible = open && !sourcesOpen;
-  const panelId = useId();
+  const attachmentId = useFilePreviewStore((state) => state.openId);
+  const attachmentRequest = useFilePreviewStore((state) => state.openRequest);
+  const availableAttachments = useFilePreviewStore((state) => state.available);
+  const closeAttachment = useFilePreviewStore((state) => state.close);
+  const selectAttachment = useFilePreviewStore((state) => state.select);
+  const visible = host.activePanel === "files";
+  const [opened, setOpened] = useState(visible);
+  if (visible && !opened) setOpened(true);
+  const panelId = `${host.id}-panel-files`;
   const toggle = useRef<HTMLButtonElement>(null);
-  const reduceMotion = useReducedMotion();
-  const [reading, setReading] = useState<ConversationFile | null>(null);
+  const [reading, setReading] = useState<Selection | null>(null);
+  const [previousConversation, setPreviousConversation] = useState(conversationId);
+  if (previousConversation !== conversationId) {
+    setPreviousConversation(conversationId);
+    if (previousConversation !== null) setReading(null);
+  }
+  const [consumedAttachment, setConsumedAttachment] = useState(-1);
+  if (consumedAttachment !== attachmentRequest && attachmentId !== null) {
+    const file = availableAttachments.find((one) => one.id === attachmentId);
+    if (file) {
+      setConsumedAttachment(attachmentRequest);
+      setReading({ kind: "attachment", file });
+    }
+  }
+  useEffect(() => {
+    if (consumedAttachment !== -1) host.openPanel("files");
+  }, [consumedAttachment, host.openPanel]);
+  useEffect(() => {
+    if (!visible) return;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest('[role="menu"], [role="dialog"]')) return;
+      event.preventDefault();
+      host.close();
+      toggle.current?.focus();
+    };
+    window.addEventListener("keydown", dismiss);
+    return () => window.removeEventListener("keydown", dismiss);
+  }, [visible, host.close]);
   // The chat addresses files through its conversation, not through the workspace's
   // id: that route authorises by fetching the conversation, so somebody this chat
   // was shared with reaches the same files.
@@ -111,6 +129,26 @@ export function WorkspaceFiles({
     if (localRoot !== null) return { kind: "local", root: localRoot };
     return conversationId === null ? null : { kind: "conversation", id: conversationId };
   }, [conversationId, localRoot]);
+  const selected = useMemo(() => {
+    if (reading === null) return null;
+    if (reading.kind === "attachment")
+      return {
+        key: reading.file.id,
+        file: { name: reading.file.filename, mimeType: reading.file.mime_type },
+        access: attachmentAccess(reading.file),
+      };
+    const file = reading.file;
+    return {
+      key: file.path,
+      file: {
+        name: file.path.split("/").filter(Boolean).pop() ?? file.path,
+        path: file.path,
+        size: file.size,
+        modifiedAt: file.modified_at,
+      },
+      access: workspaceFileAccess(reading.source, file.path),
+    };
+  }, [reading]);
 
   // Re-read when a turn ends rather than on a timer: the chat knows exactly when
   // the files could have changed, and a poll is wrong almost every time it fires.
@@ -189,10 +227,8 @@ export function WorkspaceFiles({
             aria-expanded={visible}
             title={visible ? t("close") : count === 0 ? t("show") : t("showWithCount", { count })}
             onClick={() => {
-              if (sourcesOpen) {
-                closeSources();
-                setOpen(true);
-              } else setOpen((current) => !current);
+              if (visible) host.close();
+              else host.openPanel("files");
             }}
             className={cn(
               "text-muted-foreground hover:text-foreground hover:bg-accent/60 relative inline-flex size-8 items-center justify-center rounded-lg transition-colors",
@@ -208,21 +244,10 @@ export function WorkspaceFiles({
           </button>,
           buttonSlot,
         )}
-      <AnimatePresence initial={false}>
-        {visible && (
-          <motion.aside
-            data-native-browser-blocked={overlay ? "" : undefined}
-            id={panelId}
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 288, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
-            className={cn(
-              "h-full shrink-0 overflow-hidden",
-              overlay && "bg-background shadow-card absolute inset-y-0 right-0 z-20 max-w-[85%]",
-            )}
-          >
-            <div className="border-border flex h-full min-h-0 w-72 flex-col border-l">
+      <ChatWorkspaceFrame panel="files">
+        {({ fullscreen, toggleFullscreen }) =>
+          opened ? (
+            <>
               <div className="shrink-0 space-y-1 p-4 pb-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="flex items-center gap-2 text-sm font-medium">
@@ -242,9 +267,22 @@ export function WorkspaceFiles({
                   )}
                   <button
                     type="button"
+                    aria-label={tWorkspace(fullscreen ? "dock" : "expand")}
+                    title={tWorkspace(fullscreen ? "dock" : "expand")}
+                    onClick={toggleFullscreen}
+                    className="text-muted-foreground hover:text-foreground rounded-md p-1"
+                  >
+                    {fullscreen ? (
+                      <Minimize2 className="size-4" />
+                    ) : (
+                      <Maximize2 className="size-4" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
                     aria-label={t("close")}
                     onClick={() => {
-                      setOpen(false);
+                      host.close();
                       toggle.current?.focus();
                     }}
                     className="text-muted-foreground hover:text-foreground rounded-md p-1"
@@ -262,112 +300,122 @@ export function WorkspaceFiles({
                 )}
               </div>
 
-              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4">
-                {conversationId === null && (
-                  <p className="text-muted-foreground text-xs">{t("beforeStart")}</p>
-                )}
+              {selected !== null ? (
+                <WorkspaceFilePreview
+                  key={selected.key}
+                  file={selected.file}
+                  access={selected.access}
+                  navigation={
+                    reading?.kind === "attachment"
+                      ? {
+                          names: availableAttachments.map((file) => file.filename),
+                          index: availableAttachments.findIndex(
+                            (file) => file.id === reading.file.id,
+                          ),
+                          onSelect: selectAttachment,
+                        }
+                      : undefined
+                  }
+                  onBack={() => {
+                    setReading(null);
+                    closeAttachment();
+                  }}
+                />
+              ) : (
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4">
+                  {conversationId === null && (
+                    <p className="text-muted-foreground text-xs">{t("beforeStart")}</p>
+                  )}
 
-                {error !== null && (
-                  <div className="text-destructive flex items-start gap-2 text-xs">
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                    <p>{error}</p>
-                  </div>
-                )}
+                  {error !== null && (
+                    <div className="text-destructive flex items-start gap-2 text-xs">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                      <p>{error}</p>
+                    </div>
+                  )}
 
-                {/* Not red, and not beside "nothing yet". A host that keeps no files on disk
+                  {/* Not red, and not beside "nothing yet". A host that keeps no files on disk
           is a configuration somebody chose, with a one-line fix this message names
           - and saying "no files" as well would be the second of two wrong answers. */}
-                {workspace?.unreadable_reason != null && (
-                  <div className="text-muted-foreground flex items-start gap-2 text-xs">
-                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                    <p>{workspace.unreadable_reason}</p>
-                  </div>
-                )}
+                  {workspace?.unreadable_reason != null && (
+                    <div className="text-muted-foreground flex items-start gap-2 text-xs">
+                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                      <p>{workspace.unreadable_reason}</p>
+                    </div>
+                  )}
 
-                {/* Two different answers, and they were one. "Nothing yet" is right for a
+                  {/* Two different answers, and they were one. "Nothing yet" is right for a
           workspace that is empty; for an agent that has none it describes a wait
           that will never end, since no turn is going to put a file there. */}
-                {workspace !== null && workspace.unreadable_reason == null && count === 0 && (
-                  <p className="text-muted-foreground text-xs">
-                    {workspace.backend === "none" ? t("noWorkspace") : t("empty")}
-                  </p>
-                )}
+                  {workspace !== null && workspace.unreadable_reason == null && count === 0 && (
+                    <p className="text-muted-foreground text-xs">
+                      {workspace.backend === "none" ? t("noWorkspace") : t("empty")}
+                    </p>
+                  )}
 
-                {/* Full-width chips leave room for names in this narrow panel. */}
-                {(workspace?.items.length ?? 0) > 0 && (
-                  <WorkspaceTree
-                    files={workspace?.items ?? []}
-                    selectedPath={reading?.path ?? null}
-                    onOpen={setReading}
-                    onZipFolder={zipFolder}
-                  />
-                )}
+                  {/* Full-width chips leave room for names in this narrow panel. */}
+                  {(workspace?.items.length ?? 0) > 0 && (
+                    <WorkspaceTree
+                      files={workspace?.items ?? []}
+                      onOpen={(file) => {
+                        closeAttachment();
+                        if (source) setReading({ kind: "workspace", file, source });
+                      }}
+                      onZipFolder={zipFolder}
+                    />
+                  )}
 
-                {/* What people attached and the agent has no copy of. Its own group, under its
+                  {/* What people attached and the agent has no copy of. Its own group, under its
           own heading, because where a file came from changes what it means: the agent
           wrote the ones above and can read them back, while these are only in the
           chat - so an agent with no workspace can be *shown* one and cannot open it.
           Opened through the shared preview panel, which is what the attachment chips
           on the messages already use, rather than the workspace viewer that would
           have nothing to read. */}
-                {unstored.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-muted-foreground text-xs font-medium">{t("attached")}</p>
-                    <ul className="space-y-2">
-                      {unstored.map((file) => (
-                        <li key={file.id}>
-                          <FileCard
-                            compact
-                            name={file.filename}
-                            mimeType={file.mime_type}
-                            // An attachment is behind the same authenticated address the
-                            // viewer reads it from, so the card can draw the picture rather
-                            // than a grey glyph standing in for one. Nothing is fetched here
-                            // - the browser loads what an `img` points at, and a chat holds
-                            // a handful of attachments rather than a listing. Only a
-                            // render-safe type: a TIFF is an `image` kind no browser draws, so
-                            // it gets its glyph rather than a broken thumbnail (#1591).
-                            imageUrl={
-                              isRenderSafeImage(file.mime_type) ? getFileUrl(file.id) : null
-                            }
-                            onOpen={() => openAttachment(file)}
-                            className="w-full"
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {source !== null && reading !== null && (
-                  <FileViewer
-                    file={{
-                      name: reading.path.split("/").filter(Boolean).pop() ?? reading.path,
-                      path: reading.path,
-                      size: reading.size,
-                      modifiedAt: reading.modified_at,
-                    }}
-                    access={workspaceFileAccess(source, reading.path)}
-                    onClose={() => setReading(null)}
-                  />
-                )}
-              </div>
-            </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
+                  {unstored.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-muted-foreground text-xs font-medium">{t("attached")}</p>
+                      <ul className="space-y-2">
+                        {unstored.map((file) => (
+                          <li key={file.id}>
+                            <FileCard
+                              compact
+                              name={file.filename}
+                              mimeType={file.mime_type}
+                              // An attachment is behind the same authenticated address the
+                              // viewer reads it from, so the card can draw the picture rather
+                              // than a grey glyph standing in for one. Nothing is fetched here
+                              // - the browser loads what an `img` points at, and a chat holds
+                              // a handful of attachments rather than a listing. Only a
+                              // render-safe type: a TIFF is an `image` kind no browser draws, so
+                              // it gets its glyph rather than a broken thumbnail (#1591).
+                              imageUrl={
+                                isRenderSafeImage(file.mime_type) ? getFileUrl(file.id) : null
+                              }
+                              onOpen={() => openAttachment(file)}
+                              className="w-full"
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          ) : null
+        }
+      </ChatWorkspaceFrame>
     </>
   );
 }
 
 function WorkspaceTree({
   files,
-  selectedPath,
   onOpen,
   onZipFolder,
 }: {
   files: ConversationFile[];
-  selectedPath: string | null;
   onOpen: (file: ConversationFile) => void;
   /** Download one folder as a `.zip`, where the workspace has a route for it. */
   onZipFolder: ((path: string) => void) | null;
@@ -389,7 +437,7 @@ function WorkspaceTree({
     <PathTree
       nodes={nodes}
       label={t("title")}
-      selectedPath={selectedPath}
+      selectedPath={null}
       openPaths={open}
       onToggleFolder={(path) =>
         setCollapsed((previous) => {

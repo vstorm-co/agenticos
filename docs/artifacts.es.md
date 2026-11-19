@@ -1,5 +1,5 @@
 ---
-source_sha: "a36968126561"
+source_sha: "312d519f5202"
 ---
 
 # Aplicaciones { #artifacts }
@@ -963,6 +963,10 @@ y también se puede descargar desde la pantalla completa. Durante la preparació
 la descarga queda desactivada. Si la exportación falla, un mensaje indica que puedes intentarlo de nuevo.
 
 **Abrir panel lateral** muestra la visualización junto a la conversación y el cuadro de mensaje en pantallas anchas. Arrastra el borde o ajusta el ancho con las flechas y cambia entre **Vista previa** y **Código**. Los chats estrechos usan toda la ventana. La misma página permanece montada al cambiar de vista y cerrar el panel; se conservan los formularios, controles deslizantes y posiciones de cámara 3D. Abrir otra visualización no reinicia la anterior. Cambiar de conversación termina ese workspace.
+
+Las pestañas **Visualizaciones**, **Navegador** y **Archivos** comparten este espacio de trabajo. Al cambiar de pestaña, la visualización y el archivo seleccionados siguen montados, incluidos sus controles y posición de desplazamiento. La sesión del navegador sigue seleccionada; su vista en directo se pausa mientras su pestaña está oculta. La navegación automática no reemplaza una pestaña que hayas elegido. Abrir un adjunto selecciona Archivos; **Volver a todos los archivos** muestra la lista. Cerrar el espacio conserva la selección hasta cambiar de conversación.
+
+**Comprueba antes de guardar.** Pide al agente que llame a `preview_visual` después de dibujar o revisar. Devuelve una captura y diagnósticos del mismo renderizador aislado que utiliza Apps. Puedes pedir ancho de teléfono o modo oscuro. Se comprueba una copia nueva del código, no los valores actuales de tu vista en directo. Requiere el renderizador de Apps del despliegue; sin él, la herramienta indica expresamente que no se tomó ninguna captura.
 
 **Mensajes de seguimiento.** Un control de un dibujo puede devolver la elección de
 la persona a la conversación - *Planificar esta parada*, *Usar estas cifras* -

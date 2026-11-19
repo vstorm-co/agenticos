@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Chat workspace tabs for Visuals, Browser and Files retain the selected content when switching views.
+- Let agents inspect a conversation visual before saving it as an App with `preview_visual`: a bounded screenshot, rendering diagnostics, phone-sized viewports and light/dark checks.
 - Open chat visuals in a resizable side panel with Preview and Code views, preserving interactive state through expansion and closing.
 - Download SVG visuals as sharp PNG images from chat or full screen, with local conversion, preparation feedback and a retryable error message.
 

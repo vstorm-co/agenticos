@@ -312,6 +312,37 @@ class TestNothingReachesTheNetwork:
 
 
 class TestTheRender:
+    async def test_visual_previews_use_the_requested_width_and_color_scheme(self) -> None:
+        browser = FakeBrowser()
+        drawn = await _render(browser, width=390, appearance="dark")
+        assert drawn.width == 390
+        assert all(
+            params["width"] == 390
+            for params, _ in browser.commands("Emulation.setDeviceMetricsOverride")
+        )
+        assert browser.commands("Emulation.setEmulatedMedia") == [
+            ({"features": [{"name": "prefers-color-scheme", "value": "dark"}]}, "PAGE")
+        ]
+
+    @pytest.mark.parametrize("body", [b"tile", None])
+    async def test_only_the_configured_tile_proxy_can_answer_map_tiles(
+        self, body: bytes | None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.services import visual_render
+
+        events = [
+            *_page_events(),
+            ("Fetch.requestPaused", _paused("tile", f"{renderer.tile_source()}3/4/5"), "FRAME"),
+        ]
+        browser = FakeBrowser(events=events)
+        proxy = AsyncMock(return_value=visual_render.Answer(body=body, content_type="image/png"))
+        monkeypatch.setattr(visual_render, "answer", proxy)
+        await _render(browser)
+        assert browser.answered()["tile"] == (
+            "fulfillRequest" if body is not None else "failRequest"
+        )
+        assert proxy.await_args.args[0] == f"{renderer.tile_source()}3/4/5"
+
     async def test_it_reports_what_the_page_did(self) -> None:
         drawn = await _render(FakeBrowser())
         assert drawn.errors == [

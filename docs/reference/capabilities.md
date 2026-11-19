@@ -132,7 +132,7 @@ across the sandbox boundary.
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | for Daytona | handed off |
 | `mirage` | Virtual terminal | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | per folder, via the `mirage` extra | handed off |
 | `charts` | Charts | analysis | `create_chart` | — | — | as-is |
-| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | as-is |
+| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual`, `preview_visual` | — | — | as-is |
 | `image_generation` | Image generation | analysis | `generate_image` | — | required | as-is |
 | `text_to_speech` | Text to speech | analysis | `generate_speech` | — | required | as-is |
 | `video_generation` | Video generation | analysis | `generate_video` | — | required | handed off |
@@ -1804,10 +1804,24 @@ Lets an agent start a command that runs for a long time - a test watcher, a log 
 explainer, a 3D scene.*
 `revise_visual` — *Change a visual by exact replacements, without drawing it again.*
 `read_visual` — *Read a visual in this conversation as it now is, revisions applied.*
+`preview_visual` — *Inspect a visual in this conversation: a screenshot and rendering diagnostics.*
+
+**Check before saving.** `preview_visual(visual_id, width=1000, appearance="light")`
+renders the drawing, including its revisions and images, without publishing it.
+Use a width from 240 to 1600 pixels and `light` or `dark`; 390 checks a phone.
+It returns rendering errors, console warnings, policy refusals and blocked
+requests, plus a screenshot up to 2400 pixels tall. A clipped page or timeout
+is explicit. Each diagnostic list keeps at most ten entries.
+
+The deployment needs `ARTIFACT_RENDER_CDP_URL` and the backend's `browser` extra.
+Without a renderer the tool explains why no screenshot was taken. Set
+`preview_screenshot: false` for a model that cannot read images; diagnostics
+still return. This is a fresh render of the source, not an inspection of the
+person's current inputs in the chat preview.
 
 Draws in the chat itself. `kind` is `svg` for diagrams and illustrations,
 `mermaid` for flowcharts, sequences and ER diagrams, or `html` for anything
-interactive - sliders, `<canvas>`, three.js, a map. No configuration; the bundled
+interactive - sliders, `<canvas>`, three.js, a map. The bundled
 `visual-design` skill carries the house style and five templates, and the
 Builder binds it, with Charts, when Visuals is switched on.
 

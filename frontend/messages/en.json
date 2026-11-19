@@ -1972,6 +1972,8 @@
       "reviseVisual": "Revised a visual",
       "readingVisual": "Reading a visual",
       "readVisual": "Read a visual",
+      "previewingVisual": "Previewing a visual",
+      "previewVisual": "Preview a visual",
       "workingInText": "Working on it in text",
       "workedInText": "Worked on it in text",
       "workflowsListing": "Checking which workflows it can start",
@@ -2195,6 +2197,16 @@
       "skill": "Follow <chip></chip> and draft a reply to this customer",
       "collection": "What does <chip></chip> say about notice periods?",
       "slash": "Type <command></command> to summarise this conversation, or / for every command"
+    },
+    "workspace": {
+      "title": "Workspace",
+      "visuals": "Visuals",
+      "browser": "Browser",
+      "files": "Files",
+      "resize": "Resize workspace",
+      "expand": "Expand workspace",
+      "dock": "Dock workspace",
+      "allFiles": "Back to all files"
     },
     "visuals": {
       "drawing": "Drawing…",
@@ -2511,7 +2523,6 @@
     "browserShownInPanel": "{host} is open in the browser panel",
     "browserOpenPanel": "Open beside the chat",
     "browserDock": "Back beside the chat",
-    "browserResize": "Resize browser panel",
     "computerLineUsed": "Used a computer",
     "queuedWaitingForNetwork": "Waiting for the network",
     "queuedNotSent": "Not sent: {reason}",
@@ -5629,6 +5640,10 @@
       "chat-visual": {
         "title": "Drawings",
         "body": "An agent with Visuals draws diagrams, explainers and 3D scenes here, live while it writes them. Open one full screen, download it, ask about it, or save it as an app with a link you can share."
+      },
+      "chat-workspace-tabs": {
+        "title": "One workspace beside your chat",
+        "body": "Switch between Visuals, Browser and Files here. Your selected page and file stay open when you change tabs. Expand the workspace for more room or close it to return to the conversation."
       },
       "chat-visual-workspace": {
         "title": "A page beside your chat",
@@ -13515,6 +13530,12 @@
     "chipGroupsMore": "{names} +{count}"
   },
   "capabilityConfig": {
+    "visuals": {
+      "preview_screenshot": {
+        "title": "Show the model a visual's picture",
+        "description": "Return a screenshot when the agent previews a visual. Turn off for a model that cannot read images; rendering diagnostics still come back."
+      }
+    },
     "browser_use": {
       "cdp_url": {
         "title": "DevTools endpoint",

@@ -927,6 +927,10 @@ a message explains that you can try again.
 
 **Open side panel** keeps a visual beside the conversation and composer on wide screens. Drag its boundary, use the arrow keys to resize it, and switch between **Preview** and **Code**. Narrow chats use the full window. The same live page stays mounted through code, side-panel and full-screen views and when you close the panel, so form inputs, sliders and 3D camera positions remain intact. Opening another visual selects it without resetting the previous page. Switching conversations ends that workspace.
 
+The **Visuals**, **Browser** and **Files** tabs share this workspace. Switching tabs keeps the selected visual and file mounted, including their controls and scroll position. The browser session also remains selected; its live feed pauses while its tab is hidden. Automatic browsing does not replace a tab you selected. Opening an attachment selects Files, where **Back to all files** returns to the listing. Closing the workspace preserves its selection until you switch conversations.
+
+**Check before saving.** Ask the agent to call `preview_visual` after drawing or revising. It returns a screenshot and rendering diagnostics from the same isolated renderer used by Apps. You can request phone width or dark mode. This checks a fresh copy of the source, not the current values in your live preview. It requires the deployment’s Apps renderer; without one, the tool explicitly reports that no screenshot was taken.
+
 **Follow-ups.** A control in a drawing can hand the person's choice back to the
 conversation - *Plan this stop*, *Use these numbers* - by calling
 `agenticos.followUp(text)`. The drawing only asks. The console shows the exact

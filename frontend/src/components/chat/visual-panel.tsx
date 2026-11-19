@@ -61,7 +61,7 @@ import { ViewportVisualFrame } from "./viewport-visual-frame";
 import { VisualSaveDialog } from "./visual-save-dialog";
 import { VisualZoom } from "./visual-zoom";
 import { VisualWorkspace } from "./visual-workspace";
-import { VisualWorkspaceBoundary, useVisualWorkspace } from "./visual-workspace-context";
+import { ChatWorkspaceBoundary, useVisualWorkspace } from "./chat-workspace-context";
 
 type KnownCalls = ReadonlyMap<string, ToolCall>;
 
@@ -125,7 +125,7 @@ export function ConversationVisualsProvider({
   }, [conversationId]);
   return (
     <ConversationVisuals.Provider value={value}>
-      <VisualWorkspaceBoundary conversationId={conversationId}>{children}</VisualWorkspaceBoundary>
+      <ChatWorkspaceBoundary conversationId={conversationId}>{children}</ChatWorkspaceBoundary>
     </ConversationVisuals.Provider>
   );
 }
@@ -136,13 +136,13 @@ export function TurnVisuals({ calls }: { calls: ToolCall[] }) {
   return (
     // More air around a drawing than between two lines of a turn: it is the
     // largest thing in the answer, and text set 8px under it read as its caption.
-    <VisualWorkspaceBoundary>
+    <ChatWorkspaceBoundary>
       <div className="flex w-full min-w-0 flex-col gap-6 py-2.5">
         {calls.map((call) => (
           <VisualPanel key={call.id} call={call} />
         ))}
       </div>
-    </VisualWorkspaceBoundary>
+    </ChatWorkspaceBoundary>
   );
 }
 

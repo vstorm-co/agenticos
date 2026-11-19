@@ -14,7 +14,9 @@ export interface BrowserPanelState {
    * somebody reading it the moment the other browse advanced.
    */
   openCallId: string | null;
-  open: (callId: string) => void;
+  openRequest: number;
+  automatic: boolean;
+  open: (callId: string, automatic?: boolean) => void;
   close: () => void;
 }
 
@@ -27,7 +29,10 @@ export interface BrowserPanelState {
  */
 const browserPanelState: StateCreator<BrowserPanelState> = (set) => ({
   openCallId: null,
-  open: (callId) => set({ openCallId: callId }),
+  openRequest: 0,
+  automatic: false,
+  open: (callId, automatic = false) =>
+    set((state) => ({ openCallId: callId, openRequest: state.openRequest + 1, automatic })),
   close: () => set({ openCallId: null }),
 });
 

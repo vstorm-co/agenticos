@@ -1,14 +1,14 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { BrowserPanelFrame } from "./browser-panel-frame";
+import { ChatWorkspaceFrame } from "./chat-workspace-frame";
 
 function panel() {
   return render(
-    <BrowserPanelFrame>
+    <ChatWorkspaceFrame>
       {({ fullscreen, toggleFullscreen }) => (
         <button onClick={toggleFullscreen}>{fullscreen ? "dock" : "expand"}</button>
       )}
-    </BrowserPanelFrame>,
+    </ChatWorkspaceFrame>,
   );
 }
 afterEach(() => {

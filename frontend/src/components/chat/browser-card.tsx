@@ -25,6 +25,7 @@ import type { ToolCall } from "@/types";
 import type { PageComment } from "./browser-comment";
 import { BrowserWindow, hostOf } from "./browser-window";
 import { BrowserVisit } from "./browser-visit";
+import { useChatWorkspace } from "./chat-workspace-context";
 
 /** The browses running in this chat, and where a comment on one of their pages goes. */
 const LiveBrowses = createContext<{
@@ -94,7 +95,9 @@ function InlineBrowser({
 }) {
   const t = useTranslations("chat");
   const expand = useBrowserPanelStore((state) => state.open);
-  const expanded = useBrowserPanelStore((state) => state.openCallId === streamed.callId);
+  const selected = useBrowserPanelStore((state) => state.openCallId === streamed.callId);
+  const workspace = useChatWorkspace();
+  const expanded = selected && (!workspace?.shared || workspace.activePanel === "browser");
   const running = isRunning(streamed);
   const live = useLiveBrowse(
     streamed.runId ?? "",
@@ -156,7 +159,7 @@ export function BrowserPanelAutoOpen({ browses }: { browses: Browse[] }) {
   useEffect(() => {
     if (!callId || !session || !running || !supported || opened.current.has(session)) return;
     opened.current.add(session);
-    if (openCallId === null) open(callId);
+    if (openCallId === null) open(callId, true);
   }, [callId, session, running, supported, openCallId, open]);
   return null;
 }

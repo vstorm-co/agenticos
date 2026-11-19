@@ -1,4 +1,4 @@
-"""The `draw`, `revise_visual` and `read_visual` tools, and the text the model reads first.
+"""The drawing, revision, reading and preview tools, and their model instructions.
 
 A visual's content is the `content` argument of the `draw` call that carried it,
 streamed to the console while the model writes it and stored with the call in the
@@ -18,8 +18,8 @@ from uuid import UUID
 import httpx2
 from pydantic import BaseModel, Field
 from pydantic_ai._ssrf import safe_download
-from pydantic_ai.messages import ModelResponse, ToolCallPart
-from pydantic_ai.tools import RunContext
+from pydantic_ai.messages import BinaryContent, ModelResponse, ToolCallPart
+from pydantic_ai.tools import RunContext, ToolReturn
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.workspaces import WorkspaceError
 
@@ -28,6 +28,7 @@ from app.agents.capabilities.artifacts._toolset import ArtifactEdit, apply_edits
 from app.agents.capabilities.visuals._reach import WebReach
 from app.agents.deps import AgentDeps
 from app.core.config import settings
+from app.core.exceptions import ConfigurationError, ExternalServiceError
 from app.core.tool_identity import ToolIdentity
 from app.repositories.conversation import ToolCallArgs
 from app.services import visual as visuals
@@ -162,11 +163,12 @@ retry: drawing again from the same delegation could never be seen either."""
 
 @dataclass
 class VisualsToolset:
-    """The three tools, and which of this run's drawings actually returned."""
+    """The visual tools, and which of this run's drawings actually returned."""
 
     web_reach: tuple[WebReach, ...] = ()
     """Where the agent's web readers may go. An image comes from an `https://` address
     only on a host one of them admits - see `_reach.py`."""
+    screenshot: bool = True
 
     drawn: set[str] = field(default_factory=set)
     """Ids of this run's calls that produced a visual, so a steered call is not one."""
@@ -176,6 +178,7 @@ class VisualsToolset:
         toolset.add_function(self.draw, name=DRAW, takes_ctx=True)
         toolset.add_function(self.revise_visual, name=REVISE, takes_ctx=True)
         toolset.add_function(self.read_visual, name="read_visual", takes_ctx=True)
+        toolset.add_function(self.preview_visual, name="preview_visual", takes_ctx=True)
         return toolset
 
     async def draw(
@@ -254,8 +257,8 @@ class VisualsToolset:
 
         Give the drawing one clear explanatory purpose and make its controls work.
         Label sourced values, units and assumptions; do not fill a template with
-        invented numbers. Inspect the rendered result with the available visual
-        tools and revise defects before claiming it is checked. This tool renders
+        invented numbers. Call `preview_visual` on the returned id and revise
+        defects before claiming it is checked. This tool renders
         SVG, Mermaid or HTML; it does not compile LaTeX or export editable slides.
         For a paper or native presentation load document-production when available
         and use a workspace compiler/generator and renderer instead.
@@ -390,6 +393,71 @@ class VisualsToolset:
         return (
             f"Visual `{found.id}` - {found.title!r}, {found.kind}, "
             f"{len(found.content):,} characters.{cut}\n\n{shown}"
+        )
+
+    async def preview_visual(
+        self,
+        ctx: RunContext[AgentDeps],
+        visual_id: str,
+        width: int = 1000,
+        appearance: Literal["light", "dark"] = "light",
+    ) -> str | ToolReturn:
+        """Inspect a visual in this conversation: a screenshot and rendering diagnostics.
+
+        Use after `draw` or `revise_visual`, before saying it is checked or saving
+        it as an App. Try width 390 for a phone layout. The preview runs a fresh
+        copy of the latest source and its images in the isolated Apps renderer;
+        it neither reads nor changes inputs in the person's live preview.
+        Fix reported problems with `revise_visual`, then preview again.
+
+        Args:
+            visual_id: The id returned by `draw` or `revise_visual` in this conversation.
+            width: Viewport width in CSS pixels, 240-1600; defaults to 1000.
+            appearance: The page's color scheme, `light` (default) or `dark`.
+
+        Returns:
+            A written report and, when enabled, a screenshot at most 2400 pixels
+            tall. Reports uncaught errors, console errors and warnings, policy
+            refusals, blocked requests and dismissed dialogs, at most 10 of each.
+            Says when a longer page is clipped, the preview times out or the
+            deployment has no renderer. Nothing is saved or published.
+        """
+        if not 240 <= width <= 1600:
+            return steer(ctx, "`width` must be between 240 and 1600 CSS pixels.")
+        if appearance not in ("light", "dark"):
+            return steer(ctx, "`appearance` must be `light` or `dark`.")
+        try:
+            visual = await self._resolve(ctx, visual_id)
+        except VisualError as missing:
+            return steer(ctx, str(missing))
+        content = visual.content
+        if visual.images:
+            conversation_id = await _conversation(ctx.deps)
+            organization_id = ctx.deps.organization_id
+            if conversation_id is None or organization_id is None:
+                return "Preview unavailable: the visual's images require its own conversation and organization."
+            content = await visuals.inlined(visual, organization_id, conversation_id)
+
+        from app.services import visual_render
+
+        try:
+            drawn = await visual_render.preview(
+                visual.kind, content, title=visual.title, width=width, appearance=appearance
+            )
+        except (ConfigurationError, ExternalServiceError) as unavailable:
+            return f"Preview unavailable: {unavailable.message} No screenshot was taken."
+        report = (
+            f"Visual `{visual.id}` - {visual.title!r}; {width}px, {appearance}.\n"
+            "Fresh render of the source; the person's current page state is not inspected.\n"
+            + visual_render.preview_report(drawn)
+        )
+        if drawn.image is None:
+            return report + "\nScreenshot: not taken."
+        if not self.screenshot:
+            return report + "\nScreenshot: omitted by the capability's settings."
+        return ToolReturn(
+            return_value=report + "\nScreenshot: attached.",
+            content=[BinaryContent(data=drawn.image, media_type="image/jpeg")],
         )
 
     async def _keep_images(

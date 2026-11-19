@@ -1,5 +1,5 @@
 ---
-source_sha: "a36968126561"
+source_sha: "312d519f5202"
 ---
 
 # Apps { #artifacts }
@@ -1057,6 +1057,10 @@ ist auch im Vollbild verfügbar. Während der Vorbereitung ist das Herunterladen
 gesperrt. Schlägt der Export fehl, weist eine Meldung auf die erneute Versuchsmöglichkeit hin.
 
 **Seitenbereich öffnen** zeigt eine Visualisierung auf breiten Bildschirmen neben dem Chat und dem Eingabefeld. Ziehen Sie die Begrenzung oder ändern Sie die Breite mit den Pfeiltasten und wechseln Sie zwischen **Vorschau** und **Code**. Schmale Chats nutzen das ganze Fenster. Dieselbe Seite bleibt beim Ansichtswechsel und beim Schließen des Bereichs geladen; Formularwerte, Regler und 3D-Kamerapositionen bleiben erhalten. Eine andere Visualisierung lässt die vorherige Seite unverändert. Ein Gesprächswechsel beendet diesen Workspace.
+
+Die Tabs **Visualisierungen**, **Browser** und **Dateien** teilen sich diesen Arbeitsbereich. Beim Wechsel bleiben die ausgewählte Visualisierung und Datei geladen, einschließlich Steuerelementen und Scrollposition. Auch die Browsersitzung bleibt ausgewählt; ihr Livebild pausiert, solange ihr Tab verborgen ist. Automatisches Surfen ersetzt keinen selbst gewählten Tab. Ein Anhang öffnet Dateien; **Zurück zu allen Dateien** zeigt wieder die Liste. Beim Schließen bleibt die Auswahl bis zum Gesprächswechsel erhalten.
+
+**Vor dem Speichern prüfen.** Bitte den Agenten nach dem Zeichnen oder Überarbeiten um `preview_visual`. Das Werkzeug liefert einen Screenshot und Diagnosen aus demselben isolierten Renderer wie Apps. Telefonbreite und dunkles Farbschema sind wählbar. Geprüft wird eine neue Kopie des Quelltexts, nicht die aktuellen Werte in deiner Vorschau. Dafür ist der Apps-Renderer der Bereitstellung erforderlich; ohne ihn meldet das Werkzeug ausdrücklich, dass kein Screenshot aufgenommen wurde.
 
 **Folgenachrichten.** Ein Bedienelement in einer Zeichnung kann die Wahl der
 Person an das Gespräch zurückgeben - *Diesen Stopp planen*, *Diese Zahlen

@@ -8,7 +8,8 @@ import { IconButton, Tabs, TabsContent, TabsList, TabsTrigger } from "@/componen
 import { PortalContainerContext } from "@/components/ui/portal-container";
 import { cn } from "@/lib/utils";
 import { ChatPanelResize } from "./chat-panel-resize";
-import { useVisualWorkspace } from "./visual-workspace-context";
+import { useVisualWorkspace } from "./chat-workspace-context";
+import { ChatWorkspaceTabs } from "./chat-workspace-tabs";
 import { useVisualWorkspaceLayout } from "./use-visual-workspace-layout";
 
 /** One live document across inline, code, docked and expanded views. */
@@ -33,7 +34,11 @@ export function VisualWorkspace({
 }) {
   const t = useTranslations("chat.visuals");
   const workspace = useVisualWorkspace(visualId);
-  const id = useId();
+  const inlineId = useId();
+  const id =
+    workspace.shared && workspace.selection?.id === visualId
+      ? `${workspace.id}-panel-visuals`
+      : inlineId;
   const layer = useRef<HTMLDivElement | null>(null);
   const [portal, setPortal] = useState<HTMLDivElement | null>(null);
   const ref = useCallback((node: HTMLDivElement | null) => {
@@ -61,9 +66,13 @@ export function VisualWorkspace({
           id={id}
           popover="manual"
           tabIndex={workspace.open ? -1 : undefined}
-          role={workspace.open ? "region" : undefined}
+          role={workspace.open ? (workspace.shared ? "tabpanel" : "region") : undefined}
+          aria-labelledby={
+            workspace.shared && workspace.open ? `${workspace.id}-tab-visuals` : undefined
+          }
           aria-label={workspace.open ? t("workspaceTitle", { title }) : undefined}
           data-visual-workspace={workspace.open ? (docked ? "docked" : "fullscreen") : "inline"}
+          data-native-browser-blocked={workspace.open ? "" : undefined}
           style={{ ...placement, display: workspace.open ? "flex" : "block" }}
           className={cn(
             "relative inset-auto m-0 block w-full max-w-none border-0 p-0 text-inherit outline-none",
@@ -72,6 +81,7 @@ export function VisualWorkspace({
               : "bg-transparent",
           )}
         >
+          {workspace.open && <ChatWorkspaceTabs panel="visuals" />}
           {docked && (
             <ChatPanelResize
               label={t("resizeWorkspace")}

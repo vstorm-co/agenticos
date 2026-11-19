@@ -15,16 +15,17 @@ setting or the extra, :func:`render` raises
 :class:`~app.core.exceptions.ConfigurationError` and the tool answers with its
 text report alone.
 
-**Nothing reaches the network.** Every request of the render is paused with
+**Requests are controlled.** Every request of the render is paused with
 `Fetch` - on the page's target and on every out-of-process frame, attached flat
 as it starts - and answered from this process: a host document at
 `FRONTEND_URL` that frames the page as the console does, the page at its real
 content address under its real `Content-Security-Policy`, and the library set
-from disk. Anything else fails as blocked by the client and is reported. The
+from disk. Configured map tiles use the bounded server-side tile proxy.
+Anything else fails as blocked by the client and is reported. The
 browser should run with no egress as well: this is the first barrier, and that
 is the second.
 
-**Each render is its own.** A fresh browser context, a fixed viewport, a hard
+**Each render is its own.** A fresh browser context, a bounded viewport, a hard
 deadline, a cap on renders at once, and the context disposed whatever happened -
 one person's records in one picture never share a cookie jar, a cache or a tab
 with the next render.
@@ -54,6 +55,7 @@ from app.services.artifact import (
     content_address,
     content_security_policy,
     library_file,
+    tile_source,
     with_platform_script,
 )
 
@@ -64,7 +66,7 @@ PDF_MAX_PAGES = 50
 PDF_STREAM_CLOSE_SECONDS = 2.0
 
 WIDTH = 1280
-"""How wide every page is drawn: a desktop window, the width a report is read at."""
+"""Default desktop width; visual previews can request a bounded viewport."""
 FIRST_HEIGHT = 800
 """The viewport a page loads in, and the shortest picture."""
 MAX_HEIGHT = 2400
@@ -141,6 +143,8 @@ class RenderRequest:
     paper: Literal["a4", "slides"] = "a4"
     injected_lines: int = 0
     """Lines served before the page's own, taken off a line number reported in it."""
+    width: int = WIDTH
+    appearance: Literal["light", "dark"] = "light"
 
 
 @dataclass
@@ -250,7 +254,7 @@ async def render(request: RenderRequest, *, connect: Connector | None = None) ->
 
 async def _render(request: RenderRequest, endpoint: str, connect: Connector) -> Rendered:
     """Connect, draw and dispose, all within one deadline but the disposal."""
-    found = Rendered()
+    found = Rendered(width=request.width)
     drawing: _Render | None = None
     try:
         async with asyncio.timeout(DEADLINE_SECONDS):
@@ -360,7 +364,7 @@ class _Render:
         await self._viewport(FIRST_HEIGHT)
         await connection.send(
             "Emulation.setEmulatedMedia",
-            {"features": [{"name": "prefers-color-scheme", "value": "light"}]},
+            {"features": [{"name": "prefers-color-scheme", "value": self.request.appearance}]},
             session_id=self.page,
         )
         await connection.send("Page.navigate", {"url": self.shell}, session_id=self.page)
@@ -466,7 +470,12 @@ class _Render:
     async def _viewport(self, height: int) -> None:
         await self.connection.send(
             "Emulation.setDeviceMetricsOverride",
-            {"width": WIDTH, "height": height, "deviceScaleFactor": 1, "mobile": False},
+            {
+                "width": self.request.width,
+                "height": height,
+                "deviceScaleFactor": 1,
+                "mobile": False,
+            },
             session_id=self.page,
         )
 
@@ -523,9 +532,8 @@ class _Render:
     async def serve(self, url: str, method: str) -> _Response | None:
         """What this render answers a request with, or `None` to refuse it.
 
-        Three addresses and no others, by `GET` only: the host, the page and a
-        file of the library set by its exact name - a query string ignored, as
-        the real route ignores it.
+        Serve the host, page, bundled libraries and approved map tiles by GET.
+        Library queries are ignored, as on the real route.
         """
         if method != "GET":
             return None
@@ -571,6 +579,20 @@ class _Render:
                     "Cross-Origin-Resource-Policy": "cross-origin",
                 },
             )
+        if address.startswith(tile_source()):
+            # Reuse the frame's bounded, administrator-configured tile proxy.
+            # No address supplied by the page is fetched by the renderer.
+            from app.services.visual_render import answer
+
+            tile = await answer(address, self.request.document)
+            if tile.body is not None:
+                return _Response(
+                    body=tile.body,
+                    headers={
+                        "Content-Type": tile.content_type,
+                        "Cross-Origin-Resource-Policy": "cross-origin",
+                    },
+                )
         return None
 
     async def _adopt(self, params: CdpPayload) -> None:
