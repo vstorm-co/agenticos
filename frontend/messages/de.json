@@ -10829,10 +10829,20 @@
     },
     "coding_agent": {
       "runs_on": {
+        "sandbox": {
+          "label": "In der Sandbox des Agenten",
+          "description": "Erfordert eine Sandbox mit Shell-Zugriff. Aufgaben nutzen den hier eingestellten Coding-Agenten und teilen sich den Arbeitsbereich.",
+          "summary": "Arbeitet mit den Zugangsdaten der Organisation direkt im Arbeitsbereich des Agenten."
+        },
         "personal_sandbox": {
           "label": "Private Cloud-Aufgabe mit meinem Konto",
-          "description": "Verwendet Ihr Profilkonto in einem isolierten Container. Liefert einen Diff und ein Ergebnisarchiv zur Prüfung; gemeinsame Dateien bleiben unverändert.",
-          "summary": "Verwendet Ihr Profilkonto in einem isolierten Container. Liefert einen Diff und ein Ergebnisarchiv zur Prüfung; gemeinsame Dateien bleiben unverändert."
+          "description": "Jede Sitzung arbeitet mit einer eigenen Kopie und liefert einen Diff und ein Archiv zur Prüfung.",
+          "summary": "Claude Code und Codex laufen mit Ihren verbundenen Konten parallel in getrennten Containern."
+        },
+        "this_computer": {
+          "label": "Auf diesem Computer",
+          "description": "Aufgaben nutzen die lokalen Anmeldungen und arbeiten in Ordnern, die Sie in der Desktop-App freigeben.",
+          "summary": "Claude Code und Codex laufen über die Desktop-App parallel in getrennten Sitzungen."
         }
       }
     }

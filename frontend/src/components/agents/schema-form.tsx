@@ -406,6 +406,8 @@ function SchemaField({
           {...invalid}
         >
           {choices.map((choice) => {
+            const summary = copy?.options?.[choice]?.summary;
+            const summaryId = `${id}-${choice}-summary`;
             return (
               <button
                 key={choice}
@@ -413,6 +415,7 @@ function SchemaField({
                 role="radio"
                 aria-checked={selected === choice}
                 aria-label={enumLabel(property, choice, copy)}
+                aria-describedby={summary ? summaryId : undefined}
                 disabled={disabled}
                 onClick={() => onChange(choice)}
                 className={cn(
@@ -429,9 +432,9 @@ function SchemaField({
                   )}
                   {enumLabel(property, choice, copy)}
                 </span>
-                {copy?.options?.[choice]?.summary && (
-                  <span className="text-muted-foreground text-xs leading-relaxed">
-                    {copy?.options?.[choice]?.summary}
+                {summary && (
+                  <span id={summaryId} className="text-muted-foreground text-xs leading-relaxed">
+                    {summary}
                   </span>
                 )}
               </button>

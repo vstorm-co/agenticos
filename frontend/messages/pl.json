@@ -14674,10 +14674,20 @@
     },
     "coding_agent": {
       "runs_on": {
+        "sandbox": {
+          "label": "W sandboxie agenta",
+          "description": "Wymaga sandboxa z dostępem do powłoki. Zadania używają wybranego tu agenta kodującego i współdzielą obszar roboczy.",
+          "summary": "Pracuje bezpośrednio w obszarze roboczym agenta z poświadczeniem organizacji."
+        },
         "personal_sandbox": {
           "label": "Prywatne zadanie chmurowe z moim kontem",
-          "description": "Użyj konta z profilu w odizolowanym kontenerze. Zwraca diff i archiwum do przeglądu, bez zmieniania wspólnych plików.",
-          "summary": "Użyj konta z profilu w odizolowanym kontenerze. Zwraca diff i archiwum do przeglądu, bez zmieniania wspólnych plików."
+          "description": "Każda sesja pracuje na własnej kopii plików i zwraca diff oraz archiwum do przeglądu.",
+          "summary": "Uruchamiaj Claude Code i Codex równolegle w osobnych kontenerach na swoich podłączonych kontach."
+        },
+        "this_computer": {
+          "label": "Na tym komputerze",
+          "description": "Zadania używają lokalnych kont i pracują w folderach zatwierdzonych w aplikacji desktopowej.",
+          "summary": "Uruchamiaj Claude Code i Codex równolegle w osobnych sesjach w aplikacji desktopowej."
         }
       }
     }

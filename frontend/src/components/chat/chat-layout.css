@@ -328,16 +328,25 @@
 }
 
 .chat-home-panels {
+  --inbox-meta-line: 0.875rem;
+  --home-title-line: 1.125rem;
   display: grid;
   column-gap: clamp(1rem, 4cqi, 2.5rem);
   row-gap: 0.75rem;
   max-inline-size: 60rem;
   margin: 0 auto 0.875rem;
 }
-@container chat (min-width: 680px) {
-  .chat-home-panels {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.chat-home-panels .chat-home-inbox-meta {
+  flex-wrap: nowrap;
+  line-height: var(--inbox-meta-line);
+}
+.chat-home-panels .chat-home-inbox-meta > :first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-home-panels .chat-home-inbox-urgent {
+  flex-shrink: 0;
 }
 .chat-home-panel-heading {
   display: flex;
@@ -354,23 +363,45 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
 }
-.chat-home-panels .chat-home-starters [data-chat-welcome-hints] button {
+.chat-home-panels .chat-home-starters [data-chat-welcome-hints] button:first-child {
   min-block-size: 2.75rem;
   align-items: center;
   gap: 0.5rem;
   padding: 0.25rem 0.5rem;
 }
-.chat-home-panels .chat-home-starters [data-chat-welcome-hints] button > span:nth-child(2) > span {
+.chat-home-panels :is(.chat-home-inbox-title, .chat-home-inbox-approvals),
+.chat-home-panels
+  .chat-home-starters
+  [data-chat-welcome-hints]
+  button:first-child
+  > span:nth-child(2)
+  > span {
   font-size: 0.8125rem;
   font-weight: 400;
+  line-height: var(--home-title-line);
   -webkit-line-clamp: 1;
+}
+@container chat (min-width: 680px) {
+  .chat-home-panels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* Reserve the source-label line for one-line rows so both titles share a baseline. */
+  .chat-home-panels .chat-home-starters [data-chat-welcome-hints] button:first-child,
+  .chat-home-panels .chat-home-inbox-approvals {
+    padding-block-start: calc(0.25rem + var(--inbox-meta-line));
+    padding-block-end: 0.25rem;
+  }
 }
 .chat-layout .chat-home-column {
   scrollbar-width: none;
 }
 @media (pointer: coarse) {
   .chat-home-panels
-    :is(.chat-home-inbox-topic, .chat-home-inbox-approvals, [data-chat-welcome-hints] button) {
+    :is(
+      .chat-home-inbox-topic,
+      .chat-home-inbox-approvals,
+      [data-chat-welcome-hints] button:first-child
+    ) {
     min-block-size: 44px;
   }
 }

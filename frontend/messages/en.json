@@ -11143,10 +11143,20 @@
     },
     "coding_agent": {
       "runs_on": {
+        "sandbox": {
+          "label": "In the agent's sandbox",
+          "description": "Requires a sandbox with shell access. Tasks use the coding agent configured here and share the workspace.",
+          "summary": "Work directly in the agent's workspace using the organization's credential."
+        },
         "personal_sandbox": {
           "label": "Private cloud task with my account",
-          "description": "Use my profile account in an isolated container. Returns a diff and result archive for review; shared files remain unchanged.",
-          "summary": "Use my profile account in an isolated container. Returns a diff and result archive for review; shared files remain unchanged."
+          "description": "Each session works on its own copy and returns a diff and archive for review.",
+          "summary": "Run Claude Code and Codex in parallel in separate containers using your connected accounts."
+        },
+        "this_computer": {
+          "label": "On this computer",
+          "description": "Tasks use the local sign-ins and work in folders you approve in the desktop app.",
+          "summary": "Run Claude Code and Codex in parallel in separate sessions through the desktop app."
         }
       }
     }

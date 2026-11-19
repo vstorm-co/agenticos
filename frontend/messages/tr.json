@@ -5668,10 +5668,20 @@
         "title": "Nerede çalışır",
         "description": "Burada saklanan key ile Agent'ın kendi sandbox'ında ya da kişinin desktop app'te kendi bilgisayarından seçtiği klasörde çalışır. İkinci durumda Claude Code ve Codex mevcut oturum açma bilgilerini kullanır, key gerekmez.",
         "options": {
+          "sandbox": {
+            "label": "Ajanın korumalı alanında",
+            "description": "Kabuk erişimi olan bir korumalı alan gerekir. Görevler burada ayarlanan kodlama ajanını ve aynı çalışma alanını kullanır.",
+            "summary": "Kuruluşun kimlik bilgilerini kullanarak doğrudan ajanın çalışma alanında çalışır."
+          },
           "personal_sandbox": {
             "label": "Hesabımla özel bulut görevi",
-            "description": "Profil hesabını yalıtılmış bir konteynerde kullanır. İncelenecek fark ve sonuç arşivi döndürür; paylaşılan dosyalar değişmez.",
-            "summary": "Profil hesabını yalıtılmış bir konteynerde kullanır. İncelenecek fark ve sonuç arşivi döndürür; paylaşılan dosyalar değişmez."
+            "description": "Her oturum kendi dosya kopyasında çalışır ve inceleme için değişiklikleri ve bir arşivi döndürür.",
+            "summary": "Claude Code ve Codex'i bağlı hesaplarınızla ayrı konteynerlerde paralel çalıştırın."
+          },
+          "this_computer": {
+            "label": "Bu bilgisayarda",
+            "description": "Görevler yerel oturumları kullanır ve masaüstü uygulamasında onayladığınız klasörlerde çalışır.",
+            "summary": "Claude Code ve Codex'i masaüstü uygulamasında ayrı oturumlarda paralel çalıştırın."
           }
         }
       }
