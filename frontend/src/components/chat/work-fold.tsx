@@ -166,7 +166,7 @@ export function WorkFold({
         aria-controls={open ? historyId : undefined}
         aria-expanded={open}
         onClick={() => setChosenOpen(!open)}
-        className="group text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring flex min-h-8 w-full min-w-0 items-center gap-2 rounded-lg py-1 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
+        className="group text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring flex min-h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
       >
         <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
           {failed ? (
@@ -227,7 +227,9 @@ export function WorkFold({
             !live && "max-h-[min(24rem,50dvh)] scrollbar-thin overflow-y-auto overscroll-contain",
           )}
         >
-          <div className="space-y-2">{children}</div>
+          <div data-chat-work-steps className="space-y-1.5">
+            {children}
+          </div>
         </div>
       </DisclosureContent>
     </div>

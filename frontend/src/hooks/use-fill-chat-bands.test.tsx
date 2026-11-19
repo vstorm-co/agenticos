@@ -73,3 +73,19 @@ it("counts content and padding before opening another group", () => {
   const { result } = renderHook(() => useFillChatBands({ current: element }, ["week"]));
   expect(result.current).toEqual([]);
 });
+
+it("keeps a visible month open when an added conversation crosses the default folding threshold", () => {
+  const scroller = document.createElement("div");
+  Object.defineProperty(scroller, "clientHeight", { value: 300 });
+  Object.defineProperty(scroller, "scrollHeight", { value: 600 });
+  const ref = { current: scroller };
+  const month = ["month"];
+  const empty: string[] = [];
+  const { result, rerender } = renderHook(
+    ({ short }: { short: boolean }) =>
+      useFillChatBands(ref, short ? empty : month, short ? month : empty),
+    { initialProps: { short: true } },
+  );
+  rerender({ short: false });
+  expect(result.current).toContain("month");
+});

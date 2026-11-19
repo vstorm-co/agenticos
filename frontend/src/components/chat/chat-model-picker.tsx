@@ -92,7 +92,7 @@ export function ChatModelPicker({
     profilesStatus,
     refetchProfiles,
   } = useModelProviders();
-  const { purposes } = useSecretPurposes();
+  const { purposes, isLoading: loadingPurposes } = useSecretPurposes();
   const {
     secrets,
     listError: secretReadError,
@@ -118,6 +118,9 @@ export function ChatModelPicker({
   const setModel = (next: string) => setDraft({ source: sourceKey, providerId, model: next });
   const [failure, setFailure] = useState<string | null>(null);
 
+  const [pickedKey, setPickedKey] = useState<string | null>(null);
+  const providerKeys = secrets.filter((secret) => secret.purpose === providerId);
+  const explicitKey = providerKeys.find((secret) => secret.id === pickedKey);
   const inheritedProfile = currentProfile?.provider === providerId ? currentProfile : undefined;
   const endpoint = inheritedProfile?.base_url ?? null;
   const providers = purposes.filter((entry) => entry.category === "model_provider");
@@ -131,6 +134,7 @@ export function ChatModelPicker({
   } = useProviderModels(
     providerId,
     providerId === "openrouter" ? (endpoint ?? undefined) : undefined,
+    explicitKey?.id,
   );
   // An override profile and the agent's published model both carry
   // provider/model/label, so one summary renders whichever is current.
@@ -177,6 +181,7 @@ export function ChatModelPicker({
     if (
       current?.provider === provider.id &&
       current.model === modelId &&
+      (!explicitKey || currentProfile?.secret_id === explicitKey.id) &&
       (currentProfile === undefined || usableForAgents(currentProfile))
     ) {
       onChange(value);
@@ -190,7 +195,9 @@ export function ChatModelPicker({
     const listingRefuses = refused.includes(modelId);
     const existing = matching.find(
       (profile) =>
-        usableForAgents(profile) && (!!profile.base_url || (!loadingModels && !listingRefuses)),
+        (!explicitKey || profile.secret_id === explicitKey.id) &&
+        usableForAgents(profile) &&
+        (!!profile.base_url || (!loadingModels && !listingRefuses)),
     );
     if (existing) {
       onChange(existing.id);
@@ -202,15 +209,17 @@ export function ChatModelPicker({
       setFailure(t("modelHasNoKey", { model: modelId }));
       return;
     }
-    if (matching.length > 0 || listingRefuses) {
+    if ((!explicitKey && matching.length > 0) || listingRefuses) {
       setFailure(t("notAChatModel", { model: modelId }));
       return;
     }
 
     const key =
+      explicitKey ??
       secrets.find(
         (secret) => secret.id === inheritedProfile?.secret_id && secret.purpose === provider.id,
-      ) ?? secrets.find((secret) => secret.purpose === provider.id);
+      ) ??
+      secrets.find((secret) => secret.purpose === provider.id);
     if (key === undefined) {
       // The form below offers to add one, so this says what is missing rather than
       // sending somebody to another page for it.
@@ -220,7 +229,9 @@ export function ChatModelPicker({
 
     try {
       const profile = await createProfile.mutateAsync({
-        label: `${provider.label} · ${modelId}`,
+        label: explicitKey
+          ? `${`${provider.label} · ${modelId}`.slice(0, 108)} · ${key.id.slice(0, 8)}`
+          : `${provider.label} · ${modelId}`,
         provider: provider.id,
         model: modelId,
         secret_id: key.id,
@@ -294,10 +305,44 @@ export function ChatModelPicker({
                 ),
         }))}
         providerId={providerId}
+        loadingProviders={loadingPurposes}
+        needsCredential={
+          !!credentialForm &&
+          !profiles.some((profile) => profile.provider === providerId && usableForAgents(profile))
+        }
+        credentialPicker={
+          providerKeys.length > 1 && (
+            <div className="border-border grid gap-1.5 border-b p-2">
+              <Label htmlFor="chat-model-key">{tRoot("vault.key")}</Label>
+              <Select
+                value={
+                  explicitKey?.id ??
+                  providerKeys.find((key) => key.id === inheritedProfile?.secret_id)?.id ??
+                  providerKeys[0]?.id
+                }
+                onValueChange={setPickedKey}
+              >
+                <SelectTrigger id="chat-model-key">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {providerKeys.map((key) => (
+                    <SelectItem key={key.id} value={key.id} textValue={key.name}>
+                      <ProviderRow provider={providerId} name={key.name} hint={key.hint} />
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )
+        }
         model={current?.provider === providerId ? current.model : ""}
         profileId={currentProfile?.provider === providerId ? currentProfile.id : undefined}
         models={suggestions}
-        profiles={profiles.filter(usableForAgents)}
+        profiles={profiles.filter(
+          (profile) =>
+            usableForAgents(profile) && (!explicitKey || profile.secret_id === explicitKey.id),
+        )}
         loading={loadingModels || loadingProfiles}
         applying={createProfile.isPending}
         disabled={
@@ -305,6 +350,7 @@ export function ChatModelPicker({
         }
         onProviderChange={(id) => {
           setProviderId(id);
+          setPickedKey(null);
           setFailure(null);
         }}
         onModelChange={(id) => void apply(id)}

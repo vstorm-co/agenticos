@@ -8,7 +8,7 @@ export const CONTROL_INVALID =
   "aria-invalid:border-destructive aria-invalid:focus-visible:border-destructive aria-invalid:focus-visible:outline-destructive";
 
 /** Shared surface and states for text fields, selects and multiline fields. */
-export const FORM_CONTROL = `${CONTROL_FOCUS} ${CONTROL_DISABLED} ${CONTROL_INVALID} border-input bg-field text-foreground placeholder:text-muted-foreground enabled:hover:border-foreground/30 enabled:hover:bg-control focus-visible:border-foreground/50 w-full min-w-0 rounded-xl border transition-[background-color,border-color,box-shadow,color] duration-[var(--duration-fast)]`;
+export const FORM_CONTROL = `${CONTROL_FOCUS} focus-visible:outline-offset-[-2px] ${CONTROL_DISABLED} ${CONTROL_INVALID} border-input bg-field text-foreground placeholder:text-muted-foreground enabled:hover:border-foreground/30 enabled:hover:bg-control focus-visible:border-foreground/50 w-full min-w-0 rounded-xl border transition-[background-color,border-color,box-shadow,color] duration-[var(--duration-fast)]`;
 
 /** A visible secondary action surface on both the page and a card. */
 export const SECONDARY_CONTROL =

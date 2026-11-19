@@ -2,12 +2,19 @@
 
 import { useEffect, useState, type RefObject } from "react";
 
+const NO_VISIBLE_BANDS: readonly string[] = [];
+
 /** Fill unused list height one band at a time without persisting automatic choices. */
 export function useFillChatBands(
   scroller: RefObject<HTMLElement | null>,
   candidates: readonly string[],
+  visible: readonly string[] = NO_VISIBLE_BANDS,
 ): readonly string[] {
   const [opened, setOpened] = useState<readonly string[]>([]);
+  // A short listing can become a long one when the first message is sent or
+  // another page arrives. Preserve the bands the reader could already see.
+  const additions = visible.filter((key) => !opened.includes(key));
+  if (additions.length > 0) setOpened([...opened, ...additions]);
   useEffect(() => {
     const element = scroller.current;
     if (!element) return;

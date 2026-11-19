@@ -10,7 +10,9 @@ import { ChatHomeInbox } from "./chat-home-inbox";
 /** Two finite, manually navigated pages; cached Inbox stays mounted while browsing prompts. */
 export function ChatHomeCarousel({
   suggestionsRef,
+  split = false,
 }: {
+  split?: boolean;
   suggestionsRef: (node: HTMLDivElement | null) => void;
 }) {
   const t = useTranslations("chat.homeCarousel");
@@ -81,7 +83,7 @@ export function ChatHomeCarousel({
       node.removeEventListener("keydown", interrupt);
       node.removeEventListener("wheel", interrupt);
     };
-  }, [t, select]);
+  }, [t, select, split]);
 
   const go = (index: number) => {
     const node = track.current;
@@ -95,6 +97,14 @@ export function ChatHomeCarousel({
     pending.current = index;
     node.scrollTo({ left: slide.offsetLeft, behavior: glideOrJump() });
   };
+
+  if (split)
+    return (
+      <div className="chat-home-split">
+        <ChatHomeInbox />
+        <div ref={suggestionsRef} className="chat-home-starters" />
+      </div>
+    );
 
   return (
     <section

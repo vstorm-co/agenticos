@@ -803,3 +803,37 @@ it("leaves non-chat models and profiles without keys out of Saved models", async
     screen.queryByRole("option", { name: /demo\/image|demo\/missing/ }),
   ).not.toBeInTheDocument();
 });
+
+it("applies a catalog model with the explicitly selected provider key", async () => {
+  const keys = [
+    { id: "s1", purpose: "openrouter", name: "Workspace key", hint: "1111" },
+    { id: "s2", purpose: "openrouter", name: "Team key", hint: "2222" },
+  ];
+  listedSecrets.mockReturnValue(keys);
+  listedModels.mockReturnValue([{ id: "demo/other", name: "Other model" }]);
+  mutateAsync.mockResolvedValue({
+    ...profile("new-profile", "openrouter", "demo/other"),
+    secret_id: "s2",
+  });
+  const onChange = vi.fn();
+  render(
+    <ChatModelPicker
+      presentation="library"
+      value={null}
+      agentModel={{
+        profile_id: "current",
+        provider: "openrouter",
+        model: "demo/current",
+        label: "Current",
+      }}
+      onChange={onChange}
+    />,
+  );
+  await userEvent.click(screen.getByRole("combobox", { name: "Key" }));
+  await userEvent.click(screen.getByRole("option", { name: /Team key/ }));
+  await userEvent.click(screen.getByRole("option", { name: /Other model/ }));
+  expect(mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({ model: "demo/other", secret_id: "s2" }),
+  );
+  expect(onChange).toHaveBeenCalledWith("new-profile");
+});

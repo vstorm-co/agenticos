@@ -3,6 +3,8 @@
 import { createContext, useContext } from "react";
 import { useInChatScope } from "@/stores/chat-scope-context";
 
+export const ChatHomePlacement = createContext<"below" | "above" | "split">("below");
+
 export const MainChatContext = createContext(false);
 
 /** A nested Architect/test conversation does not inherit the page composer. */

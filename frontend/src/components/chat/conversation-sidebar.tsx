@@ -625,18 +625,27 @@ function useBandFolds(bands: Band[], loaded: number, scroller: RefObject<HTMLEle
           (band) =>
             band.key !== newest &&
             loaded > LONG_LIST &&
-            DEFAULT_COLLAPSED_BANDS.includes(band.key) &&
+            (DEFAULT_COLLAPSED_BANDS.includes(band.key) || band.icon === "project") &&
             !folded.includes(band.key) &&
             !opened.includes(band.key),
         )
         .map((band) => band.key),
     [bands, newest, loaded, folded, opened],
   );
-  const autoOpened = useFillChatBands(scroller, candidates);
+  const alreadyVisible = useMemo(
+    () =>
+      loaded <= LONG_LIST
+        ? bands
+            .filter((band) => band.heading !== null && !folded.includes(band.key))
+            .map((band) => band.key)
+        : [],
+    [bands, folded, loaded],
+  );
+  const autoOpened = useFillChatBands(scroller, candidates, alreadyVisible);
   const isFolded = (key: string): boolean => {
     if (folded.includes(key)) return true;
     if (opened.includes(key) || autoOpened.includes(key)) return false;
-    return key !== newest && loaded > LONG_LIST && DEFAULT_COLLAPSED_BANDS.includes(key);
+    return candidates.includes(key);
   };
   return { isFolded, flip: (key: string) => toggle(key, isFolded(key)) };
 }
@@ -803,7 +812,7 @@ function ConversationList({
                     type="button"
                     aria-expanded={!isFolded(key)}
                     onClick={() => flip(key)}
-                    className="group/band text-muted-foreground hover:text-foreground flex w-full items-center gap-1.5 rounded-md px-2 pt-3 pb-1 text-left text-xs font-medium transition-colors"
+                    className="group/band text-muted-foreground hover:text-foreground hover:bg-muted/60 flex min-h-8 w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
                   >
                     {icon === "star" && <Star className="h-3.5 w-3.5" aria-hidden />}
                     {icon === "unread" && <Inbox className="h-3.5 w-3.5" aria-hidden />}

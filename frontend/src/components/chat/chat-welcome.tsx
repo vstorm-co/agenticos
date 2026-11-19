@@ -163,10 +163,10 @@ export function ChatWelcome({
             compact
               ? "mb-3 justify-center"
               : "relative mb-4 min-h-36 w-full items-center justify-start",
-            quiet && !compact && "min-h-36",
+            quiet && !compact && "min-h-0",
           )}
         >
-          {!compact && <RotatingWorkspaceArt />}
+          {!compact && !quiet && <RotatingWorkspaceArt />}
           <span className="relative">{mark}</span>
         </div>
         <h2

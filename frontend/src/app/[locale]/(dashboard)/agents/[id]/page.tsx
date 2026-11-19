@@ -267,6 +267,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // A link from an eval run lands on the tab it names: its Evals, the History
   // comparing the two versions it measured, or Build with the publish asked for.
   const searchParams = useSearchParams();
+  const buildPreview = searchParams.get("layout");
+  const mcpPreview = searchParams.get("cards");
   const compareFrom = Number(searchParams.get("from")) || null;
   const testedRun = searchParams.get("run");
   const testedArm = searchParams.get("arm");
@@ -1704,7 +1706,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="build" className="mt-4 space-y-4">
+          <TabsContent
+            value="build"
+            className="mt-4 space-y-4"
+            data-build-preview={
+              buildPreview === "workspace" || buildPreview === "settings" ? buildPreview : undefined
+            }
+          >
             <Card data-tour="agent-instructions">
               <CardContent className="p-4 sm:p-5">
                 <InstructionsEditor
@@ -1980,7 +1988,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
             outside the deployment for - and the picker embeds the whole server
             catalog, so it pushed the capability workbench off the top of the
             screen on any organization with more than a handful of servers. */}
-          <TabsContent value="mcp" className="mt-4 space-y-4">
+          <TabsContent
+            value="mcp"
+            className="mt-4 space-y-4"
+            data-mcp-preview={
+              mcpPreview === "list" || mcpPreview === "tiles" ? mcpPreview : undefined
+            }
+          >
             <Card data-tour="agent-mcp">
               {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past

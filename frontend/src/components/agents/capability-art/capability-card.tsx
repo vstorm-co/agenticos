@@ -96,7 +96,7 @@ export function CapabilityCard({
         aria-label={t("capabilitySettingsTitle", { name: entry.name })}
         className="focus-visible:ring-ring flex flex-1 flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-inset"
       >
-        <div className="relative w-full overflow-hidden border-b">
+        <div className="capability-art-viewport relative w-full overflow-hidden border-b">
           <CapabilityArt id={entry.id} name={entry.name} off={!enabled} />
           {entry.recommended && (
             <RecommendedBadge className="bg-background/90 absolute top-2 left-2 shadow-sm backdrop-blur" />

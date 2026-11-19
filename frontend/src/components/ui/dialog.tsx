@@ -36,7 +36,15 @@ const DialogContent = React.forwardRef<
   }
 >(
   (
-    { className, children, onInteractOutside, onEscapeKeyDown, dismissible = true, ...props },
+    {
+      className,
+      children,
+      onInteractOutside,
+      onEscapeKeyDown,
+      onOpenAutoFocus,
+      dismissible = true,
+      ...props
+    },
     ref,
   ) => {
     const t = useTranslations("common");
@@ -45,6 +53,16 @@ const DialogContent = React.forwardRef<
         <DialogOverlay />
         <DialogPrimitive.Content
           ref={ref}
+          onOpenAutoFocus={(event) => {
+            onOpenAutoFocus?.(event);
+            if (event.defaultPrevented || !(event.target instanceof HTMLElement)) return;
+            const field = event.target.querySelector<HTMLElement>(
+              "[data-initial-focus]:not(:disabled)",
+            );
+            if (!field || field.getClientRects().length === 0 || field.closest("[inert]")) return;
+            event.preventDefault();
+            field.focus({ preventScroll: true });
+          }}
           onInteractOutside={(event) => {
             onInteractOutside?.(event);
             if (!dismissible) event.preventDefault();
