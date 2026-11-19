@@ -1,5 +1,5 @@
 ---
-source_sha: "b78d189b9f06"
+source_sha: "1038cf0df8eb"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -529,6 +529,10 @@ vez, como describe [Mejorar un skill](skills.md#improving-a-skill).
 Otros agentes pueden leer el mismo skill, así que el Improve del agente nunca cambia uno. El asistente lee los skills del agente: el nombre, la descripción y la versión de cada uno, y el texto completo de los que usaron las evidencias. Cuando los runs muestran que un skill es incorrecto, el asistente informa del problema para ese skill. No copia el texto del skill en las instrucciones del agente. La estimación cuenta el texto de los skills que lee el asistente.
 
 Se rechaza un cambio que repite un pasaje de 200 caracteres de un skill vinculado, y también un skill nuevo con el nombre o el texto de un skill vinculado. Un problema informado solo se conserva si nombra un skill del agente y cita un run que usó la versión que el agente lee ahora; las citas de otros runs se eliminan. Un run que recibió una versión anterior, u otro fork, no es evidencia contra el texto que lee el asistente.
+
+Un criterio es del skill solo cuando una línea del skill indica el valor o la regla equivocados, de modo que el agente no podría arreglarlo sin contradecir al skill - *Los presupuestos son válidos 30 días* frente a un criterio que pide 14. El asistente copia esa línea con el problema, y el problema conserva el criterio solo cuando el texto del skill contiene la línea, sin contar espacios, marcas de lista ni mayúsculas.
+
+Cuando el skill solo calla, o solo prohíbe añadir otras secciones, y los datos que el criterio necesita están en las instrucciones, el contexto o el conocimiento del agente, el criterio sigue siendo del agente: el asistente propone el cambio del agente y puede seguir informando el problema del skill como consejo. El veredicto solo aparta, y cuenta en **Still held back by a skill** (aún bloqueados por un skill), los criterios propios del skill.
 
 El paso Changes muestra estos problemas en **Belongs to a skill**. Cada tarjeta muestra los problemas con sus citas y cuántos agentes leen la misma línea del skill. **Improve X** abre el Improve del propio skill, con los problemas de esta sesión como evidencia inicial. Si el agente sigue un fork, ese Improve trabaja sobre el fork; los problemas de un agente fijado van a main. Sin permiso de edición sobre el skill, la tarjeta indica a quién pedírselo.
 

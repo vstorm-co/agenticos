@@ -5,8 +5,10 @@ skill's problems and wrote an edit for neither. Every problem it is handed must 
 edit, or be named as one the skill's text cannot fix.
 """
 
+import pytest
+
 from app.services.authoring_evidence import EvidencePack
-from app.services.authoring_worker import _skill_edits_prompt
+from app.services.authoring_worker import _skill_edits_prompt, quoted_line
 
 
 def test_every_problem_is_asked_for_an_edit_or_a_stated_reason() -> None:
@@ -27,3 +29,21 @@ def test_every_problem_is_asked_for_an_edit_or_a_stated_reason() -> None:
     assert "Write at least one edit for every problem below" in prompt
     assert "say which and why in expected_effect" in prompt
     assert "- No account manager: The footer has no place for one" in prompt
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("- Quotes are valid for 30 days.", "- Quotes are valid for 30 days."),
+        ("quotes are VALID for 30\ndays.", "quotes are VALID for 30\ndays."),
+        ("Quotes are valid for 14 days.", None),
+        ("Quotes", None),
+        ("", None),
+    ],
+)
+def test_a_skill_line_is_kept_only_when_the_skill_s_body_holds_it(
+    line: str, expected: str | None
+) -> None:
+    body = "# Quote format\n\n1. Quotes are valid\n   for 30 days.\n- Do not add other sections."
+
+    assert quoted_line(line, body) == expected

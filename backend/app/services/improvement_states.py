@@ -396,12 +396,17 @@ MAX_CRITERIA = 40
 def criterion_owners(reports: Iterable[Mapping[str, Any] | None]) -> dict[str, str]:
     """Which skill each criterion was put down to by a session's improver, by name.
 
+    Only a problem that quotes the skill's own line stating the wrong value or rule
+    owns its criteria. One where the skill is only silent is advice: the facts its
+    criteria need may be the agent's, and the agent is held to them.
     `reports` come newest first, and the newest report decides a criterion two of
     them named.
     """
     owners: dict[str, str] = {}
     for report in reports:
         for problem in (report or {}).get("skill_problems", []):
+            if not problem.get("skill_line"):
+                continue
             for name in problem.get("criteria", []):
                 owners.setdefault(str(name).casefold(), str(problem["skill_name"]))
     return owners

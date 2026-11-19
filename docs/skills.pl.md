@@ -1,5 +1,5 @@
 ---
-source_sha: "19d422f1ab94"
+source_sha: "433e0ca4ef82"
 ---
 
 # Skille { #skills }
@@ -849,6 +849,12 @@ wybranego w chipach - w tych samych pięciu krokach co [poprawianie
 agenta](authoring.md#the-improve-wizard): Zrozumienie, Zmiany, Sprawdzenie, Wynik i Akceptacja. Zatrzymuje
 się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku, a niczego nie zmienia, dopóki
 nie zaakceptujesz.
+
+Sesja otwarta z Improve agenta zaczyna od problemów, które ta sesja zgłosiła.
+Tylko problem cytujący linię skilla, która podaje złą wartość lub regułę,
+zabiera ze sobą kryteria agenta; gdy skill tylko milczy, problem jest radą, a
+agent nadal odpowiada za te kryteria - zobacz [Gdy błąd jest w
+skillu](authoring.md#when-the-fault-is-in-a-skill).
 
 Start mówi, ile ocenionych w dół albo nieudanych odpowiedzi przeczyta i ilu agentom
 służy linia. Mówi też, ile kosztuje

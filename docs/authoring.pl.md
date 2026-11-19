@@ -1,5 +1,5 @@
 ---
-source_sha: "b78d189b9f06"
+source_sha: "1038cf0df8eb"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -516,6 +516,10 @@ naraz, jak opisuje [Poprawianie skilla](skills.md#improving-a-skill).
 Ten sam skill mogą czytać inni agenci, więc agent Improve nigdy go nie zmienia. Pomocnik czyta skille agenta: nazwę, opis i wersję każdego z nich oraz pełny tekst tych, których użyły dowody. Gdy runy pokazują, że skill jest błędny, pomocnik zgłasza problem dla tego skilla. Nie przepisuje tekstu skilla do instrukcji agenta. Wycena uwzględnia tekst skilli, który czyta pomocnik.
 
 Zmiana, która powtarza 200-znakowy fragment powiązanego skilla, zostaje odrzucona, tak samo jak nowy skill z nazwą lub tekstem powiązanego skilla. Zgłoszony problem zostaje tylko wtedy, gdy wskazuje skill agenta i cytuje run, który użył wersji czytanej teraz przez agenta; cytaty z innych runów są z niego usuwane. Run, który dostał starszą wersję albo inny fork, nie jest dowodem przeciw tekstowi, który czyta pomocnik.
+
+Kryterium należy do skilla tylko wtedy, gdy linia skilla podaje złą wartość lub regułę, więc agent nie mógłby go naprawić bez sprzeczności ze skillem - *Oferty są ważne 30 dni* wobec kryterium wymagającego 14. Pomocnik kopiuje tę linię razem z problemem, a problem zachowuje kryterium tylko wtedy, gdy tekst skilla zawiera tę linię, bez względu na odstępy, znaczniki list i wielkość liter.
+
+Gdy skill tylko milczy albo tylko zabrania dodawania innych sekcji, a fakty potrzebne kryterium są w instrukcjach, kontekście lub wiedzy agenta, kryterium zostaje przy agencie: pomocnik proponuje zmianę agenta i może nadal zgłosić problem skilla jako radę. Werdykt odkłada na bok i liczy w **Wciąż blokowane przez skill** tylko kryteria samego skilla.
 
 Krok Changes pokazuje te problemy w sekcji **Należy do skilla**. Każda karta zawiera problemy z cytatami oraz liczbę agentów czytających tę samą linię skilla. **Popraw X** otwiera Improve samego skilla z problemami z tej sesji jako dowodami startowymi. Jeśli agent korzysta z forka, ten Improve pracuje na forku; problemy przypiętego agenta trafiają do main. Bez prawa edycji skilla karta mówi, kogo poprosić.
 

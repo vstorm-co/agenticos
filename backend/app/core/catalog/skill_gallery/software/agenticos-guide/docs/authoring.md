@@ -503,6 +503,10 @@ Other agents may read the same skill, so agent Improve never changes one. The he
 
 A change that repeats a 200-character passage of a bound skill is refused, and so is a new skill with a bound skill's name or text. A reported problem is kept only when it names one of the agent's skills and quotes a run that used the version the agent reads now; quotes from other runs are dropped from it. A run served an older version, or another fork, is not evidence against the text the helper reads.
 
+A criterion is the skill's only when a line of the skill states the wrong value or rule, so the agent could not fix it without contradicting the skill - *Quotes are valid for 30 days* against a criterion asking for 14. The helper copies that line with the problem, and the problem keeps the criterion only when the skill's text holds the line, whitespace, list markers and case aside.
+
+When the skill is only silent, or only says not to add other sections, and the facts the criterion needs are in the agent's instructions, context or knowledge, the criterion stays the agent's: the helper proposes the agent change, and may still report the skill problem as advice. Only the skill's own criteria are set aside by the verdict and counted under **Still held back by a skill**.
+
 The Changes step lists these problems under **Belongs to a skill**. Each card shows the problems with their quotes, and how many agents read the same line of the skill. **Improve X** opens the skill's own Improve, with this session's problems as its starting evidence. If the agent follows a fork, that Improve works on the fork; a pinned agent's problems go to main. Without edit access to the skill, the card says to ask someone who has it.
 
 The failed training answers this session read that used the skill count as the skill's evidence too: test questions from the stored training part of the session's own dataset, which a skill check never measures on. A skill's Improve started this way no longer needs chat answers rated down to begin; a caller who may not run that dataset reads none of those answers.

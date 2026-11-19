@@ -1,5 +1,5 @@
 ---
-source_sha: "b78d189b9f06"
+source_sha: "1038cf0df8eb"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -547,6 +547,10 @@ beschreibt.
 Andere Agents können denselben Skill lesen, deshalb ändert Agent-Improve nie einen Skill. Der Helfer liest die Skills des Agents: Name, Beschreibung und Version jedes Skills sowie den vollen Text der Skills, die die Belege genutzt haben. Zeigen die Runs, dass ein Skill falsch ist, meldet der Helfer das Problem für diesen Skill. Er schreibt den Text des Skills nicht in die Anweisungen des Agents. Die Schätzung zählt den Skill-Text mit, den der Helfer liest.
 
 Eine Änderung, die eine Passage von 200 Zeichen eines gebundenen Skills wiederholt, wird abgelehnt, ebenso ein neuer Skill mit dem Namen oder Text eines gebundenen Skills. Ein gemeldetes Problem bleibt nur, wenn es einen Skill des Agents nennt und einen Run zitiert, der die Version genutzt hat, die der Agent jetzt liest; Zitate aus anderen Runs werden daraus entfernt. Ein Run, der eine ältere Version oder einen anderen Fork bekam, ist kein Beleg gegen den Text, den der Helfer liest.
+
+Ein Kriterium gehört nur dann dem Skill, wenn eine Zeile des Skills den falschen Wert oder die falsche Regel nennt, sodass der Agent es nicht beheben könnte, ohne dem Skill zu widersprechen - *Angebote gelten 30 Tage* gegen ein Kriterium, das 14 verlangt. Der Helfer kopiert diese Zeile mit dem Problem, und das Problem behält das Kriterium nur, wenn der Text des Skills die Zeile enthält, Leerraum, Listenzeichen und Groß- und Kleinschreibung beiseite.
+
+Schweigt der Skill nur oder verbietet er nur weitere Abschnitte, und stehen die Fakten, die das Kriterium braucht, in den Anweisungen, dem Kontext oder dem Wissen des Agents, bleibt das Kriterium beim Agent: Der Helfer schlägt die Änderung am Agent vor und kann das Problem des Skills weiter als Rat melden. Nur die eigenen Kriterien des Skills legt das Urteil beiseite und zählt sie unter **Noch von einem Skill blockiert**.
 
 Der Schritt Changes listet diese Probleme unter **Gehört zu einem Skill**. Jede Karte zeigt die Probleme mit ihren Zitaten und wie viele Agents dieselbe Linie des Skills lesen. **X verbessern** öffnet das Improve des Skills selbst, mit den Problemen dieser Session als Startbelegen. Folgt der Agent einem Fork, arbeitet dieses Improve am Fork; die Probleme eines gepinnten Agents gehen an Main. Ohne Bearbeitungsrecht für den Skill sagt die Karte, wen man fragen kann.
 

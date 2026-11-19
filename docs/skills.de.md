@@ -1,5 +1,5 @@
 ---
-source_sha: "19d422f1ab94"
+source_sha: "433e0ca4ef82"
 ---
 
 # Skills { #skills }
@@ -920,6 +920,13 @@ Linie - main oder den in den Chips gewählten Fork - in denselben fünf Schritte
 das [Verbessern eines Agents](authoring.md#the-improve-wizard): Verstehen, Änderungen, Prüfung,
 Ergebnis und Annehmen. Sie hält nach Verstehen, nach Änderungen und beim Ergebnis
 für Sie an und ändert nichts, bevor Sie annehmen.
+
+Eine Sitzung, die aus dem Improve eines Agents geöffnet wird, beginnt mit den
+Problemen, die diese Sitzung gemeldet hat. Nur ein Problem, das eine Zeile des
+Skills mit dem falschen Wert oder der falschen Regel zitiert, nimmt die
+Kriterien des Agents mit; schweigt der Skill nur, ist das Problem ein Rat, und
+der Agent bleibt an diese Kriterien gebunden - siehe [Wenn der Fehler in einem
+Skill liegt](authoring.md#when-the-fault-is-in-a-skill).
 
 Der Start sagt, wie viele negativ bewertete oder fehlgeschlagene Antworten sie liest
 und wie vielen Agents die Linie dient. Er nennt

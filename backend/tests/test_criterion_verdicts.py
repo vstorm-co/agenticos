@@ -154,7 +154,17 @@ def test_a_family_is_put_down_to_the_skill_named_for_it_or_for_a_criterion_in_it
     price = _families()[1]
 
     owners = criterion_owners(
-        [{"skill_problems": [{"skill_name": "Quote rules", "criteria": ["REGEX '£913.68'"]}]}]
+        [
+            {
+                "skill_problems": [
+                    {
+                        "skill_name": "Quote rules",
+                        "skill_line": "Show prices ex VAT only.",
+                        "criteria": ["REGEX '£913.68'"],
+                    }
+                ]
+            }
+        ]
     ) | {"payment terms": "Quote rules"}
 
     assert family_skills([vat, terms, price], owners) == {
@@ -333,10 +343,18 @@ def test_a_criterion_broken_once_and_not_again_is_an_unconfirmed_break() -> None
 
 
 def test_the_newest_report_decides_which_skill_a_criterion_is_put_down_to() -> None:
-    older = {"skill_problems": [{"skill_name": "Old rules", "criteria": ["Validity"]}]}
+    older = {
+        "skill_problems": [
+            {"skill_name": "Old rules", "skill_line": "Valid 30 days", "criteria": ["Validity"]}
+        ]
+    }
     newer = {
         "skill_problems": [
-            {"skill_name": "Quote rules", "criteria": ["validity", "payment terms"]},
+            {
+                "skill_name": "Quote rules",
+                "skill_line": "Valid for 30 days.",
+                "criteria": ["validity", "payment terms"],
+            },
             {"skill_name": "Tone", "problem": "no criteria named"},
         ]
     }
@@ -345,6 +363,48 @@ def test_the_newest_report_decides_which_skill_a_criterion_is_put_down_to() -> N
         "validity": "Quote rules",
         "payment terms": "Quote rules",
     }
+
+
+def test_a_family_the_skill_is_only_silent_on_stays_the_agent_s() -> None:
+    """The improver put every family on the skill, and only one quoted a line of the
+    skill stating the wrong rule. Price break the agent can add from its own price
+    list, so the skill's silence does not set it aside."""
+    report = {
+        "skill_problems": [
+            {
+                "skill_name": "fernhill-quote-format",
+                "problem": "The skill states a 30-day validity",
+                "skill_line": "Quotes are valid for 30 days.",
+                "criteria": ["valid for 14 days"],
+            },
+            {
+                "skill_name": "fernhill-quote-format",
+                "problem": "No step tells the customer about the next price break",
+                "skill_line": None,
+                "criteria": ["price break"],
+            },
+            {
+                "skill_name": "fernhill-quote-format",
+                "problem": "Its ban on extra sections drops payment terms",
+                "criteria": ["payment terms + account manager"],
+            },
+        ]
+    }
+    validity = FamilyMove(
+        "valid for 14 days", ("valid for 14 days",), 9, 5, 2, 0, 3, 0, 3, 0.25, False
+    )
+    price = FamilyMove("price break", ("price break",), 9, 5, 2, 0, 3, 0, 3, 0.25, False)
+    terms = FamilyMove(
+        "payment terms + account manager", ("payment terms",), 9, 5, 2, 0, 3, 0, 3, 0.25, False
+    )
+
+    skills = family_skills([validity, price, terms], criterion_owners([report]))
+
+    assert skills == {"valid for 14 days": "fernhill-quote-format"}
+    verdict = judge(_no_question_flipped(validity, price, terms, skills=skills))
+    assert verdict is ImprovementVerdict.CRITERIA_WORSE
+    details = family_details([validity, price, terms], skills)
+    assert [detail.get("skill") for detail in details] == ["fernhill-quote-format", None, None]
 
 
 def test_a_criterion_that_passes_everywhere_is_not_put_down_to_a_skill() -> None:

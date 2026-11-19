@@ -1,5 +1,5 @@
 ---
-source_sha: "19d422f1ab94"
+source_sha: "433e0ca4ef82"
 ---
 
 # Skills { #skills }
@@ -868,6 +868,13 @@ main, o el fork elegido en los chips - con los mismos cinco pasos que [mejorar u
 agent](authoring.md#the-improve-wizard): Entender, Cambios, Comprobación, Resultado y Aceptar. Se
 detiene para ti después de Entender, después de Cambios y en el resultado, y no
 cambia nada hasta que aceptas.
+
+Una sesión abierta desde el Improve de un agente empieza con los problemas que
+esa sesión informó. Solo un problema que cita una línea del skill con el valor o
+la regla equivocados se lleva los criterios del agente; cuando el skill solo
+calla, el problema es un consejo y el agente sigue respondiendo de esos
+criterios - consulta [Cuando el fallo está en un
+skill](authoring.md#when-the-fault-is-in-a-skill).
 
 Al empezar dice cuántas respuestas valoradas a la baja o fallidas lee, y a cuántos
 agents sirve la línea. También dice cuánto
