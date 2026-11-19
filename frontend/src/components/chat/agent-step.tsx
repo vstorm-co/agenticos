@@ -181,14 +181,14 @@ export function AgentStep({
       >
         {label}
       </span>
+      {state === "parked" && parkedOn === "approval" && (
+        <span className="border-border bg-muted text-foreground/80 shrink-0 rounded-md border px-1.5 py-0.5 text-[11px] leading-4">
+          {t("awaitingApproval")}
+        </span>
+      )}
       {detail !== null && detail !== undefined && (
         <span className="text-muted-foreground min-w-0 flex-1 truncate font-mono text-xs">
           {detail}
-        </span>
-      )}
-      {state === "parked" && parkedOn === "approval" && (
-        <span className="border-border bg-muted text-foreground/80 ml-auto shrink-0 rounded-md border px-1.5 py-0.5 text-[11px] leading-4">
-          {t("awaitingApproval")}
         </span>
       )}
       {state === "error" && (
