@@ -236,6 +236,7 @@ async def test_the_next_attempt_learns_from_the_draft_and_reads_what_the_last_on
     assert "On 5 held-out questions it fixed 0 and broke" in learned
 
 
+@pytest.mark.security
 async def test_a_session_ending_on_a_kept_attempt_notifies_about_that_attempt(db):
     """The kept attempt can be older than the latest; the notice describes the one kept."""
     ctx, agent, started, _, _ = await _two_rounds(db)
@@ -270,6 +271,23 @@ async def test_a_session_ending_on_a_kept_attempt_notifies_about_that_attempt(db
     )
     assert notice is not None
     assert [item["name"] for item in notice.render_context["criteria"]] == ["price break"]
+
+    from app.db.models.organization import OrganizationMember
+
+    membership = await db.scalar(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == ctx.organization_id,
+            OrganizationMember.user_id == ctx.user_id,
+        )
+    )
+    membership.role = "member"
+    await db.flush()
+    await ImprovementPipelineService(db)._notify_end(run, end="access-removed")
+    private = await db.scalar(
+        select(Notification).where(Notification.occurrence_id == f"{started.id}:access-removed")
+    )
+    assert private.render_context["criteria"] == []
+    assert "price break" not in private.summary
 
 
 async def test_an_attempt_whose_draw_would_leave_too_few_to_measure_is_never_written(db):

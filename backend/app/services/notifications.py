@@ -1691,7 +1691,8 @@ class NotificationService:
 
         A session ends more than once: stopped on its budget, continued, then
         ready. `end` names which end this is, so the next one is not taken for a
-        repeat of the last. No evidence text is put in the notification.
+        repeat of the last. No question or answer text is put in the notification.
+        `criteria` must be filtered for the recipient's current access by the caller.
         `next_step_blocked` says why a stop's next step cannot be taken.
         `verdict` and `criteria` are the kept attempt's once one is offered or
         decided, the latest attempt's before: the criteria it moved are named

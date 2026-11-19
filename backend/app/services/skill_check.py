@@ -1579,16 +1579,23 @@ class SkillCheckService:
                 continue
             counted = {entry["eval_run_id"]: entry for entry in row.stages}
             mine = stages.get(row.agent_id, [])
+            # FK columns can be cleared by retention; the stored result still
+            # remembers every source that contributed to its pooled criteria.
             expected_runs = {
-                run_id
+                str(run_id)
                 for run_id in (row.skill_set_run_id, row.dataset_run_id)
                 if run_id is not None
+            } | set(counted)
+            represented_runs = {
+                str(run_id) for stage in mine if (run_id := _run_of(row, stage.kind)) is not None
             }
+            expected_datasets = {entry["dataset_id"] for entry in row.stages}
             criteria = [VerdictCriterion.model_validate(item) for item in row.criteria or []]
             if (
                 not ctx.has(Perm.RUNS_VIEW)
                 or not expected_runs
-                or not expected_runs <= {_run_of(row, stage.kind) for stage in mine}
+                or not expected_runs <= represented_runs
+                or not expected_datasets <= {str(stage.dataset.id) for stage in mine}
                 or any(stage.dataset.id not in readable for stage in mine)
                 or any(item.skill is not None and item.skill not in owners for item in criteria)
             ):

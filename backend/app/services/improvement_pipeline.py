@@ -135,7 +135,7 @@ from app.schemas.improvement import (
 from app.schemas.scoring import DatasetScoring
 from app.services import authoring_fields, authoring_hunks, change_feed
 from app.services import improvement_states as rules
-from app.services.access import DATASET, SKILL, accessible_ids
+from app.services.access import DATASET, SKILL, accessible_ids, member_context
 from app.services.agent_registry import AgentRegistryService
 from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
@@ -1171,23 +1171,15 @@ class ImprovementPipelineService:
         ]
         if not details:
             return
-        readable = ctx.has(Perm.RUNS_VIEW)
-        if readable:
-            dataset = await dataset_repo.get(
-                self.db, run.dataset_id, organization_id=ctx.organization_id
-            )
-            readable = dataset is not None and dataset.id in await accessible_ids(
-                self.db, ctx, [dataset], Perm.DATASETS_VIEW, resource_type=DATASET
-            )
         names: set[str] = set()
         for _, detail in details:
             criteria = detail.get("criteria")
             if isinstance(criteria, list):
                 names.update(item.skill for item in criteria if item.skill is not None)
-        owners = await readable_criterion_owners(self.db, ctx, names) if readable else set()
+        owners = await self._criterion_access(ctx, run, names)
         for attempt, detail in details:
             criteria = detail.get("criteria")
-            if not readable or (
+            if owners is None or (
                 isinstance(criteria, list)
                 and any(item.skill is not None and item.skill not in owners for item in criteria)
             ):
@@ -1196,6 +1188,21 @@ class ImprovementPipelineService:
                     for key, value in detail.items()
                     if key not in {"criteria", "criterion_change"}
                 }
+
+    async def _criterion_access(
+        self, ctx: AuthContext, run: ImprovementRun, names: set[str]
+    ) -> set[str] | None:
+        """Readable named owners, or None when the measurement itself is private."""
+        if not ctx.has(Perm.RUNS_VIEW):
+            return None
+        dataset = await dataset_repo.get(
+            self.db, run.dataset_id, organization_id=ctx.organization_id
+        )
+        if dataset is None or dataset.id not in await accessible_ids(
+            self.db, ctx, [dataset], Perm.DATASETS_VIEW, resource_type=DATASET
+        ):
+            return None
+        return await readable_criterion_owners(self.db, ctx, names)
 
     async def _answers(
         self, run: ImprovementRun, round_: ImprovementIteration | None, role: ArmRole
@@ -2366,6 +2373,17 @@ class ImprovementPipelineService:
                 self.db, organization_id=run.organization_id, run_id=run.id
             )
             described = next((item for item in rounds if item.id == run.best_iteration_id), current)
+        criteria = [] if described is None else (described.verdict_detail or {}).get("criteria", [])
+        if criteria:
+            reader = await member_context(
+                self.db, organization_id=run.organization_id, user_id=user_id
+            )
+            names = {item["skill"] for item in criteria if "skill" in item}
+            owners = None if reader is None else await self._criterion_access(reader, run, names)
+            if owners is None or any(
+                item["skill"] not in owners for item in criteria if "skill" in item
+            ):
+                criteria = []
         await NotificationService(self.db).improvement_finished(
             agent=agent,
             run_id=run.id,
@@ -2375,9 +2393,7 @@ class ImprovementPipelineService:
             end=end,
             next_step_blocked=blocked_next_step(run, current),
             verdict=None if described is None else described.verdict,
-            criteria=[]
-            if described is None
-            else (described.verdict_detail or {}).get("criteria", []),
+            criteria=criteria,
         )
 
     async def check_finished(self, check: EvalRun) -> None:

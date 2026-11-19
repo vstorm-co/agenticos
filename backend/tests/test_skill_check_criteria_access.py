@@ -18,7 +18,17 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.mark.parametrize(
-    "denied", [None, "runs", "dataset", "skill", "missing_stage", "missing_run"]
+    "denied",
+    [
+        None,
+        "runs",
+        "dataset",
+        "skill",
+        "missing_stage",
+        "missing_run",
+        "removed_history",
+        "replaced_dataset",
+    ],
 )
 async def test_criterion_metadata_requires_all_sources(monkeypatch, denied):
     org = uuid4()
@@ -50,6 +60,19 @@ async def test_criterion_metadata_requires_all_sources(monkeypatch, denied):
             }
         ],
     )
+    if denied in {"removed_history", "replaced_dataset"}:
+        row.stages = [
+            {
+                "kind": "dataset",
+                "dataset_id": str(uuid4()),
+                "eval_run_id": str(uuid4() if denied == "removed_history" else row.dataset_run_id),
+                "compared": 5,
+                "fixed": 5,
+                "broken": 0,
+                "unchanged": 0,
+                "unknown": 0,
+            }
+        ]
     monkeypatch.setattr(
         skill_check.agent_repo, "get_many", AsyncMock(return_value={agent.id: agent})
     )

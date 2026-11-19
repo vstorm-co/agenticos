@@ -36,7 +36,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Keep criterion text, grades and skill attributions private when the reader cannot open their source datasets or named skills, including Improve read/list responses and skill checks.
+- Keep criterion text, grades and skill attributions private when the reader cannot open their source datasets or named skills, including Improve read/list responses, skill checks and result notifications.
 
 - Distinguish equal criterion names by scorer in result tables and sentences. Select criterion-only improvements by their normalized confirmed movement over all graded pairs, before response and evidence detail limits.
 

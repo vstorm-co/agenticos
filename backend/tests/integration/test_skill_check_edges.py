@@ -1905,7 +1905,9 @@ async def test_criterion_metadata_in_skill_check_read_and_list_needs_every_datas
     lab = await _lab(db)
     evals = FakeEvals()
     evals.install(monkeypatch)
-    service, started = await _finished(db, lab, evals, {lab.a.id: Outcome(fixed=2)})
+    service, started = await _finished(
+        db, lab, evals, {lab.a.id: Outcome(fixed=2)}, mode="thorough"
+    )
     rows = await skill_check_repo.list_agents(
         db, [started.id], organization_id=lab.ctx.organization_id
     )
@@ -1933,3 +1935,9 @@ async def test_criterion_metadata_in_skill_check_read_and_list_needs_every_datas
             assert "protected rubric" not in response.model_dump_json()
     assert (await service.read(lab.ctx, lab.skill.id, started.id)).agents
     assert row.criteria[0]["name"] == "protected rubric"
+    assert row.skill_set_run_id is not None and row.dataset_run_id is not None
+    await db.execute(delete(EvalRun).where(EvalRun.id == row.skill_set_run_id))
+    await db.refresh(row)
+    assert row.skill_set_run_id is None and row.stages
+    retained = await service.read(lab.ctx, lab.skill.id, started.id)
+    assert not next(item for item in retained.agents if item.agent.id == lab.a.id).criteria

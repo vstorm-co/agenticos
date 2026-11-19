@@ -406,3 +406,63 @@ async def test_a_metric_without_named_criteria_keeps_its_shape_for_an_authorized
     )
     read = await pipeline._read(OWNER, run, noise=False)
     assert read.iterations[0].verdict_detail == attempt.verdict_detail
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("denied", [None, "membership", "runs", "dataset", "skill"])
+async def test_result_notifications_filter_criterion_evidence_for_the_current_recipient(
+    service, monkeypatch, denied
+):
+    from app.db.models.agent import Agent
+
+    pipeline, _, _ = service
+    run = ImprovementRun(**vars(_session("stopped")))
+    attempt = improvement_pipeline.improvement_repo.list_iterations.return_value[0]
+    attempt.verdict = "criteria_better"
+    attempt.verdict_detail = {
+        "criteria": [
+            {
+                "scorer": "judge",
+                "name": "private rubric",
+                "skill": "private skill",
+                "graded": 5,
+                "before": 0,
+                "after": 5,
+                "fixed": 5,
+                "broken": 0,
+            }
+        ]
+    }
+    monkeypatch.setattr(
+        improvement_pipeline.improvement_repo, "get_iteration", AsyncMock(return_value=attempt)
+    )
+    monkeypatch.setattr(
+        improvement_pipeline.agent_repo,
+        "get",
+        AsyncMock(return_value=Agent(id=run.agent_id, organization_id=ORG, name="Agent")),
+    )
+    reader = replace(OWNER, key_scopes=frozenset({Perm.AGENTS_VIEW})) if denied == "runs" else OWNER
+    monkeypatch.setattr(
+        improvement_pipeline,
+        "member_context",
+        AsyncMock(return_value=None if denied == "membership" else reader),
+    )
+    dataset = Dataset(id=run.dataset_id, organization_id=ORG, name="private")
+    monkeypatch.setattr(improvement_pipeline.dataset_repo, "get", AsyncMock(return_value=dataset))
+    monkeypatch.setattr(
+        improvement_pipeline,
+        "accessible_ids",
+        AsyncMock(return_value=set() if denied == "dataset" else {dataset.id}),
+    )
+    monkeypatch.setattr(
+        improvement_pipeline,
+        "readable_criterion_owners",
+        AsyncMock(return_value=set() if denied == "skill" else {"private skill"}),
+    )
+    send = AsyncMock()
+    monkeypatch.setattr(improvement_pipeline.NotificationService, "improvement_finished", send)
+
+    await pipeline._notify_end(run, end="one")
+
+    assert bool(send.await_args.kwargs["criteria"]) is (denied is None)
+    assert attempt.verdict_detail["criteria"][0]["name"] == "private rubric"
