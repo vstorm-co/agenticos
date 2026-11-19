@@ -108,11 +108,34 @@ describe("RunButton", () => {
     store.getState().seedGraph({ ...graph, nodes: [pinned] });
     render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
 
-    const badge = screen.getByText("1 step pinned");
-    await userEvent.hover(badge);
+    const indicator = screen.getByRole("button", { name: "1 step pinned" });
+    expect(indicator).toHaveTextContent("1");
+    expect(indicator).not.toHaveTextContent("step pinned");
+    await userEvent.click(indicator);
     expect(
       (await screen.findAllByText(/hand on their pinned test data instead\. Fetch lead/))[0],
     ).toBeInTheDocument();
+  });
+
+  it("opens pinned test data from the keyboard even when testing is blocked", async () => {
+    seed();
+    const graph = store.getState().graph!;
+    store.getState().seedGraph({
+      ...graph,
+      nodes: [{ ...graph.nodes[0]!, label: "Fetch lead", pinned_output: { id: 1 } }],
+    });
+    store.setState({ isDirty: true });
+    render(<RunButton workflowId="wf" catalog={CATALOG} onStarted={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Test draft" })).toBeDisabled();
+    const indicator = screen.getByRole("button", { name: "1 step pinned" });
+    indicator.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(
+      await screen.findByText(/hand on their pinned test data instead\. Fetch lead/),
+    ).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByText(/hand on their pinned test data instead\. Fetch lead/)).toBeNull();
+    expect(indicator).toHaveFocus();
   });
 
   it("shows no pinned-data badge when nothing is pinned", () => {

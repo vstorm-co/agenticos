@@ -7,14 +7,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/comp
 import { Pin, Play } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import {
-  Badge,
-  Button,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui";
+import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
 import { validateGraph, withTableDrift } from "@/components/workflows/validation";
 import { useWorkflowRuns } from "@/hooks";
@@ -153,23 +146,30 @@ export function RunButton({ workflowId, catalog, onStarted }: RunButtonProps) {
   return (
     <>
       <Button variant="outline" onClick={run} disabled={blocked} title={reason}>
-        <Play className="h-4 w-4" />
+        <Play aria-hidden="true" className="h-4 w-4" />
         {t("runDraft")}
       </Button>
       {pinnedSteps.length > 0 && (
-        <TooltipProvider delayDuration={150}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant="outline" className="gap-1" tabIndex={0} data-pinned-steps>
-                <Pin className="h-3 w-3" />
-                {t("runPinnedCount", { count: pinnedSteps.length })}
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-muted-foreground h-8 gap-1.5 px-2 text-xs tabular-nums"
+              aria-label={t("runPinnedCount", { count: pinnedSteps.length })}
+              data-pinned-steps
+            >
+              <Pin aria-hidden="true" className="size-3.5" />
+              <span aria-hidden="true">{pinnedSteps.length}</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-72 space-y-1.5 text-sm">
+            <p className="font-medium">{t("runPinnedCount", { count: pinnedSteps.length })}</p>
+            <p className="text-muted-foreground">
               {t("runPinnedHint", { steps: pinnedSteps.join(", ") })}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+            </p>
+          </PopoverContent>
+        </Popover>
       )}
       <Sheet open={chatOpen} onOpenChange={setChatOpen}>
         <SheetContent side="right" className="flex w-full flex-col sm:max-w-xl">
