@@ -440,7 +440,7 @@ def test_shipped_agents_have_async_work_and_bounded_search_defaults() -> None:
             "strategy": "local_bm25",
             "max_results": 5,
             "defer_capabilities": True,
-            "exclude_capabilities": ["ask_user", "sandbox", "web_research"]
+            "exclude_capabilities": ["ask_user", "sandbox", "web_research", "web_fetch"]
             if key == "general/agenticos"
             else ["ask_user", "sandbox"],
         }
