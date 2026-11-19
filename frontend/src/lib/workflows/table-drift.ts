@@ -39,15 +39,17 @@ function isTableRef(value: unknown): value is TableIORef {
   );
 }
 
-/** Every table reference the graph holds: a step's `table`, and table-sourced bindings. */
+/** Every table reference consumed by an enabled step: a step's `table`, and table-sourced bindings. */
 export function graphTableRefs(graph: WorkflowGraph): TableRefAt[] {
   const refs: TableRefAt[] = [];
+  const disabled = new Set(graph.nodes.filter((node) => node.disabled).map((node) => node.id));
   for (const node of graph.nodes) {
+    if (node.disabled) continue;
     const table = (node.config as Record<string, unknown>).table;
     if (isTableRef(table)) refs.push({ site: { nodeId: node.id, binding: null }, ref: table });
   }
   graph.bindings.forEach((binding, index) => {
-    if (binding.source.kind === "table") {
+    if (!disabled.has(binding.target_node_id) && binding.source.kind === "table") {
       refs.push({ site: { nodeId: binding.target_node_id, binding: index }, ref: binding.source });
     }
   });
@@ -58,7 +60,7 @@ export function graphTableRefs(graph: WorkflowGraph): TableRefAt[] {
 export function nodeTableColumns(graph: WorkflowGraph, site: TableRefSite): string[] | null {
   if (site.binding !== null) return [];
   const node = graph.nodes.find((entry) => entry.id === site.nodeId);
-  if (!node) return [];
+  if (!node || node.disabled) return [];
   const config = node.config;
   const columns = new Set<string>();
   if (Array.isArray(config.filters)) {
@@ -212,6 +214,7 @@ export function orphanValueBindings(
   // stale writer of the same table is the author's to update, bindings and all.
   const columnsOf = new Map<Uuid, ReadonlySet<string>>();
   for (const node of graph.nodes) {
+    if (node.disabled) continue;
     const table = (node.config as Record<string, unknown>).table;
     if (!RECORD_WRITERS.has(node.definition_id) || !isTableRef(table)) continue;
     const current = live.get(table.table_id);
@@ -229,7 +232,8 @@ export function orphanValueBindings(
 export function recordWriterTables(graph: WorkflowGraph): { tableId: string; version: number }[] {
   return graph.nodes.flatMap((node) => {
     const table = (node.config as Record<string, unknown>).table;
-    return RECORD_WRITERS.has(node.definition_id) &&
+    return !node.disabled &&
+      RECORD_WRITERS.has(node.definition_id) &&
       isTableRef(table) &&
       graph.bindings.some(
         (binding) =>

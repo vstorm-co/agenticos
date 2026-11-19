@@ -44,6 +44,12 @@ const GRAPH = {
 } as unknown as WorkflowGraph;
 
 describe("graphTableRefs", () => {
+  it("leaves switched-off steps and their incoming table bindings untouched", () => {
+    const disabled = { ...GRAPH, nodes: GRAPH.nodes.map((node) => ({ ...node, disabled: true })) };
+    expect(graphTableRefs(disabled)).toEqual([]);
+    expect(nodeTableColumns(disabled, { nodeId: "a", binding: null })).toEqual([]);
+    expect(graphTableRefs(GRAPH)).toHaveLength(2);
+  });
   it("finds a step's own table and every table-sourced binding, and nothing else", () => {
     expect(graphTableRefs(GRAPH)).toEqual([
       { site: { nodeId: "a", binding: null }, ref: ref(["c1"]) },
@@ -165,6 +171,17 @@ describe("orphanValueBindings", () => {
 
   it("leaves a writer whose table's columns are not known", () => {
     expect(orphanValueBindings(writer, new Map())).toEqual([]);
+  });
+
+  it("does not fetch tables or drop saved value bindings of switched-off writers", () => {
+    const disabled = {
+      ...writer,
+      nodes: writer.nodes.map((node) => ({ ...node, disabled: true })),
+    };
+    const live = new Map([["t1", { version: 2, columns: new Set(["c1"]) }]]);
+    expect(recordWriterTables(disabled)).toEqual([]);
+    expect(orphanValueBindings(disabled, live)).toEqual([]);
+    expect(orphanValueBindings(writer, live)).toHaveLength(1);
   });
 
   it("lists only writers that bind per-column values", () => {

@@ -4185,7 +4185,6 @@
       "runHint": "Yayımlanmış sürüm yerine taslağı çalıştırır (Ctrl veya Cmd + Enter)",
       "runPinnedCount": "{count, plural, one {# adım sabitlendi} other {# adım sabitlendi}}",
       "runPinnedHint": "Bu adımlar testte çalışmaz; bunun yerine sabitlenmiş test verilerini aktarır. {steps}",
-      "runTablesChanged": "Bu workflow’un okuduğu bir tablo değişti ya da artık kullanılamıyor. Düzenleyici onu okuyan adımları kontrol ediyor - birazdan yeniden deneyin ya da sorun listesine bakın.",
       "runNeedsSteps": "Önce bir adım ekleyin",
       "runBlockedByProblems": "{count, plural, one {Önce # sorunu çözün} other {Önce # sorunu çözün}}",
       "liveRunTitle": "Deneme run'ı",

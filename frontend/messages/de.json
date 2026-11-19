@@ -8187,7 +8187,6 @@
       "runHint": "Führt den Draft aus, nicht die veröffentlichte Version (Strg oder Cmd + Enter)",
       "runPinnedCount": "{count, plural, one {# Schritt angeheftet} other {# Schritte angeheftet}}",
       "runPinnedHint": "Diese Schritte laufen im Test nicht, sondern geben ihre angehefteten Testdaten weiter. {steps}",
-      "runTablesChanged": "Eine Tabelle, die dieser Workflow liest, hat sich geändert oder ist nicht mehr verfügbar. Der Editor prüft die Schritte, die sie lesen - versuche es gleich noch einmal oder sieh in die Problemliste.",
       "runNeedsSteps": "Zuerst einen Schritt hinzufügen",
       "runBlockedByProblems": "{count, plural, one {Zuerst # Problem beheben} other {Zuerst # Probleme beheben}}",
       "liveRunTitle": "Test-Run",

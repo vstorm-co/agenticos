@@ -112,7 +112,12 @@ describe("useWorkflowRuns", () => {
       "nodes.start.config.input_schema: Invalid trigger schema",
     );
   });
-  it("says once that a table changed, and asks the editor to read the tables again", async () => {
+  it.each([
+    "This table's schema has changed",
+    "Table not found",
+    "You may not read this table",
+    "Unknown live column",
+  ])("refreshes tables while preserving the actionable refusal: %s", async (message) => {
     vi.mocked(api.listWorkflowRuns).mockResolvedValue({ items: [], total: 0 });
     vi.mocked(api.startWorkflowRun).mockRejectedValue(
       new ApiError(422, "Graph invalid", {
@@ -121,8 +126,8 @@ describe("useWorkflowRuns", () => {
           message: "Graph invalid",
           details: {
             fields: [
-              { field: "nodes.a.config.table", message: "This table's schema has changed" },
-              { field: "bindings.2", message: "This table's schema has changed" },
+              { field: "nodes.a.config.table", message },
+              { field: "bindings.2", message },
             ],
           },
         },
@@ -149,7 +154,7 @@ describe("useWorkflowRuns", () => {
     });
     expect(toast.error).toHaveBeenCalledTimes(1);
     expect(toast.error).toHaveBeenCalledWith(
-      expect.stringMatching(/has changed or is no longer available/),
+      `nodes.a.config.table: ${message}\nbindings.2: ${message}`,
     );
     expect(useWorkflowEditorStore.getState().tablesStale).toBe(before + 1);
     useWorkflowEditorStore.getState().teardown();

@@ -55,19 +55,17 @@ export function useWorkflowRuns(workflowId: string, inputErrorsInForm = false) {
     },
     onError: (error) => {
       const all = fieldProblems(error);
-      // A table changed since the editor last read it: read it again, and the
-      // editor updates the steps it safely can - said once, not as a path per step.
+      // Refresh stale references, while retaining refusals a refresh cannot settle:
+      // a missing table, lost access or an invalid column needs the author's edit.
       const graph = useWorkflowEditorStore.getState().graph;
       const isTable = (field: string) => isTableRefusalField(field, graph);
       const tables = all.some(({ field }) => isTable(field));
       if (tables) {
         useWorkflowEditorStore.getState().refreshTables();
-        toast.error(t("runTablesChanged"));
       }
-      const fields = all.filter(({ field }) => !isTable(field));
       const toastFields = inputErrorsInForm
-        ? fields.filter(({ field }) => field !== "input" && !field.startsWith("input."))
-        : fields;
+        ? all.filter(({ field }) => field !== "input" && !field.startsWith("input."))
+        : all;
       if (toastFields.length > 0)
         toast.error(
           toastFields.map((problem) => `${problem.field}: ${problem.message}`).join("\n"),

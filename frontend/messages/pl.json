@@ -3995,7 +3995,6 @@
       "runHint": "Uruchamia draft, a nie opublikowaną wersję (Ctrl lub Cmd + Enter)",
       "runPinnedCount": "{count, plural, one {# przypięty krok} few {# przypięte kroki} many {# przypiętych kroków} other {# przypiętego kroku}}",
       "runPinnedHint": "Te kroki nie uruchomią się w teście, tylko przekażą przypięte dane testowe. {steps}",
-      "runTablesChanged": "Tabela, którą czyta ten workflow, zmieniła się albo nie jest już dostępna. Edytor sprawdza kroki, które ją czytają - spróbuj ponownie za chwilę albo zajrzyj na listę problemów.",
       "runNeedsSteps": "Najpierw dodaj krok",
       "runBlockedByProblems": "{count, plural, one {Najpierw popraw # problem} few {Najpierw popraw # problemy} many {Najpierw popraw # problemów} other {Najpierw popraw # problemu}}",
       "liveRunTitle": "Run testowy",

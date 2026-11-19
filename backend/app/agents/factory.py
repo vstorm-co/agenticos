@@ -857,16 +857,33 @@ def _output_type(schema: dict[str, Any] | None) -> OutputSpec[AgentOutput]:
 
 
 _TYPED = frozenset({"type", "$ref", "enum", "const", "anyOf", "oneOf", "allOf"})
-_BOUNDS = frozenset(
+_GRAMMAR_KEYS = frozenset(
     {
-        "minimum",
-        "maximum",
-        "exclusiveMinimum",
-        "exclusiveMaximum",
-        "multipleOf",
-        "minLength",
-        "maxLength",
-        "maxItems",
+        "type",
+        "$ref",
+        "enum",
+        "const",
+        "anyOf",
+        "oneOf",
+        "allOf",
+        "properties",
+        "required",
+        "additionalProperties",
+        "items",
+        "prefixItems",
+        "$defs",
+        "minItems",
+        "title",
+        "description",
+        "default",
+        "examples",
+        "deprecated",
+        "readOnly",
+        "writeOnly",
+        "$schema",
+        "$id",
+        "$anchor",
+        "$comment",
     }
 )
 
@@ -875,11 +892,12 @@ def _grammar_expresses(node: object) -> bool:
     """Whether a provider's strict-mode grammar accepts `node` and every schema under it.
 
     It cannot express a free JSON value (`{}`, no type at all), numeric or length
-    bounds, or `minItems` above one.
+    bounds, or `minItems` above one. Unknown keywords take the locally validated
+    non-strict path rather than hiding an unvisited child schema.
     """
     if not isinstance(node, dict):
         return node is not True
-    if not _TYPED & node.keys() or _BOUNDS & node.keys() or node.get("minItems", 0) > 1:
+    if not _TYPED & node.keys() or node.keys() - _GRAMMAR_KEYS or node.get("minItems", 0) > 1:
         return False
     declared = node.get("type")
     array = declared == "array" or (isinstance(declared, list) and "array" in declared)

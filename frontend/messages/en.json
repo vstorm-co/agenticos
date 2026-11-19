@@ -6464,7 +6464,6 @@
       "runHint": "Runs the draft, not the published version (Ctrl or Cmd + Enter)",
       "runPinnedCount": "{count, plural, one {# step pinned} other {# steps pinned}}",
       "runPinnedHint": "These steps won't run in a test: they hand on their pinned test data instead. {steps}",
-      "runTablesChanged": "A table this workflow reads has changed or is no longer available. The editor is checking the steps that read it - try again in a moment, or see the problem list.",
       "runNeedsSteps": "Add a step first",
       "runBlockedByProblems": "{count, plural, one {Fix # problem first} other {Fix # problems first}}",
       "liveRunTitle": "Test run",

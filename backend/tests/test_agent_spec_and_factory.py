@@ -1421,6 +1421,44 @@ class TestAStructuredAnswer:
         ("schema", "strict"),
         [
             (_SCORE, None),
+            (
+                _shaped(
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "patternProperties": {"^x": {"type": "string", "maxLength": 2}},
+                    }
+                ),
+                False,
+            ),
+            (
+                _shaped(
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "dependentSchemas": {"x": {"not": {"type": "string"}}},
+                    }
+                ),
+                False,
+            ),
+            (
+                _shaped(
+                    {
+                        "type": "string",
+                        "if": {"const": "x"},
+                        "then": {"maxLength": 1},
+                        "else": {"minLength": 2},
+                    }
+                ),
+                False,
+            ),
+            (_shaped({"type": "string", "not": {"const": "x"}}), False),
+            (
+                _shaped(
+                    {"type": "array", "items": {"type": "string"}, "contains": {"maxLength": 2}}
+                ),
+                False,
+            ),
             ({"type": "object"}, False),
             (_shaped({"type": "array"}), False),
             (_shaped({"type": ["array", "null"]}), False),
