@@ -100,11 +100,13 @@ vi.mock("./chat-model-picker", () => ({
   ChatModelPicker: ({
     value,
     onChange,
+    presentation,
   }: {
+    presentation?: string;
     value: string | null;
     onChange: (next: string | null) => void;
   }) => (
-    <button type="button" onClick={() => onChange("p-1")}>
+    <button type="button" data-presentation={presentation} onClick={() => onChange("p-1")}>
       pick a model ({value ?? "none"})
     </button>
   ),
@@ -575,7 +577,7 @@ describe("main chat composition", () => {
     expect(document.documentElement).not.toHaveAttribute("data-chat-preview");
   });
 
-  it("does not offer non-chat or keyless profiles in the quick list", async () => {
+  it("delegates main-chat model selection to the provider library", async () => {
     vi.stubEnv("NODE_ENV", "development");
     state.profiles.push(
       {
@@ -599,12 +601,13 @@ describe("main chat composition", () => {
       </ChatLayout>,
     );
     await userEvent.click(screen.getByRole("button", { name: "Model" }));
-    expect(screen.queryByRole("button", { name: "Image only" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Missing key" })).toBeNull();
-    expect(screen.getByRole("button", { name: "openai default" })).toBeVisible();
+    expect(screen.getByRole("button", { name: /pick a model/ })).toHaveAttribute(
+      "data-presentation",
+      "library",
+    );
   });
 
-  it("keeps quick profile selection behind connections management permission", async () => {
+  it("keeps model inspection reachable while the picker owns permission checks", async () => {
     vi.stubEnv("NODE_ENV", "development");
     state.mayDecide = false;
     render(
@@ -613,7 +616,10 @@ describe("main chat composition", () => {
       </ChatLayout>,
     );
     await userEvent.click(screen.getByRole("button", { name: "Model" }));
-    expect(screen.queryByRole("button", { name: "openai default" })).toBeNull();
+    expect(screen.getByRole("button", { name: /pick a model/ })).toHaveAttribute(
+      "data-presentation",
+      "library",
+    );
   });
 
   it("saves model overrides through the existing scoped controls", async () => {
@@ -625,7 +631,7 @@ describe("main chat composition", () => {
       </ChatLayout>,
     );
     await userEvent.click(screen.getByRole("button", { name: "Model" }));
-    await userEvent.click(screen.getByRole("button", { name: "openai default" }));
+    await userEvent.click(screen.getByRole("button", { name: /pick a model/ }));
     expect(changed).toHaveBeenCalledWith("p-1");
   });
 

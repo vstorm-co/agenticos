@@ -16365,10 +16365,7 @@
       "discarded": "Discarded the change to {name}"
     },
     "describe": {
-      "label": "Or describe it, and {name} drafts it with you",
-      "placeholder": "A support agent that answers refund questions from our policy and hands angry customers to a person.",
-      "send": "Describe it to the Architect",
-      "prompt": "Draft an agent for me: {description}"
+      "open": "Create with {name}"
     },
     "rejected": {
       "title": "{count, plural, =1 {1 more idea the assistant did not add} other {# more ideas the assistant did not add}}",

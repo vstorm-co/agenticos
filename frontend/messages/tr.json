@@ -10232,7 +10232,7 @@
       "title": "Gelen kutundan",
       "open": "Gelen kutusunu aç",
       "urgent": "Öncelikli",
-      "approvals": "{count} onay kararını bekliyor",
+      "approvals": "{count, plural, one {# onay kararını bekliyor} other {# onay kararını bekliyor}}",
       "empty": "Her şey güncel. Yeni bulgular ve önemli konular burada görünecek.",
       "failed": "Gelen kutun yüklenemedi.",
       "refreshFailed": "Gelen kutunuz yenilenemedi. Son yüklenen öğeler gösteriliyor."
@@ -16632,5 +16632,10 @@
     "reviewedSignals": "Diğer incelenmiş test yanıtları",
     "noLearningExamples": "Henüz öğrenilecek bir şey yok: son 30 günde okunabilir kaynak örneği bulunmuyor. Bir yanıtı değerlendirin veya test sorularını çalıştırıp inceleyin.",
     "sessionQuote": "{answers, plural, one {# seçili kaynak örneğini} other {# seçili kaynak örneğini}} sıralamak için en fazla {cost} (tahmini). Sonraki her deneme yaklaşık {minutes, plural, one {# dakika} other {# dakika}} sürer ve yaklaşık {perRound} tutar; başlamadan önce yeniden fiyatlandırılır. {limit} sınırı tüm oturum içindir."
+  },
+  "authoring": {
+    "describe": {
+      "open": "{name} ile oluştur"
+    }
   }
 }

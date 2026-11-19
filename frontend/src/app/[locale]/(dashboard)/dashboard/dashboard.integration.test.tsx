@@ -476,9 +476,7 @@ describe("the steward's dashboard", () => {
 
     // One button names the window; the presets open from it.
     await userEvent.click(screen.getByRole("button", { name: "dashboard.period.label" }));
-    await userEvent.click(
-      await screen.findByRole("menuitemradio", { name: "dashboard.period.7d" }),
-    );
+    await userEvent.click(await screen.findByRole("button", { name: "dashboard.period.7d" }));
 
     await waitFor(() => expect(callsTo("/stats/usage").length).toBeGreaterThan(before));
     const lastUrl = String(replaceState.mock.calls.at(-1)?.[2] ?? "");
@@ -1005,9 +1003,10 @@ describe("dashboard links while the page stays mounted", () => {
     params.delete("period");
     page.rerender(<DashboardPage />);
     await userEvent.click(screen.getByRole("button", { name: "dashboard.period.label" }));
-    expect(
-      await screen.findByRole("menuitemradio", { name: "dashboard.period.30d" }),
-    ).toHaveAttribute("aria-checked", "true");
+    expect(await screen.findByRole("button", { name: "dashboard.period.30d" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
   it("updates group and section filters, then resets to defaults when the URL removes them", async () => {

@@ -15,7 +15,7 @@ describe("CodeArea - a textarea that shows its own structure", () => {
     expect(underlay(container).textContent).toBe(`${text}\n`);
     expect(screen.getByText("bold")).toHaveClass("text-foreground");
     expect(screen.getAllByText("**")[0]).toHaveClass("text-muted-foreground/70");
-    expect(screen.getByText("{{user_name}}")).toHaveClass("text-violet-700");
+    expect(screen.getByText("{{user_name}}")).toHaveClass("text-violet-950", "bg-violet-100");
   });
 
   it("lays both layers out identically, scrollbar gutter included", () => {

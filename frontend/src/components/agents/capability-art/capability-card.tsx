@@ -90,6 +90,7 @@ export function CapabilityCard({
     >
       <button
         type="button"
+        data-press-feedback="surface"
         onClick={onFocus}
         aria-current={focused ? "true" : undefined}
         aria-label={t("capabilitySettingsTitle", { name: entry.name })}

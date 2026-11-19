@@ -624,3 +624,10 @@ endpoint. Credential-read failures block changes and show retry instead of label
 unknown providers as disconnected or offering a duplicate key. Tests cover these
 boundaries. Browser validation waits for responsive floating-position updates;
 an initial immediate measurement during viewport resizing was premature.
+
+### Note follow-ups and CI compatibility (2026-11-19)
+
+- 72 focused dashboard/period/improvement tests, 190 picker/sidebar/catalog tests, 87 filters/sidebar tests and 57 editor/Architect/catalog tests passed. Widget subscription: 46 tests passed. TypeScript clean.
+- Enabled cmdk rows now retain pointer events when `data-disabled="false"`; Radix disabled attributes still block actions. Headless DOM confirmed `pointer-events: auto` and an actual row click, with no client errors. No screenshots.
+- Updated mobile and voice journeys for the chosen compact composer (agent remains in the composer; attachments and call in +). Full CI rerun remains required.
+- New-agent Architect action opens the existing widget without prompt submission. Disclosure headers and capability image cards use surface feedback instead of shrinking. Light-mode variables use dark ink on a pale violet background.

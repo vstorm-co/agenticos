@@ -31,7 +31,7 @@ export const FLOATING_PANEL =
 
 /** Geometry and states shared by menu actions, choices and command results. */
 export const MENU_ROW =
-  "touch:min-h-11 relative flex min-h-9 cursor-default touch-manipulation items-center gap-2 rounded-xl px-2.5 py-2 text-[13px] outline-none select-none transition-colors duration-[var(--duration-fast)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:pointer-events-none [&>svg]:size-4 [&>svg]:shrink-0";
+  "touch:min-h-11 relative flex min-h-9 cursor-default touch-manipulation items-center gap-2 rounded-xl px-2.5 py-2 text-[13px] outline-none select-none transition-colors duration-[var(--duration-fast)] [&[data-disabled]:not([data-disabled=false])]:pointer-events-none [&[data-disabled]:not([data-disabled=false])]:opacity-50 [&>svg]:pointer-events-none [&>svg]:size-4 [&>svg]:shrink-0";
 
 export const MENU_LABEL = "text-muted-foreground px-2.5 py-2 text-xs font-medium";
 export const MENU_SEPARATOR = "bg-border mx-1 my-1 h-px";

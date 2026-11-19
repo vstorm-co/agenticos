@@ -34,6 +34,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Keep disclosure headers and capability artwork still while pressed, improve variable contrast in light mode, simplify conversation filters and open the Architect from the new-agent dialog footer without submitting a prompt.
+
 - Restore simple configured starter prompts above the wider chat composer, retain animated workspace artwork, and keep cached Inbox items visible below during background refresh failures.
 - Use a provider library in main chat, with connected providers first, separate saved models, direct model selection and Vault credential forms available inside the picker.
 - Keep chat attachment previews inside the composer, contain background-topic retry errors, and glide shared tab and segmented selection markers between options.

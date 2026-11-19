@@ -3,7 +3,7 @@
 import { useId } from "react";
 import { ChoiceGroup } from "@/components/ui/choice-group";
 import { useTranslations } from "next-intl";
-import { ListFilter, ChevronDown } from "lucide-react";
+import { ListFilter, ChevronDown, ArrowDownWideNarrow, Bot } from "lucide-react";
 
 import {
   Button,
@@ -131,7 +131,7 @@ export function ConversationFilters({
         sideOffset={8}
         collisionPadding={12}
         aria-label={t("filters")}
-        className="w-80 max-w-[calc(100vw-1.5rem)] space-y-3 p-3"
+        className="w-80 max-w-[calc(100vw-1.5rem)] space-y-4 p-4"
       >
         <span id={viewLabelId} className="sr-only">
           {t("show")}
@@ -148,14 +148,23 @@ export function ConversationFilters({
                 mid-thread, so a thread can match two agents - which is why the
                 hint says what the filter means rather than leaving a reader to
                 infer ownership from a name. */}
-          <Label htmlFor="conversation-agent" className="text-muted-foreground text-xs">
+          <Label
+            htmlFor="conversation-agent"
+            className="text-muted-foreground flex items-center gap-2 text-xs"
+          >
+            <Bot className="size-3.5" aria-hidden />
             {t("agentFilterLabel")}
           </Label>
           <Select
             value={agentId ?? "all"}
             onValueChange={(value) => onAgentChange(value === "all" ? null : value)}
           >
-            <SelectTrigger size="sm" id="conversation-agent" aria-label={t("agentFilterLabel")}>
+            <SelectTrigger
+              className="hover:bg-control border-transparent bg-transparent"
+              size="sm"
+              id="conversation-agent"
+              aria-label={t("agentFilterLabel")}
+            >
               <SelectValue placeholder={t("allAgents")} />
             </SelectTrigger>
             <SelectContent>
@@ -181,11 +190,20 @@ export function ConversationFilters({
           )}
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="conversation-sort" className="text-muted-foreground text-xs">
+          <Label
+            htmlFor="conversation-sort"
+            className="text-muted-foreground flex items-center gap-2 text-xs"
+          >
+            <ArrowDownWideNarrow className="size-3.5" aria-hidden />
             {t("sortLabel")}
           </Label>
           <Select value={sort} onValueChange={(value) => onSortChange(value as ConversationSort)}>
-            <SelectTrigger size="sm" id="conversation-sort" aria-label={t("sortLabel")}>
+            <SelectTrigger
+              className="hover:bg-control border-transparent bg-transparent"
+              size="sm"
+              id="conversation-sort"
+              aria-label={t("sortLabel")}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -786,3 +786,20 @@ it("does not claim that provider keys are missing when their read failed", () =>
   expect(screen.getByRole("alert")).toHaveTextContent("Model settings could not be read");
   expect(screen.queryByRole("button", { name: /Add a key/ })).not.toBeInTheDocument();
 });
+
+it("leaves non-chat models and profiles without keys out of Saved models", async () => {
+  listedProfiles.mockReturnValue([
+    profile("chat", "openrouter", "demo/chat"),
+    { ...profile("image", "openrouter", "demo/image"), chat_capable: false },
+    { ...profile("missing", "openrouter", "demo/missing"), missing_key: true },
+  ]);
+  listedSecrets.mockReturnValue([{ id: "s1", purpose: "openrouter" }]);
+  render(
+    <ChatModelPicker presentation="library" value="chat" agentModel={null} onChange={vi.fn()} />,
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
+  expect(screen.getByRole("option", { name: /Team demo\/chat/ })).toBeVisible();
+  expect(
+    screen.queryByRole("option", { name: /demo\/image|demo\/missing/ }),
+  ).not.toBeInTheDocument();
+});

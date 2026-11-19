@@ -16138,10 +16138,7 @@
       "discarded": "Odrzucono zmianę w {name}"
     },
     "describe": {
-      "label": "Albo opisz go, a {name} przygotuje wersję roboczą razem z Tobą",
-      "placeholder": "Agent wsparcia, który odpowiada na pytania o zwroty na podstawie naszej polityki i przekazuje zdenerwowanych klientów człowiekowi.",
-      "send": "Opisz go Architektowi",
-      "prompt": "Przygotuj dla mnie wersję roboczą agenta: {description}"
+      "open": "Utwórz z {name}"
     },
     "rejected": {
       "title": "{count, plural, one {1 pomysł, którego asystent nie dodał} few {# pomysły, których asystent nie dodał} many {# pomysłów, których asystent nie dodał} other {# pomysłu, którego asystent nie dodał}}",

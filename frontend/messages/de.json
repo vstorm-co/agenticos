@@ -16051,10 +16051,7 @@
       "discarded": "Änderung an {name} verworfen"
     },
     "describe": {
-      "label": "Oder beschreiben Sie ihn, und {name} entwirft ihn mit Ihnen",
-      "placeholder": "Ein Support-Agent, der Rückgabefragen anhand unserer Richtlinie beantwortet und verärgerte Kunden an einen Menschen übergibt.",
-      "send": "Dem Architekten beschreiben",
-      "prompt": "Entwirf mir einen Agent: {description}"
+      "open": "Mit {name} erstellen"
     },
     "rejected": {
       "title": "{count, plural, =1 {1 weitere Idee, die der Assistent nicht hinzugefügt hat} other {# weitere Ideen, die der Assistent nicht hinzugefügt hat}}",

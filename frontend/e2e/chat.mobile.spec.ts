@@ -37,17 +37,14 @@ test.describe("Chat on a phone", () => {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 
-  test("offers attaching and dictating from one `+`, as a sheet", async ({ page }) => {
-    // Where a file comes from as tiles, the way a messenger's sheet draws it.
+  test("keeps attachments in the compact menu and dictation beside the composer", async ({
+    page,
+  }) => {
     await page.goto("/chat");
     await expect(page.getByText("Live")).toBeVisible();
-
+    await expect(page.getByRole("button", { name: "Voice input", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Add to message" }).tap();
-
-    const sheet = page.getByRole("dialog");
-    for (const tile of ["Camera", "Photos", "Files"]) {
-      await expect(sheet.getByRole("button", { name: tile })).toBeVisible();
-    }
-    await expect(sheet.getByRole("button", { name: "Voice input" })).toBeVisible();
+    const menu = page.locator("[data-chat-popover]");
+    await expect(menu.getByRole("button", { name: "Attach file", exact: true })).toBeVisible();
   });
 });
