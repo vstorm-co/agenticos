@@ -1,5 +1,5 @@
 ---
-source_sha: "ef824da65bb6"
+source_sha: "6c0923d5c244"
 ---
 
 # Governance { #governance }
@@ -838,6 +838,8 @@ Zapisy do Virtual Tables w AgenticOS działają w granicach aktualnych uprawnie�
 Twórca może otworzyć **Zgody na działania** swojej rutyny i wybrać działania funkcji oraz pojedyncze działania MCP na wskazanym koncie. Wymaga to `approvals:decide` i ustawienia organizacji `chat_may_waive_approvals`. Klucz API, agent, sesja podszywania się ani administrator działający za innego właściciela nie mogą nadać zgody. Nie da się tu wyłączyć zatwierdzeń jawnie wymaganych przez agenta lub powiązanie MCP.
 
 Wyjątek MCP wskazuje konkretne konto, skrót adresu, generację autoryzacji i oryginalną nazwę działania. Wysyłanie poczty nie upoważnia do kasowania ani zapisów na innym koncie. Konta osobiste są dostępne tylko dla rutyny działającej jako jej twórca. Wybór korzysta z zapisanej listy narzędzi połączenia; gdy jest niedostępna, sprawdź połączenie lub poproś jego administratora. Cofnięcie wszystkich zgód nie wymaga działającej listy narzędzi.
+
+Gdy rutyna działa jako jej twórca, własne narzędzia serwera AgenticOS pojawiają się w tych samych grupach co w Builderze: tabele, zadania, workflowy, agenci i pozostałe. Widać tylko narzędzia, które coś zmieniają, bo odczyty nigdy nie pytają; wyszukiwanie narzędzi też nie pyta. Narzędzie, przed którym agent pyta, jest na liście, ale nie da się go zaznaczyć. Dotyczy to każdej zmiany, której powiązanie nie ustawia na **Run freely**, oraz narzędzi, które zawsze pytają. Rutyna zachowuje więc zatwierdzenia agenta albo je zaostrza, ale nigdy żadnego nie zwalnia. Wyjątek platformy wskazuje tylko narzędzie: przebiegi rutyny docierają do platformy wyłącznie jako jej twórca, jedyna osoba, która może go przejrzeć.
 
 Zapis wymaga, aby wersja i konfiguracja nadal odpowiadały przeglądowi osoby.
 Zgoda wskazuje niezmienną opublikowaną wersję, stałe identyfikatory funkcji i

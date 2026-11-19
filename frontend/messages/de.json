@@ -10275,6 +10275,7 @@
     "endsAtHint": "Leer lassen, um bis zum Stoppen fortzufahren. Diese Zeit verwendet {zone}, unabhängig von der Zeitzone des Zeitplans.",
     "endsAtInvalid": "Wählen Sie einen gültigen Zeitpunkt in der Zukunft oder leeren Sie das Feld, um das Ende zu entfernen.",
     "actionConsents": {
+      "platformGroup": "{app} · {group}",
       "checkConnections": "Prüfe diese Verbindungen, um ihre Aktionen zu prüfen: {names}.",
       "personalAccount": "{name} · dein Konto",
       "organizationAccount": "{name} · Organisationskonto",

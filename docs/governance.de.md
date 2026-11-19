@@ -1,5 +1,5 @@
 ---
-source_sha: "ef824da65bb6"
+source_sha: "6c0923d5c244"
 ---
 
 # Governance { #governance }
@@ -894,6 +894,8 @@ Schreibzugriffe auf AgenticOS Virtual Tables laufen innerhalb ihrer aktuellen Ta
 Die erstellende Person öffnet **Aktionsfreigaben** ihrer Routine und wählt Fähigkeitsaktionen sowie einzelne MCP-Aktionen eines benannten Kontos. Das erfordert `approvals:decide` und den Organisationsschalter `chat_may_waive_approvals`. API-Schlüssel, Agenten, übernommene Identitäten und Administratoren für andere Personen dürfen nicht zustimmen. Ausdrücklich vom Agenten oder einer MCP-Bindung geforderte Bestätigungen bleiben bestehen.
 
 Eine MCP-Ausnahme benennt das konkrete Konto, den Adresshash, die Autorisierungsgeneration und den ursprünglichen Aktionsnamen. E-Mail-Versand erlaubt weder Löschen noch Schreibzugriffe auf ein anderes Konto. Persönliche Konten stehen nur Routinen zur Verfügung, die als ihre erstellende Person handeln. Die Auswahl verwendet die gespeicherte Werkzeugliste; prüfe die Verbindung oder bitte deren Administration, wenn sie fehlt. Alle Freigaben lassen sich auch ohne funktionierende Werkzeugliste widerrufen.
+
+Handelt eine Routine als ihre erstellende Person, erscheinen die eigenen Werkzeuge des AgenticOS-Servers in den Gruppen, die der Builder zeigt: Tabellen, Aufgaben, Workflows, Agenten und die übrigen. Nur Werkzeuge, die etwas ändern, werden gelistet, denn Lesezugriffe fragen nie; die Werkzeugsuche fragt ebenfalls nicht. Ein Werkzeug, vor dem der Agent fragt, steht in der Liste, lässt sich aber nicht auswählen. Das gilt für jede Änderung, die die Bindung nicht auf **Run freely** setzt, und für die Werkzeuge, die immer fragen. Eine Routine behält die Bestätigungen des Agenten also oder verschärft sie, gibt aber nie eine frei. Eine Plattform-Ausnahme nennt nur das Werkzeug: Die Läufe der Routine erreichen die Plattform nur als ihre erstellende Person, die einzige, die sie prüfen kann.
 
 Beim Speichern müssen Version und Konfiguration noch der menschlichen Prüfung
 entsprechen. Eine Freigabe nennt die unveränderliche veröffentlichte Version, stabile

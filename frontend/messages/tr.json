@@ -11060,6 +11060,7 @@
     "clearSearch": "Aramayı temizle",
     "noRoutineMatchesHint": "Agent adı, rutin başlığı veya mesajındaki sözcüklerle arayın.",
     "actionConsents": {
+      "platformGroup": "{app} · {group}",
       "checkConnections": "Eylemlerini incelemek için bu bağlantıları kontrol edin: {names}.",
       "personalAccount": "{name} · hesabınız",
       "organizationAccount": "{name} · organizasyon hesabı",

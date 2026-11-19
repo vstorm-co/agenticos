@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useBranding } from "@/components/branding/branding-provider";
 import { Checkbox, Input, Label } from "@/components/ui";
 import {
   routineActionIdentity as identity,
@@ -20,20 +21,30 @@ export function ActionSelection({
   onChange: (keys: Set<string>) => void;
 }) {
   const t = useTranslations("triggers.actionConsents");
+  const agents = useTranslations("agents");
+  const { appName } = useBranding();
   const id = useId();
   const [query, setQuery] = useState("");
   const groups = new Map<string, { name: string; items: RoutineActionOption[] }>();
   for (const action of items) {
+    // The platform's own tools in the Builder's groups, in the order the server lists them.
     const key =
       "capability_id" in action
         ? `capability:${action.capability_id}`
-        : `account:${action.connection_id}`;
+        : "kind" in action
+          ? `platform:${action.group}`
+          : `account:${action.connection_id}`;
     const name =
       "capability_id" in action
         ? action.capability_id
-        : t(action.account_scope === "personal" ? "personalAccount" : "organizationAccount", {
-            name: action.account_name,
-          });
+        : "kind" in action
+          ? t("platformGroup", {
+              app: appName,
+              group: agents("platformToolGroup", { group: action.group }),
+            })
+          : t(action.account_scope === "personal" ? "personalAccount" : "organizationAccount", {
+              name: action.account_name,
+            });
     const group = groups.get(key) ?? { name, items: [] };
     group.items.push(action);
     groups.set(key, group);

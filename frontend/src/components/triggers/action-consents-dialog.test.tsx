@@ -152,6 +152,36 @@ describe("routine action consent", () => {
       },
     ]);
   });
+  it("groups the platform's own tools as the Builder does and keeps the agent's approvals", async () => {
+    state.data.items.push(
+      {
+        kind: "platform",
+        tool_id: "add_virtual_table_record",
+        name: "add_virtual_table_record",
+        group: "tables",
+        consented: false,
+        waivable: true,
+      },
+      {
+        kind: "platform",
+        tool_id: "delete_virtual_table_record",
+        name: "delete_virtual_table_record",
+        group: "tables",
+        consented: false,
+        waivable: false,
+      },
+    );
+    render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);
+    expect(screen.getByRole("group", { name: /· Tables$/ })).toBeVisible();
+    expect(screen.getByRole("checkbox", { name: "delete_virtual_table_record" })).toBeDisabled();
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: /^Select eligible actions in .* · Tables$/ }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save consent" }));
+    expect(state.save).toHaveBeenCalledWith([
+      { kind: "platform", tool_id: "add_virtual_table_record" },
+    ]);
+  });
   it("explains unavailable connection inventory and still allows revocation", async () => {
     state.data.unavailable_sources = ["Work mailbox"];
     render(<ActionConsentsDialog trigger={trigger} onClose={vi.fn()} />);

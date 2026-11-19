@@ -10395,6 +10395,7 @@
     "endsAtHint": "Leave blank to run until stopped. This time uses {zone}, independently of the schedule zone.",
     "endsAtInvalid": "Choose a valid future time, or clear the field to remove the end.",
     "actionConsents": {
+      "platformGroup": "{app} · {group}",
       "checkConnections": "Check these connections to review their actions: {names}.",
       "personalAccount": "{name} · your account",
       "organizationAccount": "{name} · organization account",
