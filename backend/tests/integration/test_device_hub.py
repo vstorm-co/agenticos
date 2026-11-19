@@ -363,3 +363,29 @@ async def test_a_replaced_heartbeat_cannot_reclaim_presence(
         assert (await device_hub.connected(old.user_id))[0].connection == "new"
     finally:
         await _hub._withdraw(redis, new)
+
+
+async def test_cancellation_at_publish_acknowledgement_still_delivers_stop(
+    redis: RedisClient, monkeypatch
+):
+    user_id, session_id, app = uuid4(), uuid4(), _App()
+    publish = redis.raw.publish
+    async with anyio.create_task_group() as tasks:
+        tasks.start_soon(
+            lambda: device_hub.serve(app, user_id=user_id, session_id=session_id, platform="linux")
+        )
+        await _until(lambda: _connected(user_id, session_id))
+        with anyio.CancelScope() as scope:
+
+            async def cancel_at_ack(channel: str, message: str) -> int:
+                delivered = await publish(channel, message)
+                if isinstance(_hub._server_frame.validate_json(message), _hub.Call):
+                    scope.cancel()
+                    await anyio.lowlevel.checkpoint()
+                return delivered
+
+            monkeypatch.setattr(redis.raw, "publish", cancel_at_ack)
+            await device_hub.call(session_id, "shell.run", {}, timeout=30)
+        await _until(lambda: _has_cancel(app))
+        assert app.sent[0]["id"] == app.sent[1]["id"]
+        await app.leaves()

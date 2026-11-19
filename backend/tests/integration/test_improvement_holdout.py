@@ -351,7 +351,7 @@ async def test_improver_reads_train_failures_review_notes_and_aggregates_without
         .join(DatasetCase, DatasetCase.id == CaseScore.case_revision_id)
         .join(EvalRunCase, EvalRunCase.case_score_id == CaseScore.id)
         .join(EvalRunArm, EvalRunArm.id == EvalRunCase.arm_id)
-        .where(CaseScore.eval_run_id == started.id, EvalRunArm.role == "candidate")
+        .where(CaseScore.eval_run_id == started.id, EvalRunArm.role == "baseline")
     )
     train_run_id = None
     for score, revision, attempt in rows:

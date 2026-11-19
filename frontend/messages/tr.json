@@ -1236,10 +1236,10 @@
     "autosaveSaved": "Kaydedildi",
     "autosaveConflict": "Taslak başka yerde değiştirildi",
     "autosaveError": "Kaydedilemedi — yeniden denenecek",
-    "conflictTitle": "Bu taslak başka yerde değiştirildi",
-    "conflictBody": "Siz açtıktan sonra biri bu workflow’u düzenledi. Üzerine yazarsanız değişiklikleriniz korunur; yeniden yüklerseniz en son kaydedilen taslakla değiştirilir.",
-    "conflictOverwrite": "Üzerine yaz",
-    "conflictReload": "Yeniden yükle",
+    "conflictTitle": "Bu workflow’u başka biri de düzenledi",
+    "conflictBody": "Siz düzenlerken değişiklikler kaydedildi. Değişikliklerinizi koruyun ya da diğer sürümü yükleyip kaydedilmemiş düzenlemelerinizi bırakın.",
+    "conflictOverwrite": "Değişikliklerimi koru",
+    "conflictReload": "Diğer sürümü yükle",
     "publish": "Yayımla",
     "publishDescription": "Geçerli taslağı çalıştırılabilir, değişmez bir sürüm olarak sabitler.",
     "publishNoteLabel": "Sürüm notu",
@@ -1356,8 +1356,9 @@
     "pickerColumnsLabel": "Sütunlar",
     "pickerColumnsLoading": "Sütunlar yükleniyor…",
     "pickerColumnsAll": "Tüm sütunlar",
-    "pickerSchemaChanged": "Bu tabloya bağlandığınızdan beri şeması değişti.",
-    "pickerRebind": "Geçerli şemaya yeniden bağla",
+    "pickerSchemaChanged": "Bu tabloya bağlandığınızdan beri şeması değişti. Güncelleme seçtiğiniz sütunları korur.",
+    "pickerRebind": "Geçerli şemaya güncelle",
+    "pickerRebindDropped": "{count, plural, one {Seçilen # sütun artık yok ve kaldırılacak.} other {Seçilen # sütun artık yok ve kaldırılacak.}}",
     "pickerSecretLabel": "Secret",
     "pickerSecretPlaceholder": "Bir secret seçin",
     "pickerSecretsEmpty": "Henüz secret saklanmamış.",
@@ -1478,6 +1479,8 @@
     "toolbarAddStep": "Adım ekle",
     "toolbarReady": "Sorun yok",
     "toolbarProblemsHint": "İlgili adımı açmak için bir sorun seçin.",
+    "toolbarTablesChanged": "{count, plural, one {# adım sütunları değişen bir tabloyu okuyor.} other {# adım sütunları değişen tabloları okuyor.}} Güncelleme, hâlâ var olan tüm seçili sütunları korur.",
+    "toolbarRebindTables": "Geçerli şemaya güncelle",
     "nodeEditorDelete": "Adımı sil",
     "nodeEditorDone": "Bitti",
     "menuOpenSettings": "Ayarları aç",
@@ -1670,7 +1673,9 @@
     "notificationInApp": "Uygulama içi bildirim",
     "notificationEmail": "E-posta",
     "notificationChannelHint": "Her kişinin bildirim tercihleri geçerliliğini korur.",
-    "fileBindingHint": "Data ile önceki bir adımdan dosya seçin. Türü ve boyutu otomatik eklenir. Yapıştırılan metni dönüştürmek için önce Text to file adımı ekleyin."
+    "fileBindingHint": "Data ile önceki bir adımdan dosya seçin. Türü ve boyutu otomatik eklenir. Yapıştırılan metni dönüştürmek için önce Text to file adımı ekleyin.",
+    "problemTableSchemaChanged": "Bu tablo adım kurulduktan sonra değişti: okuduğu bir sütun kaldırıldı ya da türü değişti. Geçerli şemaya güncelleyin ve bu adımı neyin okuduğunu kontrol edin.",
+    "problemTableDependenciesChanged": "Tablo şemasını güncellemeden önce bu adımdaki değişen filtreleri, sıralamayı ve değer bağlamalarını kaldırın veya değiştirin."
   },
   "tables": {
     "cells": {
@@ -4179,6 +4184,8 @@
       "exposureManualDescription": "Bir kişi editörde Run düğmesiyle veya run sayfasında Start a run seçeneğiyle başlatır.",
       "runDraft": "Taslağı test et",
       "runHint": "Yayımlanmış sürüm yerine taslağı çalıştırır (Ctrl veya Cmd + Enter)",
+      "runPinnedCount": "{count, plural, one {# adım sabitlendi} other {# adım sabitlendi}}",
+      "runPinnedHint": "Bu adımlar testte çalışmaz; bunun yerine sabitlenmiş test verilerini aktarır. {steps}",
       "runNeedsSteps": "Önce bir adım ekleyin",
       "runBlockedByProblems": "{count, plural, one {Önce # sorunu çözün} other {Önce # sorunu çözün}}",
       "liveRunTitle": "Deneme run'ı",
@@ -6175,7 +6182,8 @@
     "comparing": "Karşılaştırılıyor",
     "configurationSchema": "Yapılandırma şeması",
     "advancedSettings": "Gelişmiş ayarlar",
-    "connectedOnly": "Yalnızca bağlı olanlar",
+    "connectedOnly": "Kuruluş bağlantıları",
+    "boundToAgentOnly": "Bu agent'a bağlı",
     "connectionNoLongerAllows": "Bu bağlantı artık <code>{runtime}</code> runtime'ına izin vermiyor. İzin verilen bir runtime seçin; yoksa Agent ilk tool çağrısında başarısız olur.",
     "connectionSDefault": "Bağlantının varsayılanı",
     "connectionSDefaultIs": "Bağlantının varsayılanı - {alias}",
@@ -11066,7 +11074,9 @@
       "title": "Eylem izni",
       "description": "Rutin eylemleri varsayılan olarak onay ister. Yalnızca listelenen eylemlere sormadan çalışma izni verin. İzin, bu yayımlanmış sürüm ve rutin yapılandırması için geçerlidir; agent tarafından zorunlu tutulan onaylar geçerlidir. Her MCP eylemi yalnızca belirtilen hesaba uygulanır.",
       "retry": "Yeniden dene",
-      "notAllowed": "Onay yetkileriniz ve organizasyonun kalıcı izin ayarı istisnalara izin vermelidir. Tüm izinleri yine de iptal edebilirsiniz.",
+      "notAllowedPermission": "Onayları karara bağlama izniniz olmadığından bu rutine kalıcı onay veremezsiniz. Bir kuruluş yöneticisine başvurun. Tüm onayları yine de iptal edebilirsiniz.",
+      "notAllowedOrganization": "Kuruluşunuz kalıcı onayı kapattığı için bu rutin onayları atlayamaz. Budget ve approvals bölümünden açılabilir. Tüm onayları yine de iptal edebilirsiniz.",
+      "openApprovalSettings": "Onay ayarlarını aç",
       "empty": "Bu sürümde burada yetkilendirilebilecek eylem yok.",
       "required": "Agent onayı gerekli",
       "revokeAll": "Tümünü iptal et",
@@ -16597,6 +16607,9 @@
     "failedSignals": "Değerlendirilmemiş başarısız çalıştırmalar",
     "reviewedSignals": "Diğer incelenmiş test yanıtları",
     "noLearningExamples": "Henüz öğrenilecek bir şey yok: son 30 günde okunabilir kaynak örneği bulunmuyor. Bir yanıtı değerlendirin veya test sorularını çalıştırıp inceleyin.",
-    "sessionQuote": "{answers, plural, one {# seçili kaynak örneğini} other {# seçili kaynak örneğini}} sıralamak için en fazla {cost} (tahmini). Sonraki her deneme yaklaşık {minutes, plural, one {# dakika} other {# dakika}} sürer ve yaklaşık {perRound} tutar; başlamadan önce yeniden fiyatlandırılır. {limit} sınırı tüm oturum içindir."
+    "sessionQuote": "{answers, plural, one {# seçili kaynak örneğini} other {# seçili kaynak örneğini}} sıralamak için en fazla {cost} (tahmini). Sonraki her deneme yaklaşık {minutes, plural, one {# dakika} other {# dakika}} sürer ve yaklaşık {perRound} tutar; başlamadan önce yeniden fiyatlandırılır. {limit} sınırı tüm oturum içindir.",
+    "resultDecision": {
+      "criteriaBetter": "Deneme {number}, {agent} için bazı değerlendirme ölçütlerini iyileştirdi; hiçbir sorunun genel sonucu değişmedi."
+    }
   }
 }

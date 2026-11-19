@@ -1746,7 +1746,7 @@ class EvalSuiteService:
             return
         try:
             read = await self.evals.get(reader, run.id)
-            comparison = await self.evals.compare(reader, run.id)
+            comparison = await self.evals.compare(reader, run.id, include_criteria=False)
         except (NotFoundError, AuthorizationError) as refused:
             await self._finish(
                 result,

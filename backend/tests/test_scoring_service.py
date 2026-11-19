@@ -235,3 +235,47 @@ async def test_no_judge_is_called_when_no_scoped_criterion_applies() -> None:
     )
     assert evaluation.results == []
     service.judge.run.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_a_refused_eval_verdict_does_not_write_or_invalidate_results(monkeypatch):
+    from app.core.exceptions import RateLimitError
+    from app.schemas.scoring import CaseVerdict
+
+    ctx = _ctx()
+    dataset_id, score_id = uuid.uuid4(), uuid.uuid4()
+    row = CaseScore(id=score_id, eval_run_id=uuid.uuid4(), human_passed=None)
+    service = ScoringService(AsyncMock())
+    service.datasets.get = AsyncMock()
+    monkeypatch.setattr(scoring.case_score_repo, "get", AsyncMock(return_value=row))
+    write = AsyncMock()
+    invalidate = AsyncMock()
+    monkeypatch.setattr(scoring.case_score_repo, "update", write)
+    monkeypatch.setattr(scoring.eval_run_repo, "forget_outcomes", invalidate)
+    monkeypatch.setattr(scoring.rate_limit, "_redis", None)
+    monkeypatch.setattr(
+        scoring.rate_limit,
+        "consume_with_local_floor",
+        AsyncMock(return_value=scoring.rate_limit.Decision(False, 17)),
+    )
+
+    with pytest.raises(RateLimitError) as refused:
+        await service.set_verdict(ctx, dataset_id, score_id, CaseVerdict(passed=False))
+
+    assert refused.value.details == {"retry_after_seconds": 17}
+    assert row.human_passed is None
+    write.assert_not_awaited()
+    invalidate.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_verdict_authorization_precedes_work_admission(monkeypatch):
+    from app.schemas.scoring import CaseVerdict
+
+    service = ScoringService(AsyncMock())
+    service.datasets.get = AsyncMock(side_effect=AuthorizationError(message="private dataset"))
+    admission = MagicMock()
+    monkeypatch.setattr(scoring.rate_limit, "eval_computation", admission)
+    with pytest.raises(AuthorizationError):
+        await service.set_verdict(_ctx(), uuid.uuid4(), uuid.uuid4(), CaseVerdict(passed=False))
+    admission.assert_not_called()

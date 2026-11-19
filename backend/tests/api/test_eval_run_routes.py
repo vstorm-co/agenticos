@@ -269,3 +269,38 @@ async def test_a_comparison_can_name_its_arm_and_baseline(
         )
 
     assert service.compare.await_args.kwargs == {"arm_id": arm, "baseline_run_id": baseline}
+
+
+@pytest.mark.security
+async def test_a_comparison_over_its_allowance_returns_retry_after(client, service, monkeypatch):
+    from app.services import rate_limit
+
+    monkeypatch.setattr(
+        rate_limit,
+        "consume_with_local_floor",
+        AsyncMock(return_value=rate_limit.Decision(False, 17)),
+    )
+    async with client() as http:
+        response = await http.get(_url(f"/eval-runs/{_RUN.id}/comparison"))
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "17"
+    service.compare.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("role", [OrgRoleName.MEMBER, OrgRoleName.VIEWER])
+async def test_comparison_refuses_nonreaders_before_metering(client, service, monkeypatch, role):
+    from app.services import rate_limit
+
+    context = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=role)
+    app.dependency_overrides[deps.get_auth_context] = lambda: context
+    consume = AsyncMock()
+    claim = MagicMock()
+    monkeypatch.setattr(rate_limit, "consume_with_local_floor", consume)
+    monkeypatch.setattr(rate_limit, "one_in_flight", claim)
+    async with client() as http:
+        response = await http.get(_url(f"/eval-runs/{uuid.uuid4()}/comparison"))
+    assert response.status_code == 403
+    consume.assert_not_awaited()
+    claim.assert_not_called()
+    service.compare.assert_not_awaited()

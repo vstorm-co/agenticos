@@ -35,6 +35,16 @@ async def get_by_name(db: AsyncSession, name: str, *, organization_id: UUID) -> 
     return result.scalar_one_or_none()
 
 
+async def get_by_names(
+    db: AsyncSession, names: set[str], *, organization_id: UUID
+) -> dict[str, Skill]:
+    """Resolve stored display names within one tenant, in one query."""
+    result = await db.execute(
+        select(Skill).where(Skill.name.in_(names), Skill.organization_id == organization_id)
+    )
+    return {skill.name: skill for skill in result.scalars().all()}
+
+
 async def lock(db: AsyncSession, skill_id: UUID) -> Skill | None:
     """The skill locked against other writers until the transaction ends, read afresh
     with its files.
