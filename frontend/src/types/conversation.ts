@@ -6,6 +6,7 @@ import {
   type UserRating,
 } from "./chat";
 import type { RatingsByDay } from "./stats";
+import type { RoomMessageReactionSummary } from "./room-message-reaction";
 
 /**
  * An agent that answered in a conversation.
@@ -29,6 +30,21 @@ export interface ChatPerson {
   name: string;
   has_avatar: boolean;
   avatar_color: number | null;
+}
+
+/** A person or agent addressed in a mixed room, resolved by the server. */
+export interface RoomMessageMention {
+  kind: "user" | "agent";
+  id: string;
+  name: string;
+}
+
+export interface RoomThreadSummary {
+  state: "open" | "closed" | "archived";
+  following: boolean;
+  /** Reader-scoped unread reply count, capped by the backend at 100. */
+  unread: number;
+  can_manage: boolean;
 }
 
 export interface Conversation {
@@ -74,6 +90,8 @@ export interface Conversation {
   forked_from?: ConversationForkOrigin | null;
   /** On the shared-with-me listing: whether the caller may only read it, or write in it too. */
   share_permission?: "view" | "edit" | null;
+  /** A mixed human/agent room; absent on older ordinary conversations. */
+  room_visibility?: "private" | "public" | null;
 }
 
 /** Where a fork came from: the source conversation and the answer it was forked at. */
@@ -103,6 +121,12 @@ export interface ConversationMessage {
   thread_root_message_id?: string | null;
   thread_reply_count?: number;
   thread_last_activity_at?: string | null;
+  /** Reader-scoped follow, unread and lifecycle state on a room thread root. */
+  thread_summary?: RoomThreadSummary | null;
+  /** Room recipients resolved by the server, separate from resource mentions. */
+  room_mentions?: RoomMessageMention[];
+  /** Aggregated room reactions returned by the conversation transcript. */
+  reactions?: RoomMessageReactionSummary[];
   id: string;
   conversation_id: string;
   role: "user" | "assistant" | "system";

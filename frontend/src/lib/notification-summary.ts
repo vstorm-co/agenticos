@@ -34,6 +34,15 @@ const STOP_REASONS = [
  * anything else, or a status this console does not know yet, keeps that summary.
  */
 export function notificationSummary(item: Notification, t: Translate, tStop: Translate): string {
+  if (item.event_type === "room_mention" || item.event_type === "room_thread_reply") {
+    const context = item.render_context;
+    if (context?.sender && context.title) {
+      return item.event_type === "room_mention"
+        ? t("roomMention", { sender: context.sender, title: context.title })
+        : t("roomThreadReply", { sender: context.sender, title: context.title });
+    }
+    return item.summary;
+  }
   const worded = paramsSummary(item, t);
   if (worded !== null) return worded;
   const outcome = item.outcome;

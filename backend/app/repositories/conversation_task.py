@@ -113,6 +113,41 @@ async def active_count(db: AsyncSession, *, organization_id: UUID, user_id: UUID
     )
 
 
+async def has_live_conversation_work(db: AsyncSession, conversation_id: UUID) -> bool:
+    """Whether a private conversation still has work admitted under its old audience.
+
+    A run can be between admission and its first run row while its short turn
+    claim is live. A delegated topic can also be working or waiting elsewhere,
+    then deliver a result back into its source conversation. Both must settle
+    before that source history can be exposed to a room roster.
+    """
+    now = datetime.now(UTC)
+    if await db.scalar(
+        select(
+            exists().where(
+                ConversationTurnClaim.conversation_id == conversation_id,
+                ConversationTurnClaim.expires_at > now,
+            )
+        )
+    ):
+        return True
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    ConversationTask.source_conversation_id == conversation_id,
+                    or_(
+                        ConversationTask.status.in_(
+                            ("queued", "running", "awaiting_approval", "awaiting_answer")
+                        ),
+                        ConversationTask.delivery.in_(("pending", "running")),
+                    ),
+                )
+            )
+        )
+    )
+
+
 async def add(db: AsyncSession, task: ConversationTask) -> ConversationTask:
     db.add(task)
     await db.flush()

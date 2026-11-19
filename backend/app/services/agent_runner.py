@@ -301,6 +301,7 @@ from app.core.audit import current_impersonator, record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
+    AlreadyExistsError,
     AppException,
     AuthorizationError,
     BadRequestError,
@@ -5641,9 +5642,21 @@ class AgentRunnerService:
             room_key=memory_room_key,
             via_api_key=ctx.api_key_id is not None,
         )
+        explicit_room = conversation_id is not None and await conversation_repo.is_explicit_room(
+            self.db, conversation_id, organization_id=ctx.organization_id
+        )
+        if explicit_room:
+            # The normal chat surface and a paused pre-conversion run must be
+            # just as narrow as the room worker; callers cannot omit its audience.
+            audience = replace(
+                audience,
+                room_key=f"room:conversation:{conversation_id}",
+                browses_signed_in=False,
+            )
         audience = replace(
             audience,
-            shared_transcript=project is not None
+            shared_transcript=explicit_room
+            or project is not None
             or await self._shared_for_editing(ctx, conversation_id),
         )
         # A workflow step runs as the workflow's principal, so only the dispatch
@@ -6896,9 +6909,14 @@ class AgentRunnerService:
         return scope == "conversation" and await self._shared_for_editing(ctx, conversation_id)
 
     async def _shared_for_editing(self, ctx: AuthContext, conversation_id: UUID | None) -> bool:
-        """Whether somebody the conversation is shared with may write in it."""
-        return conversation_id is not None and await conversation_share_repo.has_edit_share(
-            self.db, conversation_id, organization_id=ctx.organization_id
+        """Whether this workspace belongs to a room or legacy shared conversation."""
+        return conversation_id is not None and (
+            await conversation_repo.is_explicit_room(
+                self.db, conversation_id, organization_id=ctx.organization_id
+            )
+            or await conversation_share_repo.has_edit_share(
+                self.db, conversation_id, organization_id=ctx.organization_id
+            )
         )
 
     @staticmethod
@@ -8178,6 +8196,7 @@ class AgentRunnerService:
         environment_id: UUID | None = None,
         version_id: UUID | None = None,
         attachments: list[ChatFile] | None = None,
+        saved_prompt_id: UUID | None = None,
         content: Sequence[UserContent] = (),
         outbound: list[OutgoingAttachment] | None = None,
         outbound_refused: list[str] | None = None,
@@ -8384,6 +8403,7 @@ class AgentRunnerService:
                 said=prompt if said is None else said,
                 attachments=attachments or (),
                 attachment_context=attachment_context,
+                saved_prompt_id=saved_prompt_id,
                 message_history=message_history,
                 deferred_tool_results=None,
                 on_run_open=on_run_open,
@@ -8617,7 +8637,10 @@ class AgentRunnerService:
             )
         state = PausedRunState.model_validate(run.paused_state)
         execution_ctx = ctx
-        if state.admitted_as.audience_room_key == f"room:project:{run.conversation_id}":
+        if state.admitted_as.audience_room_key in {
+            f"room:project:{run.conversation_id}",
+            f"room:conversation:{run.conversation_id}",
+        }:
             from app.services.room_submission import RoomSubmissionService
 
             room_ctx = await RoomSubmissionService(self.db).resume_authority(
@@ -9688,6 +9711,31 @@ class AgentRunnerService:
             await stream(agent_run)
         return _outcome(agent_run)
 
+    async def _reuse_room_prompt(
+        self,
+        prepared: PreparedRun,
+        message_id: UUID,
+        *,
+        model_content: str | None,
+        attachment_context: str | None,
+    ) -> None:
+        run = prepared.run
+        if (
+            run.conversation_id is None
+            or run.user_id is None
+            or not await conversation_repo.prepare_saved_room_prompt(
+                self.db,
+                message_id=message_id,
+                conversation_id=run.conversation_id,
+                organization_id=run.organization_id,
+                requester_id=run.user_id,
+                run_id=run.id,
+                model_content=model_content,
+                attachment_context=attachment_context,
+            )
+        ):
+            raise AlreadyExistsError(message="This room run no longer owns its saved post")
+
     async def _run(
         self,
         prepared: PreparedRun,
@@ -9696,6 +9744,7 @@ class AgentRunnerService:
         said: str | None,
         attachments: Sequence[ChatFile] = (),
         attachment_context: str | None = None,
+        saved_prompt_id: UUID | None = None,
         message_history: Sequence[ModelMessage] | None,
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None = None,
@@ -9711,6 +9760,10 @@ class AgentRunnerService:
         widget prepends the operator's placement note. Recording the assembled
         version put the model's own briefing in the transcript as the user's words.
         `said` is `None` on a resume, where nothing new was said at all.
+
+        A room's `saved_prompt_id` identifies its already accepted human post.
+        Files are routed as usual, but that post and its attachments are never
+        recorded again for each mentioned responder.
 
         The one place a run is executed, so a parked call, a budget stop, a
         cancellation and a crash are all recorded the same way whether the run is
@@ -9790,6 +9843,13 @@ class AgentRunnerService:
                 await check_history_snapshot(self.db, prepared.run.conversation_id, message_history)
             if on_run_open is not None:
                 await on_run_open(prepared.run)
+            if saved_prompt_id is not None:
+                await self._reuse_room_prompt(
+                    prepared,
+                    saved_prompt_id,
+                    model_content=model_content,
+                    attachment_context=attachment_context,
+                )
             await self.db.commit()
             await change_feed.publish_run(
                 prepared.run, "created" if deferred_tool_results is None else "updated"
@@ -9948,11 +10008,11 @@ class AgentRunnerService:
                     # asked and what it managed to do.
                     message_id = await self.transcript.record(
                         prepared.run,
-                        prompt=said,
+                        prompt=said if saved_prompt_id is None else None,
                         model_content=model_content,
                         answer=output,
                         thread_root_message_id=prepared.admitted_as.thread_root_message_id,
-                        attachments=attachments,
+                        attachments=attachments if saved_prompt_id is None else (),
                         # Replayed after the prompt on every later turn, where the input
                         # edge no longer looks: a refused turn keeps none of it (#2578).
                         attachment_context=(

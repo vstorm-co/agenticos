@@ -47,6 +47,8 @@ class NotificationEventType(enum.StrEnum):
     ANNOUNCEMENT = "announcement"
     ARTIFACT_VERSION_PUBLISHED = "artifact_version_published"
     RESOURCE_SHARED = "resource_shared"
+    ROOM_MENTION = "room_mention"
+    ROOM_THREAD_REPLY = "room_thread_reply"
     BUDGET_WARNING = "budget_warning"
     MCP_SERVER_DOWN = "mcp_server_down"
     MCP_SERVER_RECOVERED = "mcp_server_recovered"
@@ -199,7 +201,7 @@ class Notification(Base, TimestampMixin):
             "'artifact_owner_changed', 'artifact_share_requested', "
             "'capability_requested', 'suggestion', 'finding', 'improvement_finished', "
             "'eval_suite_reevaluated', 'eval_run_finished', 'case_generation_finished', "
-            "'workflow_log_alert')",
+            "'workflow_log_alert', 'room_mention', 'room_thread_reply')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

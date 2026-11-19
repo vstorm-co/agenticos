@@ -1,5 +1,6 @@
 import {
   Bell,
+  AtSign,
   CircleDollarSign,
   FileCheck2,
   FileText,
@@ -10,6 +11,7 @@ import {
   ShieldAlert,
   Lightbulb,
   Megaphone,
+  MessageCircle,
   PieChart,
   Radar,
   ServerCrash,
@@ -72,6 +74,18 @@ export const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     words: "prefResourceShared",
     icon: Share2,
     channels: ["in_app", "email", "push"],
+  },
+  {
+    eventType: "room_mention",
+    words: "prefRoomMention",
+    icon: AtSign,
+    channels: ["in_app", "push"],
+  },
+  {
+    eventType: "room_thread_reply",
+    words: "prefRoomThreadReply",
+    icon: MessageCircle,
+    channels: ["in_app", "push"],
   },
   {
     eventType: "budget_warning",

@@ -1535,6 +1535,96 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def room_mentioned(
+        self,
+        *,
+        recipients: Sequence[UUID],
+        organization_id: UUID,
+        conversation_id: UUID,
+        message_id: UUID,
+        thread_root_message_id: UUID | None,
+        title: str | None,
+        sender: str,
+        actor_user_id: UUID,
+    ) -> None:
+        """One alert per tagged human and accepted message, with no private body preview."""
+        audience = list(
+            dict.fromkeys(user_id for user_id in recipients if user_id != actor_user_id)
+        )
+        if not audience:
+            return
+        shown = title or "a conversation"
+        query = {"id": str(conversation_id), "message": str(message_id)}
+        if thread_root_message_id is not None:
+            query["thread"] = str(thread_root_message_id)
+        await self._center.write(
+            recipients=audience,
+            event_type=NotificationEventType.ROOM_MENTION,
+            occurrence_id=str(message_id),
+            summary=f"{sender} mentioned you in '{shown}'.",
+            context_url=self._link(f"/chat?{urlencode(query)}", organization_id),
+            render_context={
+                "resource_kind": "conversation",
+                "resource_id": str(conversation_id),
+                "conversation_id": str(conversation_id),
+                "message_id": str(message_id),
+                "thread_root_message_id": (
+                    str(thread_root_message_id) if thread_root_message_id is not None else None
+                ),
+                "sender": sender,
+                "title": shown,
+            },
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            channels={NotificationChannel.IN_APP, NotificationChannel.PUSH},
+            use_savepoint=True,
+        )
+
+    async def room_thread_replied(
+        self,
+        *,
+        recipients: Sequence[UUID],
+        organization_id: UUID,
+        conversation_id: UUID,
+        message_id: UUID,
+        thread_root_message_id: UUID,
+        title: str | None,
+        sender: str,
+        actor_user_id: UUID | None,
+    ) -> None:
+        """Tell current thread followers about a reply without previewing its body."""
+        audience = list(
+            dict.fromkeys(user_id for user_id in recipients if user_id != actor_user_id)
+        )
+        if not audience:
+            return
+        shown = title or "a conversation"
+        query = {
+            "id": str(conversation_id),
+            "message": str(message_id),
+            "thread": str(thread_root_message_id),
+        }
+        await self._center.write(
+            recipients=audience,
+            event_type=NotificationEventType.ROOM_THREAD_REPLY,
+            occurrence_id=str(message_id),
+            summary=f"{sender} replied in a thread in '{shown}'.",
+            context_url=self._link(f"/chat?{urlencode(query)}", organization_id),
+            render_context={
+                "resource_kind": "conversation",
+                "resource_id": str(conversation_id),
+                "conversation_id": str(conversation_id),
+                "message_id": str(message_id),
+                "thread_root_message_id": str(thread_root_message_id),
+                "sender": sender,
+                "title": shown,
+            },
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            channels={NotificationChannel.IN_APP, NotificationChannel.PUSH},
+            use_savepoint=True,
+        )
+
     async def mcp_server_down(
         self, connection: McpConnection, *, organization_id: UUID, since: datetime
     ) -> None:

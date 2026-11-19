@@ -54,6 +54,7 @@ import {
   Share2,
   SquarePen,
   Trash2,
+  DoorOpen,
 } from "lucide-react";
 import { InboxIcon as Inbox, ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import type { Conversation, ConversationAgent } from "@/types";
@@ -68,6 +69,8 @@ import { ShareDialog } from "./share-dialog";
 import { useTurnElapsed } from "./work-fold";
 import { formatElapsed } from "@/lib/elapsed";
 import { ConversationProjectPicker } from "./conversation-project-picker";
+import { RoomDirectoryDialog } from "./room-directory-dialog";
+import { RoomParticipantsDialog } from "./room-participants-dialog";
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -1029,10 +1032,14 @@ function ListModeToggle({
 
 export function ConversationSidebar({ className, onSelectSearchResult }: ConversationSidebarProps) {
   const ts = useTranslations("chat.sidebar");
+  const tr = useTranslations("chat.rooms");
   const mode = useChatListModeStore((state) => state.mode);
   const setMode = useChatListModeStore((state) => state.setMode);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [roomDirectoryOpen, setRoomDirectoryOpen] = useState(false);
+  const [createdRoom, setCreatedRoom] = useState<Conversation | null>(null);
+  const [createdRoomParticipantsOpen, setCreatedRoomParticipantsOpen] = useState(false);
   const collapse = () => setIsCollapsed(true);
   const { isOpen, close } = useChatSidebarStore();
   // Seeded from the URL and written back to it, so a reload lands on the list
@@ -1195,6 +1202,18 @@ export function ConversationSidebar({ className, onSelectSearchResult }: Convers
       >
         <Search />
       </IconButton>
+      <IconButton
+        size="icon"
+        aria-label={tr("button")}
+        title={tr("button")}
+        onClick={() => {
+          setRoomDirectoryOpen(true);
+          afterNewChat?.();
+        }}
+        className={HEADER_ICON}
+      >
+        <DoorOpen />
+      </IconButton>
       {column && filters(true)}
       {column && sharedState.failed && (
         <IconButton
@@ -1281,6 +1300,35 @@ export function ConversationSidebar({ className, onSelectSearchResult }: Convers
       )}
 
       {searchDialog}
+
+      {roomDirectoryOpen && (
+        <RoomDirectoryDialog
+          open={roomDirectoryOpen}
+          onOpenChange={setRoomDirectoryOpen}
+          onSelectConversation={(conversation) => {
+            void selectConversation(conversation.id);
+            close();
+          }}
+          onCreated={(conversation) => {
+            void selectConversation(conversation.id);
+            setCreatedRoom(conversation);
+            setCreatedRoomParticipantsOpen(true);
+            close();
+          }}
+        />
+      )}
+      {createdRoomParticipantsOpen && createdRoom && (
+        <RoomParticipantsDialog
+          key={createdRoom.id}
+          conversationId={createdRoom.id}
+          conversation={createdRoom}
+          open={createdRoomParticipantsOpen}
+          onOpenChange={(open) => {
+            setCreatedRoomParticipantsOpen(open);
+            if (!open) setCreatedRoom(null);
+          }}
+        />
+      )}
 
       <Sheet open={isOpen} onOpenChange={close}>
         <SheetContent side="left" className="w-80 p-0">

@@ -67,6 +67,9 @@ export function TeamRoomQueue({
                 <p className="truncate">
                   {t("requestedBy", { agent: agent?.name ?? t("agent"), name: requester })}
                 </p>
+                <p className="text-muted-foreground">
+                  {t(`dispatch.${request.dispatch ?? "explicit"}`)}
+                </p>
                 <p className="text-muted-foreground" role="status">
                   {t(`status.${request.status}`)}
                 </p>

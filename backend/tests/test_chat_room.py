@@ -179,11 +179,15 @@ class TestAPageOfRooms:
 class TestWhatTheRoomHears:
     async def test_people_typing_and_turns_are_heard_and_nothing_else(self, store: _Store) -> None:
         anna = uuid4()
+        message = uuid4()
         channel = f"room:{ROOM}:events"
         await chat_room.join(ROOM, anna, "tab")
         await chat_room.typing(ROOM, anna)
         await chat_room.turn_begun(ROOM, anna)
         await chat_room.next_steps(ROOM, "message-1", ["Make a table"])
+        await chat_room.room_participants(ROOM)
+        await chat_room.room_reaction(ROOM, message)
+        await chat_room.room_thread(ROOM, message)
         store.published += [(channel, "not json"), (channel, '{"type": "other"}')]
         store.published.append((f"room:{uuid4()}:events", '{"type": "presence"}'))
 
@@ -194,6 +198,9 @@ class TestWhatTheRoomHears:
             {"type": chat_room.TYPING, "by": str(anna)},
             {"type": chat_room.TURN_BEGUN, "by": str(anna)},
             {"type": chat_room.NEXT_STEPS, "message_id": "message-1", "steps": ["Make a table"]},
+            {"type": chat_room.ROOM_PARTICIPANTS},
+            {"type": chat_room.ROOM_REACTION, "message_id": str(message)},
+            {"type": chat_room.ROOM_THREAD, "thread_root_message_id": str(message)},
         ]
 
     async def test_a_publish_that_fails_is_swallowed_and_said(self, store: _Store) -> None:

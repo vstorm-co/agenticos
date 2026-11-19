@@ -653,9 +653,17 @@ Enter the website address in Browser before starting it. If
 the selected agent has the corresponding hosted capability and you may run it,
 an explicit start action asks it to open the browser or take a desktop screenshot.
 Otherwise the panel explains what is unavailable. The agent's published settings
-and access controls still apply. In team rooms, choose a responder in the room
-composer and ask them to open the browser or computer. The panels remain available
+and access controls still apply. In team rooms, select an agent with `@` in the
+composer and ask it to open the browser or computer. The panels remain available
 for viewing.
+
+**Shared chat.** The participant list lets you add people to an agent conversation
+or add agents to a human room. Existing history is kept and shared explicitly.
+Use the room browser in the sidebar to create private or organization-public
+rooms, and join a public room before posting. Mention a person with `@` to notify
+them or an agent to request its response. Room attachments, emoji reactions,
+thread following and unread markers use the same saved transcript. See
+[team rooms](projects.md#team-rooms) for membership, responder and thread behavior.
 
 Browser and Computer views stay separate. Panels start closed; closing one keeps
 it closed as new tool results arrive. On narrow screens the selected panel fills

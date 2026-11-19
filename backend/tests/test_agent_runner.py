@@ -85,6 +85,7 @@ from app.agents.tool_names import taken_tool_names
 from app.agents.tool_repair import RepairTally
 from app.core.audit import set_impersonator
 from app.core.exceptions import (
+    AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
     ModelCallFailedError,
@@ -271,9 +272,15 @@ def _no_conversation_shares() -> Iterator[None]:
     Every admission asks, to keep the person's memory out of a chat others read,
     and `_db()` cannot answer a query.
     """
-    with patch(
-        "app.services.agent_runner.conversation_share_repo.get_shares_for_conversation",
-        new=AsyncMock(return_value=[]),
+    with (
+        patch(
+            "app.services.agent_runner.conversation_share_repo.get_shares_for_conversation",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.services.agent_runner.conversation_repo.is_explicit_room",
+            new=AsyncMock(return_value=False),
+        ),
     ):
         yield
 
@@ -1041,7 +1048,7 @@ class TestPrepare:
     @pytest.mark.security
     @pytest.mark.parametrize(
         ("chat", "personal"),
-        [("private", True), ("view", True), ("project", False), ("edit", False)],
+        [("private", True), ("view", True), ("project", False), ("edit", False), ("room", False)],
     )
     async def test_personal_memory_stays_out_of_a_chat_others_read(self, chat: str, personal: bool):
         """A project's members, and anybody it is shared with to edit, read the
@@ -1096,6 +1103,10 @@ class TestPrepare:
                 "app.services.agent_runner.conversation_share_repo.get_shares_for_conversation",
                 new=AsyncMock(return_value=shares),
             ),
+            patch(
+                "app.services.agent_runner.conversation_repo.is_explicit_room",
+                new=AsyncMock(return_value=chat == "room"),
+            ),
             patch("app.services.agent_runner.build_agent") as build,
             patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)),
         ):
@@ -1106,6 +1117,9 @@ class TestPrepare:
         assert (
             memory_owner_key(audience, allow_personal=True) == person_owner_key(ctx.user_id)
         ) is personal
+        if chat == "room":
+            assert not audience.private and not audience.browses_signed_in
+            assert audience.shared_transcript and audience.room_key.startswith("room:conversation:")
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("aside", [False, True])
@@ -3732,6 +3746,51 @@ class TestWhatANonStreamingRunRecords:
     @staticmethod
     def _answered(output: object, messages: list[Any] | None = None) -> MagicMock:
         return MagicMock(output=output, new_messages=MagicMock(return_value=messages or []))
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("owns_prompt", [True, False])
+    async def test_room_uploads_reuse_the_saved_post_and_require_its_current_run(self, owns_prompt):
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.run.user_id = uuid.uuid4()
+        prepared.run.organization_id = uuid.uuid4()
+        prepared.built.agent.run = AsyncMock(return_value=self._answered("Reviewed"))
+        saved = uuid.uuid4()
+        with (
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_runner.conversation_repo.prepare_saved_room_prompt",
+                new=AsyncMock(return_value=owns_prompt),
+            ) as reuse,
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        ):
+
+            async def run():
+                return await service._run(
+                    prepared,
+                    user_prompt="Read the attachment",
+                    said="",
+                    attachments=[MagicMock()],
+                    attachment_context="screened attachment briefing",
+                    saved_prompt_id=saved,
+                    message_history=None,
+                    deferred_tool_results=None,
+                )
+
+            if owns_prompt:
+                await run()
+                prepared.built.agent.run.assert_awaited_once()
+            else:
+                with pytest.raises(AlreadyExistsError, match="saved post"):
+                    await run()
+                prepared.built.agent.run.assert_not_awaited()
+        assert reuse.await_args.kwargs["message_id"] == saved
+        assert reuse.await_args.kwargs["run_id"] == prepared.run.id
+        assert reuse.await_args.kwargs["attachment_context"] == "screened attachment briefing"
+        # The answer is recorded normally; neither the prompt nor its files are
+        # submitted to the transcript writer a second time.
+        assert record.await_args.kwargs["prompt"] is None
+        assert record.await_args.kwargs["attachments"] == ()
 
     @pytest.mark.anyio
     async def test_the_question_the_answer_and_the_tool_calls_all_reach_the_transcript(self):
@@ -12127,8 +12186,9 @@ class TestRoomAndSecretBoundaries:
         }
 
     @pytest.mark.parametrize("prior_check", [False, True])
+    @pytest.mark.parametrize("room_kind", ["project", "conversation"])
     async def test_room_resume_uses_requester_and_rechecks_authority_before_each_model_call(
-        self, prior_check
+        self, prior_check, room_kind
     ):
         service = AgentRunnerService(_db())
         ctx = _ctx()
@@ -12142,7 +12202,7 @@ class TestRoomAndSecretBoundaries:
             paused_state={
                 "messages": [],
                 "tool_call_ids": {},
-                "admitted_as": {"audience_room_key": f"room:project:{conversation}"},
+                "admitted_as": {"audience_room_key": f"room:{room_kind}:{conversation}"},
             },
         )
         order = []
@@ -12173,7 +12233,10 @@ class TestRoomAndSecretBoundaries:
             ["room", "room", "prior", "room", "prior"] if prior_check else ["room"] * 3
         )
 
-    async def test_revoked_room_authority_stops_before_prior_checks_or_model_execution(self):
+    @pytest.mark.parametrize("room_kind", ["project", "conversation"])
+    async def test_revoked_room_authority_stops_before_prior_checks_or_model_execution(
+        self, room_kind
+    ):
         service = AgentRunnerService(_db())
         ctx = _ctx()
         conversation = uuid.uuid4()
@@ -12183,7 +12246,7 @@ class TestRoomAndSecretBoundaries:
             paused_state={
                 "messages": [],
                 "tool_call_ids": {},
-                "admitted_as": {"audience_room_key": f"room:project:{conversation}"},
+                "admitted_as": {"audience_room_key": f"room:{room_kind}:{conversation}"},
             },
         )
         authority = AsyncMock(

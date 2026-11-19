@@ -33,6 +33,8 @@ interface MessageListProps {
   canStartThread?: boolean;
   onReply?: (reply: MessageReply) => void;
   allowReply?: boolean;
+  roomReactionsEnabled?: boolean;
+  canReactToRoomMessages?: boolean;
   /** The test panel's pinned questions; a question here can be pinned or taken off. */
   pins?: PinnedPrompts;
 }
@@ -250,6 +252,8 @@ export function MessageList({
   canStartThread,
   onReply,
   allowReply,
+  roomReactionsEnabled = false,
+  canReactToRoomMessages = false,
   pins,
 }: MessageListProps) {
   const messages = useMemo(() => coalesceActivity(sourceMessages), [sourceMessages]);
@@ -332,6 +336,8 @@ export function MessageList({
             canStartThread={canStartThread}
             onReply={onReply}
             allowReply={allowReply}
+            roomReactionsEnabled={roomReactionsEnabled}
+            canReactToRoomMessages={canReactToRoomMessages}
             forkingMessageId={forkingMessageId}
             onRegenerate={
               onRegenerate && index === lastAssistantIndex && !message.isStreaming

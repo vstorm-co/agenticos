@@ -39,7 +39,7 @@ def work(monkeypatch: pytest.MonkeyPatch):
     message = SimpleNamespace(
         id=row.message_id, content="Please answer this", thread_root_message_id=None
     )
-    topic = SimpleNamespace(id=row.conversation_id)
+    topic = SimpleNamespace(id=row.conversation_id, project_id=uuid4())
     sender = SimpleNamespace(id=row.requester_id)
     read = MessageRead(
         id=row.message_id,
@@ -77,6 +77,7 @@ def work(monkeypatch: pytest.MonkeyPatch):
     service = MagicMock(
         authority=AsyncMock(return_value=(ctx, topic, message)),
         read_message=AsyncMock(return_value=read),
+        attachments=AsyncMock(return_value=[]),
         queue=AsyncMock(),
         conversations=MagicMock(model_text=AsyncMock(return_value="Requester: Please answer this")),
     )
@@ -103,6 +104,7 @@ def work(monkeypatch: pytest.MonkeyPatch):
         history_service=history_service,
         run=run,
         message=message,
+        topic=topic,
         read=read,
         job=RoomRequestJob(request_id=row.id, organization_id=row.organization_id),
     )
@@ -216,7 +218,9 @@ async def test_pinned_requester_runs_once_with_bounded_history_and_shared_audien
         assert ctx is work.ctx and ctx.user_id == work.row.requester_id
         assert agent_id == work.row.agent_id and options["version_id"] == work.row.version_id
         assert prompt == "Requester: Please answer this"
-        assert options["said"] == ""  # The human post is already durable.
+        assert options["said"] == work.message.content
+        assert options["saved_prompt_id"] == work.message.id
+        assert options["attachments"] == []
         assert options["memory_room_key"] == f"room:project:{work.row.conversation_id}"
         assert options["thread_root_message_id"] == work.message.thread_root_message_id
         assert options["message_history"] is work.history
@@ -234,7 +238,10 @@ async def test_pinned_requester_runs_once_with_bounded_history_and_shared_audien
     await module.run_request(work.job)
     assert work.row.status == "completed"
     work.history_service.model_history.assert_awaited_once_with(
-        work.row.conversation_id, limit=60, room_request_message_id=work.row.message_id
+        work.row.conversation_id,
+        limit=60,
+        room_request_message_id=work.row.message_id,
+        room_request_id=work.row.id,
     )
     module.conversation_repo.link_message_to_run.assert_awaited_once_with(
         work.db,
@@ -457,3 +464,32 @@ async def test_room_invalidation_contains_only_identifiers_and_includes_the_send
     args, kwargs = announce.call_args
     assert args == (room_id, f"room_{kind}")
     assert kwargs == {f"{kind}_id": str(record)}
+
+
+async def test_extra_bot_request_keeps_the_human_message_linked_to_the_first_run(work):
+    work.row.parent_submission_id = uuid4()
+    work.topic.project_id = None
+
+    async def execute(*_args, **options):
+        assert options["memory_room_key"] == f"room:conversation:{work.row.conversation_id}"
+        await options["on_run_open"](work.run)
+        return "Second bot", work.run
+
+    work.execute.side_effect = execute
+    await module.run_request(work.job)
+    assert work.row.run_id == work.run.id and work.row.status == "completed"
+    module.conversation_repo.link_message_to_run.assert_not_awaited()
+    assert work.history_service.model_history.await_args.kwargs["room_request_id"] == work.row.id
+
+
+async def test_room_worker_routes_attachments_using_the_existing_human_post(work):
+    files = [SimpleNamespace(id=uuid4(), filename="diagram.png")]
+    work.service.attachments.return_value = files
+    await module.run_request(work.job)
+    work.service.attachments.assert_awaited_once_with(
+        work.message, work.row.requester_id, include_content=True
+    )
+    options = work.execute.await_args.kwargs
+    assert options["attachments"] is files
+    assert options["saved_prompt_id"] == work.message.id
+    assert options["said"] == work.message.content

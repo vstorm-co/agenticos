@@ -14,7 +14,9 @@ import { RoomThreadPanel } from "./room-thread-panel";
 import type { MessagePinActions } from "./message-list";
 import type { PinnedMessageTarget } from "./pinned-messages";
 
-vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn() } }));
+vi.mock("@/lib/api-client", () => ({
+  apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
+}));
 vi.mock("@/hooks/use-agents", () => ({
   useAgents: () => ({
     agents: [
@@ -161,6 +163,19 @@ function deferred<T>() {
   });
   return { promise, resolve, reject };
 }
+function bounds(top: number, bottom: number): DOMRect {
+  return {
+    x: 0,
+    y: top,
+    top,
+    bottom,
+    left: 0,
+    right: 500,
+    width: 500,
+    height: bottom - top,
+    toJSON: () => ({}),
+  };
+}
 function changed() {
   act(() =>
     announceRoomChange({ conversationId: "room-a", accountId: "me", organizationId: "org-a" }),
@@ -213,6 +228,8 @@ beforeEach(() => {
   };
   vi.mocked(apiClient.get).mockImplementation(async (path) => serve(String(path)));
   vi.mocked(apiClient.post).mockResolvedValue({ message: page.items[0], request: null });
+  vi.mocked(apiClient.put).mockResolvedValue(undefined);
+  vi.mocked(apiClient.delete).mockResolvedValue(undefined);
 });
 afterEach(() => {
   client.clear();
@@ -669,5 +686,128 @@ describe("RoomThreadPanel", () => {
     mounted.rerender(view());
     await screen.findByText("Original topic");
     expect(await screen.findByRole("textbox", { name: "Reply to thread" })).toHaveValue("A stays");
+  });
+
+  it("follows a thread and exposes all manager lifecycle actions with the unread count", async () => {
+    page = {
+      ...page,
+      state: "open",
+      can_manage: true,
+      following: false,
+      unread: 3,
+    };
+    const user = userEvent.setup();
+    render(view(), { wrapper });
+    await screen.findByText("3 unread replies");
+
+    await user.click(screen.getByRole("button", { name: "Follow thread" }));
+    await waitFor(() =>
+      expect(apiClient.put).toHaveBeenCalledWith(
+        "/conversations/room-a/room-threads/root-a/follow",
+        {},
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "Close thread" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-threads/root-a/close",
+        {},
+      ),
+    );
+
+    page = { ...page, state: "closed", following: true };
+    changed();
+    await user.click(await screen.findByRole("button", { name: "Unfollow thread" }));
+    await waitFor(() =>
+      expect(apiClient.delete).toHaveBeenCalledWith(
+        "/conversations/room-a/room-threads/root-a/follow",
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "Reopen thread" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-threads/root-a/reopen",
+        {},
+      ),
+    );
+
+    page = { ...page, state: "open" };
+    changed();
+    await user.click(await screen.findByRole("button", { name: "Archive thread" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-threads/root-a/archive",
+        {},
+      ),
+    );
+
+    page = { ...page, state: "archived", can_post: false };
+    changed();
+    expect(await screen.findByRole("button", { name: "Unarchive thread" })).toBeEnabled();
+    expect(screen.queryByRole("textbox", { name: "Reply to thread" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Unarchive thread" }));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-threads/root-a/unarchive",
+        {},
+      ),
+    );
+  });
+
+  it("marks only the latest visible persisted reply and ignores a hidden-panel read", async () => {
+    page = {
+      ...page,
+      items: [
+        page.items[0]!,
+        {
+          ...page.items[0]!,
+          id: "reply-b",
+          content: "Latest but outside the visible page",
+        },
+      ],
+      total: 2,
+      can_post: true,
+      unread: 2,
+    };
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    const { container } = render(view(), { wrapper });
+    await screen.findByText("Latest but outside the visible page");
+    const scroller = container.querySelector<HTMLDivElement>(".overflow-y-auto")!;
+    Object.defineProperties(scroller, {
+      scrollHeight: { configurable: true, get: () => 600 },
+      clientHeight: { configurable: true, value: 200 },
+    });
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(bounds(100, 300));
+    vi.spyOn(
+      scroller.querySelector<HTMLElement>("[data-thread-root='root-a']")!,
+      "getBoundingClientRect",
+    ).mockReturnValue(bounds(110, 150));
+    vi.spyOn(
+      scroller.querySelector<HTMLElement>("[data-message-id='reply-a']")!,
+      "getBoundingClientRect",
+    ).mockReturnValue(bounds(160, 210));
+    vi.spyOn(
+      scroller.querySelector<HTMLElement>("[data-message-id='reply-b']")!,
+      "getBoundingClientRect",
+    ).mockReturnValue(bounds(410, 460));
+    scroller.scrollTop = 0;
+    fireEvent.scroll(scroller);
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      "/conversations/room-a/room-threads/root-a/read",
+      expect.anything(),
+    );
+
+    visibility.mockReturnValue("visible");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/conversations/room-a/room-threads/root-a/read",
+        { through_message_id: "reply-a" },
+      ),
+    );
+    expect(apiClient.post).not.toHaveBeenCalledWith(
+      "/conversations/room-a/room-threads/root-a/read",
+      { through_message_id: "reply-b" },
+    );
   });
 });

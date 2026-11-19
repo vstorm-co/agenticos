@@ -12,6 +12,7 @@ import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, ChatMessageFile, MessageReply, TurnUsage } from "@/types";
 import { RoomThreadButton } from "./room-thread-button";
+import { RoomMessageReactions } from "./room-message-reactions";
 import type { Agent } from "@/types/agents";
 import { ToolCallCard } from "./tool-call-card";
 import { AgentSteps } from "./agent-step";
@@ -143,6 +144,10 @@ interface MessageItemProps {
   asked?: AskedBefore;
   /** What the person asked for, on the answer that ends the turn: a skill can be made of it. */
   request?: string;
+  /** The message belongs to a first-class or project room. */
+  roomReactionsEnabled?: boolean;
+  /** The current reader may write to the room. */
+  canReactToRoomMessages?: boolean;
 }
 
 export const MessageItem = memo(function MessageItem({
@@ -169,6 +174,8 @@ export const MessageItem = memo(function MessageItem({
   agents = [],
   asked,
   request,
+  roomReactionsEnabled = false,
+  canReactToRoomMessages = false,
 }: MessageItemProps) {
   const t = useTranslations("chat");
   const tInput = useTranslations("chat.input");
@@ -435,6 +442,22 @@ export const MessageItem = memo(function MessageItem({
           endsTurn={endsTurn}
           onCiteClick={onCiteClick}
         />
+
+        {roomReactionsEnabled &&
+          !threadRootPreview &&
+          !message.isStreaming &&
+          !message.isTemporaryId &&
+          savedMessageId !== null &&
+          message.conversationId &&
+          message.role !== "system" && (
+            <RoomMessageReactions
+              conversationId={message.conversationId}
+              messageId={savedMessageId}
+              initialReactions={message.reactions}
+              canReact={canReactToRoomMessages}
+              align={isUser ? "end" : "start"}
+            />
+          )}
 
         {!isUser && message.runFailed && endsTurn && (
           <div
@@ -855,6 +878,7 @@ function MessageBody({
               isUser={isUser}
               onCiteClick={onCiteClick}
               mentions={isUser ? message.mentions : undefined}
+              roomMentions={isUser ? message.roomMentions : undefined}
               quoteable={!message.isStreaming && !message.guardrailRefused}
             />
           )}

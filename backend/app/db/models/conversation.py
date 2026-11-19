@@ -52,6 +52,14 @@ class Conversation(Base, TimestampMixin):
             postgresql_where=text("fork_copy_bytes > 0"),
         ),
         UniqueConstraint("organization_id", "id", name="uq_conversation_org_id"),
+        CheckConstraint(
+            "room_visibility IS NULL OR room_visibility IN ('private', 'public')",
+            name="ck_conversation_room_visibility",
+        ),
+        CheckConstraint(
+            "room_visibility IS NULL OR project_id IS NULL",
+            name="ck_conversation_room_project_scope",
+        ),
         ForeignKeyConstraint(
             ["organization_id", "workflow_id"],
             ["workflows.organization_id", "workflows.id"],
@@ -87,6 +95,8 @@ class Conversation(Base, TimestampMixin):
         index=True,
     )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    room_visibility: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    """Whether this is a private or public first-class room; null on legacy chats."""
     forked_from_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="SET NULL"),
@@ -293,6 +303,10 @@ class Message(Base, TimestampMixin):
     """
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    room_mentions: Mapped[list[dict[str, str]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    """Canonical people/agent recipients selected for this post, separate from resource mentions."""
     model_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     thinking: Mapped[str | None] = mapped_column(Text, nullable=True)
     model_name: Mapped[str | None] = mapped_column(String(100), nullable=True)

@@ -674,8 +674,18 @@ Przed uruchomieniem przeglądarki wpisz adres strony. Jeśli wybrany agent ma od
 hostowaną capability i możesz go uruchomić, osobna akcja rozpoczęcia prosi go o
 otwarcie przeglądarki lub wykonanie zrzutu pulpitu. W przeciwnym razie panel
 wyjaśnia, co jest niedostępne. Opublikowane ustawienia agenta i kontrola dostępu
-nadal obowiązują. W pokojach zespołu wybierz w polu wiadomości, kto ma odpowiedzieć,
-i poproś o otwarcie przeglądarki lub komputera. Panele pozostają dostępne do podglądu.
+nadal obowiązują. W pokojach zespołu wpisz `@` w polu wiadomości, wybierz agenta
+i poproś go o otwarcie przeglądarki lub komputera. Panele pozostają dostępne do podglądu.
+
+**Wspólny czat.** Lista uczestników pozwala dodać osoby do rozmowy z agentem albo
+agentów do pokoju przeznaczonego do rozmów między ludźmi. Dotychczasowa historia
+zostaje zachowana i jest jawnie udostępniana. Użyj przeglądarki pokoi na pasku
+bocznym, aby tworzyć pokoje prywatne lub publiczne dla organizacji oraz dołączać
+do pokoju publicznego przed wysłaniem wiadomości. Wspomnij osobę przez `@`, aby ją
+powiadomić, albo agenta, aby poprosić o jego odpowiedź. Załączniki do wiadomości
+pokoju, reakcje emoji, obserwowanie wątków i wskaźniki nieprzeczytanych wiadomości
+korzystają z tej samej zapisanej transkrypcji. Zobacz [pokoje zespołu](projects.md#team-rooms),
+aby poznać członkostwo, odpowiadających i działanie wątków.
 
 Widoki przeglądarki i komputera pozostają oddzielne. Panele są początkowo zamknięte;
 zamknięty panel pozostaje zamknięty także po nadejściu nowych wyników narzędzi. Na
