@@ -264,6 +264,9 @@ test.describe("Agents", () => {
     // Builder that renders its shell while the agent fails to load shows the
     // same headings and none of this.
     await expect(pageStatus(page)).toContainText("published");
+    const identity = page.locator('[data-tour="agent-identity"]');
+    await expect(identity.locator("details")).not.toHaveAttribute("open");
+    await identity.locator("summary").click();
     await expect(page.getByRole("textbox", { name: "Description" })).toHaveValue(
       /organization's general-purpose assistant/,
     );

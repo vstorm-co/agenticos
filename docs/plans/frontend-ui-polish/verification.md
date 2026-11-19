@@ -657,3 +657,8 @@ an initial immediate measurement during viewport resizing was premature.
 - Apply Builder B: one panel of native collapsible settings. Model starts open; editors stay mounted and Voice deep links reveal their section.
 - Scoped suites: 83 card tests, 69 Builder/Voice tests, 164 gallery tests, 66 section/sidebar tests and 60 workspace/save/publish/starter tests passed (overlapping suites). TSC and scoped ESLint passed.
 - Reproduce a 2px workspace-file overflow with 120 long filenames in headless Chromium: 286px available / 288px child. The child now fits its parent: 286px / 286px. No screenshots or provider calls.
+
+- Actual Builder DOM: Model starts open, Voice folds retain content, entering from Chat through the Dictation deep link reveals the correct section/tab. At 390px there is no horizontal overflow; no client errors or spec writes.
+- Full CI on `58c35ad91`: all four frontend shards and the aggregate coverage gate passed. E2E found one stale journey reading Description before opening the new Identity section; update the journey to expand the section first. Headless DOM confirms the stored description remains after close/reopen.
+- Update the skill gallery browser assertion to the selected three-line description layout; retain the real overflow/clamping assertion. CI measured 68.25px (three lines), while the old journey capped descriptions at two.
+- Headless Chromium confirms the skill description clamp: 68.25px visible, 910px full content, 22.75px line height; no client errors or database writes.
