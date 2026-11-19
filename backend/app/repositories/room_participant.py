@@ -153,9 +153,9 @@ async def remove(
         query = query.where(RoomParticipant.agent_id == agent_id)
     else:
         raise ValueError("A user_id or agent_id is required")
-    result = await db.execute(query)
+    result = await db.execute(query.returning(RoomParticipant.id))
     await db.flush()
-    return bool(result.rowcount)
+    return result.scalar_one_or_none() is not None
 
 
 async def set_auto_reply(
@@ -177,9 +177,10 @@ async def set_auto_reply(
             RoomParticipant.agent_id == agent_id,
         )
         .values(auto_reply=auto_reply)
+        .returning(RoomParticipant.id)
     )
     await db.flush()
-    return bool(result.rowcount)
+    return result.scalar_one_or_none() is not None
 
 
 async def user_conversation_ids(
