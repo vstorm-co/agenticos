@@ -234,6 +234,9 @@ _DUMP_EXEMPT = {
     # columns. Explicit null clears a secret reference; omitted fields must
     # preserve it. The draft API owns validation and persistence of the spec.
     "app/services/platform_mcp/_tools.py",
+    # HTTP transport must preserve omitted versus explicit null fields. The
+    # target API services apply writable before changing database columns.
+    "app/services/platform_mcp/_lifecycle.py",
     "app/services/ingestion_config.py",
     "app/services/scoring.py",
     # Dataset helper patches merge a nested JSON document after writable filters
