@@ -433,3 +433,76 @@ def test_an_answer_asked_again_keeps_what_its_failed_try_spent(
     assert spend["cost_usd"] == Decimal("0.01") + (before or 0)
     assert spend["cost_is_partial"] is partial
     assert (spend["input_tokens"], spend["output_tokens"]) == (10, 2)
+
+
+@pytest.mark.security
+async def test_paired_criteria_read_score_json_in_bounded_batches(mock_db_session, monkeypatch):
+    from collections.abc import Sequence
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.core.permissions import AuthContext
+    from app.db.models.case_score import CaseScore
+    from app.services.eval_comparison import criterion_flipped
+
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
+    candidate, baseline = EvalRunArm(id=uuid.uuid4()), EvalRunArm(id=uuid.uuid4())
+    case_ids = [uuid.uuid4() for _ in range(51)]
+    score_cases: dict[UUID, tuple[UUID, bool]] = {}
+
+    def attempts(arm: EvalRunArm, is_candidate: bool) -> list[EvalRunCase]:
+        result: list[EvalRunCase] = []
+        for case_id in case_ids:
+            score_id = uuid.uuid4()
+            score_cases[score_id] = (case_id, is_candidate)
+            result.append(
+                EvalRunCase(arm_id=arm.id, case_id=case_id, case_score_id=score_id, attempt=0)
+            )
+        return result
+
+    mine, theirs = attempts(candidate, True), attempts(baseline, False)
+    read_sizes: list[int] = []
+
+    async def scores(
+        _db: AsyncSession, score_ids: Sequence[UUID], *, organization_id: UUID
+    ) -> dict[UUID, CaseScore]:
+        assert organization_id == ctx.organization_id
+        read_sizes.append(len(score_ids))
+        assert len(score_ids) <= 50
+        result: dict[UUID, CaseScore] = {}
+        for score_id in score_ids:
+            case_id, is_candidate = score_cases[score_id]
+            result[score_id] = CaseScore(
+                id=score_id,
+                results=[
+                    {
+                        "scorer": "check",
+                        "name": f"{case_id} check {number}",
+                        "required": True,
+                        "status": "fail"
+                        if is_candidate and case_id == case_ids[-1] and number == 49
+                        else "pass",
+                    }
+                    for number in range(50)
+                ],
+            )
+        return result
+
+    monkeypatch.setattr("app.services.eval_run.eval_run_repo.scores", scores)
+    service = EvalRunService(mock_db_session)
+    pages = [
+        page
+        async for page in service.criterion_batches(
+            ctx,
+            candidate,
+            mine,
+            baseline,
+            theirs,
+            case_ids=[*case_ids, uuid.uuid4()],
+        )
+    ]
+    assert [len(page) for page in pages] == [50, 1]
+    assert read_sizes == [50, 50, 1, 1]
+    assert {case_id for page in pages for case_id, _ in page} == set(case_ids)
+    assert criterion_flipped(pages[-1][0][1].baseline, pages[-1][0][1].candidate)

@@ -750,7 +750,7 @@ def _attempt(iteration: dict[str, Any], chosen: Any) -> dict[str, Any]:
         ],
         "cost_usd": iteration.get("cost_usd"),
         "chosen": iteration["id"] == chosen,
-        "best": iteration.get("verdict") == "better",
+        "best": iteration.get("verdict") in _GAINS,
     }
 
 

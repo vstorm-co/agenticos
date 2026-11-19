@@ -878,7 +878,7 @@ def _grammar_expresses(node: object) -> bool:
     bounds, or `minItems` above one.
     """
     if not isinstance(node, dict):
-        return True
+        return node is not True
     if not _TYPED & node.keys() or _BOUNDS & node.keys() or node.get("minItems", 0) > 1:
         return False
     children: list[object] = [

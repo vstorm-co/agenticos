@@ -1194,7 +1194,7 @@ class ImprovementPipelineService:
                     criteria = tuple(
                         move
                         for move in comparison.criteria
-                        if move.baseline_passed != move.candidate_passed
+                        if move.fixed_confirmed or move.broken_confirmed
                     )
             detail = iteration.verdict_detail or {}
             attempts.append(

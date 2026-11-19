@@ -54,6 +54,47 @@ export function graphTableRefs(graph: WorkflowGraph): TableRefAt[] {
   return refs;
 }
 
+/** Additional column dependencies; null means a whole-record input needs review. */
+export function nodeTableColumns(graph: WorkflowGraph, site: TableRefSite): string[] | null {
+  if (site.binding !== null) return [];
+  const node = graph.nodes.find((entry) => entry.id === site.nodeId);
+  if (!node) return [];
+  const config = node.config;
+  const columns = new Set<string>();
+  if (Array.isArray(config.filters)) {
+    for (const value of config.filters) {
+      const filter: unknown = value;
+      if (
+        typeof filter === "object" &&
+        filter !== null &&
+        "column_id" in filter &&
+        typeof filter.column_id === "string"
+      ) {
+        columns.add(filter.column_id);
+      }
+    }
+  }
+  const sort = config.sort;
+  if (
+    typeof sort === "object" &&
+    sort !== null &&
+    "by" in sort &&
+    typeof sort.by === "string" &&
+    sort.by !== "created_at" &&
+    sort.by !== "updated_at"
+  ) {
+    columns.add(sort.by);
+  }
+  if (RECORD_WRITERS.has(node.definition_id)) {
+    for (const binding of graph.bindings) {
+      if (binding.target_node_id === node.id && binding.target_field === "values") return null;
+      const match = /^values\/([^/]+)$/.exec(binding.target_field);
+      if (binding.target_node_id === node.id && match) columns.add(match[1]!);
+    }
+  }
+  return [...columns];
+}
+
 /** The table's live columns, the ones a reference can read. */
 export function liveColumns(table: TableRead): ColumnDef[] {
   return table.columns.filter((column) => !column.archived);
@@ -84,16 +125,22 @@ export function safeToRebind(
   ref: TableIORef,
   table: TableRead,
   versions: SchemaVersionRead[],
+  additionalColumns: readonly string[] | null = [],
 ): boolean {
+  // A whole-record input may name columns or labels only known at runtime.
+  if (additionalColumns === null) return false;
   const bound = versions.find((version) => version.version === ref.schema_version);
   if (!bound) return false;
   const now = new Map(liveColumns(table).map((column) => [column.id, column]));
-  const read = bound.columns.filter(
-    (column) => !column.archived && (ref.column_ids === null || ref.column_ids.includes(column.id)),
+  const previous = new Map(
+    bound.columns.filter((column) => !column.archived).map((column) => [column.id, column]),
   );
-  return read.every((column) => {
-    const current = now.get(column.id);
+  const read = new Set([...(ref.column_ids ?? previous.keys()), ...additionalColumns]);
+  return [...read].every((id) => {
+    const column = previous.get(id);
+    const current = now.get(id);
     return (
+      column !== undefined &&
       current !== undefined &&
       current.type === column.type &&
       (current.revision ?? 0) === (column.revision ?? 0)

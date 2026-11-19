@@ -9,6 +9,7 @@ import { getTable, listSchemaVersions } from "@/lib/tables-api";
 import {
   graphTableRefs,
   liveColumns,
+  nodeTableColumns,
   orphanValueBindings,
   rebindRef,
   recordWriterTables,
@@ -135,7 +136,7 @@ export function useWorkflowTableDrift(enabled: boolean): void {
     for (const { site, ref } of stale) {
       const table = detail(ref.table_id)!;
       const next = rebindRef(ref, table.schema_version, liveColumns(table));
-      if (safeToRebind(ref, table, history(ref.table_id)!.items)) {
+      if (safeToRebind(ref, table, history(ref.table_id)!.items, nodeTableColumns(graph, site))) {
         result.rebound.push({ site, ref: next });
       } else {
         const field = site.binding === null ? null : graph.bindings[site.binding]!.target_field;

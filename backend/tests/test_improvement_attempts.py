@@ -150,7 +150,12 @@ class TestEarlierAttempts:
         monkeypatch.setattr(authoring_repo, "list_hunks", AsyncMock(return_value=[kept, other]))
         compare = AsyncMock(
             return_value=SimpleNamespace(
-                verdict="worse", criteria=[_move("moved", 1, 3), _move("still", 2, 2)]
+                verdict="worse",
+                criteria=[
+                    _move("moved", 1, 3).model_copy(update={"fixed_confirmed": 2}),
+                    _move("noise", 1, 3),
+                    _move("net unchanged", 2, 2).model_copy(update={"broken_confirmed": 1}),
+                ],
             )
         )
         monkeypatch.setattr(EvalRunService, "compare", compare)
@@ -162,7 +167,7 @@ class TestEarlierAttempts:
         assert (attempt.number, attempt.verdict) == (1, ImprovementVerdict.REGRESSION)
         assert attempt.changes == ("set x: 1",)
         assert (attempt.held_out, attempt.fixed, attempt.broken) == (5, 1, 2)
-        assert [move.name for move in attempt.criteria] == ["moved"]
+        assert [move.name for move in attempt.criteria] == ["moved", "net unchanged"]
         assert compare.await_args.kwargs == {"training_only": True}
 
     @pytest.mark.parametrize(

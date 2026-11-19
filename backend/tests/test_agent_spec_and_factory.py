@@ -1421,6 +1421,9 @@ class TestAStructuredAnswer:
         ("schema", "strict"),
         [
             (_SCORE, None),
+            (_shaped({"type": "object", "additionalProperties": True}), False),
+            (_shaped({"type": "array", "items": True}), False),
+            (_shaped({"type": "object", "additionalProperties": False}), None),
             (_shaped({"type": "array", "items": {"type": "string"}, "minItems": 1}), None),
             (_shaped({"type": "array", "minItems": 3}), False),
             (_shaped({"type": "integer", "maximum": 5}), False),

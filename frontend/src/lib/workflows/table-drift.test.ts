@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   graphTableRefs,
+  nodeTableColumns,
   isTableRefusalField,
   orphanValueBindings,
   rebindRef,
@@ -183,5 +184,50 @@ describe("isTableRefusalField", () => {
     expect(isTableRefusalField("bindings.1", GRAPH)).toBe(false);
     expect(isTableRefusalField("bindings.0", null)).toBe(false);
     expect(isTableRefusalField("nodes.a.config.input_schema", GRAPH)).toBe(false);
+  });
+});
+
+describe("node column dependencies", () => {
+  it("checks filtered, sorted and written columns outside the output selection", () => {
+    const graph = structuredClone(GRAPH);
+    graph.nodes[0]!.definition_id = "table.record.update";
+    graph.nodes[0]!.config = {
+      table: ref(["c1"]),
+      filters: [{ column_id: "filtered", op: "eq", value: "x" }],
+      sort: { by: "sorted", direction: "asc" },
+    };
+    graph.bindings.push({
+      target_node_id: "a",
+      target_field: "values/written",
+      source: { kind: "literal", value: "x" },
+    });
+    const used = nodeTableColumns(graph, { nodeId: "a", binding: null });
+    expect(used).toEqual(["filtered", "sorted", "written"]);
+    const bound = [column("c1"), column("filtered"), column("sorted"), column("written")];
+    expect(safeToRebind(ref(["c1"]), table(bound), versions(bound), used)).toBe(true);
+    expect(safeToRebind(ref(["c1"]), table([column("c1")]), versions(bound), used)).toBe(false);
+    expect(nodeTableColumns(graph, { nodeId: "a", binding: 0 })).toEqual([]);
+    expect(nodeTableColumns(graph, { nodeId: "absent", binding: null })).toEqual([]);
+  });
+
+  it("leaves whole-record inputs for explicit review instead of guessing their columns", () => {
+    const graph = structuredClone(GRAPH);
+    graph.nodes[0]!.definition_id = "table.record.create";
+    graph.bindings.push({
+      target_node_id: "a",
+      target_field: "values",
+      source: { kind: "literal", value: { c1: "x" } },
+    });
+    const used = nodeTableColumns(graph, { nodeId: "a", binding: null });
+    expect(used).toBeNull();
+    expect(safeToRebind(ref(["c1"]), table([column("c1")]), versions([column("c1")]), used)).toBe(
+      false,
+    );
+  });
+
+  it("refuses a selected column already missing from the bound schema", () => {
+    expect(safeToRebind(ref(["missing"]), table([column("c1")]), versions([column("c1")]))).toBe(
+      false,
+    );
   });
 });

@@ -36,6 +36,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Stream paired criterion grades in bounded batches before aggregation, including worker rerun detection, and keep scratch I/O off the API event loop.
+- Include filter, sort and record-write columns when checking safe workflow table rebinding.
+- Handle boolean free-value output schemas in strict-tool fallback, report criterion gains consistently through MCP, and exclude unconfirmed criterion noise from retry prompts.
+
 - Bound criterion aggregation in temporary scratch storage before selecting results, preserve current-agent training answers, cap earlier-attempt prompt excerpts, include criterion-only gains in fork defaults, and keep skill attribution within the judge namespace. Workflow rebinding requests only the schema versions it needs, and saved MCP connections resolve catalog keys to their compiled service logos.
 
 - Preserve every criterion when a literal name already uses a duplicate's numbered suffix, so its confirmed improvement or regression is still counted.

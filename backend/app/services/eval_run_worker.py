@@ -20,7 +20,7 @@ of whose criteria, flipped against the baseline are rerun, and the run ends.
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from contextlib import AbstractAsyncContextManager, suppress
+from contextlib import AbstractAsyncContextManager, aclosing, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -1023,20 +1023,36 @@ class EvalRunWorker:
                         else None
                     )
                     same, _ = await service.pairing(ctx, run, arm, baseline, attempts)
-                    my_grades = await service.criterion_outcomes(ctx, arm, attempts)
-                    their_grades = await service.criterion_outcomes(
-                        ctx, baseline.here or baseline.arm, their_attempts
-                    )
+                    criterion_flips: set[UUID] = set()
+                    async with aclosing(
+                        service.criterion_batches(
+                            ctx,
+                            arm,
+                            attempts,
+                            baseline.here or baseline.arm,
+                            their_attempts,
+                            case_ids=[
+                                case_id for case_id in mine if case_id in same and case_id in theirs
+                            ],
+                        )
+                    ) as batches:
+                        async for batch in batches:
+                            criterion_flips.update(
+                                case_id
+                                for case_id, pair in batch
+                                if criterion_flipped(pair.baseline, pair.candidate)
+                            )
                     for case_id, (outcome, _, _) in mine.items():
                         first = firsts.get((arm.id, case_id))
                         if case_id not in same or first is None:
                             continue
-                        if classify(theirs[case_id][0], outcome) not in (
-                            Flip.REGRESSION,
-                            Flip.FIXED,
-                        ) and not criterion_flipped(
-                            their_grades.get(case_id, ({}, ()))[0],
-                            my_grades.get(case_id, ({}, ()))[0],
+                        if (
+                            classify(theirs[case_id][0], outcome)
+                            not in (
+                                Flip.REGRESSION,
+                                Flip.FIXED,
+                            )
+                            and case_id not in criterion_flips
                         ):
                             continue
                         queued[(arm.id, case_id)] = first

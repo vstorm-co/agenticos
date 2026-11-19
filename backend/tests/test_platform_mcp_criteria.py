@@ -102,3 +102,10 @@ def test_an_attempt_that_left_nothing_failing_says_no_more_than_what_moved():
     sentence = _attempt_sentence(_attempt_row(1, "criteria_better", _PRICE_BREAK))
 
     assert sentence.endswith("Criteria that got better: price break 9/40 → 40/40.")
+
+
+def test_a_chosen_criterion_gain_is_also_a_best_attempt():
+    row = _attempt_row(1, "criteria_better", _PRICE_BREAK)
+    assert _attempt(row, "it-1")["chosen"] is True
+    assert _attempt(row, "it-1")["best"] is True
+    assert _attempt(_attempt_row(2, "criteria_worse", _LENGTH), "it-1")["best"] is False

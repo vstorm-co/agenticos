@@ -282,7 +282,8 @@ def _earlier_section(attempts: Sequence[EarlierAttempt]) -> str:
             + (
                 "\n".join(
                     f"- {move.name}: {move.baseline_passed}/{move.graded} -> "
-                    f"{move.candidate_passed}/{move.graded}"
+                    f"{move.candidate_passed}/{move.graded}; confirmed fixes: "
+                    f"{move.fixed_confirmed}, confirmed breaks: {move.broken_confirmed}"
                     for move in attempt.criteria
                 )
             )

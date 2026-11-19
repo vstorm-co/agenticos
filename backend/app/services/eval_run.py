@@ -31,14 +31,15 @@ import hashlib
 import json
 import logging
 from collections import defaultdict
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import AsyncGenerator, Collection, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from itertools import batched
 from typing import Literal
 from uuid import UUID
 
-from anyio import to_thread
+from anyio import from_thread, to_thread
 from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -2572,12 +2573,11 @@ class EvalRunService:
             for case_id, first in firsts.items()
         }
 
-    async def criterion_outcomes(
-        self, ctx: AuthContext, arm: EvalRunArm, attempts: Sequence[EvalRunCase]
+    async def _criterion_outcomes(
+        self, ctx: AuthContext, own: Sequence[EvalRunCase]
     ) -> dict[UUID, tuple[dict[Criterion, Outcome], tuple[dict[Criterion, Outcome], ...]]]:
         """Each case's first criterion outcomes on an arm, and its reruns' - the scorers'
         own grades, which a person's verdict on the whole case leaves as they were."""
-        own = await self._arm_attempts(ctx, arm, attempts)
         scores = await self._scores(ctx, own)
         firsts: dict[UUID, dict[Criterion, Outcome]] = {}
         reruns: dict[UUID, list[dict[Criterion, Outcome]]] = defaultdict(list)
@@ -2589,6 +2589,51 @@ class EvalRunService:
             else:
                 reruns[attempt.case_id].append(graded)
         return {case_id: (first, tuple(reruns[case_id])) for case_id, first in firsts.items()}
+
+    async def criterion_batches(
+        self,
+        ctx: AuthContext,
+        candidate: EvalRunArm,
+        candidate_attempts: Sequence[EvalRunCase],
+        baseline: EvalRunArm,
+        baseline_attempts: Sequence[EvalRunCase],
+        *,
+        case_ids: Sequence[UUID],
+        confirmed_here: bool = True,
+        drift: bool = False,
+    ) -> AsyncGenerator[list[tuple[UUID, PairedGrades]]]:
+        """Paired criteria in batches of 50 cases, including reused first answers.
+
+        Only attempt metadata is indexed across the run. Score JSON and grade
+        dictionaries are read and released one batch at a time on both arms.
+        """
+        mine: dict[UUID, list[EvalRunCase]] = defaultdict(list)
+        theirs: dict[UUID, list[EvalRunCase]] = defaultdict(list)
+        for attempt in await self._arm_attempts(ctx, candidate, candidate_attempts):
+            mine[attempt.case_id].append(attempt)
+        for attempt in await self._arm_attempts(ctx, baseline, baseline_attempts):
+            theirs[attempt.case_id].append(attempt)
+        for ids in batched(case_ids, 50, strict=False):
+            my_grades = await self._criterion_outcomes(
+                ctx, [attempt for case_id in ids for attempt in mine.get(case_id, ())]
+            )
+            their_grades = await self._criterion_outcomes(
+                ctx, [attempt for case_id in ids for attempt in theirs.get(case_id, ())]
+            )
+            yield [
+                (
+                    case_id,
+                    PairedGrades(
+                        baseline=their_grades[case_id][0],
+                        candidate=my_grades[case_id][0],
+                        baseline_reruns=their_grades[case_id][1] if confirmed_here else (),
+                        candidate_reruns=my_grades[case_id][1],
+                        drift=drift,
+                    ),
+                )
+                for case_id in ids
+                if case_id in my_grades and case_id in their_grades
+            ]
 
     async def compare(
         self,
@@ -2776,22 +2821,27 @@ class EvalRunService:
             )
             for case_id in common
         ]
-        my_grades = await self.criterion_outcomes(ctx, candidate, attempts)
-        their_grades = await self.criterion_outcomes(ctx, their_arm, their_attempts)
-        moves = await to_thread.run_sync(
-            criterion_moves,
-            (
-                PairedGrades(
-                    baseline=their_grades[case_id][0],
-                    candidate=my_grades[case_id][0],
-                    baseline_reruns=their_grades[case_id][1] if confirmed_here else (),
-                    candidate_reruns=my_grades[case_id][1],
-                    drift=drift,
-                )
-                for case_id in common
-                if case_id in my_grades and case_id in their_grades
-            ),
+        batches = self.criterion_batches(
+            ctx,
+            candidate,
+            attempts,
+            their_arm,
+            their_attempts,
+            case_ids=common,
+            confirmed_here=confirmed_here,
+            drift=drift,
         )
+
+        def paired_grades() -> Iterator[PairedGrades]:
+            # The worker owns scratch I/O; database reads resume on this event
+            # loop one bounded batch at a time, never on the SQLite thread.
+            while (batch := from_thread.run(anext, batches, None)) is not None:
+                yield from (pair for _, pair in batch)
+
+        try:
+            moves = await to_thread.run_sync(criterion_moves, paired_grades())
+        finally:
+            await batches.aclose()
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
         invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None
         if run.proposal_check is not None:

@@ -213,3 +213,21 @@ describe("useWorkflowTableDrift", () => {
     expect(store.getState().graph!.nodes[0]!.config.table).toEqual(ref(["c1"]));
   });
 });
+
+it.each([
+  ["trigger.table_record", { filters: [{ column_id: "c2", op: "eq", value: "x" }] }],
+  ["table.record.query", { sort: { by: "c2", direction: "asc" } }],
+] as const)(
+  "keeps %s drift when an unselected dependent column changes",
+  async (definition, extra) => {
+    serve([column("c1"), column("c2")], [column("c1"), column("c2", "number")]);
+    seed(ref(["c1"]));
+    const graph = store.getState().graph!;
+    graph.nodes[0]!.definition_id = definition;
+    graph.nodes[0]!.config = { table: ref(["c1"]), ...extra };
+    renderHook(() => useWorkflowTableDrift(true), { wrapper });
+    await waitFor(() => expect(store.getState().tableDrift).toHaveLength(1));
+    expect(store.getState().graph!.nodes[0]!.config.table).toEqual(ref(["c1"]));
+    expect(store.getState().isDirty).toBe(false);
+  },
+);
