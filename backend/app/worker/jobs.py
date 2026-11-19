@@ -109,7 +109,7 @@ class ChannelMessage(Payload):
     organization_id: UUID
     bot_id: UUID
     authorization_generation: UUID
-    platform: Literal["slack", "telegram", "mattermost", "teams", "discord"]
+    platform: Literal["slack", "telegram", "mattermost", "teams", "discord", "matrix"]
     platform_user_id: str
     platform_chat_id: str
     chat_type: Literal["private", "group"]

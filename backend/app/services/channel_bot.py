@@ -40,6 +40,7 @@ from app.repositories import (
     teams_conversation_repo,
 )
 from app.schemas.channel_bot import (
+    SELF_HOSTED,
     AccessPolicy,
     BotAgent,
     ChannelBotCreate,
@@ -513,7 +514,7 @@ class ChannelBotService:
         an attachment, which is the state every Mattermost bot was in before the
         field existed.
         """
-        if platform in {"mattermost", "imessage"} and api_base_url is None:
+        if platform in SELF_HOSTED and api_base_url is None:
             raise refused_field(
                 "api_base_url",
                 "A self-hosted bot cannot lose its server URL - "
@@ -526,7 +527,7 @@ class ChannelBotService:
                 raise refused_field(
                     "api_base_url", "An iMessage bridge endpoint cannot contain query or fragment"
                 )
-        if platform not in {"mattermost", "imessage"} and api_base_url is not None:
+        if platform not in SELF_HOSTED and api_base_url is not None:
             raise refused_field(
                 "api_base_url",
                 f"A server URL is for a self-hosted platform - a {platform} bot "
