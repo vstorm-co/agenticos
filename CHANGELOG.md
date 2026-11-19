@@ -36,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Send the desktop stop signal when a run is cancelled during command dispatch, and bound cancellation-safe Redis channel cleanup.
+
 - Validate Draft-07 tuple-form output schemas locally instead of retaining an incompatible strict provider grammar.
 
 - Keep an Improve attempt with a confirmed whole-question change and a falling pass rate from being offered as **Better on criteria**. Criterion-only verdicts require no confirmed whole-question movement.
