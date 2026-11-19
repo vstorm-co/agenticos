@@ -345,7 +345,8 @@ def _skills_section(spec: AgentSpec, skills: Sequence[Skill], used: Collection[U
         "Each skill is a resource of its own that other agents may read too. Never copy "
         "a skill's text into the instructions, and never propose a new skill that repeats "
         "one. Where the runs show that a skill is wrong or misses a step, report it under "
-        "skill_problems, naming the skill and the graded criteria it makes fail, and change "
+        "skill_problems, naming the skill and the graded criteria it makes fail - by their "
+        "family where a grade names one - and change "
         "nothing in the agent for it.\n"
         f"{listed}\n\n"
         + (f"# The skills the runs below used, read only\n{bodies}\n" if bodies else "")
@@ -369,6 +370,8 @@ def _seed_section(seed: Mapping[str, Any] | None) -> str:
     quotes = "\n".join(f"> {quote}" for quote in seed.get("quotes", []))
     return (
         "\n\n# What an agent's own Improve found in this skill\n"
+        "Each of these is one of your problems, whether or not the runs above show it "
+        "again: say for each whether the skill's text leads to it.\n"
         f"{problems}\n\nQuoted from its runs:\n{quotes or '(none)'}"
     )
 
@@ -416,7 +419,9 @@ def _skill_edits_prompt(
         "agent on this line reads the skill, so change only the passages the problems "
         "point at, as edits to passages of the body - never a whole new body. Change the "
         "description only when agents open the skill when they should not, or do not when "
-        "they should.\n\n"
+        "they should. Write at least one edit for every problem below: a problem left "
+        "without one stays in every answer. Only where the skill's text truly cannot fix a "
+        "problem, leave it out and say which and why in expected_effect.\n\n"
         f"# Its description\n{description}\n\n"
         f"# Its current body\n<skill>\n{content}\n</skill>\n\n"
         f"# The problems the skill's text leads to\n{found}\n\n"

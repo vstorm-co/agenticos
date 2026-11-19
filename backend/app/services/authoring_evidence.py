@@ -117,7 +117,9 @@ class PackedRun:
     @property
     def grade_lines(self) -> list[str]:
         return [
-            f"{grade.scorer}/{grade.name}: {_clip(grade.reason, _TURN_CHARS)}"
+            f"{grade.scorer}/{grade.name}"
+            + (f" (family: {grade.family})" if grade.family else "")
+            + f": {_clip(grade.reason, _TURN_CHARS)}"
             for grade in self.grades
         ]
 
