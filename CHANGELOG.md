@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Answer on **Matrix**: register a bot account on your own homeserver with its access token and the homeserver's URL, and invite it to a room or a direct chat. Answers stream into a thread on the question as edits, approvals and questions are numbered replies, and files, the thread's earlier messages and the room's members reach the agent. Unencrypted rooms only for now; end-to-end encryption follows (#2081).
+
+### Upgrading
+
+- Apply `0342_matrix_channel.py`, which lets an agent be exposed on Matrix. Give a Matrix bot account a rate-limit exemption on its homeserver so streamed answers are not throttled; [Channels → Matrix](docs/channels.md#matrix) has the Synapse call.
+
 ## [1.84.0] - 2026-11-18
 
 ### Added

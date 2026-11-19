@@ -1713,10 +1713,88 @@ Directory access takes priority when both sources grant membership. At sign-in,
 a directory grant takes over the Discord-managed row; when it ends, a remaining
 Discord grant takes over without revoking credentials. See [membership handover](directory.md#what-the-sync-never-touches).
 
+## Matrix { #matrix }
+
+A Matrix bot is an ordinary account on your own homeserver, spoken to over the
+Client-Server API with no library between (#2081). Everything arrives over the
+bot's `/sync` long-poll, so **a deployment needs no public address for Matrix**,
+and a Matrix bot has no webhook mode. Where the bot stopped reading is kept in
+the deployment's Redis, so a restart resumes there. The first start of an account
+skips the room history rather than answering it.
+
+!!! warning "Unencrypted rooms only, for now"
+
+    The bot reads rooms without end-to-end encryption. An encrypted room, or an
+    encrypted direct chat, delivers nothing it can read, and it stays silent
+    there. Encryption is the second stage of #2081.
+
+1. Create an account for the bot on the homeserver, for example `@agent:example.org`.
+2. Get an **access token** for it:
+    - On a homeserver behind the Matrix Authentication Service (MAS), issue a
+      compatibility token on the MAS host:
+      `mas-cli manage issue-compatibility-token <username>`. MAS 1.5 and later
+      can also create a personal session in the account's settings.
+    - On a homeserver without MAS, sign in once with the account's password:
+      `curl -XPOST https://matrix.example.org/_matrix/client/v3/login -d
+      '{"type":"m.login.password","identifier":{"type":"m.id.user","user":"agent"},"password":"…"}'`
+      and keep `access_token` from the answer. Do not sign that session out: its
+      token is the bot's.
+3. Register it: **Channels → Add channel**, platform `matrix`, with the token and
+   the homeserver's **client URL** (`https://matrix.example.org`). When the
+   stream opens, the bot asks the homeserver who it is. A token the homeserver
+   rejects stops the bot, and its row says so.
+4. Invite the bot to a room, or start a direct chat with it. It joins when the
+   person inviting is someone its access policy admits, and declines otherwise.
+
+**Lift the rate limit for the bot.** An answer is one message edited once a
+second while it streams, and Synapse's default message rate limit throttles that
+after a few seconds. The bot waits when the homeserver says how long, so nothing
+is lost, but a long answer then appears in jumps. On Synapse, an administrator
+exempts the bot with
+`POST /_synapse/admin/v1/users/@agent:example.org/override_ratelimit` and
+`{"messages_per_second": 0, "burst_count": 0}`.
+
+| Where | When it answers |
+|---|---|
+| A direct chat (a room of the bot and one person) | Every message |
+| A room | When the message mentions the bot. The answer opens a thread on the question, and the thread is the conversation |
+| A thread the bot was asked in | Every message in it |
+
+A mention is read from the message's `m.mentions`, which current clients send.
+For a message from an older client, it is read from the bot's user ID or a pill
+linking to it. `@room` is answered only when the bot's policy says to answer
+channel-wide mentions. Like everywhere else, a direct chat is threaded too: a
+reply in the answer's thread continues the conversation, and a new message at
+the bottom starts a new one.
+
+**The answer is written in place.** The bot posts one message and edits it with
+`m.replace` as the answer streams. Past 4,000 characters the answer runs into
+further messages in the same thread. Only text the guardrails have already
+screened is written. Nothing the bot posts can notify anybody: every message
+carries an empty `m.mentions`. Answers are sent as Markdown rendered to HTML, and
+HTML in the model's output is escaped, never sent as markup.
+
+**Approvals and questions are numbered.** Matrix has no buttons, and polls are
+not in the specification, so a prompt lists its choices as numbered lines in the
+thread. A reply that is just the number decides it, as with
+[SMS](#sms). The bot reacts with 👀 to a question as it arrives, and shows that
+it is typing while it works.
+
+**Files** people post are fetched over the homeserver's authenticated media with
+the bot's token, up to the upload limit; files and charts the agent sends are
+uploaded the same way. **A thread the bot is brought into partway is read first**,
+as on Slack and Mattermost. Each message is read as its latest edit says, and
+files the bot posted itself are left out. Where the binding allows it, the agent
+can describe the room, list its members and read its history.
+
+**Who is speaking** is the Matrix user ID (`@ada:example.org`), linked to a member
+with `/link` as on every platform. A conversation from a room is shown in the
+console to those still joined to that room.
+
 ## A bot that cannot start stops, rather than retrying
 
-Telegram polling, Slack Socket Mode, the Mattermost event stream and the Discord
-Gateway all run under one supervisor that reconnects a dropped session. A missing or rejected
+Telegram polling, Slack Socket Mode, the Mattermost event stream, the Discord
+Gateway and the Matrix sync all run under one supervisor that reconnects a dropped session. A missing or rejected
 configuration value is not a dropped session, and the supervisor treats it
 differently: it records the bot as down with the reason, logs once and stops.
 Nothing it does would change the row — an operator has to add the Slack `xapp-`

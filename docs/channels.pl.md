@@ -1,5 +1,5 @@
 ---
-source_sha: "2f0c04055b6b"
+source_sha: "7db4e67f54b4"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1759,10 +1759,92 @@ Gdy obie ścieżki dają członkostwo, przy logowaniu pierwszeństwo ma katalog.
 Po utracie dostępu z katalogu aktywna rola Discorda przejmuje ten sam wiersz bez
 cofania kluczy. Zobacz [przekazywanie członkostwa](directory.md#what-the-sync-never-touches).
 
+## Matrix { #matrix }
+
+Bot Matrixa to zwykłe konto na twoim własnym homeserverze, z którym wdrożenie
+rozmawia przez Client-Server API, bez biblioteki pośrodku (#2081). Wszystko
+przychodzi przez long-poll `/sync` bota, więc **wdrożenie nie potrzebuje
+publicznego adresu dla Matrixa**, a bot Matrixa nie ma trybu webhooka. Miejsce,
+w którym bot przestał czytać, jest przechowywane w Redisie wdrożenia, więc po
+restarcie bot wznawia od niego. Przy pierwszym starcie konta bot pomija historię
+pokoju, zamiast na nią odpowiadać.
+
+!!! warning "Na razie tylko pokoje nieszyfrowane"
+
+    Bot czyta pokoje bez szyfrowania end-to-end. Zaszyfrowany pokój albo
+    zaszyfrowany czat bezpośredni nie dostarcza niczego, co bot mógłby
+    przeczytać, i bot tam milczy. Szyfrowanie to drugi etap #2081.
+
+1. Utwórz na homeserverze konto dla bota, na przykład `@agent:example.org`.
+2. Zdobądź dla niego **token dostępu** (access token):
+    - Na homeserverze za Matrix Authentication Service (MAS) wydaj token
+      zgodności na hoście MAS:
+      `mas-cli manage issue-compatibility-token <username>`. MAS 1.5 i nowsze
+      potrafią też utworzyć sesję osobistą w ustawieniach konta.
+    - Na homeserverze bez MAS zaloguj się raz hasłem konta:
+      `curl -XPOST https://matrix.example.org/_matrix/client/v3/login -d
+      '{"type":"m.login.password","identifier":{"type":"m.id.user","user":"agent"},"password":"…"}'`
+      i zachowaj `access_token` z odpowiedzi. Nie wylogowuj tej sesji: jej token
+      należy do bota.
+3. Zarejestruj go: **Kanały → Dodaj kanał**, platforma `matrix`, z tokenem i
+   **URL-em klienta** homeservera (`https://matrix.example.org`). Gdy strumień
+   się otwiera, bot pyta homeserver, kim jest. Token, który homeserver odrzuca,
+   zatrzymuje bota, a jego wiersz to mówi.
+4. Zaproś bota do pokoju albo zacznij z nim czat bezpośredni. Bot dołącza, gdy
+   zapraszający jest kimś, kogo dopuszcza jego polityka dostępu, a w przeciwnym
+   razie odmawia.
+
+**Znieś limit szybkości dla bota.** Odpowiedź to jedna wiadomość edytowana raz na
+sekundę, póki spływa, a domyślny limit wiadomości w Synapse dławi to po kilku
+sekundach. Bot czeka, gdy homeserver mówi, jak długo, więc nic nie przepada, ale
+długa odpowiedź pojawia się wtedy skokami. W Synapse administrator zwalnia bota
+z limitu przez
+`POST /_synapse/admin/v1/users/@agent:example.org/override_ratelimit` z
+`{"messages_per_second": 0, "burst_count": 0}`.
+
+| Gdzie | Kiedy odpowiada |
+|---|---|
+| Czat bezpośredni (pokój bota i jednej osoby) | Na każdą wiadomość |
+| Pokój | Gdy wiadomość wspomina bota. Odpowiedź otwiera wątek na pytaniu, a wątek jest rozmową |
+| Wątek, w którym zapytano bota | Na każdą wiadomość w nim |
+
+Wzmianka jest odczytywana z `m.mentions` wiadomości, które wysyłają obecne
+klienty. W wiadomości ze starszego klienta jest odczytywana z identyfikatora
+użytkownika bota albo z „pigułki” (pill), która do niego linkuje. Na `@room` bot
+odpowiada tylko wtedy, gdy jego polityka każe odpowiadać na wzmianki całego
+kanału. Jak wszędzie indziej, czat bezpośredni też ma wątki: odpowiedź w wątku
+odpowiedzi kontynuuje rozmowę, a nowa wiadomość na dole zaczyna nową.
+
+**Odpowiedź jest pisana w miejscu.** Bot publikuje jedną wiadomość i edytuje ją
+przez `m.replace` w miarę, jak odpowiedź spływa. Po 4000 znakach odpowiedź
+przechodzi do kolejnych wiadomości w tym samym wątku. Zapisywany jest tylko
+tekst, który guardraile już sprawdziły. Nic, co publikuje bot, nie może nikogo
+powiadomić: każda wiadomość niesie puste `m.mentions`. Odpowiedzi są wysyłane
+jako Markdown wyrenderowany do HTML, a HTML w wyjściu modelu jest escapowany,
+nigdy nie jest wysyłany jako znaczniki.
+
+**Zatwierdzenia i pytania są numerowane.** Matrix nie ma przycisków, a ankiet nie
+ma w specyfikacji, więc prośba wypisuje swoje opcje jako ponumerowane wiersze w
+wątku. Odpowiedź, która jest samym numerem, rozstrzyga ją, tak jak w
+[SMS](#sms). Bot reaguje 👀 na pytanie, gdy ono przychodzi, i pokazuje, że pisze,
+gdy pracuje.
+
+**Pliki** wrzucane przez ludzi są pobierane przez uwierzytelnione media
+homeservera tokenem bota, do limitu wysyłania; pliki i wykresy, które wysyła
+agent, są wysyłane tak samo. **Wątek, do którego bota dołączono w trakcie, jest
+czytany najpierw**, tak jak na Slacku i Mattermoście. Każda wiadomość jest
+czytana w brzmieniu jej ostatniej edycji, a pliki wrzucone przez samego bota są
+pomijane. Gdy pozwala na to powiązanie, agent może opisać pokój, wypisać jego
+członków i czytać jego historię.
+
+**Kto mówi**, to identyfikator użytkownika Matrixa (`@ada:example.org`), łączony z
+członkiem przez `/link` jak na każdej platformie. Rozmowa z pokoju jest pokazywana
+w konsoli tym, którzy nadal należą do tego pokoju.
+
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
-Polling Telegrama, Socket Mode Slacka, strumień eventów Mattermosta i Gateway
-Discorda chodzą pod jednym supervisorem, który ponownie łączy zerwaną sesję. Brakująca albo odrzucona
+Polling Telegrama, Socket Mode Slacka, strumień eventów Mattermosta, Gateway
+Discorda i synchronizacja Matrixa chodzą pod jednym supervisorem, który ponownie łączy zerwaną sesję. Brakująca albo odrzucona
 wartość konfiguracyjna nie jest zerwaną sesją i supervisor traktuje ją inaczej:
 zapisuje bota jako położonego wraz z powodem, loguje raz i zatrzymuje się. Nic,
 co by zrobił, nie zmieniłoby tego wiersza — operator musi dodać slackowy token
