@@ -36,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Recheck dataset and skill access for stored criterion-bearing notifications in the inbox and before delayed delivery, including after permissions are revoked.
+
 - Preserve record-writer bindings keyed by live labels, including escaped keys, and retain a result headline when criterion evidence is hidden.
 
 - Skip paid confirmation reruns when scoring settings or judge pins make the baseline incomparable.

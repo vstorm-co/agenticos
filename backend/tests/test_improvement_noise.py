@@ -15,7 +15,7 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.dataset import Dataset
 from app.db.models.improvement import ImprovementRun
 from app.db.models.skill import Skill
-from app.services import improvement_pipeline, improvement_skills
+from app.services import criterion_access, improvement_pipeline
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_states import (
     NOISE_EXAMPLES,
@@ -346,17 +346,17 @@ async def test_criterion_metadata_needs_its_dataset_and_named_skill(service, mon
     attempt.verdict_detail = detail
     dataset = Dataset(id=run.dataset_id, organization_id=ORG, name="private")
     monkeypatch.setattr(
-        improvement_pipeline.dataset_repo,
-        "get",
-        AsyncMock(return_value=None if denied == "missing_dataset" else dataset),
+        criterion_access.eval_run_repo,
+        "datasets",
+        AsyncMock(return_value={} if denied == "missing_dataset" else {dataset.id: dataset}),
     )
     monkeypatch.setattr(
-        improvement_pipeline,
+        criterion_access,
         "accessible_ids",
-        AsyncMock(return_value=set() if denied == "dataset" else {dataset.id}),
+        AsyncMock(return_value=set() if denied in {"dataset", "missing_dataset"} else {dataset.id}),
     )
     monkeypatch.setattr(
-        improvement_pipeline,
+        criterion_access,
         "readable_criterion_owners",
         AsyncMock(return_value=set() if denied == "skill" else {"private skill"}),
     )
@@ -371,7 +371,7 @@ async def test_criterion_metadata_needs_its_dataset_and_named_skill(service, mon
     assert attempt.verdict_detail == detail
     assert "private rubric" in str(detail)
     if denied == "runs":
-        improvement_pipeline.dataset_repo.get.assert_not_awaited()
+        criterion_access.eval_run_repo.datasets.assert_not_awaited()
     if denied is not None:
         assert "private rubric" not in read.model_dump_json()
         assert "private skill" not in read.model_dump_json()
@@ -382,13 +382,13 @@ async def test_criterion_owner_names_are_resolved_and_filtered_in_one_tenant(mon
     visible = Skill(id=uuid.uuid4(), organization_id=ORG, name="visible")
     hidden = Skill(id=uuid.uuid4(), organization_id=ORG, name="hidden")
     fetch = AsyncMock(return_value={visible.name: visible, hidden.name: hidden})
-    monkeypatch.setattr(improvement_skills.skill_repo, "get_by_names", fetch)
-    monkeypatch.setattr(improvement_skills, "accessible_ids", AsyncMock(return_value={visible.id}))
+    monkeypatch.setattr(criterion_access.skill_repo, "get_by_names", fetch)
+    monkeypatch.setattr(criterion_access, "accessible_ids", AsyncMock(return_value={visible.id}))
     db = AsyncMock()
-    assert await improvement_skills.readable_criterion_owners(db, OWNER, set()) == set()
+    assert await criterion_access.readable_criterion_owners(db, OWNER, set()) == set()
     fetch.assert_not_awaited()
     names = {"visible", "hidden", "deleted"}
-    assert await improvement_skills.readable_criterion_owners(db, OWNER, names) == {"visible"}
+    assert await criterion_access.readable_criterion_owners(db, OWNER, names) == {"visible"}
     fetch.assert_awaited_once_with(db, names, organization_id=ORG)
 
 
@@ -401,10 +401,10 @@ async def test_a_metric_without_named_criteria_keeps_its_shape_for_an_authorized
     attempt = improvement_pipeline.improvement_repo.list_iterations.return_value[0]
     attempt.verdict_detail = {"criterion_change": 0.0, "criteria": criteria}
     dataset = Dataset(id=run.dataset_id, organization_id=ORG, name="visible")
-    monkeypatch.setattr(improvement_pipeline.dataset_repo, "get", AsyncMock(return_value=dataset))
     monkeypatch.setattr(
-        improvement_pipeline, "accessible_ids", AsyncMock(return_value={dataset.id})
+        criterion_access.eval_run_repo, "datasets", AsyncMock(return_value={dataset.id: dataset})
     )
+    monkeypatch.setattr(criterion_access, "accessible_ids", AsyncMock(return_value={dataset.id}))
     read = await pipeline._read(OWNER, run, noise=False)
     assert read.iterations[0].verdict_detail == attempt.verdict_detail
 
@@ -449,14 +449,16 @@ async def test_result_notifications_filter_criterion_evidence_for_the_current_re
         AsyncMock(return_value=None if denied == "membership" else reader),
     )
     dataset = Dataset(id=run.dataset_id, organization_id=ORG, name="private")
-    monkeypatch.setattr(improvement_pipeline.dataset_repo, "get", AsyncMock(return_value=dataset))
     monkeypatch.setattr(
-        improvement_pipeline,
-        "accessible_ids",
-        AsyncMock(return_value=set() if denied == "dataset" else {dataset.id}),
+        criterion_access.eval_run_repo, "datasets", AsyncMock(return_value={dataset.id: dataset})
     )
     monkeypatch.setattr(
-        improvement_pipeline,
+        criterion_access,
+        "accessible_ids",
+        AsyncMock(return_value=set() if denied in {"dataset", "missing_dataset"} else {dataset.id}),
+    )
+    monkeypatch.setattr(
+        criterion_access,
         "readable_criterion_owners",
         AsyncMock(return_value=set() if denied == "skill" else {"private skill"}),
     )
@@ -467,3 +469,12 @@ async def test_result_notifications_filter_criterion_evidence_for_the_current_re
 
     assert bool(send.await_args.kwargs["criteria"]) is (denied is None)
     assert attempt.verdict_detail["criteria"][0]["name"] == "private rubric"
+
+
+async def test_an_empty_criterion_source_batch_reads_nothing(monkeypatch):
+    fetch = AsyncMock()
+    monkeypatch.setattr(criterion_access.eval_run_repo, "datasets", fetch)
+    assert await criterion_access.criterion_source_access(
+        AsyncMock(), OWNER, dataset_ids=set(), names={"unused"}
+    ) == (set(), set())
+    fetch.assert_not_awaited()

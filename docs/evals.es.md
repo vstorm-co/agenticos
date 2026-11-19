@@ -1,5 +1,5 @@
 ---
-source_sha: "069eece86423"
+source_sha: "e392578c3e92"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -360,7 +360,7 @@ Un criterio del juez puede aplicarse a todos los casos o solo a casos con alguna
 
 `criterion_change` es el número de correcciones confirmadas de criterios menos los empeoramientos confirmados, dividido por todas las evaluaciones de criterios comparadas por pares. Se calcula antes de limitar los detalles de la respuesta. Si las preguntas completas no cambian y varios intentos solo mejoran criterios, Improve prefiere el mayor cambio normalizado; un empate exacto conserva el intento anterior. Las comparaciones inválidas no agregan ni devuelven cambios de criterios. Las líneas base no comparables no provocan repeticiones de confirmación de pago.
 
-Los nombres de criterios, sus calificaciones y las atribuciones a skills requieren `runs:view`, acceso al dataset fijado para la sesión y a cada skill mencionado. Los detalles de una comprobación de skills requieren acceso a todos los datasets utilizados. Si alguna fuente está oculta o ya no existe, estos detalles se ocultan sin modificar los resultados guardados. Las notificaciones de resultados comprueban el acceso actual del destinatario antes de incluir los detalles de los criterios.
+Los nombres de criterios, sus calificaciones y las atribuciones a skills requieren `runs:view`, acceso al dataset fijado para la sesión y a cada skill mencionado. Los detalles de una comprobación de skills requieren acceso a todos los datasets utilizados. Si alguna fuente está oculta o ya no existe, estos detalles se ocultan sin modificar los resultados guardados. Las notificaciones de resultados comprueban el acceso actual del destinatario antes de incluir los detalles de los criterios. Las notificaciones guardadas con criterios vuelven a comprobar estas fuentes al leer la bandeja y antes de una entrega retrasada; si falta la procedencia o se ha revocado el acceso, la notificación se oculta.
 
 Las lecturas interactivas de comparaciones permiten hasta 30 solicitudes por persona y 60 por organización por minuto, con una comparación en ejecución por organización. La consola y la API comparten estos límites. Las solicitudes excesivas o simultáneas reciben HTTP 429 con `Retry-After`; los clientes deben esperar antes de reintentar. Redis compartido coordina los workers; durante una caída se conserva un límite local por worker. Los cambios manuales de veredicto en respuestas de evaluaciones comparten el mismo presupuesto y bloqueo, después de autorizar el acceso al dataset y antes de modificar la calificación o los resultados guardados.
 

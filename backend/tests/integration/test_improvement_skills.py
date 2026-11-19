@@ -334,7 +334,7 @@ async def test_criterion_metadata_owner_names_respect_tenants_and_explicit_grant
     from app.db.models.resource_grant import GrantLevel
     from app.repositories import resource_grant_repo
     from app.services.access import SKILL
-    from app.services.improvement_skills import readable_criterion_owners
+    from app.services.criterion_access import readable_criterion_owners
 
     owner = await _owner(db)
     other = await _owner(db)

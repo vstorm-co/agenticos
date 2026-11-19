@@ -93,7 +93,7 @@ from app.repositories import watch as watch_repo
 from app.schemas.change_event import ChangeEvent
 from app.schemas.eval_suite import EvalSuiteSummary, ThresholdReason
 from app.schemas.improvement import NextStepBlocked
-from app.schemas.notification import MovedCriterion
+from app.schemas.notification import CriterionSources, MovedCriterion
 from app.services.notification_center import NotificationCenterService, absolute_context_url
 from app.services.outcome import OutcomeService, routine_failure_cause
 from app.services.spend import month_start, organization_spend_since
@@ -1686,6 +1686,7 @@ class NotificationService:
         next_step_blocked: NextStepBlocked | None = None,
         verdict: str | None = None,
         criteria: Sequence[CriterionDetail] = (),
+        criterion_sources: CriterionSources | None = None,
     ) -> None:
         """One end of a session - each end once, however often it is reported.
 
@@ -1698,9 +1699,11 @@ class NotificationService:
         decided, the latest attempt's before: the criteria it moved are named
         when no whole question decided it.
         """
-        moved = moved_criteria(verdict, criteria)
         if user_id is None:
             return
+        moved = moved_criteria(verdict, criteria)
+        if moved and criterion_sources is None:
+            raise ValueError("Criterion notification evidence requires its source provenance")
         recipients = await member_repo.list_member_ids_for(
             self.db, organization_id=agent.organization_id, user_ids=[user_id]
         )
@@ -1719,6 +1722,11 @@ class NotificationService:
                 "status": status,
                 "reason": reason,
                 "criteria": moved,
+                **(
+                    {"criterion_sources": criterion_sources.model_dump(mode="json")}
+                    if moved and criterion_sources is not None
+                    else {}
+                ),
                 "next_step_blocked": None
                 if next_step_blocked is None
                 else next_step_blocked.model_dump(),

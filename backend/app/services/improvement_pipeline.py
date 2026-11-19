@@ -132,16 +132,18 @@ from app.schemas.improvement import (
     TopicDeferral,
     TryAgainBlocked,
 )
+from app.schemas.notification import CriterionSources
 from app.schemas.scoring import DatasetScoring
 from app.services import authoring_fields, authoring_hunks, change_feed
 from app.services import improvement_states as rules
-from app.services.access import DATASET, SKILL, accessible_ids, member_context
+from app.services.access import SKILL, accessible_ids, member_context
 from app.services.agent_registry import AgentRegistryService
 from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import MAX_EVIDENCE_RUNS, EvidencePack
 from app.services.background_jobs import enqueue
 from app.services.collection_access import readable_kb, writable_kb
+from app.services.criterion_access import criterion_source_access
 from app.services.dataset import DatasetService, redact_credentials
 from app.services.embedding_resolution import embeddings_for_collection
 from app.services.eval_comparison import CriterionMove
@@ -157,7 +159,6 @@ from app.services.improvement_data import (
 from app.services.improvement_skills import (
     ImprovementSkillService,
     SkillSeed,
-    readable_criterion_owners,
 )
 from app.services.improvement_states import criterion_details, criterion_owners
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
@@ -1193,16 +1194,10 @@ class ImprovementPipelineService:
         self, ctx: AuthContext, run: ImprovementRun, names: set[str]
     ) -> set[str] | None:
         """Readable named owners, or None when the measurement itself is private."""
-        if not ctx.has(Perm.RUNS_VIEW):
-            return None
-        dataset = await dataset_repo.get(
-            self.db, run.dataset_id, organization_id=ctx.organization_id
+        datasets, owners = await criterion_source_access(
+            self.db, ctx, dataset_ids={run.dataset_id}, names=names
         )
-        if dataset is None or dataset.id not in await accessible_ids(
-            self.db, ctx, [dataset], Perm.DATASETS_VIEW, resource_type=DATASET
-        ):
-            return None
-        return await readable_criterion_owners(self.db, ctx, names)
+        return owners if run.dataset_id in datasets else None
 
     async def _answers(
         self, run: ImprovementRun, round_: ImprovementIteration | None, role: ArmRole
@@ -2396,6 +2391,12 @@ class ImprovementPipelineService:
             next_step_blocked=blocked_next_step(run, current),
             verdict=None if described is None else described.verdict,
             criteria=criteria,
+            criterion_sources=CriterionSources(
+                dataset_id=run.dataset_id,
+                skill_names=sorted({item["skill"] for item in criteria if "skill" in item}),
+            )
+            if criteria
+            else None,
         )
 
     async def check_finished(self, check: EvalRun) -> None:

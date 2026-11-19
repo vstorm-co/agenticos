@@ -113,11 +113,11 @@ from app.services import skill_check_rules as rules
 from app.services.access import AGENT, DATASET, SKILL, accessible_ids
 from app.services.api_key import job_context
 from app.services.background_jobs import enqueue
+from app.services.criterion_access import readable_criterion_owners
 from app.services.dataset import DatasetService
 from app.services.eval_comparison import CriterionMove
 from app.services.eval_run import EvalRunService
 from app.services.improvement_data import MIN_HOLDOUT_CASES
-from app.services.improvement_skills import readable_criterion_owners
 from app.services.improvement_states import criterion_details
 from app.services.notifications import NotificationService
 from app.services.scoring import ScoringService

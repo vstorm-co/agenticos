@@ -55,6 +55,13 @@ class MovedCriterion(TypedDict):
     direction: Literal["better", "worse"]
 
 
+class CriterionSources(BaseSchema):
+    """Sources to recheck before exposing a persisted criterion-bearing notification."""
+
+    dataset_id: UUID
+    skill_names: list[str] = Field(default_factory=list, max_length=200)
+
+
 class NotificationOutcome(BaseSchema):
     """How a finished session, test or question writing ended, as codes the console words."""
 
