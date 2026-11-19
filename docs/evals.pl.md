@@ -1,5 +1,5 @@
 ---
-source_sha: "f1ff378247cd"
+source_sha: "b6b7965776e0"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -368,6 +368,8 @@ Kryterium sędziego może dotyczyć wszystkich przypadków albo tylko przypadkó
 ## Porównanie z baseline'em { #comparing-with-a-baseline }
 
 Interaktywne odczyty porównań dopuszczają do 30 żądań na osobę i 60 na organizację na minutę, z jednym wykonywanym porównaniem na organizację jednocześnie. Konsola i API współdzielą te limity. Nadmiarowe lub równoległe żądania zwracają HTTP 429 z `Retry-After`; klient powinien odczekać przed ponowieniem. Wspólny Redis koordynuje workery, a podczas awarii każdy worker zachowuje lokalny limit.
+
+Odczyt wymaga `runs:view` przed zajęciem blokady współbieżności lub zużyciem limitu. Aktywne porównania odnawiają blokady; wygaśnięcie po 120 sekundach zwalnia blokady procesów, które przestały działać. Błąd odnowienia w Redisie jest logowany i pozostawia lokalną blokadę workera.
 
 Odmowy z powodu zajętego porównania nie zużywają minutowych limitów odczytów. Konsola wstrzymuje polling do upływu `Retry-After`.
 

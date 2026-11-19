@@ -1591,10 +1591,12 @@ async def limit_eval_comparison(ctx: Auth) -> AsyncGenerator[None]:
     at a time, so parallel reads cannot fill every worker with the same large run.
     Shared Redis owns both controls; the established local floors apply on outage.
     """
+    _refuse_missing(ctx, (Perm.RUNS_VIEW,))
     async with rate_limit.one_in_flight(
         "eval_comparison",
         f"org:{ctx.organization_id}",
         ttl_seconds=120,
+        renew=True,
         message="A comparison is already running for this organization. Wait and try again.",
     ):
         # A busy refusal performs no comparison work and must not spend the read budget.

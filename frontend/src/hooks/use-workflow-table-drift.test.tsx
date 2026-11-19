@@ -143,6 +143,39 @@ describe("useWorkflowTableDrift", () => {
     await waitFor(() => expect(store.getState().tableDrift).toEqual([]));
   });
 
+  it.each(["filter", "sort", "retyped"])(
+    "keeps drift until the changed %s dependency is edited",
+    async (kind) => {
+      serve(
+        [column("c1"), column("changed")],
+        kind === "retyped" ? [column("c1"), column("changed", "number")] : [column("c1")],
+      );
+      seed(ref(["c1"]));
+      store.getState().updateNodeConfig("a", {
+        table: ref(["c1"]),
+        ...(kind === "sort"
+          ? { sort: { by: "changed", direction: "asc" } }
+          : { filters: [{ column_id: "changed", op: "eq", value: "x" }] }),
+      });
+      renderHook(() => useWorkflowTableDrift(true), { wrapper });
+      await waitFor(() => expect(store.getState().tableDrift[0]?.requiresReview).toBe(true));
+      act(() =>
+        store
+          .getState()
+          .rebindTables(
+            store.getState().tableDrift.map((entry) => ({ site: entry.site, ref: entry.rebound })),
+          ),
+      );
+      expect(store.getState().graph!.nodes[0]!.config.table).toEqual(ref(["c1"]));
+      expect(store.getState().tableDrift[0]?.requiresReview).toBe(true);
+      act(() => store.getState().updateNodeConfig("a", { table: ref(["c1"]) }));
+      await waitFor(() =>
+        expect(store.getState().graph!.nodes[0]!.config.table).toEqual(ref(["c1"], 2)),
+      );
+      expect(store.getState().tableDrift).toEqual([]);
+    },
+  );
+
   it("reads the tables again when a refusal asks, and when the tab comes back", async () => {
     serve([column("c1")], [column("c1"), column("c2")]);
     seed(ref(["c1"], 2));

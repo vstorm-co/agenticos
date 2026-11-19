@@ -40,7 +40,7 @@ beforeEach(() => {
 
 function mount(
   value: TableIORef | null,
-  props: Partial<{ disabled: boolean; error: string }> = {},
+  props: Partial<{ disabled: boolean; error: string; requiresReview: boolean }> = {},
 ) {
   const onChange = vi.fn();
   const view = render(<TableColumnPicker value={value} onChange={onChange} {...props} />);
@@ -99,6 +99,17 @@ describe("TableColumnPicker", () => {
       column_ids: ["c1"],
       schema_version: 2,
     });
+  });
+
+  it("requires dependent settings to be edited before rebinding", async () => {
+    const onChange = mount(ref({ schema_version: 1 }), { requiresReview: true });
+    expect(
+      screen.getByText(/Remove or replace changed filter, sort and value bindings/),
+    ).toBeVisible();
+    const action = screen.getByRole("button", { name: "Update to the current schema" });
+    expect(action).toBeDisabled();
+    await userEvent.click(action);
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("rebinding drops only the chosen columns the current schema no longer offers", async () => {

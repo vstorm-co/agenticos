@@ -1674,7 +1674,8 @@
     "notificationEmail": "E-posta",
     "notificationChannelHint": "Her kişinin bildirim tercihleri geçerliliğini korur.",
     "fileBindingHint": "Data ile önceki bir adımdan dosya seçin. Türü ve boyutu otomatik eklenir. Yapıştırılan metni dönüştürmek için önce Text to file adımı ekleyin.",
-    "problemTableSchemaChanged": "Bu tablo adım kurulduktan sonra değişti: okuduğu bir sütun kaldırıldı ya da türü değişti. Geçerli şemaya güncelleyin ve bu adımı neyin okuduğunu kontrol edin."
+    "problemTableSchemaChanged": "Bu tablo adım kurulduktan sonra değişti: okuduğu bir sütun kaldırıldı ya da türü değişti. Geçerli şemaya güncelleyin ve bu adımı neyin okuduğunu kontrol edin.",
+    "problemTableDependenciesChanged": "Tablo şemasını güncellemeden önce bu adımdaki değişen filtreleri, sıralamayı ve değer bağlamalarını kaldırın veya değiştirin."
   },
   "tables": {
     "cells": {

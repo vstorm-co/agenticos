@@ -1,13 +1,13 @@
 """Authenticated comparison reads have shared work budgets, including the console."""
 
 from contextlib import aclosing
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 
 from app.api.deps import limit_eval_comparison
-from app.core.exceptions import RateLimitError
+from app.core.exceptions import AuthorizationError, RateLimitError
 from app.core.permissions import AuthContext
 from app.services import rate_limit
 
@@ -72,3 +72,15 @@ async def test_only_one_org_comparison_runs_and_closing_releases_it(monkeypatch)
             await anext(other_org)
     async with aclosing(limit_eval_comparison(second)) as next_read:
         await anext(next_read)
+
+
+@pytest.mark.parametrize("role", ["member", "viewer"])
+async def test_nonreaders_cannot_consume_quota_or_claim_concurrency(monkeypatch, role):
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=role)
+    consume, claim = AsyncMock(), MagicMock()
+    monkeypatch.setattr(rate_limit, "consume_with_local_floor", consume)
+    monkeypatch.setattr(rate_limit, "one_in_flight", claim)
+    with pytest.raises(AuthorizationError):
+        await anext(limit_eval_comparison(ctx))
+    consume.assert_not_awaited()
+    claim.assert_not_called()

@@ -1,5 +1,5 @@
 ---
-source_sha: "24b33415d9e7"
+source_sha: "d3dee8ee5b61"
 ---
 
 # Workflows { #workflows }
@@ -449,6 +449,8 @@ ciebie niczego. Gdy czytana kolumna została usunięta albo zmieniła typ, krok
 pokazuje problem, a zarówno pole **Table** kroku, jak i lista problemów na pasku
 narzędzi oferują **Update to the current schema**, które zachowuje każdą wybraną
 kolumnę, która nadal istnieje. Potem sprawdź, co czyta ten krok.
+
+Edytor sprawdza też filtry, kolumny sortowania i powiązania wartości. Usuń lub zastąp zależne ustawienia używające zmienionych kolumn przed aktualizacją schematu tabeli; zbiorcza aktualizacja pozostawia takie kroki bez zmian. Powiązanie wartości całego rekordu również wymaga ręcznego przeglądu.
 
 ### Ewaluacje kroku z modelem { #evals-for-a-model-step }
 

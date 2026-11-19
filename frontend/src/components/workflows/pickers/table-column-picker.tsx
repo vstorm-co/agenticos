@@ -37,6 +37,8 @@ export interface TableColumnPickerProps {
    * which publish still checks and the author must be able to clear.
    */
   pinsColumns?: boolean;
+  /** The step still uses changed dependent columns that the author must edit. */
+  requiresReview?: boolean;
 }
 
 /** A fresh ref pinned to a table's current schema, all columns. */
@@ -174,6 +176,7 @@ export function TableColumnPicker({
   error,
   storedOnly,
   pinsColumns = true,
+  requiresReview = false,
 }: TableColumnPickerProps) {
   const t = useTranslations("workflows");
   const { tables, isLoading: tablesLoading } = useWorkflowTables();
@@ -239,7 +242,7 @@ export function TableColumnPicker({
             <div className="border-border rounded-lg border border-dashed p-3">
               <p className="text-foreground/80 flex items-center gap-1.5 text-xs">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                {t("pickerSchemaChanged")}
+                {t(requiresReview ? "problemTableDependenciesChanged" : "pickerSchemaChanged")}
               </p>
               {droppedColumns > 0 && (
                 <p className="text-muted-foreground mt-1 text-xs">
@@ -251,9 +254,11 @@ export function TableColumnPicker({
                 variant="outline"
                 size="sm"
                 className="mt-2"
-                disabled={disabled}
+                disabled={disabled || requiresReview}
                 onClick={() =>
-                  table && onChange(rebindRef(value, table.schema_version, liveColumns))
+                  table &&
+                  !requiresReview &&
+                  onChange(rebindRef(value, table.schema_version, liveColumns))
                 }
               >
                 {t("pickerRebind")}

@@ -342,6 +342,8 @@ A judge criterion can apply to every case or only cases carrying any of its sele
 
 Interactive comparison reads allow up to 30 requests per person and 60 per organization per minute, with one comparison executing per organization at a time. Console and API requests share these limits. Excess or overlapping requests return HTTP 429 with `Retry-After`; clients should wait before retrying. Shared Redis coordinates workers, with a local per-worker floor during an outage.
 
+Readers need `runs:view` before claiming concurrency or spending quota. Active comparisons renew their claims; the 120-second expiry recovers crashed holders. A failed Redis renewal logs the failure and retains the per-worker floor.
+
 Busy refusals do not consume the per-minute read quotas. The console pauses polling until `Retry-After` expires.
 
 A comparison matches the two sides case by case on the case's stable id, and

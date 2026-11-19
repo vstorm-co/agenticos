@@ -261,3 +261,31 @@ it("names the criteria an attempt moved when no whole question flipped", () => {
       "outcome.improvement.criterion(price break,40,9,40,better),none)",
   );
 });
+
+it("keeps equal criterion names distinct across scorer namespaces", () => {
+  const criteria = [
+    {
+      name: "Validity",
+      scorer: "judge",
+      graded: 3,
+      before: 1,
+      after: 2,
+      direction: "better" as const,
+    },
+    {
+      name: "Validity",
+      scorer: "check",
+      graded: 3,
+      before: 3,
+      after: 2,
+      direction: "worse" as const,
+    },
+  ];
+  const summary = notificationSummary(
+    row("improvement_finished", { status: "ready", reason: null, criteria }),
+    t,
+    stop,
+  );
+  expect(summary).toContain("Validity [judge]");
+  expect(summary).toContain("Validity [check]");
+});

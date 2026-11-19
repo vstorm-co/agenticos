@@ -2732,6 +2732,7 @@ def moved_criteria(
         return []
     moved: list[MovedCriterion] = [
         {
+            "scorer": item["scorer"],
             "name": item["name"],
             "graded": item["graded"],
             "before": item["before"],
@@ -2749,9 +2750,14 @@ def _criteria_sentence(criteria: Sequence[MovedCriterion]) -> str:
     better = [item for item in criteria if item["direction"] == "better"]
     worse = [item for item in criteria if item["direction"] == "worse"]
 
+    def label(item: MovedCriterion) -> str:
+        scorer = item.get("scorer")
+        duplicate = sum(other["name"] == item["name"] for other in criteria) > 1
+        return f"{item['name']} [{scorer}]" if scorer and duplicate else item["name"]
+
     def listed(items: Sequence[MovedCriterion]) -> str:
         return ", ".join(
-            f"{item['name']} {item['before']}/{item['graded']} → {item['after']}/{item['graded']}"
+            f"{label(item)} {item['before']}/{item['graded']} → {item['after']}/{item['graded']}"
             for item in items
         )
 
@@ -2760,7 +2766,7 @@ def _criteria_sentence(criteria: Sequence[MovedCriterion]) -> str:
         parts.append(f"better on {listed(better)}")
     if worse:
         parts.append(f"worse on {listed(worse)}")
-    return f" The latest attempt is {' and '.join(parts)}; no whole question flipped."
+    return f" The selected attempt is {' and '.join(parts)}; no whole question flipped."
 
 
 _CHECK_SUMMARY = {

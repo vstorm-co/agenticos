@@ -117,37 +117,53 @@ describe("the canvas toolbar", () => {
     expect(store.getState().selection.nodeIds).toEqual(["u"]);
   });
 
-  it("updates every step whose table changed under it, in one click", async () => {
-    const stale = {
-      kind: "table" as const,
-      table_id: "t1",
-      column_ids: ["c1", "gone"],
-      schema_version: 1,
-    };
-    const rebound = { ...stale, column_ids: ["c1"], schema_version: 2 };
-    seed({ ...node("a"), config: { table: stale } });
-    store
-      .getState()
-      .setTableDrift([{ nodeId: "a", field: null, site: { nodeId: "a", binding: null }, rebound }]);
-    // A step pinned to a table reads that table for its card.
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />
-      </QueryClientProvider>,
-    );
+  it.each([false, true])(
+    "updates table references only after dependent settings are reviewed: %s",
+    async (requiresReview) => {
+      const stale = {
+        kind: "table" as const,
+        table_id: "t1",
+        column_ids: ["c1", "gone"],
+        schema_version: 1,
+      };
+      const rebound = { ...stale, column_ids: ["c1"], schema_version: 2 };
+      seed({ ...node("a"), config: { table: stale } });
+      store.getState().setTableDrift([
+        {
+          nodeId: "a",
+          field: null,
+          site: { nodeId: "a", binding: null },
+          rebound,
+          requiresReview,
+        },
+      ]);
+      // A step pinned to a table reads that table for its card.
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <WorkflowCanvas workflow={WORKFLOW} catalog={CATALOG} />
+        </QueryClientProvider>,
+      );
 
-    const pill = screen
-      .getAllByRole("button", { name: /Finish setup/ })
-      .find((button) => button.getAttribute("aria-haspopup") === "dialog");
-    await userEvent.click(pill as HTMLElement);
-    expect(await screen.findByText(/1 step reads a table whose columns changed/)).toBeVisible();
-    expect(
-      screen.getAllByText(/a column it reads was removed or changed type/).length,
-    ).toBeGreaterThan(0);
-
-    await userEvent.click(screen.getByRole("button", { name: "Update to the current schema" }));
-    expect(store.getState().graph!.nodes[0]!.config.table).toEqual(rebound);
-  });
+      const pill = screen
+        .getAllByRole("button", { name: /Finish setup/ })
+        .find((button) => button.getAttribute("aria-haspopup") === "dialog");
+      await userEvent.click(pill as HTMLElement);
+      expect(await screen.findByText(/1 step reads a table whose columns changed/)).toBeVisible();
+      if (requiresReview) {
+        expect(
+          screen.getAllByText(/Remove or replace changed filter, sort and value bindings/).length,
+        ).toBeGreaterThan(0);
+        expect(screen.queryByRole("button", { name: "Update to the current schema" })).toBeNull();
+        expect(store.getState().graph!.nodes[0]!.config.table).toEqual(stale);
+      } else {
+        expect(
+          screen.getAllByText(/a column it reads was removed or changed type/).length,
+        ).toBeGreaterThan(0);
+        await userEvent.click(screen.getByRole("button", { name: "Update to the current schema" }));
+        expect(store.getState().graph!.nodes[0]!.config.table).toEqual(rebound);
+      }
+    },
+  );
 
   it("deletes a multi-selection from its bar, and shows none of it read-only", async () => {
     seed(node("a"), node("b", "act.one", 300));

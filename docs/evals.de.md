@@ -1,5 +1,5 @@
 ---
-source_sha: "f1ff378247cd"
+source_sha: "b6b7965776e0"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -387,6 +387,8 @@ Ein Bewerterkriterium kann für alle Fälle oder nur für Fälle mit mindestens 
 ## Mit einer Baseline vergleichen { #comparing-with-a-baseline }
 
 Interaktive Vergleichsabrufe erlauben bis zu 30 Anfragen pro Person und 60 pro Organisation und Minute; je Organisation wird jeweils ein Vergleich ausgeführt. Konsole und API teilen diese Grenzen. Überschüssige oder gleichzeitige Anfragen erhalten HTTP 429 mit `Retry-After`; Clients sollen vor dem Wiederholen warten. Gemeinsames Redis koordiniert die Worker; bei einem Ausfall bleibt je Worker eine lokale Begrenzung bestehen.
+
+Leser benötigen `runs:view`, bevor sie die Parallelitätssperre belegen oder Kontingent verbrauchen. Aktive Vergleiche erneuern ihre Sperren; der Ablauf nach 120 Sekunden gibt Sperren abgestürzter Prozesse frei. Eine fehlgeschlagene Redis-Erneuerung wird protokolliert und behält die lokale Worker-Sperre bei.
 
 Ablehnungen wegen eines laufenden Vergleichs verbrauchen die Minutenkontingente nicht. Die Konsole pausiert Abfragen bis zum Ablauf von `Retry-After`.
 

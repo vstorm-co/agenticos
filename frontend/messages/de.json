@@ -11799,7 +11799,8 @@
     },
     "stepEditorView": "Schrittansicht",
     "stepEditorSettings": "Schritteinstellungen",
-    "problemTableSchemaChanged": "Diese Tabelle hat sich seit dem Einrichten des Schritts geändert: Eine Spalte, die er liest, wurde entfernt oder hat ihren Typ geändert. Aktualisiere sie auf das aktuelle Schema und prüfe, was diesen Schritt liest."
+    "problemTableSchemaChanged": "Diese Tabelle hat sich seit dem Einrichten des Schritts geändert: Eine Spalte, die er liest, wurde entfernt oder hat ihren Typ geändert. Aktualisiere sie auf das aktuelle Schema und prüfe, was diesen Schritt liest.",
+    "problemTableDependenciesChanged": "Entferne oder ersetze geänderte Filter, Sortierungen und Wertebindungen in diesem Schritt, bevor du sein Tabellenschema aktualisierst."
   },
   "artifacts": {
     "title": "Apps",

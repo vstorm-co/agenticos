@@ -1,5 +1,5 @@
 ---
-source_sha: "f1ff378247cd"
+source_sha: "b6b7965776e0"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -359,6 +359,8 @@ Un criterio del juez puede aplicarse a todos los casos o solo a casos con alguna
 ## Comparar con un baseline { #comparing-with-a-baseline }
 
 Las lecturas interactivas de comparaciones permiten hasta 30 solicitudes por persona y 60 por organización por minuto, con una comparación en ejecución por organización. La consola y la API comparten estos límites. Las solicitudes excesivas o simultáneas reciben HTTP 429 con `Retry-After`; los clientes deben esperar antes de reintentar. Redis compartido coordina los workers; durante una caída se conserva un límite local por worker.
+
+Los lectores necesitan `runs:view` antes de ocupar la exclusión o consumir cuota. Las comparaciones activas renuevan sus bloqueos; la caducidad de 120 segundos recupera los de procesos caídos. Un fallo de renovación en Redis se registra y mantiene el bloqueo local del worker.
 
 Los rechazos por un comparador ocupado no consumen las cuotas de lectura por minuto. La consola pausa las consultas hasta que expire `Retry-After`.
 

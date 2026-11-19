@@ -12312,7 +12312,8 @@
     },
     "stepEditorView": "Widok kroku",
     "stepEditorSettings": "Ustawienia kroku",
-    "problemTableSchemaChanged": "Ta tabela zmieniła się od skonfigurowania kroku: kolumna, którą czyta, została usunięta albo zmieniła typ. Zaktualizuj ją do bieżącego schematu i sprawdź, co czyta ten krok."
+    "problemTableSchemaChanged": "Ta tabela zmieniła się od skonfigurowania kroku: kolumna, którą czyta, została usunięta albo zmieniła typ. Zaktualizuj ją do bieżącego schematu i sprawdź, co czyta ten krok.",
+    "problemTableDependenciesChanged": "Usuń lub zastąp zmienione filtry, sortowanie i powiązania wartości w tym kroku przed aktualizacją schematu tabeli."
   },
   "artifacts": {
     "title": "Aplikacje",

@@ -1,7 +1,7 @@
 """Schemas for the notification inbox (#1598)."""
 
 from datetime import datetime
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 from uuid import UUID
 
 from pydantic import Field, TypeAdapter, ValidationError
@@ -43,8 +43,9 @@ def _agent_of(context: dict[str, Any] | None) -> NotificationAgent | None:
 
 
 class MovedCriterion(TypedDict):
-    """A criterion an improvement's latest attempt moved, when no whole question flipped."""
+    """A criterion an improvement's selected attempt moved, when no whole question flipped."""
 
+    scorer: NotRequired[str]
     name: str
     graded: int
     before: int
@@ -62,7 +63,7 @@ class NotificationOutcome(BaseSchema):
     )
     criteria: list[MovedCriterion] = Field(
         default_factory=list,
-        description="The criteria an improvement's latest attempt moved with no question flipped",
+        description="The criteria an improvement's selected attempt moved with no question flipped",
     )
 
 

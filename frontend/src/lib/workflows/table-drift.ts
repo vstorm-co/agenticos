@@ -27,6 +27,8 @@ export interface TableDrift {
   site: TableRefSite;
   /** The reference on the current schema, should the author accept it. */
   rebound: TableIORef;
+  /** Dependent filters, sort or write bindings must be edited before rebinding. */
+  requiresReview?: boolean;
 }
 
 function isTableRef(value: unknown): value is TableIORef {

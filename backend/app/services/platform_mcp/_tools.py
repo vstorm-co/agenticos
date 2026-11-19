@@ -742,6 +742,7 @@ def _attempt(iteration: dict[str, Any], chosen: Any) -> dict[str, Any]:
         },
         "criteria": [
             {
+                "scorer": item["scorer"],
                 "name": item["name"],
                 "passed_before": item["before"],
                 "passed_after": item["after"],

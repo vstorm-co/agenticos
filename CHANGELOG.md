@@ -36,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Authorize comparison readers before shared metering and renew active comparison claims. Keep workflow schema warnings until dependent filters, sort columns and value bindings are edited. Preserve scorer identity in MCP criterion exports and name the selected attempt correctly in notifications.
+
 - Keep busy comparison refusals outside the per-minute read quotas. Price replacement answers from each model's frozen estimate, including grading, instead of averaging cheap and expensive models; older checks without those prices retain incomplete answers.
 
 - Bound interactive comparison reads with shared caller and organization rate budgets and one in-flight comparison per organization. Preserve confirmed regressions in truncated evidence, apply net pass counts consistently when naming gains, keep scorer identity in retry prompts, and accumulate tokens and latency across replacement answers.

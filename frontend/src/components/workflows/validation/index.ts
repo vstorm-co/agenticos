@@ -122,7 +122,9 @@ export function withTableDrift(
       edgeId: null,
       field: entry.field ?? "table",
       code: "table-schema-changed",
-      message: t("problemTableSchemaChanged"),
+      message: t(
+        entry.requiresReview ? "problemTableDependenciesChanged" : "problemTableSchemaChanged",
+      ),
     })),
   ];
 }

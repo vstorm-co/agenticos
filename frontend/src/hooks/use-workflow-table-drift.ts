@@ -136,11 +136,25 @@ export function useWorkflowTableDrift(enabled: boolean): void {
     for (const { site, ref } of stale) {
       const table = detail(ref.table_id)!;
       const next = rebindRef(ref, table.schema_version, liveColumns(table));
-      if (safeToRebind(ref, table, history(ref.table_id)!.items, nodeTableColumns(graph, site))) {
+      const versions = history(ref.table_id)!.items;
+      const dependencies = nodeTableColumns(graph, site);
+      if (safeToRebind(ref, table, versions, dependencies)) {
         result.rebound.push({ site, ref: next });
       } else {
         const field = site.binding === null ? null : graph.bindings[site.binding]!.target_field;
-        result.drift.push({ nodeId: site.nodeId, field, site, rebound: next });
+        const requiresReview = !safeToRebind(
+          { ...ref, column_ids: [] },
+          table,
+          versions,
+          dependencies,
+        );
+        result.drift.push({
+          nodeId: site.nodeId,
+          field,
+          site,
+          rebound: next,
+          ...(requiresReview ? { requiresReview: true } : {}),
+        });
       }
     }
     const live = new Map(
@@ -182,8 +196,8 @@ export function useWorkflowTableDrift(enabled: boolean): void {
   useEffect(() => {
     if (!enabled || plan === null) return;
     const { rebound, drift, orphans } = JSON.parse(plan) as Plan;
+    setTableDrift(drift);
     rebindTables(rebound);
     dropBindings(orphans);
-    setTableDrift(drift);
   }, [enabled, plan, rebindTables, dropBindings, setTableDrift]);
 }

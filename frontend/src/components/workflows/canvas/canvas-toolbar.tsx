@@ -224,19 +224,28 @@ export function CanvasToolbar({
                       <p className="text-muted-foreground text-xs">
                         {t("toolbarTablesChanged", { count: tableDrift.length })}
                       </p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="mt-2"
-                        onClick={() =>
-                          rebindTables(
-                            tableDrift.map((entry) => ({ site: entry.site, ref: entry.rebound })),
-                          )
-                        }
-                      >
-                        {t("toolbarRebindTables")}
-                      </Button>
+                      {tableDrift.some((entry) => entry.requiresReview) && (
+                        <p className="text-muted-foreground mt-1 text-xs">
+                          {t("problemTableDependenciesChanged")}
+                        </p>
+                      )}
+                      {tableDrift.some((entry) => !entry.requiresReview) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="mt-2"
+                          onClick={() =>
+                            rebindTables(
+                              tableDrift
+                                .filter((entry) => !entry.requiresReview)
+                                .map((entry) => ({ site: entry.site, ref: entry.rebound })),
+                            )
+                          }
+                        >
+                          {t("toolbarRebindTables")}
+                        </Button>
+                      )}
                     </div>
                   )}
                   <ProblemsFooter

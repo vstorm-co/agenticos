@@ -441,6 +441,8 @@ the step shows a problem instead, and both the step's **Table** field and the
 toolbar's problem list offer **Update to the current schema**, which keeps every
 chosen column that still exists. Check what reads the step afterwards.
 
+Filters, sort columns and value bindings are checked too. Remove or replace dependent settings that use changed columns before updating the table schema; the bulk update leaves those steps unchanged. A whole-record value binding also requires this manual review.
+
 ### Evals for a model step { #evals-for-a-model-step }
 
 A step a model answers - an agent, **Ask a model**, **Classify**, **Extract data**,

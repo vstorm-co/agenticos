@@ -17,6 +17,7 @@ import { apiClient } from "./api-client";
 
 /** A criterion an improvement attempt moved, as a notification names it. */
 export interface MovedCriterion {
+  scorer?: string;
   name: string;
   graded: number;
   before: number;
@@ -40,7 +41,7 @@ export interface Notification {
     reason: string | null;
     stage?: string | null;
     next_step_blocked?: NextStepBlocked | null;
-    /** The criteria an improvement's latest attempt moved with no question flipped. */
+    /** The criteria an improvement's selected attempt moved with no question flipped. */
     criteria?: MovedCriterion[];
   } | null;
   /** The shared outcome this row is one delivery of, when it is something to act on (#2575). */

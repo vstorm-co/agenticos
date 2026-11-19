@@ -7,7 +7,7 @@ import pytest
 
 from app.db.models.improvement import CriterionDetail
 from app.db.models.notification import Notification
-from app.schemas.notification import NotificationRead
+from app.schemas.notification import MovedCriterion, NotificationRead
 from app.services.notifications import _improvement_summary, moved_criteria
 
 
@@ -162,10 +162,17 @@ def test_an_attempt_better_on_criteria_names_them_instead_of_saying_no_change():
     moved = moved_criteria("criteria_better", [_VALIDITY, _PRICE_BREAK])
 
     assert moved == [
-        {"name": "price break", "graded": 40, "before": 9, "after": 40, "direction": "better"}
+        {
+            "scorer": "judge",
+            "name": "price break",
+            "graded": 40,
+            "before": 9,
+            "after": 40,
+            "direction": "better",
+        }
     ]
     assert _improvement_summary("Quote Builder", "ready", None, criteria=moved) == (
-        "Your improvement of Quote Builder is ready to review. The latest attempt is better "
+        "Your improvement of Quote Builder is ready to review. The selected attempt is better "
         "on price break 9/40 → 40/40; no whole question flipped."
     )
 
@@ -176,7 +183,7 @@ def test_a_criterion_that_got_worse_is_named_first():
     assert [item["direction"] for item in moved] == ["worse", "better"]
     assert _improvement_summary("Quote Builder", "stopped", "criteria_worse", criteria=moved) == (
         "Your improvement of Quote Builder finished an attempt: a criterion the answers are "
-        "graded on got worse, though no question broke. The latest attempt is better on price "
+        "graded on got worse, though no question broke. The selected attempt is better on price "
         "break 9/40 → 40/40 and worse on under 200 words 40/40 → 30/40; no whole question "
         "flipped."
     )
@@ -206,7 +213,7 @@ def test_an_attempt_only_worse_on_a_criterion_names_no_gain():
 
     assert _improvement_summary("Quote Builder", "stopped", "criteria_worse", criteria=moved) == (
         "Your improvement of Quote Builder finished an attempt: a criterion the answers are "
-        "graded on got worse, though no question broke. The latest attempt is worse on under "
+        "graded on got worse, though no question broke. The selected attempt is worse on under "
         "200 words 40/40 → 30/40; no whole question flipped."
     )
 
@@ -214,3 +221,24 @@ def test_an_attempt_only_worse_on_a_criterion_names_no_gain():
 def test_a_confirmed_fix_with_a_net_pass_decline_is_not_notified_as_better():
     declined = {**_PRICE_BREAK, "before": 30, "after": 20, "fixed": 1}
     assert moved_criteria("criteria_better", [declined]) == []
+
+
+def test_notification_criteria_preserve_and_disambiguate_scorers():
+    moved = moved_criteria(
+        "criteria_worse", [{**_PRICE_BREAK, "name": "Validity"}, {**_LENGTH, "name": "Validity"}]
+    )
+    summary = _improvement_summary("Clerk", "ready", None, criteria=moved)
+    assert "Validity [judge]" in summary and "Validity [check]" in summary
+    outcome = NotificationRead.from_row(
+        _row("improvement_finished", {"status": "ready", "criteria": moved}),
+        strip_context_url=False,
+    ).outcome
+    assert outcome is not None and outcome.criteria == moved
+    legacy: MovedCriterion = {
+        "name": "Validity",
+        "graded": 2,
+        "before": 0,
+        "after": 1,
+        "direction": "better",
+    }
+    assert "[" not in _improvement_summary("Clerk", "ready", None, criteria=[legacy])

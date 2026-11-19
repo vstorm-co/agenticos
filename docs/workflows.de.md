@@ -1,5 +1,5 @@
 ---
-source_sha: "24b33415d9e7"
+source_sha: "d3dee8ee5b61"
 ---
 
 # Workflows { #workflows }
@@ -480,6 +480,8 @@ Wurde eine gelesene Spalte entfernt oder hat sie ihren Typ geändert, zeigt der
 Schritt stattdessen ein Problem, und sowohl das **Table**-Feld des Schritts als auch
 die Problemliste der Werkzeugleiste bieten **Update to the current schema** an, das
 jede gewählte Spalte behält, die noch existiert. Prüfe danach, was den Schritt liest.
+
+Auch Filter, Sortierspalten und Wertebindungen werden geprüft. Entferne oder ersetze abhängige Einstellungen mit geänderten Spalten, bevor du das Tabellenschema aktualisierst; die Sammelaktualisierung lässt solche Schritte unverändert. Eine Wertebindung für den ganzen Datensatz erfordert ebenfalls diese manuelle Prüfung.
 
 ### Evals für einen Modellschritt { #evals-for-a-model-step }
 

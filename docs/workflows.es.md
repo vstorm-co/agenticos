@@ -1,5 +1,5 @@
 ---
-source_sha: "24b33415d9e7"
+source_sha: "d3dee8ee5b61"
 ---
 
 # Workflows { #workflows }
@@ -461,6 +461,8 @@ paso no lee, no te pide nada. Cuando una columna que lee se eliminó o cambió d
 tipo, el paso muestra un problema, y tanto el campo **Table** del paso como la lista
 de problemas de la barra de herramientas ofrecen **Update to the current schema**,
 que conserva cada columna elegida que aún existe. Después, revisa lo que lee el paso.
+
+También se comprueban los filtros, las columnas de ordenación y los enlaces de valores. Elimina o sustituye los ajustes dependientes que usan columnas cambiadas antes de actualizar el esquema; la actualización conjunta deja esos pasos intactos. Un enlace de valores del registro completo también requiere esta revisión manual.
 
 ### Evals de un paso con modelo { #evals-for-a-model-step }
 

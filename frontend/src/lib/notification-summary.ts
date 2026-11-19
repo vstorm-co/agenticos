@@ -78,7 +78,12 @@ function criteriaSentence(criteria: MovedCriterion[], t: Translate): string {
   const listed = (direction: MovedCriterion["direction"]) =>
     criteria
       .filter((item) => item.direction === direction)
-      .map((item) => t("outcome.improvement.criterion", { ...item }))
+      .map((item) => {
+        const { scorer, ...counts } = item;
+        const duplicate = criteria.filter((other) => other.name === item.name).length > 1;
+        const name = scorer && duplicate ? `${item.name} [${scorer}]` : item.name;
+        return t("outcome.improvement.criterion", { ...counts, name });
+      })
       .join(", ") || "none";
   return t("outcome.improvement.criteria", { better: listed("better"), worse: listed("worse") });
 }

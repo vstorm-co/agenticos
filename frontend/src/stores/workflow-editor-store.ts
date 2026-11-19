@@ -881,7 +881,16 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     rebindTables: (updates) => {
       const { graph } = get();
       if (graph === null || updates.length === 0) return;
-      commit(withRebound(graph, updates));
+      const applicable = updates.filter(
+        ({ site }) =>
+          !get().tableDrift.some(
+            (entry) =>
+              entry.requiresReview &&
+              entry.site.nodeId === site.nodeId &&
+              entry.site.binding === site.binding,
+          ),
+      );
+      if (applicable.length > 0) commit(withRebound(graph, applicable));
     },
 
     watchRun: (runId, testing) =>
