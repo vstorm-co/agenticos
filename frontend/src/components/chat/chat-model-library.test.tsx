@@ -67,3 +67,32 @@ it("keeps cached models visible while their metadata refreshes", async () => {
   await userEvent.click(model);
   expect(p.onModelChange).toHaveBeenCalledWith("anthropic/claude");
 });
+
+it("keeps saved models in the catalog and marks the active one", async () => {
+  const p = props();
+  const saved = {
+    id: "saved-claude",
+    provider: "openrouter",
+    model: "anthropic/claude",
+    label: "My Claude",
+    secret_id: "key",
+    params: {},
+    fallback_profile_ids: [],
+  };
+  render(
+    <ChatModelLibrary
+      {...p}
+      model={saved.model}
+      profileId={saved.id}
+      profiles={[saved, { ...saved, id: "saved-custom", model: "other/custom", label: "Custom" }]}
+    />,
+  );
+  const model = screen.getByRole("option", { name: /Claude/ });
+  expect(within(model).getByLabelText("Selected")).toBeInTheDocument();
+  await userEvent.click(model);
+  expect(p.onModelChange).toHaveBeenCalledWith(saved.model);
+  expect(screen.getByRole("option", { name: /other\/custom/ })).toBeVisible();
+
+  await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
+  expect(screen.getByRole("option", { name: /My Claude/ })).toBeVisible();
+});

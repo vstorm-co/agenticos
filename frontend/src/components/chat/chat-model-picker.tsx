@@ -337,8 +337,18 @@ export function ChatModelPicker({
             </div>
           )
         }
-        model={current?.provider === providerId ? current.model : ""}
-        profileId={currentProfile?.provider === providerId ? currentProfile.id : undefined}
+        model={
+          current?.provider === providerId &&
+          (!explicitKey || currentProfile?.secret_id === explicitKey.id)
+            ? current.model
+            : ""
+        }
+        profileId={
+          currentProfile?.provider === providerId &&
+          (!explicitKey || currentProfile.secret_id === explicitKey.id)
+            ? currentProfile.id
+            : undefined
+        }
         models={suggestions}
         profiles={profiles.filter(
           (profile) =>

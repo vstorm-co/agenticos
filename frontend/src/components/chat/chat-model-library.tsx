@@ -50,10 +50,17 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
   const matches = (model: string, label: string) =>
     `${model} ${label}`.toLowerCase().includes(needle);
   const saved = profiles.filter((entry) => matches(entry.model, entry.label));
-  const catalog = props.models.filter(
-    (entry) =>
-      !profiles.some((profile) => profile.model === entry.id) && matches(entry.id, entry.name),
-  );
+  const catalog = new Map(props.models.map((entry) => [entry.id, entry]));
+  for (const profile of profiles) {
+    if (!catalog.has(profile.model)) {
+      catalog.set(profile.model, {
+        id: profile.model,
+        name: profile.model.split("/").at(-1) || profile.model,
+        context_length: profile.context_length,
+      });
+    }
+  }
+  const modelRows = [...catalog.values()].filter((entry) => matches(entry.id, entry.name));
   const sorted = [...props.providers].sort(
     (a, b) => Number(b.connected) - Number(a.connected) || a.label.localeCompare(b.label),
   );
@@ -231,14 +238,14 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
                     </Command.Group>
                   )}
                   {tab === "catalog" &&
-                    catalog
+                    modelRows
                       .slice(0, 100)
                       .map((entry) =>
                         row(
                           entry.id,
                           entry.id,
                           entry.name.split(":").pop()?.trim() || entry.id,
-                          !props.profileId && props.model === entry.id,
+                          props.model === entry.id,
                           () => props.onModelChange(entry.id),
                           entry.context_length,
                         ),
@@ -246,8 +253,7 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
                   {tab === "catalog" &&
                     query.trim() &&
                     modelIdIsWellFormed(props.providerId, query.trim()) &&
-                    !props.models.some((entry) => entry.id === query.trim()) &&
-                    !profiles.some((entry) => entry.model === query.trim()) && (
+                    !catalog.has(query.trim()) && (
                       <Command.Item
                         disabled={
                           props.disabled ||

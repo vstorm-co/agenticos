@@ -1,10 +1,12 @@
 ---
-source_sha: "1710e618eca4"
+source_sha: "bf8f06756694"
 ---
 
 # Konsola { #the-console }
 
 Katalogi zasobów mają większe karty z ikoną, tytułem, opisem i osobną stopką statusu oraz akcji. Agenci, tabele, workflowy, bazy wiedzy, projekty, datasety, serwery MCP, skille, pliki kontekstu, Apps i grupy używają wspólnej ramki, zachowując własne akcje. W Builderze ustawienia są dostępne w spójnych, rozwijanych kartach. Thinking i Answer format są częścią Model settings. First messages pokazuje wbudowane podpowiedzi, gdy agent nie ma własnych. Model jest początkowo otwarty; zwinięcie zachowuje edytory, a linki Voice otwierają odpowiednią sekcję.
+
+W Build sekcja First messages pokazuje karty z ikoną, tytułem i wiadomością. Otwórz kartę, żeby ją edytować. Zapisanie zmian we wbudowanym przykładzie zachowuje pozostałe przykłady w szkicu. Skills, Context i Knowledge search w Toolbox używają list wyboru. Zapisany model czatu pozostaje w Models i w Saved models.
 
 Organizacje mają wyszukiwanie po nazwie i slugu członkostwa, z liczbą wyników w tym samym pasku. Wyczyszczenie wyszukiwania przywraca pełną listę organizacji użytkownika.
 
