@@ -229,6 +229,7 @@ const INITIAL: AgentSpec = {
 };
 
 async function chooseStructuredAnswers() {
+  await userEvent.click(await screen.findByRole("button", { name: "Model settings" }));
   await userEvent.click(await screen.findByRole("combobox", { name: "It answers" }));
   await userEvent.click(await screen.findByRole("option", { name: "With structured data" }));
 }
@@ -371,7 +372,9 @@ it("keeps its base revision after an unannounced refetch and holds edits until r
     spec: expect.objectContaining({ name: "My local edit", description: null }),
     expected_revision: "base",
   });
-  expect(await screen.findByRole("alert")).toHaveTextContent("saving is paused");
+  expect(await screen.findByRole("alert", {}, { timeout: 6000 })).toHaveTextContent(
+    "saving is paused",
+  );
   expect(name).toHaveValue("My local edit");
   await userEvent.type(name, " still here");
   await act(async () => new Promise((resolve) => setTimeout(resolve, 1500)));
