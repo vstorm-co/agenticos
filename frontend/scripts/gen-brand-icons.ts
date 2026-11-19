@@ -179,6 +179,7 @@ const BRANDS: Readonly<Record<string, Source>> = {
   mailchimp: thesvg("mailchimp"),
   make: thesvg("make"),
   mattermost: logos("mattermost-icon"),
+  matrix: simple("matrix"),
   mcp: logos("model-context-protocol-icon"),
   meta: logos("meta-icon"),
   microsoft: logos("microsoft-icon"),

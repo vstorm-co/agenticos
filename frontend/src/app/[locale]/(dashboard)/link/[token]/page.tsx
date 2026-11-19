@@ -20,6 +20,7 @@ const PLATFORM_LABEL: Record<string, string> = {
   slack: "Slack",
   mattermost: "Mattermost",
   discord: "Discord",
+  matrix: "Matrix",
 };
 
 /**

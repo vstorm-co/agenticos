@@ -50,6 +50,7 @@ import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
 const PLATFORMS: readonly ChannelPlatform[] = [
   "discord",
+  "matrix",
   "mattermost",
   "slack",
   "teams",
@@ -72,6 +73,7 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   imessage: "iMessage",
 
   discord: "Discord",
+  matrix: "Matrix",
 };
 
 /** Where each platform's token comes from - the one thing people get stuck on. */
@@ -85,6 +87,7 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
   imessage: "botTokenHintImessage",
 
   discord: "botTokenHintDiscord",
+  matrix: "botTokenHintMatrix",
 };
 
 /** The shortest secret the backend accepts for a relay to sign with. */
@@ -175,11 +178,12 @@ export function AddChannelDialog({
         : null;
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Mattermost is self-hosted: without its server's address a bot cannot reply,
-  // cannot open its event stream and cannot fetch an attachment, so the backend
-  // refuses to save one. Said here rather than after the round trip.
+  // Mattermost and Matrix are self-hosted: without its server's address a bot
+  // cannot reply, cannot open its event stream and cannot fetch an attachment, so
+  // the backend refuses to save one. Said here rather than after the round trip.
   const missingServerUrl =
-    (platform === "mattermost" || platform === "imessage") && serverUrl.trim() === "";
+    (platform === "mattermost" || platform === "matrix" || platform === "imessage") &&
+    serverUrl.trim() === "";
   // A Teams bot cannot sign in, nor recognise a token meant for it, without both.
   const missingTeamsIds =
     platform === "teams" && !(GUID.test(teamsAppId.trim()) && GUID.test(teamsTenantId.trim()));
@@ -243,7 +247,8 @@ export function AddChannelDialog({
         token: token.trim(),
         // Absent rather than empty, like the token itself: the backend applies
         // what it was sent, and a blank string is a value.
-        ...((platform === "mattermost" || platform === "imessage") && serverUrl.trim()
+        ...((platform === "mattermost" || platform === "matrix" || platform === "imessage") &&
+        serverUrl.trim()
           ? { api_base_url: serverUrl.trim() }
           : {}),
         ...((platform === "mattermost" || platform === "email") && webhookSecret.trim()
@@ -463,6 +468,24 @@ export function AddChannelDialog({
                   />
                 </FormField>
               </div>
+            )}
+
+            {platform === "matrix" && (
+              <FormField
+                label={t("matrixHomeserverUrl")}
+                htmlFor="matrix-homeserver-url"
+                description={t("matrixHomeserverUrlHint")}
+                error={errors.api_base_url}
+                required
+              >
+                <Input
+                  id="matrix-homeserver-url"
+                  value={serverUrl}
+                  onChange={(event) => setServerUrl(event.target.value)}
+                  placeholder="https://matrix.example.org"
+                  maxLength={MAX_URL}
+                />
+              </FormField>
             )}
 
             {platform === "imessage" && (
