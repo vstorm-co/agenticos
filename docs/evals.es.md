@@ -1,5 +1,5 @@
 ---
-source_sha: "b716ae4cacc5"
+source_sha: "5c0984512a82"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -290,7 +290,7 @@ Cada brazo del run se resume en dos ejes, y por etiqueta:
 
 | Eje | Mide |
 |---|---|
-| Calidad | Tasa de aprobados entre los casos decididos, cada uno según cómo salió la mayoría de sus intentos; a su lado, la tasa de las primeras respuestas; cuántos quedaron sin decidir, y por qué |
+| Calidad | Tasa de aprobados entre los casos decididos, cada uno según cómo salió la mayoría de sus intentos; a su lado, la tasa de las primeras respuestas; cuántos quedaron sin decidir, y por qué; **Criteria passed** (`partial_credit`), la proporción media de los criterios de cada caso que cumplió su primera respuesta - seis de siete cuentan 6/7 donde la tasa de aprobados cuenta el caso como suspendido - con `criteria_passed` y `criteria_graded` |
 | Eficiencia | Coste por caso aprobado, tokens por caso y latencia en p50 y p95 |
 
 Cada intento sale de una de cuatro maneras (`state` en el intento):

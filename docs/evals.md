@@ -276,7 +276,7 @@ Each arm of the run is summarised on two axes, and per tag:
 
 | Axis | Measures |
 |---|---|
-| Quality | Pass rate over the decided cases, each as most of its tries came out; the first answers' rate beside it; how many were left undecided, and why |
+| Quality | Pass rate over the decided cases, each as most of its tries came out; the first answers' rate beside it; how many were left undecided, and why; **Criteria passed** (`partial_credit`), the mean share of each case's criteria its first answer passed - six of seven counts 6/7 where the pass rate counts the case failed - with `criteria_passed` and `criteria_graded` |
 | Efficiency | Cost per passed case, tokens per case, and latency at p50 and p95 |
 
 Every attempt comes out one of four ways (`state` on the attempt):

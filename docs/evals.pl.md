@@ -1,5 +1,5 @@
 ---
-source_sha: "b716ae4cacc5"
+source_sha: "5c0984512a82"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -299,7 +299,7 @@ Każde ramię runa jest podsumowane na dwóch osiach i per tag:
 
 | Oś | Mierzy |
 |---|---|
-| Jakość | Odsetek zaliczonych wśród rozstrzygniętych przypadków, każdy według tego, jak wypadła większość jego prób; obok odsetek pierwszych odpowiedzi; ile zostało nierozstrzygniętych i dlaczego |
+| Jakość | Odsetek zaliczonych wśród rozstrzygniętych przypadków, każdy według tego, jak wypadła większość jego prób; obok odsetek pierwszych odpowiedzi; ile zostało nierozstrzygniętych i dlaczego; **Spełnione kryteria** (`partial_credit`), średni udział kryteriów przypadku spełnionych przez jego pierwszą odpowiedź - sześć z siedmiu liczy się jako 6/7, gdy odsetek zaliczonych liczy przypadek jako niezaliczony - wraz z `criteria_passed` i `criteria_graded` |
 | Efektywność | Koszt na zaliczony przypadek, tokeny na przypadek i latencję w p50 i p95 |
 
 Każda próba kończy się na jeden z czterech sposobów (`state` w próbie):

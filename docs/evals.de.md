@@ -1,5 +1,5 @@
 ---
-source_sha: "b716ae4cacc5"
+source_sha: "5c0984512a82"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -316,7 +316,7 @@ Jeder Arm des Runs wird auf zwei Achsen zusammengefasst, und pro Tag:
 
 | Achse | Misst |
 |---|---|
-| Qualität | Bestehensquote unter den entschiedenen Fällen, jeder so gewertet, wie die meisten seiner Versuche ausgingen; daneben die Quote der ersten Antworten; wie viele unentschieden blieben, und warum |
+| Qualität | Bestehensquote unter den entschiedenen Fällen, jeder so gewertet, wie die meisten seiner Versuche ausgingen; daneben die Quote der ersten Antworten; wie viele unentschieden blieben, und warum; **Erfüllte Kriterien** (`partial_credit`), der mittlere Anteil der Kriterien eines Falls, den seine erste Antwort erfüllt hat - sechs von sieben zählen 6/7, wo die Bestehensquote den Fall als nicht bestanden zählt - mit `criteria_passed` und `criteria_graded` |
 | Effizienz | Kosten pro bestandenem Fall, Tokens pro Fall und Latenz bei p50 und p95 |
 
 Jeder Versuch geht auf eine von vier Arten aus (`state` am Versuch):
