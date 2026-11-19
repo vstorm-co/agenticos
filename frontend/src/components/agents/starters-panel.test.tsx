@@ -17,6 +17,9 @@ describe("StartersPanel", () => {
       />,
     );
     const toggle = screen.getByRole("switch", { name: "Show suggested prompts" });
+    expect(toggle).not.toBeVisible();
+    await userEvent.click(screen.getByText("First messages"));
+    expect(toggle).toBeVisible();
     expect(toggle).not.toBeChecked();
     expect(screen.queryByRole("list")).toBeNull();
     await userEvent.click(toggle);

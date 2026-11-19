@@ -157,6 +157,7 @@ export function SettingsSection({
                   aria-expanded={open}
                   aria-controls={panelId}
                   onClick={() => setOpen(!open)}
+                  data-press-feedback="quiet"
                   className={DISCLOSURE_TRIGGER}
                 >
                   <ChevronDown

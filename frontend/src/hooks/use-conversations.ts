@@ -99,6 +99,7 @@ export interface ConversationQuery {
   sortDir: ConversationSortDir;
   /** Leave out conversations an API key's runs opened (#2122). */
   hideApi: boolean;
+  projectScope: "include" | "only" | "exclude";
 }
 
 const DEFAULT_QUERY: ConversationQuery = {
@@ -108,6 +109,7 @@ const DEFAULT_QUERY: ConversationQuery = {
   sortBy: "updated_at",
   sortDir: "desc",
   hideApi: false,
+  projectScope: "include",
 };
 
 /**
@@ -139,22 +141,26 @@ function listParams(query: ConversationQuery): string {
   if (query.view === "archived") params.set("archived_only", "true");
   if (query.search.trim()) params.set("search", query.search.trim());
   if (query.agentId) params.set("agent_id", query.agentId);
+  if (query.projectScope !== "include") params.set("project_scope", query.projectScope);
   if (query.hideApi) params.set("hide_api", "true");
   return params.toString();
 }
 
-export function useConversations(query: Partial<ConversationQuery> = {}) {
+export function useConversations(query: Partial<ConversationQuery> = {}, enabled = true) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat");
   const queryClient = useQueryClient();
-  const { view, search, agentId, sortBy, sortDir, hideApi } = { ...DEFAULT_QUERY, ...query };
+  const { view, search, agentId, sortBy, sortDir, hideApi, projectScope } = {
+    ...DEFAULT_QUERY,
+    ...query,
+  };
   // Memoized on the five values rather than on the object they arrive in: a
   // caller building that object inline hands over a new reference every render,
   // and `listKey` is a dependency of half the callbacks below - one of which
   // the sidebar runs from an effect keyed on its identity.
   const params = useMemo(
-    () => listParams({ view, search, agentId, sortBy, sortDir, hideApi }),
-    [view, search, agentId, sortBy, sortDir, hideApi],
+    () => listParams({ view, search, agentId, sortBy, sortDir, hideApi, projectScope }),
+    [view, search, agentId, sortBy, sortDir, hideApi, projectScope],
   );
   const listKey = useMemo(() => qk.conversations.list(params), [params]);
   const {
@@ -224,6 +230,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   // too, rather than waiting for a network to try.
   const { data, isLoading: listLoading } = useQuery({
     queryKey: listKey,
+    enabled,
     queryFn: async () => {
       const ask = () => apiClient.get<ConversationListResponse>(`/conversations?${params}`);
       const response = search.trim() ? await ask() : await readThrough(`list:${params}`, ask);

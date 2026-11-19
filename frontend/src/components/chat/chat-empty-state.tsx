@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useLocalClock } from "@/hooks/use-local-clock";
 
 import {
   CalendarClock,
@@ -29,10 +29,6 @@ import { ChatWelcome, WelcomeIcon, type WelcomeSuggestion } from "./chat-welcome
 
 /** The starter agent also offers personalized opening messages. */
 const STARTER_SLUG = "agenticos";
-const subscribeToClock = () => () => {};
-const localHour = () => new Date().getHours();
-const serverHour = () => null;
-
 export function greetingKey(
   hour: number,
 ): "greetingNight" | "greetingMorning" | "greetingAfternoon" | "greetingEvening" {
@@ -121,7 +117,7 @@ function Welcome({ agent, starters, loading, onPick, suggestionsSlot }: WelcomeP
   const t = useTranslations("chat.empty");
   const th = useTranslations("workspaceHome");
   const { user } = useAuth();
-  const hour = useSyncExternalStore(subscribeToClock, localHour, serverHour);
+  const hour = useLocalClock()?.getHours() ?? null;
   const firstName = user?.full_name?.split(" ")[0] || user?.email?.split("@")[0];
   const description = agent?.description?.trim();
   // The published list already carries capabilities; no second request for home hints.

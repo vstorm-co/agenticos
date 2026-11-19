@@ -120,7 +120,6 @@ export function StartersPanel({
       className="@container"
       data-tour="agent-starters"
       icon={MessageSquare}
-      defaultOpen={usingDefaults}
       title={t("startersTitle")}
       description={t("startersHint", { max: MAX_STARTERS })}
       headerEnd={

@@ -187,6 +187,9 @@ async def list_conversations(
         description="Leave out threads a bot answers in (Slack, Mattermost, Telegram, Teams)",
     ),
     project_id: UUID | None = Query(default=None, description="Only chats started in this project"),
+    project_scope: Literal["include", "only", "exclude"] = Query(
+        "include", description="Include, isolate or exclude project chats from pagination"
+    ),
 ) -> Any:
     """List conversations for the current user.
 
@@ -218,6 +221,7 @@ async def list_conversations(
         hide_api=hide_api,
         hide_channels=hide_channels,
         project_id=project_id,
+        project_scope=project_scope,
         reader=auth,
         for_model=for_model,
     )

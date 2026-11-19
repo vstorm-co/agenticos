@@ -67,12 +67,7 @@ export function PromptVariablesPanel({
   };
 
   return (
-    <BuildSection
-      icon={Braces}
-      title={t("variablesTitle")}
-      description={t("variablesHint")}
-      defaultOpen
-    >
+    <BuildSection icon={Braces} title={t("variablesTitle")} description={t("variablesHint")}>
       <div className="flex flex-wrap gap-1.5">
         {[...system, ...custom].map((variable) => (
           <Button

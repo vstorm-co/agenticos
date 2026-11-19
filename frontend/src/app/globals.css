@@ -89,7 +89,7 @@
   :root:not([data-motion="reduce"])
     button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not([role="slider"]):not(
       [role="combobox"]
-    ):not([aria-haspopup]):not([aria-expanded]):not([data-press-feedback="surface"])
+    ):not([aria-haspopup]):not([aria-expanded]):not([data-press-feedback])
 ) {
   transition: scale 150ms ease-out;
 }
@@ -97,9 +97,9 @@
   :root:not([data-motion="reduce"])
     button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not([role="slider"]):not(
       [role="combobox"]
-    ):not([aria-haspopup]):not([aria-expanded]):not([data-press-feedback="surface"]):not(
-      :disabled
-    ):not([aria-disabled="true"]):not([data-loading="true"])
+    ):not([aria-haspopup]):not([aria-expanded]):not([data-press-feedback]):not(:disabled):not(
+      [aria-disabled="true"]
+    ):not([data-loading="true"])
 ):active {
   scale: 0.97;
 }
@@ -3168,7 +3168,7 @@ body .tour-spotlight {
   }
   .pressable-control:not(.pressable-icon):not([role="combobox"]):not([aria-haspopup]):not(
       [aria-expanded]
-    ):not([data-press-feedback="surface"]):not(:disabled):not([aria-disabled="true"]):not(
+    ):not([data-press-feedback]):not(:disabled):not([aria-disabled="true"]):not(
       [data-loading="true"]
     ):active {
     scale: 0.97;
@@ -3181,7 +3181,7 @@ body .tour-spotlight {
       scale var(--duration-fast) var(--ease-out);
   }
   .pressable-icon:not([role="combobox"]):not([aria-haspopup]):not([aria-expanded]):not(
-      [data-press-feedback="surface"]
+      [data-press-feedback]
     ):active {
     scale: 0.97;
   }
@@ -3273,6 +3273,10 @@ body .tour-spotlight {
 :where(.native-disclosure > summary):focus-visible {
   outline: 2px solid var(--color-foreground);
   outline-offset: 2px;
+}
+/* The enclosing build section draws the keyboard focus around its full frame. */
+.native-disclosure[data-focus-frame] > summary:focus-visible {
+  outline: none;
 }
 @media (pointer: coarse) {
   :where(.native-disclosure > summary) {
@@ -3372,7 +3376,7 @@ body .tour-spotlight {
 }
 
 /* Disclosure headers and image cards retain their geometry while pressed. */
-button[aria-expanded]:active,
+button[aria-expanded]:not([data-press-feedback="quiet"]):active,
 button[data-press-feedback="surface"]:active {
   background-color: var(--color-control-active);
 }

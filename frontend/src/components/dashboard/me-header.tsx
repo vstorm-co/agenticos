@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { useUsageStats } from "@/hooks";
+import { useLocalClock } from "@/hooks/use-local-clock";
 import { useWaitingOnMe, waitingOn } from "@/hooks/use-waiting-on-me";
 import { useAuthStore } from "@/stores";
 import type { Period } from "@/lib/dashboard/period";
@@ -20,7 +21,8 @@ export function firstName(
 }
 
 /** Which greeting the hour asks for. */
-export function partOfDay(hour: number): "morning" | "afternoon" | "evening" {
+export function partOfDay(hour: number): "night" | "morning" | "afternoon" | "evening" {
+  if (hour < 6) return "night";
   if (hour < 12) return "morning";
   return hour < 18 ? "afternoon" : "evening";
 }
@@ -36,7 +38,8 @@ export function DashboardHeader({
   const t = useTranslations("dashboard.greeting");
   const locale = useLocale();
   const user = useAuthStore((state) => state.user);
-  const now = new Date();
+  const now = useLocalClock();
+  const greeting = now === null ? "night" : partOfDay(now.getHours());
   const name = firstName(user?.full_name, user?.email);
   return (
     <PageHeader
@@ -44,18 +47,15 @@ export function DashboardHeader({
       descriptionMode="summary"
       title={
         <span className="flex flex-col">
-          <span className="text-muted-foreground text-sm font-normal" suppressHydrationWarning>
-            {new Intl.DateTimeFormat(locale, {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            }).format(now)}
+          <span className="text-muted-foreground text-sm font-normal">
+            {now &&
+              new Intl.DateTimeFormat(locale, {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              }).format(now)}
           </span>
-          <span suppressHydrationWarning>
-            {name === null
-              ? t(partOfDay(now.getHours()))
-              : t(`${partOfDay(now.getHours())}Named`, { name })}
-          </span>
+          <span>{name === null ? t(greeting) : t(`${greeting}Named`, { name })}</span>
         </span>
       }
       description={description}

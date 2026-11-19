@@ -5775,6 +5775,8 @@
       }
     },
     "greeting": {
+      "night": "Cześć",
+      "nightNamed": "Cześć, {name}",
       "morning": "Dzień dobry",
       "afternoon": "Dzień dobry",
       "evening": "Dobry wieczór",

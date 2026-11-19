@@ -38,7 +38,7 @@ export const MENU_SEPARATOR = "bg-border mx-1 my-1 h-px";
 
 /** A disclosure is an action, not another bordered field. */
 // i18n-exempt: Tailwind control class tokens, never rendered as interface copy.
-export const DISCLOSURE_TRIGGER = `${CONTROL_FOCUS} text-muted-foreground hover:text-foreground touch:min-h-11 flex min-h-9 w-full items-center gap-2 rounded-lg text-left text-[13px] font-medium transition-colors duration-[var(--duration-fast)]`;
+export const DISCLOSURE_TRIGGER = `${CONTROL_FOCUS} text-muted-foreground hover:bg-muted/45 hover:text-foreground active:bg-muted/60 touch:min-h-11 flex min-h-9 w-fit max-w-full items-center gap-2 rounded-md px-2 text-left text-[13px] font-medium transition-colors duration-[var(--duration-fast)]`;
 
 export const CHOICE_SURFACE =
   "border-input bg-field inline-flex max-w-full items-center gap-0.5 rounded-xl border p-0.5";

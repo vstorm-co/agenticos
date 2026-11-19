@@ -41,11 +41,15 @@ export const BuildSection = forwardRef<
     <div
       ref={ref}
       data-slot="build-section"
-      className={cn("bg-card min-w-0 rounded-xl border", className)}
+      className={cn(
+        "bg-card has-[>details>summary:focus-visible]:outline-ring min-w-0 rounded-xl border has-[>details>summary:focus-visible]:outline-2 has-[>details>summary:focus-visible]:outline-offset-2",
+        className,
+      )}
       {...props}
     >
       <NativeDisclosure
         className="group/build"
+        data-focus-frame
         open={open}
         onToggle={(event) => {
           setOwnOpen(event.currentTarget.open);
@@ -54,7 +58,7 @@ export const BuildSection = forwardRef<
       >
         <summary
           aria-label={title}
-          className="focus-visible:outline-foreground/60 hover:bg-muted/35 flex min-h-16 cursor-pointer list-none items-center gap-3 rounded-xl p-4 transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] motion-reduce:transition-none sm:p-5 [&::-webkit-details-marker]:hidden"
+          className="hover:text-muted-foreground flex min-h-16 cursor-pointer list-none items-center gap-3 rounded-xl p-4 transition-colors outline-none motion-reduce:transition-none sm:p-5 [&::-webkit-details-marker]:hidden"
         >
           <span className="bg-muted text-foreground/80 grid size-9 shrink-0 place-items-center rounded-lg">
             <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />

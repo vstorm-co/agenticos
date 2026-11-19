@@ -32,6 +32,7 @@ from app.schemas.task import (
     TaskUpdate,
 )
 from app.schemas.virtual_table import (
+    MAX_LABEL,
     ColumnDef,
     RecordCreate,
     RecordFilter,
@@ -128,10 +129,13 @@ class TaskService:
         if board is not None:
             return board
         scope_name = await self._scope_name(ctx, data.scope, scope_id)
+        table_name = f"Tasks · {(scope_name or data.scope)[:32]} · {scope_id.hex[:12]}"
+        if data.scope == "private":
+            table_name = await self._private_board_name(ctx, scope_name)
         table = await self.tables.create_table(
             ctx,
             TableCreate(
-                name=f"Tasks · {(scope_name or data.scope)[:32]} · {scope_id.hex[:12]}",
+                name=table_name,
                 description="Shared task state for chat, Tables and Inbox. Start at launches work; Due at is the deadline.",
                 visibility="private",
                 columns=task_columns(),
@@ -284,6 +288,21 @@ class TaskService:
                 "can_edit": editable,
             }
         )
+
+    async def _private_board_name(self, ctx: AuthContext, scope_name: str | None) -> str:
+        person = (scope_name or "").strip() or "My"
+        ending = " Tasks"
+        name = f"{person[: MAX_LABEL - len(ending)].rstrip()}{ending}"
+        # Serialize suffix selection with ordinary table creates and renames.
+        await hold_subject(self.db, LockScope.VIRTUAL_TABLE_NAMES_PER_ORG, ctx.organization_id)
+        suffix = 2
+        while await virtual_table_repo.get_live_table_by_name(
+            self.db, name, organization_id=ctx.organization_id
+        ):
+            ending = f" Tasks ({suffix})"
+            name = f"{person[: MAX_LABEL - len(ending)].rstrip()}{ending}"
+            suffix += 1
+        return name
 
     async def _scope_name(self, ctx: AuthContext, kind: str, scope_id: UUID) -> str | None:
         if kind == "agent":

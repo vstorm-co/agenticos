@@ -312,6 +312,7 @@ def _list_filters(
     hide_channels: bool = False,
     project_id: UUID | None = None,
     for_model: bool = False,
+    project_scope: Literal["include", "only", "exclude"] = "include",
 ) -> list[ColumnElement[bool]]:
     """The predicates both conversation listings narrow by.
 
@@ -344,6 +345,10 @@ def _list_filters(
         )
     if project_id is not None:
         filters.append(Conversation.project_id == project_id)
+    if project_scope == "only":
+        filters.append(Conversation.project_id.is_not(None))
+    elif project_scope == "exclude":
+        filters.append(Conversation.project_id.is_(None))
     if hide_api:
         # Null for every conversation opened in the console or a channel.
         filters.append(or_(Conversation.origin.is_(None), Conversation.origin != "api"))
@@ -808,6 +813,7 @@ async def get_conversations_by_user(
     hide_channels: bool = False,
     project_id: UUID | None = None,
     for_model: bool = False,
+    project_scope: Literal["include", "only", "exclude"] = "include",
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
 
@@ -847,6 +853,7 @@ async def get_conversations_by_user(
         hide_channels=hide_channels,
         project_id=project_id,
         for_model=for_model,
+        project_scope=project_scope,
     ):
         query = query.where(condition)
     orders = [] if favourites_first_for is None else [favourited_by(favourites_first_for).desc()]
@@ -927,6 +934,7 @@ async def count_conversations(
     hide_channels: bool = False,
     project_id: UUID | None = None,
     for_model: bool = False,
+    project_scope: Literal["include", "only", "exclude"] = "include",
 ) -> int:
     """Count one organization's conversations, optionally narrowed to one user.
 
@@ -951,6 +959,7 @@ async def count_conversations(
         hide_channels=hide_channels,
         project_id=project_id,
         for_model=for_model,
+        project_scope=project_scope,
     ):
         query = query.where(condition)
     result = await db.execute(query)

@@ -290,7 +290,7 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
 
   return (
     <Card
-      className="@container/sessions flex min-w-0 flex-1 flex-col"
+      className="@container/sessions flex min-w-0 flex-1 flex-col overflow-hidden"
       role={loadingConnections ? "status" : undefined}
       aria-label={loadingConnections ? states("loading") : undefined}
       aria-busy={loadingConnections || undefined}

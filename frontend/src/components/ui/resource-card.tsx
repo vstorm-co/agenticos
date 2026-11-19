@@ -21,6 +21,10 @@ export const ResourceCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEle
 );
 ResourceCard.displayName = "ResourceCard";
 
+/** Its visual focus and hit target extend to the card frame, below secondary actions. */
+export const RESOURCE_CARD_TRIGGER =
+  "flex w-full flex-1 flex-col rounded-[inherit] text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:outline-2 focus-visible:after:outline-offset-[-2px] focus-visible:after:outline-ring";
+
 export function ResourceCardHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("relative flex items-start gap-3", className)} {...props} />;
 }

@@ -325,10 +325,10 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
             <AddToAgent
               resource={{ kind: "collection", id: kb.id }}
               name={kb.name}
-              className="pointer-events-auto relative z-10 -my-1 h-8 text-[13px]"
+              className="pointer-events-auto relative z-10 -my-1 ml-auto h-8 text-[13px]"
             />
           ) : (
-            <ArrowUpRight className="h-4 w-4 shrink-0" />
+            <ArrowUpRight className="ml-auto h-4 w-4 shrink-0" />
           )}
         </ResourceCardFooter>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { BlankPeek, ResourceCard, DocPeek, TextPeek } from "@/components/ui";
+import { RESOURCE_CARD_TRIGGER } from "@/components/ui/resource-card";
 import { AddToAgent } from "@/components/agents/add-to-agent";
 import { UsedBy } from "@/components/agents/used-by";
 import { AudienceChip } from "@/components/sharing/audience-chip";
@@ -14,12 +15,12 @@ interface ContextCardProps {
 /** Preview, usage and the next action, with concise metadata beside the action. */
 export function ContextCard({ file, onOpen }: ContextCardProps) {
   return (
-    <ResourceCard className="peek-card group overflow-hidden p-0">
+    <ResourceCard className="peek-card group isolate overflow-hidden p-0">
       <button
         type="button"
-        data-press-feedback="surface"
+        data-press-feedback="quiet"
         onClick={onOpen}
-        className="flex w-full flex-1 flex-col rounded-[inherit] text-left focus-visible:outline-offset-[-2px]"
+        className={RESOURCE_CARD_TRIGGER}
       >
         <DocPeek className="h-32 max-sm:hidden">
           {file.excerpt ? (
@@ -53,7 +54,7 @@ export function ContextCard({ file, onOpen }: ContextCardProps) {
         <AddToAgent
           resource={{ kind: "context", id: file.id }}
           name={file.name}
-          className="h-8 shrink-0"
+          className="relative z-10 ml-auto h-8 shrink-0"
         />
       </div>
     </ResourceCard>

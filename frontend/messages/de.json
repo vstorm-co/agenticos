@@ -3729,6 +3729,8 @@
       }
     },
     "greeting": {
+      "night": "Hallo",
+      "nightNamed": "Hallo, {name}",
       "morning": "Guten Morgen",
       "afternoon": "Guten Tag",
       "evening": "Guten Abend",

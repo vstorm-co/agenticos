@@ -1266,6 +1266,7 @@ class ConversationService:
         project_id: UUID | None = None,
         reader: AuthContext | None = None,
         for_model: bool = False,
+        project_scope: Literal["include", "only", "exclude"] = "include",
     ) -> tuple[list[Conversation], int]:
         """One page of the organization's conversations, each naming who answered.
 
@@ -1290,7 +1291,7 @@ class ConversationService:
         )
         project_ids = (
             await self.visible_project_ids(user_id, organization_id, reader=reader)
-            if user_id is not None
+            if user_id is not None and project_scope != "exclude"
             else []
         )
         items = await conversation_repo.get_conversations_by_user(
@@ -1323,6 +1324,7 @@ class ConversationService:
             hide_channels=hide_channels,
             project_id=project_id,
             for_model=for_model,
+            project_scope=project_scope,
         )
         total = await conversation_repo.count_conversations(
             self.db,
@@ -1338,6 +1340,7 @@ class ConversationService:
             hide_channels=hide_channels,
             project_id=project_id,
             for_model=for_model,
+            project_scope=project_scope,
         )
         await self.attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)

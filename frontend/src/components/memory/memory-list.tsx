@@ -23,6 +23,7 @@ export function MemoryRow({
     <li>
       <button
         type="button"
+        data-press-feedback="surface"
         onClick={onOpen}
         className="group hover:bg-muted/50 focus-visible:ring-ring flex w-full items-center gap-3 rounded-lg px-3 py-4 text-left transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-inset sm:gap-3 sm:px-3"
       >

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { RESOURCE_CARD_TRIGGER } from "@/components/ui/resource-card";
 import { Tag } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Badge, BlankPeek, ResourceCard, DocPeek, TextPeek } from "@/components/ui";
@@ -50,21 +51,18 @@ export function SkillCard({ skill, onOpen }: SkillCardProps) {
     </>
   );
   return (
-    <ResourceCard className="peek-card group overflow-hidden p-0">
+    <ResourceCard className="peek-card group isolate overflow-hidden p-0">
       {onOpen ? (
         <button
           type="button"
-          data-press-feedback="surface"
+          data-press-feedback="quiet"
           onClick={onOpen}
-          className="flex w-full flex-1 flex-col rounded-[inherit] text-left focus-visible:outline-offset-[-2px]"
+          className={RESOURCE_CARD_TRIGGER}
         >
           {preview}
         </button>
       ) : (
-        <Link
-          href={ROUTES.SKILL_DETAIL(skill.id)}
-          className="flex w-full flex-1 flex-col rounded-[inherit] text-left focus-visible:outline-offset-[-2px]"
-        >
+        <Link href={ROUTES.SKILL_DETAIL(skill.id)} className={RESOURCE_CARD_TRIGGER}>
           {preview}
         </Link>
       )}
@@ -87,7 +85,7 @@ export function SkillCard({ skill, onOpen }: SkillCardProps) {
           resource={{ kind: "skill", id: skill.id }}
           name={skill.name}
           has={skill.used_by?.map((usage) => usage.id)}
-          className="h-8 shrink-0"
+          className="relative z-10 ml-auto h-8 shrink-0"
         />
       </div>
     </ResourceCard>

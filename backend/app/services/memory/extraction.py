@@ -23,6 +23,7 @@ What keeps it safe is how little it is allowed to do:
 
 import json
 import logging
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
@@ -57,6 +58,7 @@ from app.worker.jobs import EXTRACT_MEMORY, ExtractMemory
 logger = logging.getLogger(__name__)
 
 MAX_CLAIMS = 8
+MAX_TRANSCRIPT_MESSAGES = 60
 MAX_TRANSCRIPT_CHARS = 8000
 """The most of a chat the model reads, newest part kept: bounded cost, bounded exposure."""
 
@@ -213,6 +215,24 @@ async def _erased_since(db: AsyncSession, run: AgentRun) -> bool:
     )
 
 
+def transcript_for_extraction(messages: Iterable[tuple[str, str]]) -> list[dict[str, str]]:
+    """Return the newest eligible turns, oldest first, within the model input cap."""
+    turns: list[dict[str, str]] = []
+    remaining = MAX_TRANSCRIPT_CHARS
+    for role, raw_content in reversed(list(messages)):
+        content = raw_content.strip()
+        if role not in ("user", "assistant") or not content:
+            continue
+        remaining -= 32  # Space for the role and object delimiters.
+        if remaining <= 0:
+            break
+        text = content[-remaining:]
+        turns.append({"role": role, "text": text})
+        remaining -= len(text)
+    turns.reverse()
+    return turns
+
+
 async def extract(
     db: AsyncSession,
     organization_id: UUID,
@@ -247,19 +267,10 @@ async def extract(
     # The maintenance run is dated from before the transcript is read, so an erasure
     # committed after this read is one its manifest write still sees.
     read_at = datetime.now(UTC)
-    messages = await conversation_repo.get_messages_by_run(db, run.id, limit=60, newest=True)
-    turns: list[dict[str, str]] = []
-    remaining = MAX_TRANSCRIPT_CHARS
-    for message in reversed(messages):
-        content = message.content.strip()
-        if message.role not in ("user", "assistant") or not content:
-            continue
-        remaining -= 32  # Space for the role and object delimiters.
-        if remaining <= 0:
-            break
-        text = content[-remaining:]
-        turns.append({"role": message.role, "text": text})
-        remaining -= len(text)
+    messages = await conversation_repo.get_messages_by_run(
+        db, run.id, limit=MAX_TRANSCRIPT_MESSAGES, newest=True
+    )
+    turns = transcript_for_extraction((message.role, message.content) for message in messages)
     utterances = [turn["text"] for turn in turns if turn["role"] == "user"]
     if not utterances:
         return 0
@@ -285,7 +296,7 @@ async def extract(
         instructions=_INSTRUCTIONS,
         prompt=json.dumps(
             {
-                "conversation": list(reversed(turns)),
+                "conversation": turns,
                 "existing_memory": [
                     {"subject": claim.subject, "statement": claim.statement[:300]}
                     for claim in existing

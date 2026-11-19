@@ -2,7 +2,15 @@
 
 import { ProjectAvatar } from "@/components/projects/project-avatar";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useAgents, useConversations } from "@/hooks";
@@ -545,7 +553,10 @@ function useBands(
     // Use the shared row once, retaining its reader controls in every band.
     const sharedRows = isArchivedView ? [] : shared;
     const sharedIds = new Set(sharedRows.map((conversation) => conversation.id));
-    const listedRows = conversations.filter((conversation) => !sharedIds.has(conversation.id));
+    const visibleRows = conversations.filter((conversation) => !sharedIds.has(conversation.id));
+    const { inProjects, outside: listedRows } = isArchivedView
+      ? { inProjects: [], outside: visibleRows }
+      : byProject(visibleRows, names, ts("unnamedProject"));
     const unread = isArchivedView
       ? []
       : [...listedRows, ...sharedRows].filter(
@@ -565,10 +576,9 @@ function useBands(
     const ordinaryShared = sharedRemaining.filter(
       (conversation) => conversation.is_favourite !== true,
     );
-    const { inProjects, outside: rest } = isArchivedView
-      ? { inProjects: [], outside: remaining.slice(ownStarred.length) }
-      : byProject(remaining.slice(ownStarred.length), names, ts("unnamedProject"));
+    const rest = remaining.slice(ownStarred.length);
     return [
+      ...inProjects,
       ...(unread.length > 0
         ? [{ key: "unread", heading: ts("unreadHeading"), icon: "unread" as const, rows: unread }]
         : []),
@@ -587,7 +597,6 @@ function useBands(
             },
           ]
         : []),
-      ...inProjects,
       // Under the date they were last active, the way a chat product's history
       // reads, when the list is in that order; any other order has no dates to
       // fall into, so it stays one run.
@@ -625,7 +634,7 @@ function useBandFolds(bands: Band[], loaded: number, scroller: RefObject<HTMLEle
           (band) =>
             band.key !== newest &&
             loaded > LONG_LIST &&
-            (DEFAULT_COLLAPSED_BANDS.includes(band.key) || band.icon === "project") &&
+            DEFAULT_COLLAPSED_BANDS.includes(band.key) &&
             !folded.includes(band.key) &&
             !opened.includes(band.key),
         )
@@ -917,8 +926,33 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     view,
     agentId,
     hideApi,
+    projectScope: view === "active" ? "exclude" : "include",
     ...splitSort(sort),
   });
+  const projectList = useConversations(
+    {
+      view,
+      agentId,
+      hideApi,
+      projectScope: "only",
+      ...splitSort(sort),
+    },
+    view === "active",
+  );
+  const activeProjectRows =
+    view === "active"
+      ? projectList.conversations.filter(
+          (row) => row.project_id !== null && row.project_id !== undefined,
+        )
+      : [];
+  const rows = [
+    ...activeProjectRows,
+    ...conversations.filter((row) => view !== "active" || !row.project_id),
+  ];
+  const fetchMore = useCallback(() => {
+    void fetchMoreConversations();
+    if (view === "active") void projectList.fetchMoreConversations();
+  }, [fetchMoreConversations, projectList.fetchMoreConversations, view]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -972,8 +1006,8 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   };
 
   const listProps = {
-    conversations,
-    total,
+    conversations: rows,
+    total: total + (view === "active" ? projectList.total : 0),
     view,
     onViewChange: changeView,
     // The sort is not a filter: it reorders the same threads, so an empty list
@@ -982,14 +1016,14 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     isFiltered: agentId !== null,
     onClearFilters: clearFilters,
     currentConversationId,
-    isLoading,
+    isLoading: isLoading || (view === "active" && projectList.isLoading),
     onSelect: selectConversation,
     onDelete: deleteConversation,
     onArchive: archiveConversation,
     onUnarchive: unarchiveConversation,
     onFavourite: setFavourite,
     onRename: renameConversation,
-    onLoadMore: fetchMoreConversations,
+    onLoadMore: fetchMore,
     datedOrder: sort === DEFAULT_SORT,
     shared,
     onLeaveShared: (id: string) => void leave(id),

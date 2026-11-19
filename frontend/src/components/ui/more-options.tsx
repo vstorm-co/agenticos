@@ -37,14 +37,15 @@ export function MoreOptions({
     onOpenChange?.(!open);
   };
   return (
-    <div>
+    <div className="border-t pt-2">
       <button
         id={`${id}-toggle`}
         type="button"
         aria-controls={id}
         aria-expanded={open}
+        data-press-feedback="quiet"
         onClick={toggle}
-        className={cn(DISCLOSURE_TRIGGER, "border-t pt-3")}
+        className={DISCLOSURE_TRIGGER}
       >
         <ChevronRight
           className={cn(

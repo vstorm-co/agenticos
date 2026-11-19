@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, ExternalLink, MessageSquare, MoreHorizontal } from "lucide-react";
+import { Check, Clock, ExternalLink, MessageSquare, MoreHorizontal } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import {
@@ -179,6 +179,7 @@ export function SuggestionRows({
                       className="text-muted-foreground h-8"
                       onClick={() => notNow(suggestion)}
                     >
+                      <Clock className="size-3.5" aria-hidden />
                       {t("notNow")}
                     </Button>
                   </>
@@ -211,9 +212,13 @@ export function SuggestionRows({
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuItem onSelect={() => take(suggestion)}>
+                          {suggestion.kind === "finding" && (
+                            <Check className="size-4" aria-hidden />
+                          )}
                           {t(`take.${suggestion.kind}`)}
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => notNow(suggestion)}>
+                          <Clock className="size-3.5" aria-hidden />
                           {t("notNow")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>

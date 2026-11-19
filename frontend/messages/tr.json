@@ -7169,6 +7169,8 @@
       }
     },
     "greeting": {
+      "night": "Merhaba",
+      "nightNamed": "Merhaba, {name}",
       "morning": "Günaydın",
       "afternoon": "İyi günler",
       "evening": "İyi akşamlar",
