@@ -440,7 +440,9 @@ def test_shipped_agents_have_async_work_and_bounded_search_defaults() -> None:
             "strategy": "local_bm25",
             "max_results": 5,
             "defer_capabilities": True,
-            "exclude_capabilities": ["ask_user", "sandbox"],
+            "exclude_capabilities": ["ask_user", "sandbox", "web_research"]
+            if key == "general/agenticos"
+            else ["ask_user", "sandbox"],
         }
         if key == "general/platform-assistant":
             assert bindings["conversation_search"]["config"]["max_results"] == 5

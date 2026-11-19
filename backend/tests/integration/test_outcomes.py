@@ -1,6 +1,7 @@
 """The shared state of what needs a person's attention, against Postgres (#2575)."""
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -8,7 +9,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.notification_delivery import NotificationDelivery
@@ -16,7 +17,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.outcome import Outcome
 from app.db.models.suggestion import Suggestion
 from app.db.models.user import User
-from app.repositories import outcome_repo
+from app.repositories import outcome_repo, suggestion_repo
 from app.services.approvals import ApprovalService
 from app.services.notification_center import NotificationCenterService
 from app.services.notification_delivery import NotificationDeliveryService
@@ -132,6 +133,49 @@ async def test_a_notification_that_is_somebodys_to_act_on_opens_an_outcome(
     assert outcome.source_run_id == run.id and outcome.source_conversation_id == chat.id
     loose = await db.get(Outcome, garbled.outcome_id)
     assert loose is not None and loose.source_run_id is None
+
+
+async def test_private_inbox_overview_matches_personal_cards_and_refuses_shared_chats(db):
+    from app.db.models.conversation_share import ConversationShare
+
+    org, users, ctxs = await _world(db)
+    _, chat = await _run(db, org, users[0])
+    service = OutcomeService(db)
+    mine, theirs = [
+        await suggestion_repo.propose(
+            db,
+            organization_id=org.id,
+            user_id=user.id,
+            kind="agent",
+            title=f"Card {index}",
+            detail="Read this",
+            payload={"internal": "do not include"},
+            dedupe_key="test",
+        )
+        for index, user in enumerate(users)
+    ]
+    assert mine is not None and theirs is not None
+    private = replace(ctxs[0], api_key_id=uuid.uuid4(), source_conversation_id=chat.id)
+    result = await service.inbox_items(private)
+    assert result.total == 1 and result.pending_approvals == 0
+    assert [item.id for item in result.items] == [mine.id]
+    assert "do not include" not in result.model_dump_json()
+    assert (await service.inbox_items(private, item_id=mine.id)).items[0].detail == "Read this"
+    with pytest.raises(NotFoundError):
+        await service.inbox_items(private, item_id=theirs.id)
+    with pytest.raises(AuthorizationError):
+        await service.inbox_items(replace(private, source_conversation_id=None))
+    db.add(
+        ConversationShare(
+            conversation_id=chat.id,
+            shared_by=users[0].id,
+            shared_with=users[1].id,
+            permission="view",
+        )
+    )
+    await db.flush()
+    with pytest.raises(AuthorizationError, match="unshared private chat"):
+        await service.inbox_items(private)
 
 
 async def test_one_cause_is_one_outcome_however_often_it_is_told(db: AsyncSession) -> None:

@@ -63,6 +63,17 @@ beforeEach(() => {
 });
 
 describe("SuggestionRows", () => {
+  it("links a card to a new discussion without accepting or dismissing it", () => {
+    const id = "f3333ec4-01dd-42d5-a543-af449cc44eda";
+    render(<SuggestionRows items={[item(id)]} />);
+    expect(screen.getByRole("link", { name: "Discuss with agent" })).toHaveAttribute(
+      "href",
+      `/chat?new=inbox-${id}&discuss=${id}&agent=agenticos`,
+    );
+    expect(state.accept).not.toHaveBeenCalled();
+    expect(state.dismiss).not.toHaveBeenCalled();
+  });
+
   it("keeps full Inbox content and its actions available", async () => {
     render(
       <SuggestionRows
@@ -133,7 +144,7 @@ describe("SuggestionRows", () => {
     expect(screen.getByText("You asked for it four times")).toHaveClass("line-clamp-2");
     // A watch on a server the catalog does not know is still a watch.
     expect(rows[2]).toHaveTextContent("Routine · just now");
-    expect(within(rows[2]!).queryByRole("link")).toBeNull();
+    expect(within(rows[2]!).queryByRole("link", { name: /Title/ })).toBeNull();
   });
 
   it("answers in the row, and keeps one line of detail when dense", async () => {

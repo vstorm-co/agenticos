@@ -36,6 +36,22 @@ class OutcomeList(BaseSchema):
     items: list[OutcomeRead]
 
 
+class InboxItem(BaseModel):
+    id: UUID
+    title: str
+    detail: str | None
+    kind: str
+    urgent: bool
+    url: str
+
+
+class InboxItems(BaseModel):
+    items: list[InboxItem]
+    total: int
+    pending_approvals: int | None = None
+    scope: Literal["personal_inbox_cards"] = "personal_inbox_cards"
+
+
 class OutcomeSettle(BaseModel):
     action: OutcomeAction
     via: Literal["inbox", "chat"] = "inbox"

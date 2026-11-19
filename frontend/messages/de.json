@@ -14595,6 +14595,8 @@
       "role_pack": "Routinenpaket",
       "finding": "Routine"
     },
+    "discuss": "Mit dem Agenten besprechen",
+    "discussPrompt": "Öffne den Inbox-Eintrag {id}. Erkläre kurz, worum es geht, und schlage den nächsten Schritt vor.",
     "openWorkingChat": "Gespräch öffnen",
     "preferences": "Inbox-Einstellungen",
     "preferencesDescription": "Wähle, welche automatischen Vorschläge deinen Inbox erreichen.",

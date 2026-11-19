@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from app.api.deps import Auth, OutcomeSvc, key_needs
 from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
-from app.schemas.outcome import OutcomeList, OutcomeRead, OutcomeSettle
+from app.schemas.outcome import InboxItems, OutcomeList, OutcomeRead, OutcomeSettle
 
 router = APIRouter(dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))])
 
@@ -36,6 +36,12 @@ async def list_outcomes(
             for item in items
         ]
     )
+
+
+@router.get("/inbox", response_model=InboxItems)
+async def list_inbox_items(service: OutcomeSvc, ctx: Auth, item_id: UUID | None = None) -> Any:
+    """Private Inbox cards such as findings and suggestions, plus a count of visible approvals."""
+    return await service.inbox_items(ctx, item_id=item_id)
 
 
 @router.post("/{outcome_id}/settle", response_model=OutcomeRead)

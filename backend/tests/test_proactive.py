@@ -8,6 +8,7 @@ welcome that fails on one platform still greets on the next.
 """
 
 import asyncio
+import json
 import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -800,8 +801,14 @@ def _user(**overrides):
     return SimpleNamespace(**values)
 
 
-def _request(content: str) -> PersonRequest:
-    return PersonRequest(MagicMock(content=content, created_at=datetime.now(UTC)), None)
+def _request(content: str, *, thread=None) -> PersonRequest:
+    message = MagicMock(
+        content=content,
+        id=uuid.uuid4(),
+        conversation_id=thread or uuid.uuid4(),
+        created_at=datetime.now(UTC),
+    )
+    return PersonRequest(message, None)
 
 
 class TestTheNightlyLook:
@@ -816,6 +823,8 @@ class TestTheNightlyLook:
         starters=None,
         erased=None,
         erased_meanwhile=False,
+        claims=(),
+        prior=(),
     ):
         thinker = MagicMock()
         thinker.starter_agent = AsyncMock(return_value=_agent() if agent else None)
@@ -839,6 +848,12 @@ class TestTheNightlyLook:
                     new=AsyncMock(return_value=list(requests)),
                 ),
                 patch(f"{NIGHTLY}.memory_repo.list_for_owner", new=AsyncMock(return_value=[])),
+                patch(
+                    f"{NIGHTLY}.claim_repo.list_in_scopes", new=AsyncMock(return_value=list(claims))
+                ),
+                patch(
+                    f"{NIGHTLY}.suggestion_repo.list_all", new=AsyncMock(return_value=list(prior))
+                ),
                 patch(
                     f"{NIGHTLY}.agent_trigger_repo.routine_prompts_for_screening",
                     new=AsyncMock(return_value=[]),
@@ -889,6 +904,8 @@ class TestTheNightlyLook:
             "member",
             "requests",
             "notes",
+            "claims",
+            "prior",
             "routines",
             "connections",
             "update",
@@ -976,6 +993,8 @@ class TestTheNightlyLook:
         reading = NightlyReading(
             repeats=[
                 RepeatedRequest(
+                    intent="write-sales-report",
+                    evidence=[1, 2, 3],
                     title="Raport",
                     why="3x",
                     prompt="Raport sprzedaży",
@@ -983,7 +1002,12 @@ class TestTheNightlyLook:
                     as_agent=False,
                 ),
                 RepeatedRequest(
-                    title="Agent", why="2x", prompt="Odpowiadaj klientom", as_agent=True
+                    intent="answer-customers",
+                    evidence=[4, 5, 6],
+                    title="Agent",
+                    why="3x",
+                    prompt="Odpowiadaj klientom",
+                    as_agent=True,
                 ),
             ],
             profile=ProfileUpdate(
@@ -997,7 +1021,13 @@ class TestTheNightlyLook:
             role_pack="sales",
             role_pack_title="Pakiet sprzedaży",
         )
-        made, _, mocks = await self._look(reading=reading, requests=[_request("Raport")])
+        made, _, mocks = await self._look(
+            reading=reading,
+            requests=[
+                _request(text)
+                for text in ("Raport", "Raport", "Raport", "Odpowiedź", "Odpowiedź", "Odpowiedź")
+            ],
+        )
 
         assert made == 4
         # Kept on the membership: they come from this organization's week (Codex on #2324).
@@ -1007,14 +1037,75 @@ class TestTheNightlyLook:
         ]
         proposed = [call.kwargs for call in mocks["propose"].await_args_list]
         assert [p["kind"] for p in proposed] == ["routine", "agent", "profile", "role_pack"]
-        assert proposed[0]["payload"] == {"prompt": "Raport sprzedaży", "cron": "0 7 * * 1"}
-        assert proposed[1]["payload"] == {"request": "Odpowiadaj klientom"}
+        assert proposed[0]["payload"]["prompt"] == "Raport sprzedaży"
+        assert proposed[0]["payload"]["cron"] == "0 7 * * 1"
+        assert len(proposed[0]["payload"]["evidence_ids"]) == 3
+        assert proposed[1]["payload"]["request"] == "Odpowiadaj klientom"
         assert proposed[2]["payload"]["job_title"] == "Head of sales"
         assert "about" not in proposed[2]["payload"]
         assert proposed[3]["payload"] == {"pack": "sales"}
         # Keys are stable per proposal, so the same one tomorrow is the same key.
-        assert proposed[0]["dedupe_key"].startswith("routine:")
+        assert proposed[0]["dedupe_key"].startswith("repeat:")
         mocks["notify"].return_value.suggestions_ready.assert_awaited_once()
+
+    async def test_reads_only_current_profile_and_matching_starter_claims(self):
+        claim = SimpleNamespace(
+            agent_id=None, kind="preference", statement="Woli zwięzłe odpowiedzi"
+        )
+        made, thinker, mocks = await self._look(claims=[claim], requests=[_request("Hej")])
+
+        assert made == 0
+        lookup = mocks["claims"].await_args.kwargs
+        assert lookup["organization_id"] == ORG
+        assert lookup["in_effect"] is True
+        assert len(lookup["scopes"]) == 2
+        assert all(scope.scope_key == f"person:{USER}" for scope in lookup["scopes"])
+        assert lookup["scopes"][0].agent_id is None and lookup["scopes"][1].agent_id is not None
+        prompt = json.loads(thinker.think.await_args.kwargs["prompt"])
+        assert prompt["current_memory"] == [
+            {"scope": "profile", "kind": "preference", "statement": "Woli zwięzłe odpowiedzi"}
+        ]
+
+    @pytest.mark.parametrize(
+        "duplicate", ["intent", "evidence", "wording", "same-thread", "unknown-evidence", "no-cron"]
+    )
+    async def test_repeat_requires_independent_evidence_and_unseen_work(self, duplicate):
+        thread = uuid.uuid4() if duplicate == "same-thread" else None
+        requests = [_request("Podsumuj aktualizacje", thread=thread) for _ in range(3)]
+        prior = []
+        repeat = RepeatedRequest(
+            title="Podsumowanie",
+            why="Powtarza się",
+            prompt="Podsumuj aktualizacje!",
+            as_agent=duplicate != "no-cron",
+            intent="summarize-updates",
+            evidence=[1, 2, 4] if duplicate == "unknown-evidence" else [1, 2, 3],
+        )
+        if duplicate in {"intent", "evidence", "wording"}:
+            metadata = {
+                "intent": {"intent": repeat.intent, "prompt": "Inny opis"},
+                "evidence": {
+                    "evidence_ids": [str(request.message.id) for request in requests[:2]],
+                    "prompt": "Inny opis",
+                },
+                "wording": {"prompt": "Podsumuj aktualizacje"},
+            }
+            prior = [
+                SimpleNamespace(
+                    kind="routine",
+                    status="dismissed",
+                    title="Starsza propozycja",
+                    payload=metadata[duplicate],
+                )
+            ]
+        made, thinker, mocks = await self._look(
+            requests=requests, reading=NightlyReading(repeats=[repeat]), prior=prior
+        )
+        assert made == 0
+        mocks["propose"].assert_not_awaited()
+        if prior:
+            prompt = json.loads(thinker.think.await_args.kwargs["prompt"])
+            assert prompt["prior_proposals"][0]["status"] == "dismissed"
 
     async def test_a_profile_it_already_has_and_an_unknown_pack_propose_nothing(self):
         reading = NightlyReading(

@@ -13130,6 +13130,8 @@
       "role_pack": "Routine paketi",
       "finding": "Rutin"
     },
+    "discuss": "Ajanla konuş",
+    "discussPrompt": "Inbox öğesini aç: {id}. Konuyu kısaca açıkla ve bir sonraki adımı öner.",
     "openWorkingChat": "Sohbeti aç",
     "preferences": "Gelen kutusu tercihleri",
     "preferencesDescription": "Gelen kutuna hangi otomatik önerilerin ulaşacağını seç.",

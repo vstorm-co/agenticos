@@ -153,6 +153,16 @@ export function SuggestionRows({
                       </Link>
                     </Button>
                   )}
+                {!dense && (
+                  <Button asChild size="sm" variant="ghost" className="h-8">
+                    <Link
+                      href={`/chat?new=inbox-${suggestion.id}&discuss=${suggestion.id}&agent=agenticos`}
+                    >
+                      <MessageSquare className="size-3.5" aria-hidden />
+                      {tInbox("discuss")}
+                    </Link>
+                  </Button>
+                )}
                 <Button
                   type="button"
                   size="sm"

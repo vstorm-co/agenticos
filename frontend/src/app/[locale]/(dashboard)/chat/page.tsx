@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 import { ChatContainer, ConversationSidebar } from "@/components/chat";
 import { ChatLayout } from "@/components/chat/chat-layout";
@@ -10,10 +11,16 @@ import { useChatWith } from "@/hooks/use-chat-with";
 import { SAFE_AREA_CLEARANCE } from "@/lib/page-clearance";
 import { StartExample } from "@/components/onboarding/start-example";
 import { startGoal } from "@/lib/onboarding-api";
-import { cn } from "@/lib/utils";
+import { cn, setUrlParam } from "@/lib/utils";
 
 export default function ChatPage() {
   const params = useSearchParams();
+  const t = useTranslations("inbox");
+  const discuss = params.get("discuss");
+  const composerDraft =
+    discuss && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(discuss)
+      ? { text: t("discussPrompt", { id: discuss }), consume: () => setUrlParam("discuss", null) }
+      : undefined;
   const example = startGoal(params.get("example"));
   const requestedConversationId = params.get("id");
   // A consent started from the chat comes back here, and the outcome is in the
@@ -33,6 +40,7 @@ export default function ChatPage() {
         <PhoneChatBar />
         <ChatLayout>
           <ChatContainer
+            composerDraft={composerDraft}
             requestedConversationId={requestedConversationId}
             emptyState={
               example

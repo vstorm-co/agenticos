@@ -14909,6 +14909,8 @@
       "role_pack": "Routine pack",
       "finding": "Routine"
     },
+    "discuss": "Discuss with agent",
+    "discussPrompt": "Open Inbox item {id}. Briefly explain what it is about and suggest the next step.",
     "openWorkingChat": "Open conversation",
     "preferences": "Inbox preferences",
     "preferencesDescription": "Choose which automatic suggestions reach your Inbox.",

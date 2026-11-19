@@ -14128,6 +14128,8 @@
       "role_pack": "Pakiet rutyn",
       "finding": "Rutyna"
     },
+    "discuss": "Porozmawiaj z agentem",
+    "discussPrompt": "Otwórz pozycję Inboxa {id}. Wyjaśnij krótko, czego dotyczy, i zaproponuj następny krok.",
     "openWorkingChat": "Otwórz rozmowę",
     "preferences": "Ustawienia Inbox",
     "preferencesDescription": "Wybierz, jakie automatyczne sugestie trafiają do Twojego Inbox.",

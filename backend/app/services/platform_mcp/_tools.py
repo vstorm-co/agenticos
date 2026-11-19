@@ -1943,8 +1943,18 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("PUT", f"/tasks/{task_id}", json=task.model_dump(mode="json"))
 
+    async def list_inbox_items(item_id: UUID | None = None) -> dict[str, object]:
+        """Read the person's Inbox cards across chats: findings and suggestions.
+
+        Use for “check my Inbox” or to discuss a specific Inbox card by ID. Only for
+        the person's private chat or console. Read-only. The result has a bounded
+        preview, the full card count and, when allowed, a separate pending approval count.
+        """
+        params = {"item_id": str(item_id)} if item_id is not None else None
+        return await api.request("GET", "/outcomes/inbox", params=params)
+
     async def list_inbox_cases(conversation_id: UUID | None = None) -> dict[str, object]:
-        """List the caller's open Inbox cases, optionally for the current working chat.
+        """List the caller's open outcome cases for the current working chat.
 
         After completing requested work, resolve its case with settle_inbox_case.
         Reading a draft does not complete it, and preparing a draft does not send it.
@@ -1956,7 +1966,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         params = {"include_source": "true"}
         if conversation_id is not None:
             params["conversation_id"] = str(conversation_id)
-        return await api.request("GET", "/outcomes", params=params)
+        result = await api.request("GET", "/outcomes", params=params)
+        return {**result, "scope": "working_chat_cases", "whole_inbox": False}
 
     async def settle_inbox_case(
         outcome_id: UUID, action: Literal["acknowledge", "resolve", "mute"]
@@ -4263,6 +4274,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (get_task, False),
         (create_task, True),
         (update_task, True),
+        (list_inbox_items, False),
         (list_inbox_cases, False),
         (settle_inbox_case, True),
         (list_routines, False),

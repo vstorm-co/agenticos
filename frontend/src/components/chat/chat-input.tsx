@@ -128,7 +128,13 @@ interface Attachment {
 const ACCEPTED =
   "image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml,.zip,.tar.gz,.tgz,application/zip,application/x-zip-compressed,application/gzip,application/x-gzip";
 
+export interface ComposerDraft {
+  text: string;
+  consume: () => void;
+}
+
 interface ChatInputProps {
+  composerDraft?: ComposerDraft;
   /** Focus once the composer becomes writable on entry to the main chat. */
   autoFocus?: boolean;
   /** Re-arm entry focus for an explicit New chat without remounting the editor. */
@@ -283,6 +289,7 @@ export function ChatInput({
   hints = false,
   onTyping,
   onDraftChange,
+  composerDraft,
   projects,
   onPickProject,
 }: ChatInputProps) {
@@ -296,6 +303,14 @@ export function ChatInput({
   const tDictation = useTranslations("chat.dictation");
   const { chatMaxUploadSizeMb } = usePublicConfig();
   const [message, setMessage] = useState("");
+  const [lastComposerDraft, setLastComposerDraft] = useState<string>();
+  if (composerDraft?.text !== lastComposerDraft) {
+    setLastComposerDraft(composerDraft?.text);
+    if (composerDraft) setMessage(composerDraft.text);
+  }
+  useEffect(() => {
+    composerDraft?.consume();
+  }, [composerDraft]);
   const [editing, setEditing] = useState(false);
   const drafting = message.trim().length > 0;
   useEffect(() => onDraftChange?.(drafting), [drafting, onDraftChange]);

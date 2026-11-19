@@ -39,7 +39,7 @@ import { ChatRoomBar } from "./chat-room-bar";
 import { TypingIndicator } from "./typing-indicator";
 import { useProjectMentions } from "@/hooks/use-project-mentions";
 import type { PageComment } from "./browser-comment";
-import { ChatInput, type IncomingFiles } from "./chat-input";
+import { ChatInput, type ComposerDraft, type IncomingFiles } from "./chat-input";
 import { ComposerStatus } from "./composer-status";
 import { OutcomeCards } from "./outcome-cards";
 import { ProjectChip } from "./project-chip";
@@ -165,6 +165,7 @@ export interface ChatPrompt {
 }
 
 interface ChatContainerProps {
+  composerDraft?: ComposerDraft;
   /** Keep the welcome screen out of a saved conversation's initial load. */
   requestedConversationId?: string | null;
   /** Sent as soon as the socket is up, once per `id` (#2063). */
@@ -197,6 +198,7 @@ export interface PinnedPrompts {
 }
 
 export function ChatContainer({
+  composerDraft,
   requestedConversationId = null,
   prompt = null,
   emptyState,
@@ -851,6 +853,7 @@ export function ChatContainer({
     <>
       <LocalAccessDialog />
       <ChatUI
+        composerDraft={composerDraft}
         hasEarlierMessages={hasEarlierMessages}
         isLoadingEarlier={isLoadingEarlier}
         loadEarlierMessages={loadEarlierMessages}
@@ -957,6 +960,7 @@ export function ChatContainer({
 }
 
 interface ChatUIProps {
+  composerDraft?: ComposerDraft;
   hasEarlierMessages: boolean;
   isLoadingEarlier: boolean;
   loadEarlierMessages: () => Promise<void>;
@@ -1162,6 +1166,7 @@ function ChatUI({
   agentFixed,
   testingDraft,
   incomingFiles,
+  composerDraft,
   onVisualReport,
 }: ChatUIProps) {
   const composerFocusRequest = useConversationStore((state) => state.composerFocusRequest);
@@ -1847,6 +1852,7 @@ function ChatUI({
                           limit near its end changes an icon's colour and never
                           costs the row a button. */}
                           <ChatInput
+                            composerDraft={composerDraft}
                             autoFocus={!compact && !onCall}
                             focusRequest={composerFocusRequest}
                             onSend={sendMessage}

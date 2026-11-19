@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.schemas.outcome import InboxItems
 
 pytestmark = pytest.mark.anyio
 
@@ -61,6 +62,25 @@ async def test_a_viewer_lists_their_open_outcomes_for_one_chat() -> None:
     assert item["source_run_id"] == str(RUN)
     assert (item["id"], item["status"], item["summary"]) == (str(OUTCOME), "open", "Found it")
     assert listed.await_args.kwargs == {"open_only": True, "conversation_id": CHAT}
+
+
+async def test_a_viewer_can_ask_for_one_personal_inbox_item() -> None:
+    listed = AsyncMock(return_value=InboxItems(total=0, items=[]))
+    with patch("app.services.outcome.OutcomeService.inbox_items", new=listed):
+        async with _client() as client:
+            response = await client.get(
+                f"{settings.API_V1_STR}/outcomes/inbox", params={"item_id": str(OUTCOME)}
+            )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "total": 0,
+        "items": [],
+        "pending_approvals": None,
+        "scope": "personal_inbox_cards",
+    }
+    assert listed.await_args.args[0].user_id == PERSON
+    assert listed.await_args.kwargs == {"item_id": OUTCOME}
 
 
 async def test_a_viewer_settles_their_own_outcome_and_says_where() -> None:
