@@ -1,5 +1,6 @@
 "use client";
 
+import { BuildSection } from "./build-section";
 import { AudioLines, Headphones, Info, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -54,6 +55,7 @@ export const AGENT_CALLS_ANCHOR = "agent-voice";
 type VoiceTab = "calls" | "dictation";
 
 interface VoiceCardProps {
+  collapsible?: boolean;
   value: SpeechToTextSpec | null | undefined;
   onChange: (next: SpeechToTextSpec | null) => void;
   disabled?: boolean;
@@ -80,7 +82,13 @@ interface VoiceCardProps {
  * because the server stores it that way and the Builder compares the draft as
  * JSON: any other spelling would show as an unpublished change that is not one.
  */
-export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCardProps) {
+export function VoiceCard({
+  value,
+  onChange,
+  disabled,
+  conversation,
+  collapsible = false,
+}: VoiceCardProps) {
   const t = useTranslations("agents");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { data: orgs } = useOrganizationList();
@@ -150,149 +158,163 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
     return conversation ? "calls" : "dictation";
   });
 
+  const fields = (
+    <CardContent className={collapsible ? "p-0" : undefined}>
+      <Tabs value={tab} onValueChange={(next) => setTab(next as VoiceTab)}>
+        <TabsList
+          className={cn(
+            "grid gap-2 overflow-visible shadow-none sm:gap-2",
+            conversation && "sm:grid-cols-2",
+          )}
+        >
+          {conversation && (
+            <TabsTrigger
+              value="calls"
+              aria-label={t("voiceTabCalls")}
+              className="data-[state=active]:border-foreground/15 data-[state=active]:bg-foreground/[0.05] h-auto min-w-0 items-start justify-start gap-3 rounded-xl border border-transparent p-3 text-left whitespace-normal"
+            >
+              <AudioLines className="mt-0.5 size-5 shrink-0" aria-hidden />
+              <span className="min-w-0 space-y-1">
+                <span className="block text-sm font-medium">{t("voiceTabCalls")}</span>
+                <span className="text-muted-foreground block text-xs leading-5">
+                  {t("voiceCallsLead")}
+                </span>
+              </span>
+            </TabsTrigger>
+          )}
+          <TabsTrigger
+            value="dictation"
+            aria-label={t("voiceTabDictation")}
+            className="data-[state=active]:border-foreground/15 data-[state=active]:bg-foreground/[0.05] h-auto min-w-0 items-start justify-start gap-3 rounded-xl border border-transparent p-3 text-left whitespace-normal"
+          >
+            <Mic className="mt-0.5 size-5 shrink-0" aria-hidden />
+            <span className="min-w-0 space-y-1">
+              <span className="block text-sm font-medium">{t("voiceTabDictation")}</span>
+              <span className="text-muted-foreground block text-xs leading-5">
+                {t("voiceDictationLead")}
+              </span>
+            </span>
+          </TabsTrigger>
+        </TabsList>
+        {conversation && (
+          <TabsContent value="calls" className="mt-4 space-y-4">
+            <VoiceConversationFields {...conversation} disabled={disabled} />
+          </TabsContent>
+        )}
+        <TabsContent value="dictation" className="mt-4 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="agent-voice-dictation-switch">{t("voiceDictationProvider")}</Label>
+              <p className="text-muted-foreground text-xs">{t("voiceDictationProviderHint")}</p>
+            </div>
+            <Switch
+              id="agent-voice-dictation-switch"
+              checked={dictation}
+              disabled={disabled}
+              onCheckedChange={(on) => write({ dictation: on })}
+            />
+          </div>
+          <Notes dictation={dictation} hasPair={orgPair !== null || hasPair} />
+          <div className="space-y-2">
+            <p id="agent-voice-pair" className="text-sm font-medium">
+              {t("voicePair")}
+            </p>
+            <ChoiceGroup
+              labelledBy="agent-voice-pair"
+              value={mode}
+              disabled={disabled || providers.length === 0}
+              options={[
+                { value: "inherit", label: t("voicePairInherit") },
+                { value: "choose", label: t("voicePairChoose") },
+              ]}
+              onChange={choose}
+            />
+            {!hasPair && (
+              <p className="text-muted-foreground text-xs">
+                {orgPair
+                  ? t(mode === "inherit" ? "voiceInherits" : "voiceInheritsUntilChosen", {
+                      pair: orgPair,
+                    })
+                  : t("voiceOrgNoPair")}
+              </p>
+            )}
+          </div>
+          {mode === "choose" && (
+            <PairFields
+              providers={providers}
+              provider={provider}
+              model={model}
+              secretId={secretId}
+              hasKey={hasKey}
+              disabled={disabled}
+              onChange={write}
+            />
+          )}
+          <FormField
+            label={t("voiceLanguage")}
+            htmlFor="agent-voice-language"
+            help={t("voiceLanguageHint")}
+          >
+            <Select
+              value={language ?? INHERIT}
+              disabled={disabled}
+              onValueChange={(next) => write({ language: next === INHERIT ? null : next })}
+            >
+              <SelectTrigger id="agent-voice-language">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={INHERIT}>
+                  {t("voiceLanguageInherit", {
+                    language: org?.speech_to_text_language
+                      ? languageName(org.speech_to_text_language)
+                      : t("voiceLanguageAuto"),
+                  })}
+                </SelectItem>
+                {languages
+                  .map((code) => ({ code, name: languageName(code) }))
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map(({ code, name }) => (
+                    <SelectItem key={code} value={code}>
+                      {t("voiceLanguageOption", { name, code })}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+        </TabsContent>
+      </Tabs>
+    </CardContent>
+  );
   return (
     // The anchors the composer's call button and dictation hint link to.
     <Card id={AGENT_CALLS_ANCHOR} data-tour="agent-voice" className="scroll-mt-20">
       <span id={AGENT_DICTATION_ANCHOR} className="block scroll-mt-20" aria-hidden />
-      <CardHeader className="flex-row items-start gap-3 space-y-0">
-        <span className="bg-foreground/[0.05] text-foreground/80 flex size-10 shrink-0 items-center justify-center rounded-xl">
-          <Headphones className="size-5" aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <CardTitle>{t("voiceTitle")}</CardTitle>
-          <CardDescription>{t("voiceDescription")}</CardDescription>
-        </div>
-      </CardHeader>
-      {/* Two things people do with their voice, told apart rather than stacked:
-          a call is a live, two-way conversation on a realtime model; dictation
-          turns speech into text on a transcription model. Each is set up on its
-          own tab, under one sentence saying what it is. */}
-      <CardContent>
-        <Tabs value={tab} onValueChange={(next) => setTab(next as VoiceTab)}>
-          <TabsList
-            className={cn(
-              "grid gap-2 overflow-visible shadow-none sm:gap-2",
-              conversation && "sm:grid-cols-2",
-            )}
-          >
-            {conversation && (
-              <TabsTrigger
-                value="calls"
-                aria-label={t("voiceTabCalls")}
-                className="data-[state=active]:border-foreground/15 data-[state=active]:bg-foreground/[0.05] h-auto min-w-0 items-start justify-start gap-3 rounded-xl border border-transparent p-3 text-left whitespace-normal"
-              >
-                <AudioLines className="mt-0.5 size-5 shrink-0" aria-hidden />
-                <span className="min-w-0 space-y-1">
-                  <span className="block text-sm font-medium">{t("voiceTabCalls")}</span>
-                  <span className="text-muted-foreground block text-xs leading-5">
-                    {t("voiceCallsLead")}
-                  </span>
-                </span>
-              </TabsTrigger>
-            )}
-            <TabsTrigger
-              value="dictation"
-              aria-label={t("voiceTabDictation")}
-              className="data-[state=active]:border-foreground/15 data-[state=active]:bg-foreground/[0.05] h-auto min-w-0 items-start justify-start gap-3 rounded-xl border border-transparent p-3 text-left whitespace-normal"
-            >
-              <Mic className="mt-0.5 size-5 shrink-0" aria-hidden />
-              <span className="min-w-0 space-y-1">
-                <span className="block text-sm font-medium">{t("voiceTabDictation")}</span>
-                <span className="text-muted-foreground block text-xs leading-5">
-                  {t("voiceDictationLead")}
-                </span>
-              </span>
-            </TabsTrigger>
-          </TabsList>
-          {conversation && (
-            <TabsContent value="calls" className="mt-4 space-y-4">
-              <VoiceConversationFields {...conversation} disabled={disabled} />
-            </TabsContent>
-          )}
-          <TabsContent value="dictation" className="mt-4 space-y-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-0.5">
-                <Label htmlFor="agent-voice-dictation-switch">{t("voiceDictationProvider")}</Label>
-                <p className="text-muted-foreground text-xs">{t("voiceDictationProviderHint")}</p>
-              </div>
-              <Switch
-                id="agent-voice-dictation-switch"
-                checked={dictation}
-                disabled={disabled}
-                onCheckedChange={(on) => write({ dictation: on })}
-              />
+      {collapsible ? (
+        <BuildSection
+          title={t("voiceTitle")}
+          description={t("voiceDescription")}
+          defaultOpen={
+            typeof window !== "undefined" &&
+            ["#" + AGENT_CALLS_ANCHOR, "#" + AGENT_DICTATION_ANCHOR].includes(window.location.hash)
+          }
+        >
+          {fields}
+        </BuildSection>
+      ) : (
+        <>
+          <CardHeader className="flex-row items-start gap-3 space-y-0">
+            <span className="bg-foreground/[0.05] text-foreground/80 flex size-10 shrink-0 items-center justify-center rounded-xl">
+              <Headphones className="size-5" aria-hidden />
+            </span>
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <CardTitle>{t("voiceTitle")}</CardTitle>
+              <CardDescription>{t("voiceDescription")}</CardDescription>
             </div>
-            <Notes dictation={dictation} hasPair={orgPair !== null || hasPair} />
-            <div className="space-y-2">
-              <p id="agent-voice-pair" className="text-sm font-medium">
-                {t("voicePair")}
-              </p>
-              <ChoiceGroup
-                labelledBy="agent-voice-pair"
-                value={mode}
-                disabled={disabled || providers.length === 0}
-                options={[
-                  { value: "inherit", label: t("voicePairInherit") },
-                  { value: "choose", label: t("voicePairChoose") },
-                ]}
-                onChange={choose}
-              />
-              {!hasPair && (
-                <p className="text-muted-foreground text-xs">
-                  {orgPair
-                    ? t(mode === "inherit" ? "voiceInherits" : "voiceInheritsUntilChosen", {
-                        pair: orgPair,
-                      })
-                    : t("voiceOrgNoPair")}
-                </p>
-              )}
-            </div>
-            {mode === "choose" && (
-              <PairFields
-                providers={providers}
-                provider={provider}
-                model={model}
-                secretId={secretId}
-                hasKey={hasKey}
-                disabled={disabled}
-                onChange={write}
-              />
-            )}
-            <FormField
-              label={t("voiceLanguage")}
-              htmlFor="agent-voice-language"
-              help={t("voiceLanguageHint")}
-            >
-              <Select
-                value={language ?? INHERIT}
-                disabled={disabled}
-                onValueChange={(next) => write({ language: next === INHERIT ? null : next })}
-              >
-                <SelectTrigger id="agent-voice-language">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={INHERIT}>
-                    {t("voiceLanguageInherit", {
-                      language: org?.speech_to_text_language
-                        ? languageName(org.speech_to_text_language)
-                        : t("voiceLanguageAuto"),
-                    })}
-                  </SelectItem>
-                  {languages
-                    .map((code) => ({ code, name: languageName(code) }))
-                    .sort((a, b) => a.name.localeCompare(b.name))
-                    .map(({ code, name }) => (
-                      <SelectItem key={code} value={code}>
-                        {t("voiceLanguageOption", { name, code })}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
+          </CardHeader>
+          {fields}
+        </>
+      )}
     </Card>
   );
 }

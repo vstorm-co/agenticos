@@ -1,8 +1,10 @@
 ---
-source_sha: "79016be13618"
+source_sha: "09ca314684cf"
 ---
 
 # Die Konsole { #the-console }
+
+Ressourcenkataloge verwenden größere Karten mit Symbol, Titel, Beschreibung und einer separaten Fußzeile für Status und Aktionen. Agenten, Tabellen, Workflows, Wissensbasen, Projekte, Datensätze, MCP-Server, Skills, Kontextdateien, Apps und Gruppen teilen diesen Rahmen und behalten ihre eigenen Aktionen. Im Agent Builder stehen die Einstellungen ab Model in aufklappbaren Abschnitten eines Panels. Model ist anfangs geöffnet; das Schließen erhält die Editoren, und Voice-Links öffnen den passenden Abschnitt.
 
 Organisationen bietet eine Suche nach Namen und Slugs der Mitgliedschaften; die Trefferzahl steht in derselben Leiste. Leeren der Suche zeigt wieder alle Mitgliedschaften.
 

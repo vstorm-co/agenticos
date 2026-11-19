@@ -80,6 +80,7 @@ function conversation(id: string, title: string, favourite = false): Conversatio
 /** Whatever the list route should answer with next. */
 function serve(items: ReturnType<typeof conversation>[], total = items.length) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.startsWith("/conversations/search?")) return { items: [] };
     if (path.includes("/messages")) return { items: [], total: 0 };
     if (path.startsWith("/conversations/shared-with-me"))
       return { items: shared, total: shared.length };
@@ -99,6 +100,7 @@ function listRequests(): string[] {
       (path) =>
         !path.includes("/messages") &&
         !path.startsWith("/conversations/shared-with-me") &&
+        !path.startsWith("/conversations/search?") &&
         path !== "/agents" &&
         path !== "/orgs",
     );
@@ -810,12 +812,12 @@ describe("the three icons over the list", () => {
 
     await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
     const dialog = await screen.findByRole("dialog", { name: "Search conversations" });
-    expect(within(dialog).getByText("Type to search your conversations by title.")).toBeVisible();
+    expect(within(dialog).getByText("Search conversation titles and messages.")).toBeVisible();
 
     serve([conversation("c-9", "Refund policy")]);
-    await userEvent.type(within(dialog).getByRole("textbox"), "refund");
+    await userEvent.type(within(dialog).getByRole("combobox"), "refund");
     await waitFor(() => expect(listRequests().at(-1)).toContain("search=refund"));
-    await userEvent.click(await within(dialog).findByRole("button", { name: /Refund policy/ }));
+    await userEvent.click(await within(dialog).findByRole("option", { name: /Refund policy/ }));
 
     await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBe("c-9"));
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -828,7 +830,7 @@ describe("the three icons over the list", () => {
     const dialog = await screen.findByRole("dialog", { name: "Search conversations" });
 
     serve([]);
-    await userEvent.type(within(dialog).getByRole("textbox"), "nothing");
+    await userEvent.type(within(dialog).getByRole("combobox"), "nothing");
 
     expect(await within(dialog).findByText("No conversation matches.")).toBeVisible();
   });

@@ -3,7 +3,12 @@
 import type { ReactNode } from "react";
 
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
-import { Card, CardContent } from "@/components/ui";
+import {
+  ResourceCard,
+  ResourceCardHeader,
+  ResourceCardDescription,
+  ResourceCardFooter,
+} from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 interface McpServerCardProps {
@@ -57,7 +62,7 @@ export function McpServerCard({
   dataTour,
 }: McpServerCardProps) {
   return (
-    <Card
+    <ResourceCard
       role="group"
       aria-label={name}
       className={cn(
@@ -74,8 +79,8 @@ export function McpServerCard({
         })
       }
     >
-      <CardContent className="flex h-full flex-col gap-3 p-4">
-        <div className="flex items-start gap-3">
+      <div className="flex h-full flex-1 flex-col">
+        <ResourceCardHeader>
           {/* A white tile in both themes: the logos are drawn for a light ground. */}
           <span className="border-foreground/10 grid size-10 shrink-0 place-items-center rounded-xl border bg-white">
             {mark ?? (
@@ -90,23 +95,21 @@ export function McpServerCard({
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-medium">{name}</span>
+              <span className="truncate text-base font-semibold">{name}</span>
               {badge}
             </div>
-            <p className="text-muted-foreground mt-0.5 line-clamp-2 text-[13px] leading-snug">
-              {description}
-            </p>
           </div>
           {headerAction && <span className="shrink-0">{headerAction}</span>}
-        </div>
-        <div className="mt-auto flex min-h-8 min-w-0 items-center gap-2">
+        </ResourceCardHeader>
+        <ResourceCardDescription>{description}</ResourceCardDescription>
+        <ResourceCardFooter className="min-h-8 min-w-0">
           <span className="text-muted-foreground flex min-w-0 flex-1 items-center gap-1.5 text-xs">
             {status}
           </span>
           {actions && <span className="flex shrink-0 items-center gap-1">{actions}</span>}
-        </div>
-      </CardContent>
-    </Card>
+        </ResourceCardFooter>
+      </div>
+    </ResourceCard>
   );
 }
 

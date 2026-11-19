@@ -650,3 +650,10 @@ an initial immediate measurement during viewport resizing was premature.
 
 - Tracing search through `readable_by` and `ConversationService._may_read` found an internal workflow transcript could match through project access although ordinary transcript reads refuse it. A real-database regression failed before the correction.
 - Exclude `origin=workflow` in the shared search predicate, retaining null origins with `IS DISTINCT FROM`. All 26 search repository integration tests now pass; both listing and single-result reads use the same predicate. No schema change.
+
+### Selected resource cards and Builder sections
+
+- Apply profile cards A through a shared ResourceCard frame to agents, tables, workflows, knowledge bases, projects, datasets, MCP, skills, context, Apps and groups. Keep domain actions, access controls and document previews. Loading skeletons reserve the same layout.
+- Apply Builder B: one panel of native collapsible settings. Model starts open; editors stay mounted and Voice deep links reveal their section.
+- Scoped suites: 83 card tests, 69 Builder/Voice tests, 164 gallery tests, 66 section/sidebar tests and 60 workspace/save/publish/starter tests passed (overlapping suites). TSC and scoped ESLint passed.
+- Reproduce a 2px workspace-file overflow with 120 long filenames in headless Chromium: 286px available / 288px child. The child now fits its parent: 286px / 286px. No screenshots or provider calls.

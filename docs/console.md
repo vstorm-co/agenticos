@@ -1,5 +1,7 @@
 # The console
 
+Resource galleries share larger cards with an icon, title, description and a separate status/action footer. Agents, tables, workflows, knowledge bases, projects, datasets, MCP servers, skills, context files, Apps and groups use the same frame while retaining their own actions. In the agent Builder, settings from Model onward use collapsible sections in one panel. Model starts open; closing a section preserves its editors, and Voice links reveal the matching section.
+
 Organizations has a search field for membership names and slugs, with the matching count in the same toolbar. Clearing the search restores the full membership list.
 
 The Me view starts with its period summary in a card, followed by a compact Briefing with titles, sources and actions. Full proposal details remain in Inbox.

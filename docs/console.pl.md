@@ -1,8 +1,10 @@
 ---
-source_sha: "79016be13618"
+source_sha: "09ca314684cf"
 ---
 
 # Konsola { #the-console }
+
+Katalogi zasobów mają większe karty z ikoną, tytułem, opisem i osobną stopką statusu oraz akcji. Agenci, tabele, workflowy, bazy wiedzy, projekty, datasety, serwery MCP, skille, pliki kontekstu, Apps i grupy używają wspólnej ramki, zachowując własne akcje. W Builderze ustawienia od Model w dół są rozwijanymi sekcjami jednego panelu. Model jest początkowo otwarty; zwinięcie zachowuje edytory, a linki Voice otwierają odpowiednią sekcję.
 
 Organizacje mają wyszukiwanie po nazwie i slugu członkostwa, z liczbą wyników w tym samym pasku. Wyczyszczenie wyszukiwania przywraca pełną listę organizacji użytkownika.
 

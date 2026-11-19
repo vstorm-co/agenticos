@@ -223,7 +223,7 @@ export function WorkspaceFiles({
                 "bg-background shadow-card absolute inset-y-0 right-0 z-30 w-72 max-w-[85%] rounded-l-2xl border",
             )}
           >
-            <div className="border-border flex h-full min-h-0 w-72 flex-col border-l">
+            <div className="border-border flex h-full min-h-0 w-full min-w-0 flex-col border-l">
               <div className="shrink-0 space-y-1 p-4 pb-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="flex items-center gap-2 text-sm font-medium">
