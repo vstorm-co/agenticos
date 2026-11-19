@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Search readable chat message text as well as conversation titles, with highlighted excerpts, matching-message counts and keyboard navigation. Reuse the existing full-text index and transcript access checks.
+
 - Use a compact main-chat composer with files beside the agent, direct model and permission controls, icon-only context usage and matching dictation/call panels. Preview Inbox topics in new chats with their MCP source marks.
 
 - Show model-maker icons in the model field and searchable catalog, independently of the routing provider. Use a neutral mark for unknown makers.

@@ -1725,7 +1725,7 @@
         "older": "Older"
       },
       "searchLabel": "Search conversations",
-      "searchHint": "Type to search your conversations by title.",
+      "searchHint": "Search conversation titles and messages.",
       "searching": "Searching…",
       "noSearchResults": "No conversation matches.",
       "untitled": "Untitled",
@@ -1737,7 +1737,10 @@
       "sharedHeading": "Shared with you",
       "sharedLoading": "Loading shared conversations…",
       "sharedFailed": "Shared conversations could not be loaded.",
-      "retryShared": "Retry shared conversations"
+      "retryShared": "Retry shared conversations",
+      "searchFailed": "Could not search conversations.",
+      "searchMatches": "{count, plural, one {# matching message} other {# matching messages}}",
+      "searchKeys": "↑ ↓ to navigate · Enter to open · Esc to close"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",

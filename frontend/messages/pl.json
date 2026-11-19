@@ -739,7 +739,7 @@
         "older": "Starsze"
       },
       "searchLabel": "Szukaj rozmów",
-      "searchHint": "Wpisz, aby wyszukać rozmowy po tytule.",
+      "searchHint": "Szukaj w tytułach rozmów i wiadomościach.",
       "searching": "Szukam…",
       "noSearchResults": "Żadna rozmowa nie pasuje.",
       "untitled": "Bez tytułu",
@@ -751,7 +751,10 @@
       "sharedHeading": "Udostępnione Tobie",
       "sharedLoading": "Ładowanie udostępnionych rozmów…",
       "sharedFailed": "Nie udało się wczytać udostępnionych rozmów.",
-      "retryShared": "Wczytaj udostępnione rozmowy ponownie"
+      "retryShared": "Wczytaj udostępnione rozmowy ponownie",
+      "searchFailed": "Nie udało się przeszukać rozmów.",
+      "searchMatches": "{count, plural, one {# pasująca wiadomość} few {# pasujące wiadomości} many {# pasujących wiadomości} other {# pasującej wiadomości}}",
+      "searchKeys": "↑ ↓ nawigacja · Enter otwiera · Esc zamyka"
     },
     "skipComment": "Pomiń komentarz",
     "sourceCount": "{count, plural, one {1 źródło} few {# źródła} many {# źródeł} other {# źródła}}",

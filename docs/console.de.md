@@ -1,5 +1,5 @@
 ---
-source_sha: "dbcd754b1128"
+source_sha: "79016be13618"
 ---
 
 # Die Konsole { #the-console }
@@ -132,6 +132,8 @@ Anhänge bleiben innerhalb des Eingabefelds in einer horizontal scrollbaren Zeil
 Neue Chats zeigen über dem Eingabefeld einfache veröffentlichte Gesprächseinstiege des ausgewählten Agenten mit konfigurierten Symbolen, Titeln und kurzen Vorschauen. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
 
 Der Hauptchat bietet ein breiteres Eingabefeld und animierte Arbeitsplatzgrafiken. Die Modellbibliothek zeigt verbundene Anbieter zuerst, mit Logos und großgeschriebenen Namen, und trennt Katalog und gespeicherte Modelle. Ein Klick wählt das Modell direkt aus. Fehlende Zugangsdaten lassen sich über die bestehenden Vault-Formulare im Auswahlfenster hinzufügen, auch mehrteilige Anbieterzugangsdaten. Berechtigungen und Modellvalidierung bleiben wirksam. Mikrofon und Senden wechseln beim Schreiben fließend. Posteingangsthemen bleiben unter dem Eingabefeld.
+
+Die Gesprächssuche durchsucht Titel und indexierte Nachrichtentexte, einschließlich lesbarer Archive. Ergebnisse zeigen Textauszüge mit hervorgehobenen Treffern und der Anzahl passender Nachrichten. Pfeiltasten und Enter öffnen ein Ergebnis. Suchfehler bieten eine Wiederholung, statt eine leere Liste vorzutäuschen.
 
 ## Das Dashboard { #the-dashboard }
 

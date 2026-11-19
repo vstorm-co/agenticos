@@ -118,6 +118,8 @@ Inline web links use the same favicon policy independently of MCP connections. U
 
 A failed chat run shows its failure separately from the assistant’s answer, outside folded tool work, including after reloading the conversation. A provider content filter is identified explicitly; raw provider responses and unknown historical error strings are not copied into shared transcripts. Partial work remains available, and failed work is not labelled as completed.
 
+Conversation search checks both titles and indexed message text, including archived chats you may read. Results show plain-text excerpts with highlighted matches and message counts. Use the arrow keys and Enter to open a result. Search failures offer a retry instead of appearing as an empty result.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to

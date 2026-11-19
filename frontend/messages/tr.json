@@ -9330,7 +9330,7 @@
         "older": "Daha eski"
       },
       "searchLabel": "Konuşmalarda ara",
-      "searchHint": "Konuşmalarınızı başlığa göre aramak için yazın.",
+      "searchHint": "Konuşma başlıklarında ve mesajlarda arayın.",
       "searching": "Aranıyor…",
       "noSearchResults": "Eşleşen konuşma yok.",
       "untitled": "Başlıksız",
@@ -9341,7 +9341,10 @@
       "sharedHeading": "Sizinle paylaşılanlar",
       "sharedLoading": "Paylaşılan konuşmalar yükleniyor…",
       "sharedFailed": "Paylaşılan konuşmalar yüklenemedi.",
-      "retryShared": "Paylaşılan konuşmaları yeniden yükle"
+      "retryShared": "Paylaşılan konuşmaları yeniden yükle",
+      "searchFailed": "Konuşmalar aranamadı.",
+      "searchMatches": "{count, plural, one {# eşleşen mesaj} other {# eşleşen mesaj}}",
+      "searchKeys": "↑ ↓ gezin · Enter aç · Esc kapat"
     },
     "skipComment": "Yorumu atla",
     "sourceCount": "{count, plural, =1 {1 kaynak} other {# kaynak}}",

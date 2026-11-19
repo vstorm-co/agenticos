@@ -325,7 +325,7 @@ test.describe("Dashboard", () => {
     await expect(pageHeading(page, DASHBOARD_GREETING)).toBeVisible();
 
     await page.getByRole("button", { name: "Period", exact: true }).click();
-    await page.getByRole("menuitemradio", { name: "Last 7 days" }).click();
+    await page.getByRole("button", { name: "Last 7 days", exact: true }).click();
 
     await expect(page).toHaveURL(/period=7d/);
   });

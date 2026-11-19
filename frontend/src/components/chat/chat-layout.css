@@ -409,3 +409,37 @@
     background-color 220ms ease-out,
     color 220ms ease-out;
 }
+
+/* On a phone two short rails keep the full toolbar usable without shrinking hit areas. */
+@media (max-width: 767px) {
+  .chat-layout .chat-input-form[data-editing] {
+    display: block;
+  }
+  .chat-layout .chat-input-form .chat-input-actions {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 2px 6px;
+  }
+  .chat-layout .chat-input-form .chat-input-actions button {
+    min-inline-size: 44px;
+    min-block-size: 44px;
+  }
+  .chat-layout .chat-input-form .chat-input-selection {
+    grid-column: 2;
+    order: initial;
+    flex: initial;
+  }
+  .chat-layout [data-tour="chat-agent-picker"] {
+    flex-shrink: 0;
+    max-inline-size: calc(100% - 50px);
+  }
+  .chat-layout .chat-send-slot[data-visible="true"] {
+    max-inline-size: 44px;
+  }
+  .chat-layout .chat-input-form .chat-input-send {
+    grid-column: 1 / -1;
+    order: initial;
+    justify-content: flex-end;
+    inline-size: 100%;
+  }
+}

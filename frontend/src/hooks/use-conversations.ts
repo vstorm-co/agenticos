@@ -947,20 +947,56 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
   };
 }
 
-/**
- * Conversations whose title matches `term`, archived ones included - what the
- * chat's search window lists. Nothing is asked until something is typed.
- */
 /** How often a listing with a thread at work in it is read again. */
 const RUNNING_POLL_MS = 4000;
 /** The same poll while the live-update socket carries the run's end as an event. */
 const RUNNING_POLL_LIVE_MS = 30_000;
 
+export interface ConversationSearchResult {
+  id: string;
+  title: string | null;
+  updated_at: string;
+  created_at?: string;
+  snippet?: string;
+  hits?: number;
+}
+
+interface MessageSearchResult {
+  conversation_id: string;
+  title: string | null;
+  updated_at: string;
+  snippet: string;
+  hits: number;
+}
+
+/** Search both titles and indexed messages; a failed half is an explicit query error. */
 export function useConversationSearch(term: string) {
-  const params = listParams({ ...DEFAULT_QUERY, search: term });
+  const normalized = term.trim();
+  const params = listParams({ ...DEFAULT_QUERY, search: normalized });
   return useQuery({
-    queryKey: qk.conversations.list(params),
-    queryFn: () => apiClient.get<ConversationListResponse>(`/conversations?${params}`),
-    enabled: term.trim() !== "",
+    queryKey: qk.conversations.search(normalized),
+    queryFn: async (): Promise<{ items: ConversationSearchResult[] }> => {
+      const [titles, messages] = await Promise.all([
+        apiClient.get<ConversationListResponse>(`/conversations?${params}`),
+        apiClient.get<{ items: MessageSearchResult[] }>(
+          `/conversations/search?${new URLSearchParams({ query: normalized, limit: "40" })}`,
+        ),
+      ]);
+      const results = new Map<string, ConversationSearchResult>();
+      for (const hit of messages.items) {
+        results.set(hit.conversation_id, { ...hit, id: hit.conversation_id });
+      }
+      for (const title of titles.items) {
+        if (!results.has(title.id)) {
+          results.set(title.id, {
+            id: title.id,
+            title: title.title ?? null,
+            updated_at: title.updated_at || title.created_at,
+          });
+        }
+      }
+      return { items: [...results.values()] };
+    },
+    enabled: normalized !== "",
   });
 }

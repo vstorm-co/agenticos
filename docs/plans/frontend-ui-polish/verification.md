@@ -631,3 +631,17 @@ an initial immediate measurement during viewport resizing was premature.
 - Enabled cmdk rows now retain pointer events when `data-disabled="false"`; Radix disabled attributes still block actions. Headless DOM confirmed `pointer-events: auto` and an actual row click, with no client errors. No screenshots.
 - Updated mobile and voice journeys for the chosen compact composer (agent remains in the composer; attachments and call in +). Full CI rerun remains required.
 - New-agent Architect action opens the existing widget without prompt submission. Disclosure headers and capability image cards use surface feedback instead of shrinking. Light-mode variables use dark ink on a pale violet background.
+
+### Conversation search and agent layout previews (2026-11-19)
+
+- Add a bounded `/conversations/search` adapter to the existing indexed message search, gated on agent reading. Keep the service’s transcript access checks and plain-text excerpts. Combine title and message results without duplicate threads; keyboard navigation, safe highlighting and retry in the dialog.
+- API: 5 tests passed; service/security-marker batch: 16 existing tests passed; existing full-text repository integration: 25 tests passed against an isolated local test database; route inventory passed. Scoped Ruff and ty passed.
+- Frontend: 142 hook/catalog tests and 2 search-dialog tests passed. Widget: 47 tests passed, including preserving its unsent draft when opened without a prompt. TSC, ESLint and the copy guard passed.
+- Six development-only agent-card/Build previews are available under `/dev/agent-designs`; editable values remain local. No production agent layout is selected yet.
+- Headless DOM: all six pages, outline expansion and section navigation worked; local message search returned HTTP 200 with five hits; no client errors or screenshots.
+
+### Full-CI follow-up
+
+- All four component shards passed on `c0d181a5a`; the aggregate exposed three uncovered paths rather than a behavior failure. Add meaningful coverage for opening Architect without a prompt, revealing an invalid collapsed service field and measuring a padded/full chat list. Nine service/list tests passed; the widget regression is included above.
+- Update the E2E period preset role. The workspace scroll fixture now includes a first user turn because empty-chat Files controls are intentionally disabled. No model is invoked by that fixture.
+- Phone E2E found the agent selector squeezed to 22px wide. Main-chat phone controls now use two short rows; headless touch DOM measured the agent at 220×44px before/after typing, with no horizontal overflow and a working + menu. No screenshots.

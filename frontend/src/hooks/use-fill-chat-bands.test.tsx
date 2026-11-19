@@ -56,3 +56,20 @@ it("does not expand groups while their list is hidden", () => {
   // The resize observer, rather than a render unrelated to geometry, drives filling.
   expect(result.current).toEqual([]);
 });
+
+it("does not attach an observer before the list is mounted", () => {
+  const { result } = renderHook(() => useFillChatBands({ current: null }, ["week"]));
+  expect(result.current).toEqual([]);
+});
+
+it("counts content and padding before opening another group", () => {
+  const element = document.createElement("div");
+  const content = document.createElement("div");
+  element.append(content);
+  element.style.padding = "20px 0";
+  Object.defineProperty(element, "clientHeight", { value: 300 });
+  Object.defineProperty(element, "scrollHeight", { value: 300 });
+  vi.spyOn(content, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 200, 270));
+  const { result } = renderHook(() => useFillChatBands({ current: element }, ["week"]));
+  expect(result.current).toEqual([]);
+});

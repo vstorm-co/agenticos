@@ -1725,7 +1725,7 @@
         "older": "Älter"
       },
       "searchLabel": "Unterhaltungen durchsuchen",
-      "searchHint": "Tippen, um Unterhaltungen nach Titel zu suchen.",
+      "searchHint": "Titel und Nachrichten durchsuchen.",
       "searching": "Suche…",
       "noSearchResults": "Keine Unterhaltung passt.",
       "untitled": "Ohne Titel",
@@ -1737,7 +1737,10 @@
       "sharedHeading": "Mit Ihnen geteilt",
       "sharedLoading": "Geteilte Unterhaltungen werden geladen…",
       "sharedFailed": "Geteilte Unterhaltungen konnten nicht geladen werden.",
-      "retryShared": "Geteilte Unterhaltungen erneut laden"
+      "retryShared": "Geteilte Unterhaltungen erneut laden",
+      "searchFailed": "Die Unterhaltungen konnten nicht durchsucht werden.",
+      "searchMatches": "{count, plural, one {# passende Nachricht} other {# passende Nachrichten}}",
+      "searchKeys": "↑ ↓ navigieren · Enter öffnen · Esc schließen"
     },
     "skipComment": "Kommentar überspringen",
     "sourceCount": "{count, plural, =1 {1 Quelle} other {# Quellen}}",
