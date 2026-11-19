@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,6 +10,7 @@ import type { SecretPurpose } from "@/types/secrets";
 import type { ModelProfile } from "@/types/providers";
 import { providerMarkIn } from "@/test-utils/brand-marks";
 
+const secretRead = { isLoading: false, listError: null as Error | null };
 const listedProfiles = vi.fn<() => ModelProfile[]>(() => []);
 const listedSecrets = vi.fn<() => { id: string; purpose: string }[]>(() => []);
 const listedModels = vi.fn<() => ProviderModel[]>(() => []);
@@ -46,9 +47,15 @@ vi.mock("@/hooks", () => ({
     refused: refusedModels(),
     source: "curated",
     isLoading: loadingModels(),
+    refetch: vi.fn(),
   }),
   useSecretPurposes: () => ({ purposes: PURPOSES, isLoading: false }),
-  useSecrets: () => ({ secrets: listedSecrets(), create: { mutate: vi.fn(), isPending: false } }),
+  useSecrets: () => ({
+    secrets: listedSecrets(),
+    ...secretRead,
+    refetch: vi.fn(),
+    create: { mutate: vi.fn(), isPending: false },
+  }),
 }));
 
 // The real one signs in with ChatGPT through the vault. What is asserted here is
@@ -107,6 +114,8 @@ async function typeModel(id: string) {
 }
 
 beforeEach(() => {
+  secretRead.isLoading = false;
+  secretRead.listError = null;
   profileRead.isLoading = false;
   profileRead.profilesStatus = "loaded";
   refetchProfiles.mockReset();
@@ -648,6 +657,7 @@ it("requires a successful profile read before creating a replacement model", asy
   profileRead.profilesStatus = "failed";
   renderExpandedPicker(<ChatModelPicker value={null} agentModel={null} onChange={vi.fn()} />);
   expect(screen.getByRole("alert")).toHaveTextContent("Model settings could not be read");
+  expect(screen.queryByText("Not connected")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(refetchProfiles).toHaveBeenCalledOnce();
   expect(screen.getByRole("button", { name: "Run on this model" })).toBeDisabled();
@@ -662,4 +672,117 @@ it("does not bypass missing-key checks for the prefilled current model", async (
   await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
   expect(screen.getByText(/vendor\/model is saved without a key/)).toBeInTheDocument();
   expect(onChange).not.toHaveBeenCalled();
+});
+
+it("offers inline key creation for a provider selected in the library", async () => {
+  listedSecrets.mockReturnValue([{ id: "key", purpose: "openai" }]);
+  render(
+    <ChatModelPicker presentation="library" value={null} agentModel={null} onChange={vi.fn()} />,
+  );
+  const providers = screen.getByRole("group", { name: "Provider" });
+  expect(within(providers).getAllByRole("button")[0]).toHaveTextContent("OpenAI");
+  await userEvent.click(within(providers).getByRole("button", { name: /OpenRouter/ }));
+  expect(screen.getByRole("button", { name: "Add a key: OpenRouter" })).toBeVisible();
+});
+it("preserves a saved profile's own endpoint when another profile names the same model", async () => {
+  const one = {
+    ...profile("one", "openrouter", "demo/model"),
+    label: "Gateway EU",
+    base_url: "https://eu.example.test/v1",
+  };
+  const two = {
+    ...profile("two", "openrouter", "demo/model"),
+    label: "Gateway US",
+    base_url: "https://us.example.test/v1",
+  };
+  listedProfiles.mockReturnValue([one, two]);
+  listedSecrets.mockReturnValue([{ id: "s1", purpose: "openrouter" }]);
+  const changed = vi.fn();
+  render(
+    <ChatModelPicker presentation="library" value="one" agentModel={null} onChange={changed} />,
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "Saved models" }));
+  await userEvent.click(screen.getByRole("option", { name: /Gateway US/ }));
+  expect(changed).toHaveBeenCalledWith("two");
+  expect(mutateAsync).not.toHaveBeenCalled();
+});
+
+it("applies a catalog selection directly with its chosen model ID", async () => {
+  listedSecrets.mockReturnValue([{ id: "s1", purpose: "openrouter" }]);
+  listedModels.mockReturnValue([
+    { id: "demo/one", name: "One" },
+    { id: "demo/two", name: "Two" },
+  ]);
+  mutateAsync.mockResolvedValue(profile("new-profile", "openrouter", "demo/two"));
+  const changed = vi.fn();
+  render(
+    <ChatModelPicker
+      presentation="library"
+      value={null}
+      agentModel={{
+        profile_id: "agent-profile",
+        provider: "openrouter",
+        model: "demo/one",
+        label: "One",
+      }}
+      onChange={changed}
+    />,
+  );
+  await userEvent.click(screen.getByRole("option", { name: /Two/ }));
+  expect(mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({ model: "demo/two", provider: "openrouter", secret_id: "s1" }),
+  );
+  expect(changed).toHaveBeenCalledWith("new-profile");
+  expect(screen.queryByRole("button", { name: "Run on this model" })).not.toBeInTheDocument();
+});
+
+it("keeps the current selection when applying another catalog model fails", async () => {
+  listedSecrets.mockReturnValue([{ id: "s1", purpose: "openrouter" }]);
+  listedModels.mockReturnValue([
+    { id: "demo/one", name: "One" },
+    { id: "demo/two", name: "Two" },
+  ]);
+  mutateAsync.mockRejectedValue(new Error("Unavailable"));
+  const changed = vi.fn();
+  render(
+    <ChatModelPicker
+      presentation="library"
+      value={null}
+      agentModel={{
+        profile_id: "agent-profile",
+        provider: "openrouter",
+        model: "demo/one",
+        label: "One",
+      }}
+      onChange={changed}
+    />,
+  );
+  await userEvent.click(screen.getByRole("option", { name: /Two/ }));
+  await screen.findByRole("alert");
+  expect(changed).not.toHaveBeenCalled();
+  expect(
+    within(screen.getByRole("option", { name: /One/ })).getByLabelText("Selected"),
+  ).toBeInTheDocument();
+  expect(
+    within(screen.getByRole("option", { name: /Two/ })).queryByLabelText("Selected"),
+  ).not.toBeInTheDocument();
+});
+
+it("does not claim that provider keys are missing when their read failed", () => {
+  secretRead.listError = new Error("offline");
+  render(
+    <ChatModelPicker
+      presentation="library"
+      value={null}
+      agentModel={{
+        profile_id: "agent-profile",
+        provider: "openrouter",
+        model: "demo/one",
+        label: "One",
+      }}
+      onChange={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("Model settings could not be read");
+  expect(screen.queryByRole("button", { name: /Add a key/ })).not.toBeInTheDocument();
 });

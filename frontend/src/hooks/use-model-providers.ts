@@ -306,7 +306,7 @@ export function useProviderModels(
   secretId?: string,
   decision = false,
 ) {
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, refetch } = useQuery({
     ...providerModelsQuery(providerId, baseUrl, secretId, decision),
     enabled:
       providerId !== "" &&
@@ -322,7 +322,7 @@ export function useProviderModels(
   const refused = decision
     ? []
     : items.filter((entry) => !runsAgents(entry)).map((entry) => entry.id);
-  return { models, refused, source: data?.source ?? null, isLoading: isFetching };
+  return { models, refused, source: data?.source ?? null, isLoading: isFetching, refetch };
 }
 
 /** One model that draws. */

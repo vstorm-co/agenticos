@@ -4,20 +4,12 @@ import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 import { useState, type ReactNode } from "react";
 import "./chat-layout.css";
-import {
-  Check,
-  ChevronDown,
-  SlidersHorizontal,
-  ShieldCheck,
-  SquareTerminal,
-  X,
-} from "lucide-react";
+import { ChevronDown, SlidersHorizontal, ShieldCheck, SquareTerminal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { useModelProviders, usePermissions } from "@/hooks";
 import { useAgentSelectionStore } from "@/stores";
 import { useAgents } from "@/hooks/use-agents";
-import { usableForAgents } from "@/lib/model-profiles";
 import { ModelIcon } from "@/components/icons/model-icon";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
@@ -44,8 +36,6 @@ export function ChatLayout({ children }: { children: ReactNode }) {
 function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => void }) {
   const t = useTranslations("chat.controls");
   const common = useTranslations("common");
-  const modelCopy = useTranslations("chat.modelPicker");
-  const { can } = usePermissions();
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const { agents } = useAgents();
   const agent = agents.find((entry) => entry.id === selectedAgentId);
@@ -81,12 +71,16 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
       </PopoverTrigger>
       <PopoverContent
         data-chat-popover
+        onInteractOutside={(event) => {
+          if (event.target instanceof Element && event.target.closest('[role="dialog"]'))
+            event.preventDefault();
+        }}
         aria-label={t("modelSection")}
         side="top"
         align="end"
-        className="max-h-[min(520px,var(--radix-popover-content-available-height))] w-[min(360px,calc(100vw-1.5rem))] overflow-y-auto rounded-xl p-3"
+        className="max-h-[min(600px,var(--radix-popover-content-available-height))] w-[min(640px,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl p-0"
       >
-        <div className="mb-2 flex items-center justify-between text-xs font-medium">
+        <div className="border-border flex items-center justify-between border-b px-4 py-2 text-xs font-medium">
           {t("modelSection")}
           <button
             type="button"
@@ -100,74 +94,21 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
         {agent?.personal_model_key ? (
           <PersonalModelConnection agentId={selectedAgentId} manage />
         ) : (
-          <div className="space-y-2">
-            {can(Perm.connectionsManage) && (
-              <div className="space-y-1">
-                {agent?.published_model && (
-                  <button
-                    type="button"
-                    aria-pressed={modelProfileId === null}
-                    className="hover:bg-muted flex min-h-10 w-full items-center gap-2 rounded-xl px-2 text-left text-xs"
-                    onClick={() => {
-                      change(null);
-                      setOpen(false);
-                    }}
-                  >
-                    <ModelIcon
-                      model={agent.published_model.model}
-                      provider={agent.published_model.provider}
-                    />
-                    <span className="min-w-0 flex-1 truncate">
-                      {agent.published_model.model.split("/").at(-1)}
-                    </span>
-                    <span className="text-muted-foreground text-[10px]">
-                      {modelCopy("agentModel")}
-                    </span>
-                    {modelProfileId === null && <Check className="size-3.5" aria-hidden />}
-                  </button>
-                )}
-                {profiles
-                  .filter(
-                    (profile) =>
-                      usableForAgents(profile) && profile.id !== agent?.published_model?.profile_id,
-                  )
-                  .map((profile) => (
-                    <button
-                      key={profile.id}
-                      type="button"
-                      aria-pressed={modelProfileId === profile.id}
-                      className="hover:bg-muted flex min-h-10 w-full items-center gap-2 rounded-xl px-2 text-left text-xs"
-                      onClick={() => {
-                        change(profile.id);
-                        setOpen(false);
-                      }}
-                    >
-                      <ModelIcon model={profile.model} provider={profile.provider} />
-                      <span className="min-w-0 flex-1 truncate">{profile.label}</span>
-                      {modelProfileId === profile.id && <Check className="size-3.5" aria-hidden />}
-                    </button>
-                  ))}
-              </div>
-            )}
-            <NativeDisclosure className="border-border border-t pt-2">
-              <summary className="text-muted-foreground cursor-pointer py-1 text-xs">
-                {modelCopy("changeModel")}
-              </summary>
-              <div className="pt-3">
-                <ChatModelPicker
-                  compact
-                  value={modelProfileId}
-                  agentModel={agent?.published_model ?? null}
-                  onChange={change}
-                />
-              </div>
-            </NativeDisclosure>
-          </div>
+          <ChatModelPicker
+            compact
+            presentation="library"
+            value={modelProfileId}
+            agentModel={agent?.published_model ?? null}
+            onChange={(id) => {
+              change(id);
+              setOpen(false);
+            }}
+          />
         )}
         {modelProfileId !== null && (
           <button
             type="button"
-            className="text-muted-foreground mt-3 text-xs hover:underline"
+            className="text-muted-foreground mx-4 my-3 text-xs hover:underline"
             onClick={() => change(null)}
           >
             {t("backAgentAposS")}

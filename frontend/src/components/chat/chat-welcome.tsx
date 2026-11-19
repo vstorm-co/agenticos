@@ -89,7 +89,7 @@ export function ChatWelcome({
                   // blank page read as a form to fill in, not as places to start.
                   className={cn(
                     "group hover:bg-muted focus-visible:ring-ring flex h-full w-full items-start gap-3 rounded-lg text-left transition-colors outline-none focus-visible:ring-2",
-                    quiet ? "border-border/70 border bg-transparent" : "bg-muted/60",
+                    quiet ? "bg-transparent" : "bg-muted/60",
                     quiet ? "px-3 py-3" : compact ? "px-3 py-2.5" : "px-3 py-3",
                   )}
                 >
@@ -98,7 +98,7 @@ export function ChatWelcome({
                   <span
                     className={
                       quiet
-                        ? "bg-foreground/[0.04] text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg"
+                        ? "text-muted-foreground flex size-5 shrink-0 items-center justify-center"
                         : "bg-foreground/[0.045] text-foreground/80 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl @max-xl:hidden"
                     }
                   >

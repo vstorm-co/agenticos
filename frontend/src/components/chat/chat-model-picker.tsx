@@ -8,6 +8,7 @@ import {
   modelPlaceholder,
   placeholderWords,
 } from "@/components/agents/add-model";
+import { ChatModelLibrary } from "./chat-model-library";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { getErrorMessage } from "@/lib/api-error";
 import { ModelIcon } from "@/components/icons/model-icon";
@@ -21,8 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
-import { InlineSecret } from "@/components/vault/inline-secret";
+import { ModelProviderCredential } from "./model-provider-credential";
 import {
   useModelProviders,
   usePermissions,
@@ -37,6 +37,7 @@ import { useTranslations } from "next-intl";
 
 interface ChatModelPickerProps {
   compact?: boolean;
+  presentation?: "form" | "library";
   /** The model profile this conversation overrides to, or null for the agent's own. */
   value: string | null;
   /** The agent's published model, shown as the current one when there is no override. */
@@ -73,6 +74,7 @@ export function ChatModelPicker({
   agentModel,
   onChange,
   compact = false,
+  presentation = "form",
 }: ChatModelPickerProps) {
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
@@ -91,16 +93,23 @@ export function ChatModelPicker({
     refetchProfiles,
   } = useModelProviders();
   const { purposes } = useSecretPurposes();
-  const { secrets } = useSecrets();
+  const {
+    secrets,
+    listError: secretReadError,
+    isLoading: loadingSecrets,
+    refetch: refetchSecrets,
+  } = useSecrets();
 
   const current = value === null ? agentModel : (profiles.find((p) => p.id === value) ?? null);
   const currentProfile = profiles.find(
     (profile) => profile.id === (value ?? agentModel?.profile_id),
   );
   const sourceKey = value ?? "agent";
-  const [draft, setDraft] = useState<{ source: string; providerId: string; model: string } | null>(
-    null,
-  );
+  const [draft, setDraft] = useState<{
+    source: string;
+    providerId: string;
+    model: string;
+  } | null>(null);
   const edited = draft?.source === sourceKey ? draft : null;
   const providerId = edited?.providerId ?? current?.provider ?? "";
   const model = edited?.model ?? current?.model ?? "";
@@ -118,6 +127,7 @@ export function ChatModelPicker({
     refused,
     source,
     isLoading: loadingModels,
+    refetch: refetchModels,
   } = useProviderModels(
     providerId,
     providerId === "openrouter" ? (endpoint ?? undefined) : undefined,
@@ -145,9 +155,24 @@ export function ChatModelPicker({
     profilesStatus !== "failed" &&
     (!loadingModels || hasCustomEndpoint);
 
-  const apply = async () => {
-    if (provider === undefined) return;
-    const modelId = model.trim();
+  const apply = async (selectedModel = model) => {
+    if (
+      provider === undefined ||
+      createProfile.isPending ||
+      loadingProfiles ||
+      profilesStatus === "failed"
+    )
+      return;
+    const modelId = selectedModel.trim();
+    if (!modelIdIsWellFormed(provider.id, modelId)) return;
+    const matching = profiles.filter(
+      (profile) =>
+        profile.provider === providerId &&
+        profile.model === modelId &&
+        (!endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "")),
+    );
+    if (loadingModels && !matching.some((profile) => profile.base_url && usableForAgents(profile)))
+      return;
     setFailure(null);
     if (
       current?.provider === provider.id &&
@@ -216,6 +241,20 @@ export function ChatModelPicker({
     }
   };
 
+  const credentialForm = !secretReadError &&
+    !loadingSecrets &&
+    provider !== undefined &&
+    !secrets.some((secret) => secret.purpose === provider.id) && (
+      <ModelProviderCredential
+        key={provider.id}
+        provider={provider}
+        onCreated={() => {
+          setFailure(null);
+          void refetchModels();
+        }}
+      />
+    );
+
   const currentSummary = current ? (
     <>
       <ModelIcon model={current.model} provider={current.provider} />
@@ -239,6 +278,64 @@ export function ChatModelPicker({
   ) : (
     t("changeModel")
   );
+
+  if (presentation === "library" && can(Perm.connectionsManage))
+    return (
+      <ChatModelLibrary
+        providers={providers.map((entry) => ({
+          id: entry.id,
+          label: entry.label,
+          connected:
+            secretReadError || loadingSecrets
+              ? null
+              : secrets.some((secret) => secret.purpose === entry.id) ||
+                profiles.some(
+                  (profile) => profile.provider === entry.id && usableForAgents(profile),
+                ),
+        }))}
+        providerId={providerId}
+        model={current?.provider === providerId ? current.model : ""}
+        profileId={currentProfile?.provider === providerId ? currentProfile.id : undefined}
+        models={suggestions}
+        profiles={profiles.filter(usableForAgents)}
+        loading={loadingModels || loadingProfiles}
+        applying={createProfile.isPending}
+        disabled={
+          loadingProfiles || profilesStatus === "failed" || !!secretReadError || !!loadingSecrets
+        }
+        onProviderChange={(id) => {
+          setProviderId(id);
+          setFailure(null);
+        }}
+        onModelChange={(id) => void apply(id)}
+        onProfileChange={(profile) => {
+          if (!createProfile.isPending && !loadingProfiles && profilesStatus !== "failed")
+            onChange(profile.id);
+        }}
+        credentialForm={credentialForm}
+        failure={
+          profilesStatus === "failed" || secretReadError ? (
+            <p role="alert" className="text-destructive text-xs">
+              {t("profilesUnavailable")}{" "}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  void refetchProfiles();
+                  void refetchSecrets();
+                }}
+              >
+                {tRoot("common.retry")}
+              </Button>
+            </p>
+          ) : failure ? (
+            <p role="alert" className="text-destructive text-xs">
+              {failure}
+            </p>
+          ) : null
+        }
+      />
+    );
 
   return (
     <div className="space-y-4">
@@ -363,23 +460,14 @@ export function ChatModelPicker({
               only offer what is already stored, and answers "add one in the Vault"
               when nothing is, is a dead end - and the provider is already chosen, so
               the purpose this key needs is known. */}
-              {provider !== undefined &&
-                !secrets.some((secret) => secret.purpose === provider.id) &&
-                (provider.kind === "openai_codex" ? (
-                  <InlineChatGPTSignIn
-                    suggestedName={provider.label}
-                    onCreated={() => setFailure(null)}
-                  />
-                ) : (
-                  <InlineSecret
-                    kind="api_key"
-                    purpose={provider.id}
-                    suggestedName={provider.label}
-                    onCreated={() => setFailure(null)}
-                  />
-                ))}
+              {credentialForm}
 
-              <Button type="button" className="w-full" disabled={!canApply} onClick={apply}>
+              <Button
+                type="button"
+                className="w-full"
+                disabled={!canApply}
+                onClick={() => void apply()}
+              >
                 {t("runModel")}
               </Button>
             </div>

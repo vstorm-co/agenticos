@@ -1,5 +1,5 @@
 ---
-source_sha: "89d514c07e07"
+source_sha: "dbcd754b1128"
 ---
 
 # La consola { #the-console }
@@ -129,7 +129,9 @@ Una ejecución fallida muestra el error separado de la respuesta y fuera de las 
 
 Los adjuntos permanecen dentro del cuadro de mensaje en una fila desplazable. Las imágenes seguras muestran una miniatura local durante la carga; un indicador giratorio señala las cargas pendientes sin inventar porcentajes. Los errores al actualizar temas en segundo plano permanecen en su propio panel desplegable y nunca aparecen en un chat sin enviar. Los subrayados de pestañas y las selecciones segmentadas se deslizan entre opciones; con movimiento reducido, cambian de inmediato.
 
-Los nuevos chats muestran sobre la bandeja de entrada los mensajes iniciales publicados del agente seleccionado, con sus iconos, títulos y vistas previas breves. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
+Los nuevos chats muestran sobre el cuadro de mensaje los mensajes iniciales publicados del agente seleccionado, con sus iconos, títulos y vistas previas breves. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
+
+El chat principal tiene un cuadro de mensaje más ancho y gráficos animados del espacio de trabajo. La biblioteca muestra primero los proveedores conectados, con logotipos y nombres que empiezan en mayúscula, y separa el catálogo de los modelos guardados. Pulsar un modelo lo selecciona directamente. Las credenciales que falten se añaden mediante los formularios existentes de Vault dentro del selector, incluidas las credenciales de varios campos. Se conservan los permisos y la validación de modelos. El micrófono y el envío cambian suavemente al escribir. Los temas de la bandeja permanecen debajo del cuadro de mensaje.
 
 ## El dashboard { #the-dashboard }
 

@@ -231,11 +231,13 @@ Before the first message, Files and context usage remain visible but disabled. T
 
 Attachments stay inside the composer on one scrolling row. Safe images show a local thumbnail while uploading; pending uploads show an indeterminate spinner rather than an invented percentage. Background-topic refresh errors stay in their own expandable panel and never appear for an unsent chat. Tab underlines and segmented selections glide between choices, with immediate selection when motion is reduced.
 
-New chats show the selected agent’s published opening prompts above Inbox, with their configured icons, titles and short previews. Inbox and approval reads reuse cached data immediately across navigation, treat reads as fresh for 30 seconds and retain unused entries for 30 minutes. Refresh failures keep cached items visible with a warning. Account and organization switches retain the existing cache-clearing behavior.
+New chats show the selected agent’s published opening prompts above the composer as simple rows with their configured icons, titles and short previews. Inbox and approval reads reuse cached data immediately across navigation, treat reads as fresh for 30 seconds and retain unused entries for 30 minutes. Refresh failures keep cached items visible with a warning. Account and organization switches retain the existing cache-clearing behavior.
 
 Shared console fields, menu rows, pickers, tabs and settings sections use the same compact presentation. Folding an optional form preserves its draft; a required invalid field can reopen its section. Native disclosures share trigger spacing and animate where intrinsic sizing is supported, with ordinary native opening elsewhere. Reduced motion and larger touch targets remain available.
 
 Opening a saved conversation shows transcript placeholders directly, without flashing welcome suggestions; the sidebar and transcript load independently. Explicit sends glide the message near the top; queued messages do not reposition the reader. Scroll, touch and keyboard input cancel the glide. Shared menus and dialogs use small, eased transitions; the Motion preference disables movement.
+
+The main chat uses a wider composer and animated workspace artwork. Its model library groups connected providers first, with provider logos and capitalized names, and separates the catalog from saved models. Selecting a model applies it directly. Missing credentials can be added through the existing Vault forms inside the picker, including structured provider credentials; the existing permissions and model validation still apply. The microphone and Send controls transition as the draft changes. Inbox topics remain below the composer.
 
 ## The inbox { #the-inbox }
 

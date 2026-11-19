@@ -586,3 +586,41 @@ The three model-picker previews passed populated Chromium DOM checks at 1440px a
 390px, including search/local selection and no document overflow. The same browser
 pass confirmed the restored starter grid is visible in main chat. No client
 exceptions, screenshots or live model calls occurred.
+
+
+### Selected provider-library design and welcome layout
+
+The maintainer selected variant B. Temporary preview routes/components and their
+copy were removed. Main chat now uses the provider library directly: connected
+providers sort first, names start with uppercase and every provider uses its shared
+brand mark. Models and Saved models are separate accessible tab panels. A row
+selection applies through the existing profile creation/reuse/validation path; the
+legacy nested picker and apply button are gone from main chat. Embedded pickers
+retain their existing presentation and contracts.
+
+Credential creation reuses InlineSecret, ChatGPT sign-in and AddSecretDialog for
+structured credentials. No new secret transport, storage or readback was added.
+Provider listings refetch after a credential is stored. Nested Vault dialog
+interactions keep the parent picker open. Saved profile selection preserves the
+exact profile id and its custom endpoint, rather than guessing by model name.
+
+Welcome uses a 960px maximum composer, original animated workspace artwork and
+simple starter rows above the composer, with Inbox below. Microphone color and
+Send reveal transitions share a 220ms eased timing; reduced-motion overrides remain
+in force. Focused model/profile/credential and welcome tests passed (110 cases in
+four files, then 78 cases in six files, overlapping). No paid runs were made.
+
+
+The final populated Chromium pass confirmed the requested home composition:
+960px composer at 1800px viewport, prompts above it, Inbox below, visible original
+animated artwork, and the 220ms Send reveal. The model library fit both 1800px and
+390px views after the floating panel settled, exposed Saved models separately,
+had no apply button, and opened inline API-key and structured Vault forms without
+closing the model picker. No client errors or credential/profile writes occurred.
+
+Direct selection uses the clicked model ID, never a stale draft. Failed creation
+retains the actual current selection. A saved profile retains its exact ID and
+endpoint. Credential-read failures block changes and show retry instead of labeling
+unknown providers as disconnected or offering a duplicate key. Tests cover these
+boundaries. Browser validation waits for responsive floating-position updates;
+an initial immediate measurement during viewport resizing was premature.
