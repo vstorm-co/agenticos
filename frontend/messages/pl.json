@@ -7359,7 +7359,7 @@
       },
       "flow-table-field-visibility": {
         "title": "Kto ją widzi",
-        "body": "Otwórz Więcej opcji, aby zmienić widoczność. Prywatna tabela jest tylko dla Ciebie; Zespół i Organizacja udostępniają ją szerzej. Później możesz udostępnić ją konkretnym osobom. Następnie wybierz Dalej."
+        "body": "Wybierz, do kogo trafi tabela: tylko do Ciebie, do całej organizacji albo do wybranych grup i osób. Możesz to zmienić później w Udostępnij. Następnie wybierz Dalej."
       },
       "flow-table-field-create": {
         "title": "Utwórz ją",
@@ -12694,12 +12694,7 @@
       "nameLabel": "Nazwa",
       "descriptionPlaceholder": "Czym są rekordy i kto je wypełnia",
       "descriptionLabel": "Opis",
-      "visibilityLabel": "Widoczność",
-      "visibility": {
-        "private": "Prywatna",
-        "team": "Zespół",
-        "org": "Organizacja"
-      },
+      "audienceLabel": "Kto może ją zobaczyć",
       "columnPlaceholder": "Etykieta kolumny",
       "columnLabel": "Etykieta kolumny",
       "columnType": "Typ kolumny",

@@ -5727,7 +5727,7 @@
       },
       "flow-table-field-visibility": {
         "title": "Who can see it",
-        "body": "Open More options to change visibility. Private keeps the table to you; Team and Organization open it to more people. You can share it with individual people later. Then choose Next."
+        "body": "Choose who the table reaches: only you, everyone in the organization, or the groups and people you pick. You can change it later under Share. Then choose Next."
       },
       "flow-table-field-create": {
         "title": "Create it",
@@ -12528,12 +12528,7 @@
       "nameLabel": "Name",
       "descriptionPlaceholder": "What the records are, and who fills them in",
       "descriptionLabel": "Description",
-      "visibilityLabel": "Visibility",
-      "visibility": {
-        "private": "Private",
-        "team": "Team",
-        "org": "Organization"
-      },
+      "audienceLabel": "Who can see it",
       "columnPlaceholder": "Column label",
       "columnLabel": "Column label",
       "columnType": "Column type",

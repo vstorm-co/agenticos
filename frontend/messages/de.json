@@ -5606,7 +5606,7 @@
       },
       "flow-table-field-visibility": {
         "title": "Wer sie sieht",
-        "body": "Öffne Weitere Optionen, um die Sichtbarkeit zu ändern. Privat beschränkt die Tabelle auf dich; Team und Organisation öffnen sie für mehr Personen. Du kannst sie später mit einzelnen Personen teilen. Wähle dann Weiter."
+        "body": "Wähle, wen die Tabelle erreicht: nur dich, die ganze Organisation oder die Gruppen und Personen, die du auswählst. Du kannst das später unter Teilen ändern. Wähle dann Weiter."
       },
       "flow-table-field-create": {
         "title": "Erstellen Sie sie",
@@ -12214,12 +12214,7 @@
       "nameLabel": "Name",
       "descriptionPlaceholder": "Was die Datensätze sind und wer sie ausfüllt",
       "descriptionLabel": "Beschreibung",
-      "visibilityLabel": "Sichtbarkeit",
-      "visibility": {
-        "private": "Privat",
-        "team": "Team",
-        "org": "Organisation"
-      },
+      "audienceLabel": "Wer sie sehen kann",
       "columnPlaceholder": "Spaltenbeschriftung",
       "columnLabel": "Spaltenbeschriftung",
       "columnType": "Spaltentyp",
