@@ -1,12 +1,11 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { useState, type ReactNode } from "react";
-import { ArrowUpRight, CornerDownLeft, X, type LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
+import { ArrowUpRight, X, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { RotatingWorkspaceArt } from "@/components/illustrations/rotating-workspace-art";
-import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 export interface WelcomeSuggestion {
@@ -36,7 +35,6 @@ interface ChatWelcomeProps {
   loading?: boolean;
   /** The main chat places hints in its home carousel. Undefined keeps them inline. */
   suggestionsSlot?: HTMLElement | null;
-  singleSuggestion?: boolean;
 }
 
 /**
@@ -57,9 +55,9 @@ export function ChatWelcome({
   quiet = false,
   loading = false,
   suggestionsSlot,
-  singleSuggestion = false,
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
+  const docked = quiet && suggestionsSlot !== undefined;
   // The centered composer must stay put when agent metadata replaces skeletons.
   // Reserve four two-line suggestions and the same header slots in both states.
   const hints = (
@@ -87,12 +85,25 @@ export function ChatWelcome({
               <div key={suggestion.key} className="relative h-full">
                 <button
                   type="button"
+                  // Preserve the dock's geometry until click if the editor is focused.
+                  onMouseDown={(event) => {
+                    if (
+                      docked &&
+                      event.button === 0 &&
+                      document.activeElement?.getAttribute("contenteditable") === "true"
+                    )
+                      event.preventDefault();
+                  }}
                   onClick={() => onPick(suggestion.prompt)}
                   // A filled card rather than a hairline box: four outlines on a
                   // blank page read as a form to fill in, not as places to start.
                   className={cn(
                     "group hover:bg-muted focus-visible:ring-ring flex h-full w-full items-start gap-3 rounded-lg text-left transition-colors outline-none focus-visible:ring-2",
-                    quiet ? "bg-transparent" : "bg-muted/60",
+                    docked
+                      ? "text-muted-foreground hover:text-foreground"
+                      : quiet
+                        ? "bg-transparent"
+                        : "bg-muted/60",
                     quiet ? "px-3 py-3" : compact ? "px-3 py-2.5" : "px-3 py-3",
                   )}
                 >
@@ -101,15 +112,21 @@ export function ChatWelcome({
                   <span
                     className={
                       quiet
-                        ? "text-muted-foreground flex size-5 shrink-0 items-center justify-center"
+                        ? cn(
+                            "flex size-5 shrink-0 items-center justify-center",
+                            !docked && "text-muted-foreground",
+                          )
                         : "bg-foreground/[0.045] text-foreground/80 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl @max-xl:hidden"
                     }
                   >
-                    <suggestion.icon className="h-4 w-4" />
+                    <suggestion.icon className="size-4" aria-hidden />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span
-                      className={cn("block text-sm", "text-foreground line-clamp-2 font-medium")}
+                      className={cn(
+                        "line-clamp-2 block text-sm",
+                        !docked && "text-foreground font-medium",
+                      )}
                     >
                       {suggestion.title}
                     </span>
@@ -129,9 +146,9 @@ export function ChatWelcome({
                   {suggestion.onRemove ? (
                     // Room for the × that sits over this corner.
                     <span className="h-4 w-4 shrink-0" />
-                  ) : (
+                  ) : !docked ? (
                     <ArrowUpRight className="text-muted-foreground group-hover:text-foreground mt-0.5 h-4 w-4 shrink-0 opacity-0 transition-[opacity,color] group-hover:opacity-100 group-focus-visible:opacity-100" />
-                  )}
+                  ) : null}
                 </button>
                 {suggestion.onRemove && (
                   <button
@@ -196,50 +213,8 @@ export function ChatWelcome({
 
       {suggestionsSlot === undefined
         ? hints
-        : suggestionsSlot &&
-          createPortal(
-            singleSuggestion ? (
-              <RandomPrompt suggestions={suggestions} onPick={onPick} loading={loading} />
-            ) : (
-              hints
-            ),
-            suggestionsSlot,
-          )}
+        : suggestionsSlot && createPortal(hints, suggestionsSlot)}
     </div>
-  );
-}
-
-function RandomPrompt({
-  suggestions,
-  onPick,
-  loading,
-}: Pick<ChatWelcomeProps, "suggestions" | "onPick" | "loading">) {
-  const t = useTranslations("chat.homePanels");
-  // The portal mounts on the client. Keep the draw stable across refetches,
-  // typing and parent renders while this empty conversation is open.
-  const [draw] = useState(() => Math.random());
-  const suggestion = suggestions[Math.floor(draw * suggestions.length)];
-  if (loading) return <Skeleton className="h-9 w-52 max-w-full rounded-lg" />;
-  if (!suggestion) return null;
-  return (
-    <button
-      type="button"
-      // Blurring the editor can resize the dock on narrow screens between
-      // pointer-down and click. Keep it in place until the prompt is picked.
-      onMouseDown={(event) => {
-        if (event.button === 0) event.preventDefault();
-      }}
-      onClick={() => onPick(suggestion.prompt)}
-      className="bg-muted/50 hover:bg-muted focus-visible:ring-ring inline-flex min-h-9 max-w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm focus-visible:ring-2 focus-visible:outline-none pointer-coarse:min-h-11"
-      title={t("prompt")}
-    >
-      <suggestion.icon
-        className="size-3.5 shrink-0 text-violet-700 dark:text-violet-300"
-        aria-hidden
-      />
-      <span className="min-w-0 truncate">{suggestion.title}</span>
-      <CornerDownLeft className="text-muted-foreground size-3 shrink-0" aria-hidden />
-    </button>
   );
 }
 

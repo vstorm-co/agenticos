@@ -1,5 +1,5 @@
 ---
-source_sha: "0a7095c66943"
+source_sha: "41549b0f9b38"
 ---
 
 # La consola { #the-console }
@@ -133,7 +133,7 @@ Una ejecución fallida muestra el error separado de la respuesta y fuera de las 
 
 Los adjuntos permanecen dentro del cuadro de mensaje en una fila desplazable. Las imágenes seguras muestran una miniatura local durante la carga; un indicador giratorio señala las cargas pendientes sin inventar porcentajes. Los errores al actualizar temas en segundo plano permanecen en su propio panel desplegable y nunca aparecen en un chat sin enviar. Los subrayados de pestañas y las selecciones segmentadas se deslizan entre opciones; con movimiento reducido, cambian de inmediato.
 
-Los chats nuevos muestran una sugerencia del agente activo elegida al azar encima del editor. Al seleccionarla, se añade al borrador editable. El resumen diario debajo del editor muestra hasta cuatro elementos de la bandeja de entrada, con un enlace a las aprobaciones pendientes. Al desactivar las sugerencias en Builder, muestra hasta ocho elementos. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
+Los chats nuevos muestran hasta cuatro sugerencias del agente activo encima del editor. En un panel ancho se organizan en dos columnas. Al seleccionar una, se añade al borrador editable. El resumen diario debajo del editor muestra hasta cuatro elementos de la bandeja de entrada, con un enlace a las aprobaciones pendientes. Al desactivar las sugerencias en Builder, muestra hasta ocho elementos. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
 
 El chat principal tiene un cuadro de mensaje ancho. La biblioteca muestra primero los proveedores conectados, con logotipos y nombres que empiezan en mayúscula, y separa el catálogo de los modelos guardados. Pulsar un modelo lo selecciona directamente. Las credenciales que falten se añaden mediante los formularios existentes de Vault dentro del selector, incluidas las credenciales de varios campos. Se conservan los permisos y la validación de modelos. El micrófono y el envío cambian suavemente al escribir.
 

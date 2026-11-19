@@ -1671,13 +1671,11 @@
       "title": "Podsumowanie dnia",
       "openInbox": "Otwórz Inbox",
       "urgent": "Ważne",
+      "approvalsLabel": "Zgody",
       "approvals": "{count, plural, one {# zgoda czeka na Twoją decyzję} few {# zgody czekają na Twoją decyzję} other {# zgód czeka na Twoją decyzję}}",
       "empty": "Wszystko na bieżąco. Nowe ustalenia i ważne tematy pojawią się tutaj.",
       "failed": "Nie udało się wczytać Inboxa.",
       "refreshFailed": "Nie udało się odświeżyć skrzynki. Wyświetlamy ostatnio pobrane elementy."
-    },
-    "homePanels": {
-      "prompt": "Dodaj proponowany prompt do szkicu"
     }
   },
   "errors": {

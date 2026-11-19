@@ -50,7 +50,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Tighten the chat greeting, MCP cards and model library. Keep history groups visible as the chat list grows, give nested fields a complete focus outline and let chat choose among a provider's available key profiles.
 
-- Offer one random opening prompt above the new-chat composer and add it to the draft on click. Show Daily briefing below the composer with priority items and a link to Inbox. Keep the animated welcome avatar responsive to reduced motion.
+- Show the active agent’s opening prompts above the new-chat composer and add the selected prompt to the draft. Show Daily briefing below the composer with priority items, a pending approval count and a link to Inbox. Keep the animated welcome avatar responsive to reduced motion.
 
 - Share larger resource gallery cards across agents, tables, workflows, knowledge bases, projects, datasets, MCP, skills, context, Apps and groups. Use matching cards for the agent Builder settings, with Thinking and Answer format inside Model settings, visible default first messages, and Voice deep links.
 

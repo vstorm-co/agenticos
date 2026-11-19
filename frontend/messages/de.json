@@ -2656,13 +2656,11 @@
       "title": "Tagesbriefing",
       "openInbox": "Posteingang öffnen",
       "urgent": "Wichtig",
+      "approvalsLabel": "Genehmigungen",
       "approvals": "{count, plural, one {# Genehmigung wartet auf dich} other {# Genehmigungen warten auf dich}}",
       "empty": "Alles erledigt. Neue Erkenntnisse und wichtige Themen erscheinen hier.",
       "failed": "Dein Posteingang konnte nicht geladen werden.",
       "refreshFailed": "Dein Posteingang konnte nicht aktualisiert werden. Die zuletzt geladenen Einträge werden angezeigt."
-    },
-    "homePanels": {
-      "prompt": "Vorgeschlagenen Prompt zum Entwurf hinzufügen"
     }
   },
   "common": {

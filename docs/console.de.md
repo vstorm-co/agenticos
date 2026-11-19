@@ -1,5 +1,5 @@
 ---
-source_sha: "0a7095c66943"
+source_sha: "41549b0f9b38"
 ---
 
 # Die Konsole { #the-console }
@@ -133,7 +133,7 @@ Ein fehlgeschlagener Chat-Run zeigt seinen Fehler getrennt von der Antwort und a
 
 Anhänge bleiben innerhalb des Eingabefelds in einer horizontal scrollbaren Zeile. Sichere Bilder zeigen beim Hochladen eine lokale Vorschau; ein Spinner zeigt laufende Uploads ohne erfundene Prozentangabe. Fehler beim Aktualisieren von Hintergrundthemen bleiben in einem eigenen aufklappbaren Bereich und erscheinen nie in einem noch nicht gesendeten Chat. Tab-Unterstreichungen und Segmentmarkierungen gleiten zwischen Optionen; bei reduzierter Bewegung wechselt die Auswahl sofort.
 
-Neue Chats zeigen über dem Eingabefeld einen zufällig ausgewählten Einstieg des aktiven Agenten. Ein Klick fügt ihn zum bearbeitbaren Entwurf hinzu. Das Tagesbriefing unter dem Eingabefeld zeigt bis zu vier Einträge aus dem Posteingang, einschließlich eines Links zu offenen Genehmigungen. Ohne vorgeschlagene Prompts im Builder zeigt es bis zu acht Einträge. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
+Neue Chats zeigen über dem Eingabefeld bis zu vier Einstiege des aktiven Agenten. In einem breiten Chatbereich stehen sie in zwei Spalten. Ein Klick fügt den gewählten Einstieg zum bearbeitbaren Entwurf hinzu. Das Tagesbriefing unter dem Eingabefeld zeigt bis zu vier Einträge aus dem Posteingang, einschließlich eines Links zu offenen Genehmigungen. Ohne vorgeschlagene Prompts im Builder zeigt es bis zu acht Einträge. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
 
 Der Hauptchat bietet ein breites Eingabefeld. Die Modellbibliothek zeigt verbundene Anbieter zuerst, mit Logos und großgeschriebenen Namen, und trennt Katalog und gespeicherte Modelle. Ein Klick wählt das Modell direkt aus. Fehlende Zugangsdaten lassen sich über die bestehenden Vault-Formulare im Auswahlfenster hinzufügen, auch mehrteilige Anbieterzugangsdaten. Berechtigungen und Modellvalidierung bleiben wirksam. Mikrofon und Senden wechseln beim Schreiben fließend.
 

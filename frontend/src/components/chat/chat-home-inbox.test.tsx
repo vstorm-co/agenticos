@@ -64,9 +64,12 @@ it("prioritizes urgent topics, limits the preview and links to actual inbox rows
   expect(within(list).getAllByRole("listitem")).toHaveLength(3);
   expect(within(list).getAllByRole("link")[0]).toHaveAttribute("href", "/inbox#suggestion-urgent");
   expect(screen.queryByText("Topic c")).toBeNull();
-  expect(screen.getByRole("link", { name: /2 approvals/ })).toHaveAttribute(
-    "href",
-    "/runs?tab=approvals",
+  const approvalLink = screen.getByRole("link", { name: "2 approvals need your attention" });
+  expect(approvalLink).toHaveAttribute("href", "/runs?tab=approvals");
+  expect(within(approvalLink).getByText("Approvals")).toBeVisible();
+  expect(within(approvalLink).getByText("2")).toBeVisible();
+  expect(approvalLink.closest("header")).toContainElement(
+    screen.getByRole("heading", { name: "Daily briefing" }),
   );
   expect(screen.getByRole("heading", { name: "Daily briefing" })).toBeVisible();
   expect(screen.getByRole("link", { name: "Open inbox" })).toHaveAttribute("href", "/inbox");

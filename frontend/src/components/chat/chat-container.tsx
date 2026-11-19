@@ -1525,7 +1525,6 @@ function ChatUI({
                   ) : (
                     <ChatEmptyState
                       suggestionsSlot={!compact ? homeHintsSlot : undefined}
-                      singleSuggestion={showDailyBriefing}
                       onPick={
                         showDailyBriefing
                           ? (text) => setIncoming({ id: Date.now(), files: [], text })
@@ -1744,8 +1743,8 @@ function ChatUI({
                 <div
                   ref={setHomeHintsSlot}
                   className={cn(
-                    "chat-composer-suggestions empty:hidden",
-                    showDailyBriefing ? "chat-composer-width mb-2" : "chat-home-starters mb-4",
+                    "chat-home-starters chat-composer-suggestions mb-4 empty:hidden",
+                    showDailyBriefing && "chat-composer-width",
                   )}
                 />
               )}

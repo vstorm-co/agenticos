@@ -1,5 +1,5 @@
 ---
-source_sha: "0a7095c66943"
+source_sha: "41549b0f9b38"
 ---
 
 # Konsola { #the-console }
@@ -131,7 +131,7 @@ Nieudany run pokazuje błąd oddzielnie od odpowiedzi agenta, poza zwijanymi nar
 
 Załączniki pozostają wewnątrz pola wiadomości w jednym przewijanym wierszu. Bezpieczne obrazy mają lokalną miniaturę podczas wysyłania; trwające wysyłanie wskazuje animowany wskaźnik bez wymyślonego procentu. Błędy odświeżania tematów w tle pozostają w osobnym rozwijanym panelu i nie pojawiają się w niewysłanej rozmowie. Podkreślenia kart i zaznaczenia segmentów płynnie przechodzą między opcjami; przy ograniczeniu animacji zmiana jest natychmiastowa.
 
-Nowy czat pokazuje nad polem wiadomości jeden losowo wybrany prompt bieżącego agenta. Kliknięcie dodaje go do edytowalnego szkicu. Pod polem znajduje się Podsumowanie dnia z maksymalnie czterema pozycjami z Inboxa, w tym linkiem do oczekujących zgód. Wyłączenie proponowanych promptów w Builderze rozszerza podsumowanie do ośmiu pozycji. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
+Nowy czat pokazuje nad polem wiadomości do czterech promptów bieżącego agenta. W szerokim panelu układają się w dwie kolumny. Kliknięcie promptu dodaje go do edytowalnego szkicu. Pod polem znajduje się Podsumowanie dnia z maksymalnie czterema pozycjami z Inboxa, w tym linkiem do oczekujących zgód. Wyłączenie proponowanych promptów w Builderze rozszerza podsumowanie do ośmiu pozycji. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
 
 Główny czat ma szerokie pole wiadomości. Biblioteka modeli pokazuje najpierw podłączonych dostawców, z logotypami i nazwami od wielkiej litery, oraz rozdziela katalog i zapisane modele. Kliknięcie modelu od razu go wybiera. Brakujące poświadczenia można dodać w formularzach Vaulta z poziomu wyboru modelu, również dla dostawców wymagających kilku pól; nadal obowiązują dotychczasowe uprawnienia i walidacja modeli. Mikrofon i przycisk wysyłania płynnie zmieniają stan podczas pisania.
 

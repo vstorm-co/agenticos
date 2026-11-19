@@ -39,13 +39,28 @@ export function ChatHomeInbox({ expanded = false }: { expanded?: boolean }) {
           </span>
           {t("title")}
         </h3>
-        <Link
-          href={ROUTES.INBOX}
-          className="text-muted-foreground hover:text-foreground flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs pointer-coarse:min-h-11"
-        >
-          {t("openInbox")}
-          <ArrowUpRight className="size-3" aria-hidden />
-        </Link>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2">
+          {!loading && pending.count > 0 && (
+            <Link
+              href="/runs?tab=approvals"
+              aria-label={t("approvals", { count: pending.count })}
+              className="text-muted-foreground hover:text-foreground hover:bg-muted flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs pointer-coarse:min-h-11"
+            >
+              <ShieldCheck className="size-3.5 shrink-0" aria-hidden />
+              {t("approvalsLabel")}
+              <span className="bg-muted text-foreground min-w-5 rounded-full px-1 text-center text-[11px] leading-5 font-medium tabular-nums">
+                {pending.count}
+              </span>
+            </Link>
+          )}
+          <Link
+            href={ROUTES.INBOX}
+            className="text-muted-foreground hover:text-foreground hover:bg-muted flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs pointer-coarse:min-h-11"
+          >
+            {t("openInbox")}
+            <ArrowUpRight className="size-3" aria-hidden />
+          </Link>
+        </div>
       </header>
       {loading ? (
         <div className="space-y-2 p-2">
@@ -71,13 +86,6 @@ export function ChatHomeInbox({ expanded = false }: { expanded?: boolean }) {
           )}
           {(!failed || hasCachedContent) && (
             <>
-              {pending.count > 0 && (
-                <Link href="/runs?tab=approvals" className="chat-home-inbox-approvals">
-                  <ShieldCheck className="size-3.5" aria-hidden />
-                  {t("approvals", { count: pending.count })}
-                  <ArrowUpRight className="ml-auto size-3" aria-hidden />
-                </Link>
-              )}
               {items.length > 0 ? (
                 <ul className="chat-home-briefing-items">
                   {items.map((item) => (

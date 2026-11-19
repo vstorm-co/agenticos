@@ -1942,7 +1942,7 @@ it("keeps findings beside the composer and leaves approvals to decision cards", 
 });
 
 describe("starting a new chat", () => {
-  it("puts a single opener above the composer and the Daily briefing below it", async () => {
+  it("puts the agent's opening prompts above the composer and the Daily briefing below it", async () => {
     const base = get.getMockImplementation()!;
     get.mockImplementation((url: string) =>
       url === "/agents"
@@ -1962,9 +1962,11 @@ describe("starting a new chat", () => {
     );
     useAgentSelectionStore.setState({ selectedAgentId: "first-agent" });
     mount(undefined, true);
-    const opener = await screen.findByRole("button", {
+    const openers = await screen.findAllByRole("button", {
       name: /^(Draft a summary|Find open questions)$/,
     });
+    expect(openers).toHaveLength(2);
+    const opener = openers[1]!;
     const editor = screen.getByRole("textbox");
     const briefing = screen.getByRole("region", { name: "Daily briefing" });
     expect(opener.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -2003,7 +2005,8 @@ describe("starting a new chat", () => {
     useAgentSelectionStore.setState({ selectedAgentId: "quiet-agent" });
     mount(undefined, true);
     await screen.findByText("Quiet agent", { selector: ".chat-empty-state p span" });
-    expect(screen.queryByTitle("Add suggested prompt to draft")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hidden suggested prompt" })).toBeNull();
+    expect(document.querySelector("[data-chat-welcome-hints]")).toBeNull();
     expect(screen.getByRole("region", { name: "Daily briefing" })).toBeVisible();
   });
 });

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Ban, Sparkles } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
@@ -25,40 +25,6 @@ describe("ChatWelcome", () => {
     view.unmount();
     expect(target).toBeEmptyDOMElement();
     target.remove();
-  });
-
-  it("shows one random prompt and keeps the pick stable when the composer changes", async () => {
-    const root = document.createElement("div");
-    document.body.append(root);
-    const draw = vi.spyOn(Math, "random").mockReturnValue(0.6);
-    const props = {
-      mark: <span />,
-      title: "Welcome",
-      lead: "Ready",
-      suggestions: [
-        { key: "a", icon: Ban, title: "A starter", prompt: "Start here" },
-        { key: "b", icon: Sparkles, title: "B starter", prompt: "Start there" },
-      ],
-      onPick: vi.fn(),
-      suggestionsSlot: root,
-      singleSuggestion: true,
-    };
-    try {
-      const view = render(<ChatWelcome {...props} loading />);
-      expect(within(root).queryByRole("button")).toBeNull();
-      view.rerender(<ChatWelcome {...props} />);
-      draw.mockReturnValue(0.1);
-      view.rerender(<ChatWelcome {...props} lead="Standing by" />);
-      expect(within(root).getAllByRole("button")).toHaveLength(1);
-      await userEvent.click(within(root).getByRole("button", { name: "B starter" }));
-      expect(props.onPick).toHaveBeenCalledWith("Start there");
-      view.rerender(<ChatWelcome {...props} suggestions={[]} />);
-      expect(within(root).queryByRole("button")).toBeNull();
-      view.unmount();
-    } finally {
-      draw.mockRestore();
-      root.remove();
-    }
   });
 
   it("sends a card's prompt and says it under the title when nothing else is written", async () => {
