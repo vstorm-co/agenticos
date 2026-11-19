@@ -9,10 +9,10 @@ import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { SetupIndicator } from "@/components/settings/setup-indicator";
 import { proactivitySetupHints } from "@/lib/setup-hints";
 import { SettingsSection } from "@/components/settings/settings-section";
+import { ServiceCard } from "@/components/settings/service-card";
 import {
   Button,
   Input,
-  Label,
   Select,
   SelectContent,
   SelectItem,
@@ -25,6 +25,8 @@ import { FormField } from "@/components/ui/form-field";
 import { useModelProviders, useOrganizations, usePermissions } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
 import { useTenantId } from "@/hooks/use-organizations";
+import { useSystemAgents } from "@/hooks/use-system-agents";
+import { SystemAgentActivity } from "./org-system-agents";
 import { submitFailure } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { WATCH_INTERVALS, cadenceLabel } from "@/lib/watch-cadence";
@@ -104,18 +106,12 @@ export function OrgProactivity({
   }
   if (!nightly && !welcome) return null;
   return (
-    <SettingsSection
-      title={t("title")}
-      description={t(collapsible ? "summary" : "description")}
-      collapsible={collapsible}
-      toggleTour="org-proactivity-expand"
-      defaultOpen={defaultOpen}
-    >
-      <div className="space-y-5">
-        {nightly && <NightlyForm key={org.id} org={org} />}
-        {welcome && <WelcomeForm org={org} />}
-      </div>
-    </SettingsSection>
+    <div className="space-y-3">
+      {nightly && (
+        <NightlyForm key={org.id} org={org} collapsible={collapsible} defaultOpen={defaultOpen} />
+      )}
+      {welcome && <WelcomeForm org={org} collapsible={collapsible} />}
+    </div>
   );
 }
 
@@ -130,6 +126,8 @@ function FeaturePanel({
   disabled,
   onChange,
   children,
+  collapsible = false,
+  defaultOpen = false,
 }: {
   title: string;
   status?: ReactNode;
@@ -140,31 +138,51 @@ function FeaturePanel({
   disabled: boolean;
   onChange: (checked: boolean) => void;
   children?: ReactNode;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
+  if (useChanged(defaultOpen) && defaultOpen) setOpen(true);
   return (
-    <section aria-label={title} className="bg-card overflow-hidden rounded-xl border">
-      <header className="flex items-start gap-3 p-4 sm:p-5">
-        <span className="bg-muted text-foreground/80 grid size-9 shrink-0 place-items-center rounded-lg">
-          <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="flex items-center gap-1.5">
-            <Label htmlFor={id} className="text-sm font-semibold">
-              {title}
-            </Label>
-            {status}
-          </div>
-          <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
-        </div>
-        <Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onChange} />
-      </header>
-      {children && <div className="border-t px-4 py-4 sm:px-5">{children}</div>}
-    </section>
+    <ServiceCard
+      title={title}
+      description={description}
+      icon={Icon}
+      status={status}
+      id={`${id}-settings`}
+      collapsible={collapsible}
+      open={open}
+      onOpenChange={setOpen}
+      action={
+        <Switch
+          id={id}
+          aria-label={title}
+          checked={checked}
+          disabled={disabled}
+          onCheckedChange={(enabled) => {
+            onChange(enabled);
+            setOpen(true);
+          }}
+        />
+      }
+    >
+      {children}
+    </ServiceCard>
   );
 }
 
-function NightlyForm({ org }: { org: Organization }) {
+function NightlyForm({
+  org,
+  collapsible,
+  defaultOpen,
+}: {
+  org: Organization;
+  collapsible: boolean;
+  defaultOpen: boolean;
+}) {
   const t = useTranslations("teams.proactive");
+  const { roles } = useSystemAgents(true);
+  const briefing = roles?.find((role) => role.role === "daily_briefing");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const { setProactivity } = useOrganizations();
@@ -214,179 +232,184 @@ function NightlyForm({ org }: { org: Organization }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid items-stretch gap-3">
-        <FeaturePanel
-          title={t("nightly")}
-          status={<SetupIndicator hints={proactivitySetupHints(org)} />}
-          description={t("nightlyHint")}
-          icon={Moon}
-          id="org-proactive-enabled"
-          checked={form.enabled}
-          disabled={saving || form.modelId === null}
-          onChange={(enabled) => edit({ enabled })}
-        />
-        <FeaturePanel
-          title={t("watches")}
-          description={t("watchesHint")}
-          icon={Radar}
-          id="org-proactive-watches"
-          checked={form.watches}
-          disabled={saving}
-          onChange={(watches) => edit({ watches })}
-        />
-      </div>
-      <p className="text-muted-foreground max-w-4xl text-xs leading-relaxed">
-        {t("runAttribution")}
-      </p>
-      {
-        <div className="bg-card rounded-xl border p-4 sm:p-5">
-          <fieldset
-            id="org-proactive-model"
-            className="min-w-0 space-y-2"
-            disabled={saving}
-            aria-invalid={!!errors[MODEL_FIELD]}
-            aria-describedby={
-              errors[MODEL_FIELD] ? "org-proactive-model-error" : "org-proactive-model-hint"
-            }
-          >
-            <legend className="text-sm font-medium" data-tour="org-proactivity-model">
-              {t("model")}
-            </legend>
-            <ModelProfilePicker
-              profiles={profiles}
-              profilesStatus={profilesStatus}
-              value={form.modelId}
-              onChange={(modelId) =>
-                edit({ modelId, ...(modelId === null ? { enabled: false } : {}) })
-              }
-              onCreationPendingChange={(pending) =>
-                setPendingCreations((count) => count + (pending ? 1 : -1))
-              }
-              allowAdd={can(Perm.connectionsManage)}
+      <FeaturePanel
+        collapsible={collapsible}
+        defaultOpen={defaultOpen}
+        title={t("nightly")}
+        status={<SetupIndicator hints={proactivitySetupHints(org)} />}
+        description={t("nightlyHint")}
+        icon={Moon}
+        id="org-proactive-enabled"
+        checked={form.enabled}
+        disabled={saving || form.modelId === null}
+        onChange={(enabled) => edit({ enabled })}
+      >
+        <p className="text-muted-foreground max-w-4xl text-xs leading-relaxed">
+          {t("runAttribution")}
+        </p>
+        {
+          <div className="bg-card rounded-xl border p-4 sm:p-5">
+            <fieldset
+              id="org-proactive-model"
+              className="min-w-0 space-y-2"
               disabled={saving}
-            />
-            {errors[MODEL_FIELD] ? (
-              <p id="org-proactive-model-error" className="text-destructive text-xs">
-                {errors[MODEL_FIELD]}
-              </p>
-            ) : (
-              <p id="org-proactive-model-hint" className="text-muted-foreground text-xs">
-                {t("modelHint")}
-              </p>
-            )}
-          </fieldset>
-        </div>
-      }
-      {(form.enabled || form.watches) && (
-        <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <SettingsSection title={t("budgetTitle")}>
-            <div className="mb-3 flex items-center gap-2 text-sm">
-              <Wallet aria-hidden className="text-muted-foreground size-4 shrink-0" />
-              <p className="text-muted-foreground leading-relaxed">{t("budgetHint")}</p>
-            </div>
-            <FormField
-              label={t("label")}
-              htmlFor="org-proactive-limit"
-              error={errors[LIMIT_FIELD] ?? null}
+              aria-invalid={!!errors[MODEL_FIELD]}
+              aria-describedby={
+                errors[MODEL_FIELD] ? "org-proactive-model-error" : "org-proactive-model-hint"
+              }
             >
-              <Input
-                id="org-proactive-limit"
-                type="number"
-                min="0"
-                step="0.5"
-                value={form.limit}
+              <legend className="text-sm font-medium" data-tour="org-proactivity-model">
+                {t("model")}
+              </legend>
+              <ModelProfilePicker
+                profiles={profiles}
+                profilesStatus={profilesStatus}
+                value={form.modelId}
+                onChange={(modelId) =>
+                  edit({ modelId, ...(modelId === null ? { enabled: false } : {}) })
+                }
+                onCreationPendingChange={(pending) =>
+                  setPendingCreations((count) => count + (pending ? 1 : -1))
+                }
+                allowAdd={can(Perm.connectionsManage)}
                 disabled={saving}
-                onChange={(event) => edit({ limit: event.target.value })}
               />
-            </FormField>
-            {form.watches && (
-              <div className="mt-4 border-t pt-4">
-                <WatchPolicy minutes={form.watchMinutes} disabled={saving} onChange={edit} />
+              {errors[MODEL_FIELD] ? (
+                <p id="org-proactive-model-error" className="text-destructive text-xs">
+                  {errors[MODEL_FIELD]}
+                </p>
+              ) : (
+                <p id="org-proactive-model-hint" className="text-muted-foreground text-xs">
+                  {t("modelHint")}
+                </p>
+              )}
+            </fieldset>
+          </div>
+        }
+        {(form.enabled || form.watches) && (
+          <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <div className="min-w-0 space-y-4">
+              <h3 className="text-sm font-semibold">{t("budgetTitle")}</h3>
+              <div className="mb-3 flex items-center gap-2 text-sm">
+                <Wallet aria-hidden className="text-muted-foreground size-4 shrink-0" />
+                <p className="text-muted-foreground leading-relaxed">{t("budgetHint")}</p>
               </div>
-            )}
-          </SettingsSection>
-          <SettingsSection title={t("deliveryTitle")}>
-            <div className="mb-4 flex items-start gap-2 text-sm">
-              <CalendarClock aria-hidden className="text-muted-foreground mt-0.5 size-4 shrink-0" />
-              <p className="text-muted-foreground leading-relaxed">{t("deliveryHint")}</p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField label={t("days")} htmlFor="org-proactive-days" className="sm:col-span-2">
-                <div
-                  id="org-proactive-days"
-                  role="group"
-                  aria-label={t("days")}
-                  className="flex flex-wrap gap-1.5"
-                >
-                  {WEEKDAYS.map((day) => {
-                    const on = form.days.includes(day);
-                    return (
-                      <button
-                        key={day}
-                        type="button"
-                        aria-pressed={on}
-                        disabled={saving || (on && form.days.length === 1)}
-                        onClick={() =>
-                          edit({
-                            days: on
-                              ? form.days.filter((other) => other !== day)
-                              : [...form.days, day].sort((a, b) => a - b),
-                          })
-                        }
-                        className={cn(
-                          "min-h-9 min-w-9 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
-                          on
-                            ? "border-foreground/20 bg-accent text-foreground"
-                            : "border-border bg-background text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        {dayName.format(MONDAY + (day - 1) * DAY_MS)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </FormField>
-              <FormField label={t("timing")} htmlFor="org-proactive-timing">
-                <Select
-                  value={form.timing}
-                  onValueChange={(timing) => edit({ timing: timing as ProactiveTiming })}
-                  disabled={saving}
-                >
-                  <SelectTrigger id="org-proactive-timing">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fixed">{t("timingFixed")}</SelectItem>
-                    <SelectItem value="before_work">{t("timingBeforeWork")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormField>
               <FormField
-                label={t("hour")}
-                htmlFor="org-proactive-hour"
-                description={form.timing === "fixed" ? t("hourHint") : t("hourFallbackHint")}
+                label={t("label")}
+                htmlFor="org-proactive-limit"
+                error={errors[LIMIT_FIELD] ?? null}
               >
-                <Select
-                  value={String(form.hour)}
-                  onValueChange={(hour) => edit({ hour: Number(hour) })}
+                <Input
+                  id="org-proactive-limit"
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={form.limit}
                   disabled={saving}
-                >
-                  <SelectTrigger id="org-proactive-hour">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {HOURS.map((hour) => (
-                      <SelectItem key={hour} value={String(hour)}>
-                        {`${String(hour).padStart(2, "0")}:00`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(event) => edit({ limit: event.target.value })}
+                />
               </FormField>
             </div>
-          </SettingsSection>
-        </div>
-      )}
+            <div className="min-w-0 space-y-4">
+              <h3 className="text-sm font-semibold">{t("deliveryTitle")}</h3>
+              <div className="mb-4 flex items-start gap-2 text-sm">
+                <CalendarClock
+                  aria-hidden
+                  className="text-muted-foreground mt-0.5 size-4 shrink-0"
+                />
+                <p className="text-muted-foreground leading-relaxed">{t("deliveryHint")}</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField label={t("days")} htmlFor="org-proactive-days" className="sm:col-span-2">
+                  <div
+                    id="org-proactive-days"
+                    role="group"
+                    aria-label={t("days")}
+                    className="flex flex-wrap gap-1.5"
+                  >
+                    {WEEKDAYS.map((day) => {
+                      const on = form.days.includes(day);
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          aria-pressed={on}
+                          disabled={saving || (on && form.days.length === 1)}
+                          onClick={() =>
+                            edit({
+                              days: on
+                                ? form.days.filter((other) => other !== day)
+                                : [...form.days, day].sort((a, b) => a - b),
+                            })
+                          }
+                          className={cn(
+                            "min-h-9 min-w-9 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                            on
+                              ? "border-foreground/20 bg-accent text-foreground"
+                              : "border-border bg-background text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {dayName.format(MONDAY + (day - 1) * DAY_MS)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </FormField>
+                <FormField label={t("timing")} htmlFor="org-proactive-timing">
+                  <Select
+                    value={form.timing}
+                    onValueChange={(timing) => edit({ timing: timing as ProactiveTiming })}
+                    disabled={saving}
+                  >
+                    <SelectTrigger id="org-proactive-timing">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fixed">{t("timingFixed")}</SelectItem>
+                      <SelectItem value="before_work">{t("timingBeforeWork")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormField>
+                <FormField
+                  label={t("hour")}
+                  htmlFor="org-proactive-hour"
+                  description={form.timing === "fixed" ? t("hourHint") : t("hourFallbackHint")}
+                >
+                  <Select
+                    value={String(form.hour)}
+                    onValueChange={(hour) => edit({ hour: Number(hour) })}
+                    disabled={saving}
+                  >
+                    <SelectTrigger id="org-proactive-hour">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {HOURS.map((hour) => (
+                        <SelectItem key={hour} value={String(hour)}>
+                          {`${String(hour).padStart(2, "0")}:00`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+              </div>
+            </div>
+          </div>
+        )}
+        {briefing && <SystemAgentActivity agent={briefing} />}
+      </FeaturePanel>
+      <FeaturePanel
+        title={t("watches")}
+        description={t("watchesHint")}
+        icon={Radar}
+        id="org-proactive-watches"
+        checked={form.watches}
+        disabled={saving}
+        onChange={(watches) => edit({ watches })}
+        collapsible={collapsible}
+      >
+        <WatchPolicy minutes={form.watchMinutes} disabled={saving} onChange={edit} />
+      </FeaturePanel>
       {changed && (
         <div className="bg-card sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 shadow-lg">
           <p role="status" className="text-muted-foreground text-sm">
@@ -453,7 +476,7 @@ function WatchPolicy({
   );
 }
 
-function WelcomeForm({ org }: { org: Organization }) {
+function WelcomeForm({ org, collapsible }: { org: Organization; collapsible: boolean }) {
   const t = useTranslations("teams.proactive");
   const tErrors = useTranslations("errors");
   const { setWelcomeDm } = useOrganizations();
@@ -485,6 +508,7 @@ function WelcomeForm({ org }: { org: Organization }) {
   return (
     <FeaturePanel
       title={t("welcome")}
+      collapsible={collapsible}
       description={t("welcomeHint")}
       icon={MessageCircle}
       id="org-welcome-enabled"

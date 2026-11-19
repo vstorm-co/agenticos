@@ -54,6 +54,7 @@ from app.db.models.agent_run import RunStatus, RunSurface
 from app.repositories.conversation import Attributed
 from app.services.agent_runner import AgentRunnerService, PreparedRun
 from app.services.channels.mentions import ChannelAgentRouter
+from app.services.conversation import ConversationService
 from app.services.embed_session import EmbedSession
 from app.services.message_history import ModelHistory
 
@@ -624,6 +625,9 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             _the_widgets_rows() as reader,
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()
@@ -641,7 +645,7 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
 
         assert kept.await_args.kwargs["expected_revision"] == 7
 
-    async def test_a_turn_that_summarised_nothing_writes_nothing(self) -> None:
+    async def test_an_ordinary_turn_also_checkpoints_its_model_history(self) -> None:
         session = _widget_session(_db())
         run = AsyncMock(return_value=_searched_then_answered("The refund window is 30 days."))
 
@@ -650,12 +654,15 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             _the_widgets_rows(),
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()
             await session._answer("What's your refund window?")
 
-        service.return_value.keep_summary.assert_not_awaited()
+        service.return_value.keep_summary.assert_awaited_once()
 
     async def test_what_a_request_carries_is_recorded_on_every_turn(self) -> None:
         """Not only a summarising one: it is what the next turn needs before it
@@ -668,6 +675,9 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             _the_widgets_rows(),
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()
@@ -691,6 +701,9 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             _the_widgets_rows(),
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()
@@ -717,6 +730,9 @@ class TestKeepingASummaryOnASurfaceThatIsNotTheChat:
             _the_widgets_rows(),
             patch("app.services.agent_runner.ConversationService") as service,
         ):
+            service.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(service.return_value)
+            )
             service.return_value.keep_summary = AsyncMock()
             service.return_value.keep_overhead = AsyncMock()
             service.return_value.keep_plan = AsyncMock()

@@ -223,7 +223,7 @@ export async function signInAs(
   password: string,
   organizationId?: string,
 ): Promise<BrowserContext> {
-  const context = await browser.newContext();
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   try {
     const page = await context.newPage();
     await page.goto("/login");

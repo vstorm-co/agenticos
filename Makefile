@@ -372,6 +372,7 @@ lint-backend:
 	uv run --directory backend python3 ../scripts/check_comments.py
 	uv run --directory backend python3 ../scripts/check_docs_paragraphs.py
 	uv run --directory backend python3 ../scripts/check_docs_i18n.py
+	uv run --directory backend python3 ../scripts/gen_architect_guide.py --check
 	uv run --directory backend python3 ../scripts/check_docs_glossary.py
 
 # Unused functions and methods, reported rather than gated. `make lint` runs
@@ -670,7 +671,7 @@ audit:
 # target was added: `next` and `postcss` raised, `nanoid` and `js-yaml` pinned
 # forward through their parents.
 AUDIT_LEVEL ?= high
-# The one other case is a finding with no fixed release anywhere in its chain: it
+# The other case is a finding with no fixed release anywhere in its chain: it
 # is named here with the path it arrives by and the condition that removes it,
 # and the audit ignores that advisory only.
 #   GHSA-vfj7-8cjw-p6xm (CVE-2026-93687): braces <= 3.0.3 has no patched release.
@@ -678,7 +679,13 @@ AUDIT_LEVEL ?= high
 #   > fast-glob > micromatch, a lint-time dependency that the built console does
 #   not ship. Remove when braces publishes a fix or @next/eslint-plugin-next
 #   drops fast-glob. bun matches advisories by their GHSA id, not the CVE.
-AUDIT_IGNORE ?= GHSA-vfj7-8cjw-p6xm
+#   GHSA-fc5q-39xc-vjpf (CVE-2026-112366): picomatch <= 4.0.7 has no fixed
+#   release. The locked paths are lint/build/test tools and next-intl's source
+#   watcher, absent from the standalone image. Next's bundled matcher is traced
+#   only by image pattern checks; this build has no remote patterns and the
+#   fixed local pattern **. Requests cannot supply glob patterns. Track #3102;
+#   remove after an upstream fix, and reassess if runtime patterns change.
+AUDIT_IGNORE ?= GHSA-vfj7-8cjw-p6xm GHSA-fc5q-39xc-vjpf
 
 audit-frontend:
 	cd frontend && bun audit --audit-level=$(AUDIT_LEVEL) $(addprefix --ignore=,$(AUDIT_IGNORE))

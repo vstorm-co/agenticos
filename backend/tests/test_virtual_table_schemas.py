@@ -1,5 +1,7 @@
 """The request models are the API contract: what they preserve and what they refuse."""
 
+import uuid
+
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
@@ -83,3 +85,11 @@ def test_the_operation_key_type_refuses_a_surrogate_and_a_line_break():
     for bad in ("a" + SURROGATE, "a\nb"):
         with pytest.raises(ValidationError):
             adapter.validate_python(bad)
+
+
+def test_naming_an_audience_makes_a_new_table_private():
+    group = uuid.uuid4()
+    table = TableCreate(name="orders", visibility="org", group_ids=[group])
+    assert table.visibility == "private"
+    assert table.group_ids == [group]
+    assert TableCreate(name="orders", visibility="org").visibility == "org"

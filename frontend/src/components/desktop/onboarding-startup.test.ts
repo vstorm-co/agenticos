@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { waitFor } from "@testing-library/react";
+import { fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 
 const { resume, refresh, prepare } = vi.hoisted(() => ({
@@ -9,7 +9,7 @@ const { resume, refresh, prepare } = vi.hoisted(() => ({
   refresh: vi.fn(async () => {}),
 }));
 vi.mock("../../../../desktop/ui/local-computer.js", () => ({
-  localComputerStep: () => Object.assign(refresh, { resume, prepare }),
+  localComputerStep: () => Object.assign(refresh, { resume, prepare, progress: vi.fn() }),
 }));
 vi.mock("../../../../desktop/ui/permissions.js", () => ({
   permissionStep: () => vi.fn(async () => {}),
@@ -18,6 +18,8 @@ vi.mock("../../../../desktop/ui/permissions.js", () => ({
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
+  localStorage.clear();
+  window.history.replaceState(null, "", "/");
   document.body.innerHTML = readFileSync(
     resolve(process.cwd(), "../desktop/ui/index.html"),
     "utf8",
@@ -27,7 +29,12 @@ beforeEach(() => {
 async function start(deployment: "local" | "server", notice: string | null, pending = false) {
   const invoke = vi.fn(async (command: string) => {
     if (command === "onboarding_state")
-      return { deployment, server_url: "https://example.com/", local_setup_pending: pending };
+      return {
+        deployment,
+        server_url: "https://example.com/",
+        local_setup_pending: pending,
+        desktop_version: "0.2.0",
+      };
     if (command === "startup_notice") return notice;
     if (command === "set_onboarding_language") return undefined;
     throw new Error(`Unexpected startup command: ${command}`);
@@ -128,4 +135,25 @@ it("retries a failed setup using the instance identity reported by native progre
   expect(invoke).toHaveBeenLastCalledWith("set_up_local", {
     owner: expect.objectContaining({ instance_id: "saved-instance" }),
   });
+});
+
+it("opens local updates from the native menu without resuming or creating a workspace", async () => {
+  window.history.replaceState(null, "", "/?local=update");
+  await start("local", null);
+  await waitFor(() => expect(refresh).toHaveBeenCalled());
+  expect(resume).not.toHaveBeenCalled();
+  expect(document.querySelector('[data-screen="local"]')).not.toHaveAttribute("hidden");
+});
+
+it("updates the desktop version label when the onboarding language changes", async () => {
+  localStorage.setItem("agenticos:start-language", "en");
+  await start("server", null);
+  const label = document.querySelector("[data-desktop-version]");
+  await waitFor(() => expect(label).toHaveTextContent("Desktop app 0.2.0"));
+  const language = document.querySelector<HTMLSelectElement>("#language");
+  if (!language) throw new Error("Language control is missing");
+  fireEvent.change(language, { target: { value: "pl" } });
+  await waitFor(() => expect(label).toHaveTextContent("Aplikacja desktopowa 0.2.0"));
+  fireEvent.change(language, { target: { value: "en" } });
+  await waitFor(() => expect(label).toHaveTextContent("Desktop app 0.2.0"));
 });

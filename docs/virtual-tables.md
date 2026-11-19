@@ -394,7 +394,7 @@ clock, and the rest send it back. A row repeating an external id the file alread
 is listed rather than sent, and the batch refuses one repeating an id it already holds
 with `INVALID_RECORD`.
 
-**New table** starts with a **Name** column. Name the table and add its columns first; description and visibility are under **More options**, with private visibility as the default. It can start from a file instead: **Start
+**New table** starts with a **Name** column. Name the table, choose who can see it and add its columns; the description is under **More options**. A table starts as **Only me**; **Everyone** opens it to the organization, and **Some people** shares it with the groups and members you pick, each at `read`, in the same request (`group_ids` and `user_ids` on `POST /tables`). It can start from a file instead: **Start
 from a CSV file** turns
 the header into columns and gives each the narrowest type all its values read as -
 integer, number, yes/no, date, an ISO date and time, an email address or a link - and otherwise text, or long
@@ -426,6 +426,12 @@ body is a new write: it executes again instead of returning the first answer. Re
 the window, and treat a longer gap as a fresh request. The lifetime is enforced when the key
 is used, so it holds to the hour; the daily sweep only reclaims the space of receipts nobody
 retried.
+
+Removing a group, project or account purges its task board's associated receipts,
+including batch results. During the upgrade, older batch results without a table id
+are erased because their table cannot be recovered. Their keys remain until expiry:
+a matching retry returns `IDEMPOTENCY_RESULT_PURGED` (409) and writes nothing.
+Check the table before starting a new write. Other receipt kinds are unchanged.
 
 ## Listing and filtering { #listing-and-filtering }
 
@@ -730,6 +736,7 @@ what a client branches on.
 | `INVALID_QUERY` | 422 | A filter or sort the table cannot answer |
 | `INVALID_SCHEMA` | 422 | An inconsistent schema change |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | The key was used for a different request |
+| `IDEMPOTENCY_RESULT_PURGED` | 409 | A legacy batch result was erased during an upgrade; its key still prevents another write until expiry |
 | `QUOTA_EXCEEDED` | 402 | The write would pass a storage limit; `details` names the quota (`tables`, `records`, `record_bytes`, `storage_bytes`) and its ceiling |
 | `RATE_LIMIT_EXCEEDED` | 429 | Too many table writes in the last minute; see `Retry-After` |
 | `VALIDATION_ERROR` | 422 | The request itself is malformed: a wrong type, an unknown field, a limit, or NUL, a line break or a lone surrogate in an id, key or name. Refused by the route before the service runs |

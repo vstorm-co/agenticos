@@ -1,5 +1,5 @@
 ---
-source_sha: "312d519f5202"
+source_sha: "90fbc02e70bd"
 ---
 
 # Aplicaciones { #artifacts }
@@ -1455,6 +1455,8 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
 ## Carga de vistas previas y uso compartido { #preview-loading-and-sharing }
 
 Las vistas previas del chat reservan espacio mientras carga el renderizador visual o la miniatura de Apps. Aparecen gradualmente cuando termina el renderizado o la decodificación; la preferencia de movimiento reducido desactiva la animación. Las listas de Apps usan miniaturas estáticas en caché por versión, en lugar de ejecutar cada aplicación al volver a la lista.
+
+Los fallos temporales del renderizador y los tiempos de espera agotados reciben como máximo dos reintentos automáticos con retrasos crecientes. No se reintenta si falta la configuración del renderizador o se deniega el acceso. Volver a una tarjeta o cambiar su visibilidad no reinicia el límite agotado. Las imágenes correctas permanecen en caché para su versión autorizada.
 
 El skill Apps incluye presentaciones HTML interactivas, estilos de impresión PDF y ejemplos de componentes reutilizables. Exportar PDF requiere configurar el renderizador; validar una vista previa no demuestra que el script se ejecutara correctamente. Comprueba gráficos, tablas y contenido interactivo en la vista renderizada. No se incluye exportación a PowerPoint.
 

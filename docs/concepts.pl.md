@@ -1,5 +1,5 @@
 ---
-source_sha: "f824a1c79a78"
+source_sha: "419bd9ea9a93"
 ---
 
 # Koncepcje { #concepts }
@@ -29,6 +29,12 @@ skilli, budżet oraz to, kogo zawiadomić, gdy coś się stanie. Jest zdefiniowa
 
 Agent ma dokładnie jednego speca _roboczego_ (draft), którego Builder edytuje i
 zapisuje na bieżąco.
+
+Każdy zapis sprawdza draft, od którego zaczęła się edycja. Jeśli zmieniła go
+inna karta lub operacja na serwerze, zapis zostaje wstrzymany, a lokalne wpisy
+pozostają na ekranie. Skopiuj to, co chcesz zachować, zanim wybierzesz
+**Wczytaj najnowszy draft**. Następnie nanieś te zmiany na aktualną wersję;
+zapis ze starej karty nie może jej nadpisać.
 
 Spec trzyma się dwóch reguł i to właśnie one czynią go użytecznym.
 

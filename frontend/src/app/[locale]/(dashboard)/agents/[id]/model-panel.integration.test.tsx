@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
-import type { AgentSpec } from "@/types/agents";
+import type { AgentSpec, AgentDraftUpdate } from "@/types/agents";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
 import { ApiError } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
@@ -43,7 +43,7 @@ const state = {
   canEdit: true,
   agentError: null as Error | null,
   permissions: [] as Permission[],
-  profiles: [MODEL_PROFILE] as (typeof MODEL_PROFILE)[],
+  profiles: [MODEL_PROFILE] as (typeof MODEL_PROFILE & { missing_key?: boolean })[],
   // Both queries settle successfully by default; a case that wants the failed
   // or still-pending read says so, because that is where an empty list stops
   // meaning "the organization has none".
@@ -67,6 +67,7 @@ vi.mock("@/hooks", async () => {
             has_avatar: false,
             can_edit: state.canEdit,
             can_publish: true,
+            draft_revision: "base",
             draft_spec: {
               name: "Support",
               instructions: "Be helpful.",
@@ -84,7 +85,10 @@ vi.mock("@/hooks", async () => {
       error: state.agentError,
       refetch: refetchAgent,
       saveDraft: {
-        mutateAsync: vi.fn(async (spec: AgentSpec) => ({ draft_spec: spec })),
+        mutateAsync: vi.fn(async ({ spec }: AgentDraftUpdate) => ({
+          draft_spec: spec,
+          draft_revision: "saved",
+        })),
         isPending: false,
       },
       validate,
@@ -399,4 +403,29 @@ it("keeps sharing and export available to a reader through More actions", async 
   expect(screen.getByRole("menuitem", { name: "Share" })).toBeVisible();
   expect(screen.getByRole("menuitem", { name: /Export YAML/ })).toBeVisible();
   expect(screen.queryByRole("menuitem", { name: /Upload avatar/ })).toBeNull();
+});
+
+it("defaults to the organization key and explains the restrictions when personal access is selected", async () => {
+  await mount();
+  expect(await screen.findByRole("radio", { name: "Use the organization’s key" })).toBeChecked();
+  await userEvent.click(screen.getByRole("radio", { name: "Each user connects their own key" }));
+  expect(screen.getByRole("radio", { name: "Each user connects their own key" })).toBeChecked();
+  expect(screen.getByText(/Disable active channels, widgets, hosted pages/)).toBeInTheDocument();
+});
+it("does not let a viewer change the model credential mode", async () => {
+  state.canEdit = false;
+  await mount();
+  expect(
+    await screen.findByRole("radio", { name: "Each user connects their own key" }),
+  ).toBeDisabled();
+});
+
+it("does not ask a personal-key agent builder to connect an organization model key", async () => {
+  state.permissions = [Perm.agentsEdit];
+  state.profiles = [{ ...MODEL_PROFILE, missing_key: true }];
+  await mount();
+  expect(await screen.findByText(/no model yet/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("radio", { name: /Each user connects their own key/ }));
+  expect(screen.queryByText(/no model yet/)).toBeNull();
+  expect(screen.getByRole("radio", { name: /openai default/ })).toBeEnabled();
 });

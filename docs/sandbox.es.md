@@ -1,5 +1,5 @@
 ---
-source_sha: "5605d024cb81"
+source_sha: "febed1aea968"
 ---
 
 # La sandbox { #the-sandbox }
@@ -785,7 +785,11 @@ como a una de Daytona.
 
 Un turno posterior se conecta al espacio guardado. Si falta o no está disponible, se rechaza y se conserva su referencia en vez de crear archivos vacíos silenciosamente. Restablécelo explícitamente tras recuperar los archivos necesarios. Terminar el turno cierra clientes HTTP; el espacio permanece según su ámbito. La cola duradera de eliminación existente hace la limpieza. Conserva conexión y clave hasta completar las eliminaciones pendientes. AgenticOS no enumera todos los sandboxes del servidor; los paneles de sesiones y límites específicos de sandboxd no describen este proveedor.
 
-Se validaron ciclo de vida Docker, persistencia de archivos, reconexión, rechazo de espacios ausentes y limpieza en server/execd 1.2.0. Secure Access de Kubernetes no se validó en un clúster real. Se rechaza revertir `0317_opensandbox_connections.py` mientras existan conexiones OpenSandbox o nombres de runtime de más de 64 caracteres.
+Se validaron ciclo de vida Docker, persistencia de archivos, reconexión, rechazo de espacios ausentes y limpieza en server/execd 1.2.0.
+
+La validación local de OpenShift 5.0.0 también probó Kubernetes BatchSandbox, Secure Access, comprobación de shell y persistencia de archivos en server/controller/execd/gateway 1.2.1. Borrar conversaciones requiere la corrección del orden de limpieza descrita en la [guía Kubernetes](kubernetes.md#oidc-and-sandbox-configuration); la versión publicada 1.80.0 deja workspaces remotos activos. Las herramientas del agente leen/escriben archivos, pero la API de archivo del workspace de la consola no explora ni descarga archivos OpenSandbox.
+
+ Se rechaza revertir `0317_opensandbox_connections.py` mientras existan conexiones OpenSandbox o nombres de runtime de más de 64 caracteres.
 
 **El ordenador propio de la persona.** En la
 [app de escritorio](desktop.md#work-on-this-computer) un chat puede trabajar en una

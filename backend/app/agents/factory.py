@@ -165,6 +165,14 @@ def answer_text(answer: AgentAnswer) -> str:
 OUTPUT_RETRIES = 2
 
 
+class OutputSchemaRetry(ModelRetry):
+    """Schema feedback whose stored diagnosis never includes the model's values."""
+
+    def __init__(self, message: str, *, schema_path: str) -> None:
+        super().__init__(message)
+        self.diagnosis = f"The answer did not match its output schema at {schema_path}"
+
+
 @dataclass
 class BuiltAgent:
     """A runnable agent plus what the caller needs to observe and account for it.
@@ -640,10 +648,11 @@ def build_agent(
     agent = PydanticAgent[AgentDeps, AgentOutput](
         model=RecordingModel(model_spec.build(), recorder),
         model_settings=model_settings,
-        # A realtime session reads only `instructions=` (#54), so a call carries
-        # the spec's instructions there and no system prompt at all.
-        system_prompt="" if voice is not None else spec.instructions or "",
-        instructions=None if voice is None else voice_instructions(spec.instructions, voice),
+        # Instructions are resolved on every run, including one continuing a
+        # stored model history from an older published version.
+        instructions=(spec.instructions or "")
+        if voice is None
+        else voice_instructions(spec.instructions, voice),
         # The answer first - text, or the spec's object - then
         # `DeferredToolRequests`, which is not a shape the model can choose: it
         # is what the run ends with when the approval gate parks a call.
@@ -853,8 +862,9 @@ def _fits_schema(schema: dict[str, Any]) -> Callable[[AgentOutput], AgentOutput]
             problem = next(iter(sorted(checker.iter_errors(output), key=str)), None)
             if problem is not None:
                 where = "/".join(str(part) for part in problem.absolute_path) or "the answer"
-                raise ModelRetry(
-                    f"The answer does not fit its schema at {where}: {problem.message}"
+                raise OutputSchemaRetry(
+                    f"The answer does not fit its schema at {where}: {problem.message}",
+                    schema_path="/".join(str(part) for part in problem.absolute_schema_path),
                 )
         return output
 

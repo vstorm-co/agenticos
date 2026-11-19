@@ -26,6 +26,11 @@ references, a budget, and who to tell when something happens. It is defined in
 An agent has exactly one *draft* spec, which the Builder edits and saves
 continuously.
 
+Each save checks the draft it started from. If another tab or a server-side
+action changed it, saving pauses and your local edits stay on screen. Copy
+anything you want to keep before choosing **Reload latest draft**. Then
+reapply those edits to the latest version; a stale save cannot overwrite it.
+
 The spec keeps two rules, and they are what make it useful.
 
 !!! abstract "References, never values"

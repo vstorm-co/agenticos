@@ -52,6 +52,7 @@ const BUILDER_STEPS = [
   "agent-instructions",
   "agent-starters",
   "agent-model",
+  "agent-model-credentials",
   "agent-voice",
   "agent-identity",
   "agent-toolbox",

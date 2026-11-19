@@ -163,3 +163,46 @@ async def test_activation_status_delegates_the_exact_receipt() -> None:
         activation_id,
         job_id,
     )
+
+
+async def test_filtered_event_endpoint_returns_only_the_typed_snapshot() -> None:
+    from app.schemas.agent_trigger import GithubFilteredEvent, TriggerFilteredEventRead
+
+    trigger_id = uuid4()
+    service = MagicMock(
+        filtered_event=AsyncMock(
+            return_value=TriggerFilteredEventRead(
+                last_event=GithubFilteredEvent(
+                    received_at=datetime(2026, 11, 17, tzinfo=UTC),
+                    reason="author",
+                    authors="members",
+                )
+            )
+        )
+    )
+    async with _client(service) as client:
+        response = await client.get(
+            f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/filtered-event"
+        )
+    assert response.status_code == 200
+    assert response.json() == {
+        "last_event": {
+            "received_at": "2026-11-17T00:00:00+00:00",
+            "reason": "author",
+            "authors": "members",
+        }
+    }
+    assert service.filtered_event.await_args.args[1:] == (_AGENT_ID, trigger_id)
+
+
+@pytest.mark.security
+async def test_filtered_event_endpoint_preserves_the_owner_access_refusal() -> None:
+    from app.core.exceptions import NotFoundError
+
+    service = MagicMock(
+        filtered_event=AsyncMock(side_effect=NotFoundError(message="Trigger not found"))
+    )
+    async with _client(service) as client:
+        response = await client.get(f"/api/v1/agents/{_AGENT_ID}/triggers/{uuid4()}/filtered-event")
+    assert response.status_code == 404
+    assert "last_event" not in response.json()

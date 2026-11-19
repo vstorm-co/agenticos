@@ -336,6 +336,17 @@ describe("PassRateChart", () => {
     expect(screen.queryByText("refunds")).toBeNull();
   });
 
+  it("lists fewer than three runs instead of drawing a line through them", async () => {
+    render(<PassRateChart lines={[line("a", "refunds", 1), line("b", "draft", 1, 1)]} />);
+    expect(screen.getByText(/^2 runs so far\./)).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Pass rate by run" })).toBeNull();
+    expect(screen.getAllByRole("link")).toHaveLength(2);
+    expect(screen.getAllByText("Pass rate 50%")).toHaveLength(2);
+
+    render(<PassRateChart lines={[line("a", "refunds", 3)]} />);
+    expect(await drawn()).toHaveTextContent("drawn: a×3");
+  });
+
   it("reads a range from the address, and the newest ten from anything else", () => {
     expect(trendRange("30")).toBe(30);
     expect(trendRange("all")).toBe("all");
@@ -374,6 +385,7 @@ describe("EvalsPanel", () => {
           created_at: "2026-10-13T10:00:00Z",
           outcome: { ...worse().outcome!, verdict: null, baseline: null },
         }),
+        evalRun({ id: "run-00", created_at: "2026-10-12T10:00:00Z" }),
       ],
     };
     render(<EvalsPanel agentId="agent-1" canStart />);
@@ -406,7 +418,10 @@ describe("EvalsPanel", () => {
   it("says one run is not yet a trend, and draws none while nothing has finished", () => {
     evalRuns.value = { ...evalRuns.value, runs: [evalRun()] };
     const { rerender } = render(<EvalsPanel agentId="agent-1" canStart />);
-    expect(screen.getByText("One run so far. Run another to see a trend.")).toBeInTheDocument();
+    expect(
+      screen.getByText("One run so far. A trend needs at least three; run two more to see one."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Pass rate by run" })).toBeNull();
 
     evalRuns.value = { ...evalRuns.value, runs: [evalRun({ status: "queued" })] };
     rerender(<EvalsPanel agentId="agent-1" canStart />);
@@ -417,7 +432,11 @@ describe("EvalsPanel", () => {
   it("keys each line when runs of several datasets finished", () => {
     evalRuns.value = {
       ...evalRuns.value,
-      runs: [evalRun(), evalRun({ id: "run-2", dataset_id: "ds-2", dataset_name: "shipping" })],
+      runs: [
+        evalRun(),
+        evalRun({ id: "run-2", dataset_id: "ds-2", dataset_name: "shipping" }),
+        evalRun({ id: "run-3", dataset_id: "ds-2", dataset_name: "shipping" }),
+      ],
     };
     render(<EvalsPanel agentId="agent-1" canStart />);
     expect(screen.getByText("refunds", { selector: "li" })).toBeInTheDocument();
@@ -1021,3 +1040,22 @@ it.each([
     expect(screen.queryByText("Inconclusive")).not.toBeInTheDocument();
   },
 );
+
+it("keeps dataset identity on sparse run links with the same candidate", () => {
+  evalRuns.value = {
+    ...evalRuns.value,
+    runs: [evalRun(), evalRun({ id: "other", dataset_id: "ds-2", dataset_name: "shipping" })],
+  };
+  render(<EvalsPanel agentId="agent-1" canStart />);
+  expect(screen.getByRole("link", { name: /refunds.*Pass rate/ })).toHaveAttribute(
+    "href",
+    "/agents/agent-1/evals/run-1",
+  );
+  expect(screen.getByRole("link", { name: /shipping.*Pass rate/ })).toHaveAttribute(
+    "href",
+    "/agents/agent-1/evals/other",
+  );
+  expect(
+    screen.getByText("2 runs so far. A trend needs at least three; run another to see one."),
+  ).toBeInTheDocument();
+});

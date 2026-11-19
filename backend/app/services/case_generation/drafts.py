@@ -21,11 +21,14 @@ from uuid import UUID
 from pydantic import (
     BaseModel,
     Field,
+    GetJsonSchemaHandler,
     ModelWrapValidatorHandler,
     PrivateAttr,
     ValidationError,
     model_validator,
 )
+from pydantic.json_schema import JsonSchemaValue
+from pydantic_core import CoreSchema
 
 from app.db.models.case_generation import CaseOrigin
 from app.schemas.dataset import CaseCheck, DatasetCaseContent, ExpectedToolCall
@@ -92,6 +95,18 @@ class DraftedCases(BaseModel):
     # The docstring above is the schema's description, which the generator reads.
     cases: list[DraftedCase]
     _unreadable: int = PrivateAttr(default=0)
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        schema = handler(core_schema)
+        if handler.mode == "validation":
+            # Keep the desired item's schema as guidance; per-case validation below
+            # discards bad items without discarding the readable proposals.
+            items = schema["properties"]["cases"]["items"]
+            schema["properties"]["cases"]["items"] = {"anyOf": [items, {}]}
+        return schema
 
     @property
     def unreadable(self) -> int:

@@ -1368,7 +1368,14 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             spec["context_ids"] = [str(context_id) for context_id in context_ids]
         if starters is not None:
             spec["starters"] = starters
-        return await api.request("PUT", f"/agents/{agent_id}/draft", json={"spec": spec})
+        revision = agent.get("draft_revision")
+        if not isinstance(revision, str):
+            raise TypeError("Agent detail response has no draft revision")
+        return await api.request(
+            "PUT",
+            f"/agents/{agent_id}/draft",
+            json={"spec": spec, "expected_revision": revision},
+        )
 
     async def test_agent_draft(
         agent_id: UUID, prompt: str, conversation_id: UUID | None = None

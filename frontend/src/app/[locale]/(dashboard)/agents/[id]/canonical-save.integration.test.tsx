@@ -5,7 +5,8 @@ import { Suspense, useSyncExternalStore } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AgentBuilderPage from "./page";
-import type { AgentSpec } from "@/types/agents";
+import { ApiError } from "@/lib/api-error";
+import type { AgentSpec, AgentDraftUpdate } from "@/types/agents";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
@@ -28,9 +29,10 @@ const MODEL_PROFILE = {
   secret_id: "s-1",
 };
 
+const refetchAgent = vi.hoisted(() => vi.fn());
 const refetchProfiles = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const saveDraft = vi.hoisted(() =>
-  vi.fn<(spec: AgentSpec) => Promise<{ draft_spec: AgentSpec }>>(),
+  vi.fn<(update: AgentDraftUpdate) => Promise<{ draft_spec: AgentSpec; draft_revision: string }>>(),
 );
 
 /** The stored draft the page reads, replaced by what the server answers after each save. */
@@ -58,6 +60,7 @@ const state = {
   // meaning "the organization has none".
   profilesStatus: "loaded" as ProfilesStatus,
   permissionsLoaded: true,
+  saving: false,
   versions: [] as { version: number }[],
   nextPublished: 1,
   // This caller's access to this agent, which the page reads rather than the role.
@@ -78,10 +81,12 @@ vi.mock("@/hooks", async () => {
         status: "draft",
         has_avatar: false,
         ...state.access,
+        draft_revision: "base",
         draft_spec: useSyncExternalStore(store.subscribe, store.get),
       },
       isLoading: false,
-      saveDraft: { mutateAsync: saveDraft, isPending: false },
+      refetch: refetchAgent,
+      saveDraft: { mutateAsync: saveDraft, isPending: state.saving },
       validate: async () => ({ problems: [], fields: [], fixes: [] }),
       publish: {
         mutateAsync: vi.fn().mockResolvedValue({ version: state.nextPublished }),
@@ -230,8 +235,10 @@ async function chooseStructuredAnswers() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  refetchAgent.mockReset();
   state.permissions = [Perm.agentsEdit];
   state.access = { can_edit: true, can_publish: false };
+  state.saving = false;
   state.profiles = [MODEL_PROFILE];
   state.profilesStatus = "loaded";
   state.permissionsLoaded = true;
@@ -255,10 +262,10 @@ function serverDraft(spec: AgentSpec): AgentSpec {
 
 describe("canonical draft acknowledgements", () => {
   it("saves a reordered schema once and releases the draft test panel", async () => {
-    saveDraft.mockImplementation(async (spec) => {
+    saveDraft.mockImplementation(async ({ spec }) => {
       const stored = serverDraft(spec);
       store.set(stored);
-      return { draft_spec: stored };
+      return { draft_spec: stored, draft_revision: "saved" };
     });
     await mount();
     await chooseStructuredAnswers();
@@ -272,7 +279,7 @@ describe("canonical draft acknowledgements", () => {
   }, 15000);
 
   it("adopts server defaults and normalized values after its own save", async () => {
-    saveDraft.mockImplementation(async (spec) => {
+    saveDraft.mockImplementation(async ({ spec }) => {
       const stored = {
         ...serverDraft(spec),
         variables:
@@ -282,7 +289,7 @@ describe("canonical draft acknowledgements", () => {
           })) ?? [],
       };
       store.set(stored);
-      return { draft_spec: stored };
+      return { draft_spec: stored, draft_revision: "saved" };
     });
     await mount();
     await chooseStructuredAnswers();
@@ -292,17 +299,18 @@ describe("canonical draft acknowledgements", () => {
   }, 15000);
 
   it("keeps edits typed while an earlier save is awaiting its acknowledgement", async () => {
-    let acknowledge: ((saved: { draft_spec: AgentSpec }) => void) | undefined;
+    let acknowledge:
+      ((saved: { draft_spec: AgentSpec; draft_revision: string }) => void) | undefined;
     saveDraft.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           acknowledge = resolve;
         }),
     );
-    saveDraft.mockImplementation(async (spec) => {
+    saveDraft.mockImplementation(async ({ spec }) => {
       const saved = serverDraft(spec);
       store.set(saved);
-      return { draft_spec: saved };
+      return { draft_spec: saved, draft_revision: "saved" };
     });
     await mount();
     await chooseStructuredAnswers();
@@ -315,17 +323,96 @@ describe("canonical draft acknowledgements", () => {
     const input = within(section).getByRole("textbox", { name: "Name" });
     await userEvent.clear(input);
     await userEvent.type(input, "Newer name");
-    const saved = serverDraft(sent);
+    const saved = serverDraft(sent.spec);
     await act(async () => {
       store.set(saved);
-      acknowledge?.({ draft_spec: saved });
+      acknowledge?.({ draft_spec: saved, draft_revision: "saved" });
     });
     expect(input).toHaveValue("Newer name");
     await waitFor(
       () =>
-        expect(saveDraft).toHaveBeenLastCalledWith(expect.objectContaining({ name: "Newer name" })),
+        expect(saveDraft).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            spec: expect.objectContaining({ name: "Newer name" }),
+            expected_revision: "saved",
+          }),
+        ),
       { timeout: 6000 },
     );
     await waitFor(() => expect(screen.queryByText("Unsaved")).toBeNull());
   }, 15000);
+});
+
+it("keeps its base revision after an unannounced refetch and holds edits until reload", async () => {
+  state.access.can_publish = true;
+  const newer = { ...INITIAL, description: "Changed in another tab" };
+  saveDraft.mockRejectedValue(
+    new ApiError(409, "Stale draft", {
+      error: { code: "CONFLICT", message: "Stale draft", details: { reason: "draft_changed" } },
+    }),
+  );
+  refetchAgent.mockResolvedValueOnce({
+    data: { draft_spec: INITIAL, draft_revision: "base" },
+    error: new Error("Offline"),
+  });
+  refetchAgent.mockResolvedValue({
+    data: { draft_spec: newer, draft_revision: "newer" },
+  });
+  await mount();
+  await act(async () => store.set(newer));
+  const title = await screen.findByText("Name and description");
+  const section = title.closest("[data-tour='agent-identity']");
+  if (!(section instanceof HTMLElement)) throw new Error("Missing identity section");
+  const name = within(section).getByRole("textbox", { name: "Name" });
+  await userEvent.clear(name);
+  await userEvent.type(name, "My local edit");
+  await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(1), { timeout: 6000 });
+  expect(saveDraft).toHaveBeenCalledWith({
+    spec: expect.objectContaining({ name: "My local edit", description: null }),
+    expected_revision: "base",
+  });
+  expect(await screen.findByRole("alert")).toHaveTextContent("saving is paused");
+  expect(name).toHaveValue("My local edit");
+  await userEvent.type(name, " still here");
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 1500)));
+  expect(saveDraft).toHaveBeenCalledTimes(1);
+  expect(name).toHaveValue("My local edit still here");
+  expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Publish" }));
+  expect(saveDraft).toHaveBeenCalledTimes(1);
+  await userEvent.click(screen.getByRole("button", { name: "Reload latest draft" }));
+  await waitFor(() => expect(refetchAgent).toHaveBeenCalledTimes(1));
+  expect(name).toHaveValue("My local edit still here");
+  expect(screen.getByRole("alert")).toHaveTextContent("saving is paused");
+  await userEvent.click(screen.getByRole("button", { name: "Reload latest draft" }));
+  await waitFor(() => expect(name).toHaveValue(INITIAL.name));
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(within(section).getByRole("textbox", { name: "Description" })).toHaveValue(
+    "Changed in another tab",
+  );
+  expect(saveDraft).toHaveBeenCalledTimes(1);
+  saveDraft.mockImplementation(async ({ spec }) => {
+    store.set(spec);
+    return { draft_spec: spec, draft_revision: "saved-after-reload" };
+  });
+  await userEvent.type(name, " revised");
+  await waitFor(
+    () =>
+      expect(saveDraft).toHaveBeenLastCalledWith({
+        spec: expect.objectContaining({
+          name: `${INITIAL.name} revised`,
+          description: newer.description,
+        }),
+        expected_revision: "newer",
+      }),
+    { timeout: 6000 },
+  );
+}, 15000);
+
+it("disables Publish while an autosave is pending", async () => {
+  state.access.can_publish = true;
+  state.saving = true;
+  await mount();
+  expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
+  expect(saveDraft).not.toHaveBeenCalled();
 });

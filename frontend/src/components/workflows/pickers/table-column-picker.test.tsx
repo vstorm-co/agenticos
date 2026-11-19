@@ -197,6 +197,22 @@ describe("TableColumnPicker", () => {
   });
 });
 
+it("leaves out the column list where the step reads no columns, until a stored ref narrows it", () => {
+  const { rerender } = render(
+    <TableColumnPicker value={ref()} onChange={vi.fn()} pinsColumns={false} />,
+  );
+  expect(screen.queryByText("Columns", { exact: true })).toBeNull();
+
+  rerender(
+    <TableColumnPicker
+      value={ref({ column_ids: ["c1"] })}
+      onChange={vi.fn()}
+      pinsColumns={false}
+    />,
+  );
+  expect(screen.getByRole("checkbox", { name: "Email" })).toBeVisible();
+});
+
 it("keeps optional column selection folded until requested", async () => {
   render(<TableColumnPicker value={ref()} onChange={vi.fn()} />);
   expect(document.querySelector("details")).not.toHaveAttribute("open");

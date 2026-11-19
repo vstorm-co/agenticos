@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AssistantState } from "@/types/assistant";
@@ -69,6 +70,7 @@ describe("OrgAssistant", () => {
   it("links the agent itself to the Builder", () => {
     render(<OrgAssistant orgId="o1" />);
 
+    fireEvent.click(screen.getByRole("button", { name: "AI Architect" }));
     expect(screen.getByRole("link", { name: "Open in Agent Builder" })).toHaveAttribute(
       "href",
       "/agents/a1",
@@ -83,24 +85,28 @@ describe("OrgAssistant", () => {
     expect(state.mutate).toHaveBeenCalledWith({ enabled: false });
   });
 
-  it("shows a switched-off assistant as off, with its greeting", () => {
+  it("shows the switched-off assistant without a greeting editor", () => {
     state.assistant = assistant({ status: "disabled", greeting: "Hej" });
     render(<OrgAssistant orgId="o1" />);
 
     expect(screen.getByRole("switch", { name: "Switched on" })).not.toBeChecked();
-    expect(screen.getByLabelText("Greeting")).toHaveValue("Hej");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("saves a greeting trimmed, an empty one as none, and only once it changed", () => {
-    state.assistant = assistant({ greeting: "Hello" });
+  it("keeps the switch separate from its keyboard-operated disclosure and preserves the Builder link", async () => {
     render(<OrgAssistant orgId="o1" />);
-    const save = screen.getByRole("button", { name: "Save" });
-    expect(save).toBeDisabled();
-
-    fireEvent.change(screen.getByLabelText("Greeting"), { target: { value: "   " } });
-    fireEvent.click(save);
-
-    expect(state.mutate).toHaveBeenCalledWith({ greeting: null });
+    const heading = screen.getByRole("button", { name: "AI Architect" });
+    expect(heading).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("switch", { name: "Switched on" })).toBeVisible();
+    await userEvent.click(screen.getByRole("switch", { name: "Switched on" }));
+    expect(heading).toHaveAttribute("aria-expanded", "false");
+    expect(state.mutate).toHaveBeenCalledWith({ enabled: false });
+    heading.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByRole("link", { name: "Open in Agent Builder" })).toBeVisible();
+    await userEvent.keyboard(" ");
+    expect(heading).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Open in Agent Builder" })).not.toBeInTheDocument();
   });
 
   it("says where to give it a model when it has none", () => {

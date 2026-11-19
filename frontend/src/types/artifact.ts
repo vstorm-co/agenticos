@@ -587,4 +587,5 @@ export interface ArtifactThumbnail {
   version_id: string;
   state: "ready" | "unavailable";
   image: string | null;
+  retryable?: boolean;
 }

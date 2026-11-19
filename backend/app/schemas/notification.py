@@ -92,9 +92,75 @@ _OPTIONAL_PARAMS: dict[str, tuple[str, ...]] = {
 }
 
 
+# A row whose `render_context` names its `wording` is worded by it, whatever its kind:
+# several kinds are written in more than one sentence. Required values, then optional ones.
+_WORDINGS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "run_completed": (("agent_name",), ()),
+    "routine_finished": (("routine_name",), ("excerpt",)),
+    "answered_while_away": (("agent_name",), ()),
+    "answer_failed": (("agent_name", "error"), ()),
+    "run_failed": (("agent_name",), ("error",)),
+    "routine_budget_paused": (("routine_kind", "limit", "spent"), ("routine_name",)),
+    "routine_blocked": (("routine_detail",), ("routine_name", "failures")),
+    "capability_requested": (
+        ("requester_name", "capability_name", "agent_name", "reason"),
+        (),
+    ),
+    "suggestions_ready": (("count",), ()),
+    "briefing": (("count",), ()),
+    "ingestion_failed": (("filename", "error_message"), ()),
+    "sync_completed": (
+        ("collection_name", "ingested", "updated", "skipped", "removed", "failed"),
+        (),
+    ),
+    "sync_failed": (("collection_name", "error"), ()),
+    "artifact_version_published": (("artifact_title", "version"), ()),
+    "artifact_owner_given": (("by_name", "title"), ()),
+    "artifact_owner_taken": (("by_name", "title", "new_owner_name"), ()),
+    "resource_shared": (("resource_name", "group_name"), ()),
+    "conversation_shared": (("shared_by",), ("conversation_title",)),
+    "mcp_server_down": (("server_name",), ()),
+    "mcp_server_recovered": (("server_name",), ()),
+    "eval_suite_reevaluated": (("suite_name", "agent_name", "previous_verdict", "status"), ()),
+    "eval_suite_failed": (
+        ("suite_name", "agent_name", "status", "reasons"),
+        ("version", "cases", "more_cases"),
+    ),
+    "promotion_overridden": (
+        ("version", "agent_name", "environment_name", "suite_names", "reason"),
+        (),
+    ),
+    "shared_change_applied": (("kind", "agent_name"), ("name",)),
+    "security_event": (("action",), ()),
+    "background_task_paused": (("kind", "reason"), ("organization_name",)),
+    "configuration_changed": ((), ()),
+    "usage_report": (("org_name",), ()),
+    "agent_usage_report": (("agent_name",), ()),
+    "workflow_log_alert": (("rule_name", "count", "workflow_name", "window_minutes"), ()),
+    "coalesced": (("coalesced",), ()),
+}
+
+
+def _plain(value: object) -> bool:
+    return isinstance(value, str | int) and not isinstance(value, bool)
+
+
+def _worded(context: dict[str, Any]) -> dict[str, str] | None:
+    wording = context.get("wording")
+    if not isinstance(wording, str) or wording not in _WORDINGS:
+        return None
+    required, optional = _WORDINGS[wording]
+    if any(not _plain(context.get(key)) for key in required):
+        return None
+    present = [key for key in (*required, *optional) if _plain(context.get(key))]
+    return {"wording": wording, **{key: str(context[key]) for key in present}}
+
+
 def _params_of(notification: Notification) -> dict[str, str] | None:
-    keys = _PARAMS.get(notification.event_type)
     context = notification.render_context or {}
+    if "wording" in context:
+        return None
+    keys = _PARAMS.get(notification.event_type)
     if keys is None or any(not isinstance(context.get(key), str | int) for key in keys):
         return None
     # An approval asked through a chat by somebody unverified says so in English
@@ -130,10 +196,14 @@ class NotificationRead(BaseSchema):
     )
     params: dict[str, str] | None = Field(
         default=None,
-        description="For an approval request or a budget limit: the named values its sentence "
-        "is built from, so the console can word it in the reader's language. Null for any "
-        "other kind, for a row written before it was kept, and for a reader served "
-        "another wording.",
+        description="Legacy approval and budget sentence values. Null for versioned wording, "
+        "missing values, and readers served another summary; never links or ids.",
+    )
+
+    wording_params: dict[str, str] | None = Field(
+        default=None,
+        description="Versioned sentence values for the current console. Kept separate from "
+        "legacy params so older consoles fall back to the stored summary.",
     )
 
     @classmethod
@@ -159,6 +229,7 @@ class NotificationRead(BaseSchema):
             outcome=_outcome_of(notification),
             outcome_id=notification.outcome_id,
             params=None if summary_override else _params_of(notification),
+            wording_params=None if summary_override else _worded(notification.render_context or {}),
         )
 
 
@@ -225,6 +296,12 @@ class FailedDeliveryRead(BaseSchema):
     attempts: int
     last_error: str | None = None
     created_at: datetime
+
+    wording_params: dict[str, str] | None = Field(
+        default=None,
+        description="Versioned sentence values for the current console. Kept separate from "
+        "legacy params so older consoles fall back to the stored summary.",
+    )
 
     @classmethod
     def from_row(

@@ -235,6 +235,10 @@ class WorkflowRun(Base, TimestampMixin):
     # directly whether the column holds SQL NULL.
     entry_node_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     """The selected trigger; older runs use the version's default entry."""
+    tested_step_node_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True
+    )
+    """The step a step test ran up to; null for a whole-draft test and a real run."""
     draft_graph_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )

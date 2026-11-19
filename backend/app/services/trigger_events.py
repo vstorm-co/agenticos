@@ -39,6 +39,7 @@ from typing import Any
 from app.db.models.agent_trigger import EventSource
 from app.schemas.agent_trigger import (
     CalendarTriggerConfig,
+    GithubFilterReason,
     GithubTriggerConfig,
     GmailTriggerConfig,
     GoogleDriveTriggerConfig,
@@ -381,50 +382,61 @@ def polled_place(source: str, config: Mapping[str, Any]) -> str | None:
 def _github_matches(
     headers: Mapping[str, str], payload: Mapping[str, Any], config: Mapping[str, Any]
 ) -> bool:
+    return github_filter_reason(headers, payload, config) is None
+
+
+def github_filter_reason(
+    headers: Mapping[str, str], payload: Mapping[str, Any], config: Mapping[str, Any]
+) -> GithubFilterReason | None:
+    """The first failed GitHub filter, or None for a matching delivery.
+
+    Shared with diagnostics so the reason cannot diverge from admission. Only
+    fixed reason codes leave this function; no webhook content is retained.
+    """
     parsed = GithubTriggerConfig.model_validate(dict(config))
     event = parsed.event
     if headers.get(_GITHUB_EVENT_HEADER) != event:
-        return False
+        return "event"
     if event != "push" and payload.get("action") not in (parsed.actions or ()):
-        return False
+        return "action"
     sender = _mapping(payload.get("sender"))
     login = str(sender.get("login") or "")
-    # A bot - an App, Dependabot, the agent's own GitHub App - never sets a
-    # trigger off, or an agent that opens issues or comments would fire itself.
-    # A workflow run is the exception: a failed check is news whoever pushed.
+    # Bot and connected-account exclusions prevent routines firing themselves.
     if event != "workflow_run" and (sender.get("type") == "Bot" or login.endswith("[bot]")):
-        return False
+        return "bot"
     if parsed.ignore_login and login.casefold() == parsed.ignore_login.casefold():
-        return False
+        return "ignored_login"
     authored = _mapping(payload.get(_GITHUB_AUTHORED.get(event, "")))
-    if (
-        event in _GITHUB_AUTHORED
-        and parsed.authors == "members"
-        and authored.get("author_association") not in _GITHUB_MEMBERS
-    ):
-        return False
+    if event in _GITHUB_AUTHORED and parsed.authors != "anyone":
+        association = authored.get("author_association")
+        if association not in _GITHUB_MEMBERS and not (
+            parsed.authors == "contributors" and association == "CONTRIBUTOR"
+        ):
+            return "author"
     if event == "pull_request":
-        # A draft is not ready for anybody; it fires when marked ready instead.
         if payload.get("action") == "opened" and authored.get("draft"):
-            return False
-        return _on_branch(parsed.branches, _mapping(authored.get("base")).get("ref"))
+            return "draft"
+        return (
+            None
+            if _on_branch(parsed.branches, _mapping(authored.get("base")).get("ref"))
+            else "branch"
+        )
     if event == "issue_comment":
         body = str(authored.get("body") or "").casefold()
-        return parsed.mention is None or parsed.mention.casefold() in body
+        return None if parsed.mention is None or parsed.mention.casefold() in body else "mention"
     if event == "workflow_run":
         run = _mapping(payload.get("workflow_run"))
         if payload.get("action") == "completed" and run.get("conclusion") not in (
             parsed.conclusions or ()
         ):
-            return False
-        return _on_branch(parsed.branches, run.get("head_branch"))
+            return "conclusion"
+        return None if _on_branch(parsed.branches, run.get("head_branch")) else "branch"
     if event == "push":
         ref = str(payload.get("ref") or "")
-        # A deleted branch is a push with nothing in it, and a tag is not a branch.
         if payload.get("deleted") or not ref.startswith("refs/heads/"):
-            return False
-        return _on_branch(parsed.branches, ref.removeprefix("refs/heads/"))
-    return True
+            return "not_branch"
+        return None if _on_branch(parsed.branches, ref.removeprefix("refs/heads/")) else "branch"
+    return None
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:

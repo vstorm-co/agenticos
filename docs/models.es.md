@@ -1,5 +1,5 @@
 ---
-source_sha: "3ce26481a019"
+source_sha: "7b83980dd889"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -24,6 +24,28 @@ model profile → credential → unsealed secret → provider client → Model
 ```
 
 Nada sobre qué modelo usa un agent vive en `.env`.
+
+## Claves personales de modelos { #personal-model-keys }
+
+En **Model access** del Builder, conserva **Use the organization’s key** (predeterminado) o selecciona **Each user connects their own key**. El formulario de clave privada envía el perfil, provider, endpoint y modelo esperados que vio el usuario. Si el destino cambia antes de guardar, el servidor rechaza la clave con un conflicto; el formulario recarga el destino y borra la clave escrita antes de otro intento.
+
+El modo personal mantiene fijos el modelo y el destino del administrador. Admite proveedores de chat con clave API, sin modelos alternativos ni cambios de modelo por conversación.
+
+Un miembro con sesión iniciada conecta su clave en el formulario privado sobre el campo de mensajes o en los ajustes del chat. Las claves nunca entran en mensajes, prompts ni instrucciones del agente. La conexión se reutiliza entre agentes de esta organización con el mismo proveedor y destino. Sin clave, la ejecución se bloquea antes de solicitar el modelo; los fallos de autenticación nunca cambian a la clave de la organización. Sustituye la clave en los ajustes del chat o elimina la conexión en **Vault → Your model connection**. Guardar la clave no la comprueba con el proveedor.
+
+El modo personal no admite canales privados ni grupales, widgets, páginas públicas, ejecuciones por HTTP API, horarios, triggers, temas en segundo plano, voz, revisores ni modelos separados para capacidades. Pausa o elimina canales, superficies públicas y rutinas activos antes de publicar. Se rechaza crear o reactivar una superficie incompatible; la misma regla se aplica al ejecutar. Las páginas públicas y los JWT de widgets no identifican a un miembro con sesión iniciada en la instancia.
+
+La delegación funciona en el chat web con sesión iniciada. Un subagente personal debe usar el mismo perfil de modelo que el agente principal en modo personal. Un agente principal con claves de organización no puede gastar claves personales mediante delegación; los subagentes personales no pueden elegir otro modelo ni endpoint. Estas reglas se comprueban al publicar, habilitar superficies, promover versiones y ejecutar, incluidas las delegaciones anidadas y las reanudaciones.
+
+Los subagentes de organización conservan sus credenciales. Los especialistas inline heredan el modo del padre; los dinámicos en modo personal mantienen su modelo. Los límites de acceso MCP personal no cambian.
+
+Si falta la conexión de un subagente, el mensaje identifica el agente y la conexión del modelo. Abre la configuración de chat de ese agente para conectar tu clave; pide acceso a su propietario si no aparece. El runner comprueba el árbol de delegación antes de llamar a los modelos y de nuevo al reanudar. Nunca sustituye una conexión ausente por la clave de otro endpoint, otro miembro o la persona que aprueba.
+
+Las claves se cifran para su propietario en el almacén y se eliminan al borrar su membresía o cuenta. Cambiar el destino aprobado requiere una nueva conexión. Rotar la clave de un miembro no cambia las claves de otros ni el perfil de modelo compartido.
+
+Suplantar la identidad de otro miembro no concede acceso a sus conexiones personales de modelos: las solicitudes de lectura, modificación o uso de la clave se rechazan antes de acceder al vault.
+
+El historial privado queda vinculado a los destinos aprobados de los modelos, incluidos los de respaldo; consulte el [historial del chat](console.md#chat) para cambiar conexiones y reanudar ejecuciones en espera.
 
 ## Un perfil de modelo { #a-model-profile }
 

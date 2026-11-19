@@ -30,6 +30,7 @@ import { AgentPicker, isChattable } from "./agent-picker";
 import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
+import { PersonalModelConnection } from "./personal-model-connection";
 import { SheetRow } from "./composer-sheet";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatRoomBar } from "./chat-room-bar";
@@ -1800,6 +1801,9 @@ function ChatUIContent({
                       {/* Every hint on top of the box, beside the pill it belongs to. */}
                       {!readOnly && !onCall && (
                         <NextSteps steps={nextSteps} onPick={(step) => sendMessage(step)} />
+                      )}
+                      {callAgent?.personal_model_key && (
+                        <PersonalModelConnection key={selectedAgentId} agentId={selectedAgentId} />
                       )}
                       <DictationStrip hint={composerStrip} placement="above" />
                       <div

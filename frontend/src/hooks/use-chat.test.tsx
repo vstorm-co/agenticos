@@ -4907,11 +4907,23 @@ describe("useChat - a question its person came back to", () => {
   });
 
   it("ignores answer admission from an account that just changed", async () => {
-    get.mockResolvedValue(ASKED);
+    get.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === "/me/permissions"
+          ? {
+              organization_id: "another-org",
+              user_id: "u-1",
+              role: "member",
+              is_app_admin: false,
+              permissions: [],
+            }
+          : ASKED,
+      ),
+    );
     useConversationStore.getState().setCurrentConversationId("c-1");
     useChatStore.getState().addMessage(askedTurn());
     const { result } = renderHook(() => useChat(), { wrapper });
-    await act(async () => {});
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
     await act(async () => {
       void result.current.sendAskUserResponses([
         { answer: "", selected: ["Casual"], skipped: false },

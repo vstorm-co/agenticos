@@ -85,6 +85,7 @@ async def create_run(
     modality: str = "text",
     is_test: bool = False,
     test_spec: dict[str, Any] | None = None,
+    text_to_speech_defaults: dict[str, str | bool | None] | None = None,
     key_scopes: list[str] | None = None,
     improvement_run_id: UUID | None = None,
     skill_uses_recorded: bool | None = None,
@@ -109,6 +110,7 @@ async def create_run(
         agent_version_id=agent_version_id,
         is_test=is_test,
         test_spec=test_spec,
+        text_to_speech_defaults=text_to_speech_defaults,
         user_id=user_id,
         initiated_by_publisher_fallback=initiated_by_publisher_fallback,
         conversation_id=conversation_id,
@@ -133,6 +135,14 @@ async def create_run(
     await db.flush()
     await db.refresh(run)
     return run
+
+
+async def set_text_to_speech_defaults(
+    db: AsyncSession, *, run: AgentRun, defaults: dict[str, str | bool | None]
+) -> None:
+    """Pin the shared speech destination before an inheriting delegate can use it."""
+    run.text_to_speech_defaults = defaults
+    await db.flush()
 
 
 # Count the uncompressed JSONB representation, including every delegate, even

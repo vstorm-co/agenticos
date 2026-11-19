@@ -2053,7 +2053,28 @@
       "reactingToMessage": "Auf eine Nachricht reagieren",
       "messageReactions": "Nachrichtenreaktionen",
       "exportingArtifact": "PDF wird exportiert…",
-      "exportArtifact": "Veröffentlichte App exportieren"
+      "exportArtifact": "Veröffentlichte App exportieren",
+      "tableCall": {
+        "allRecords": "Alle Datensätze",
+        "search": "Passend zu „{text}“",
+        "sortedBy": "Sortiert nach {column}, {direction, select, desc {absteigend} other {aufsteigend}}",
+        "createdAt": "Erstellt",
+        "updatedAt": "Zuletzt geändert",
+        "limit": "{count, plural, =1 {Höchstens 1 Datensatz} other {Höchstens # Datensätze}}",
+        "externalId": "Externe ID: {id}",
+        "found": "{count, plural, =0 {Keine Datensätze gefunden} =1 {1 Datensatz gefunden} other {# Datensätze gefunden}}",
+        "hasMore": "weitere auf der nächsten Seite",
+        "moreRows": "{count, plural, =1 {und 1 weiterer Datensatz} other {und # weitere Datensätze}}",
+        "exists": "Ein Datensatz mit dieser externen ID existiert",
+        "missing": "Kein Datensatz hat diese externe ID",
+        "deleted": "Datensatz gelöscht",
+        "record": "Datensatz „{title}“ · Revision {revision}",
+        "recordUntitled": "Datensatz · Revision {revision}",
+        "table": "Tabelle",
+        "column": "Spalte",
+        "value": "Wert",
+        "recordLabel": "Datensatz"
+      }
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -5602,7 +5623,7 @@
       },
       "flow-table-field-visibility": {
         "title": "Wer sie sieht",
-        "body": "Öffne Weitere Optionen, um die Sichtbarkeit zu ändern. Privat beschränkt die Tabelle auf dich; Team und Organisation öffnen sie für mehr Personen. Du kannst sie später mit einzelnen Personen teilen. Wähle dann Weiter."
+        "body": "Wähle, wen die Tabelle erreicht: nur dich, die ganze Organisation oder die Gruppen und Personen, die du auswählst. Du kannst das später unter Teilen ändern. Wähle dann Weiter."
       },
       "flow-table-field-create": {
         "title": "Erstellen Sie sie",
@@ -6035,6 +6056,10 @@
       "channels-diagnostics": {
         "title": "Bereitschaft prüfen",
         "body": "Prüfen Sie Bot-Verbindung, Agent-Veröffentlichung und Ihre verknüpften Konten, ohne eine Aufgabe zu starten."
+      },
+      "agent-model-credentials": {
+        "title": "Wer den Modellschlüssel bereitstellt",
+        "body": "Nutze den Organisationsschlüssel oder verlange von jedem angemeldeten Chat-Nutzer einen privaten Tresorschlüssel. Modell und Endpunkt bleiben fest; Kanäle und automatische Läufe benötigen den Organisationsschlüssel."
       }
     },
     "chooseLanguage": "Sprache",
@@ -6523,7 +6548,15 @@
       "setBaseline": "Ausgangswert festlegen",
       "improveFromGaps": "Diesen Agent anhand dieser Lücken verbessern",
       "systemAgentReadOnly": "Nur ein Administrator der Organisation kann einen Systemagent ändern. Hier können Sie nachlesen, wie er arbeitet.",
-      "continueConversation": "Meine Unterhaltung fortsetzen"
+      "continueConversation": "Meine Unterhaltung fortsetzen",
+      "modelCredentialMode": "Modellzugriff",
+      "organizationModelKey": "Organisationsschlüssel verwenden",
+      "personalModelKey": "Jeder Nutzer verbindet seinen eigenen Schlüssel",
+      "personalModelLimits": "Modell und Endpunkt bleiben fest. Nur Web-Chat für angemeldete Nutzer. Deaktiviere vor der Veröffentlichung aktive Kanäle, Widgets, öffentliche Seiten und Routinen. HTTP-API-Läufe, Hintergrundthemen, Sprache, Reviewer, separate Schrittmodelle und Ersatzmodelle werden nicht unterstützt. Bei Delegation im angemeldeten Web-Chat verwendet jeder Agent im persönlichen Modus den Schlüssel des ursprünglichen Aufrufers.",
+      "draftChanged": "Dieser Entwurf wurde an anderer Stelle geändert. Deine Eingaben bleiben erhalten, aber das Speichern ist angehalten. Kopiere alles, was du behalten möchtest, und lade dann den neuesten Entwurf.",
+      "reloadDraft": "Neuesten Entwurf laden",
+      "speechUseOrganizationDefaults": "Organisationsvorgaben verwenden",
+      "speechOrganizationDefaultsHint": "Anbieter, Modell, Stimme und Schlüssel der Organisation gemeinsam übernehmen. Ausschalten, um die eigene Stimme dieses Agents zu konfigurieren."
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
@@ -8220,6 +8253,8 @@
       "allRunsDescription": "Jeder Lauf der Workflows, die Sie sehen, der neueste zuerst.",
       "runRetryMark": "Wiederholung",
       "runModeTest": "Entwurf (Test)",
+      "runModeStep": "Schritttest",
+      "runModeStepNamed": "Schritttest · {step}",
       "runModeReal": "Veröffentlicht",
       "runFilterAnyStatus": "Jeder Status",
       "runFilterAnyMode": "Jede Version",
@@ -9608,7 +9643,14 @@
       "save": "Änderungen speichern",
       "saved": "Spracheinstellungen gespeichert",
       "notReadyNoKey": "Für {provider} ist kein Schlüssel gewählt. Agents und Bots, die ihn erben, können erst über einen Provider transkribieren, wenn Sie unten einen wählen.",
-      "summary": "Standardanbieter für Transkription und Aufnahmelimits."
+      "summary": "Standardanbieter für Transkription und Aufnahmelimits.",
+      "tts": {
+        "title": "Text zu Sprache",
+        "description": "Standardanbieter, Modell, Stimme und Organisationsschlüssel für Agents, die Organisationseinstellungen übernehmen. Agents können stattdessen eine eigene Stimme konfigurieren.",
+        "voice": "Stimme",
+        "required": "Wählen Sie Anbieter, Modell und einen organisationsweit sichtbaren Schlüssel vor dem Einschalten.",
+        "catalogUnavailable": "Sprachmodelle konnten nicht geladen werden. Versuchen Sie es vor einem Anbieterwechsel erneut."
+      }
     },
     "sending2": "Wird gesendet …",
     "sendInvite": "Einladung senden",
@@ -9642,7 +9684,7 @@
       "discardChanges": "Änderungen verwerfen",
       "title": "Assistentenvorschläge und Überwachung",
       "description": "Gesprächsbasierte Vorschläge und lesende Überwachung funktionieren unabhängig. Zeit- und ereignisgesteuerte Routinen benötigen keine aktivierten Vorschläge.",
-      "nightly": "Nächtliche Vorschläge",
+      "nightly": "Tägliches Briefing und Vorschläge",
       "nightlyHint": "Aus Gesprächen und Erinnerungen Routinen, Agenten und Profiländerungen vorschlagen. Keine Postfachprüfung. Vorgeschlagene Routinen benötigen eine Bestätigung.",
       "model": "Modell",
       "modelHint": "Nur für Verbesserungsvorschläge aus Gesprächen. Überwachung verwendet das Modell des gewählten Agenten.",
@@ -9656,8 +9698,8 @@
       "hourHint": "In der Zeitzone jeder Person.",
       "hourFallbackHint": "Für Personen ohne Arbeitszeit im Profil, in ihrer eigenen Zeitzone.",
       "save": "Speichern",
-      "saved": "Nächtliche Vorschläge gespeichert",
-      "off": "Nächtliche Vorschläge sind aus",
+      "saved": "Hintergrundeinstellungen gespeichert",
+      "off": "Hintergrundfunktionen sind ausgeschaltet",
       "invalid": "Geben Sie einen Betrag in Dollar ein, 0 oder mehr.",
       "welcome": "Willkommensnachricht in Chat-Apps",
       "welcomeHint": "Ein neues Mitglied erhält eine Direktnachricht von Ihren Slack-, Teams- und Mattermost-Bots.",
@@ -9676,8 +9718,6 @@
     },
     "systemAgents": {
       "configure": "Modell und Budget konfigurieren",
-      "title": "Hintergrunddienste",
-      "description": "Modellgestützte Plattformdienste. Klappen Sie einen Dienst auf, um Modell und Budget festzulegen. Verbrauch und letzte Ausführungen bleiben darunter sichtbar.",
       "on": "An",
       "off": "Aus",
       "enabled": "Diese Rolle ausführen",
@@ -9704,8 +9744,7 @@
           "what": "Liest einen beendeten Chat einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin fest, im eigenen Scope der Unterhaltung. Solange sie aus ist oder kein Modell hat, läuft nichts."
         }
       },
-      "starterAgentMissing": "Diese Rolle tut gerade nichts: Der AgenticOS-Starter-Agent, unter dem sie aufgezeichnet wird, fehlt, ist nicht veröffentlicht oder umbenannt. Veröffentlichen Sie ihn erneut unter dem Handle agenticos.",
-      "summary": "Modelle, Budgets und letzte Ausführungen der Plattformdienste."
+      "starterAgentMissing": "Diese Rolle tut gerade nichts: Der AgenticOS-Starter-Agent, unter dem sie aufgezeichnet wird, fehlt, ist nicht veröffentlicht oder umbenannt. Veröffentlichen Sie ihn erneut unter dem Handle agenticos."
     }
   },
   "theme": {
@@ -10315,7 +10354,24 @@
     "noRoutineMatchesHint": "Suchen Sie nach dem Agentennamen, dem Routinentitel oder Wörtern aus ihrer Nachricht.",
     "setupRequired": "Einrichtung erforderlich",
     "setupRequiredHint": "Gespeichert und pausiert. Quellen reparieren, Zugriff prüfen und die Routine anschließend aktivieren.",
-    "setupOwnerRequired": "Gespeichert und pausiert. Der Ersteller muss die Quellen reparieren und prüfen."
+    "setupOwnerRequired": "Gespeichert und pausiert. Der Ersteller muss die Quellen reparieren und prüfen.",
+    "filteredEventTitle": "Zuletzt gefiltertes GitHub-Ereignis",
+    "filteredEventHint": "Angezeigt wird die zuletzt gespeicherte Stichprobe verifizierter Filterablehnungen, höchstens einmal pro Minute aktualisiert. Sie hat keinen Run gestartet. Payload-Inhalte werden nicht gespeichert.",
+    "filteredEventEmpty": "Noch kein gefiltertes Ereignis erfasst. Dies bestätigt keinen Webhook-Eingang.",
+    "filteredEventError": "Filterdiagnose konnte nicht geladen werden",
+    "filteredEventPolicy": "Autorenfilter beim Empfang: {policy}",
+    "filteredEventReason": {
+      "event": "Der Ereignistyp passte nicht.",
+      "action": "Die Ereignisaktion passte nicht.",
+      "bot": "Der Absender war ein Bot.",
+      "ignored_login": "Der Absender entsprach dem ausgeschlossenen verbundenen Konto.",
+      "author": "Die Autorenzuordnung wurde durch den Autorenfilter ausgeschlossen.",
+      "draft": "Der Pull Request wurde als Entwurf geöffnet.",
+      "branch": "Der Branch passte nicht.",
+      "mention": "Der Kommentar enthielt die erforderliche Erwähnung nicht.",
+      "conclusion": "Das Workflow-Ergebnis passte nicht.",
+      "not_branch": "Der Push löschte einen Branch oder war kein Branch-Push."
+    }
   },
   "portals": {
     "backToServices": "Zurück zu den Diensten",
@@ -10397,7 +10453,18 @@
     "installationIdLabel": "Installations-ID",
     "mailLabelFilter": "Gmail-Label-ID",
     "mailFolderFilter": "Postfachordner",
-    "sharedMailboxFilter": "Freigegebenes Postfach"
+    "sharedMailboxFilter": "Freigegebenes Postfach",
+    "githubAuthorsLabel": "Wessen Ereignisse diese Routine starten können",
+    "githubAuthors": {
+      "members": "Repository-Mitglieder (Standard)",
+      "contributors": "Mitglieder und Beitragende",
+      "anyone": "Alle"
+    },
+    "githubAuthorsHint": {
+      "members": "OWNER, MEMBER und COLLABORATOR. Externe Beitragende sind ausgeschlossen. Bots und das verbundene Konto bleiben ausgeschlossen.",
+      "contributors": "OWNER, MEMBER, COLLABORATOR und CONTRIBUTOR. Erstmalig Beitragende sind ausgeschlossen. Bots und das verbundene Konto bleiben ausgeschlossen.",
+      "anyone": "Alle Autorenzuordnungen, einschließlich erstmalig Beitragender und Personen ohne frühere Beiträge. Bots und das verbundene Konto bleiben ausgeschlossen."
+    }
   },
   "agentTemplates": {
     "browse": "Agent-Vorlagen",
@@ -10814,7 +10881,96 @@
       "approvalRequested": "{agent} wartet auf Ihre Freigabe",
       "budgetExceeded": "{agent} wurde gestoppt: {scope, select, agent {sein Monatsbudget} group {das Monatsbudget einer Abteilung} department {das Monatsbudget der Abteilung {department}} organization {das Monatsbudget der Organisation} other {ein Ausgabenlimit}} ist aufgebraucht ({spent} von {limit} ausgegeben)",
       "budgetWarning": "{group} hat {share} % des Monatsbudgets von {limit} verbraucht.",
-      "workflowApproval": "Freigabe nötig: {title}"
+      "workflowApproval": "Freigabe nötig: {title}",
+      "runCompleted": "{agent} hat einen Run beendet.",
+      "routineFinished": "{routine} ist fertig.",
+      "routineFinishedExcerpt": "{routine}: {excerpt}",
+      "answeredWhileAway": "{agent} hat geantwortet, während Sie weg waren.",
+      "answerFailed": "{agent} konnte seine Antwort nicht beenden: {error}",
+      "runFailed": "Der Run von {agent} ist fehlgeschlagen.",
+      "runFailedError": "Der Run von {agent} ist fehlgeschlagen: {error}",
+      "routineBudgetPaused": "{named, select, yes {{routine}} other {Ihre Routine}} wartet: {kind, select, watch {Ihr monatliches Budget für proaktive Arbeit} other {ihr monatliches Routine-Budget}} von {limit} ist aufgebraucht ({spent} ausgegeben). {kind, select, watch {Bitten Sie einen Administrator, das Limit zu prüfen,} other {Erhöhen Sie das Limit}} oder warten Sie auf den nächsten Monat, damit sie weiterläuft.",
+      "routineBlocked": "{named, select, yes {{routine}} other {Ihre Routine}} braucht Aufmerksamkeit: {detail}",
+      "routineDetail": {
+        "run_failed": "Der Run wurde nicht erfolgreich beendet. Prüfen Sie die Aktivität, bevor Sie es erneut versuchen.",
+        "run_budget": "Der Run hat an einem Ausgabenlimit angehalten. Prüfen Sie ihr Budget und die Aktivität.",
+        "run_guardrail": "Eine Schutzregel hat den Run angehalten. Prüfen Sie die Aktivität und ihre Richtlinie.",
+        "trigger_auto_stopped": "Nach {failures, plural, one {# erfolglosen Ausführung} other {# erfolglosen Ausführungen}} automatisch pausiert. Prüfen Sie die Aktivität und setzen Sie sie fort, wenn sie bereit ist.",
+        "computer_start_failed": "Drei Startversuche auf ihrem Computer sind vor der Modellzulassung fehlgeschlagen. Prüfen Sie den Fehler, bevor Sie fortsetzen.",
+        "review_sources": "Prüfen Sie die Quellen dieser Routine in ihren Einstellungen, bevor Sie sie erneut ausführen.",
+        "desktop_review": "Prüfen Sie ihr Gerät, ihren Ordner und ihre Vorgänge in der Desktop-App und setzen Sie sie dann fort.",
+        "computer_waiting": "Wartet auf ihren freigegebenen Computer. Verbinden Sie ihn erneut oder prüfen Sie die Ordnerberechtigung dieser Routine in der Desktop-App.",
+        "source_changed": "Eine geprüfte Quelle ist nicht verfügbar oder hat sich geändert. Prüfen Sie ihre Verbindung und die Quellen der Routine.",
+        "agent_misconfigured": "Der Agent kann mit seiner aktuellen Konfiguration nicht laufen. Prüfen Sie seine veröffentlichte Version und die Routine-Einstellungen.",
+        "chat_unavailable": "Ihre Antwort steht in der Aktivität, aber der gewählte Chat ist nicht verfügbar.",
+        "needs_agent": "Wählen Sie ihren Agent und geben Sie ihre Quellen frei.",
+        "access_revoked": "Prüfen Sie ihre Kontoverbindung und den aktuellen Zugriff.",
+        "source_unavailable": "Ihre Quelle kann derzeit nicht gelesen werden.",
+        "not_completed": "Ihre Prüfung wurde nicht erfolgreich abgeschlossen; prüfen Sie die Aktivität.",
+        "budget_paused": "Ihre Prüfung hat ein Run-Limit erreicht; prüfen Sie die Aktivität und ihr Budget.",
+        "delivery_unavailable": "Ihr Quell-Chat ist nicht verfügbar. Prüfen Sie ihr Zustellziel.",
+        "watch_auto_stopped": "Nach {failures, plural, one {# erfolglosen Prüfung} other {# erfolglosen Prüfungen}} automatisch pausiert. Prüfen Sie die Aktivität und setzen Sie sie fort, wenn sie bereit ist."
+      },
+      "capabilityRequested": "{requester} hat {capability} für {agent} angefragt: {reason}",
+      "suggestionsReady": "AgenticOS hat {count, plural, one {einen neuen Vorschlag} other {# neue Vorschläge}} für Sie.",
+      "briefing": "Ihre Beobachtungen haben {count, plural, one {# neue Sache} other {# neue Sachen}} gefunden.",
+      "ingestionFailed": "„{file}“ konnte nicht indexiert werden: {error}",
+      "syncCompleted": "Synchronisierung von „{collection}“ abgeschlossen: {ingested} indexiert, {updated} aktualisiert, {skipped} übersprungen, {removed} entfernt, {failed} fehlgeschlagen.",
+      "syncFailed": "Synchronisierung {named, select, yes {von „{collection}“} other {einer Quelle ohne Sammlung}} fehlgeschlagen: {error}",
+      "artifactVersionPublished": "„{title}“ hat eine neue Version (v{version}).",
+      "artifactOwnerGiven": "{by} hat Sie zum Eigentümer von {title} gemacht. Ihre Daten bleiben für andere verborgen, bis Sie sie bestätigen.",
+      "artifactOwnerTaken": "{by} hat {owner} zum Eigentümer von {title} gemacht.",
+      "resourceShared": "„{name}“ wurde mit {group} geteilt.",
+      "conversationShared": "{by} hat {titled, select, yes {„{title}“} other {eine Unterhaltung}} mit Ihnen geteilt.",
+      "mcpServerDown": "Der MCP-Server {server} antwortet nicht mehr. Daran gebundene Agents laufen ohne seine Tools, bis er wieder da ist.",
+      "mcpServerRecovered": "Der MCP-Server {server} antwortet wieder.",
+      "verdict": {
+        "passed": "bestanden",
+        "failed": "nicht bestanden",
+        "inconclusive": "unentschieden",
+        "baseline_set": "Basislinie gesetzt"
+      },
+      "evalSuiteReevaluated": "{suite} für {agent}: {previous} → {status} nach Prüfung. Eine Promotion braucht eine Person.",
+      "evalSuiteFailed": "{suite} {failed, select, yes {ist nicht bestanden} other {konnte nicht entscheiden}} für {versioned, select, yes {{agent} v{version}} other {{agent}}}: {reasons}.",
+      "evalSuiteCases": "{failed, select, yes {Nicht bestanden} other {Unentschieden}}: {cases}{more, plural, =0 {.} other { und # weitere.}}",
+      "evalReason": {
+        "passRateBelow": "die Bestehensquote {value, number, percent} liegt unter {limit, number, percent}",
+        "nothingGraded": "kein Fall konnte bewertet werden",
+        "regressions": "{count, plural, one {# Fall scheitert reproduzierbar} other {# Fälle scheitern reproduzierbar}}",
+        "costRise": "die Kosten pro bestandenem Fall sind um {value, number, percent} gestiegen",
+        "costRiseFromZero": "die Kosten pro bestandenem Fall sind von 0 gestiegen und überschreiten jede prozentuale Obergrenze",
+        "latencyRise": "die p95-Latenz ist um {value, number, percent} gestiegen",
+        "latencyRiseFromZero": "die p95-Latenz ist von 0 gestiegen und überschreitet jede prozentuale Obergrenze",
+        "ungraded": "{count, plural, one {# Fall, den nichts bewertet} other {# Fälle, die nichts bewertet}}",
+        "incomplete": "{count, plural, one {# Fall, bei dem der Provider oder ein Bewerter versagt hat} other {# Fälle, bei denen der Provider oder ein Bewerter versagt hat}}",
+        "crashed": "der Run des Agents ist bei {count, plural, one {# Fall} other {# Fällen}} fehlgeschlagen",
+        "invalid": "der Vergleich ist ungültig",
+        "belowThreshold": "unter seinem Schwellenwert"
+      },
+      "promotionOverridden": "v{version} von {agent} ging nach {environment}, ohne {suites} zu bestehen: {reason}",
+      "sharedChangeApplied": "{named, select, yes {Eine Änderung {kind, select, context {der Kontextdatei} other {des Skills}} {name} ist für {agent} live} other {Eine Änderung {kind, select, context {einer Kontextdatei} other {eines Skills}}, die er liest, ist für {agent} live}}",
+      "securityEvent": {
+        "admin_user_impersonate": "Ein Administrator hat begonnen, als ein anderer Benutzer zu handeln.",
+        "admin_user_impersonation_ended": "Ein Administrator hat eine Sitzung als anderer Benutzer beendet.",
+        "admin_user_update": "Ein Administrator hat ein Benutzerkonto aktualisiert.",
+        "admin_user_delete": "Ein Administrator hat ein Benutzerkonto gelöscht.",
+        "secret_created": "Ein Vault-Secret wurde erstellt.",
+        "secret_rotated": "Ein Vault-Secret wurde rotiert.",
+        "secret_updated": "Ein Vault-Secret wurde aktualisiert.",
+        "secret_deleted": "Ein Vault-Secret wurde gelöscht.",
+        "sandbox_connection_created": "Eine Sandbox-Verbindung wurde erstellt.",
+        "sandbox_connection_deleted": "Eine Sandbox-Verbindung wurde gelöscht."
+      },
+      "securityEventOther": "Eine privilegierte Aktion wurde aufgezeichnet: {action}",
+      "backgroundTaskPaused": "Hintergrundjobs der Art {kind} sind pausiert{scoped, select, yes { für {organization}} other {}}: {reason}. Setzen Sie sie auf der Seite Hintergrundjobs fort, sobald die Ursache behoben ist.",
+      "configurationChanged": "Die Einstellungen des Deployments wurden aktualisiert.",
+      "usageReport": "Nutzungsbericht für {name}",
+      "workflowLogAlert": "{rule}: {count, plural, one {# Vorkommen} other {# Vorkommen}} im Log von {workflow} in {unit, select, hours {{hours, plural, one {der letzten Stunde} other {den letzten # Stunden}}} other {{minutes, plural, one {der letzten Minute} other {den letzten # Minuten}}}}.",
+      "coalesced": {
+        "securityEvent": "In einer Minute kamen mehr Sicherheitsereignisse an, als dieser Posteingang einzeln auflistet. Jedes davon steht im Audit-Log.",
+        "configurationChanged": "Die Einstellungen des Deployments wurden in einer Minute öfter geändert, als dieser Posteingang einzeln auflistet. Jede Änderung steht im Audit-Log.",
+        "backgroundTaskPaused": "In einer Minute wurden mehr Arten von Hintergrundjobs pausiert, als dieser Posteingang einzeln auflistet. Jede steht auf der Seite Hintergrundjobs."
+      }
     },
     "needsAttention": "Aufmerksamkeit erforderlich"
   },
@@ -10959,6 +11115,12 @@
     "panelProblemsCount": "{count, plural, =1 {1 Problem} other {# Probleme}}",
     "nodeFormNoFields": "Dieser Knoten hat keine konfigurierbaren Felder.",
     "nodeFormAddRow": "Zeile hinzufügen",
+    "nodeFormFilterColumn": "Spalte",
+    "nodeFormFilterColumnPlaceholder": "Spalte auswählen",
+    "nodeFormFilterColumnNoTable": "Zuerst eine Tabelle auswählen",
+    "nodeFormFilterValue": "Wert",
+    "nodeFormFilterValuePlaceholder": "Option auswählen",
+    "nodeFormFilterOptionArchived": "{label} (archiviert)",
     "nodeFormRow": "Zeile {index}",
     "nodeFormMoveUp": "Zeile {index} nach oben",
     "nodeFormMoveDown": "Zeile {index} nach unten",
@@ -11072,6 +11234,7 @@
     "publishedVersion": "Veröffentlichte Version {version}",
     "validationTriggerNotEntry": "Verwenden Sie einen Trigger je unbeaufsichtigter Art.",
     "triggerHintManual": "Starten Sie ihn mit Run oben rechts im Editor oder auf seiner Run-Seite. Deklarieren Sie Felder, um beim Start nach ihnen gefragt zu werden.",
+    "dataValueSetOnce": "Wird einmal pro Run gesetzt und nie überschrieben: Spätere Schritte lesen diesen Wert, können ihn aber nicht ändern. Um ihn zu ändern, fügen Sie einen Schritt hinzu, der daraus einen neuen Wert bildet.",
     "triggerHintChat": "Mitglieder wählen diesen Workflow im Chat. Die folgenden Schritte lesen die Nachricht als prompt, mit der Unterhaltung und dem Absender.",
     "triggerHintWebhook": "Die Veröffentlichung gibt diesem Workflow eine eigene Adresse und ein Signatur-Secret, die bei weiteren Veröffentlichungen gleich bleiben. Die folgenden Schritte lesen das JSON der Zustellung als body.",
     "publishTrigger": "Er startet mit {trigger}. Ein Webhook, Zeitplan oder Tabellenauslöser läuft nach der Veröffentlichung als Sie.",
@@ -12001,12 +12164,7 @@
       "nameLabel": "Name",
       "descriptionPlaceholder": "Was die Datensätze sind und wer sie ausfüllt",
       "descriptionLabel": "Beschreibung",
-      "visibilityLabel": "Sichtbarkeit",
-      "visibility": {
-        "private": "Privat",
-        "team": "Team",
-        "org": "Organisation"
-      },
+      "audienceLabel": "Wer sie sehen kann",
       "columnPlaceholder": "Spaltenbeschriftung",
       "columnLabel": "Spaltenbeschriftung",
       "columnType": "Spaltentyp",
@@ -12633,6 +12791,7 @@
     "mappingDeleted": "Zuordnung gelöscht"
   },
   "apiKeys": {
+    "personalMcpWhy": "Die Delegierung persönlicher MCP-Verbindungen ist in keiner Voreinstellung enthalten. Wähle unter Custom mcp:personal:use und agents:run, damit dieser Schlüssel oder diese App deine MCP-Verbindungen in externen Agent-Runs nutzen kann. Wer die Zugangsdaten besitzt, kann diese Verbindungen in deinem Namen nutzen. Persönliche Erinnerungen, Chatverläufe und angemeldete Browsersitzungen bleiben unzugänglich.",
     "title": "API-Schlüssel",
     "why": "Mit Schlüsseln ruft ein Skript, ein HTTP-Client oder ein MCP-Client die API dieser Organisation in Ihrem Namen auf, beschränkt auf das, was Sie auswählen. Ein Schlüssel kann nie mehr als Sie heute.",
     "createTitle": "Schlüssel erstellen",
@@ -12872,12 +13031,7 @@
     "description": "Der Assistent in der Ecke jeder Seite, für alle, die Agents ausführen dürfen. Er ist ein Agent wie jeder andere: Name, Modell und Wissen bearbeiten Sie im Agent Builder, und seine Kosten zählen wie die jedes Agents.",
     "openBuilder": "Im Agent Builder öffnen",
     "enabled": "Eingeschaltet",
-    "enabledHint": "Ausgeschaltet verschwindet er für alle in der Organisation von jeder Seite, und niemand kann ihn ausführen.",
-    "needsModel": "Er hat noch kein Modell und kann daher nicht antworten. Wählen Sie eins unter Modell im Agent Builder.",
-    "greeting": "Begrüßung",
-    "greetingHint": "Was er sagt, wenn ihn jemand öffnet. Leer lassen für die Standardbegrüßung.",
-    "save": "Speichern",
-    "summary": "Assistent und Begrüßung dieses Arbeitsbereichs konfigurieren."
+    "needsModel": "Er hat noch kein Modell und kann daher nicht antworten. Wählen Sie eins unter Modell im Agent Builder."
   },
   "capabilityGuide": {
     "artifacts": {
@@ -13722,6 +13876,10 @@
       "max_characters": {
         "title": "Längster Text",
         "description": "Der meiste Text, den ein Aufruf sprechen darf, was die Kosten eines einzelnen Aufrufs begrenzt."
+      },
+      "use_organization_defaults": {
+        "title": "Organisationsvorgaben verwenden",
+        "description": "Anbieter, Modell, Stimme und Schlüssel der Organisation gemeinsam übernehmen. Ausschalten, um die eigene Stimme dieses Agents zu konfigurieren."
       }
     },
     "video_generation": {
@@ -15409,7 +15567,7 @@
     "group": "{name} · {count, plural, =1 {1 Run} other {# Runs}}",
     "trend": {
       "label": "Bestehensquote je Run",
-      "single": "Bisher ein Run. Starte einen weiteren, um einen Trend zu sehen.",
+      "soFar": "{count, plural, one {Bisher ein Run.} other {Bisher # Runs.}} Ein Trend braucht mindestens drei; {count, plural, one {starte zwei weitere, um ihn zu sehen.} other {starte einen weiteren, um ihn zu sehen.}}",
       "legend": "Jeder Punkt ist ein Run, der älteste links; zeige auf einen, um zu sehen, was lief, wogegen und wann, und klicke, um den Run zu öffnen.",
       "range": "Gezeigte Runs",
       "last": "Letzte {count}",
@@ -16119,10 +16277,10 @@
     "trainQuestion": "Zum Schreiben der Änderungen verwendet",
     "holdoutQuestion": "Nicht zum Schreiben der Änderungen verwendet",
     "sourceSignals": "Quellen zum Lernen",
-    "signalWindow": "Feedback und fehlgeschlagene Runs der letzten 30 Tage sowie Fehler aus dem letzten Test.",
+    "signalWindow": "{count, plural, one {# ausgewähltes Quellbeispiel} other {# ausgewählte Quellbeispiele}} aus den letzten 30 Tagen, höchstens {limit}. Frühere Agentenversionen und überprüfte Testantworten sind enthalten.",
     "ratedSignals": "Negativ bewertete Antworten",
-    "failedSignals": "Fehlgeschlagene Runs",
-    "noLearningExamples": "Noch nichts zum Lernen: In den letzten 30 Tagen hat niemand eine Antwort bewertet. Bewerten Sie zuerst eine Antwort oder schreiben Sie Testfragen.",
+    "failedSignals": "Fehlgeschlagene Runs ohne Bewertung",
+    "noLearningExamples": "Noch nichts zum Lernen: keine lesbaren Quellbeispiele aus den letzten 30 Tagen. Bewerten Sie eine Antwort oder führen Sie Testfragen aus und überprüfen Sie sie.",
     "evidenceSample": "{count} ausgewählte Beispiele, höchstens {limit}. Gelöschte oder nicht mehr lesbare Quellen werden ausgelassen.",
     "unknownCauses": "Für einige Antworten ist keine Ursache gespeichert. Sie bleiben unklassifiziert und werden mit den Agentenbeispielen zur Prüfung angezeigt.",
     "cause": {
@@ -16155,7 +16313,7 @@
     "baseline": "Heutige Antworten des Agenten testen",
     "estimate": "Erneut schätzen",
     "estimating": "Zeit und Kosten werden geschätzt…",
-    "sessionQuote": "Bis zu {cost} (Schätzung), um {answers, plural, one {# Antwort} other {# Antworten}} mit Feedback zu sortieren. Jeder Versuch danach dauert etwa {minutes, plural, one {# Minute} other {# Minuten}} und kostet ungefähr {perRound}; er wird erneut bepreist, bevor Sie ihn drücken, und das Limit von {limit} gilt für die ganze Sitzung.",
+    "sessionQuote": "Bis zu {cost} (Schätzung), um {answers, plural, one {# ausgewähltes Quellbeispiel} other {# ausgewählte Quellbeispiele}} zu sortieren. Jeder Versuch danach dauert etwa {minutes, plural, one {# Minute} other {# Minuten}} und kostet ungefähr {perRound}; er wird erneut bepreist, bevor Sie ihn drücken, und das Limit von {limit} gilt für die ganze Sitzung.",
     "evidence": "Auf Grundlage von {count, plural, one {# Antwort} other {# Antworten}} mit Feedback.",
     "budget": "Ausgabenlimit der Sitzung (USD)",
     "start": "Verbesserung starten",
@@ -16694,7 +16852,9 @@
     "evidenceOnly": {
       "body": "Jede Frage dieses Datasets stammt aus den Gesprächen, aus denen diese Änderung gelernt hat, daher kann keine sie testen.",
       "addQuestions": "Fragen aus anderen Gesprächen hinzufügen"
-    }
+    },
+    "likedSignals": "Positiv bewertete Antworten",
+    "reviewedSignals": "Weitere überprüfte Testantworten"
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",
@@ -17753,6 +17913,10 @@
       "data_map": {
         "name": "Felder zuordnen",
         "description": "Werte aus früheren Ausgaben auswählen und jedem einen Typ geben."
+      },
+      "data_value": {
+        "name": "Daten",
+        "description": "Ein Objekt, eine Liste oder einen Wert für spätere Schritte bereithalten. Einmal pro Run gesetzt."
       },
       "debug_echo": {
         "name": "Echo",
@@ -20476,5 +20640,19 @@
         }
       }
     }
+  },
+  "personalModelKeys": {
+    "title": "Deine Modellverbindung",
+    "fixed": "Modell: {model}. Ziel: {endpoint}.",
+    "connected": "Dein Schlüssel ist gespeichert. Ersetze ihn hier, wenn die Anmeldung fehlschlägt.",
+    "required": "Verbinde deinen eigenen API-Schlüssel, bevor du eine Nachricht sendest.",
+    "key": "Dein API-Schlüssel",
+    "replace": "Schlüssel ersetzen",
+    "connect": "Schlüssel verbinden",
+    "privacy": "Privat im Tresor gespeichert. Nie im Chat gesendet. Kein Ausweichen auf den Organisationsschlüssel.",
+    "vaultHelp": "Diese Schlüssel gehören nur dir. Verbinde oder ersetze sie in den Chat-Einstellungen des Agenten. Nach dem Entfernen sind neue Läufe bis zur erneuten Verbindung gesperrt.",
+    "remove": "Verbindung entfernen",
+    "loading": "Verbindungen werden geladen…",
+    "defaultEndpoint": "Standardadresse des Anbieters"
   }
 }

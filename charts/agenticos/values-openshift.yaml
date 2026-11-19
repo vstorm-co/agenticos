@@ -1,5 +1,5 @@
-# Candidate restricted-v2 configuration. Real OpenShift validation is required
-# before claiming support; do not grant anyuid or privileged SCCs.
+# Tested with restricted-v2 on local OpenShift 5.0.0; validate your cluster too.
+# See docs/kubernetes.md for evidence and limits. Never grant anyuid or privileged SCCs.
 podSecurityContext:
   runAsNonRoot: true
   fsGroup: null
