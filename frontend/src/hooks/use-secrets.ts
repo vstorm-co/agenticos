@@ -196,12 +196,12 @@ export function useChatGPTSignIn(kind: ChatGPTSignInKind = "openai_codex") {
   const create = useMutation({
     mutationFn: async (data: NewChatGPTSignIn) => {
       if (kind === "openai_codex") return apiClient.post<Secret>(`/secrets/${endpoint}`, data);
-      const result = await apiClient.post<{ secret: Secret; plan_usage_granted: boolean }>(
+      const result = await apiClient.post<{ connection: Secret; plan_usage_granted: boolean }>(
         `/secrets/${endpoint}`,
         data,
       );
       if (!result.plan_usage_granted) toast.warning(t("chatgptPlanDeclined"));
-      return result.secret;
+      return result.connection;
     },
     onSuccess: async (secret) => {
       await invalidate();
@@ -213,12 +213,12 @@ export function useChatGPTSignIn(kind: ChatGPTSignInKind = "openai_codex") {
     mutationFn: async ({ id, callback_url }: { id: string; callback_url: string }) => {
       if (kind === "openai_codex")
         return apiClient.put<Secret>(`/secrets/${id}/${endpoint}`, { callback_url });
-      const result = await apiClient.put<{ secret: Secret; plan_usage_granted: boolean }>(
+      const result = await apiClient.put<{ connection: Secret; plan_usage_granted: boolean }>(
         `/secrets/${id}/${endpoint}`,
         { callback_url },
       );
       if (!result.plan_usage_granted) toast.warning(t("chatgptPlanDeclined"));
-      return result.secret;
+      return result.connection;
     },
     onSuccess: async (secret) => {
       await invalidate();

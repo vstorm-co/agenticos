@@ -421,6 +421,7 @@ authenticate with.
 | AWS Bedrock | `bedrock` | access key id, secret key, region, optional session token |
 | Google Vertex AI | `google_cloud` | service account JSON |
 | ChatGPT (Codex subscription) | `openai_codex` | a ChatGPT sign-in, stored by signing in rather than typed |
+| ChatGPT (official plan usage) | `openai_chatgpt` | an application grant with separate plan consent, created by signing in |
 
 The first three are the reason a secret has a *kind* at all. A form that collected one
 opaque token for Azure would collect something fillable-in-correctly that still

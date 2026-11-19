@@ -1,5 +1,5 @@
 ---
-source_sha: "bf1a18e600af"
+source_sha: "b374a3b618b3"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -443,6 +443,7 @@ autenticarse.
 | AWS Bedrock | `bedrock` | id de clave de acceso, clave secreta, región, token de sesión opcional |
 | Google Vertex AI | `google_cloud` | JSON de la cuenta de servicio |
 | ChatGPT (suscripción de Codex) | `openai_codex` | un inicio de sesión de ChatGPT, guardado iniciando sesión en vez de tecleado |
+| ChatGPT (uso oficial del plan) | `openai_chatgpt` | una autorización de aplicación con consentimiento separado del plan, creada al iniciar sesión |
 
 Los tres primeros son la razón de que un secreto tenga un *kind*. Un formulario que
 recogiera un único token opaco para Azure recogería algo que se puede rellenar

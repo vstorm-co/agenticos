@@ -218,5 +218,5 @@ class ChatGPTPlanReconnect(BaseSchema):
 class ChatGPTPlanComplete(BaseSchema):
     """A stored grant may retain registration without consent to spend plan tokens."""
 
-    secret: SecretRead
+    connection: SecretRead
     plan_usage_granted: bool

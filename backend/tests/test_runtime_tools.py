@@ -13,7 +13,7 @@ from pydantic_ai.usage import RunUsage
 from app.agents.deps import AgentDeps
 from app.agents.runtime_tools import RuntimeTools
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 async def bridge(*, secrets: tuple[str, ...] = ()) -> tuple[RuntimeTools, list[int]]:

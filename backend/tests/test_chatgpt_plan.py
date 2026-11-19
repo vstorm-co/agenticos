@@ -546,7 +546,7 @@ async def test_reconnect_checks_owner_and_edit_access_before_exchanging_a_code(
     update = AsyncMock(return_value=row)
     monkeypatch.setattr(plan.OrganizationSecretService, "update", update)
     result = await service.reconnect(ctx, uuid4(), callback_url=callback)
-    assert result.secret is row and result.plan_usage_granted
+    assert result.connection is row and result.plan_usage_granted
     row.owner_user_id = uuid4()
     with pytest.raises(NotFoundError):
         await service.reconnect(ctx, uuid4(), callback_url="unused")

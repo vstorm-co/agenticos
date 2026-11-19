@@ -10985,6 +10985,10 @@
       "api_provider": {
         "title": "Dostawca Pi z kluczem ze skarbca",
         "description": "Opcjonalny tryb klucza API Pi: Inception, DeepSeek lub OpenRouter. Wymaga zgodnego szablonu natywnego i niezależnego dostępu osoby rozpoczynającej zadanie do tego klucza w skarbcu. Nie importuje zapisanych poświadczeń Pi."
+      },
+      "platform_tools": {
+        "title": "Narzędzia AgenticOS",
+        "description": "Udostępnia przygotowane narzędzia tej prywatnej rozmowy zewnętrznemu środowisku, z zachowaniem uprawnień, zatwierdzeń i budżetów. Wymaga aktualnej aplikacji Desktop."
       }
     }
   },

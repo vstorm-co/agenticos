@@ -14381,6 +14381,10 @@
       "api_provider": {
         "title": "Pi vault-key provider",
         "description": "Optional Pi API-key lane: Inception, DeepSeek or OpenRouter. Requires the matching native key template and the initiating member's independent vault visibility. It never imports Pi's saved credentials."
+      },
+      "platform_tools": {
+        "title": "Forward platform tools",
+        "description": "Allow this native runtime to call the tools already admitted to this AgenticOS run. Platform permissions, budgets, approvals and result screening still apply. Requires the initiating member's private approved computer."
       }
     }
   },

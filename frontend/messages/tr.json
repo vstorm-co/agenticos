@@ -5828,6 +5828,10 @@
       "api_provider": {
         "title": "Kasa anahtarlı Pi sağlayıcısı",
         "description": "İsteğe bağlı Pi API anahtarı modu: Inception, DeepSeek veya OpenRouter. Eşleşen yerel şablon ve başlatan üyenin ilgili kasa anahtarına bağımsız erişimi gerekir. Kayıtlı Pi kimlik bilgileri içe aktarılmaz."
+      },
+      "platform_tools": {
+        "title": "AgenticOS araçları",
+        "description": "Bu özel görüşmenin hazırlanmış araçlarını izinler, onaylar ve bütçeler korunarak dış çalışma ortamına iletir. Güncel Desktop uygulaması gerekir."
       }
     }
   },

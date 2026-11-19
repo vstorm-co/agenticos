@@ -19,7 +19,7 @@ from app.core.permissions import AuthContext
 from app.services import runtime_tool_approvals as approvals
 from app.services.agent_runner import ApprovalChannel
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 type LiveFixture = tuple[ApprovalChannel, AsyncMock, AsyncMock, list[str]]
 

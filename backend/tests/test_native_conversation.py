@@ -17,7 +17,7 @@ from app.schemas.local_target import LocalTarget
 from tests.test_coding_agent_acp import _ctx, _local_workspace
 from tests.test_runtime_tools import bridge
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.mark.parametrize("harness", ["codex", "claude_code"])

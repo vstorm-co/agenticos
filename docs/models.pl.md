@@ -1,5 +1,5 @@
 ---
-source_sha: "bf1a18e600af"
+source_sha: "b374a3b618b3"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -434,6 +434,7 @@ ani nic, czym się uwierzytelnić.
 | AWS Bedrock | `bedrock` | access key id, klucz tajny, region, opcjonalny token sesji |
 | Google Vertex AI | `google_cloud` | JSON konta serwisowego |
 | ChatGPT (Codex subscription) | `openai_codex` | logowanie do ChatGPT, zapisywane przez zalogowanie się, a nie wpisywane |
+| ChatGPT (oficjalne użycie planu) | `openai_chatgpt` | grant aplikacji z osobną zgodą na korzystanie z planu, utworzony przez logowanie |
 
 Pierwsze trzy są powodem, dla którego sekret w ogóle ma *rodzaj*. Formularz, który
 zbierałby dla Azure jeden nieprzejrzysty token, zbierałby coś, co da się wypełnić

@@ -431,7 +431,7 @@ describe("official ChatGPT application consent", () => {
     "stores explicit plan consent %s without mixing Codex grants",
     async (granted) => {
       const created = vi.fn();
-      api.post.mockResolvedValue({ secret: official, plan_usage_granted: granted });
+      api.post.mockResolvedValue({ connection: official, plan_usage_granted: granted });
       render(
         <InlineChatGPTSignIn
           kind="openai_chatgpt"
@@ -455,7 +455,7 @@ describe("official ChatGPT application consent", () => {
   it.each([true, false])(
     "reconnects an official grant with explicit plan consent %s",
     async (granted) => {
-      api.put.mockResolvedValue({ secret: official, plan_usage_granted: granted });
+      api.put.mockResolvedValue({ connection: official, plan_usage_granted: granted });
       render(
         <RotateSecretDialog
           secret={official}
@@ -491,7 +491,7 @@ it("stores an official grant privately from the vault and never offers token ent
     PURPOSES.items.splice(PURPOSES.items.indexOf(purpose), 1);
   });
   const official = { ...STORED, kind: "openai_chatgpt" as const, purpose: "openai_chatgpt" };
-  api.post.mockResolvedValue({ secret: official, plan_usage_granted: true });
+  api.post.mockResolvedValue({ connection: official, plan_usage_granted: true });
   render(
     <AddSecretDialog
       open

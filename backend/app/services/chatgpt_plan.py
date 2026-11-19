@@ -89,7 +89,7 @@ class _Pending(BaseModel):
 
 @dataclass(frozen=True)
 class ConnectedChatGPT:
-    secret: OrganizationSecret
+    connection: OrganizationSecret
     plan_usage_granted: bool
 
 

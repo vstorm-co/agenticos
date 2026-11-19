@@ -14067,6 +14067,10 @@
       "api_provider": {
         "title": "Pi-Anbieter mit Tresorschlüssel",
         "description": "Optionaler Pi-API-Schlüsselmodus: Inception, DeepSeek oder OpenRouter. Benötigt die passende native Vorlage und eigenen Tresorzugriff des startenden Mitglieds. Gespeicherte Pi-Zugangsdaten werden nicht importiert."
+      },
+      "platform_tools": {
+        "title": "AgenticOS-Werkzeuge",
+        "description": "Stellt der externen Laufzeit vorbereitete Werkzeuge dieses privaten Gesprächs bereit. Berechtigungen, Freigaben und Budgets gelten weiterhin. Erfordert eine aktuelle Desktop-App."
       }
     }
   },
