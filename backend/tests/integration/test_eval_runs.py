@@ -1007,7 +1007,7 @@ async def test_reading_runs_needs_runs_view(db) -> None:
     assert [run.id for run in listed.items] == [started.id]
 
 
-async def test_a_different_scoring_makes_the_comparison_invalid(db) -> None:
+async def test_a_different_scoring_makes_the_comparison_invalid(db, monkeypatch) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
     dataset = await _dataset(db, ctx, cases=2)
@@ -1024,10 +1024,18 @@ async def test_a_different_scoring_makes_the_comparison_invalid(db) -> None:
     )
     await _run_to_end(db, Model(db), v7.id, ctx)
 
+    from unittest.mock import Mock
+
+    aggregate = Mock(
+        side_effect=AssertionError("invalid comparisons must not read criterion grades")
+    )
+    monkeypatch.setattr(service, "criterion_batches", aggregate)
     comparison = await service.compare(ctx, v7.id)
     assert unnamed.missing_baseline_version == 6
     assert comparison.verdict == "invalid"
     assert comparison.invalid_reason is not None
+    assert comparison.criteria == [] and comparison.criterion_change == 0.0
+    aggregate.assert_not_called()
 
 
 async def test_a_dataset_that_decides_nothing_is_refused(db) -> None:

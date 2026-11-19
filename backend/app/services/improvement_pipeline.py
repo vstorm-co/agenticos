@@ -1288,7 +1288,9 @@ class ImprovementPipelineService:
             ):
                 continue
             try:
-                comparison = await self.evals.compare(ctx, iteration.eval_run_ids[-1])
+                comparison = await self.evals.compare(
+                    ctx, iteration.eval_run_ids[-1], include_criteria=False
+                )
             except NotFoundError:
                 continue
             if comparison.verdict == "invalid":

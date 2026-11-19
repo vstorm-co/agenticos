@@ -469,7 +469,9 @@ class EvidenceService:
                     )
             compared = row.arm.role == "candidate"
             if compared and row.arm.eval_run_id not in flips:
-                comparison = await service.compare(ctx, row.arm.eval_run_id, measurement_only=False)
+                comparison = await service.compare(
+                    ctx, row.arm.eval_run_id, measurement_only=False, include_criteria=False
+                )
                 flips[row.arm.eval_run_id] = {
                     case.case_id: case.flip
                     for case in comparison.cases

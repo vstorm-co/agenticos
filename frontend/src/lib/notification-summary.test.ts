@@ -289,3 +289,23 @@ it("keeps equal criterion names distinct across scorer namespaces", () => {
   expect(summary).toContain("Validity [judge]");
   expect(summary).toContain("Validity [check]");
 });
+
+it("keeps a scorer-qualified label when its duplicate was omitted from the notification", () => {
+  const criteria = [
+    {
+      name: "Validity",
+      scorer: "check",
+      display_name: "Validity [check]",
+      graded: 3,
+      before: 3,
+      after: 2,
+      direction: "worse" as const,
+    },
+  ];
+  const summary = notificationSummary(
+    row("improvement_finished", { status: "ready", reason: null, criteria }),
+    t,
+    stop,
+  );
+  expect(summary).toContain("Validity [check]");
+});

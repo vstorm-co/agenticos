@@ -17,6 +17,7 @@ import { apiClient } from "./api-client";
 
 /** A criterion an improvement attempt moved, as a notification names it. */
 export interface MovedCriterion {
+  display_name?: string;
   scorer?: string;
   name: string;
   graded: number;

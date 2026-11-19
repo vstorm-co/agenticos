@@ -2744,6 +2744,9 @@ def moved_criteria(
         if item["broken"] or (item["fixed"] and item["after"] >= item["before"])
     ]
     moved.sort(key=lambda item: item["direction"] != "worse")
+    for item in moved:
+        if sum(other["name"] == item["name"] for other in criteria) > 1:
+            item["display_name"] = f"{item['name']} [{item['scorer']}]"
     return moved[:NOTIFIED_CRITERIA]
 
 
@@ -2752,6 +2755,8 @@ def _criteria_sentence(criteria: Sequence[MovedCriterion]) -> str:
     worse = [item for item in criteria if item["direction"] == "worse"]
 
     def label(item: MovedCriterion) -> str:
+        if (display_name := item.get("display_name")) is not None:
+            return display_name
         scorer = item.get("scorer")
         duplicate = sum(other["name"] == item["name"] for other in criteria) > 1
         return f"{item['name']} [{scorer}]" if scorer and duplicate else item["name"]

@@ -242,3 +242,26 @@ def test_notification_criteria_preserve_and_disambiguate_scorers():
         "direction": "better",
     }
     assert "[" not in _improvement_summary("Clerk", "ready", None, criteria=[legacy])
+
+
+def test_notification_labels_keep_collision_context_when_the_other_scorer_is_truncated():
+    gained = {**_PRICE_BREAK, "name": "Validity"}
+    broken = {**_LENGTH, "name": "Validity"}
+    moved = moved_criteria(
+        "criteria_worse", [broken, _PRICE_BREAK, {**_PRICE_BREAK, "name": "Other"}, gained]
+    )
+    assert len(moved) == 3
+    assert moved[0]["name"] == "Validity" and moved[0]["display_name"] == "Validity [check]"
+    assert not any(item["scorer"] == "judge" and item["name"] == "Validity" for item in moved)
+    assert "Validity [check]" in _improvement_summary("Clerk", "ready", None, criteria=moved)
+
+
+def test_notification_labels_also_qualify_a_moved_name_shared_with_an_unchanged_criterion():
+    moved = moved_criteria(
+        "criteria_better",
+        [
+            {**_PRICE_BREAK, "name": "Validity"},
+            {**_VALIDITY, "scorer": "check", "name": "Validity"},
+        ],
+    )
+    assert len(moved) == 1 and moved[0]["display_name"] == "Validity [judge]"

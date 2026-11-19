@@ -132,6 +132,7 @@ from app.services.eval_comparison import (
     Attempt,
     CaseState,
     Criterion,
+    CriterionComparison,
     Flip,
     Outcome,
     PairedCase,
@@ -2669,6 +2670,7 @@ class EvalRunService:
         measurement_only: bool = True,
         holdout_minimum: bool = True,
         training_only: bool = False,
+        include_criteria: bool = True,
     ) -> EvalComparisonRead:
         """One candidate arm against its baseline.
 
@@ -2679,6 +2681,8 @@ class EvalRunService:
         caller, which pools several runs' held-out questions into one result.
         `training_only` compares the questions a measured run did not keep aside
         instead, so nothing about its held-out questions is read.
+        `include_criteria` False omits criterion-grade reads for internal callers
+        that only consume whole-question outcomes.
         """
         run = await self._readable(ctx, run_id)
         return await self._comparison(
@@ -2689,6 +2693,7 @@ class EvalRunService:
             measurement_only=measurement_only and not training_only,
             holdout_minimum=holdout_minimum,
             training_only=training_only,
+            include_criteria=include_criteria,
         )
 
     @staticmethod
@@ -2761,7 +2766,13 @@ class EvalRunService:
         measurement_only: bool = True,
         holdout_minimum: bool = True,
         training_only: bool = False,
+        include_criteria: bool = False,
     ) -> EvalComparisonRead:
+        """Whole-question results, with criterion detail only for explicit comparisons.
+
+        Run reads, suite verdicts and review queues need no criterion-grade batches
+        or scratch aggregation. Only compare() opts into that additional work.
+        """
         arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
         candidates = [a for a in arms if a.role == ArmRole.CANDIDATE.value]
         candidate = (
@@ -2845,27 +2856,6 @@ class EvalRunService:
             )
             for case_id in common
         ]
-        batches = self.criterion_batches(
-            ctx,
-            candidate,
-            attempts,
-            their_arm,
-            their_attempts,
-            case_ids=common,
-            confirmed_here=confirmed_here,
-            drift=drift,
-        )
-
-        def paired_grades() -> Iterator[PairedGrades]:
-            # The worker owns scratch I/O; database reads resume on this event
-            # loop one bounded batch at a time, never on the SQLite thread.
-            while (batch := from_thread.run(anext, batches, None)) is not None:
-                yield from (pair for _, pair in batch)
-
-        try:
-            criteria_comparison = await to_thread.run_sync(compare_criteria, paired_grades())
-        finally:
-            await batches.aclose()
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
         invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None
         if run.proposal_check is not None:
@@ -2902,6 +2892,29 @@ class EvalRunService:
             and any(case.candidate is None or case.baseline is None for case in paired_cases)
         ):
             invalid_reason = "Held-out questions remain ungraded or incomplete"
+        criteria_comparison = CriterionComparison(moves=[], change=0.0)
+        if invalid_reason is None and include_criteria:
+            batches = self.criterion_batches(
+                ctx,
+                candidate,
+                attempts,
+                their_arm,
+                their_attempts,
+                case_ids=common,
+                confirmed_here=confirmed_here,
+                drift=drift,
+            )
+
+            def paired_grades() -> Iterator[PairedGrades]:
+                # The worker owns scratch I/O; database reads resume on this event
+                # loop one bounded batch at a time, never on the SQLite thread.
+                while (batch := from_thread.run(anext, batches, None)) is not None:
+                    yield from (pair for _, pair in batch)
+
+            try:
+                criteria_comparison = await to_thread.run_sync(compare_criteria, paired_grades())
+            finally:
+                await batches.aclose()
         quality = quality_verdict(
             paired_cases, alpha=settings.EVAL_SIGNIFICANCE, invalid=invalid_reason is not None
         )

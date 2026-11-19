@@ -79,9 +79,9 @@ function criteriaSentence(criteria: MovedCriterion[], t: Translate): string {
     criteria
       .filter((item) => item.direction === direction)
       .map((item) => {
-        const { scorer, ...counts } = item;
+        const { scorer, display_name, ...counts } = item;
         const duplicate = criteria.filter((other) => other.name === item.name).length > 1;
-        const name = scorer && duplicate ? `${item.name} [${scorer}]` : item.name;
+        const name = display_name ?? (scorer && duplicate ? `${item.name} [${scorer}]` : item.name);
         return t("outcome.improvement.criterion", { ...counts, name });
       })
       .join(", ") || "none";

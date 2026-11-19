@@ -47,6 +47,8 @@ class MovedCriterion(TypedDict):
 
     scorer: NotRequired[str]
     name: str
+    display_name: NotRequired[str]
+    """A label qualified against the full result before the notification was shortened."""
     graded: int
     before: int
     after: int

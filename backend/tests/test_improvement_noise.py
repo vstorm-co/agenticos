@@ -263,6 +263,7 @@ async def test_a_settled_session_reads_its_noise_from_each_measured_attempt(serv
     assert [a.number for a in noise.by_attempt] == [1, 2]
     assert noise.examples[0].attempts[0].baseline == [True, False, True]
     assert compare.await_count == 2
+    assert all(call.kwargs["include_criteria"] is False for call in compare.await_args_list)
 
 
 async def test_a_check_the_reader_can_no_longer_open_is_left_out(service):
