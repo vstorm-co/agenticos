@@ -83,3 +83,39 @@ def test_matrix_is_a_surface_an_agent_can_be_exposed_on_and_a_run_can_come_from(
 def test_the_agent_is_told_it_answers_in_matrix():
     assert "Matrix" in runtime_context("matrix", console_url="https://aos", linked_sender=False)
     assert "Markdown" in HOUSE_STYLE["matrix"]
+
+
+@pytest.mark.parametrize(
+    ("policy", "active", "admitted"),
+    [
+        ({"mode": "open"}, True, True),
+        ({"mode": "whitelist", "whitelist": ["@ada:example.org"]}, True, True),
+        ({"mode": "whitelist", "whitelist": ["@bob:example.org"]}, True, False),
+        ({"mode": "open"}, False, False),
+    ],
+    ids=["open", "listed", "not-listed", "paused"],
+)
+async def test_an_invitation_is_admitted_as_a_message_from_the_inviter_would_be(
+    policy: dict[str, object], active: bool, admitted: bool
+):
+    """An invitation can bring the bot nowhere a message from the same person could not reach it."""
+    from contextlib import asynccontextmanager
+
+    from app.services.channels import ingress
+
+    bot = _row(access_policy=policy, is_active=active)
+
+    @asynccontextmanager
+    async def session():
+        yield MagicMock()
+
+    with (
+        patch.object(ingress, "get_db_context", session),
+        patch.object(ingress.channel_bot_repo, "get_for_inbound", AsyncMock(return_value=bot)),
+    ):
+        assert (
+            await ingress.invite_admitted(
+                str(bot.id), "@ada:example.org", "%21room%3Aexample.org", direct=False
+            )
+            is admitted
+        )

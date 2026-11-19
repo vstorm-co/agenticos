@@ -1724,9 +1724,10 @@ skips the room history rather than answering it.
 
 !!! warning "Unencrypted rooms only, for now"
 
-    The bot reads rooms without end-to-end encryption. An encrypted room, or an
-    encrypted direct chat, delivers nothing it can read, and it stays silent
-    there. Encryption is the second stage of #2081.
+    The bot reads rooms without end-to-end encryption. It declines an
+    invitation to an encrypted room or direct chat, with a reason the inviter
+    sees, and stays silent in a room whose encryption is switched on later.
+    Encryption is the second stage of #2081.
 
 1. Create an account for the bot on the homeserver, for example `@agent:example.org`.
 2. Get an **access token** for it:

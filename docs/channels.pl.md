@@ -1,5 +1,5 @@
 ---
-source_sha: "a162c69a93ae"
+source_sha: "1c54b1b4f7ff"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1771,9 +1771,10 @@ pokoju, zamiast na nią odpowiadać.
 
 !!! warning "Na razie tylko pokoje nieszyfrowane"
 
-    Bot czyta pokoje bez szyfrowania end-to-end. Zaszyfrowany pokój albo
-    zaszyfrowany czat bezpośredni nie dostarcza niczego, co bot mógłby
-    przeczytać, i bot tam milczy. Szyfrowanie to drugi etap #2081.
+    Bot czyta pokoje bez szyfrowania end-to-end. Zaproszenie do zaszyfrowanego
+    pokoju lub czatu bezpośredniego odrzuca z powodem, który widzi zapraszający,
+    a w pokoju, w którym szyfrowanie włączono później, milczy. Szyfrowanie to
+    drugi etap #2081.
 
 1. Utwórz na homeserverze konto dla bota, na przykład `@agent:example.org`.
 2. Zdobądź dla niego **token dostępu** (access token):

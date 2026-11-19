@@ -6,9 +6,11 @@ goes to, whether it can notify anybody, and what an edit or a reaction is.
 """
 
 import json
+from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, patch
 from urllib.parse import quote
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -259,7 +261,7 @@ class TestSync:
             }
         }
         check = AsyncMock(return_value=admitted)
-        with patch.object(MatrixAdapter, "_invite_admitted", check):
+        with patch("app.services.channels.ingress.invite_admitted", check):
             await adapter._on_sync(
                 BOT,
                 "tok",
@@ -268,9 +270,140 @@ class TestSync:
                 {"next_batch": "s1", "rooms": {"invite": {ROOM: invite}}},
                 backlog=True,
             )
-        assert check.await_args.args[1:] == (USER, ROOM)
+        assert check.await_args.args == (BOT, USER, room_key(ROOM))
         assert check.await_args.kwargs == {"direct": True}
         assert ("POST", _room_path(ROOM, action), {}) in server.calls
+
+    async def test_an_encrypted_room_is_declined_with_a_reason_before_policy_is_asked(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ):
+        """It would join and then read nothing there, which looks like a broken bot."""
+        invite = {
+            "invite_state": {
+                "events": [
+                    {"type": "m.room.encryption", "state_key": "", "content": {}},
+                    {
+                        "type": "m.room.member",
+                        "state_key": OWN,
+                        "sender": USER,
+                        "content": {"membership": "invite"},
+                    },
+                ]
+            }
+        }
+        check = AsyncMock(return_value=True)
+        with patch("app.services.channels.ingress.invite_admitted", check):
+            await adapter._on_sync(
+                BOT,
+                "tok",
+                BASE,
+                adapter._accounts[BOT],
+                {"next_batch": "s1", "rooms": {"invite": {ROOM: invite}}},
+                backlog=True,
+            )
+        check.assert_not_awaited()
+        [(_, path, body)] = [call for call in server.calls if call[0] == "POST"]
+        assert path == _room_path(ROOM, "leave")
+        assert "encrypted" in body["reason"]
+
+    async def test_a_gap_in_a_busy_room_is_filled_back_to_the_last_message_read(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ):
+        """A limited sync shows only its newest events; the ones before them are fetched.
+
+        Only those newer than the last message read: an older one was answered
+        before the gap.
+        """
+        adapter._last_seen[f"{BOT}:{ROOM}"] = 1_000
+        server.answer(
+            "GET",
+            _room_path(ROOM, "messages"),
+            httpx.Response(
+                200,
+                json={
+                    "chunk": [
+                        {**_event("in the gap"), "event_id": "$gap", "origin_server_ts": 2_000},
+                        {**_event("already read"), "event_id": "$old", "origin_server_ts": 900},
+                    ]
+                },
+            ),
+        )
+        server.answer(
+            "GET",
+            _room_path(ROOM, "joined_members"),
+            httpx.Response(200, json={"joined": {OWN: {}, USER: {}, "@b:x": {}}}),
+        )
+        batch = {
+            "next_batch": "s3",
+            "rooms": {
+                "join": {
+                    ROOM: {
+                        "timeline": {
+                            "limited": True,
+                            "prev_batch": "p1",
+                            "events": [
+                                {**_event("newest"), "event_id": "$new", "origin_server_ts": 3_000}
+                            ],
+                        }
+                    }
+                }
+            },
+        }
+        admitted: list[IncomingMessage] = []
+
+        async def admit(incoming: IncomingMessage) -> None:
+            admitted.append(incoming)
+
+        with patch("app.services.channels.ingress.admit_message", admit):
+            await adapter._on_sync(BOT, "tok", BASE, adapter._accounts[BOT], batch, backlog=False)
+        assert [item.message_id for item in admitted] == ["$gap", "$new"]
+        assert adapter._last_seen[f"{BOT}:{ROOM}"] == 3_000
+
+    async def test_a_gap_after_a_restart_is_logged_not_guessed_at(
+        self, adapter: MatrixAdapter, server: _Homeserver, caplog: pytest.LogCaptureFixture
+    ):
+        timeline = {"limited": True, "prev_batch": "p1", "events": []}
+        assert await adapter._gap(BOT, "tok", BASE, ROOM, timeline) == []
+        assert not [call for call in server.calls if "/messages" in call[1]]
+        assert "matrix_timeline_gap_skipped" in caplog.text
+
+    async def test_the_sender_is_named_and_a_membership_change_in_state_resets_the_room(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ):
+        adapter._direct.put(f"{BOT}:{DM}", True)
+        server.answer(
+            "GET",
+            _room_path(DM, "joined_members"),
+            httpx.Response(200, json={"joined": {OWN: {}, USER: {}, "@b:x": {}}}),
+        )
+        member = {
+            "type": "m.room.member",
+            "state_key": USER,
+            "content": {"membership": "join", "displayname": "Ada Lovelace"},
+        }
+        batch = {
+            "next_batch": "s2",
+            "rooms": {
+                "join": {
+                    DM: {
+                        "state": {"events": [member]},
+                        "timeline": {
+                            "events": [_event("hi", **{"m.mentions": {"user_ids": [OWN]}})]
+                        },
+                    }
+                }
+            },
+        }
+        admitted: list[IncomingMessage] = []
+
+        async def admit(incoming: IncomingMessage) -> None:
+            admitted.append(incoming)
+
+        with patch("app.services.channels.ingress.admit_message", admit):
+            await adapter._on_sync(BOT, "tok", BASE, adapter._accounts[BOT], batch, backlog=False)
+        [incoming] = admitted
+        assert incoming.platform_display_name == "Ada Lovelace"
+        assert incoming.chat_type == "group", "a third member arrived: no longer a direct chat"
 
     async def test_a_thread_rooted_at_a_question_to_the_bot_is_the_bots(
         self, adapter: MatrixAdapter, server: _Homeserver
@@ -390,7 +523,7 @@ class TestPrompts:
         )
         with (
             patch.object(matrix.sms_prompts, "settle", AsyncMock()) as settle,
-            patch.object(MatrixAdapter, "_bot_access", AsyncMock(return_value=(BASE, "tok"))),
+            patch.object(MatrixAdapter, "_homeserver", AsyncMock(return_value=BASE)),
         ):
             await adapter.settle_prompt("tok", press, "Approved")
         assert settle.await_args.kwargs == {"platform": "matrix"}
@@ -410,7 +543,7 @@ class TestReactions:
             text="hi",
             message_id="$question",
         )
-        with patch.object(MatrixAdapter, "_bot_access", AsyncMock(return_value=(BASE, "tok"))):
+        with patch.object(MatrixAdapter, "_homeserver", AsyncMock(return_value=BASE)):
             await adapter.acknowledge_message("tok", incoming, "eyes")
         [(_, body)] = server.sent("m.reaction")
         assert body == {
@@ -432,6 +565,54 @@ class TestReactions:
                 "tok", room_key(ROOM), "$other", "thumbsup", api_base_url=BASE
             )
         assert server.sent("m.reaction") == []
+
+
+class TestTypingAndHomeserver:
+    async def test_typing_reuses_the_reply_just_opened_and_reads_no_token(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ):
+        server.answer("GET", f"{API}/account/whoami", httpx.Response(200, json={"user_id": OWN}))
+        await adapter.typing(BOT, _out("Working…"))
+        assert not [call for call in server.calls if "/typing/" in call[1]], "no reply opened yet"
+        await adapter.begin_reply("tok", _out("Working…"))
+        await adapter.typing(BOT, _out("Working…"))
+        [(method, path, body)] = [call for call in server.calls if "/typing/" in call[1]]
+        assert (method, body) == ("PUT", {"typing": True, "timeout": 30_000})
+        assert path.endswith(quote(OWN, safe=""))
+
+    async def test_the_homeserver_is_read_off_the_row_once_and_not_the_token(self):
+        from app.db.models.channel_bot import ChannelBot
+
+        row = ChannelBot(platform="matrix", api_base_url=f"{BASE}/", token_encrypted="sealed")
+        lookup = AsyncMock(return_value=row)
+
+        @asynccontextmanager
+        async def session():
+            yield object()
+
+        fresh = MatrixAdapter()
+        with (
+            patch("app.db.session.get_db_context", session),
+            patch("app.repositories.channel_bot_repo.get_for_inbound", lookup),
+        ):
+            assert await fresh._homeserver(str(uuid4())) == BASE
+            bot = lookup.await_args.args[1]
+            assert await fresh._homeserver(str(bot)) == BASE
+        assert lookup.await_count == 1
+
+    async def test_a_bot_whose_row_names_no_homeserver_is_refused(self):
+        @asynccontextmanager
+        async def session():
+            yield object()
+
+        with (
+            patch("app.db.session.get_db_context", session),
+            patch(
+                "app.repositories.channel_bot_repo.get_for_inbound", AsyncMock(return_value=None)
+            ),
+            pytest.raises(ChannelNotConfigured, match="no homeserver URL"),
+        ):
+            await MatrixAdapter()._homeserver(str(uuid4()))
 
 
 class TestHistoryAndFiles:

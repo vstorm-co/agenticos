@@ -393,6 +393,33 @@ def attachment_of(message: Message, base_url: str) -> IncomingAttachment | None:
     )
 
 
+def display_names(events: list[dict[str, Any]]) -> dict[str, str]:
+    """Who is called what, from the `m.room.member` events of a sync.
+
+    A sync with lazy-loaded members carries the membership of every sender in
+    its timeline, so the sender of a message is named in the same batch.
+    """
+    names_found: dict[str, str] = {}
+    for event in events:
+        content = event.get("content")
+        user, name = (
+            event.get("state_key"),
+            content.get("displayname") if isinstance(content, dict) else None,
+        )
+        if event.get("type") == "m.room.member" and isinstance(user, str) and isinstance(name, str):
+            names_found[user] = name
+    return names_found
+
+
+def encrypted_invitation(events: list[dict[str, Any]]) -> bool:
+    """Whether an invitation's stripped state says the room is end-to-end encrypted.
+
+    `m.room.encryption` is among the state a homeserver shows an invited user,
+    so the bot can tell before joining that it would read nothing there.
+    """
+    return any(event.get("type") == "m.room.encryption" for event in events)
+
+
 def error_code(response: httpx.Response) -> str | None:
     """The `errcode` a homeserver's error body names, or `None`."""
     try:

@@ -252,6 +252,36 @@ async def admit_message(incoming: IncomingMessage) -> None:
             await queue_message(db, bot, incoming)
 
 
+async def invite_admitted(bot_id: str, inviter: str, chat_id: str, *, direct: bool) -> bool:
+    """Whether a bot's access policy would answer the person inviting it, where it is invited.
+
+    For a platform whose bot joins a room on an invitation (Matrix): the same
+    `_check_access` a message passes, so an invitation can bring the bot nowhere a
+    message from the same person could not reach it. Linking is not asked here: a
+    person with no linked account is answered in a room and offered the link in a
+    direct chat, as on every other platform.
+    """
+    from app.services.channels.router import ChannelMessageRouter
+
+    async with get_db_context() as db:
+        bot = await channel_bot_repo.get_for_inbound(db, UUID(bot_id))
+    if bot is None or not bot.is_active:
+        return False
+    probe = IncomingMessage(
+        platform=bot.platform,
+        bot_id=bot_id,
+        platform_user_id=inviter,
+        platform_chat_id=chat_id,
+        chat_type="private" if direct else "group",
+        text="",
+    )
+    try:
+        ChannelMessageRouter()._check_access(probe, bot)
+    except AuthorizationError:
+        return False
+    return True
+
+
 async def collect_steering(
     receipt_id: UUID,
     incoming: IncomingMessage,

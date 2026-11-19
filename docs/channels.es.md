@@ -1,5 +1,5 @@
 ---
-source_sha: "a162c69a93ae"
+source_sha: "1c54b1b4f7ff"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1810,9 +1810,10 @@ historial de la sala en vez de responderlo.
 
 !!! warning "Solo salas sin cifrar, por ahora"
 
-    El bot lee salas sin cifrado de extremo a extremo. Una sala cifrada, o un
-    chat directo cifrado, no entrega nada que pueda leer, y el bot se queda
-    callado allí. El cifrado es la segunda fase de #2081.
+    El bot lee salas sin cifrado de extremo a extremo. Rechaza una invitación a
+    una sala o un chat directo cifrados, con un motivo que ve quien invita, y se
+    queda callado en una sala cuyo cifrado se activa más tarde. El cifrado es la
+    segunda fase de #2081.
 
 1. Crea una cuenta para el bot en el homeserver, por ejemplo `@agent:example.org`.
 2. Consigue un **token de acceso** para ella:

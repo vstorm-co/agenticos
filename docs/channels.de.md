@@ -1,5 +1,5 @@
 ---
-source_sha: "a162c69a93ae"
+source_sha: "1c54b1b4f7ff"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1901,9 +1901,11 @@ eines Kontos überspringt er den Verlauf des Raums, statt darauf zu antworten.
 
 !!! warning "Vorerst nur unverschlüsselte Räume"
 
-    Der Bot liest Räume ohne Ende-zu-Ende-Verschlüsselung. Ein verschlüsselter
-    Raum oder ein verschlüsselter Direktchat liefert nichts, was er lesen kann,
-    und er bleibt dort stumm. Verschlüsselung ist die zweite Stufe von #2081.
+    Der Bot liest Räume ohne Ende-zu-Ende-Verschlüsselung. Eine Einladung in
+    einen verschlüsselten Raum oder Direktchat lehnt er mit einer Begründung ab,
+    die die einladende Person sieht, und in einem Raum, dessen Verschlüsselung
+    später eingeschaltet wird, bleibt er stumm. Verschlüsselung ist die zweite
+    Stufe von #2081.
 
 1. Legen Sie auf dem Homeserver ein Konto für den Bot an, zum Beispiel `@agent:example.org`.
 2. Besorgen Sie dafür ein **Access-Token**:

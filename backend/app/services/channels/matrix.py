@@ -54,7 +54,6 @@ from app.agents.capabilities.channel_tools import (
 )
 from app.clients.redis import RedisClient
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError
 from app.services.channels import connection_state, sms_prompts
 from app.services.channels.base import (
     REACTION_EMOJI,
@@ -82,7 +81,9 @@ from app.services.channels.matrix_protocol import (
     Message,
     attachment_of,
     chunks,
+    display_names,
     edit_content,
+    encrypted_invitation,
     error_code,
     file_content,
     names,
@@ -114,6 +115,10 @@ _ACCESS_SECONDS = 60.0
 
 _SINCE_TTL_SECONDS = 30 * 24 * 60 * 60
 """How long a quiet bot's place in its sync stream is kept."""
+
+_ENCRYPTED_DECLINED = (
+    "This bot cannot read end-to-end encrypted rooms yet. Invite it to a room without encryption."
+)
 
 _REJECTED_TOKEN = frozenset({"M_UNKNOWN_TOKEN", "M_MISSING_TOKEN", "M_USER_DEACTIVATED"})
 
@@ -175,9 +180,16 @@ class MatrixAdapter(ChannelAdapter):
         # serving every bot, and the homeserver is each bot's own.
         self._servers: dict[str, str] = {}
         self._accounts: dict[str, _Account] = {}
-        # Calls that name only the bot - a reaction, a typing notice - run in
-        # workers that never opened its stream, so they read its row.
-        self._access: dict[str, tuple[str, str, float]] = {}
+        # A reaction or a decided prompt is handed the token but not the homeserver,
+        # and runs in a worker that never opened the bot's stream: read off the row.
+        self._homeservers: dict[str, tuple[str, float]] = {}
+        # The homeserver and token of the reply a chat is waiting for, so the
+        # typing notice that follows it needs neither from the row.
+        self._composing: Recent[tuple[str, str]] = Recent(_CACHE_SIZE)
+        # The newest message read per room, so a gap a sync leaves can be filled
+        # without answering anything from before it.
+        self._last_seen: dict[str, int] = {}
+        self._names: Recent[str] = Recent(_CACHE_SIZE)
         self._whoami: Recent[_Account] = Recent(_CACHE_SIZE)
         self._direct: Recent[bool] = Recent(_CACHE_SIZE)
         self._bot_threads: Recent[bool] = Recent(_CACHE_SIZE)
@@ -283,32 +295,33 @@ class MatrixAdapter(ChannelAdapter):
         except ValueError:
             raise ChannelDirectoryUnsupported("Use a Matrix room this bot is in") from None
 
-    async def _bot_access(self, bot_id: str) -> tuple[str, str]:
-        """A bot's homeserver and token, for a call that names only the bot.
+    async def _homeserver(self, bot_id: str) -> str:
+        """A bot's homeserver, for a call that is handed the token but not the address.
 
-        Read from the row and kept for a minute: a worker that never opened the
-        bot's stream was never told either, and an edit to the bot reaches every
-        worker within that minute.
+        Read from the bot's row, as Teams reads a conversation it has not seen, and
+        kept for a minute: a worker that never opened the bot's stream was never
+        told it, and an edit to the bot reaches every worker within that minute.
 
         Raises:
             ChannelNotConfigured: If the bot is gone, paused or has no homeserver.
         """
-        cached = self._access.get(bot_id)
-        if cached is not None and time.monotonic() - cached[2] < _ACCESS_SECONDS:
-            return cached[0], cached[1]
+        if bot_id in self._servers:
+            return self._servers[bot_id]
+        cached = self._homeservers.get(bot_id)
+        if cached is not None and time.monotonic() - cached[1] < _ACCESS_SECONDS:
+            return cached[0]
         from app.db.session import get_db_context
         from app.repositories import channel_bot_repo
-        from app.services.channel_bot import unseal_bot_token
 
         async with get_db_context() as db:
             bot = await channel_bot_repo.get_for_inbound(db, UUID(bot_id))
-            if bot is None or bot.platform != PLATFORM or not bot.api_base_url:
-                raise ChannelNotConfigured(
-                    message="This Matrix bot has no homeserver URL", details={"bot_id": bot_id}
-                )
-            base_url, token = bot.api_base_url.rstrip("/"), unseal_bot_token(bot)
-        self._access[bot_id] = (base_url, token, time.monotonic())
-        return base_url, token
+        if bot is None or bot.platform != PLATFORM or not bot.api_base_url:
+            raise ChannelNotConfigured(
+                message="This Matrix bot has no homeserver URL", details={"bot_id": bot_id}
+            )
+        base_url = bot.api_base_url.rstrip("/")
+        self._homeservers[bot_id] = (base_url, time.monotonic())
+        return base_url
 
     async def _account(self, base_url: str, token: str) -> _Account:
         """Who a token belongs to, asked once per token.
@@ -381,6 +394,7 @@ class MatrixAdapter(ChannelAdapter):
         self._replies.put(
             event_id, _Reply(room_id=room_id, root=root or None, ids=[event_id], shown=[shown])
         )
+        self._composing.put(msg.platform_chat_id, (base_url, bot_token))
         return event_id
 
     async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
@@ -464,7 +478,7 @@ class MatrixAdapter(ChannelAdapter):
         await sms_prompts.settle(
             press.bot_id, press.platform_chat_id, press.value, platform=PLATFORM
         )
-        base_url, _ = await self._bot_access(press.bot_id)
+        base_url = await self._homeserver(press.bot_id)
         await self.send_message(
             bot_token,
             OutgoingMessage(
@@ -481,7 +495,7 @@ class MatrixAdapter(ChannelAdapter):
         symbol = REACTION_EMOJI.get(reaction)
         if symbol is None:
             raise ValueError(f"'{reaction}' is not a reaction this bot can send on Matrix")
-        base_url, _ = await self._bot_access(incoming.bot_id)
+        base_url = await self._homeserver(incoming.bot_id)
         await self._send(
             base_url,
             bot_token,
@@ -521,11 +535,16 @@ class MatrixAdapter(ChannelAdapter):
     async def typing(self, bot_id: str, msg: OutgoingMessage) -> None:
         """Say the bot is composing in the room, for up to thirty seconds.
 
-        Never fatal, as the base contract says: the placeholder says the same
-        thing more durably. A failure is logged, not raised.
+        Only after this process opened the reply the chat is waiting for, whose
+        homeserver and token it reuses; the router always opens it first. Never
+        fatal, as the base contract says: the placeholder says the same thing more
+        durably, so a failure is logged, not raised.
         """
+        known = self._composing.get(msg.platform_chat_id)
+        if known is None:
+            return
+        base_url, token = known
         try:
-            base_url, token = await self._bot_access(bot_id)
             account = await self._account(base_url, token)
             room_id = room_of(channel_key(msg.platform_chat_id))
             response = await self._call(
@@ -755,7 +774,7 @@ class MatrixAdapter(ChannelAdapter):
                 await task
         # A token or a homeserver may have changed; the next session asks again.
         self._accounts.pop(bot_id, None)
-        self._access.pop(bot_id, None)
+        self._homeservers.pop(bot_id, None)
         logger.info("Stopped Matrix sync for bot %s", bot_id)
 
     async def _supervise(self, bot_id: str, bot_token: str) -> None:
@@ -834,41 +853,112 @@ class MatrixAdapter(ChannelAdapter):
         """Handle one sync batch: invitations, departures, then each room's new messages.
 
         `backlog` is the account's first sync, whose timeline is history: the bot
-        joins nothing late and answers none of it.
+        joins nothing late and answers none of it. Rooms are handled side by side,
+        each in its own order, so one slow homeserver call holds up only its room;
+        the batch ends when every room has, and only then is its position stored.
         """
         rooms = batch.get("rooms") or {}
         for room_id, invited in (rooms.get("invite") or {}).items():
             await self._on_invite(bot_id, token, base_url, account, room_id, invited)
         for room_id in rooms.get("leave") or {}:
             self._direct.pop(f"{bot_id}:{room_id}")
-        for room_id, joined in (rooms.get("join") or {}).items():
-            events = (joined.get("timeline") or {}).get("events") or []
-            if any(event.get("type") == "m.room.member" for event in events):
-                # Somebody joined or left, so a room of two may no longer be one.
-                self._direct.pop(f"{bot_id}:{room_id}")
-            if backlog:
-                continue
-            for event in events:
-                if event.get("type") != "m.room.message" or event.get("sender") == account.user_id:
-                    continue
-                direct = await self._is_direct(bot_id, token, base_url, room_id)
-                incoming = self.parse_incoming(
-                    {
-                        "room_id": room_id,
-                        "event": event,
-                        "direct": direct,
-                        "bot_thread": not direct
-                        and await self._in_bot_thread(
-                            bot_id, token, base_url, account, room_id, event
-                        ),
-                    },
-                    bot_id,
+            self._last_seen.pop(f"{bot_id}:{room_id}", None)
+        async with asyncio.TaskGroup() as rooms_at_once:
+            for room_id, joined in (rooms.get("join") or {}).items():
+                rooms_at_once.create_task(
+                    self._on_room(
+                        bot_id, token, base_url, account, room_id, joined, backlog=backlog
+                    )
                 )
-                if incoming is None:
-                    continue
-                from app.services.channels.ingress import admit_message
 
+    async def _on_room(
+        self,
+        bot_id: str,
+        token: str,
+        base_url: str,
+        account: _Account,
+        room_id: str,
+        joined: dict[str, Any],
+        *,
+        backlog: bool,
+    ) -> None:
+        """One room's part of a sync batch, its messages in the order they were sent."""
+        from app.services.channels.ingress import admit_message
+
+        timeline = joined.get("timeline") or {}
+        events: list[dict[str, Any]] = timeline.get("events") or []
+        state: list[dict[str, Any]] = (joined.get("state") or {}).get("events") or []
+        for user, name in display_names([*state, *events]).items():
+            self._names.put(f"{room_id}|{user}", name)
+        key = f"{bot_id}:{room_id}"
+        if timeline.get("limited") or any(
+            event.get("type") == "m.room.member" for event in [*state, *events]
+        ):
+            # Somebody joined or left, or a gap may hide that they did: a room of
+            # two may no longer be one.
+            self._direct.pop(key)
+        newest = max((int(event.get("origin_server_ts") or 0) for event in events), default=0)
+        if backlog:
+            self._last_seen[key] = newest
+            return
+        if timeline.get("limited"):
+            events = [*await self._gap(bot_id, token, base_url, room_id, timeline), *events]
+        if newest:
+            self._last_seen[key] = max(newest, self._last_seen.get(key, 0))
+        for event in events:
+            if event.get("type") != "m.room.message" or event.get("sender") == account.user_id:
+                continue
+            direct = await self._is_direct(bot_id, token, base_url, room_id)
+            incoming = self.parse_incoming(
+                {
+                    "room_id": room_id,
+                    "event": event,
+                    "direct": direct,
+                    "bot_thread": not direct
+                    and await self._in_bot_thread(bot_id, token, base_url, account, room_id, event),
+                    "display_name": self._names.get(f"{room_id}|{event.get('sender')}"),
+                },
+                bot_id,
+            )
+            if incoming is not None:
                 await admit_message(incoming)
+
+    async def _gap(
+        self, bot_id: str, token: str, base_url: str, room_id: str, timeline: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """The messages a limited sync left out, oldest first, back to the last one read.
+
+        A busy room returns only its newest events in a sync and says so with
+        `limited`; the rest are read backwards from `prev_batch`, one page, and
+        only those newer than the last message this process read are kept - an
+        older one was answered before the gap or is history. Where nothing was
+        read yet (a restart), the gap is logged rather than guessed at.
+        """
+        seen = self._last_seen.get(f"{bot_id}:{room_id}")
+        start = timeline.get("prev_batch")
+        if seen is None or not isinstance(start, str):
+            logger.warning("matrix_timeline_gap_skipped", extra={"bot_id": bot_id})
+            return []
+        response = await self._call(
+            "GET",
+            f"{base_url}{CLIENT_API}/rooms/{_segment(room_id)}/messages",
+            token,
+            params={
+                "dir": "b",
+                "from": start,
+                "limit": 50,
+                "filter": '{"types":["m.room.message"]}',
+            },
+        )
+        response.raise_for_status()
+        page = [
+            event
+            for event in response.json().get("chunk") or []
+            if int(event.get("origin_server_ts") or 0) > seen
+        ]
+        if len(page) == len(response.json().get("chunk") or []) and page:
+            logger.warning("matrix_timeline_gap_exceeds_page", extra={"bot_id": bot_id})
+        return list(reversed(page))
 
     async def _is_direct(self, bot_id: str, token: str, base_url: str, room_id: str) -> bool:
         """Whether a room holds the bot and one other person, and nobody else.
@@ -937,13 +1027,18 @@ class MatrixAdapter(ChannelAdapter):
     ) -> None:
         """Join a room the access policy admits its inviter to, and decline the rest.
 
+        An encrypted room is declined with a reason the inviter's client shows: the
+        bot would join and then read nothing there, which looks like a broken bot.
         A failed join is logged and left: the invitation is not delivered again,
         and a stream that stopped over one room would answer none.
         """
+        from app.services.channels.ingress import invite_admitted
+
+        stripped: list[dict[str, Any]] = (invited.get("invite_state") or {}).get("events") or []
         own = next(
             (
                 event
-                for event in (invited.get("invite_state") or {}).get("events") or []
+                for event in stripped
                 if event.get("type") == "m.room.member"
                 and event.get("state_key") == account.user_id
             ),
@@ -951,50 +1046,23 @@ class MatrixAdapter(ChannelAdapter):
         )
         if own is None or not isinstance(own.get("sender"), str):
             return
-        content = own.get("content") if isinstance(own.get("content"), dict) else {}
-        admitted = await self._invite_admitted(
-            bot_id, own["sender"], room_id, direct=content.get("is_direct") is True
-        )
-        action = "join" if admitted else "leave"
+        content = own.get("content")
+        direct = isinstance(content, dict) and content.get("is_direct") is True
+        body: dict[str, str] = {}
+        if encrypted_invitation(stripped):
+            action, body["reason"] = "leave", _ENCRYPTED_DECLINED
+        elif await invite_admitted(bot_id, own["sender"], room_key(room_id), direct=direct):
+            action = "join"
+        else:
+            action = "leave"
         response = await self._call(
-            "POST", f"{base_url}{CLIENT_API}/rooms/{_segment(room_id)}/{action}", token, body={}
+            "POST", f"{base_url}{CLIENT_API}/rooms/{_segment(room_id)}/{action}", token, body=body
         )
         if not response.is_success:
             logger.warning(
                 "matrix_invite_unanswered",
                 extra={"bot_id": bot_id, "action": action, "status": response.status_code},
             )
-
-    @staticmethod
-    async def _invite_admitted(bot_id: str, inviter: str, room_id: str, *, direct: bool) -> bool:
-        """Whether the bot's access policy would answer the inviter in that room.
-
-        The same `_check_access` a message passes, so an invitation can bring the
-        bot nowhere a message from the same person could not reach it. Linking is
-        not asked here: a person with no linked account is answered in a room and
-        offered the link in a direct chat, as on every other platform.
-        """
-        from app.db.session import get_db_context
-        from app.repositories import channel_bot_repo
-        from app.services.channels.router import ChannelMessageRouter
-
-        async with get_db_context() as db:
-            bot = await channel_bot_repo.get_for_inbound(db, UUID(bot_id))
-        if bot is None or not bot.is_active:
-            return False
-        probe = IncomingMessage(
-            platform=PLATFORM,
-            bot_id=bot_id,
-            platform_user_id=inviter,
-            platform_chat_id=room_key(room_id),
-            chat_type="private" if direct else "group",
-            text="",
-        )
-        try:
-            ChannelMessageRouter()._check_access(probe, bot)
-        except AuthorizationError:
-            return False
-        return True
 
     async def register_webhook(self, bot_token: str, url: str, secret: str | None) -> bool:
         """A homeserver has no outgoing webhook; the bot reads its `/sync` instead."""
@@ -1045,6 +1113,9 @@ class MatrixAdapter(ChannelAdapter):
             text=text,
             raw={"room_id": room_id, "event_id": message.event_id},
             platform_username=message.sender,
+            platform_display_name=raw_payload.get("display_name")
+            if isinstance(raw_payload.get("display_name"), str)
+            else None,
             message_id=message.event_id,
             attachments=[attachment] if attachment is not None else [],
             broadcast_mention=_room_mentioned(message),
