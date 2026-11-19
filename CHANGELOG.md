@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Let agent authors hide suggested first messages. The new-chat Inbox uses the extra space to show more items.
+
 - Search readable chat message text as well as conversation titles, with highlighted excerpts, matching-message counts and keyboard navigation. Reuse the existing full-text index and transcript access checks.
 
 - Use a compact main-chat composer with files beside the agent, direct model and permission controls, icon-only context usage and matching dictation/call panels. Preview Inbox topics in new chats with their MCP source marks.
@@ -35,6 +37,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Let private cloud coding tasks choose Claude Code or Codex per task through one agent, using the initiating person’s own enabled account and an isolated container. Show both account connections in chat while preserving per-account exclusivity, read-only policy and organization-sandbox credentials.
 
 ### Changed
+
+- Guide the shipped AgenticOS assistant to check live task and Inbox evidence for planning questions and to use the installed platform's tools and official references when helping build agents and workflows.
 
 - Tighten the chat greeting, MCP cards and model library. Keep history groups visible as the chat list grows, give nested fields a complete focus outline and let chat choose among a provider's available key profiles.
 

@@ -5,6 +5,23 @@ import { describe, expect, it, vi } from "vitest";
 import { StartersPanel } from "./starters-panel";
 
 describe("StartersPanel", () => {
+  it("lets authors opt out of built-in first messages", async () => {
+    const onShowStartersChange = vi.fn();
+    render(
+      <StartersPanel
+        starters={[]}
+        showStarters={false}
+        onShowStartersChange={onShowStartersChange}
+        disabled={false}
+        onChange={vi.fn()}
+      />,
+    );
+    const toggle = screen.getByRole("switch", { name: "Show suggested prompts" });
+    expect(toggle).not.toBeChecked();
+    expect(screen.queryByRole("list")).toBeNull();
+    await userEvent.click(toggle);
+    expect(onShowStartersChange).toHaveBeenCalledWith(true);
+  });
   it("shows the visual fallbacks as cards and turns them into custom starters only on save", async () => {
     const onChange = vi.fn();
     render(<StartersPanel starters={[]} draws disabled={false} onChange={onChange} />);

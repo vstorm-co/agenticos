@@ -385,11 +385,27 @@
   .chat-home-panels {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .chat-home-panels[data-inbox-only] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .chat-home-panels[data-inbox-only] .chat-home-inbox > ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: clamp(1rem, 4cqi, 2.5rem);
+  }
   /* Reserve the source-label line for one-line rows so both titles share a baseline. */
   .chat-home-panels .chat-home-starters [data-chat-welcome-hints] button:first-child,
   .chat-home-panels .chat-home-inbox-approvals {
     padding-block-start: calc(0.25rem + var(--inbox-meta-line));
     padding-block-end: 0.25rem;
+  }
+  .chat-home-panels
+    .chat-home-starters
+    [data-chat-welcome-hints]
+    button:first-child
+    > span:first-child {
+    inline-size: 2rem;
+    translate: 0 calc(var(--inbox-meta-line) / -2);
   }
 }
 .chat-layout .chat-home-column {

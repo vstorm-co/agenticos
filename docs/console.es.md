@@ -1,12 +1,12 @@
 ---
-source_sha: "bf8f06756694"
+source_sha: "8da37b8cd0c2"
 ---
 
 # La consola { #the-console }
 
 Los catálogos de recursos usan tarjetas más grandes con icono, título, descripción y un pie separado para estado y acciones. Agentes, tablas, workflows, bases de conocimiento, proyectos, datasets, servidores MCP, skills, archivos de contexto, Apps y grupos comparten el marco y conservan sus propias acciones. En el Builder, los ajustes desde Model aparecen en tarjetas desplegables coherentes. Thinking y Answer format están en Model settings. First messages muestra las sugerencias integradas cuando no hay mensajes personalizados. Model comienza abierto; cerrar una sección conserva sus editores y los enlaces de Voice abren la sección correspondiente.
 
-En Build, First messages muestra tarjetas con icono, título y mensaje. Abre una tarjeta para editarla. Al guardar un ejemplo editado, los demás ejemplos se conservan en el borrador. Skills, Context y Knowledge search en Toolbox usan listas seleccionables. Un modelo de chat guardado sigue visible en Models y Saved models.
+En Build, First messages muestra tarjetas con icono, título y mensaje. Abre una tarjeta para editarla. Al guardar un ejemplo editado, los demás ejemplos se conservan en el borrador. Skills, Context y Knowledge search en Toolbox usan listas seleccionables. Un modelo de chat guardado sigue visible en Models y Saved models. Desactiva las sugerencias para ver más elementos de Inbox en el chat nuevo.
 
 Organizaciones permite buscar nombres y slugs de las membresías, con el número de coincidencias en la misma barra. Borrar la búsqueda restaura la lista completa de membresías.
 

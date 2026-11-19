@@ -15,6 +15,7 @@ import {
   DialogTitle,
   Input,
   Label,
+  Switch,
   Textarea,
 } from "@/components/ui";
 import { STARTER_ICONS } from "@/lib/starter-icons";
@@ -49,6 +50,8 @@ interface StartersPanelProps {
   icons?: StarterIcons;
   titles?: StarterTitles;
   disabled: boolean;
+  showStarters?: boolean;
+  onShowStartersChange?: (show: boolean) => void;
   onChange: (starters: string[], icons: StarterIcons, titles: StarterTitles) => void;
 }
 
@@ -58,6 +61,8 @@ export function StartersPanel({
   icons = {},
   titles = {},
   disabled,
+  showStarters = true,
+  onShowStartersChange,
   onChange,
 }: StartersPanelProps) {
   const t = useTranslations("agents");
@@ -126,44 +131,56 @@ export function StartersPanel({
         )
       }
     >
-      <ul className="grid auto-rows-fr gap-3 @xl:grid-cols-2">
-        {cards.map(({ icon, Icon, title, message }, index) => (
-          <li key={index} className="min-w-0">
-            <button
-              type="button"
-              disabled={disabled}
-              aria-label={disabled ? undefined : common("editNamed", { name: title || message })}
-              aria-describedby={title && title !== message ? `${cardId}-${index}` : undefined}
-              onClick={(event) => {
-                opener.current = event.currentTarget;
-                setEditor({ index, message, title, icon });
-              }}
-              className="group border-border bg-background/45 enabled:hover:bg-muted/55 enabled:hover:border-foreground/20 focus-visible:outline-ring flex h-full w-full min-w-0 items-start gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] motion-reduce:transition-none"
-            >
-              <span className="text-muted-foreground bg-muted/60 grid size-8 shrink-0 place-items-center rounded-lg">
-                <Icon className="size-4" aria-hidden />
-              </span>
-              <span className="min-w-0 flex-1 space-y-0.5">
-                <span className="block text-sm font-medium [overflow-wrap:anywhere]">
-                  {title || message}
+      {onShowStartersChange && (
+        <label className="flex min-h-9 items-center justify-between gap-3 text-sm">
+          {t("showStarters")}
+          <Switch
+            checked={showStarters}
+            onCheckedChange={onShowStartersChange}
+            disabled={disabled}
+          />
+        </label>
+      )}
+      {showStarters && (
+        <ul className="grid auto-rows-fr gap-3 @xl:grid-cols-2">
+          {cards.map(({ icon, Icon, title, message }, index) => (
+            <li key={index} className="min-w-0">
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={disabled ? undefined : common("editNamed", { name: title || message })}
+                aria-describedby={title && title !== message ? `${cardId}-${index}` : undefined}
+                onClick={(event) => {
+                  opener.current = event.currentTarget;
+                  setEditor({ index, message, title, icon });
+                }}
+                className="group border-border bg-background/45 enabled:hover:bg-muted/55 enabled:hover:border-foreground/20 focus-visible:outline-ring flex h-full w-full min-w-0 items-start gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] motion-reduce:transition-none"
+              >
+                <span className="text-muted-foreground bg-muted/60 grid size-8 shrink-0 place-items-center rounded-lg">
+                  <Icon className="size-4" aria-hidden />
                 </span>
-                {title && title !== message && (
-                  <span
-                    id={`${cardId}-${index}`}
-                    className="text-muted-foreground block text-[13px] leading-relaxed [overflow-wrap:anywhere]"
-                  >
-                    {message}
+                <span className="min-w-0 flex-1 space-y-0.5">
+                  <span className="block text-sm font-medium [overflow-wrap:anywhere]">
+                    {title || message}
                   </span>
+                  {title && title !== message && (
+                    <span
+                      id={`${cardId}-${index}`}
+                      className="text-muted-foreground block text-[13px] leading-relaxed [overflow-wrap:anywhere]"
+                    >
+                      {message}
+                    </span>
+                  )}
+                </span>
+                {!disabled && (
+                  <Pencil className="text-muted-foreground mt-1 size-3.5 shrink-0" aria-hidden />
                 )}
-              </span>
-              {!disabled && (
-                <Pencil className="text-muted-foreground mt-1 size-3.5 shrink-0" aria-hidden />
-              )}
-            </button>
-          </li>
-        ))}
-      </ul>
-      {!disabled && starters.length < MAX_STARTERS && (
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {showStarters && !disabled && starters.length < MAX_STARTERS && (
         <Button
           type="button"
           size="sm"

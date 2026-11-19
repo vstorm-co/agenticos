@@ -534,6 +534,10 @@ class TestList:
         with (
             patch(f"{REGISTRY_PATH}.agent_repo.published_starters", new=AsyncMock(return_value={})),
             patch(
+                f"{REGISTRY_PATH}.agent_repo.published_hidden_starters",
+                new=AsyncMock(return_value=set()),
+            ),
+            patch(
                 f"{REGISTRY_PATH}.agent_repo.published_starter_titles",
                 new=AsyncMock(return_value={}),
             ),
@@ -608,6 +612,10 @@ class TestList:
                 new=AsyncMock(return_value={version_id: ["What can you do?"]}),
             ) as starters,
             patch(
+                f"{REGISTRY_PATH}.agent_repo.published_hidden_starters",
+                new=AsyncMock(return_value={version_id}),
+            ),
+            patch(
                 f"{REGISTRY_PATH}.agent_repo.published_starter_titles",
                 new=AsyncMock(
                     return_value={version_id: {"What can you do?": "Explore possibilities"}}
@@ -643,6 +651,8 @@ class TestList:
         assert rows[0].personal_coding_harness is None
         assert starters.call_args.kwargs["version_ids"] == [version_id]
         assert rows[0].starters == ["What can you do?"]
+        assert rows[0].show_starters is False
+        assert rows[1].show_starters is True
         assert rows[1].is_starter is (template == "general/agenticos")
         assert rows[1].setup_required is (template is not None and enabled)
         assert rows[0].setup_required is False

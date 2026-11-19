@@ -8,8 +8,10 @@ import { ChatHomeInbox, useChatHomeInbox } from "./chat-home-inbox";
 
 export function ChatHomePanels({
   suggestionsRef,
+  showPrompts = true,
 }: {
   suggestionsRef: (node: HTMLDivElement | null) => void;
+  showPrompts?: boolean;
 }) {
   const t = useTranslations("chat.homePanels");
   const inboxText = useTranslations("inbox");
@@ -18,7 +20,7 @@ export function ChatHomePanels({
   const promptsId = useId();
 
   return (
-    <div className="chat-home-panels">
+    <div className="chat-home-panels" data-inbox-only={showPrompts ? undefined : ""}>
       <div className="min-w-0">
         <h3
           className="chat-home-panel-heading"
@@ -35,15 +37,17 @@ export function ChatHomePanels({
             </span>
           )}
         </h3>
-        <ChatHomeInbox {...inbox} />
+        <ChatHomeInbox {...inbox} expanded={!showPrompts} />
       </div>
-      <section className="min-w-0" aria-labelledby={promptsId}>
-        <h3 id={promptsId} className="chat-home-panel-heading">
-          <Sparkles className="size-3.5 shrink-0" aria-hidden />
-          {t("prompts")}
-        </h3>
-        <div ref={suggestionsRef} className="chat-home-starters" />
-      </section>
+      {showPrompts && (
+        <section className="min-w-0" aria-labelledby={promptsId}>
+          <h3 id={promptsId} className="chat-home-panel-heading">
+            <Sparkles className="size-3.5 shrink-0" aria-hidden />
+            {t("prompts")}
+          </h3>
+          <div ref={suggestionsRef} className="chat-home-starters" />
+        </section>
+      )}
     </div>
   );
 }

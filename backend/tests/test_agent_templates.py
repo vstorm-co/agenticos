@@ -338,6 +338,20 @@ class TestTheShippedAgenticOSAgent:
         assert template is not None
         assert template.instructions.startswith("You are {{agent_name}}")
 
+    def test_starter_guides_live_work_and_platform_authoring(self):
+        template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
+        assert template is not None
+        for text in (
+            "Co dziś robimy?",
+            "list_task_boards",
+            "list_tasks",
+            "list_inbox_cases",
+            "check_workflow_draft",
+            "test_workflow_draft",
+            "https://github.com/vstorm-co/agenticos/blob/main/CHANGELOG.md",
+        ):
+            assert text in template.instructions
+
 
 def _instruction_texts(value: object) -> list[str]:
     """Every `instructions` string under a template's bindings, at any depth."""

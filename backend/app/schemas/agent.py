@@ -348,6 +348,9 @@ class AgentRead(BaseSchema):
             "with none. Filled by the listing, same bargain as shared_user_count."
         ),
     )
+    show_starters: bool = Field(
+        default=True, description="Whether the published agent offers chat openers."
+    )
     starter_titles: StarterTitles = Field(
         default_factory=dict,
         description="Published opener card titles keyed by starter text; the message is their description.",

@@ -16,7 +16,11 @@ export function useChatHomeInbox() {
 }
 
 /** Read-only preview: decisions and source details stay in the existing Inbox. */
-export function ChatHomeInbox({ suggested, pending }: ReturnType<typeof useChatHomeInbox>) {
+export function ChatHomeInbox({
+  suggested,
+  pending,
+  expanded = false,
+}: ReturnType<typeof useChatHomeInbox> & { expanded?: boolean }) {
   const t = useTranslations("chat.homeInbox");
   const common = useTranslations("common");
   const inbox = useTranslations("inbox");
@@ -24,7 +28,11 @@ export function ChatHomeInbox({ suggested, pending }: ReturnType<typeof useChatH
   const loading = suggested.isLoading || pending.isLoading;
   const failed = suggested.error || pending.error;
   const hasCachedContent = suggested.suggestions.length > 0 || pending.count > 0;
-  const items = urgentFirst(suggested.suggestions).slice(0, pending.count > 0 ? 3 : 4);
+  const previewLimit = expanded ? 8 : 4;
+  const items = urgentFirst(suggested.suggestions).slice(
+    0,
+    previewLimit - Number(pending.count > 0),
+  );
   return (
     <section className="chat-home-inbox" aria-label={t("title")} aria-busy={loading}>
       {loading ? (

@@ -1740,7 +1740,10 @@ function ChatUI({
                 />
               )}
               {showWorkspaceHome && mainChat && !emptyState && (
-                <ChatHomePanels suggestionsRef={setHomeHintsSlot} />
+                <ChatHomePanels
+                  suggestionsRef={setHomeHintsSlot}
+                  showPrompts={callAgent?.show_starters !== false}
+                />
               )}
               <BackgroundTasks conversationId={conversationId} />
               <PlanStrip plan={plan} live={isProcessing} />

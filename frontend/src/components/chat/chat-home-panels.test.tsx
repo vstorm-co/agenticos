@@ -8,7 +8,9 @@ import { ChatHomePanels } from "./chat-home-panels";
 
 vi.mock("./chat-home-inbox", () => ({
   useChatHomeInbox: () => ({ suggested: { suggestions: [{ id: "a" }] }, pending: { count: 1 } }),
-  ChatHomeInbox: () => <Link href="/inbox#suggestion-a">Cached topic</Link>,
+  ChatHomeInbox: ({ expanded }: { expanded: boolean }) => (
+    <Link href="/inbox#suggestion-a">{expanded ? "Expanded topics" : "Cached topic"}</Link>
+  ),
 }));
 
 it("shows Inbox and its count alongside working prompt actions", () => {
@@ -29,4 +31,10 @@ it("shows Inbox and its count alongside working prompt actions", () => {
   const prompts = screen.getByRole("region", { name: "Suggested prompts" });
   fireEvent.click(within(prompts).getByRole("button", { name: "Try a prompt" }));
   expect(pick).toHaveBeenCalledOnce();
+});
+
+it("gives Inbox the entire preview when the agent hides prompts", () => {
+  render(<ChatHomePanels suggestionsRef={vi.fn()} showPrompts={false} />);
+  expect(screen.queryByRole("region", { name: "Suggested prompts" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Expanded topics" })).toBeVisible();
 });

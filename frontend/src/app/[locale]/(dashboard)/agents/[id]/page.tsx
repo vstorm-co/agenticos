@@ -1875,11 +1875,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   (binding) => binding.id === VISUALS_ID && binding.enabled !== false,
                 )}
                 starters={spec.starters ?? []}
+                showStarters={spec.show_starters ?? true}
+                onShowStartersChange={(show_starters) => update({ show_starters })}
                 icons={spec.starter_icons ?? {}}
                 titles={spec.starter_titles ?? {}}
                 disabled={!canEdit}
                 onChange={(starters, starter_icons, starter_titles) =>
-                  update({ starters, starter_icons, starter_titles })
+                  update({
+                    starters,
+                    starter_icons,
+                    starter_titles,
+                    show_starters: starters.length > 0,
+                  })
                 }
               />
 

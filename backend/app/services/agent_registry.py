@@ -1524,6 +1524,9 @@ class AgentRegistryService:
         version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
         budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
         starters = await agent_repo.published_starters(self.db, version_ids=version_ids)
+        hidden_starters = await agent_repo.published_hidden_starters(
+            self.db, version_ids=version_ids
+        )
         starter_icons = await agent_repo.published_starter_icons(self.db, version_ids=version_ids)
         starter_titles = await agent_repo.published_starter_titles(self.db, version_ids=version_ids)
         published_capabilities = await agent_repo.published_capabilities(
@@ -1637,6 +1640,7 @@ class AgentRegistryService:
                 starters=(
                     starters.get(agent.current_version_id, []) if agent.current_version_id else []
                 ),
+                show_starters=agent.current_version_id not in hidden_starters,
                 starter_titles=(
                     starter_titles.get(agent.current_version_id, {})
                     if agent.current_version_id
@@ -1817,7 +1821,7 @@ class AgentRegistryService:
 
             await ShippedAgentService(self.db).ensure_skills(ctx.organization_id)
             update["skill_ids"] = [row.id for row in await self.template_skills(ctx, template)]
-        if not spec.starters:
+        if spec.show_starters and not spec.starters:
             update["starters"] = list(template.starters)
         if spec.budget is None and template.budget_usd is not None:
             update["budget"] = {"monthly_usd": template.budget_usd}

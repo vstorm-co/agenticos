@@ -447,6 +447,7 @@ export interface AgentSpec {
   variables?: PromptVariableSpec[];
   /** Up to four first messages an empty chat offers. Optional here, always on the wire. */
   starters?: string[];
+  show_starters?: boolean;
   starter_icons?: StarterIcons;
   starter_titles?: StarterTitles;
   /** `system`, `user` (the person's own) or an IANA zone, for `{{current_time}}`. */
@@ -633,6 +634,7 @@ export interface Agent {
   personal_coding_harness?: LocalCodingAgent["harness"] | null;
   /** The published version's first messages, which an empty chat offers. Listing only. */
   starters?: string[];
+  show_starters?: boolean;
   starter_icons?: StarterIcons;
   starter_titles?: StarterTitles;
   created_at?: string;

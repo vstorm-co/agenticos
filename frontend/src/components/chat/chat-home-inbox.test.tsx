@@ -37,8 +37,8 @@ vi.mock("./suggestion-actions", () => ({
     <span>{String(suggestion.payload.server)}</span>
   ),
 }));
-function Preview() {
-  return <ChatHomeInbox {...useChatHomeInbox()} />;
+function Preview({ expanded = false }: { expanded?: boolean }) {
+  return <ChatHomeInbox {...useChatHomeInbox()} expanded={expanded} />;
 }
 
 beforeEach(() => {
@@ -74,6 +74,13 @@ it("prioritizes urgent topics, limits the preview and links to actual inbox rows
   );
   expect(screen.queryByRole("heading")).toBeNull();
   expect(screen.queryByRole("link", { name: "Open inbox" })).toBeNull();
+});
+
+it("shows up to eight entries in the expanded Inbox", () => {
+  state.items = Array.from({ length: 10 }, (_, index) => suggestion(String(index)));
+  render(<Preview expanded />);
+  expect(within(screen.getByRole("list")).getAllByRole("listitem")).toHaveLength(8);
+  expect(screen.getByRole("link", { name: /Topic 7/ })).toBeVisible();
 });
 
 it("does not turn a failed read into an empty inbox and retries both reads", async () => {
