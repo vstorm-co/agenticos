@@ -52,3 +52,20 @@ it.each(["permission", "organization"])(
     ).toBeVisible();
   },
 );
+
+it("shows an icon-only mode with an accessible name and updates its shield", async () => {
+  render(<ChatApprovalSelector iconOnly />);
+  const trigger = screen.getByRole("button", { name: "Permission mode: Follow the agent" });
+  expect(trigger.textContent).toBe("");
+  expect(trigger).toHaveAttribute("title", "Permission mode: Follow the agent");
+  expect(trigger).toHaveAttribute("data-approval-mode", "follow_agent");
+  await userEvent.click(trigger);
+  await userEvent.click(screen.getByRole("menuitemradio", { name: /Ask about everything/ }));
+  expect(trigger).toHaveAttribute("data-approval-mode", "ask_all");
+  expect(trigger.querySelector("svg")).toHaveClass("lucide-shield-question-mark");
+  await userEvent.click(trigger);
+  await userEvent.click(screen.getByRole("menuitemradio", { name: /Approve everything/ }));
+  expect(trigger).toHaveAttribute("data-approval-mode", "approve_all");
+  expect(trigger.querySelector("svg")).toHaveClass("lucide-shield-alert");
+  expect(trigger).toHaveAttribute("aria-label", "Permission mode: Approve everything");
+});

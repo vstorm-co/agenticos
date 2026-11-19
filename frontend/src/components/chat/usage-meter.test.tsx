@@ -398,3 +398,18 @@ describe("UsageMeter, open", () => {
     expect(screen.queryByText("Workspace")).toBeNull();
   });
 });
+
+it("keeps percentages inside the popover in icon-only mode", async () => {
+  render(
+    <UsageMeter
+      iconOnly
+      usage={usage({ context: { used_tokens: 50_000 } })}
+      contextWindow={200_000}
+    />,
+  );
+  const trigger = screen.getByRole("button", { name: "Usage of this conversation" });
+  expect(trigger).not.toHaveTextContent("25%");
+  expect(screen.getByTestId("context-fill")).toBeInTheDocument();
+  await userEvent.click(trigger);
+  expect(screen.getByText("25%")).toBeVisible();
+});

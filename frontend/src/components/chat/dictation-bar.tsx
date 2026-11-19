@@ -6,7 +6,12 @@ import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
-import { PILL_SPRING } from "@/components/voice/floating-pill";
+import {
+  PILL_SPRING,
+  VOICE_SURFACE,
+  VOICE_SURFACE_BUTTON,
+  VOICE_SURFACE_DONE,
+} from "@/components/voice/floating-pill";
 import type { DictationActions, DictationState } from "@/hooks/use-dictation";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { cn } from "@/lib/utils";
@@ -271,9 +276,11 @@ function Recording({ seconds, live }: { seconds: number; live: boolean }) {
 export function DictationPill({
   state,
   actions,
+  subtle = false,
 }: {
   state: DictationState;
   actions: DictationActions;
+  subtle?: boolean;
 }) {
   const t = useTranslations("chat.dictation");
   const reduced = useReducedMotion();
@@ -302,7 +309,7 @@ export function DictationPill({
       role="group"
       aria-label={t("pill")}
       aria-busy={transcribing || undefined}
-      className={PILL}
+      className={subtle ? VOICE_SURFACE : PILL}
       // The pill sits outside the composer's form, so Escape is handled here too.
       onKeyDown={(event) => {
         if (event.key !== "Escape") return;
@@ -316,7 +323,7 @@ export function DictationPill({
         variant="ghost"
         size="icon"
         onClick={actions.cancel}
-        className={PILL_BUTTON}
+        className={subtle ? VOICE_SURFACE_BUTTON : PILL_BUTTON}
         aria-label={transcribing ? t("cancelTranscription") : t("cancel")}
         title={t("cancelTitle")}
       >
@@ -350,7 +357,7 @@ export function DictationPill({
             key="recording"
             {...SWAP}
             transition={swap}
-            className="flex items-center gap-2"
+            className={cn("flex items-center gap-2", subtle && "min-w-0 flex-1")}
           >
             <Recording seconds={state.elapsed} live={live} />
             {reduced ? (
@@ -366,7 +373,7 @@ export function DictationPill({
               size="icon"
               onClick={actions.stop}
               disabled={!live}
-              className={PILL_DONE}
+              className={subtle ? cn(VOICE_SURFACE_DONE, "ml-auto") : PILL_DONE}
               aria-label={t("stop")}
               title={t("stopTitle")}
             >
@@ -383,11 +390,19 @@ export function DictationPill({
  * The browser's own recognition, listening: the same pill with no clock to keep -
  * the words appear in the box as they are recognised - and Done to stop.
  */
-export function BrowserDictationPill({ level, onDone }: { level: number; onDone: () => void }) {
+export function BrowserDictationPill({
+  level,
+  onDone,
+  subtle = false,
+}: {
+  level: number;
+  onDone: () => void;
+  subtle?: boolean;
+}) {
   const t = useTranslations("chat.dictation");
   const reduced = useReducedMotion();
   return (
-    <div role="group" aria-label={t("pill")} className={cn(PILL, "pl-4")}>
+    <div role="group" aria-label={t("pill")} className={cn(subtle ? VOICE_SURFACE : PILL, "pl-4")}>
       <span className="inline-flex items-center gap-1.5 text-[13px] font-medium">
         <span
           aria-hidden="true"
@@ -406,7 +421,7 @@ export function BrowserDictationPill({ level, onDone }: { level: number; onDone:
         type="button"
         size="icon"
         onClick={onDone}
-        className={PILL_DONE}
+        className={subtle ? cn(VOICE_SURFACE_DONE, "ml-auto") : PILL_DONE}
         aria-label={t("done")}
         title={t("done")}
       >

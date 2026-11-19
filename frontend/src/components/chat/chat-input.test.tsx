@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { messageOf } from "./composer-editor";
+import { MainChatContext } from "./main-chat-context";
 import { ChatInput, type ComposerDictation } from "./chat-input";
 import type { DictationState } from "@/hooks/use-dictation";
 import { useChatStore } from "@/stores";
@@ -1135,4 +1136,37 @@ it("distinguishes an empty focus from writing so mobile welcome stays visible", 
   expect(form).toHaveAttribute("data-drafting", "true");
   await userEvent.click(screen.getByRole("button", { name: "Send message" }));
   expect(form).not.toHaveAttribute("data-drafting");
+});
+
+describe("clean composer draft actions", () => {
+  it("promotes dictation only for an empty main-chat composer", async () => {
+    const send = vi.fn();
+    render(
+      <MainChatContext.Provider value={true}>
+        <ChatInput onSend={send} idleSlot={<button>Call</button>} />
+      </MainChatContext.Provider>,
+    );
+    const mic = screen.getByRole("button", { name: "Voice input" });
+    expect(mic).toHaveAttribute("data-primary", "true");
+    expect(screen.queryByRole("button", { name: "Send message" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Call" })).toBeNull();
+    await userEvent.type(screen.getByRole("textbox"), "Hello");
+    expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled();
+    expect(mic).toHaveAttribute("data-primary", "false");
+    await userEvent.clear(screen.getByRole("textbox"));
+    expect(mic).toHaveAttribute("data-primary", "true");
+    expect(screen.queryByRole("button", { name: "Send message" })).toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("preserves Stop when the turn is waiting rather than streaming", async () => {
+    const stop = vi.fn();
+    render(
+      <MainChatContext.Provider value={true}>
+        <ChatInput onSend={vi.fn()} canStop onStop={stop} />
+      </MainChatContext.Provider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Stop generating" }));
+    expect(stop).toHaveBeenCalledOnce();
+  });
 });

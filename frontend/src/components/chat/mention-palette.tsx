@@ -48,7 +48,7 @@ export function MentionPalette({
       role="listbox"
       aria-label={t("menu")}
       className={cn(
-        "border-foreground/10 bg-popover z-20 w-full overflow-hidden rounded-xl border shadow-lg",
+        "chat-command-palette border-foreground/10 bg-popover z-20 w-full overflow-hidden rounded-xl border shadow-lg",
         placement === "inline" ? "relative shrink-0" : "absolute bottom-full left-0 mb-2 max-w-md",
       )}
     >
@@ -84,7 +84,7 @@ export function MentionPalette({
                     onPick(item);
                   }}
                   className={cn(
-                    "flex cursor-pointer items-center gap-2.5 px-3 py-1.5",
+                    "chat-command-palette-row flex cursor-pointer items-center gap-2.5 px-3 py-1.5",
                     index === selectedIndex ? "bg-foreground/[0.06]" : "hover:bg-foreground/[0.03]",
                   )}
                 >

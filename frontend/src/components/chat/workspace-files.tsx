@@ -213,13 +213,14 @@ export function WorkspaceFiles({
           <motion.aside
             data-native-browser-blocked={overlay ? "" : undefined}
             id={panelId}
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 288, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
+            initial={overlay ? { x: 16, opacity: 0 } : { width: 0, opacity: 0 }}
+            animate={overlay ? { x: 0, opacity: 1 } : { width: 288, opacity: 1 }}
+            exit={overlay ? { x: 16, opacity: 0 } : { width: 0, opacity: 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}
             className={cn(
               "h-full shrink-0 overflow-hidden",
-              overlay && "bg-background shadow-card absolute inset-y-0 right-0 z-20 max-w-[85%]",
+              overlay &&
+                "bg-background shadow-card absolute inset-y-0 right-0 z-30 w-72 max-w-[85%] rounded-l-2xl border",
             )}
           >
             <div className="border-border flex h-full min-h-0 w-72 flex-col border-l">

@@ -4125,10 +4125,9 @@
         "chat": {
           "layoutPreview": {
             "label": "Sohbet düzeni önizlemeleri",
-            "studio": "Studio",
-            "canvas": "Canvas",
-            "command": "Command",
-            "focus": "Focus"
+            "minimal": "Minimal",
+            "workbench": "Workbench",
+            "compact": "Compact"
           },
           "name": "Sohbet mesajı",
           "description": "Üyeler workflowu sohbette seçer; her mesaj orada yanıt veren bir run başlatır."
@@ -10218,7 +10217,15 @@
       "contact": "Yöneticinle iletişime geç"
     },
     "runFailedTitle": "Çalıştırma tamamlanmadı",
-    "runFailedHint": "Nihai yanıt üretilmedi. Yukarıdaki çalışmayı inceleyebilirsiniz."
+    "runFailedHint": "Nihai yanıt üretilmedi. Yukarıdaki çalışmayı inceleyebilirsiniz.",
+    "homeInbox": {
+      "title": "Gelen kutundan",
+      "open": "Gelen kutusunu aç",
+      "urgent": "Öncelikli",
+      "approvals": "{count} onay kararını bekliyor",
+      "empty": "Her şey güncel. Yeni bulgular ve önemli konular burada görünecek.",
+      "failed": "Gelen kutun yüklenemedi."
+    }
   },
   "admin": {
     "actions": "Eylemler",

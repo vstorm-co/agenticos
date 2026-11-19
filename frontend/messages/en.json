@@ -1260,13 +1260,6 @@
     "title": "Billing"
   },
   "chat": {
-    "layoutPreview": {
-      "label": "Chat design previews",
-      "studio": "Studio",
-      "canvas": "Canvas",
-      "command": "Command",
-      "focus": "Focus"
-    },
     "loadEarlierMessages": "Load earlier messages",
     "accessLevel": "Access level",
     "accessRevoked": "Access revoked",
@@ -2643,7 +2636,15 @@
       "contact": "Contact your administrator"
     },
     "runFailedTitle": "Run did not finish",
-    "runFailedHint": "No final answer was produced. You can review the work above."
+    "runFailedHint": "No final answer was produced. You can review the work above.",
+    "homeInbox": {
+      "title": "From your inbox",
+      "open": "Open inbox",
+      "urgent": "Priority",
+      "approvals": "{count, plural, one {# approval needs your attention} other {# approvals need your attention}}",
+      "empty": "You’re all caught up. New findings and important topics will appear here.",
+      "failed": "Your inbox could not be loaded."
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

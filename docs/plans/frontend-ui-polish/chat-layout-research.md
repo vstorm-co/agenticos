@@ -17,28 +17,23 @@ Model names and plan limits are outside this comparison.
 | [Open WebUI](https://docs.openwebui.com/features/workspace/models/) | Model controls appear beside the input's model selector only when the model defines them; model switching is searchable and saved with the chat. | Progressive disclosure beats an always-open configuration form. |
 | [Mistral Vibe](https://docs.mistral.ai/resources/release-notes) | The September 22 note describes one Chat/Work entry point and Fast/Think selection in the message input. | Avoid asking people to navigate configuration before writing a task. |
 
-## Application to AgenticOS
+## Accepted composition
 
-The first three placement-only alternatives were rejected after hands-on review:
-they moved the model without considering the whole control surface. The second
-round compares complete compositions and palettes, using the real editor, file
-menu, agent and approval selectors, model picker, context usage, settings,
-dictation and voice-call/Send controls. The call retains its real readiness and
-permission behavior; an unavailable call is never simulated as enabled.
+The maintainer selected Minimal on 2026-11-19. It is now the ordinary `/chat`
+layout in development and production. All query-driven alternatives, the design
+switcher, draft experiment CSS and unused copy were removed. Embedded chats use
+a separate context and retain their existing controls.
 
-| Variant | Development preview | Composition |
-| --- | --- | --- |
-| Studio | `/chat?layout=studio` | Cool light workspace; agent/model metadata above the editor, file and voice actions below. |
-| Canvas | `/chat?layout=canvas` | Warm paper palette; a left identity/model column beside a larger editor, with utilities underneath. |
-| Command | `/chat?layout=command` | Dark graphite/green palette and monospace controls; model/usage above the prompt, execution controls below. |
-| Focus | `/chat?layout=focus` | Mint palette, rounded input and separate identity/model capsules; lighter visual grouping and more whitespace. |
+Files follow the agent. Chat settings, an icon-only permission shield, the context
+ring and the model sit beside dictation and Send/Stop. Context percentages stay
+in the details panel. The shield and model chevron reflect their selected/open
+states. Empty drafts promote dictation; drafting reveals Send. The + menu keeps
+less frequent actions, and read-only Inbox topics appear below a new conversation.
+Calls and dictation share the composer surface and width. No paid call or model
+request was used for the visual iteration.
 
-All four retain working account connections and standing-consent rules. Usage
-is reachable directly beside the model rather than buried in settings.
-Narrow screens retain the existing + sheet for secondary controls. The preview
-switcher preserves the conversation query parameters when changing designs.
-
-Preview URLs remain development-only; regular `/chat` and production retain the
-current layout until a new choice. These are review compositions: before promoting
-one, consolidate the chosen tokens and DOM/keyboard order, remove discarded
-alternatives and verify populated conversations and mobile flows.
+The maintainer's Mistral reference and Codex screenshots informed the compact
+menus and control grouping. Existing Radix collision, keyboard and focus behavior
+remain; the chosen layout uses the account's current light/dark palette. Reduced
+motion is respected. Profile suitability, credential scopes, personal connection
+forms and permission gates are unchanged.

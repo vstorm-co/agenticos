@@ -5,12 +5,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useWorkOnStore } from "@/stores/work-on-store";
 import { ChatControls } from "./chat-controls";
-import { ChatLayoutPreview } from "./chat-layout-preview";
+import { ChatLayout } from "./chat-layout";
 
 const state = vi.hoisted(() => ({
   desktop: false,
   personalModel: false,
-  profiles: [] as { id: string; label: string; provider: string; model: string }[],
+  profiles: [] as {
+    id: string;
+    label: string;
+    provider: string;
+    model: string;
+    chat_capable?: boolean;
+    missing_key?: boolean;
+  }[],
   conversationId: null as string | null,
   // Both halves of "may this session waive approvals": the caller's permission
   // and the organization's ceiling (#925).
@@ -485,74 +492,140 @@ it("clears a saved model override when switching to a personal-key agent", async
   expect(changed).toHaveBeenLastCalledWith(null);
 });
 
-describe("development layout alternatives", () => {
+describe("main chat composition", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it.each(["studio", "canvas", "command", "focus"])(
-    "offers one model control without repeated permission choices in %s",
-    async (variant) => {
-      vi.stubEnv("NODE_ENV", "development");
-      render(
-        <ChatLayoutPreview variant={variant}>
-          <ChatControls />
-        </ChatLayoutPreview>,
-      );
-      expect(screen.getAllByRole("button", { name: "Model" })).toHaveLength(1);
-      await userEvent.click(trigger());
-      expect(screen.getByRole("dialog", { name: "Chat controls" })).toBeVisible();
-      expect(screen.queryByRole("group", { name: "Permissions" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("tab", { name: "Model" })).not.toBeInTheDocument();
-    },
-  );
-
-  it("preserves the open conversation when switching preview designs", () => {
+  it("offers one model control without repeated permission choices", async () => {
     vi.stubEnv("NODE_ENV", "development");
-    state.query = "id=conversation-1&layout=studio";
     render(
-      <ChatLayoutPreview variant="studio">
+      <ChatLayout>
         <ChatControls />
-      </ChatLayoutPreview>,
+        <ChatControls settingsOnly />
+      </ChatLayout>,
     );
-    expect(screen.getByRole("link", { name: "Canvas" })).toHaveAttribute(
-      "href",
-      "/chat?id=conversation-1&layout=canvas",
+    expect(screen.getAllByRole("button", { name: "Model" })).toHaveLength(1);
+    await userEvent.click(trigger());
+    expect(screen.getByRole("dialog", { name: "Chat controls" })).toBeVisible();
+    expect(screen.queryByRole("group", { name: "Permissions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Model" })).not.toBeInTheDocument();
+  });
+
+  it("does not add a design switcher to the chat", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    render(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
     );
-    expect(screen.getByRole("link", { name: "Studio" })).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByRole("navigation", { name: "Chat design previews" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Model" })).toBeVisible();
   });
 
   it("keeps actual context usage directly reachable outside the settings popover", () => {
     vi.stubEnv("NODE_ENV", "development");
     render(
-      <ChatLayoutPreview variant="command">
+      <ChatLayout>
         <ChatControls usageSlot={<button type="button">Current context usage</button>} />
-      </ChatLayoutPreview>,
+      </ChatLayout>,
     );
     expect(screen.getByRole("button", { name: "Current context usage" })).toBeVisible();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("restores the account palette when leaving a preview", () => {
+  it("puts context usage immediately before the model in Minimal", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    render(
+      <ChatLayout>
+        <ChatControls usageSlot={<button type="button">Current context usage</button>} />
+      </ChatLayout>,
+    );
+    const buttons = screen.getAllByRole("button");
+    expect(buttons.indexOf(screen.getByRole("button", { name: "Current context usage" }))).toBe(
+      buttons.indexOf(screen.getByRole("button", { name: "Model" })) - 1,
+    );
+  });
+
+  it("keeps the model arrow tied to the open state", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    render(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    const model = screen.getByRole("button", { name: "Model" });
+    expect(model).toHaveAttribute("data-state", "closed");
+    expect(model.querySelector("svg.lucide-chevron-down")).toHaveClass(
+      "group-data-[state=open]/model:rotate-180",
+    );
+    await userEvent.click(model);
+    expect(model).toHaveAttribute("data-state", "open");
+    await userEvent.keyboard("{Escape}");
+    expect(model).toHaveAttribute("data-state", "closed");
+  });
+
+  it("leaves the account palette unchanged in the main chat", () => {
     vi.stubEnv("NODE_ENV", "development");
     const view = render(
-      <ChatLayoutPreview variant="command">
+      <ChatLayout>
         <ChatControls />
-      </ChatLayoutPreview>,
+      </ChatLayout>,
     );
-    expect(document.documentElement).toHaveAttribute("data-chat-preview", "command");
+    expect(document.documentElement).not.toHaveAttribute("data-chat-preview");
     view.unmount();
     expect(document.documentElement).not.toHaveAttribute("data-chat-preview");
+  });
+
+  it("does not offer non-chat or keyless profiles in the quick list", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    state.profiles.push(
+      {
+        id: "image",
+        label: "Image only",
+        provider: "openai",
+        model: "image-model",
+        chat_capable: false,
+      },
+      {
+        id: "keyless",
+        label: "Missing key",
+        provider: "openai",
+        model: "chat-model",
+        missing_key: true,
+      },
+    );
+    render(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Model" }));
+    expect(screen.queryByRole("button", { name: "Image only" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Missing key" })).toBeNull();
+    expect(screen.getByRole("button", { name: "openai default" })).toBeVisible();
+  });
+
+  it("keeps quick profile selection behind connections management permission", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    state.mayDecide = false;
+    render(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Model" }));
+    expect(screen.queryByRole("button", { name: "openai default" })).toBeNull();
   });
 
   it("saves model overrides through the existing scoped controls", async () => {
     vi.stubEnv("NODE_ENV", "development");
     const changed = vi.fn();
     render(
-      <ChatLayoutPreview variant="studio">
+      <ChatLayout>
         <ChatControls onModelProfileChange={changed} />
-      </ChatLayoutPreview>,
+      </ChatLayout>,
     );
     await userEvent.click(screen.getByRole("button", { name: "Model" }));
-    await userEvent.click(screen.getByRole("button", { name: "pick a model (none)" }));
+    await userEvent.click(screen.getByRole("button", { name: "openai default" }));
     expect(changed).toHaveBeenCalledWith("p-1");
   });
 
@@ -560,24 +633,24 @@ describe("development layout alternatives", () => {
     vi.stubEnv("NODE_ENV", "development");
     state.personalModel = true;
     render(
-      <ChatLayoutPreview variant="studio">
+      <ChatLayout>
         <ChatControls />
-      </ChatLayoutPreview>,
+      </ChatLayout>,
     );
     await userEvent.click(screen.getByRole("button", { name: "Model" }));
     expect(screen.getByText("Private model connection form")).toBeVisible();
     expect(screen.queryByRole("button", { name: /pick a model/ })).not.toBeInTheDocument();
   });
 
-  it("ignores preview URLs in production", async () => {
+  it("uses the selected composition in production without experimental flags", () => {
     vi.stubEnv("NODE_ENV", "production");
     render(
-      <ChatLayoutPreview variant="focus">
+      <ChatLayout>
         <ChatControls />
-      </ChatLayoutPreview>,
+      </ChatLayout>,
     );
-    expect(document.querySelector("[data-chat-layout]")).toBeNull();
-    await userEvent.click(trigger());
-    expect(screen.getByRole("tab", { name: "Model" })).toBeVisible();
+    expect(document.querySelector("[data-chat-layout]")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Model" })).toBeVisible();
+    expect(screen.queryByRole("tab", { name: "Model" })).toBeNull();
   });
 });

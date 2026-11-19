@@ -1,5 +1,5 @@
 ---
-source_sha: "9b63b61c4574"
+source_sha: "17968be8dd30"
 ---
 
 # Konsola { #the-console }
@@ -89,6 +89,8 @@ Przyciski drugorzędne i filtry mają wspólne, wyraźniejsze wypełnienie, kont
 Ustawienia osobiste mają poziome, przewijane zakładki na komputerze i telefonie. Objaśnienia otwierają się pod przyciskami informacji; wymagania pól, błędy walidacji i ostrzeżenia przy usuwaniu pozostają widoczne. Konto zawiera zmianę hasła i aktywne sesje.
 
 Tytuły rozmów są pierwszą linią listy czatów, z nazwami agentów i aktywnością poniżej. Wyszukiwanie, filtry i Nowy czat dzielą nagłówek. Filtry nagłówka otwierają się pod przyciskiem, a filtry zwiniętej szyny obok niego. Dekoracyjne ilustracje zmieniają się bez przycisków odtwarzania i respektują preferencję ograniczonego ruchu.
+
+Gdy lista rozmów ma wolne miejsce, rozwija kolejne starsze grupy dat aż do zapełnienia panelu. Grupy projektów również respektują zapisane wybory: ręcznie zwinięta grupa pozostaje zwinięta, dopóki jej nie rozwiniesz, także po zmianie aktywnej rozmowy.
 
 Pola profilu mieszczą się w jednym wierszu, gdy jest miejsce; **Zapisz zmiany** jest dostępne dopiero po edycji. Karta możliwości ma jeden obszar otwierający ustawienia i osobny przełącznik włączenia. W panelu ustawień przykłady są pod ikoną informacji, zamiast powtarzanej ilustracji z galerii.
 
@@ -234,7 +236,7 @@ pokazują opisy, a wiersze agentów używają tych samych avatarów co chat.
 
 Karty dashboardu korzystają ze spójnych, zwartych wierszy, oznaczeń usług i etykiet statusu. Liczniki i wykresy dostosowują się do szerokości karty, również we własnych układach. Placeholdery odpowiadają rodzajowi ładowanej zawartości; niedostępny briefing pokazuje możliwość ponowienia zamiast informacji o braku propozycji.
 
-Pusty chat wita zależnie od lokalnej pory dnia. Najpierw pokazuje pole wiadomości, a pod nim do czterech podpowiedzi. Pierwszeństwo mają opublikowane podpowiedzi agenta; AgenticOS może korzystać z osobistych sugestii, przechowywanych przez pięć minut w cache bieżącej sesji konta. Placeholdery zachowują miejsce do ustalenia źródła. Ekran startowy nie pokazuje podglądu Inbox, pracy w tle ani podpowiedzi skrótów klawiaturowych; otwórz Inbox lub pracę w tle z nawigacji.
+Nowy chat wita zależnie od lokalnej pory dnia i pokazuje zwarte pole wiadomości. Pliki są obok agenta, a ustawienia i tarcza uprawnień obok modelu. Zużycie kontekstu pozostaje ikoną do chwili otwarcia szczegółów. Poniżej widać do trzech tematów z Inboxa, z pilnymi ustaleniami na początku i ikonami źródeł z katalogu MCP; licznik zgód prowadzi do kolejki decyzji. Otwarcie podglądu niczego nie zatwierdza ani nie odrzuca. Ładowanie, błąd i pusta lista mają osobne stany. Dyktowanie i połączenia korzystają z tej samej lekkiej powierzchni co pole wiadomości. Osadzone chaty agentów i Architecta zachowują własne kontrolki.
 
 Zapisana rozmowa od razu pokazuje placeholdery historii, bez migania powitania; sidebar i historia ładują się niezależnie. Ręcznie wysłana wiadomość łagodnie przesuwa się pod górę; wiadomości z kolejki nie przestawiają widoku. Scrollowanie, dotyk i klawiatura przerywają ruch. Wspólne menu i modale używają niewielkich, łagodnych przejść; preferencja Motion wyłącza ruch.
 

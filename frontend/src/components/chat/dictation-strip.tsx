@@ -444,6 +444,7 @@ export function browserFailureHint(
 export function DictationStrip({
   hint,
   placement = "below",
+  detached = false,
 }: {
   hint: StripHint | null;
   /**
@@ -451,6 +452,7 @@ export function DictationStrip({
    * pill it belongs to, and slides up from behind the box; `below` hangs under it.
    */
   placement?: "above" | "below";
+  detached?: boolean;
 }) {
   const reduced = useReducedMotion();
   const slide = reduced ? { duration: 0 } : { duration: 0.23, ease: EASE_OUT };
@@ -458,7 +460,11 @@ export function DictationStrip({
   const error = hint?.tone === "error";
 
   return (
-    <div data-testid="dictation-strip" aria-live={error || hint?.quiet ? "off" : "polite"}>
+    <div
+      className={cn(detached && hint && "mx-auto mb-2 w-full max-w-[760px]")}
+      data-testid="dictation-strip"
+      aria-live={error || hint?.quiet ? "off" : "polite"}
+    >
       <AnimatePresence initial={false}>
         {hint && (
           <motion.div
@@ -477,8 +483,12 @@ export function DictationStrip({
               transition={slide}
               className={cn(
                 "border-border text-muted-foreground relative border px-3.5 py-2.5 text-[12.5px] leading-[1.45] break-words transition-colors",
-                placement === "above" ? "rounded-t-2xl border-b-0" : "rounded-b-2xl border-t-0",
-                error ? "bg-destructive/10" : "bg-muted",
+                detached
+                  ? "rounded-xl"
+                  : placement === "above"
+                    ? "rounded-t-2xl border-b-0"
+                    : "rounded-b-2xl border-t-0",
+                error ? "bg-destructive/10" : detached ? "bg-muted/40" : "bg-muted",
               )}
             >
               <AnimatePresence mode="popLayout" initial={false}>

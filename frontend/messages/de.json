@@ -1260,13 +1260,6 @@
     "title": "Abrechnung"
   },
   "chat": {
-    "layoutPreview": {
-      "label": "Chat-Layout-Vorschauen",
-      "studio": "Studio",
-      "canvas": "Canvas",
-      "command": "Command",
-      "focus": "Focus"
-    },
     "loadEarlierMessages": "Ältere Nachrichten laden",
     "accessLevel": "Zugriffsstufe",
     "accessRevoked": "Zugriff widerrufen",
@@ -2643,7 +2636,15 @@
       "contact": "Administrator kontaktieren"
     },
     "runFailedTitle": "Ausführung nicht abgeschlossen",
-    "runFailedHint": "Es wurde keine abschließende Antwort erstellt. Die bisherigen Schritte stehen oben."
+    "runFailedHint": "Es wurde keine abschließende Antwort erstellt. Die bisherigen Schritte stehen oben.",
+    "homeInbox": {
+      "title": "Aus deinem Posteingang",
+      "open": "Posteingang öffnen",
+      "urgent": "Wichtig",
+      "approvals": "{count, plural, one {# Genehmigung wartet auf dich} other {# Genehmigungen warten auf dich}}",
+      "empty": "Alles erledigt. Neue Erkenntnisse und wichtige Themen erscheinen hier.",
+      "failed": "Dein Posteingang konnte nicht geladen werden."
+    }
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

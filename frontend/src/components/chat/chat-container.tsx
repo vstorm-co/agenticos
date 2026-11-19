@@ -30,6 +30,8 @@ import { AgentPicker, isChattable } from "./agent-picker";
 import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
+import { useMainChat } from "./main-chat-context";
+import { ChatHomeInbox } from "./chat-home-inbox";
 import { PersonalModelConnection } from "./personal-model-connection";
 import { SheetRow } from "./composer-sheet";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -1164,6 +1166,7 @@ function ChatUI({
 }: ChatUIProps) {
   const composerFocusRequest = useConversationStore((state) => state.composerFocusRequest);
   const t = useTranslations("chat");
+  const mainChat = useMainChat();
   const tDictation = useTranslations("chat.dictation");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
@@ -1734,12 +1737,14 @@ function ChatUI({
                   and its attachments are still there when the call ends. */}
                   <div className="relative">
                     <FloatingPill
+                      embedded={mainChat}
                       pill={
                         onCall
                           ? {
                               key: "call",
                               node: (
                                 <VoiceCallBar
+                                  subtle={mainChat}
                                   pill
                                   session={voice}
                                   agentName={callAgent?.name ?? t("rail.agent")}
@@ -1765,6 +1770,7 @@ function ChatUI({
                                 key: "dictation",
                                 node: (
                                   <DictationPill
+                                    subtle={mainChat}
                                     state={dictationState}
                                     actions={dictationActions}
                                   />
@@ -1775,6 +1781,7 @@ function ChatUI({
                                   key: "browser",
                                   node: (
                                     <BrowserDictationPill
+                                      subtle={mainChat}
                                       level={browserLevel}
                                       onDone={stopBrowserDictation}
                                     />
@@ -1793,12 +1800,12 @@ function ChatUI({
                       {callAgent?.personal_model_key && (
                         <PersonalModelConnection key={selectedAgentId} agentId={selectedAgentId} />
                       )}
-                      <DictationStrip hint={composerStrip} placement="above" />
+                      <DictationStrip hint={composerStrip} placement="above" detached={mainChat} />
                       <div
                         data-tour="chat-composer"
                         className={cn(
                           "panel composer-box focus-within:border-foreground/20 rounded-2xl transition-colors",
-                          composerStrip !== null && "rounded-t-none",
+                          composerStrip !== null && !mainChat && "rounded-t-none",
                         )}
                       >
                         {!agentFixed && (
@@ -1879,10 +1886,15 @@ function ChatUI({
                             controlsSlot={
                               <>
                                 {!agentFixed && <AgentPicker />}
-                                <ChatApprovalSelector
-                                  onChange={onApprovalModeChange}
-                                  disabled={isProcessing || readOnly}
-                                />
+                                {mainChat && (
+                                  <span ref={setFilesSlot} data-chat-files className="contents" />
+                                )}
+                                {!mainChat && (
+                                  <ChatApprovalSelector
+                                    onChange={onApprovalModeChange}
+                                    disabled={isProcessing || readOnly}
+                                  />
+                                )}
                               </>
                             }
                             onProject={
@@ -1893,64 +1905,86 @@ function ChatUI({
                             // A phone's row keeps +, the agent, the microphone and
                             // send; these move into its `+` sheet as rows.
                             phoneRows={
-                              <>
-                                {!agentFixed && (
-                                  <SheetRow icon={Bot} label={t("rail.agent")}>
-                                    <AgentPicker />
-                                  </SheetRow>
-                                )}
-                                {offerCall && !onCall && (
-                                  <SheetRow
-                                    icon={PhoneCall}
-                                    label={t("input.callAgent", {
-                                      agent: callAgent?.name ?? t("rail.agent"),
-                                    })}
-                                  >
-                                    <VoiceCallButton
-                                      readiness={readiness}
-                                      failed={readinessFailed}
-                                      disabled={isProcessing || readOnly}
-                                      onStart={startCall}
-                                      setUpHref={agentCallsHref}
-                                      publishedOnly={testingDraft}
-                                    />
-                                  </SheetRow>
-                                )}
-                                <SheetRow
-                                  icon={SlidersHorizontal}
-                                  label={t("input.modelAndApprovals")}
-                                >
-                                  <ChatControls
-                                    onModelProfileChange={onModelProfileChange}
-                                    onApprovalModeChange={onApprovalModeChange}
-                                    agentModel={agentModel}
-                                    agentCapabilities={agentCapabilities}
-                                  />
-                                </SheetRow>
-                                <SheetRow icon={Gauge} label={t("input.contextUsed")}>
-                                  <UsageMeter
-                                    usage={lastUsage}
-                                    workspace={workspace}
-                                    total={conversationCost}
-                                    contextWindow={contextWindow}
-                                  />
-                                </SheetRow>
-                              </>
+                              mainChat && (!offerCall || onCall) ? undefined : (
+                                <>
+                                  {!agentFixed && !mainChat && (
+                                    <SheetRow icon={Bot} label={t("rail.agent")}>
+                                      <AgentPicker />
+                                    </SheetRow>
+                                  )}
+                                  {offerCall && !onCall && (
+                                    <SheetRow
+                                      icon={PhoneCall}
+                                      label={t("input.callAgent", {
+                                        agent: callAgent?.name ?? t("rail.agent"),
+                                      })}
+                                    >
+                                      <VoiceCallButton
+                                        readiness={readiness}
+                                        failed={readinessFailed}
+                                        disabled={isProcessing || readOnly}
+                                        onStart={startCall}
+                                        setUpHref={agentCallsHref}
+                                        publishedOnly={testingDraft}
+                                      />
+                                    </SheetRow>
+                                  )}
+                                  {!mainChat && (
+                                    <SheetRow
+                                      icon={SlidersHorizontal}
+                                      label={t("input.modelAndApprovals")}
+                                    >
+                                      <ChatControls
+                                        onModelProfileChange={onModelProfileChange}
+                                        onApprovalModeChange={onApprovalModeChange}
+                                        agentModel={agentModel}
+                                        agentCapabilities={agentCapabilities}
+                                      />
+                                    </SheetRow>
+                                  )}
+                                  {!mainChat && (
+                                    <SheetRow icon={Gauge} label={t("input.contextUsed")}>
+                                      <UsageMeter
+                                        usage={lastUsage}
+                                        workspace={workspace}
+                                        total={conversationCost}
+                                        contextWindow={contextWindow}
+                                      />
+                                    </SheetRow>
+                                  )}
+                                </>
+                              )
                             }
                             actionsSlot={
                               <span className="contents max-md:hidden">
                                 {/* Wide screens only, as is the panel it opens. */}
-                                <span
-                                  data-design-files
-                                  ref={setFilesSlot}
-                                  className="hidden lg:contents"
-                                />
-                                <div data-design-actions>
+                                {!mainChat && (
+                                  <span
+                                    data-chat-files
+                                    ref={setFilesSlot}
+                                    className="hidden lg:contents"
+                                  />
+                                )}
+                                <div data-chat-actions>
+                                  {mainChat && (
+                                    <ChatControls
+                                      settingsOnly
+                                      agentCapabilities={agentCapabilities}
+                                    />
+                                  )}
+                                  {mainChat && (
+                                    <ChatApprovalSelector
+                                      iconOnly
+                                      onChange={onApprovalModeChange}
+                                      disabled={isProcessing || readOnly}
+                                    />
+                                  )}
                                   <ChatControls
                                     usageSlot={
                                       <div className="text-muted-foreground flex items-center gap-2 text-xs">
                                         <span>{t("input.contextUsed")}</span>{" "}
                                         <UsageMeter
+                                          iconOnly={mainChat}
                                           usage={lastUsage}
                                           workspace={workspace}
                                           total={conversationCost}
@@ -1989,7 +2023,9 @@ function ChatUI({
             <div
               ref={setHomeHintsSlot}
               className="chat-home-hints mx-auto min-h-40 w-full max-w-5xl shrink-0 px-4 pb-4 sm:px-5"
-            />
+            >
+              {mainChat && <ChatHomeInbox />}
+            </div>
           )}
         </div>
         <FilePreviewDialog />
@@ -2008,13 +2044,15 @@ function ChatUI({
           ones where the agent keeps nothing. Hidden on a narrow screen, where there
           is no room for it. */}
       <SourcesPanel contained={compact} conversationId={conversationId} />
-      <div className="hidden h-full min-h-0 shrink-0 lg:block">
+      <div
+        className={mainChat ? "h-full min-h-0 shrink-0" : "hidden h-full min-h-0 shrink-0 lg:block"}
+      >
         <WorkspaceFiles
           conversationId={conversationId}
           revision={turns}
           attachments={attachments}
           buttonSlot={filesSlot}
-          overlay={compact}
+          overlay={compact || mainChat}
         />
       </div>
     </div>

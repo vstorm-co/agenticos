@@ -11,7 +11,8 @@ import { useTranslations } from "next-intl";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
 import { RememberedApprovals } from "./remembered-approvals";
-import { PreviewChatControls, useChatLayoutPreview } from "./chat-layout-preview";
+import { ChatComposerControls } from "./chat-layout";
+import { useMainChat } from "./main-chat-context";
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn, ConversationNotifications } from "./work-on";
 import { YourConnections } from "./your-connections";
@@ -37,6 +38,7 @@ const APPROVAL_MODES: readonly ApprovalMode[] = ["follow_agent", "approve_all", 
 export type { ApprovalMode } from "@/stores/chat-controls-store";
 
 interface ChatControlsProps {
+  settingsOnly?: boolean;
   usageSlot?: ReactNode;
   agentCapabilities?: readonly string[] | null;
   /** The model profile this conversation runs on, or null for the agent's own. */
@@ -81,6 +83,7 @@ interface ChatControlsProps {
  *   permission and no ceiling.
  */
 export function ChatControls({
+  settingsOnly = false,
   usageSlot,
   onModelProfileChange,
   onApprovalModeChange,
@@ -88,7 +91,7 @@ export function ChatControls({
   agentCapabilities = null,
 }: ChatControlsProps) {
   const t = useTranslations("chat.controls");
-  const preview = useChatLayoutPreview();
+  const mainChat = useMainChat();
   const panel = useRef<HTMLDivElement>(null);
   const tCommon = useTranslations("common");
   const waiverHintId = useId();
@@ -146,9 +149,10 @@ export function ChatControls({
   }, [selectedProfile, agentModel, t]);
   const hasOverride = profileId !== null || approvalMode !== "follow_agent";
 
-  if (preview !== null)
+  if (mainChat)
     return (
-      <PreviewChatControls
+      <ChatComposerControls
+        settingsOnly={settingsOnly}
         usageSlot={usageSlot}
         desktop={desktop}
         harnesses={harnesses}

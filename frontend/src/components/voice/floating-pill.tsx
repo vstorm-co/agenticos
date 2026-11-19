@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import type { ReactNode } from "react";
 
+import { cn } from "@/lib/utils";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 /**
@@ -24,18 +25,31 @@ export interface FloatingPillContent {
  * and one pill gives way to another - a dictation to a call - by crossing over
  * rather than one blinking out first. Under reduced motion it simply appears.
  */
-export function FloatingPill({ pill }: { pill: FloatingPillContent | null }) {
+export function FloatingPill({
+  pill,
+  embedded = false,
+}: {
+  pill: FloatingPillContent | null;
+  embedded?: boolean;
+}) {
   const reduced = useReducedMotion();
   const transition = reduced ? { duration: 0 } : PILL_SPRING;
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-full z-10 mb-3 flex justify-center">
+    <div
+      className={cn(
+        embedded
+          ? "relative z-10 mx-auto w-full max-w-[760px]"
+          : "pointer-events-none absolute inset-x-0 bottom-full z-10 mb-3 flex justify-center",
+        embedded && pill && "mb-2",
+      )}
+    >
       <AnimatePresence initial={false} mode="popLayout">
         {pill && (
           <motion.div
             key={pill.key}
             data-testid="floating-pill"
             data-floating-pill
-            className="pointer-events-auto"
+            className={cn("pointer-events-auto", embedded && "w-full")}
             initial={{ opacity: 0, y: 10, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.97 }}
@@ -48,3 +62,11 @@ export function FloatingPill({ pill }: { pill: FloatingPillContent | null }) {
     </div>
   );
 }
+
+/** Shared surface for chat's recording and call controls. */
+export const VOICE_SURFACE =
+  "bg-card text-foreground border-border flex w-full min-w-0 items-center gap-2 rounded-2xl border p-2 shadow-sm";
+export const VOICE_SURFACE_BUTTON =
+  "size-9 shrink-0 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground pointer-coarse:size-11";
+export const VOICE_SURFACE_DONE =
+  "size-9 shrink-0 rounded-xl bg-foreground text-background hover:bg-foreground/90 pointer-coarse:size-11";

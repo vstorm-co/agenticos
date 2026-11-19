@@ -367,3 +367,104 @@ commit hooks passed TypeScript, ESLint, formatting and copy guards. The final
 controls file passed 41 tests, including palette cleanup. Full CI remains a
 separate gate for the new commit. These remain review compositions,
 with DOM/keyboard order to consolidate after selecting a final arrangement.
+
+
+## Clean composer reference round
+
+Minimal, Workbench and Compact replace the color experiments, following a live
+Firefox review of Mistral Code and the maintainer's Codex screenshots. Existing
+light/dark preferences remain intact. More controls sit behind + without removing
+call, files, context usage, consent or personal account connections. Dictation
+yields priority to Send as a draft appears; Workbench retains a disabled empty
+Send. Quick model rows preserve profile suitability and permission gates.
+
+The four-file input/controls/menu batch passed 119 tests. The final focus and
+responsive-panel batch passed its two tests. TypeScript passed before the final
+responsive adjustment; commit checks must reestablish it. A first mobile browser
+check found the side panel clipped, so narrow screens now use a panel above the
+trigger. The local preview stack was restarted after the workstation stopped;
+browser fixtures use HTTP-only cookies and a real session re-read rather than
+pre-marking a cached identity authenticated. No paid model, microphone or call
+was submitted during reference inspection or browser checks.
+
+Final browser verification passed all three designs at 1440px and 390px: editable
+composers, empty/drafted microphone priority, Send, model selection, nested +
+settings, call availability, files, usage and standing consent. All checked
+popovers fit the narrow viewport; the desktop controls did not overlap. No page
+errors or API 5xx occurred. The menu's responsive/focus regression file passed
+three tests after the mobile fix. No messages, microphone capture or calls were
+submitted.
+
+
+## Minimal follow-up and filled conversation list
+
+Four development-only Minimal variants place live consent, context and file
+controls above the composer, in a thin top bar, in a persistent corner panel,
+or behind a hover/focus handle with optional pinning. Touch exposes the controls
+without requiring hover. The design-switching navigation was removed. Portalled
+menus and slash/mention palettes share the preview surface and entrance treatment.
+File panels overlay without pushing the composer and use transform/opacity motion.
+
+The new-chat Inbox preview reads the same authorized suggestion and approval
+queries as Inbox, prioritizes urgent topics, and links to its existing details.
+It distinguishes loading, failure and empty states. Six deduplicated preview-only
+findings were added for the existing local reviewer across their two memberships;
+source keys resolve through the real Slack, Notion and GitHub MCP catalog. No
+connection, approval or external action was created. The maintainer chose to keep
+the current isolated database after discussing alternative local data sources.
+
+Conversation lists measure available height and progressively open default date
+folds. Resize observation is cleaned up; automatic expansion is not persisted.
+Explicit project/date folds always win, including when an active thread changes.
+A browser check caught that scrollHeight is clamped to the viewport height even
+for short content; content geometry now distinguishes that case, and its regression
+uses the browser's clamped scrollHeight contract.
+
+Focused verification: 130 composer/controls/Inbox tests, 65 sidebar/measurement
+tests, and 44 workspace-file tests passed. TypeScript and targeted ESLint passed;
+copy guards and all documentation translation fingerprints passed. Chromium
+checked all four variants at 1440px and 390px, including seeded Inbox content and
+source marks, commands, model, files, draft behavior, viewport bounds and sidebar
+fill. It found and verified the fix for a corner-panel collision with the mobile
+New chat button. An earlier attempt was interrupted by the local Next development
+server's heap-threshold restart; the completed run used the warmed server. No
+messages, microphone capture, approval decisions or calls were submitted. Full CI
+must still run on the final pushed SHA.
+
+
+The maintainer selected Minimal for further iteration and stopped screenshot
+capture. Its consent selector moved next to the model as an icon-only shield,
+with distinct marks for follow-agent, ask-all and approve-all, and a warning
+tone for approve-all. The existing accessible name, native tooltip and policy
+gates remain. Four selector tests and targeted ESLint passed. No browser or
+screenshot tool was run for this adjustment.
+
+
+Minimal's follow-up puts Files directly after the agent and Chat controls beside
+the shield. Context usage is an icon-only ring immediately before the model;
+percentages remain in its details. The model chevron follows the popover state
+and respects reduced motion. The focused selector/usage/controls batch passed
+85 tests and targeted ESLint. These adjustments used no screenshot capture.
+
+
+Minimal uses the same card surface for browser dictation, provider dictation and
+voice calls, aligned with the composer rather than an inverse floating capsule.
+Informational transcription notices keep the composer width and its rounded
+border. Recording indicators, mute, push-to-talk, stop, cancel and end callbacks
+remain intact; reduced motion is preserved. The five-file voice batch verified
+164 tests after correcting the new test's event helper; targeted ESLint passed.
+No screenshots, microphone captures or actual calls were made for this change.
+
+
+## Main chat promotion
+
+The accepted Minimal composition is now the default `/chat` in development and
+production. Experimental URLs, variants, the discarded dock, CSS and translations
+were removed. MainChatContext distinguishes the page composer from independent
+embedded chat scopes; the latter retain their existing controls even when nested
+under the main page. No screenshot or native browser tool was used for promotion.
+
+The final five-file composer/context batch passed 119 tests; the separate
+container integration file passed 75 tests. The earlier Inbox file passed three
+tests. Targeted ESLint and translation fingerprints passed. TypeScript and copy
+guards are being rechecked on the completed cleanup before committing.

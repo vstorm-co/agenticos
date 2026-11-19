@@ -23,6 +23,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useMainChat } from "./main-chat-context";
+import { ChatComposerMenu } from "./chat-composer-menu";
 import type { AttachSource } from "@/lib/mobile/attach";
 
 export type { AttachSource };
@@ -69,6 +71,7 @@ export function ComposerSheet({
   phoneRows,
   disabled,
 }: ComposerSheetProps) {
+  const mainChat = useMainChat();
   const t = useTranslations("chat.input");
   const [sheetOpen, setSheetOpen] = useState(false);
   const actions: Action[] = [
@@ -127,6 +130,13 @@ export function ComposerSheet({
       <Plus className="text-muted-foreground h-5 w-5" />
     </Button>
   );
+
+  if (mainChat)
+    return (
+      <ChatComposerMenu actions={actions} disabled={disabled}>
+        {phoneRows}
+      </ChatComposerMenu>
+    );
 
   return (
     <>
@@ -248,7 +258,7 @@ export function SheetRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-14 items-center gap-3 px-4">
+    <div data-composer-menu-row className="flex min-h-14 items-center gap-3 px-4">
       <Icon className="text-muted-foreground size-5 shrink-0" aria-hidden />
       <span className="min-w-0 flex-1 truncate text-base">{label}</span>
       <span className="flex shrink-0 items-center">{children}</span>

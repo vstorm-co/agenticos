@@ -1,5 +1,5 @@
 ---
-source_sha: "9b63b61c4574"
+source_sha: "17968be8dd30"
 ---
 
 # Die Konsole { #the-console }
@@ -91,6 +91,8 @@ Sekundäre Schaltflächen und Filter teilen eine deutlichere Füllfläche, kontr
 Persönliche Einstellungen verwenden auf Desktop und Telefon horizontale, scrollbare Tabs. Erläuterungen öffnen sich über Informationsschaltflächen; Feldanforderungen, Validierungsfehler und Warnungen vor Löschaktionen bleiben sichtbar. Konto enthält Passwortänderungen und aktive Sitzungen.
 
 Gesprächstitel stehen in der Chatliste zuerst, Agentennamen und Aktivität darunter. Suche, Filter und Neuer Chat teilen sich die Kopfzeile. Kopfzeilenfilter öffnen sich unter ihrer Schaltfläche, Filter der eingeklappten Leiste daneben. Dekorative Illustrationen wechseln ohne Wiedergabesteuerung und beachten die Einstellung für reduzierte Bewegung.
+
+Wenn die Gesprächsliste freien Platz hat, öffnet sie ältere Datumsgruppen, bis der Bereich gefüllt ist. Projektgruppen beachten ebenfalls die gespeicherten manuellen Entscheidungen: Eine eingeklappte Gruppe bleibt geschlossen, bis du sie wieder öffnest, auch beim Wechsel des aktiven Gesprächs.
 
 Profilfelder stehen bei genügend Platz nebeneinander; **Änderungen speichern** ist erst nach einer Bearbeitung verfügbar. Eine Fähigkeitskarte hat einen Bereich zum Öffnen der Einstellungen und einen separaten Schalter zum Aktivieren. Beispiele stehen im Einstellungsbereich hinter dem Informationssymbol; die Illustration der Galerie wird dort nicht wiederholt.
 
@@ -243,7 +245,7 @@ Avatare wie im Chat.
 
 Dashboard-Karten verwenden einheitliche kompakte Zeilen, Dienstsymbole und Statusbezeichnungen. Kennzahlen und Diagramme passen sich der Kartenbreite an, auch in eigenen Anordnungen. Ladeplatzhalter entsprechen dem Inhaltstyp; ein nicht verfügbares Briefing bietet einen erneuten Versuch an, statt fälschlich keine Vorschläge zu melden.
 
-Ein leerer Chat begrüßt nach lokaler Tageszeit und zeigt zuerst das Eingabefeld, darunter bis zu vier Nachrichtenvorschläge. Veröffentlichte Agentenvorschläge haben Vorrang; AgenticOS kann persönliche Vorschläge nutzen, die fünf Minuten im Cache der aktuellen Kontositzung bleiben. Platzhalter reservieren den Raum, bis die Quelle feststeht. Posteingangs- und Hintergrundvorschauen sowie Tastenkürzel bleiben vom Startbildschirm entfernt; öffne dafür Inbox oder Background work über die Navigation.
+Ein neuer Chat begrüßt nach lokaler Tageszeit und zeigt ein kompaktes Eingabefeld. Dateien stehen neben dem Agenten, Chat-Einstellungen und Berechtigungsschild neben dem Modell. Die Kontextnutzung bleibt bis zum Öffnen ein Symbol. Darunter erscheinen bis zu drei Inbox-Themen, dringende Erkenntnisse zuerst, mit Quellenmarken aus dem MCP-Katalog; Genehmigungszähler führen zur Entscheidungswarteschlange. Das Öffnen einer Vorschau genehmigt oder verwirft nichts. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Eingebettete Agenten- und Architect-Chats behalten ihre eigenen Bedienelemente.
 
 Gespeicherte Chats zeigen sofort Verlaufsplatzhalter, ohne Begrüßungsblitz; Seitenleiste und Verlauf laden unabhängig. Manuell gesendete Nachrichten gleiten nach oben, Nachrichten aus der Warteschlange verschieben den Leser nicht. Scrollen, Berührung und Tastatur brechen die Bewegung ab. Gemeinsame Menüs und Dialoge verwenden kleine, sanfte Übergänge; die Motion-Einstellung deaktiviert Bewegung.
 

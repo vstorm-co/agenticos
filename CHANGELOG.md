@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Use a compact main-chat composer with files beside the agent, direct model and permission controls, icon-only context usage and matching dictation/call panels. Preview Inbox topics in new chats with their MCP source marks.
+
 - Show model-maker icons in the model field and searchable catalog, independently of the routing provider. Use a neutral mark for unknown makers.
 
 - Show the accessible published-agent toggle beside Delegates and enable it in AgenticOS. Keep delegation to explicit user requests in its default instructions, and disable dynamic specialist creation. Existing permissions and unattended-routine restrictions still apply.
@@ -45,6 +47,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Apply `0342_personal_coding_sessions.py` and update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
 
 ### Fixed
+
+- Fill unused chat-sidebar height by opening older date groups automatically; preserve manual date and project folds, including across active-conversation changes.
 
 - Keep model selectors and popup anchors stationary when pressed; reserve scale feedback for action buttons so opening a list does not shrink its field or move its anchor.
 

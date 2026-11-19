@@ -62,6 +62,7 @@ export function ChatWelcome({
   const hints = (
     <>
       <div
+        data-chat-welcome-hints
         aria-busy={loading}
         className={cn(
           "grid",
@@ -160,6 +161,7 @@ export function ChatWelcome({
     <div className={cn("@container mx-auto w-full", compact ? "px-3 py-2" : "py-6 md:py-8")}>
       <div className={compact ? "text-center" : "text-left"}>
         <div
+          data-chat-welcome-mark
           className={cn(
             "flex",
             compact

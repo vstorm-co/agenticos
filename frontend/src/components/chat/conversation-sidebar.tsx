@@ -2,7 +2,7 @@
 
 import { ProjectAvatar } from "@/components/projects/project-avatar";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useAgents, useConversations } from "@/hooks";
@@ -27,6 +27,7 @@ import {
   useWorkingStore,
 } from "@/stores";
 import { DEFAULT_COLLAPSED_BANDS, LONG_LIST } from "@/stores/chat-sidebar-store";
+import { useFillChatBands } from "@/hooks/use-fill-chat-bands";
 import { useProjects } from "@/hooks/use-projects";
 import {
   useLeaveSharedConversation,
@@ -607,18 +608,33 @@ function useBands(
  * Which bands are drawn folded, and how to flip one.
  *
  * A band somebody folded or opened by hand stays that way. One nobody chose for
- * follows the default: the older bands (`DEFAULT_COLLAPSED_BANDS`) fold only on
- * a long list, and never the newest band on it - a person with nothing from the
- * last two days used to open Chats onto two folded headings and no thread.
+ * follows the available height: spare space opens the next default fold.
+ * Older bands fold only on a long list, and never the newest band on it.
+ * Automatic opening stays local; the store records only deliberate choices.
  */
-function useBandFolds(bands: Band[], loaded: number) {
+function useBandFolds(bands: Band[], loaded: number, scroller: RefObject<HTMLElement | null>) {
   const folded = useChatBandsStore((state) => state.folded);
   const opened = useChatBandsStore((state) => state.opened);
   const toggle = useChatBandsStore((state) => state.toggle);
   const newest = bands.find((band) => band.heading !== null)?.key;
+  const candidates = useMemo(
+    () =>
+      bands
+        .filter(
+          (band) =>
+            band.key !== newest &&
+            loaded > LONG_LIST &&
+            DEFAULT_COLLAPSED_BANDS.includes(band.key) &&
+            !folded.includes(band.key) &&
+            !opened.includes(band.key),
+        )
+        .map((band) => band.key),
+    [bands, newest, loaded, folded, opened],
+  );
+  const autoOpened = useFillChatBands(scroller, candidates);
   const isFolded = (key: string): boolean => {
     if (folded.includes(key)) return true;
-    if (opened.includes(key)) return false;
+    if (opened.includes(key) || autoOpened.includes(key)) return false;
     return key !== newest && loaded > LONG_LIST && DEFAULT_COLLAPSED_BANDS.includes(key);
   };
   return { isFolded, flip: (key: string) => toggle(key, isFolded(key)) };
@@ -656,7 +672,8 @@ function ConversationList({
 
   const isArchivedView = view === "archived";
   const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder, shared);
-  const { isFolded, flip } = useBandFolds(bands, conversations.length);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const { isFolded, flip } = useBandFolds(bands, conversations.length, scrollerRef);
   const foldedKeys = bands
     .filter((band) => isFolded(band.key))
     .map((band) => band.key)
@@ -668,7 +685,6 @@ function ConversationList({
   // Asked here instead, until the column is full or the list has ended - or the
   // last page drew nothing: rows that land in folded bands add no height, and
   // asking again for every one of them downloaded the whole history.
-  const scrollerRef = useRef<HTMLDivElement>(null);
   const pagedAtHeight = useRef<number | null>(null);
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -679,9 +695,7 @@ function ConversationList({
     onLoadMore?.();
   }, [conversations.length, foldedKeys, isLoading, onLoadMore]);
 
-  // The band the open conversation lands in opens, once per conversation - a new
-  // chat in a folded Today is otherwise a thread you are in that the list hides.
-  // Once: folding that band again afterwards is the reader's choice and stays.
+  // Reveal an active thread in an automatic fold; explicit user folds always win.
   const unfoldedFor = useRef<string | null>(null);
   useEffect(() => {
     if (currentConversationId === null || unfoldedFor.current === currentConversationId) return;
@@ -690,7 +704,8 @@ function ConversationList({
     );
     if (band === undefined) return;
     unfoldedFor.current = currentConversationId;
-    if (isFolded(band.key)) flip(band.key);
+    if (isFolded(band.key) && !useChatBandsStore.getState().folded.includes(band.key))
+      flip(band.key);
   }, [bands, currentConversationId, isFolded, flip]);
 
   return (
@@ -1154,7 +1169,8 @@ function CollapsedSidebar({
   const ts = useTranslations("chat.sidebar");
   const isArchivedView = view === "archived";
   const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder, shared);
-  const { isFolded, flip } = useBandFolds(bands, conversations.length);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const { isFolded, flip } = useBandFolds(bands, conversations.length, scrollerRef);
 
   return (
     <div className={cn("bg-sidebar-secondary hidden w-12 shrink-0 flex-col md:flex", className)}>
@@ -1174,6 +1190,7 @@ function CollapsedSidebar({
       <span aria-hidden className="bg-border mx-auto h-px w-6 shrink-0" />
 
       <div
+        ref={scrollerRef}
         className="flex flex-1 scrollbar-none flex-col items-center overflow-y-auto py-1"
         onScroll={(e) => {
           const el = e.currentTarget;

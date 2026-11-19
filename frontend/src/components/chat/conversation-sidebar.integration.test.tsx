@@ -985,20 +985,19 @@ describe("the favourites band", () => {
     );
   });
 
-  it("opens the band the open conversation lands in, once", async () => {
+  it("preserves an explicit fold even when the active conversation lands there", async () => {
     useChatBandsStore.setState({ folded: ["today"], opened: [] });
     useConversationStore.getState().setCurrentConversationId("c-1");
     serve([
       { ...conversation("c-1", "Just started"), updated_at: new Date().toISOString() },
     ] as unknown as ReturnType<typeof conversation>[]);
     mount();
-
-    expect(await within(list()).findByText("Just started")).toBeInTheDocument();
-    expect(useChatBandsStore.getState().folded).toEqual([]);
-
-    // Folding it again afterwards is the reader's choice, and it stays.
-    await userEvent.click(within(list()).getByRole("button", { name: /Today/ }));
+    const today = await within(list()).findByRole("button", { name: /Today/ });
+    expect(today).toHaveAttribute("aria-expanded", "false");
+    expect(useChatBandsStore.getState().folded).toEqual(["today"]);
     expect(within(list()).queryByText("Just started")).toBeNull();
+    await userEvent.click(today);
+    expect(within(list()).getByText("Just started")).toBeVisible();
   });
 
   it("leads with the threads holding an answer not yet seen", async () => {

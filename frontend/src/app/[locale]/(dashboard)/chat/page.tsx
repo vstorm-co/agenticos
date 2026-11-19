@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 
 import { ChatContainer, ConversationSidebar } from "@/components/chat";
-import { ChatLayoutPreview } from "@/components/chat/chat-layout-preview";
+import { ChatLayout } from "@/components/chat/chat-layout";
 import { PhoneChatBar } from "@/components/chat/phone-chat-bar";
 import { useMcpOAuthOutcome } from "@/hooks";
 import { useChatWith } from "@/hooks/use-chat-with";
@@ -31,7 +31,7 @@ export default function ChatPage() {
           the buttons floating over it on a phone. */}
       <div className="relative min-w-0 flex-1 max-md:[&_[data-chat-scroller]]:scroll-pt-20 max-md:[&_[data-transcript]]:pt-20">
         <PhoneChatBar />
-        <ChatLayoutPreview variant={params.get("layout")}>
+        <ChatLayout>
           <ChatContainer
             requestedConversationId={requestedConversationId}
             emptyState={
@@ -40,7 +40,7 @@ export default function ChatPage() {
                 : undefined
             }
           />
-        </ChatLayoutPreview>
+        </ChatLayout>
       </div>
     </div>
   );

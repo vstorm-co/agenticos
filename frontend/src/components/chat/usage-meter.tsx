@@ -10,6 +10,8 @@ import type { ConversationWorkspace } from "@/lib/conversation-workspace-api";
 import type { ConversationCost, TurnUsage } from "@/types";
 
 interface UsageMeterProps {
+  /** Keep numeric readings in the popover rather than beside the context ring. */
+  iconOnly?: boolean;
   /** The last turn's usage, or `null` before one has been measured. */
   usage: TurnUsage | null;
   /**
@@ -71,6 +73,7 @@ type Translate = (key: string, values?: Record<string, string | number>) => stri
  */
 export function UsageMeter({
   usage,
+  iconOnly = false,
   workspace = null,
   total = null,
   contextWindow = null,
@@ -123,9 +126,11 @@ export function UsageMeter({
             <>
               <ContextRing percent={context.percent} />
               {/* The share at a glance; what it is a share of is in the popover. */}
-              <span className="text-xs tabular-nums">
-                {t("percent", { percent: share(context.percent) })}
-              </span>
+              {!iconOnly && (
+                <span className="text-xs tabular-nums">
+                  {t("percent", { percent: share(context.percent) })}
+                </span>
+              )}
             </>
           )}
         </button>

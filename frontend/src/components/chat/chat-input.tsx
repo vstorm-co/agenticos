@@ -24,6 +24,7 @@ import { AttachmentRow } from "./attachment-row";
 import { ReplyingTo } from "./reply-quote";
 import { browserSpeechFailure } from "./browser-speech-failure";
 import { useChatStore } from "@/stores";
+import { useMainChat } from "./main-chat-context";
 import { ComposerSheet, type AttachSource } from "./composer-sheet";
 
 /**
@@ -291,6 +292,7 @@ export function ChatInput({
   projects,
   onPickProject,
 }: ChatInputProps) {
+  const mainChat = useMainChat();
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
   // The message this turn will answer, chosen with Reply on it.
@@ -887,6 +889,10 @@ export function ChatInput({
     setAttachedFiles((prev) => prev.filter((a) => a.file.id !== fileId));
   };
 
+  const hasDraft = message.trim().length > 0 || attachedFiles.length > 0;
+  const showPrimary = canStop || isProcessing || hasDraft;
+  const primaryMic = mainChat && !showPrimary;
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -1056,6 +1062,7 @@ export function ChatInput({
             onClick={server ? startDictation : toggleMic}
             disabled={disabled}
             className="chat-input-mic h-9 w-9 shrink-0"
+            data-primary={primaryMic}
             title={isListening ? t("stopRecording") : t("voiceInput")}
             aria-label={isListening ? t("stopRecording") : t("voiceInput")}
           >
@@ -1066,37 +1073,52 @@ export function ChatInput({
             )}
           </Button>
 
-          {canStop && onStop ? (
-            <Button
-              type="button"
-              size="icon"
-              onClick={onStop}
-              disabled={stopDisabled}
-              variant="ghost"
-              className="chat-input-primary group h-9 w-9 shrink-0 rounded-lg hover:bg-transparent active:bg-transparent"
-              title={t("stopGenerating")}
-            >
-              <span className={PRIMARY_ACTION_FACE} aria-hidden>
-                <span className="size-3 rounded-[3px] bg-current" />
-              </span>
-              <span className="sr-only">{t("stopGenerating")}</span>
-            </Button>
-          ) : idleSlot && !isProcessing && !message.trim() && attachedFiles.length === 0 ? (
-            idleSlot
-          ) : (
-            <Button
-              type="submit"
-              size="icon"
-              variant="ghost"
-              className="chat-input-primary group shrink-0 transition-transform hover:bg-transparent active:scale-90 active:bg-transparent"
-              disabled={disabled || isUploading || (!message.trim() && attachedFiles.length === 0)}
-            >
-              <span className={PRIMARY_ACTION_FACE} aria-hidden>
-                {isProcessing ? <Spinner className="size-4" /> : <Send className="size-4" />}
-              </span>
-              <span className="sr-only">{t("send")}</span>
-            </Button>
-          )}
+          <div
+            className={mainChat ? "chat-send-slot" : "contents"}
+            data-visible={showPrimary}
+            inert={mainChat && !showPrimary}
+            aria-hidden={mainChat && !showPrimary ? true : undefined}
+          >
+            <div className={mainChat ? "min-w-0 overflow-hidden" : "contents"}>
+              {canStop && onStop ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  onClick={onStop}
+                  disabled={stopDisabled}
+                  variant="ghost"
+                  className="chat-input-primary group h-9 w-9 shrink-0 rounded-lg hover:bg-transparent active:bg-transparent"
+                  title={t("stopGenerating")}
+                >
+                  <span className={PRIMARY_ACTION_FACE} aria-hidden>
+                    <span className="size-3 rounded-[3px] bg-current" />
+                  </span>
+                  <span className="sr-only">{t("stopGenerating")}</span>
+                </Button>
+              ) : !mainChat &&
+                idleSlot &&
+                !isProcessing &&
+                !message.trim() &&
+                attachedFiles.length === 0 ? (
+                idleSlot
+              ) : (
+                <Button
+                  type="submit"
+                  size="icon"
+                  variant="ghost"
+                  className="chat-input-primary group shrink-0 transition-transform hover:bg-transparent active:scale-90 active:bg-transparent"
+                  disabled={
+                    disabled || isUploading || (!message.trim() && attachedFiles.length === 0)
+                  }
+                >
+                  <span className={PRIMARY_ACTION_FACE} aria-hidden>
+                    {isProcessing ? <Spinner className="size-4" /> : <Send className="size-4" />}
+                  </span>
+                  <span className="sr-only">{t("send")}</span>
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </form>
