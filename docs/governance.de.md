@@ -1,5 +1,5 @@
 ---
-source_sha: "85c97f855377"
+source_sha: "9ff1469ca8a4"
 ---
 
 # Governance { #governance }
@@ -899,7 +899,9 @@ Die Prüfung zeigt die Capabilities des Agenten, AgenticOS und jedes andere MCP-
 
 Das Feld **Geprüfte Quellen** darüber listet die Quellen der Routine nach Art - Capabilities, Skills, Wissensdatenbanken, Tabellen, Konten -, jede Art auf eine Anzahl eingeklappt und jede Quelle mit ihrem Namen. Eine Quelle, die es nicht mehr gibt, erscheint als nicht mehr verfügbar; ihre Kennung steht im Tooltip.
 
-Handelt eine Routine als ihre erstellende Person, erscheinen die eigenen Werkzeuge des AgenticOS-Servers in den Gruppen, die der Builder zeigt: Tabellen, Aufgaben, Workflows, Agenten und die übrigen. Nur Werkzeuge, die etwas ändern, werden gelistet, denn Lesezugriffe fragen nie; die Werkzeugsuche fragt ebenfalls nicht. Ein Werkzeug, vor dem der Agent fragt, steht nicht in der Liste. Das gilt für jede Änderung, die die Bindung nicht auf **Run freely** setzt, und für die Werkzeuge, die immer fragen. Eine Routine behält die Bestätigungen des Agenten also oder verschärft sie, gibt aber nie eine frei. Eine Plattform-Ausnahme nennt nur das Werkzeug: Die Läufe der Routine erreichen die Plattform nur als ihre erstellende Person, die einzige, die sie prüfen kann.
+Handelt eine Routine als ihre erstellende Person, erscheinen die eigenen Werkzeuge des AgenticOS-Servers in den Gruppen, die der Builder zeigt: Tabellen, Aufgaben, Workflows, Agenten und die übrigen. Nur Werkzeuge, die etwas ändern, werden gelistet, denn Lesezugriffe fragen nie; die Werkzeugsuche fragt ebenfalls nicht. Ein Werkzeug, vor dem der Agent fragt, steht nicht in der Liste. Das gilt für jede Änderung, die die Bindung nicht auf **Run freely** setzt, und für die Werkzeuge, die immer fragen. Eine Routine behält die Bestätigungen des Agenten also oder verschärft sie, gibt aber nie eine frei.
+
+Eine Plattform-Ausnahme nennt nur das Werkzeug: Die Läufe der Routine erreichen die Plattform nur als ihre erstellende Person, die einzige, die sie prüfen kann.
 
 Beim Speichern müssen Version und Konfiguration noch der menschlichen Prüfung
 entsprechen. Eine Freigabe nennt die unveränderliche veröffentlichte Version, stabile

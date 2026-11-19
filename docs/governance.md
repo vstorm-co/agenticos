@@ -792,7 +792,9 @@ The review lists the agent's capabilities, AgenticOS and each other MCP account 
 
 The **Reviewed sources** panel above it lists the routine's sources by kind - capabilities, skills, knowledge bases, tables, accounts - each kind folded to a count, and each source by its name. A source that no longer exists shows as no longer available; its id is on hover.
 
-When a routine acts as its creator, the AgenticOS server's own tools are listed in the groups the Builder shows: tables, tasks, workflows, agents and the rest. Only tools that change something appear, because reads never ask; tool search does not ask either. A tool the agent asks before is not listed. That covers every change its binding does not set to **Run freely**, and the tools that always ask. So a routine keeps the agent's approvals or adds to them, and never releases one. A platform exception names the tool alone: the routine's runs reach the platform only as its creator, the only person who can review it.
+When a routine acts as its creator, the AgenticOS server's own tools are listed in the groups the Builder shows: tables, tasks, workflows, agents and the rest. Only tools that change something appear, because reads never ask; tool search does not ask either. A tool the agent asks before is not listed. That covers every change its binding does not set to **Run freely**, and the tools that always ask. So a routine keeps the agent's approvals or adds to them, and never releases one.
+
+A platform exception names the tool alone: the routine's runs reach the platform only as its creator, the only person who can review it.
 
 Saving requires the version and configuration the person reviewed to remain
 current. Consent names the immutable published version, stable capability/tool IDs and

@@ -1,5 +1,5 @@
 ---
-source_sha: "85c97f855377"
+source_sha: "9ff1469ca8a4"
 ---
 
 # Governance { #governance }
@@ -843,7 +843,9 @@ Przegląd pokazuje capabilities agenta, AgenticOS i każde inne konto MCP jako o
 
 Panel **Zatwierdzone źródła** nad nim pokazuje źródła rutyny według rodzaju - capabilities, skille, bazy wiedzy, tabele, konta - każdy rodzaj zwinięty do licznika, a każde źródło z nazwą. Źródło, którego już nie ma, jest oznaczone jako niedostępne; jego identyfikator widać po najechaniu.
 
-Gdy rutyna działa jako jej twórca, własne narzędzia serwera AgenticOS pojawiają się w tych samych grupach co w Builderze: tabele, zadania, workflowy, agenci i pozostałe. Widać tylko narzędzia, które coś zmieniają, bo odczyty nigdy nie pytają; wyszukiwanie narzędzi też nie pyta. Narzędzia, przed którym agent pyta, nie ma na liście. Dotyczy to każdej zmiany, której powiązanie nie ustawia na **Run freely**, oraz narzędzi, które zawsze pytają. Rutyna zachowuje więc zatwierdzenia agenta albo je zaostrza, ale nigdy żadnego nie zwalnia. Wyjątek platformy wskazuje tylko narzędzie: przebiegi rutyny docierają do platformy wyłącznie jako jej twórca, jedyna osoba, która może go przejrzeć.
+Gdy rutyna działa jako jej twórca, własne narzędzia serwera AgenticOS pojawiają się w tych samych grupach co w Builderze: tabele, zadania, workflowy, agenci i pozostałe. Widać tylko narzędzia, które coś zmieniają, bo odczyty nigdy nie pytają; wyszukiwanie narzędzi też nie pyta. Narzędzia, przed którym agent pyta, nie ma na liście. Dotyczy to każdej zmiany, której powiązanie nie ustawia na **Run freely**, oraz narzędzi, które zawsze pytają. Rutyna zachowuje więc zatwierdzenia agenta albo je zaostrza, ale nigdy żadnego nie zwalnia.
+
+Wyjątek platformy wskazuje tylko narzędzie: przebiegi rutyny docierają do platformy wyłącznie jako jej twórca, jedyna osoba, która może go przejrzeć.
 
 Zapis wymaga, aby wersja i konfiguracja nadal odpowiadały przeglądowi osoby.
 Zgoda wskazuje niezmienną opublikowaną wersję, stałe identyfikatory funkcji i

@@ -1,5 +1,5 @@
 ---
-source_sha: "85c97f855377"
+source_sha: "9ff1469ca8a4"
 ---
 
 # Governance { #governance }
@@ -858,7 +858,9 @@ La revisión muestra las capabilities del agente, AgenticOS y cada otra cuenta M
 
 El panel **Fuentes revisadas** de arriba lista las fuentes de la rutina por tipo - capabilities, skills, bases de conocimiento, tablas, cuentas -, cada tipo plegado a un recuento y cada fuente con su nombre. Una fuente que ya no existe aparece como no disponible; su identificador se ve al pasar el cursor.
 
-Cuando una rutina actúa como su creador, las herramientas propias del servidor de AgenticOS aparecen en los grupos que muestra el Builder: tablas, tareas, workflows, agentes y el resto. Solo aparecen las que cambian algo, porque las lecturas nunca preguntan; la búsqueda de herramientas tampoco pregunta. Una herramienta ante la que el agente pregunta no aparece. Eso cubre cada cambio que su vinculación no marca como **Run freely** y las herramientas que siempre preguntan. Así, una rutina mantiene las aprobaciones del agente o las endurece, y nunca libera ninguna. Una excepción de la plataforma nombra solo la herramienta: las ejecuciones de la rutina llegan a la plataforma solo como su creador, la única persona que puede revisarla.
+Cuando una rutina actúa como su creador, las herramientas propias del servidor de AgenticOS aparecen en los grupos que muestra el Builder: tablas, tareas, workflows, agentes y el resto. Solo aparecen las que cambian algo, porque las lecturas nunca preguntan; la búsqueda de herramientas tampoco pregunta. Una herramienta ante la que el agente pregunta no aparece. Eso cubre cada cambio que su vinculación no marca como **Run freely** y las herramientas que siempre preguntan. Así, una rutina mantiene las aprobaciones del agente o las endurece, y nunca libera ninguna.
+
+Una excepción de la plataforma nombra solo la herramienta: las ejecuciones de la rutina llegan a la plataforma solo como su creador, la única persona que puede revisarla.
 
 Al guardar, la versión y configuración deben seguir coincidiendo con lo revisado
 por la persona. El consentimiento identifica la versión publicada inmutable, los identificadores
