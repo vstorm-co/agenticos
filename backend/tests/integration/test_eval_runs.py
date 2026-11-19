@@ -51,6 +51,7 @@ from app.db.models.conversation import Conversation, Message
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase, EvalRunPurpose, EvalRunStatus
+from app.db.models.improvement import ImprovementVerdict
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
@@ -80,6 +81,8 @@ from app.services.api_key import KEY_GONE, ApiKeyService
 from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
+from app.services.improvement_pipeline import ImprovementPipelineService
+from app.services.improvement_states import judge
 from app.services.model_profile import ModelProfileService
 from app.services.scorers import JUDGE_PROMPT_VERSION
 from app.services.scoring import ScoringService
@@ -1591,6 +1594,63 @@ async def test_a_family_that_moved_too_little_to_settle_is_asked_again(db) -> No
     assert before is not None
     assert (after.pass_rate, after.criteria_passed, after.criteria_graded) == (0.0, 2, 4)
     assert (after.partial_credit, before.partial_credit) == (0.5, 0.0)
+
+
+async def test_a_family_that_moved_on_the_held_out_cases_is_asked_again_there(db) -> None:
+    """An Improve check is judged on its held-out cases alone. Counted over every case
+    the family settles on its spread, but on the five held out it cannot, so those are
+    asked again on both sides - the baseline standing in from an earlier check too."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _with_checks(db, ctx, cases=11)
+    cases = sorted(
+        (await DatasetService(db).list_cases(ctx, dataset.id)).items, key=lambda c: c.input
+    )
+    held_out = [case.case_id for case in cases[:5]]
+    service = EvalRunService(db)
+    draft = AgentSpec(name="Clerk", instructions="Draft")
+
+    def answer(prompt: str, call: int) -> str:
+        candidate = model.calls[call]["candidate"]
+        return _PASS if candidate.spec.instructions.startswith("Attempt") else _FAIL
+
+    async def check(instructions: str) -> EvalRunRead:
+        started = await service.start(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id, paired_baseline=True, reruns=1),
+            candidate_spec=AgentSpec(name="Clerk", instructions=instructions),
+            baseline_spec=draft,
+            proposal_check=ProposalCheckRecord(
+                kind="agent", base_version=7, suggestions=1, attempt_holdout=held_out
+            ),
+        )
+        await _run_to_end(db, model, started.id, ctx)
+        return await service.get(ctx, started.id)
+
+    model = Model(db, answer=answer)
+    await check("Attempt 1")
+    model = Model(db, answer=answer)
+    second = await check("Attempt 2")
+    comparison = await service.compare(ctx, second.id)
+
+    [baseline] = [arm for arm in second.arms if arm.role == "baseline"]
+    assert baseline.reused_from_arm_id is not None
+    # Eleven first answers from the candidate, then the five held-out cases once more
+    # on each side; the six training cases settle their own family.
+    assert len(model.calls) == 21
+    asked_again = {call["prompt"] for call in model.calls[11:]}
+    assert asked_again == {case.input for case in cases[:5]}
+    [window] = [item for item in comparison.families if item.family == "refund window"]
+    assert (window.cases, window.fixed, window.fixed_confirmed, window.settled) == (
+        5,
+        5,
+        5,
+        False,
+    )
+    assert window.better
+    result = ImprovementPipelineService._check_result(second, comparison)
+    assert judge(result) is ImprovementVerdict.CRITERIA_BETTER
 
 
 async def test_a_criterion_that_moved_on_one_case_is_not_asked_again(db) -> None:

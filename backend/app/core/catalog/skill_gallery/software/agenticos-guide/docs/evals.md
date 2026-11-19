@@ -446,6 +446,11 @@ repeated count. A family that moved on one case decides nothing and sends
 nothing to be asked again. Beside the cases whose outcome flipped, these are the
 only cases rerun.
 
+A run that keeps questions aside for an Improve session is judged on them
+alone, so its held-out cases settle their families apart from the rest. A family
+settled across the whole run is still rerun on the held-out cases when they
+cannot settle it.
+
 The verdict below stays about whole cases; an
 [Improve session](authoring.md#the-improve-wizard) and a
 [skill check](skills.md#the-rule) read the families when no case flipped.

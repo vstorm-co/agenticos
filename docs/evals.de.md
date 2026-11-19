@@ -1,5 +1,5 @@
 ---
-source_sha: "42c955482b4f"
+source_sha: "7ecad1d45f1b"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -493,6 +493,11 @@ entschieden zu sein, werden diese Fälle wiederholt, und nur ein Kippen, das jed
 Wiederholung wiederholt hat, zählt. Eine Familie, die sich auf einem Fall bewegt
 hat, entscheidet nichts und lässt keinen Fall erneut fragen. Neben den Fällen,
 deren Ergebnis gekippt ist, sind dies die einzigen wiederholten Fälle.
+
+Ein Run, der Fragen für eine Improve-Sitzung zurücklegt, wird nur nach ihnen
+beurteilt, daher entscheiden seine zurückgelegten Fälle ihre Familien getrennt
+vom Rest. Eine über den ganzen Run entschiedene Familie wird auf den
+zurückgelegten Fällen trotzdem wiederholt, wenn diese sie nicht entscheiden.
 
 Das Urteil unten bleibt bei
 ganzen Fällen; eine [Improve-Sitzung](authoring.md#the-improve-wizard) und eine

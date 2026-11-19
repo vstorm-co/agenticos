@@ -182,6 +182,14 @@ def scoring_hash(scoring: DatasetScoring) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
+def held_out_cases(run: EvalRun) -> frozenset[UUID] | None:
+    """The cases a measured run's verdict is read on, or None for a run that keeps none aside."""
+    if run.proposal_check is None:
+        return None
+    measured = ProposalCheckRecord.model_validate(run.proposal_check).measurement
+    return None if measured is None else frozenset(measured.holdout_case_ids)
+
+
 def spec_hash(
     spec: AgentSpec,
     skill_bodies: Mapping[UUID, SkillBody] | None = None,

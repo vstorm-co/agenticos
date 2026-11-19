@@ -1,5 +1,5 @@
 ---
-source_sha: "42c955482b4f"
+source_sha: "7ecad1d45f1b"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -457,6 +457,11 @@ sin estar decidida repite esos casos, y solo cuentan los cambios que repitió
 cada repetición. Una familia que se movió en un solo caso no decide nada ni
 manda ningún caso a volver a preguntarse. Además de los casos cuyo resultado
 cambió, estos son los únicos casos que se repiten.
+
+Un run que aparta preguntas para una sesión de Improve se juzga solo por ellas,
+así que sus casos apartados deciden sus familias por separado del resto. Una
+familia decidida en todo el run se sigue repitiendo en los casos apartados
+cuando estos no la deciden.
 
 El veredicto de abajo sigue siendo sobre casos enteros; una
 [sesión de Improve](authoring.md#the-improve-wizard) y una

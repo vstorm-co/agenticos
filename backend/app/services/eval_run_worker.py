@@ -19,7 +19,7 @@ of whose criteria, flipped against the baseline are rerun, and the run ends.
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection, Sequence
 from contextlib import AbstractAsyncContextManager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -77,7 +77,12 @@ from app.services.agent_registry import Candidate, PublishedCandidate, Unpublish
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
 from app.services.eval_comparison import Flip, PairedGrades, classify, family_flipped, family_moves
-from app.services.eval_run import EvalRunService, drifts, skill_body_from_json
+from app.services.eval_run import (
+    EvalRunService,
+    drifts,
+    held_out_cases,
+    skill_body_from_json,
+)
 from app.services.improvement_states import affordable
 from app.services.message_history import HistoryMessage, build_message_history
 from app.services.notifications import NotificationService
@@ -196,6 +201,16 @@ def run_failure(exc: BaseException) -> tuple[str, AttemptFault]:
             AttemptFault.AGENT,
         )
     return run_failure_summary(exc), AttemptFault.AGENT
+
+
+def _splits(cases: Sequence[UUID], held_out: Collection[UUID] | None) -> list[list[UUID]]:
+    """The cases compared together: all of them, or the held-out ones apart from the rest."""
+    if held_out is None:
+        return [list(cases)]
+    return [
+        [case for case in cases if case in held_out],
+        [case for case in cases if case not in held_out],
+    ]
 
 
 def _latency_ms(run: AgentRun) -> int | None:
@@ -1036,21 +1051,26 @@ class EvalRunWorker:
                         for case_id in same
                         if case_id in my_grades and case_id in their_grades
                     ]
-                    undecided = {
-                        move.family
-                        for move in family_moves(
-                            [
-                                PairedGrades(
-                                    baseline=their_grades[case_id][0],
-                                    candidate=my_grades[case_id][0],
-                                )
-                                for case_id in compared
-                            ],
-                            named,
-                            alpha=settings.EVAL_SIGNIFICANCE,
-                        )
-                        if move.needs_reruns
-                    }
+                    # A measured run is judged on its held-out cases alone, and its
+                    # training cases are compared apart, so each settles its own families.
+                    undecided: dict[UUID, set[str]] = {}
+                    for split in _splits(compared, held_out_cases(run)):
+                        families = {
+                            move.family
+                            for move in family_moves(
+                                [
+                                    PairedGrades(
+                                        baseline=their_grades[case_id][0],
+                                        candidate=my_grades[case_id][0],
+                                    )
+                                    for case_id in split
+                                ],
+                                named,
+                                alpha=settings.EVAL_SIGNIFICANCE,
+                            )
+                            if move.needs_reruns
+                        }
+                        undecided |= dict.fromkeys(split, families)
                     for case_id, (outcome, _, _) in mine.items():
                         first = firsts.get((arm.id, case_id))
                         if case_id not in same or first is None:
@@ -1062,7 +1082,7 @@ class EvalRunWorker:
                             their_grades.get(case_id, ({}, ()))[0],
                             my_grades.get(case_id, ({}, ()))[0],
                             named,
-                            undecided,
+                            undecided.get(case_id, set()),
                         ):
                             continue
                         queued[(arm.id, case_id)] = first

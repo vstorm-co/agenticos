@@ -1,5 +1,5 @@
 ---
-source_sha: "42c955482b4f"
+source_sha: "7ecad1d45f1b"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -466,6 +466,11 @@ przypadki są powtarzane i liczą się tylko odwrócenia, które powtórzyła ka
 powtórka. Rodzina, która przesunęła się na jednym przypadku, niczego nie
 rozstrzyga i nie wysyła niczego do ponownego zadania. Poza przypadkami, których
 wynik się odwrócił, tylko te przypadki są powtarzane.
+
+Run, który odkłada pytania dla sesji Improve, jest oceniany tylko na nich, więc
+jego odłożone przypadki rozstrzygają swoje rodziny osobno od reszty. Rodzina
+rozstrzygnięta w całym runie jest nadal powtarzana na odłożonych przypadkach,
+gdy one same jej nie rozstrzygają.
 
 Werdykt poniżej dotyczy nadal całych
 przypadków; [sesja Improve](authoring.md#the-improve-wizard) i
