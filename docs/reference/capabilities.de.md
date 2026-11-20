@@ -1,5 +1,5 @@
 ---
-source_sha: "9a9b600834b2"
+source_sha: "3283f1fbb7ef"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -143,7 +143,7 @@ Der Code-Modus erhält diese Stopps über die Sandbox-Grenze hinweg.
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | für Daytona | übergeben |
 | `mirage` | Virtuelles Terminal | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | pro Ordner, über das Extra `mirage` | übergeben |
 | `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
-| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | unverändert |
+| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual`, `preview_visual` | — | — | unverändert |
 | `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich | unverändert |
 | `text_to_speech` | Sprachausgabe | analysis | `generate_speech` | — | erforderlich | unverändert |
 | `video_generation` | Videoerzeugung | analysis | `generate_video` | — | erforderlich | übergeben |
@@ -1996,11 +1996,25 @@ Lässt einen Agenten einen lange laufenden Befehl starten - einen Test-Watcher, 
 `draw` — _Zeichnet im Gespräch: ein Diagramm, eine Karte, einen Ablauf, eine Erklärung, eine 3D-Szene._
 `revise_visual` — _Ändert ein Visual durch exakte Ersetzungen, ohne es neu zu zeichnen._
 `read_visual` — _Liest ein Visual dieses Gesprächs, wie es jetzt ist, mit angewendeten Überarbeitungen._
+`preview_visual` — _Prüft ein Visual dieses Gesprächs: Screenshot und Renderdiagnose._
+
+**Vor dem Speichern prüfen.** `preview_visual(visual_id, width=1000, appearance="light")`
+rendert die Zeichnung mit Überarbeitungen und Bildern, ohne sie zu veröffentlichen.
+Die Breite liegt zwischen 240 und 1600 Pixeln, das Farbschema ist `light` oder
+`dark`; 390 prüft die Telefonansicht. Zurück kommen Renderfehler, Konsolenwarnungen,
+Richtlinienverstöße und blockierte Anfragen sowie ein bis zu 2400 Pixel hoher
+Screenshot. Zuschnitt und Zeitüberschreitung werden genannt. Jede Diagnoseliste
+enthält höchstens zehn Einträge.
+
+Die Bereitstellung benötigt `ARTIFACT_RENDER_CDP_URL` und das Backend-Extra `browser`.
+Ohne Renderer erklärt das Tool, weshalb kein Screenshot vorliegt. Mit
+`preview_screenshot: false` erhält ein Modell ohne Bilderkennung weiterhin den
+Bericht. Der Quelltext wird neu gerendert; aktuelle Eingaben der Person in der
+Chat-Vorschau werden nicht gelesen.
 
 Zeichnet im Chat selbst. `kind` ist `svg` für Diagramme und Illustrationen,
 `mermaid` für Flussdiagramme, Sequenzen und ER-Diagramme oder `html` für alles
-Interaktive - Schieberegler, `<canvas>`, three.js, eine Karte. Keine Konfiguration;
-der mitgelieferte Skill `visual-design` trägt den Stil und fünf Vorlagen, und der
+Interaktive - Schieberegler, `<canvas>`, three.js, eine Karte. Der mitgelieferte Skill `visual-design` trägt den Stil und fünf Vorlagen, und der
 Builder bindet ihn, zusammen mit Charts, wenn Visuals eingeschaltet wird.
 
 **Es wählt zuerst die Form.** Nicht jede Antwort ist eine Zeichnung. Der Text des

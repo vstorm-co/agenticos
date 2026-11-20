@@ -234,7 +234,7 @@ export function FileViewer({ file, access, navigation, extraTabs = [], onClose }
           )}
         </div>
 
-        {strip !== null && <Carousel strip={strip} />}
+        {strip !== null && <FileCarousel strip={strip} />}
       </DialogContent>
     </Dialog>
   );
@@ -291,7 +291,7 @@ function describe(
  * content and centred, so two files look like two files rather than like a
  * toolbar with a gap in it.
  */
-function Carousel({ strip }: { strip: ViewerNavigation }) {
+export function FileCarousel({ strip }: { strip: ViewerNavigation }) {
   const t = useTranslations("files");
   const last = strip.names.length - 1;
 

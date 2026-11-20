@@ -7,6 +7,7 @@ the web - an address; and the person's browser's report reaches the model.
 """
 
 import asyncio
+import base64
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -14,15 +15,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx2
 import pytest
 from pydantic_ai import ModelRetry
-from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, ToolCallPart
+from pydantic_ai.messages import BinaryContent, ModelRequest, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.test import TestModel
-from pydantic_ai.tools import RunContext
+from pydantic_ai.tools import RunContext, ToolReturn
 from pydantic_ai.usage import RunUsage
 from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities import _registry as registry
 from app.agents.capabilities.artifacts._toolset import ArtifactEdit
-from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, Visuals, web_reach
+from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, Visuals, VisualsConfig, web_reach
 from app.agents.capabilities.visuals._capability import maps_line
 from app.agents.capabilities.visuals._reach import WebReach
 from app.agents.capabilities.visuals._toolset import (
@@ -37,7 +38,9 @@ from app.agents.capabilities.visuals._toolset import (
 from app.agents.deps import AgentDeps
 from app.agents.visual_reports import MAX_ERRORS, VisualReport, VisualReports
 from app.core.config import settings
+from app.core.exceptions import ConfigurationError, ExternalServiceError
 from app.repositories.conversation import ToolCallArgs
+from app.services import artifact_render, visual_render
 from app.services.visual import MAX_IMAGES, VisualSummary
 
 pytestmark = pytest.mark.anyio
@@ -763,6 +766,270 @@ class TestChecks:
         assert content_problem("svg", "<!--" + "--><!--" * 60) is not None
 
 
+class TestPreviewVisual:
+    @pytest.mark.security
+    async def test_private_model_authored_source_cannot_send_tile_coordinates_to_a_provider(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from tests.test_artifact_render import FakeBrowser, _page_events, _paused
+
+        tools = VisualsToolset()
+        secret = "confidential project forecast"
+        message = self._message(
+            tools,
+            content=(
+                f"<script>const forecast = '{secret}'</script>"
+                '<script src="lib/agenticos-worldmap-1.js"></script>'
+            ),
+        )
+        addresses = [f"{visual_render.artifacts.tile_source()}6/0/{i}" for i in range(3)]
+        browser = FakeBrowser(
+            events=[
+                *(event for event in _page_events() if event[0] != "Page.loadEventFired"),
+                (
+                    "Fetch.requestPaused",
+                    _paused(
+                        "offline-map",
+                        f"{artifact_render.content_address('lib/')}agenticos-worldmap-1.js",
+                    ),
+                    "FRAME",
+                ),
+                *(
+                    ("Fetch.requestPaused", _paused(f"tile-{i}", url), "FRAME")
+                    for i, url in enumerate(addresses)
+                ),
+                ("Page.loadEventFired", {}, "PAGE"),
+            ]
+        )
+        monkeypatch.setattr(
+            artifact_render.settings, "ARTIFACT_RENDER_CDP_URL", "http://renderer:9222"
+        )
+        monkeypatch.setattr(artifact_render, "SETTLE_SECONDS", 0)
+        monkeypatch.setattr(artifact_render, "_RESIZE_SECONDS", 0)
+        monkeypatch.setattr(artifact_render, "_connect", AsyncMock(return_value=browser))
+        proxy = AsyncMock(return_value=visual_render.Answer(body=b"tile", content_type="image/png"))
+        monkeypatch.setattr(visual_render, "answer", proxy)
+
+        result = await tools.preview_visual(_ctx(messages=[message]), "drawing")
+
+        assert isinstance(result, ToolReturn)
+        page = next(
+            params
+            for params, _ in browser.commands("Fetch.fulfillRequest")
+            if params and params["requestId"] == "page"
+        )
+        assert secret in base64.b64decode(page["body"]).decode()
+        offline_map = next(
+            params
+            for params, _ in browser.commands("Fetch.fulfillRequest")
+            if params and params["requestId"] == "offline-map"
+        )
+        assert "AOWorldMap" in base64.b64decode(offline_map["body"]).decode()
+        assert all(browser.answered()[f"tile-{i}"] == "failRequest" for i in range(3))
+        assert all(url in result.return_value for url in addresses)
+        proxy.assert_not_awaited()
+
+    def _message(self, tools: VisualsToolset, **args: Any) -> ModelResponse:
+        values = {"title": "Calculator", "kind": "html", "content": "<p>Revenue</p>"}
+        values.update(args)
+        return _drawn_in_run(tools, "drawing", **values)
+
+    async def test_the_agent_gets_the_picture_and_runtime_diagnostics(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        tools = VisualsToolset()
+        message = self._message(tools)
+        render = AsyncMock(
+            return_value=artifact_render.Rendered(
+                image=b"jpeg",
+                width=390,
+                height=3200,
+                shown_height=2400,
+                errors=["ReferenceError: revenue is not defined (line 7)"],
+                console=["warning: illustrative data"],
+                policy=["connect-src refused"],
+                blocked=["https://example.test/data"],
+                dialogs=["alert: check totals"],
+            )
+        )
+        monkeypatch.setattr(visual_render, "preview", render)
+
+        result = await tools.preview_visual(
+            _ctx(messages=[message]), "drawing", width=390, appearance="dark"
+        )
+
+        assert isinstance(result, ToolReturn)
+        assert result.content is not None
+        assert isinstance(result.content[0], BinaryContent)
+        assert result.content[0].data == b"jpeg"
+        assert result.content[0].media_type == "image/jpeg"
+        assert "390px, dark" in result.return_value
+        assert "person's current page state is not inspected" in result.return_value
+        assert "3200 pixels tall" in result.return_value
+        for note in (
+            "ReferenceError",
+            "illustrative data",
+            "connect-src",
+            "https://example.test/data",
+            "alert: check totals",
+        ):
+            assert note in result.return_value
+        assert "Screenshot: attached" in result.return_value
+        assert render.await_args.args == ("html", "<p>Revenue</p>")
+        assert render.await_args.kwargs == {
+            "title": "Calculator",
+            "width": 390,
+            "appearance": "dark",
+        }
+
+    async def test_a_revision_is_previewed_with_its_edits_applied(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        tools = VisualsToolset()
+        messages = [self._message(tools)]
+        tools.drawn.add("revision")
+        messages.append(
+            ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="revise_visual",
+                        tool_call_id="revision",
+                        args={
+                            "visual_id": "drawing",
+                            "edits": [{"old": "Revenue", "new": "Monthly revenue"}],
+                        },
+                    )
+                ]
+            )
+        )
+        render = AsyncMock(return_value=artifact_render.Rendered(image=b"jpeg"))
+        monkeypatch.setattr(visual_render, "preview", render)
+        result = await tools.preview_visual(_ctx(messages=messages), "revision")
+        assert isinstance(result, ToolReturn)
+        assert render.await_args.args == ("html", "<p>Monthly revenue</p>")
+
+    @pytest.mark.security
+    async def test_pictures_are_loaded_only_from_this_runs_organization_and_conversation(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        tools = VisualsToolset()
+        message = self._message(
+            tools,
+            content='<img src="{{image:logo}}">',
+            images=[{"name": "logo", "source": "logo.png"}],
+        )
+        conversation = uuid.uuid4()
+        deps = _deps()
+        monkeypatch.setattr(f"{SERVICE}.conversation_of_run", AsyncMock(return_value=conversation))
+        inline = AsyncMock(return_value='<img src="data:image/png;base64,cGlj">')
+        monkeypatch.setattr(f"{SERVICE}.inlined", inline)
+        render = AsyncMock(return_value=artifact_render.Rendered(image=b"jpeg"))
+        monkeypatch.setattr(visual_render, "preview", render)
+
+        await tools.preview_visual(_ctx(deps, messages=[message]), "drawing")
+
+        assert inline.await_args.args[1:] == (deps.organization_id, conversation)
+        assert render.await_args.args[1] == '<img src="data:image/png;base64,cGlj">'
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("organization", [True, False])
+    async def test_images_without_their_own_scope_are_not_rendered(
+        self, organization: bool, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        tools = VisualsToolset()
+        message = self._message(
+            tools,
+            content='<img src="{{image:logo}}">',
+            images=[{"name": "logo", "source": "logo.png"}],
+        )
+        deps = _deps() if organization else _deps(organization_id=None)
+        if not organization:
+            monkeypatch.setattr(
+                f"{SERVICE}.conversation_of_run", AsyncMock(return_value=uuid.uuid4())
+            )
+        render = AsyncMock()
+        monkeypatch.setattr(visual_render, "preview", render)
+        result = await tools.preview_visual(_ctx(deps, messages=[message]), "drawing")
+        assert "images require its own conversation and organization" in result
+        render.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_an_id_from_another_conversation_never_reaches_the_renderer(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        conversation = uuid.uuid4()
+        monkeypatch.setattr(f"{SERVICE}.conversation_of_run", AsyncMock(return_value=conversation))
+        lookup = AsyncMock(return_value=None)
+        monkeypatch.setattr(f"{SERVICE}.stored_call", lookup)
+        render = AsyncMock()
+        monkeypatch.setattr(visual_render, "preview", render)
+        result = await VisualsToolset().preview_visual(
+            _ctx(retry=1), "another-conversations-visual"
+        )
+        assert isinstance(result, str)
+        assert lookup.await_args.kwargs["conversation_id"] == conversation
+        assert "another-conversations-visual" in result
+        render.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            ConfigurationError(message="No renderer configured"),
+            ExternalServiceError(message="Renderer busy"),
+        ],
+    )
+    async def test_an_unavailable_renderer_is_explicit_and_has_no_picture(
+        self, error: Exception, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        tools = VisualsToolset()
+        message = self._message(tools)
+        monkeypatch.setattr(visual_render, "preview", AsyncMock(side_effect=error))
+        result = await tools.preview_visual(_ctx(messages=[message]), "drawing")
+        assert isinstance(result, str)
+        assert result.startswith("Preview unavailable:")
+        assert "No screenshot was taken" in result
+
+    async def test_the_screenshot_setting_keeps_the_written_report(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        tools = VisualsToolset(screenshot=False)
+        message = self._message(tools)
+        monkeypatch.setattr(
+            visual_render,
+            "preview",
+            AsyncMock(return_value=artifact_render.Rendered(image=b"jpeg")),
+        )
+        result = await tools.preview_visual(_ctx(messages=[message]), "drawing")
+        assert isinstance(result, str)
+        assert "No rendering errors or warnings" in result
+        assert "omitted by the capability's settings" in result
+
+    async def test_a_timeout_does_not_claim_the_visual_was_checked(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        tools = VisualsToolset()
+        message = self._message(tools)
+        monkeypatch.setattr(
+            visual_render,
+            "preview",
+            AsyncMock(return_value=artifact_render.Rendered(timed_out=True)),
+        )
+        result = await tools.preview_visual(_ctx(messages=[message]), "drawing")
+        assert "preview timed out" in result
+        assert "Screenshot: not taken" in result
+        assert "No rendering errors" not in result
+
+    @pytest.mark.parametrize("kwargs", [{"width": 239}, {"width": 1601}, {"appearance": "system"}])
+    async def test_invalid_viewports_are_steered_before_drawing(
+        self, kwargs: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        render = AsyncMock()
+        monkeypatch.setattr(visual_render, "preview", render)
+        result = await VisualsToolset().preview_visual(_ctx(retry=1), "drawing", **kwargs)
+        assert "must be" in result
+        render.assert_not_awaited()
+
+
 class TestCapability:
     def test_the_toolset_is_built_once(self) -> None:
         capability = Visuals()
@@ -783,6 +1050,19 @@ class TestCapability:
         )
         assert isinstance(built, Visuals)
         assert built.web_reach == reach
+
+    def test_preview_screenshots_can_be_disabled_for_a_text_only_model(self) -> None:
+        registry.load_builtins()
+        built = registry.REGISTRY["visuals"].builder(
+            registry.CapabilityBuildContext(
+                binding=registry.CapabilityBinding(capability_id="visuals"),
+                config=VisualsConfig(preview_screenshot=False),
+                resources={},
+            )
+        )
+        assert isinstance(built, Visuals)
+        assert built.screenshot is False
+        assert built._tools.screenshot is False
 
 
 class TestWebReach:

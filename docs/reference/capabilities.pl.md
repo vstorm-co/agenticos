@@ -1,5 +1,5 @@
 ---
-source_sha: "9a9b600834b2"
+source_sha: "3283f1fbb7ef"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -140,7 +140,7 @@ zatrzymania po przejściu przez granicę sandboxa.
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | dla Daytony | przekazana |
 | `mirage` | Wirtualny terminal | analiza | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | dla każdego folderu, przez extra `mirage` | przekazana |
 | `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
-| `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — | bez zmian |
+| `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual`, `preview_visual` | — | — | bez zmian |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany | bez zmian |
 | `text_to_speech` | Zamiana tekstu na mowę | analiza | `generate_speech` | — | wymagany | bez zmian |
 | `video_generation` | Generowanie wideo | analiza | `generate_video` | — | wymagany | przekazana |
@@ -1880,10 +1880,23 @@ Pozwala agentowi uruchomić polecenie, które działa długo - watcher testów, 
 `draw` — _Narysuj w rozmowie: diagram, mapę, przepływ, explainer, scenę 3D._
 `revise_visual` — _Zmień wizual dokładnymi zamianami, bez rysowania go od nowa._
 `read_visual` — _Przeczytaj wizual z tej rozmowy w obecnej postaci, z naniesionymi poprawkami._
+`preview_visual` — _Sprawdź wizualizację z tej rozmowy: zrzut ekranu i raport renderowania._
+
+**Sprawdź przed zapisaniem.** `preview_visual(visual_id, width=1000, appearance="light")`
+renderuje rysunek z poprawkami i obrazami, bez publikowania. Szerokość wynosi
+od 240 do 1600 pikseli, a motyw to `light` lub `dark`; 390 sprawdza telefon.
+Narzędzie zwraca błędy renderowania, ostrzeżenia konsoli, odmowy polityki i
+zablokowane żądania oraz zrzut do 2400 pikseli wysokości. Informuje o przycięciu
+strony lub przekroczeniu czasu. Każda lista diagnostyczna mieści do dziesięciu wpisów.
+
+Wdrożenie wymaga `ARTIFACT_RENDER_CDP_URL` i dodatku `browser` backendu.
+Bez renderera narzędzie wyjaśnia brak zrzutu. Ustaw `preview_screenshot: false`
+dla modelu, który nie odczytuje obrazów; raport nadal wraca. To nowy render
+źródła, a nie odczyt bieżących danych wpisanych przez osobę w podglądzie czatu.
 
 Rysuje w samym czacie. `kind` to `svg` dla diagramów i ilustracji, `mermaid` dla
 schematów blokowych, sekwencji i diagramów ER albo `html` dla wszystkiego, co
-interaktywne - suwaków, `<canvas>`, three.js, mapy. Bez konfiguracji; dostarczany
+interaktywne - suwaków, `<canvas>`, three.js, mapy. Dostarczany
 skill `visual-design` niesie styl i pięć szablonów, a Builder podpina go, razem z
 Wykresami (Charts), przy włączeniu Wizualizacji.
 

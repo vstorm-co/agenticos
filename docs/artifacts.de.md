@@ -1,5 +1,5 @@
 ---
-source_sha: "9d709767d4eb"
+source_sha: "6aaffd461f61"
 ---
 
 # Apps { #artifacts }
@@ -990,6 +990,13 @@ und die Warnungen beim Veröffentlichen von oben. Das Bild ist höchstens 2400 P
 hoch; eine längere Seite sagt, wie hoch sie ist. Eine Seite, die nach 15 Sekunden
 noch läuft, wird als solche gemeldet, ohne Bild.
 
+Jeder Render lässt höchstens 2.048 Browser-Ereignisse zu, darunter Anfragen und
+Konsolenmeldungen; höchstens 256 dürfen auf Verarbeitung warten. Wird einer
+dieser Grenzwerte überschritten, bricht der Renderer ab, verwirft den
+Browserkontext und liefert weder Screenshot noch PDF. Die Fehlermeldung fordert
+dazu auf, wiederholte Protokollausgaben oder Anfragen vor einem neuen Versuch zu
+reduzieren.
+
 Die Daten werden als die Person gelesen, für die der Run handelt, genau so, wie
 die Konsole sie für sie lesen würde, und zählen gegen deren Kontingent für
 Datenabrufe. In einem Gruppenchat lässt sich nur eine Seite der ganzen Organisation
@@ -1000,9 +1007,16 @@ eine Kanalnachricht, eine E-Mail oder ein Repository-Ereignis gestartet hat, gle
 als wer er ausgeführt wird. Eine Oberfläche, an der niemand angemeldet ist, zeigt
 keine Vorschau.
 
-Nichts, was die Seite anfragt,
-erreicht das Netzwerk: Die API beantwortet jede Anfrage mit der Seite, dem
-[Bibliothekssatz](#the-library-set) oder einer Ablehnung.
+Der Renderer beantwortet Anfragen mit der Seite, dem
+[Bibliothekssatz](#the-library-set) oder einer Ablehnung. `preview_visual`,
+App-Vorschauen und PDF-Exporte blockieren Kartenkacheln, auch bei Visuals ohne
+Bilder oder Live-Datenbindungen. Vom Modell erstellter Quelltext kann private
+Gesprächsinhalte enthalten, die durch von der Seite gewählte Kachelkoordinaten
+an den Anbieter gelangen könnten.
+
+Verwenden Sie die mitgelieferten SVG-Karten von `AOWorldMap` für Vorschauen ohne
+Netzwerkzugriff. Die konfigurierten Straßenkartenkacheln werden für diese
+Screenshots und PDF-Exporte nicht abgerufen.
 
 Das Bild braucht einen Browser, den der Betreiber bereitstellt, benannt durch
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), und das Extra
@@ -1050,6 +1064,17 @@ rechts in der Zeichnung, solange der Zeiger darauf ist: ein SVG wird größer
 gezeichnet, eine Seite skaliert, und der Rahmen scrollt, sobald die Zeichnung ihm
 entwächst. Ein Fehler, den die Zeichnung meldet, kommt mit *Beheben*, das den
 Agent fragt.
+
+Für ein fertiges SVG bietet **Herunterladen** die Vektorquelle oder ein PNG mit
+2000 Pixeln Breite und denselben Proportionen. Das PNG wird im Browser erstellt und
+ist auch im Vollbild verfügbar. Während der Vorbereitung ist das Herunterladen
+gesperrt. Schlägt der Export fehl, weist eine Meldung auf die erneute Versuchsmöglichkeit hin.
+
+**Seitenbereich öffnen** zeigt eine Visualisierung auf breiten Bildschirmen neben dem Chat und dem Eingabefeld. Ziehen Sie die Begrenzung oder ändern Sie die Breite mit den Pfeiltasten und wechseln Sie zwischen **Vorschau** und **Code**. Schmale Chats nutzen das ganze Fenster. Dieselbe Seite bleibt beim Ansichtswechsel und beim Schließen des Bereichs geladen; Formularwerte, Regler und 3D-Kamerapositionen bleiben erhalten. Eine andere Visualisierung lässt die vorherige Seite unverändert. Ein Gesprächswechsel beendet diesen Workspace.
+
+Die Tabs **Visualisierungen**, **Browser** und **Dateien** teilen sich diesen Arbeitsbereich. Beim Wechsel bleiben die ausgewählte Visualisierung und Datei geladen, einschließlich Steuerelementen und Scrollposition. Auch die Browsersitzung bleibt ausgewählt; ihr Livebild pausiert, solange ihr Tab verborgen ist. Automatisches Surfen ersetzt keinen selbst gewählten Tab. Ein Anhang öffnet Dateien; **Zurück zu allen Dateien** zeigt wieder die Liste. Beim Schließen bleibt die Auswahl bis zum Gesprächswechsel erhalten.
+
+**Vor dem Speichern prüfen.** Bitte den Agenten nach dem Zeichnen oder Überarbeiten um `preview_visual`. Das Werkzeug liefert einen Screenshot und Diagnosen aus demselben isolierten Renderer wie Apps. Telefonbreite und dunkles Farbschema sind wählbar. Geprüft wird eine neue Kopie des Quelltexts, nicht die aktuellen Werte in deiner Vorschau. Dafür ist der Apps-Renderer der Bereitstellung erforderlich; ohne ihn meldet das Werkzeug ausdrücklich, dass kein Screenshot aufgenommen wurde.
 
 **Folgenachrichten.** Ein Bedienelement in einer Zeichnung kann die Wahl der
 Person an das Gespräch zurückgeben - *Diesen Stopp planen*, *Diese Zahlen

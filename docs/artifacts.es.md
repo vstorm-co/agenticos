@@ -1,5 +1,5 @@
 ---
-source_sha: "9d709767d4eb"
+source_sha: "6aaffd461f61"
 ---
 
 # Aplicaciones { #artifacts }
@@ -899,6 +899,12 @@ publicación de arriba. La imagen mide como máximo 2400 píxeles de alto; una
 página más larga dice cuánto mide. Si sigue ejecutándose a los 15 segundos, se
 notifica así, sin imagen.
 
+Cada render admite como máximo 2048 eventos del navegador, incluidas peticiones
+y mensajes de consola, con un máximo de 256 pendientes de procesar. Superar
+cualquiera de los límites detiene el render, elimina su contexto del navegador
+y no devuelve captura ni PDF. El error pide reducir los mensajes o las
+peticiones repetidos antes de reintentar.
+
 Los datos se leen como la persona por la que actúa el run, exactamente como la
 consola los leería para ella, y cuentan contra su cupo de lecturas de datos. En un chat
 de grupo solo se puede previsualizar una página de toda la organización, las mismas
@@ -908,9 +914,16 @@ un webhook, un formulario, un mensaje de canal, un correo o un evento de reposit
 sea cual sea la identidad con la que se ejecute. Una superficie sin nadie con sesión
 iniciada no previsualiza nada.
 
-Nada de lo que pide la página llega a la red: la API responde a cada
-petición con la página, el [conjunto de bibliotecas](#the-library-set) o un
-rechazo.
+El renderer responde a las peticiones con la página, el
+[conjunto de bibliotecas](#the-library-set) o un rechazo. `preview_visual`, las
+vistas previas de aplicaciones y las exportaciones PDF bloquean las teselas de
+mapas, incluso en visualizaciones sin imágenes ni enlaces a datos en vivo. El
+código creado por el modelo puede contener información privada de la conversación,
+que las coordenadas elegidas por la página podrían revelar al proveedor.
+
+Usa los mapas SVG incluidos de `AOWorldMap` para vistas previas sin acceso a la
+red. Las teselas de calles configuradas en el despliegue no se descargan para
+estas capturas ni para las exportaciones PDF.
 
 La imagen necesita un navegador que ejecute el operador, indicado por
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), y el extra
@@ -956,6 +969,17 @@ toque abre la vista previa a pantalla completa. El zoom está en la esquina
 inferior derecha del dibujo mientras el puntero está encima: un SVG se dibuja más
 grande, una página se escala, y el marco se desplaza cuando el dibujo lo supera.
 Un error que el dibujo informa llega con *Arreglarlo*, que se lo pide al agent.
+
+Para un SVG terminado, **Descargar** ofrece el archivo vectorial o un PNG de
+2000 píxeles de ancho con las mismas proporciones. El PNG se prepara en el navegador
+y también se puede descargar desde la pantalla completa. Durante la preparación,
+la descarga queda desactivada. Si la exportación falla, un mensaje indica que puedes intentarlo de nuevo.
+
+**Abrir panel lateral** muestra la visualización junto a la conversación y el cuadro de mensaje en pantallas anchas. Arrastra el borde o ajusta el ancho con las flechas y cambia entre **Vista previa** y **Código**. Los chats estrechos usan toda la ventana. La misma página permanece montada al cambiar de vista y cerrar el panel; se conservan los formularios, controles deslizantes y posiciones de cámara 3D. Abrir otra visualización no reinicia la anterior. Cambiar de conversación termina ese workspace.
+
+Las pestañas **Visualizaciones**, **Navegador** y **Archivos** comparten este espacio de trabajo. Al cambiar de pestaña, la visualización y el archivo seleccionados siguen montados, incluidos sus controles y posición de desplazamiento. La sesión del navegador sigue seleccionada; su vista en directo se pausa mientras su pestaña está oculta. La navegación automática no reemplaza una pestaña que hayas elegido. Abrir un adjunto selecciona Archivos; **Volver a todos los archivos** muestra la lista. Cerrar el espacio conserva la selección hasta cambiar de conversación.
+
+**Comprueba antes de guardar.** Pide al agente que llame a `preview_visual` después de dibujar o revisar. Devuelve una captura y diagnósticos del mismo renderizador aislado que utiliza Apps. Puedes pedir ancho de teléfono o modo oscuro. Se comprueba una copia nueva del código, no los valores actuales de tu vista en directo. Requiere el renderizador de Apps del despliegue; sin él, la herramienta indica expresamente que no se tomó ninguna captura.
 
 **Mensajes de seguimiento.** Un control de un dibujo puede devolver la elección de
 la persona a la conversación - *Planificar esta parada*, *Usar estas cifras* -

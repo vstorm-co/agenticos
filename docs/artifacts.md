@@ -865,6 +865,11 @@ refused, dialogs, and the publish warnings above. The picture is at most 2400
 pixels tall; a longer page says how tall it is. A page still running after 15
 seconds is reported as such, without a picture.
 
+Each render admits at most 2,048 browser events, with at most 256 waiting to be
+processed, including requests and console messages. Exceeding either limit
+aborts the render, disposes its browser context and returns no screenshot or
+PDF. The error asks you to reduce repeated logging or requests before retrying.
+
 The data is read as the person the run is for, exactly as the console would
 read it for them, and counts against that person's data allowance. In a group chat
 only an organization-wide page can be previewed, the same pages the list shows
@@ -873,9 +878,14 @@ for - one an outsider started through a webhook, a form, a channel message, an
 email or a repository event - whoever it executes as. A surface with nobody signed
 in previews nothing.
 
-Nothing the page asks for reaches the
-network: the API answers every request with the page, the
-[library set](#the-library-set) or a refusal.
+The renderer answers requests with the page, the
+[library set](#the-library-set) or a refusal. `preview_visual`, App previews and
+PDF exports block map tiles, including visuals without images or live-data
+bindings. Model-authored source can contain private conversation text, which
+page-selected tile coordinates could disclose to the provider.
+
+Use the bundled `AOWorldMap` SVG maps for network-free previews. Deployment-configured
+street tiles are not fetched for these screenshots or PDF exports.
 
 The picture needs a browser the operator runs, named by
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), and the backend's
@@ -919,6 +929,17 @@ size; on a phone the preview opens full screen at a tap. Zoom sits in the
 drawing's bottom right corner while the pointer is on it: an SVG is drawn
 larger, a page is scaled, and the box scrolls once the drawing outgrows it. An
 error the drawing reports comes with *Fix it*, which asks the agent.
+
+For a finished SVG, **Download** offers the vector source or a PNG 2000 pixels wide
+with the same proportions. The PNG is prepared in your browser and is also available
+from full screen. During preparation, downloading is disabled. If export fails,
+a message explains that you can try again.
+
+**Open side panel** keeps a visual beside the conversation and composer on wide screens. Drag its boundary, use the arrow keys to resize it, and switch between **Preview** and **Code**. Narrow chats use the full window. The same live page stays mounted through code, side-panel and full-screen views and when you close the panel, so form inputs, sliders and 3D camera positions remain intact. Opening another visual selects it without resetting the previous page. Switching conversations ends that workspace.
+
+The **Visuals**, **Browser** and **Files** tabs share this workspace. Switching tabs keeps the selected visual and file mounted, including their controls and scroll position. The browser session also remains selected; its live feed pauses while its tab is hidden. Automatic browsing does not replace a tab you selected. Opening an attachment selects Files, where **Back to all files** returns to the listing. Closing the workspace preserves its selection until you switch conversations.
+
+**Check before saving.** Ask the agent to call `preview_visual` after drawing or revising. It returns a screenshot and rendering diagnostics from the same isolated renderer used by Apps. You can request phone width or dark mode. This checks a fresh copy of the source, not the current values in your live preview. It requires the deployment’s Apps renderer; without one, the tool explicitly reports that no screenshot was taken.
 
 **Follow-ups.** A control in a drawing can hand the person's choice back to the
 conversation - *Plan this stop*, *Use these numbers* - by calling

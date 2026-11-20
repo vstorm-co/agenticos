@@ -21,6 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Chat workspace tabs for Visuals, Browser and Files retain the selected content when switching views.
+- Let agents inspect a conversation visual before saving it as an App with `preview_visual`: a bounded screenshot, rendering diagnostics, phone-sized viewports and light/dark checks.
+- Open chat visuals in a resizable side panel with Preview and Code views, preserving interactive state through expansion and closing.
+- Download SVG visuals as sharp PNG images from chat or full screen, with local conversion, preparation feedback and a retryable error message.
+
 - Answer on **Matrix**: register a bot account on your own homeserver with its access token and the homeserver's URL, and invite it to a room or a direct chat. Answers stream into a thread on the question as edits, approvals and questions are numbered replies, and files, the thread's earlier messages and the room's members reach the agent. Limited sync batches recover in bounded pages from the durable cursor, including after a restart. Unencrypted rooms only for now; end-to-end encryption follows (#2081).
 
 ### Upgrading

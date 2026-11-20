@@ -1973,6 +1973,8 @@
       "reviseVisual": "Hat ein Visual überarbeitet",
       "readingVisual": "Liest ein Visual",
       "readVisual": "Hat ein Visual gelesen",
+      "previewingVisual": "Visualisierung wird geprüft",
+      "previewVisual": "Visualisierung prüfen",
       "workingInText": "Arbeitet im Textmodus daran",
       "workedInText": "Im Textmodus bearbeitet",
       "workflowsListing": "Prüft, welche Workflows er starten kann",
@@ -2218,6 +2220,16 @@
       "collection": "Was sagt <chip></chip> zu Kündigungsfristen?",
       "slash": "Tippen Sie <command></command>, um das Gespräch zusammenzufassen, oder / für alle Befehle"
     },
+    "workspace": {
+      "title": "Arbeitsbereich",
+      "visuals": "Visuals",
+      "browser": "Browser",
+      "files": "Dateien",
+      "resize": "Breite des Arbeitsbereichs ändern",
+      "expand": "Arbeitsbereich vergrößern",
+      "dock": "Arbeitsbereich andocken",
+      "allFiles": "Zurück zu allen Dateien"
+    },
     "visuals": {
       "drawing": "Zeichnet…",
       "revising": "Überarbeitet…",
@@ -2231,6 +2243,10 @@
       "zoomReset": "Zoom zurücksetzen",
       "zoomLevel": "{zoom, number, percent}",
       "download": "Herunterladen",
+      "downloadSvg": "SVG — Vektordatei",
+      "downloadPng": "PNG — Bild für Präsentationen",
+      "preparingPng": "PNG wird vorbereitet…",
+      "pngDownloadFailed": "Die PNG-Datei konnte nicht heruntergeladen werden. Versuchen Sie es erneut.",
       "copyImage": "Als Bild kopieren",
       "imageCopied": "Bild kopiert",
       "copyImageFailed": "Das Bild konnte nicht kopiert werden",
@@ -2259,7 +2275,15 @@
       "followUpAsks": "Das Visual möchte dies als Ihre Nachricht senden:",
       "followUpSend": "Senden",
       "followUpEdit": "Bearbeiten",
-      "followUpDismiss": "Verwerfen"
+      "followUpDismiss": "Verwerfen",
+      "openWorkspace": "Seitenbereich öffnen",
+      "dockWorkspace": "Zurück zum Seitenbereich",
+      "closeWorkspace": "Visualisierung schließen",
+      "workspaceTitle": "Visualisierung: {title}",
+      "workspaceViews": "Ansichten der Visualisierung",
+      "resizeWorkspace": "Breite des Visualisierungsbereichs ändern",
+      "previewTab": "Vorschau",
+      "codeTab": "Code"
     },
     "dictation": {
       "cancel": "Diktat abbrechen",
@@ -2521,7 +2545,6 @@
     "browserShownInPanel": "{host} ist im Browserbereich geöffnet",
     "browserOpenPanel": "Neben dem Chat öffnen",
     "browserDock": "Zurück neben den Chat",
-    "browserResize": "Breite des Browserbereichs ändern",
     "computerLineUsed": "Hat einen Computer bedient",
     "queuedWaitingForNetwork": "Wartet auf das Netz",
     "queuedNotSent": "Nicht gesendet: {reason}",
@@ -5519,6 +5542,14 @@
       "chat-visual": {
         "title": "Zeichnungen",
         "body": "Ein Agent mit Visuals zeichnet hier Diagramme, Erklärungen und 3D-Szenen, live während er sie schreibt. Öffnen Sie eine im Vollbild, laden Sie sie herunter, fragen Sie danach oder speichern Sie sie als App mit einem Link zum Teilen."
+      },
+      "chat-workspace-tabs": {
+        "title": "Ein Arbeitsbereich neben deinem Chat",
+        "body": "Wechsle hier zwischen Visualisierungen, Browser und Dateien. Die ausgewählte Seite und Datei bleiben beim Wechsel der Tabs geöffnet. Vergrößere den Arbeitsbereich oder schließe ihn, um zum Gespräch zurückzukehren."
+      },
+      "chat-visual-workspace": {
+        "title": "Eine Seite neben dem Chat",
+        "body": "Öffnen Sie eine Visualisierung im verstellbaren Seitenbereich und nutzen Sie sie während des Chats. Wechseln Sie zwischen Vorschau und Code, öffnen Sie das Vollbild oder schließen Sie den Bereich, ohne die Steuerelemente zurückzusetzen."
       },
       "chat-voice-call": {
         "title": "Mit dem Agent sprechen",
@@ -13362,6 +13393,12 @@
     "chipGroupsMore": "{names} +{count}"
   },
   "capabilityConfig": {
+    "visuals": {
+      "preview_screenshot": {
+        "title": "Dem Modell ein Bild der Visualisierung zeigen",
+        "description": "Bei der Vorschau einer Visualisierung einen Screenshot zurückgeben. Für Modelle ohne Bilderkennung deaktivieren; der Renderbericht wird weiterhin zurückgegeben."
+      }
+    },
     "browser_use": {
       "cdp_url": {
         "title": "DevTools-Endpunkt",

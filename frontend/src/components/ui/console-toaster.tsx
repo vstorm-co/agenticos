@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Toaster } from "sonner";
 
 /** Keep dismissal in Sonner so actions, promises and onDismiss retain their contract. */
-export function ConsoleToaster({ closeLabel }: { closeLabel: string }) {
+export function ConsoleToaster({ closeLabel, id }: { closeLabel: string; id?: string }) {
+  const host = useRef<HTMLElement>(null);
   useEffect(() => {
     const dismissClicked = (event: MouseEvent) => {
       if (event.defaultPrevented || !(event.target instanceof Element)) return;
+      if (!host.current?.contains(event.target)) return;
       if (event.target.closest("[data-close-button]")) return;
       const item = event.target.closest<HTMLElement>(
         '.console-toasts [data-sonner-toast][data-dismissible="true"]',
@@ -21,6 +23,8 @@ export function ConsoleToaster({ closeLabel }: { closeLabel: string }) {
 
   return (
     <Toaster
+      ref={host}
+      id={id}
       closeButton
       className="console-toasts"
       position="top-right"

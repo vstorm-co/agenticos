@@ -910,6 +910,8 @@
       "reviseVisual": "Poprawił wizual",
       "readingVisual": "Czyta wizual",
       "readVisual": "Przeczytał wizual",
+      "previewingVisual": "Sprawdza wizualizację",
+      "previewVisual": "Podgląd wizualizacji",
       "workingInText": "Pracuje nad tym w trybie tekstowym",
       "workedInText": "Popracował nad tym w trybie tekstowym",
       "workflowsListing": "Sprawdza, które workflow może uruchomić",
@@ -1233,6 +1235,16 @@
       "collection": "Co <chip></chip> mówi o okresie wypowiedzenia?",
       "slash": "Wpisz <command></command>, by podsumować rozmowę, albo /, by zobaczyć wszystkie komendy"
     },
+    "workspace": {
+      "title": "Obszar roboczy",
+      "visuals": "Wizualizacje",
+      "browser": "Przeglądarka",
+      "files": "Pliki",
+      "resize": "Zmień szerokość obszaru roboczego",
+      "expand": "Rozwiń obszar roboczy",
+      "dock": "Przypnij obszar roboczy",
+      "allFiles": "Wróć do wszystkich plików"
+    },
     "visuals": {
       "drawing": "Rysuje…",
       "revising": "Poprawia…",
@@ -1246,6 +1258,10 @@
       "zoomReset": "Przywróć rozmiar",
       "zoomLevel": "{zoom, number, percent}",
       "download": "Pobierz",
+      "downloadSvg": "SVG — plik wektorowy",
+      "downloadPng": "PNG — obraz do prezentacji",
+      "preparingPng": "Przygotowuję PNG…",
+      "pngDownloadFailed": "Nie udało się pobrać PNG. Spróbuj ponownie.",
       "copyImage": "Kopiuj jako obraz",
       "imageCopied": "Skopiowano obraz",
       "copyImageFailed": "Nie udało się skopiować obrazu",
@@ -1274,7 +1290,15 @@
       "followUpAsks": "Wizualizacja prosi o wysłanie tego jako Twojej wiadomości:",
       "followUpSend": "Wyślij",
       "followUpEdit": "Edytuj",
-      "followUpDismiss": "Odrzuć"
+      "followUpDismiss": "Odrzuć",
+      "openWorkspace": "Otwórz panel boczny",
+      "dockWorkspace": "Wróć do panelu bocznego",
+      "closeWorkspace": "Zamknij wizualizację",
+      "workspaceTitle": "Wizualizacja: {title}",
+      "workspaceViews": "Widoki wizualizacji",
+      "resizeWorkspace": "Zmień szerokość panelu wizualizacji",
+      "previewTab": "Podgląd",
+      "codeTab": "Kod"
     },
     "dictation": {
       "cancel": "Anuluj dyktowanie",
@@ -1536,7 +1560,6 @@
     "browserShownInPanel": "{host} jest otwarte w panelu przeglądarki",
     "browserOpenPanel": "Otwórz obok czatu",
     "browserDock": "Wróć obok czatu",
-    "browserResize": "Zmień szerokość panelu przeglądarki",
     "computerLineUsed": "Korzystał z komputera",
     "queuedWaitingForNetwork": "Czeka na sieć",
     "queuedNotSent": "Nie wysłano: {reason}",
@@ -7273,6 +7296,14 @@
         "title": "Rysunki",
         "body": "Agent z Visuals rysuje tu diagramy, explainery i sceny 3D, na żywo, w trakcie pisania. Otwórz rysunek na pełnym ekranie, pobierz go, zapytaj o niego albo zapisz jako aplikację z linkiem do udostępnienia."
       },
+      "chat-workspace-tabs": {
+        "title": "Jeden obszar roboczy obok czatu",
+        "body": "Przełączaj się między Wizualizacjami, Przeglądarką i Plikami. Wybrana strona i plik pozostają otwarte po zmianie karty. Rozwiń obszar roboczy, aby mieć więcej miejsca, lub zamknij go, by wrócić do rozmowy."
+      },
+      "chat-visual-workspace": {
+        "title": "Strona obok rozmowy",
+        "body": "Otwórz wizualizację w panelu bocznym o regulowanej szerokości i korzystaj z niej podczas rozmowy. Przełączaj Podgląd i Kod, włącz pełny ekran lub zamknij panel bez resetowania kontrolek."
+      },
       "chat-voice-call": {
         "title": "Porozmawiaj z agentem",
         "body": "Rozpocznij rozmowę głosową. Agent odpowiada na głos, używa swoich narzędzi i pyta Cię, zanim coś zrobi; każda wypowiedź zostaje tu zapisana jako tekst."
@@ -10343,6 +10374,12 @@
     }
   },
   "capabilityConfig": {
+    "visuals": {
+      "preview_screenshot": {
+        "title": "Pokaż modelowi obraz wizualizacji",
+        "description": "Zwracaj zrzut ekranu, gdy agent sprawdza wizualizację. Wyłącz dla modelu, który nie odczytuje obrazów; raport renderowania nadal jest zwracany."
+      }
+    },
     "browser_use": {
       "cdp_url": {
         "title": "Endpoint DevTools",

@@ -1,10 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceFiles } from "./workspace-files";
+import { ChatWorkspaceProvider } from "./chat-workspace-context";
+import { useFilePreviewStore } from "@/stores/file-preview-store";
+import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { useWorkOnStore } from "@/stores/work-on-store";
 const localInvoke = vi.hoisted(() => vi.fn());
@@ -27,13 +30,17 @@ vi.mock("@/components/chat/markdown-content", () => ({
 
 function draw(node: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
+  return render(
+    <QueryClientProvider client={client}>
+      <ChatWorkspaceProvider shared>{node}</ChatWorkspaceProvider>
+    </QueryClientProvider>,
+  );
 }
 
 /** The panel is closed by default; every test about its contents opens it. */
 async function openPanel() {
   await userEvent.click(await screen.findByRole("button", { name: /^Show the files/ }));
-  await waitFor(() => expect(screen.getByRole("complementary")).toHaveStyle({ opacity: "1" }));
+  await waitFor(() => expect(screen.getByRole("tabpanel", { name: "Files" })).toBeVisible());
 }
 
 function workspace(overrides: Record<string, unknown> = {}) {
@@ -55,6 +62,8 @@ function workspace(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   useSourcesPanelStore.getState().close();
+  useFilePreviewStore.setState({ openId: null, available: [] });
+  useBrowserPanelStore.setState({ openCallId: null });
   vi.clearAllMocks();
   vi.mocked(apiClient.get).mockResolvedValue(workspace());
 });
@@ -242,12 +251,11 @@ describe("the workspace panel", () => {
         conversationId={null}
         attachments={[]}
         revision={0}
-        overlay
       />,
     );
 
     await userEvent.click(screen.getByRole("button", { name: "Show the files" }));
-    expect(screen.getByRole("complementary")).toHaveClass("absolute");
+    expect(screen.getByRole("tabpanel", { name: "Files" })).toHaveClass("fixed");
   });
 
   it("does not list a directory as a file", async () => {
@@ -306,12 +314,14 @@ describe("the workspace panel", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const { rerender } = render(
       <QueryClientProvider client={client}>
-        <WorkspaceFiles
-          buttonSlot={document.body}
-          conversationId="c1"
-          attachments={[]}
-          revision={0}
-        />
+        <ChatWorkspaceProvider shared>
+          <WorkspaceFiles
+            buttonSlot={document.body}
+            conversationId="c1"
+            attachments={[]}
+            revision={0}
+          />
+        </ChatWorkspaceProvider>
       </QueryClientProvider>,
     );
     await openPanel();
@@ -320,12 +330,14 @@ describe("the workspace panel", () => {
 
     rerender(
       <QueryClientProvider client={client}>
-        <WorkspaceFiles
-          buttonSlot={document.body}
-          conversationId="c1"
-          attachments={[]}
-          revision={1}
-        />
+        <ChatWorkspaceProvider shared>
+          <WorkspaceFiles
+            buttonSlot={document.body}
+            conversationId="c1"
+            attachments={[]}
+            revision={1}
+          />
+        </ChatWorkspaceProvider>
       </QueryClientProvider>,
     );
 
@@ -357,11 +369,11 @@ describe("the workspace panel", () => {
     // first - and the table, which is what the panel could never do, is one tab
     // away. A CSV an agent wrote used to render as a wall of commas here and as
     // bytes-and-a-download for every other kind.
-    expect(await screen.findByRole("dialog")).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "report.csv" })).toBeVisible();
     await waitFor(() => expect(screen.getByRole("columnheader", { name: "month" })).toBeVisible());
 
-    await userEvent.click(screen.getByRole("button", { name: "Close" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await userEvent.click(screen.getByRole("button", { name: "Back to all files" }));
+    expect(await screen.findByRole("button", { name: /report\.csv/ })).toBeVisible();
   });
 
   it("says when the file changed, which only the listing knows (#500)", async () => {
@@ -385,7 +397,7 @@ describe("the workspace panel", () => {
     await openPanel();
     await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("tabpanel", { name: "Files" });
     await waitFor(() => expect(within(dialog).getByText(/modified/i)).toBeVisible());
   });
 
@@ -509,7 +521,7 @@ describe("the workspace panel", () => {
     await openPanel();
     await userEvent.click(await screen.findByRole("button", { name: /report\.csv/ }));
 
-    await screen.findByRole("dialog");
+    await screen.findByRole("heading", { name: "report.csv" });
     expect(screen.queryByRole("figure")).toBeNull();
   });
 
@@ -600,7 +612,7 @@ describe("the workspace panel", () => {
     expect(toggle).toBeVisible();
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     await userEvent.click(toggle);
-    await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("tabpanel", { name: "Files" })).toBeNull());
     expect(screen.getByRole("button", { name: /^Show the files/ })).toHaveAttribute(
       "aria-expanded",
       "false",
@@ -621,7 +633,7 @@ describe("the workspace panel", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
 
-    await waitFor(() => expect(screen.queryByText("report.csv")).toBeNull());
+    await waitFor(() => expect(screen.getByText("report.csv")).not.toBeVisible());
     expect(screen.getByRole("button", { name: /^Show the files/ })).toHaveFocus();
   });
 
@@ -1020,6 +1032,66 @@ it("lists the granted desktop folder rather than the server workspace", async ()
   }
 });
 
+it.each([
+  { conversationId: "c1", from: null, to: "/approved" },
+  { conversationId: "c1", from: "/approved", to: "/another" },
+  { conversationId: "c1", from: "/approved", to: null },
+  { conversationId: null, from: "/approved", to: "/another" },
+])(
+  "clears an open file reader when Work on changes from $from to $to",
+  async ({ conversationId, from, to }) => {
+    window.__AGENTICOS_SHELL__ = {
+      platform: "macos",
+      version: "0.2.0",
+      window: "main",
+      vibrancy: true,
+    };
+    const file = { path: "/report.csv", size: 30, is_dir: false, modified_at: null };
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.includes("/workspace/file?")
+        ? { content: "location,value\ncloud,1", truncated: false }
+        : workspace({ items: [file] }),
+    );
+    localInvoke.mockImplementation(async (command: string) =>
+      command === "local_files" ? [{ ...file, modified: null }] : btoa("location,value\nlocal,2"),
+    );
+    const choose = (folder: string | null) =>
+      useWorkOnStore
+        .getState()
+        .set(conversationId, folder === null ? null : { folder, mode: "read_only" }, false);
+    choose(from);
+    try {
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId={conversationId}
+          attachments={[]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+      await userEvent.click(await screen.findByRole("button", { name: /report.csv/ }));
+      expect(await screen.findByRole("heading", { name: "report.csv" })).toBeVisible();
+      expect(await screen.findByRole("columnheader", { name: "location" })).toBeVisible();
+
+      act(() => choose(to));
+
+      expect(screen.queryByRole("heading", { name: "report.csv" })).toBeNull();
+      expect(await screen.findByRole("button", { name: /report.csv/ })).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: /report.csv/ }));
+      expect(await screen.findByRole("heading", { name: "report.csv" })).toBeVisible();
+      if (to === null) expect(await screen.findByRole("cell", { name: "cloud" })).toBeVisible();
+      else {
+        expect(await screen.findByRole("cell", { name: "local" })).toBeVisible();
+        expect(localInvoke).toHaveBeenCalledWith("local_file", { root: to, path: "/report.csv" });
+      }
+    } finally {
+      delete window.__AGENTICOS_SHELL__;
+      useWorkOnStore.setState({ byConversation: {}, draft: null });
+    }
+  },
+);
+
 it("groups duplicate file names under their actual folders and opens the full path", async () => {
   const entries = ["index.html", "site/index.html", "site/style.css"].map((path) => ({
     path,
@@ -1062,7 +1134,85 @@ it("switches between files and sources without keeping both panels open", async 
       .getState()
       .open([{ index: 1, type: "web", title: "Source", url: "https://example.org" }]),
   );
-  await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+  await waitFor(() => expect(screen.queryByRole("tabpanel", { name: "Files" })).toBeNull());
   await openPanel();
   expect(useSourcesPanelStore.getState().isOpen).toBe(false);
+});
+
+it("opens transcript attachments in Files, retains the reader across tabs and supports paging", async () => {
+  const first = {
+    id: "first",
+    filename: "first.md",
+    mime_type: "text/markdown",
+    file_type: "text",
+  };
+  const second = { ...first, id: "second", filename: "second.md" };
+  useFilePreviewStore.getState().setAvailable([first, second]);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({ ok: true, text: async () => "# Attached file" }),
+  );
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  function Files({ conversationId }: { conversationId: string | null }) {
+    return (
+      <QueryClientProvider client={client}>
+        <ChatWorkspaceProvider shared conversationId={conversationId}>
+          <WorkspaceFiles
+            buttonSlot={document.body}
+            conversationId={conversationId}
+            attachments={[first, second]}
+            revision={0}
+          />
+        </ChatWorkspaceProvider>
+      </QueryClientProvider>
+    );
+  }
+  const view = render(<Files conversationId={null} />);
+  act(() => useFilePreviewStore.getState().open(first));
+  expect(await screen.findByRole("heading", { name: "first.md" })).toBeVisible();
+  view.rerender(<Files conversationId="created" />);
+  expect(screen.getByRole("heading", { name: "first.md" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Source" }));
+  const source = await screen.findByText(
+    (_, element) => element?.tagName === "PRE" && element.textContent === "# Attached file",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
+  await openPanel();
+  expect(
+    screen.getByText(
+      (_, element) => element?.tagName === "PRE" && element.textContent === "# Attached file",
+    ),
+  ).toBe(source);
+  expect(source).toHaveTextContent("# Attached file");
+  await userEvent.click(screen.getByRole("button", { name: "Next file" }));
+  expect(await screen.findByRole("heading", { name: "second.md" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Back to all files" }));
+  expect(await screen.findByRole("button", { name: /first.md/ })).toBeVisible();
+  act(() => useFilePreviewStore.getState().open(first));
+  expect(await screen.findByRole("heading", { name: "first.md" })).toBeVisible();
+  view.rerender(<Files conversationId="other" />);
+  expect(screen.queryByRole("heading", { name: "first.md" })).toBeNull();
+  expect(screen.queryByRole("tabpanel", { name: "Files" })).toBeNull();
+  vi.unstubAllGlobals();
+});
+
+it("ignores a stale attachment request and lets Escape close Files after nested dialogs", async () => {
+  draw(
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" attachments={[]} revision={0} />,
+  );
+  act(() => useFilePreviewStore.setState({ openId: "not-in-this-conversation", openRequest: 99 }));
+  expect(screen.queryByRole("tabpanel", { name: "Files" })).toBeNull();
+  await openPanel();
+  await userEvent.click(screen.getByRole("button", { name: "Expand workspace" }));
+  expect(screen.getByRole("button", { name: "Dock workspace" })).toBeVisible();
+  const dialog = document.createElement("div");
+  dialog.setAttribute("role", "dialog");
+  document.body.append(dialog);
+  fireEvent.keyDown(dialog, { key: "Escape" });
+  expect(screen.getByRole("tabpanel", { name: "Files" })).toBeVisible();
+  dialog.remove();
+  fireEvent.keyDown(window, { key: "x" });
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(screen.queryByRole("tabpanel", { name: "Files" })).toBeNull();
+  expect(screen.getByRole("button", { name: /^Show the files/ })).toHaveFocus();
 });

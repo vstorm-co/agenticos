@@ -5210,6 +5210,12 @@
     }
   },
   "capabilityConfig": {
+    "visuals": {
+      "preview_screenshot": {
+        "title": "Modele görselin resmini göster",
+        "description": "Ajan bir görseli önizlediğinde ekran görüntüsü döndür. Görüntüleri okuyamayan modeller için kapat; işleme tanılama raporu yine döndürülür."
+      }
+    },
     "browser_use": {
       "cdp_url": {
         "title": "DevTools uç noktası",
@@ -8681,6 +8687,14 @@
         "title": "Çizimler",
         "body": "Visuals capability’si olan agent, yazarken diyagramları, açıklayıcı görselleri ve 3D sahneleri burada canlı olarak çizer. Tam ekran açın, indirin, hakkında soru sorun veya paylaşılabilir bağlantıyla uygulama olarak kaydedin."
       },
+      "chat-workspace-tabs": {
+        "title": "Sohbetinin yanında tek çalışma alanı",
+        "body": "Buradan Görseller, Tarayıcı ve Dosyalar arasında geçiş yap. Sekme değiştirdiğinde seçtiğin sayfa ve dosya açık kalır. Daha fazla alan için çalışma alanını genişlet veya sohbete dönmek için kapat."
+      },
+      "chat-visual-workspace": {
+        "title": "Sohbetinizin yanında bir sayfa",
+        "body": "Sohbete devam ederken görseli kullanmak için genişliği ayarlanabilir yan panelde açın. Kontrolleri sıfırlamadan Önizleme ve Kod arasında geçiş yapın, tam ekranı açın veya paneli kapatın."
+      },
       "chat-voice-call": {
         "title": "Agent’la konuşun",
         "body": "Sesli arama başlatın. Agent sesli yanıt verir, araçlarını kullanır ve işlem yapmadan önce size sorar. Her konuşma sırası burada metin olarak kaydedilir."
@@ -9581,6 +9595,8 @@
       "reviseVisual": "Görsel düzenlendi",
       "readingVisual": "Görsel okunuyor",
       "readVisual": "Görsel okundu",
+      "previewingVisual": "Görsel önizleniyor",
+      "previewVisual": "Görseli önizle",
       "workingInText": "Metin üzerinde çalışılıyor",
       "workedInText": "Metin üzerinde çalıştı",
       "workflowsListing": "Başlatabileceği workflow'lar denetleniyor",
@@ -9809,6 +9825,16 @@
       "collection": "<chip></chip> bildirim süreleri hakkında ne diyor?",
       "slash": "Bu konuşmayı özetlemek için <command></command> yazın; tüm komutları görmek için / yazın"
     },
+    "workspace": {
+      "title": "Çalışma alanı",
+      "visuals": "Görseller",
+      "browser": "Tarayıcı",
+      "files": "Dosyalar",
+      "resize": "Çalışma alanını yeniden boyutlandır",
+      "expand": "Çalışma alanını genişlet",
+      "dock": "Çalışma alanını sabitle",
+      "allFiles": "Tüm dosyalara dön"
+    },
     "visuals": {
       "drawing": "Çiziliyor…",
       "revising": "Düzenleniyor…",
@@ -9822,6 +9848,10 @@
       "zoomReset": "Yakınlaştırmayı sıfırla",
       "zoomLevel": "{zoom, number, percent}",
       "download": "İndir",
+      "downloadSvg": "SVG — vektör dosyası",
+      "downloadPng": "PNG — sunumlar için görsel",
+      "preparingPng": "PNG hazırlanıyor…",
+      "pngDownloadFailed": "PNG indirilemedi. Tekrar deneyin.",
       "copyImage": "Görsel olarak kopyala",
       "imageCopied": "Görsel kopyalandı",
       "copyImageFailed": "Görsel kopyalanamadı",
@@ -9850,7 +9880,15 @@
       "followUpAsks": "Çizim bunu mesaj olarak göndermek istiyor:",
       "followUpSend": "Gönder",
       "followUpEdit": "Düzenle",
-      "followUpDismiss": "Kapat"
+      "followUpDismiss": "Kapat",
+      "openWorkspace": "Yan paneli aç",
+      "dockWorkspace": "Yan panele dön",
+      "closeWorkspace": "Görseli kapat",
+      "workspaceTitle": "Görsel: {title}",
+      "workspaceViews": "Görsel görünümleri",
+      "resizeWorkspace": "Görsel panelini yeniden boyutlandır",
+      "previewTab": "Önizleme",
+      "codeTab": "Kod"
     },
     "dictation": {
       "cancel": "Dikteyi iptal et",
@@ -10110,7 +10148,6 @@
     "browserShownInPanel": "{host} browser panelinde açık",
     "browserOpenPanel": "Chat'in yanında aç",
     "browserDock": "Chat'in yanına geri al",
-    "browserResize": "Browser panelini yeniden boyutlandır",
     "computerLineUsed": "Bilgisayar kullandı",
     "queuedWaitingForNetwork": "Ağ bekleniyor",
     "queuedNotSent": "Gönderilmedi: {reason}",

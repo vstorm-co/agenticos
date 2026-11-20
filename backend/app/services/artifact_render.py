@@ -15,16 +15,18 @@ setting or the extra, :func:`render` raises
 :class:`~app.core.exceptions.ConfigurationError` and the tool answers with its
 text report alone.
 
-**Nothing reaches the network.** Every request of the render is paused with
+**Requests are controlled.** Every request of the render is paused with
 `Fetch` - on the page's target and on every out-of-process frame, attached flat
 as it starts - and answered from this process: a host document at
 `FRONTEND_URL` that frames the page as the console does, the page at its real
 content address under its real `Content-Security-Policy`, and the library set
-from disk. Anything else fails as blocked by the client and is reported. The
+from disk. Map tiles are blocked too: model-authored source can encode private
+conversation content in coordinates sent to an external provider.
+Anything else fails as blocked by the client and is reported. The
 browser should run with no egress as well: this is the first barrier, and that
 is the second.
 
-**Each render is its own.** A fresh browser context, a fixed viewport, a hard
+**Each render is its own.** A fresh browser context, a bounded viewport, a hard
 deadline, a cap on renders at once, and the context disposed whatever happened -
 one person's records in one picture never share a cookie jar, a cache or a tab
 with the next render.
@@ -64,7 +66,7 @@ PDF_MAX_PAGES = 50
 PDF_STREAM_CLOSE_SECONDS = 2.0
 
 WIDTH = 1280
-"""How wide every page is drawn: a desktop window, the width a report is read at."""
+"""Default desktop width; visual previews can request a bounded viewport."""
 FIRST_HEIGHT = 800
 """The viewport a page loads in, and the shortest picture."""
 MAX_HEIGHT = 2400
@@ -82,6 +84,9 @@ MAX_RENDERS = 2
 browser's CPU is not, and a page may spin."""
 MAX_NOTES = 10
 """How many of each kind of problem a render keeps."""
+MAX_EVENTS = 2048
+MAX_PENDING_EVENTS = 256
+"""Per render: total admitted CDP events and events waiting for the pump."""
 _NOTE_CHARS = 300
 
 NOT_CONFIGURED = "ARTIFACT_RENDER_CDP_URL is not set, so this deployment has no page renderer."
@@ -141,6 +146,8 @@ class RenderRequest:
     paper: Literal["a4", "slides"] = "a4"
     injected_lines: int = 0
     """Lines served before the page's own, taken off a line number reported in it."""
+    width: int = WIDTH
+    appearance: Literal["light", "dark"] = "light"
 
 
 @dataclass
@@ -233,7 +240,7 @@ async def render(request: RenderRequest, *, connect: Connector | None = None) ->
         ConfigurationError: No renderer on this deployment - unset, malformed,
             or the `browser` extra missing.
         ExternalServiceError: The browser did not answer, refused a command, or
-            every renderer stayed busy.
+            every renderer stayed busy, or the page exceeded its browser-event limit.
     """
     endpoint = configured_endpoint()
     gate = _gate()
@@ -250,7 +257,7 @@ async def render(request: RenderRequest, *, connect: Connector | None = None) ->
 
 async def _render(request: RenderRequest, endpoint: str, connect: Connector) -> Rendered:
     """Connect, draw and dispose, all within one deadline but the disposal."""
-    found = Rendered()
+    found = Rendered(width=request.width)
     drawing: _Render | None = None
     try:
         async with asyncio.timeout(DEADLINE_SECONDS):
@@ -314,23 +321,50 @@ class _Render:
         self.target_id: str | None = None
         self.page: str | None = None
         self.loaded = asyncio.Event()
-        self.heard: asyncio.Queue[tuple[str, CdpPayload, str | None]] = asyncio.Queue()
+        self.heard: asyncio.Queue[tuple[str, CdpPayload, str | None]] = asyncio.Queue(
+            MAX_PENDING_EVENTS
+        )
+        self.admitted_events = 0
+        self.overflow: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         self.frames: list[tuple[str | None, int]] = []
         """The default execution context of every frame but the host's, newest last."""
 
     async def run(self) -> None:
         for method in _EVENTS:
             self.connection.on(method, self._listener(method))
-        pump = asyncio.create_task(self._pump())
+        drawing = asyncio.create_task(self._draw())
+        tasks: list[asyncio.Future[None]] = [
+            drawing,
+            asyncio.create_task(self._pump()),
+            self.overflow,
+        ]
         try:
-            await self._draw()
+            # An event-pump failure must reach the caller, rather than leave the
+            # page waiting for a response until the overall render deadline.
+            finished, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            if self.overflow.done():
+                raise ExternalServiceError(
+                    message="The preview exceeded its browser-event limit. Reduce repeated logging or requests and try again.",
+                    details={"max_events": MAX_EVENTS, "max_pending_events": MAX_PENDING_EVENTS},
+                )
+            for task in finished:
+                task.result()
         finally:
-            pump.cancel()
-            await asyncio.gather(pump, return_exceptions=True)
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            while not self.heard.empty():
+                self.heard.get_nowait()
 
     def _listener(self, method: str) -> CdpHandler:
         def heard(params: CdpPayload, session_id: str | None) -> None:
+            if self.overflow.done():
+                return
+            if self.admitted_events >= MAX_EVENTS or self.heard.full():
+                self.overflow.set_result(None)
+                return
             self.heard.put_nowait((method, params, session_id))
+            self.admitted_events += 1
 
         return heard
 
@@ -358,11 +392,6 @@ class _Render:
         self.page = attached.get("sessionId")
         await self._watch(self.page)
         await self._viewport(FIRST_HEIGHT)
-        await connection.send(
-            "Emulation.setEmulatedMedia",
-            {"features": [{"name": "prefers-color-scheme", "value": "light"}]},
-            session_id=self.page,
-        )
         await connection.send("Page.navigate", {"url": self.shell}, session_id=self.page)
         await self.loaded.wait()
         await asyncio.sleep(SETTLE_SECONDS)
@@ -448,13 +477,18 @@ class _Render:
         self.found.pdf = await asyncio.to_thread(_checked_pdf, bytes(content))
 
     async def _watch(self, session_id: str | None) -> None:
-        """Hold every request of a target, and hear what it says."""
+        """Hold every request, set the target's appearance and hear what it says."""
         connection = self.connection
         await connection.send(
             "Fetch.enable", {"patterns": [{"urlPattern": "*"}]}, session_id=session_id
         )
         for domain in ("Runtime", "Log", "Page"):
             await connection.send(f"{domain}.enable", session_id=session_id)
+        await connection.send(
+            "Emulation.setEmulatedMedia",
+            {"features": [{"name": "prefers-color-scheme", "value": self.request.appearance}]},
+            session_id=session_id,
+        )
         # Flat, and paused at start: an out-of-process frame's first request would
         # otherwise go out before its own `Fetch.enable` arrived.
         await connection.send(
@@ -466,7 +500,12 @@ class _Render:
     async def _viewport(self, height: int) -> None:
         await self.connection.send(
             "Emulation.setDeviceMetricsOverride",
-            {"width": WIDTH, "height": height, "deviceScaleFactor": 1, "mobile": False},
+            {
+                "width": self.request.width,
+                "height": height,
+                "deviceScaleFactor": 1,
+                "mobile": False,
+            },
             session_id=self.page,
         )
 
@@ -500,12 +539,7 @@ class _Render:
         url = str(request.get("url", ""))
         response = await self.serve(url, str(request.get("method", "")))
         if response is None:
-            _note(self.found.blocked, url)
-            await self.connection.send(
-                "Fetch.failRequest",
-                {"requestId": params.get("requestId"), "errorReason": "BlockedByClient"},
-                session_id=session_id,
-            )
+            await self._refuse(params, session_id, url)
             return
         await self.connection.send(
             "Fetch.fulfillRequest",
@@ -520,12 +554,19 @@ class _Render:
             session_id=session_id,
         )
 
+    async def _refuse(self, params: CdpPayload, session_id: str | None, url: str) -> None:
+        _note(self.found.blocked, url)
+        await self.connection.send(
+            "Fetch.failRequest",
+            {"requestId": params.get("requestId"), "errorReason": "BlockedByClient"},
+            session_id=session_id,
+        )
+
     async def serve(self, url: str, method: str) -> _Response | None:
         """What this render answers a request with, or `None` to refuse it.
 
-        Three addresses and no others, by `GET` only: the host, the page and a
-        file of the library set by its exact name - a query string ignored, as
-        the real route ignores it.
+        Serve only the host, page and bundled libraries by GET.
+        Library queries are ignored, as on the real route.
         """
         if method != "GET":
             return None
@@ -546,6 +587,7 @@ class _Render:
                     page_url=self.page_url,
                     nonce=self.request.nonce,
                     bindings=self.request.bindings,
+                    appearance=self.request.appearance,
                 ),
                 headers={"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store"},
             )
@@ -742,7 +784,11 @@ def pdf_document(request: RenderRequest) -> bytes:
 
 
 def shell_document(
-    *, page_url: str, nonce: str, bindings: dict[str, AnyBindingData] | None
+    *,
+    page_url: str,
+    nonce: str,
+    bindings: dict[str, AnyBindingData] | None,
+    appearance: Literal["light", "dark"] = "light",
 ) -> bytes:
     """The host the page is framed in: the console's frame and its half of the data bridge.
 
@@ -752,6 +798,9 @@ def shell_document(
     a page that listens. `window.__agenticosPreview.asked` is what the report
     reads back; the page cannot reach it from its opaque origin.
     """
+    # Keep the host's default color scheme: changing it can make a child that
+    # does not declare color-scheme paint an opaque canvas instead of remaining transparent.
+    background = "#fff" if appearance == "light" else "#121212"
     page = (
         None
         if bindings is None
@@ -782,7 +831,8 @@ def shell_document(
     return (
         "<!doctype html>\n"
         '<html lang="en"><head><meta charset="utf-8"><title>Preview</title>\n'
-        "<style>html, body { margin: 0; height: 100%; background: #fff; }\n"
+        "<style>html, body { margin: 0; height: 100%; "
+        f"background: {background}; }}\n"
         "iframe { border: 0; display: block; width: 100%; height: 100%; }</style>\n"
         f"<script>{script}</script></head><body>\n"
         f'<iframe id="page" title="Preview" src="{_attribute(page_url)}" '

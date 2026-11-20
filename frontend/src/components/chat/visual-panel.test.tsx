@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -38,7 +39,18 @@ class VisibleObserver extends observerConstructor {
     );
   };
 }
-beforeEach(() => vi.stubGlobal("IntersectionObserver", VisibleObserver));
+beforeEach(() => {
+  vi.stubGlobal("IntersectionObserver", VisibleObserver);
+  // jsdom has no top-layer methods; iframe retention is verified in the real browser too.
+  Object.defineProperty(HTMLElement.prototype, "showPopover", {
+    configurable: true,
+    value: vi.fn(),
+  });
+  Object.defineProperty(HTMLElement.prototype, "hidePopover", {
+    configurable: true,
+    value: vi.fn(),
+  });
+});
 afterEach(() => vi.unstubAllGlobals());
 vi.mock("./visual-frame", () => ({
   VisualFrame: (props: VisualFrameProps) => {
@@ -51,12 +63,19 @@ vi.mock("./visual-frame", () => ({
   },
 }));
 
-const { copySvgImage, downloadVisual, svgPng } = vi.hoisted(() => ({
+const { copySvgImage, downloadSvgPng, downloadVisual, svgPng } = vi.hoisted(() => ({
   copySvgImage: vi.fn(),
+  downloadSvgPng: vi.fn(),
   downloadVisual: vi.fn(),
   svgPng: vi.fn(),
 }));
-vi.mock("./visual-actions", () => ({ copySvgImage, downloadVisual, svgPng }));
+vi.mock("./visual-actions", async (original) => ({
+  ...(await original<typeof import("./visual-actions")>()),
+  copySvgImage,
+  downloadSvgPng,
+  downloadVisual,
+  svgPng,
+}));
 
 const { getVisualImage, putVisualThumbnail } = vi.hoisted(() => ({
   getVisualImage: vi.fn(),
@@ -79,7 +98,7 @@ vi.mock("./visual-save-dialog", () => ({
 }));
 
 const { toast } = vi.hoisted(() => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("sonner", () => ({ toast }));
+vi.mock("sonner", async (original) => ({ ...(await original<typeof import("sonner")>()), toast }));
 
 // Saving publishes an app, which `artifacts:edit` decides.
 const canPublish = vi.fn(() => true);
@@ -214,8 +233,12 @@ describe("TurnVisuals", () => {
 
   it("offers no zoom over the code", () => {
     show([call()]);
+    expect(lastFrame().watchdogPaused).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Show code" }));
     expect(screen.queryByRole("button", { name: "Zoom in" })).toBeNull();
+    expect(lastFrame().watchdogPaused).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Show visual" }));
+    expect(lastFrame().watchdogPaused).toBe(false);
   });
 
   it("shows nothing for a call that failed", () => {
@@ -310,20 +333,23 @@ describe("TurnVisuals", () => {
     show([call({ status: "unfinished" })]);
     expect(screen.getByText("Unfinished")).toBeInTheDocument();
     expect(lastFrame().done).toBe(false);
+    expect(screen.queryByRole("button", { name: "Download" })).not.toBeInTheDocument();
   });
 
   it("toggles to the code and back", () => {
     show([call()]);
     fireEvent.click(screen.getByRole("button", { name: "Show code" }));
-    expect(screen.getByText(SVG)).toBeInTheDocument();
+    expect(screen.getByText(SVG, { selector: "pre" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Show visual" }));
     expect(screen.getByTestId("frame")).toBeInTheDocument();
   });
 
   it("downloads and copies an SVG", async () => {
+    const user = userEvent.setup();
     copySvgImage.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("no"));
     show([call()]);
-    fireEvent.click(screen.getByRole("button", { name: "Download" }));
+    await user.click(screen.getByRole("button", { name: "Download" }));
+    await user.click(screen.getByRole("menuitem", { name: "SVG — vector file" }));
     expect(downloadVisual).toHaveBeenCalledWith(
       "Flow",
       "svg",
@@ -332,9 +358,50 @@ describe("TurnVisuals", () => {
       "http://localhost:8000/api/v1/artifact-content/",
     );
     fireEvent.click(screen.getByRole("button", { name: "Copy as image" }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Image copied"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Image copied", {}));
     fireEvent.click(screen.getByRole("button", { name: "Copy as image" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+
+  it("keeps delayed copy and PNG feedback in the initiating chat workspace", async () => {
+    const copied = Promise.withResolvers<void>();
+    copySvgImage.mockReturnValueOnce(copied.promise);
+    const user = userEvent.setup();
+    const first = show([call()]);
+    const second = show([call({ id: "d2" })], { conversationId: "c2" });
+    fireEvent.click(within(second.container).getByRole("button", { name: "Copy as image" }));
+    await user.click(within(first.container).getByRole("button", { name: "Open side panel" }));
+    await user.click(within(second.container).getByRole("button", { name: "Open side panel" }));
+    const own = within(second.container).getByRole("region", { name: "Visual: Flow" });
+
+    await act(async () => copied.resolve());
+    expect(toast.success).toHaveBeenCalledWith("Image copied", { toasterId: own.id });
+
+    downloadSvgPng.mockRejectedValueOnce(new Error("No PNG"));
+    await user.click(within(own).getByRole("button", { name: "Download" }));
+    await user.click(screen.getByRole("menuitem", { name: "PNG — image for slides" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("The PNG could not be downloaded. Try again.", {
+        toasterId: own.id,
+      }),
+    );
+
+    await user.click(within(own).getByRole("button", { name: "Close visual" }));
+    copySvgImage.mockRejectedValueOnce(new Error("No clipboard"));
+    fireEvent.click(within(second.container).getByRole("button", { name: "Copy as image" }));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("The image could not be copied", {}),
+    );
+  });
+
+  it("downloads a PNG from the full-screen visual", async () => {
+    downloadSvgPng.mockResolvedValueOnce(undefined);
+    const user = userEvent.setup();
+    show([call()]);
+    await user.click(screen.getAllByRole("button", { name: "Full screen" })[0]!);
+    await user.click(screen.getByRole("button", { name: "Download" }));
+    await user.click(screen.getByRole("menuitem", { name: "PNG — image for slides" }));
+    expect(downloadSvgPng).toHaveBeenCalledWith("Flow", SVG);
   });
 
   it("opens full screen from the button, and closes it", () => {
@@ -347,7 +414,7 @@ describe("TurnVisuals", () => {
 
   it("opens full screen from a tap on the preview, as a phone does", () => {
     show([call()]);
-    fireEvent.click(screen.getAllByRole("button", { name: "Full screen" })[1]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Full screen" }).at(-1)!);
     expect(screen.getByTestId("full-frame")).toBeInTheDocument();
   });
 
@@ -420,6 +487,22 @@ describe("TurnVisuals", () => {
     show([call()]);
     fireEvent.click(screen.getByRole("button", { name: "Save to Apps" }));
     expect(screen.getByTestId("save-dialog")).toHaveTextContent("d1:new");
+  });
+
+  it("opens the side workspace from the toolbar and saves through its header", async () => {
+    const user = userEvent.setup();
+    show([call()]);
+    const frame = screen.getByTestId("frame");
+    await user.click(screen.getByRole("button", { name: "Open side panel" }));
+    expect(screen.getByTestId("full-frame")).toBe(frame);
+    await user.click(screen.getByRole("tab", { name: "Code" }));
+    expect(screen.getByText(SVG, { selector: "pre" })).toBeVisible();
+    await user.click(screen.getByRole("tab", { name: "Preview" }));
+    expect(screen.getByTestId("full-frame")).toBe(frame);
+    await user.click(screen.getByRole("button", { name: "Save to Apps" }));
+    expect(screen.getByTestId("save-dialog")).toHaveTextContent("d1:new");
+    await user.click(screen.getByRole("button", { name: "Close visual" }));
+    expect(screen.getByTestId("frame")).toBe(frame);
   });
 });
 

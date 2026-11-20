@@ -1,5 +1,5 @@
 ---
-source_sha: "9a9b600834b2"
+source_sha: "3283f1fbb7ef"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -144,7 +144,7 @@ contabilidad. El modo de código mantiene esas paradas al cruzar el límite del 
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | para Daytona | delegada |
 | `mirage` | Terminal virtual | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | por carpeta, con el extra `mirage` | delegada |
 | `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
-| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | tal cual |
+| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual`, `preview_visual` | — | — | tal cual |
 | `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria | tal cual |
 | `text_to_speech` | Texto a voz | analysis | `generate_speech` | — | obligatoria | tal cual |
 | `video_generation` | Generación de vídeo | analysis | `generate_video` | — | obligatoria | delegada |
@@ -1925,11 +1925,25 @@ Antes de cada petición al modelo se leen las líneas nuevas, se filtran con las
 `draw` — _Dibuja en la conversación: un diagrama, un mapa, un flujo, una explicación, una escena 3D._
 `revise_visual` — _Cambia un visual con reemplazos exactos, sin dibujarlo de nuevo._
 `read_visual` — _Lee un visual de esta conversación tal como está, con las revisiones aplicadas._
+`preview_visual` — _Inspecciona un visual de esta conversación: captura de pantalla y diagnóstico de renderizado._
+
+**Comprobar antes de guardar.** `preview_visual(visual_id, width=1000, appearance="light")`
+renderiza el dibujo con sus revisiones e imágenes, sin publicarlo. La anchura
+va de 240 a 1600 píxeles y el tema es `light` o `dark`; 390 comprueba el móvil.
+Devuelve errores de renderizado, avisos de consola, bloqueos de políticas y
+solicitudes rechazadas, junto con una captura de hasta 2400 píxeles de altura.
+Indica si la página queda recortada o se agota el tiempo. Cada lista admite
+hasta diez diagnósticos.
+
+El despliegue necesita `ARTIFACT_RENDER_CDP_URL` y el extra `browser` del backend.
+Sin renderer, la herramienta explica por qué no hay captura. Usa
+`preview_screenshot: false` con un modelo que no lee imágenes; el informe sigue
+volviendo. Se renderiza una copia nueva del código, sin inspeccionar los datos
+que la persona haya introducido en la vista del chat.
 
 Dibuja en el propio chat. `kind` es `svg` para diagramas e ilustraciones, `mermaid`
 para diagramas de flujo, secuencias y diagramas ER, o `html` para todo lo
-interactivo - controles deslizantes, `<canvas>`, three.js, un mapa. Sin
-configuración; el skill incluido `visual-design` lleva el estilo y cinco plantillas,
+interactivo - controles deslizantes, `<canvas>`, three.js, un mapa. El skill incluido `visual-design` lleva el estilo y cinco plantillas,
 y el Builder lo vincula, junto con Charts, al activar Visuals.
 
 **Primero elige la forma.** No toda respuesta es un dibujo. El texto de la
