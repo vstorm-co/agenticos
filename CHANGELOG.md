@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.86.2] - 2026-11-20
+
 ### Added
 
 - **LLMTR as a model provider.** `llmtr` takes an API key and runs on Chat Completions at `https://llmtr.com/v1`. The model picker reads only Chat Completions entries from LLMTR's live list, where `llmtr/...` ids are models hosted in Turkey and the others are routed to their vendors. Models without a known price cannot run under an active dollar ceiling; uncapped runs keep explicitly partial costs.
@@ -22229,7 +22231,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.86.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.86.2...HEAD
+[1.86.2]: https://github.com/vstorm-co/agenticos/compare/v1.86.1...v1.86.2
 [1.86.1]: https://github.com/vstorm-co/agenticos/compare/v1.86.0...v1.86.1
 [1.86.0]: https://github.com/vstorm-co/agenticos/compare/v1.85.1...v1.86.0
 [1.85.1]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...v1.85.1
