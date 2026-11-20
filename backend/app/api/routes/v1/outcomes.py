@@ -1,6 +1,6 @@
 """What needs the caller's attention, and settling it once (#2575)."""
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -17,6 +17,8 @@ router = APIRouter(dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))])
 async def list_outcomes(
     service: OutcomeSvc,
     ctx: Auth,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    skip: Annotated[int, Query(ge=0)] = 0,
     open_only: bool = Query(default=True),
     conversation_id: UUID | None = Query(default=None),
     include_source: bool = Query(
@@ -28,13 +30,18 @@ async def list_outcomes(
 
     No role gate: an outcome is addressed to one person and never listed to anybody else.
     """
-    items = await service.list_mine(ctx, open_only=open_only, conversation_id=conversation_id)
+    items = await service.list_mine(
+        ctx, open_only=open_only, conversation_id=conversation_id, limit=limit + 1, skip=skip
+    )
+    more = len(items) > limit
+    items = items[:limit]
     sources = await service.finding_sources(ctx, items) if include_source else {}
     return OutcomeList(
+        next_skip=skip + len(items) if more else None,
         items=[
             OutcomeRead.model_validate(item).model_copy(update={"source": sources.get(item.id)})
             for item in items
-        ]
+        ],
     )
 
 

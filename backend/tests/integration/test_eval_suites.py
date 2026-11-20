@@ -1198,8 +1198,8 @@ async def test_an_owner_who_lost_access_after_an_incomparable_result_pauses_the_
     day = suite.next_fire_at
     real = EvalRunService.compare
 
-    async def judged_anew(self, reader, run_id):
-        read = await real(self, reader, run_id)
+    async def judged_anew(self, reader, run_id, *, include_criteria=True):
+        read = await real(self, reader, run_id, include_criteria=include_criteria)
         return read.model_copy(
             update={"verdict": "invalid", "invalid_reason": "A different judge graded it."}
         )
@@ -1738,8 +1738,8 @@ async def test_after_an_incomparable_result_a_pair_runs_only_within_the_suites_c
     day = suite.next_fire_at
     real = EvalRunService.compare
 
-    async def judged_anew(self, reader, run_id):
-        read = await real(self, reader, run_id)
+    async def judged_anew(self, reader, run_id, *, include_criteria=True):
+        read = await real(self, reader, run_id, include_criteria=include_criteria)
         return read.model_copy(
             update={"verdict": "invalid", "invalid_reason": "A different judge graded it."}
         )
@@ -1787,8 +1787,8 @@ async def test_after_a_result_that_could_not_be_compared_the_next_run_sets_a_new
     day = suite.next_fire_at
     real = EvalRunService.compare
 
-    async def judged_anew(self, reader, run_id):
-        read = await real(self, reader, run_id)
+    async def judged_anew(self, reader, run_id, *, include_criteria=True):
+        read = await real(self, reader, run_id, include_criteria=include_criteria)
         return read.model_copy(
             update={"verdict": "invalid", "invalid_reason": "A different judge graded it."}
         )

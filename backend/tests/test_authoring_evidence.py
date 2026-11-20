@@ -361,7 +361,7 @@ class TestTrainingFeedback:
         self, monkeypatch, mock_db_session, evaluated
     ):
         case_id = uuid.uuid4()
-        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=uuid.uuid4())
+        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=uuid.uuid4(), role="candidate")
         newest = _train_row(case_id=case_id, arm=arm, answer="90 days")
         older = _train_row(case_id=case_id, arm=arm, answer="60 days")
         monkeypatch.setattr(
@@ -395,7 +395,7 @@ class TestTrainingFeedback:
         self, monkeypatch, mock_db_session, evaluated
     ):
         case_id = uuid.uuid4()
-        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=uuid.uuid4())
+        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=uuid.uuid4(), role="candidate")
         row = _train_row(case_id=case_id, arm=arm, answer="90 days")
         row.score = SimpleNamespace(
             results=[
@@ -444,6 +444,88 @@ class TestTrainingFeedback:
         ]
         assert "Graded: judge/Follows the policy: 1/5: It quotes 90 days" in run.render()
         assert "It quotes 90 days" in run.quotable
+
+    async def test_a_confirmed_flip_of_the_agents_own_version_reads_with_its_baseline_answer(
+        self, monkeypatch, mock_db_session, evaluated
+    ):
+        case_id, run_id = uuid.uuid4(), uuid.uuid4()
+        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=run_id, role="candidate")
+        baseline = SimpleNamespace(id=uuid.uuid4(), role="baseline")
+        row = _train_row(case_id=case_id, arm=arm, answer="90 days")
+        monkeypatch.setattr(
+            authoring_evidence, "accessible_ids", AsyncMock(return_value={evaluated})
+        )
+        monkeypatch.setattr(authoring_repo, "train_answers", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(
+            eval_run_repo,
+            "list_cases",
+            AsyncMock(
+                return_value=[
+                    SimpleNamespace(
+                        case_id=case_id, arm_id=baseline.id, attempt=0, answer="30 days"
+                    )
+                ]
+            ),
+        )
+        monkeypatch.setattr(eval_run_repo, "list_arms", AsyncMock(return_value=[arm, baseline]))
+        monkeypatch.setattr(
+            EvalRunService, "outcomes", AsyncMock(return_value={case_id: (False, (), ())})
+        )
+        monkeypatch.setattr(
+            EvalRunService,
+            "compare",
+            AsyncMock(
+                return_value=SimpleNamespace(
+                    cases=[SimpleNamespace(case_id=case_id, flip="regression", confirmed=True)],
+                    verdict="worse",
+                )
+            ),
+        )
+        ctx = SimpleNamespace(organization_id=uuid.uuid4())
+
+        (run,), feedback = await EvidenceService(mock_db_session)._train(
+            ctx, uuid.uuid4(), window_days=30
+        )
+
+        assert run.comments == [
+            "Baseline answer: 30 days",
+            "Confirmed regression in a train-part eval",
+        ]
+        assert "newly broken: 1." in feedback
+
+    async def test_an_answer_the_draft_gave_in_a_check_reads_without_the_checks_flips(
+        self, monkeypatch, mock_db_session, evaluated
+    ):
+        """A check's baseline arm is the draft itself: its flips belong to the candidate."""
+        case_id = uuid.uuid4()
+        arm = SimpleNamespace(id=uuid.uuid4(), eval_run_id=uuid.uuid4(), role="baseline")
+        row = _train_row(case_id=case_id, arm=arm, answer="90 days")
+        monkeypatch.setattr(
+            authoring_evidence, "accessible_ids", AsyncMock(return_value={evaluated})
+        )
+        monkeypatch.setattr(authoring_repo, "train_answers", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(eval_run_repo, "list_cases", AsyncMock(return_value=[]))
+        monkeypatch.setattr(
+            EvalRunService, "outcomes", AsyncMock(return_value={case_id: (False, (), ())})
+        )
+        monkeypatch.setattr(
+            EvalRunService,
+            "compare",
+            AsyncMock(
+                return_value=SimpleNamespace(
+                    cases=[SimpleNamespace(case_id=case_id, flip="regression", confirmed=True)],
+                    verdict="worse",
+                )
+            ),
+        )
+        ctx = SimpleNamespace(organization_id=uuid.uuid4())
+
+        (run,), feedback = await EvidenceService(mock_db_session)._train(
+            ctx, uuid.uuid4(), window_days=30
+        )
+
+        assert run.answer == "90 days" and run.comments == []
+        assert "Confirmed newly fixed: 0; newly broken: 0." in feedback
 
     async def test_training_answers_of_datasets_the_caller_cannot_read_are_never_queried(
         self, monkeypatch, mock_db_session, evaluated

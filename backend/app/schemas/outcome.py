@@ -33,6 +33,7 @@ class OutcomeRead(BaseSchema):
 
 
 class OutcomeList(BaseSchema):
+    next_skip: int | None = None
     items: list[OutcomeRead]
 
 

@@ -192,6 +192,7 @@ export default defineConfig({
         "src/components/ui/voice-glow.tsx",
         "src/components/layout/account-preferences.tsx",
         "src/components/layout/account-locale.tsx",
+        "src/components/layout/account-appearance.tsx",
         "src/components/layout/account-notices.tsx",
         "src/components/layout/account-time-zone.tsx",
         "src/components/settings/appearance-settings.tsx",

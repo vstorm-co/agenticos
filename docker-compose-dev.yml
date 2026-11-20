@@ -19,7 +19,7 @@ services:
   # Runs the migrations and exits; `app` and `worker` wait for it to have
   # completed, so `make dev-server` is a `pull` and an `up`.
   migrate:
-    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-edge}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend:${AGENTICOS_VERSION:-edge}
     command: agenticos db upgrade
     env_file:
       - ./backend/.env
@@ -35,7 +35,7 @@ services:
     restart: "no"
 
   app:
-    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-edge}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend:${AGENTICOS_VERSION:-edge}
     # Longer than background.drain()'s 30s timeout, or Docker's 10s default
     # SIGKILLs the container mid-drain and an upload stays `processing` (#11).
     stop_grace_period: 40s
@@ -146,7 +146,7 @@ services:
   # scheduled sweeps. Without it documents upload and then never become
   # searchable. See docker-compose.yml.
   worker:
-    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-edge}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend:${AGENTICOS_VERSION:-edge}
     volumes:
       - media_data:/app/media
     command: python -m app.worker
@@ -196,7 +196,7 @@ services:
   # shell it refuses on sight (#2130). `TZ` and `BROWSER_LANG` are where and in
   # which language it says it is.
   browser:
-    image: ghcr.io/vstorm-co/agenticos-browser:${AGENTICOS_VERSION:-edge}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-browser:${AGENTICOS_VERSION:-edge}
     profiles: [browser]
     environment:
       - TZ=${BROWSER_TZ:-UTC}

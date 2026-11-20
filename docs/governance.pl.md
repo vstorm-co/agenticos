@@ -1,5 +1,5 @@
 ---
-source_sha: "22c3185c12df"
+source_sha: "967cfe084fed"
 ---
 
 # Governance { #governance }
@@ -838,6 +838,14 @@ Zapisy do Virtual Tables w AgenticOS działają w granicach aktualnych uprawnie�
 Twórca może otworzyć **Zgody na działania** swojej rutyny i wybrać działania funkcji oraz pojedyncze działania MCP na wskazanym koncie. Wymaga to `approvals:decide` i ustawienia organizacji `chat_may_waive_approvals`. Klucz API, agent, sesja podszywania się ani administrator działający za innego właściciela nie mogą nadać zgody. Nie da się tu wyłączyć zatwierdzeń jawnie wymaganych przez agenta lub powiązanie MCP.
 
 Wyjątek MCP wskazuje konkretne konto, skrót adresu, generację autoryzacji i oryginalną nazwę działania. Wysyłanie poczty nie upoważnia do kasowania ani zapisów na innym koncie. Konta osobiste są dostępne tylko dla rutyny działającej jako jej twórca. Wybór korzysta z zapisanej listy narzędzi połączenia; gdy jest niedostępna, sprawdź połączenie lub poproś jego administratora. Cofnięcie wszystkich zgód nie wymaga działającej listy narzędzi.
+
+Przegląd pokazuje capabilities agenta, AgenticOS i każde inne konto MCP jako osobne sekcje, każdą z jej grupami. Widać tylko działania, które agent już wykonuje bez pytania: na działanie, przed którym pyta, nie można się tu zgodzić, więc go nie ma. **Użyj ustawień agenta** zaznacza dokładnie te działania i zastępuje obecne zaznaczenie; nic nie zapisuje się przed wybraniem **Zapisz zgody**.
+
+Panel **Zatwierdzone źródła** nad nim pokazuje źródła rutyny według rodzaju - capabilities, skille, bazy wiedzy, tabele, konta - każdy rodzaj zwinięty do licznika, a każde źródło z nazwą. Źródło, którego już nie ma, jest oznaczone jako niedostępne; jego identyfikator widać po najechaniu.
+
+Gdy rutyna działa jako jej twórca, własne narzędzia serwera AgenticOS pojawiają się w tych samych grupach co w Builderze: tabele, zadania, workflowy, agenci i pozostałe. Widać tylko narzędzia, które coś zmieniają, bo odczyty nigdy nie pytają; wyszukiwanie narzędzi też nie pyta. Narzędzia, przed którym agent pyta, nie ma na liście. Dotyczy to każdej zmiany, której powiązanie nie ustawia na **Run freely**, oraz narzędzi, które zawsze pytają. Rutyna zachowuje więc zatwierdzenia agenta albo je zaostrza, ale nigdy żadnego nie zwalnia.
+
+Wyjątek platformy wskazuje tylko narzędzie: przebiegi rutyny docierają do platformy wyłącznie jako jej twórca, jedyna osoba, która może go przejrzeć.
 
 Zapis wymaga, aby wersja i konfiguracja nadal odpowiadały przeglądowi osoby.
 Zgoda wskazuje niezmienną opublikowaną wersję, stałe identyfikatory funkcji i

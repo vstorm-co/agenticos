@@ -171,6 +171,9 @@ async def test_a_check_measures_the_suggestions_on_the_latest_version_not_on_pro
 
     _record(estimate.proposal_check, base=2, draft=False)
     assert read.proposal_check == estimate.proposal_check
+    assert read.proposal_check is not None
+    assert len(read.proposal_check.answer_estimates_usd) == len(read.arms) == 2
+    assert all(price > 0 for price in read.proposal_check.answer_estimates_usd)
     assert [(arm.role, arm.version_number) for arm in estimate.arms] == [
         ("candidate", None),
         ("baseline", 2),

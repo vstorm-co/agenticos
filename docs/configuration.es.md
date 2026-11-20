@@ -1,5 +1,5 @@
 ---
-source_sha: "fcb5c608867b"
+source_sha: "33ad493d2382"
 ---
 
 # Configuración { #configuration }
@@ -106,18 +106,21 @@ cuerpo ya se ha volcado a un archivo temporal y se ha leído en memoria. Detrás
 una sesión eso no es gran riesgo; en `POST /api/v1/embed/{key}/files`, que puede
 alcanzar un desconocido con un enlace, sí lo es.
 
-Por eso una petición que declara un `Content-Length` mayor que
-`MAX_UPLOAD_SIZE_MB` más un margen de 5 MiB para el sobre multipart se responde con
-**413** antes de leer su cuerpo. No hay ajuste: sigue a `MAX_UPLOAD_SIZE_MB`,
-porque un segundo número que hay que mantener a la par del primero es un número que
-acaba por debajo de él.
+Una petición con `Content-Length` superior al mayor de
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` y
+`ML_MAX_UPLOAD_SIZE_MB`, más 5 MiB para el formato multipart, recibe **413** antes
+de leer su cuerpo. Este límite sigue automáticamente los ajustes de carga.
 
-**Es la mitad barata de la respuesta, no la respuesta entera.** El `Content-Length`
-lo pone quien llama, y una petición chunked no declara ninguno — esas pasan y
-quedan acotadas por los topes por ruta, que miden bytes reales. Un despliegue que
-quiera la garantía y no la cortesía fija `client_max_body_size` (nginx) o el
-equivalente en lo que termine sus conexiones; los archivos compose ejecutan uvicorn
-sin un límite propio.
+El cliente proporciona `Content-Length`; las peticiones chunked no declaran
+longitud y quedan sujetas a los límites por ruta que miden los bytes reales.
+Fija también un límite en el proxy para esas peticiones. En Nginx es necesario
+además para permitir cargas por encima del valor predeterminado de 1 MiB:
+la plantilla fija `client_max_body_size 55m;` en el host de la API y las rutas
+multipart de la consola. Las páginas de la consola, la autenticación y el JSON
+ordinario conservan el límite de 1 MiB. Sube ambos límites de carga al aumentar
+el mayor ajuste. Consulta el
+[despliegue con Nginx](deploy.md#option-b-nginx). Compose ejecuta uvicorn sin
+un límite de cuerpo propio.
 
 ## Autenticación { #authentication }
 
@@ -225,7 +228,7 @@ Dónde vive cada issuer, y qué registrar:
 
 | Proveedor | Issuer | Registra la redirect URI como |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Una redirect URI de plataforma **Web** en el registro de la aplicación. Concede `openid`, `email`, `profile` en API permissions |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Una redirect URI de plataforma **Web** en el registro de la aplicación. Concede `openid`, `email`, `profile` en API permissions. En **Token configuration**, añade los claims opcionales `email` y `xms_edov` al token **ID** |
 | **Okta** | `https://<org>.okta.com` (o `/oauth2/<id>` de un authorization server propio) | Una sign-in redirect URI en una aplicación **Web** |
 | **Keycloak** | `https://<host>/realms/<realm>` | Una valid redirect URI en un cliente confidencial con el standard flow activado |
 
@@ -241,6 +244,13 @@ Dos cosas que la plataforma exige del proveedor al que se la apunte:
   que cualquiera en ese proveedor puede reclamar la dirección de trabajo de otra
   persona, y la lista de dominios permitidos de abajo se sostiene sobre que una
   dirección signifique algo.
+  En Entra el claim tiene que ir en el **token ID**: su endpoint UserInfo solo
+  devuelve `sub`, `name`, `family_name`, `given_name`, `picture` y `email`.
+  `OIDC_VERIFIED_CLAIM` tiene que nombrar un claim cuyo *valor* sea verdadero para
+  una dirección confirmada; uno que lleva todo token, como `sub`, no confirma nada
+  y no se acepta. Un acceso rechazado registra `oauth_callback_claims_rejected` con
+  la condición que falló (`reason`) y los nombres, nunca los valores, de los
+  claims recibidos.
 - **Un `sub` estable.** La cuenta se indexa por él, no por la dirección, así que
   quien cambie de apellido o cuyo dominio sea comprado conserva su historial — y
   el siguiente titular de una dirección liberada no la hereda. Se guarda **con el

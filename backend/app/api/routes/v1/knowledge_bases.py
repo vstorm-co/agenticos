@@ -5,7 +5,7 @@ Document upload and sync-source management are wired here (rather than under
 app-admin role required by the bulk `/rag` endpoints.
 """
 
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
@@ -473,6 +473,7 @@ async def list_kb_sync_source_logs(
     sync_source_svc: SyncSourceSvc,
     access: CollectionAccessSvc,
     ctx: Auth,
+    skip: Annotated[int, Query(ge=0)] = 0,
     limit: int = Query(20, ge=1, le=100),
 ) -> Any:
     """List sync run history for a specific KB sync source.
@@ -489,7 +490,7 @@ async def list_kb_sync_source_logs(
     kb = await service.get(kb_id, ctx=ctx)
     source = await access.kb_sync_source(ctx, kb, str(source_id))
     scope = await access.kb_sync_log_scope(ctx, kb)
-    return await sync_source_svc.list_logs(source.id, scope=scope, limit=limit)
+    return await sync_source_svc.list_logs(source.id, scope=scope, limit=limit, skip=skip)
 
 
 @router.patch("/{kb_id}/sync-sources/{source_id}", response_model=SyncSourceRead)

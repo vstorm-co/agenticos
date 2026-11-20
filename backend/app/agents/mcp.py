@@ -238,6 +238,10 @@ class McpServerSpec:
     # Tools, by the name the server gives them, that never wait for approval
     # whatever `approval` says. Only this deployment's own server names any.
     ungated: frozenset[str] = frozenset()
+    # Tools, by the name the server gives them, that wait for a person's answer
+    # to each call, past an "approve all" or a remembered decision. Only this
+    # deployment's own server names any.
+    always_asks: frozenset[str] = frozenset()
 
 
 MCP_ORIGIN = "agenticos_mcp_origin"
@@ -511,6 +515,9 @@ def _make_toolset(spec: McpServerSpec) -> Any:
                 tool_prefix=tool_prefix(spec.name),
             ),
         )
+    if spec.in_process:
+        # Deployment authority belongs only to explicitly authorized external OAuth clients.
+        server = server.filtered(lambda _ctx, tool: tool.name != "change_deployment")
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
@@ -525,6 +532,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         in_process=spec.in_process,
         account=spec.account,
         ungated=frozenset(f"{prefix}_{name}" for name in spec.ungated),
+        always_asks=frozenset(fitted_tool_name(f"{prefix}_{name}") for name in spec.always_asks),
     )
 
 
@@ -591,6 +599,14 @@ there, so it cannot claim to be another account.
 PLATFORM_TOOL = "agenticos_platform_tool"
 """Set only by the in-process transport, never by a server-provided annotation."""
 
+ALWAYS_ASKS = "agenticos_always_asks"
+"""Set by `ApprovalMarked` on a tool only a person's answer to each call may release.
+
+Top-level in the metadata for the reason `NEEDS_APPROVAL` is, and read by
+`ApprovalGate` for a tool no capability owns: such a tool's approval request is
+then `always_asks`, so neither "approve all" nor a remembered decision runs it.
+"""
+
 NEEDS_APPROVAL = "agenticos_needs_approval"
 """The key `ApprovalMarked` sets on a tool's metadata, and `ApprovalGate` reads (#2060).
 
@@ -639,6 +655,7 @@ class ApprovalMarked(WrapperToolset[Any]):
     in_process: bool = False
     account: str | None = None
     ungated: frozenset[str] = frozenset()
+    always_asks: frozenset[str] = frozenset()
 
     async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
         tools = await super().get_tools(ctx)
@@ -651,9 +668,13 @@ class ApprovalMarked(WrapperToolset[Any]):
                     metadata={
                         **(tool.tool_def.metadata or {}),
                         PLATFORM_TOOL: self.in_process,
-                        NEEDS_APPROVAL: name not in self.ungated
-                        and needs_approval(
-                            tool.tool_def, self.policy, self.tool_approval.get(name, "default")
+                        ALWAYS_ASKS: name in self.always_asks,
+                        NEEDS_APPROVAL: name in self.always_asks
+                        or (
+                            name not in self.ungated
+                            and needs_approval(
+                                tool.tool_def, self.policy, self.tool_approval.get(name, "default")
+                            )
                         ),
                         **named,
                     },
@@ -862,11 +883,19 @@ PLATFORM_MCP_NAME = "agenticos"
 
 PLATFORM_MCP_PREFIX = tool_prefix(PLATFORM_MCP_NAME)
 
-PLATFORM_UNGATED_TOOLS = frozenset({"set_my_language"})
+PLATFORM_UNGATED_TOOLS = frozenset({"set_my_language", "set_my_preferences"})
 """The platform's writes that never wait for approval - `platform_mcp._tools.UNGATED`.
 
 Named again rather than imported: the platform's server imports the application,
 which imports this layer.
+"""
+
+PLATFORM_ALWAYS_ASK_TOOLS = frozenset(
+    {"invite_member", "update_proactivity_settings", "change_deployment", "change_organization"}
+)
+"""The platform's writes no binding lets run unasked - `platform_mcp._tools.ALWAYS_ASKS`.
+
+Named again for the same reason as `PLATFORM_UNGATED_TOOLS`.
 """
 
 PLATFORM_MCP_URL = "http://agenticos/mcp"
@@ -874,18 +903,34 @@ PLATFORM_MCP_URL = "http://agenticos/mcp"
 
 
 def platform_spec(
-    credential: str, *, allowed_tools: list[str] | None, approval: McpApproval
+    credential: str,
+    *,
+    allowed_tools: list[str] | None,
+    approval: McpApproval,
+    tool_approval: Mapping[str, ApprovalMode] | None = None,
 ) -> McpServerSpec:
-    """This deployment's own MCP server, as the holder of `credential`."""
+    """This deployment's own MCP server, as the holder of `credential`.
+
+    A `never` on a tool in `PLATFORM_ALWAYS_ASK_TOOLS` is dropped, so the tool
+    falls back to the default, which holds every write: publishing refuses one,
+    and this keeps a spec that reached the store another way from releasing it.
+    """
+    own = {
+        name: mode
+        for name, mode in (tool_approval or {}).items()
+        if not (mode == "never" and name in PLATFORM_ALWAYS_ASK_TOOLS)
+    }
     return McpServerSpec(
         name=PLATFORM_MCP_NAME,
         url=PLATFORM_MCP_URL,
         headers={"Authorization": f"Bearer {credential}"},
         allowed_tools=allowed_tools,
         approval=approval,
+        tool_approval=own,
         in_process=True,
         trust_read_only_hints=True,
         ungated=PLATFORM_UNGATED_TOOLS,
+        always_asks=PLATFORM_ALWAYS_ASK_TOOLS,
     )
 
 

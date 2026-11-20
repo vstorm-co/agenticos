@@ -198,6 +198,8 @@ async def test_what_agents_are_told_is_saved_and_nothing_else(
     ("method", "path"),
     [
         ("PUT", "/users/me/locale"),
+        ("GET", "/users/me/preferences"),
+        ("PATCH", "/users/me/preferences"),
         ("PATCH", "/users/me/agent-context"),
         ("GET", "/me/mcp-connections"),
     ],
@@ -571,3 +573,49 @@ async def test_app_admin_password_reset_response_is_not_cacheable(
     assert response.headers["cache-control"] == "no-store"
     assert response.json() == {"reset_url": url}
     assert mock_user_service.admin_password_reset.await_args.kwargs["delivery"] == delivery
+
+
+@pytest.mark.anyio
+async def test_read_my_preferences_exposes_only_console_choices(auth_client, mock_user):
+    mock_user.theme = "system"
+    mock_user.look = "glass"
+    mock_user.locale = "pl"
+    response = await auth_client.get(f"{settings.API_V1_STR}/users/me/preferences")
+    assert response.status_code == 200
+    assert response.json() == {"theme": "system", "look": "glass", "locale": "pl"}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "changes", [{"theme": "dark"}, {"look": "glass", "locale": "de"}, {"theme": None}]
+)
+async def test_update_preferences_preserves_omissions_and_identity(
+    auth_client, mock_user, mock_user_service, changes
+):
+    mock_user_service.update.return_value = {"theme": "dark", "look": "glass", "locale": "de"}
+    response = await auth_client.patch(f"{settings.API_V1_STR}/users/me/preferences", json=changes)
+    assert response.status_code == 200
+    user_id, update = mock_user_service.update.await_args.args
+    assert user_id == mock_user.id
+    assert update.model_dump(exclude_unset=True) == changes
+
+
+@pytest.mark.security
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"theme": "neon"},
+        {"look": "unknown"},
+        {"locale": "es"},
+        {"user_id": "other"},
+        {"is_app_admin": True},
+        {"about": "inject"},
+    ],
+)
+async def test_preferences_refuse_unsupported_choices_and_unrelated_account_writes(
+    auth_client, mock_user_service, changes
+):
+    response = await auth_client.patch(f"{settings.API_V1_STR}/users/me/preferences", json=changes)
+    assert response.status_code == 422
+    mock_user_service.update.assert_not_awaited()

@@ -16,8 +16,8 @@
 #      there is no `.env.prod`. Work through the production checklist in
 #      `docs/configuration.md` first — VAULT_MASTER_KEY especially.
 #   2. A reverse proxy in front of this stack. `nginx/nginx.conf` is the
-#      template; it proxies to `backend:8000` and `frontend:3000`, and both
-#      names are provided as network aliases below.
+#      template for a host proxy, reaching 127.0.0.1:8000 and :3000.
+#      A container proxy on `edge` can use the aliases below instead.
 #
 # The frontend is `docker-compose-prod.frontend.yml`.
 #
@@ -50,7 +50,7 @@ services:
   # says why the API never started.
   migrate:
     logging: *logging
-    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend:${AGENTICOS_VERSION:-latest}
     command: agenticos db upgrade
     env_file:
       - ./backend/.env
@@ -67,7 +67,7 @@ services:
 
   app:
     logging: *logging
-    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend:${AGENTICOS_VERSION:-latest}
     # Longer than background.drain()'s 30s timeout, or Docker's 10s default
     # SIGKILLs the container mid-drain and an upload stays `processing` (#11).
     stop_grace_period: 40s
@@ -265,7 +265,7 @@ services:
   # once.
   worker:
     logging: *logging
-    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend:${AGENTICOS_VERSION:-latest}
     volumes:
       - media_data:/app/media
     command: python -m app.worker
@@ -408,7 +408,7 @@ services:
     environment:
       - TZ=${BROWSER_TZ:-UTC}
       - BROWSER_LANG=${BROWSER_LANG:-en-US}
-    image: ghcr.io/vstorm-co/agenticos-browser:${AGENTICOS_VERSION:-latest}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-browser:${AGENTICOS_VERSION:-latest}
     profiles: [browser]
     healthcheck:
       test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/9222; printf 'GET /json/version HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3; timeout 5 cat <&3 | grep -q webSocketDebuggerUrl"]
@@ -456,7 +456,7 @@ services:
   # the drawing and its libraries through CDP; Chromium needs no outbound route.
   visual-render:
     logging: *logging
-    image: ghcr.io/vstorm-co/agenticos-browser:${AGENTICOS_VERSION:-latest}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-browser:${AGENTICOS_VERSION:-latest}
     profiles: [visuals]
     healthcheck:
       test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/9222; printf 'GET /json/version HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3; timeout 5 cat <&3 | grep -q webSocketDebuggerUrl"]

@@ -37,6 +37,8 @@ export interface User {
    * asking an agent. Null until they choose, and the cookie decides as before.
    */
   locale?: Locale | null;
+  theme?: import("@/stores/theme-store").Theme | null;
+  look?: import("@/lib/appearance").Look | null;
   /** The IANA zone agents read the person's times in; taken from the browser when unset. */
   time_zone?: string | null;
   /** The person's role, as every agent is told it. */

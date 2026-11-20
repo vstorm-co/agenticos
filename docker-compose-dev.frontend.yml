@@ -14,7 +14,7 @@
 
 services:
   frontend:
-    image: ghcr.io/vstorm-co/agenticos-frontend:${AGENTICOS_VERSION:-edge}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-frontend:${AGENTICOS_VERSION:-edge}
     environment:
       # Server-side rendering and the route handlers proxy over the compose
       # network, so these are container names rather than public URLs.

@@ -23,6 +23,9 @@ vi.mock("@/hooks/use-routine-sources", () => ({
   }),
 }));
 const trigger = { id: "routine", agent_id: "agent" } as Trigger;
+vi.mock("@/components/branding/branding-provider", () => ({
+  useBranding: () => ({ appName: "AgenticOS", logoUrl: null }),
+}));
 beforeEach(() => {
   state.data = {
     current: false,
@@ -44,6 +47,25 @@ it("shows physical accounts and resources and submits only the displayed review"
   expect(screen.getByText("Knowledge · id")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Approve these sources" }));
   expect(state.save).toHaveBeenCalledWith("exact-review");
+});
+it("groups named sources by kind, folded to counts, and says when one is gone", async () => {
+  if (state.data) {
+    state.data.items = [
+      { kind: "platform" },
+      { kind: "skill", id: "s1", name: "deck-review" },
+      { kind: "skill", id: "s2", name: null },
+      { kind: "table", id: "t1", name: "Leads", detail: "read/create" },
+    ];
+  }
+  render(<SourceConsentsPanel trigger={trigger} />);
+  expect(screen.queryByText("Knowledge · id")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByText("Skills (2)"));
+  expect(screen.getByText("deck-review")).toBeVisible();
+  expect(screen.getByText("No longer available")).toHaveAttribute("title", "s2");
+  await userEvent.click(screen.getByText("Tables (1)"));
+  expect(screen.getByText("Leads")).toHaveTextContent("Leads · read/create");
+  await userEvent.click(screen.getByText("Platform (1)"));
+  expect(screen.getByText("AgenticOS")).toBeVisible();
 });
 it.each(["current", "pending", "unavailable"])("cannot approve while %s", (reason) => {
   if (reason === "pending") state.pending = true;

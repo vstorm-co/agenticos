@@ -609,10 +609,104 @@ class TestApprovalMarks:
         assert not McpServerSpec(
             name="notion", url="https://mcp.notion.com/mcp"
         ).trust_read_only_hints
+        assert platform.tool_approval == {}
         assert McpServerSpec(name="notion", url="https://mcp.notion.com/mcp").ungated == frozenset()
         assert _make_toolset(platform).ungated == frozenset(
             f"agenticos_{name}" for name in PLATFORM_UNGATED_TOOLS
         )
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_tool_that_always_asks_is_marked_so_whatever_its_binding_says(self):
+        """Only the platform's own server names any, and the mark survives a `never`."""
+        from pydantic_ai.toolsets.abstract import ToolsetTool
+
+        from app.agents.mcp import (
+            ALWAYS_ASKS,
+            NEEDS_APPROVAL,
+            PLATFORM_ALWAYS_ASK_TOOLS,
+            ApprovalMarked,
+            McpServerSpec,
+            _make_toolset,
+            platform_spec,
+        )
+
+        platform = platform_spec("aos_key", allowed_tools=None, approval="writes")
+        assert platform.always_asks == PLATFORM_ALWAYS_ASK_TOOLS
+        assert (
+            McpServerSpec(name="notion", url="https://mcp.notion.com/mcp").always_asks
+            == frozenset()
+        )
+        assert _make_toolset(platform).always_asks == frozenset(
+            f"agenticos_{name}" for name in PLATFORM_ALWAYS_ASK_TOOLS
+        )
+
+        inner = MagicMock()
+        inner.get_tools = AsyncMock(
+            return_value={
+                name: ToolsetTool(
+                    toolset=inner,
+                    tool_def=_mcp_tool(name, False),
+                    max_retries=1,
+                    args_validator=MagicMock(),
+                )
+                for name in ("agenticos_invite_member", "agenticos_add_virtual_table_record")
+            }
+        )
+        # A server-supplied mark cannot make an ordinary tool claim platform authority.
+        for tool in inner.get_tools.return_value.values():
+            tool.tool_def.metadata = {ALWAYS_ASKS: True}
+        marked = await ApprovalMarked(
+            inner,
+            policy="writes",
+            tool_approval={
+                "agenticos_invite_member": "never",
+                "agenticos_add_virtual_table_record": "never",
+            },
+            always_asks=frozenset({"agenticos_invite_member"}),
+        ).get_tools(MagicMock())
+
+        invite = marked["agenticos_invite_member"].tool_def.metadata
+        assert invite[ALWAYS_ASKS] is True and invite[NEEDS_APPROVAL] is True
+        record = marked["agenticos_add_virtual_table_record"].tool_def.metadata
+        assert record[ALWAYS_ASKS] is False and record[NEEDS_APPROVAL] is False
+
+    @pytest.mark.security
+    def test_a_platform_tool_s_own_approval_is_read_by_the_name_the_model_calls(self):
+        from app.agents.mcp import _make_toolset, platform_spec
+
+        platform = platform_spec(
+            "aos_key",
+            allowed_tools=None,
+            approval="writes",
+            tool_approval={"add_virtual_table_record": "never", "query_virtual_table": "required"},
+        )
+
+        assert _make_toolset(platform).tool_approval == {
+            "agenticos_add_virtual_table_record": "never",
+            "agenticos_query_virtual_table": "required",
+        }
+
+    @pytest.mark.security
+    def test_a_stored_never_cannot_release_a_tool_that_always_asks(self):
+        """Publishing refuses one; a spec that reached the store another way asks anyway."""
+        from app.agents.mcp import platform_spec
+
+        platform = platform_spec(
+            "aos_key",
+            allowed_tools=None,
+            approval="writes",
+            tool_approval={
+                "invite_member": "never",
+                "update_proactivity_settings": "required",
+                "add_virtual_table_record": "never",
+            },
+        )
+
+        assert platform.tool_approval == {
+            "update_proactivity_settings": "required",
+            "add_virtual_table_record": "never",
+        }
 
     @pytest.mark.security
     @pytest.mark.parametrize(
@@ -1267,6 +1361,36 @@ class TestToolsetsForAgent:
 
         assert not any(seen)
         assert resolved.unavailable == [UnavailablePlatformServer()]
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_the_platform_keeps_its_floor_and_carries_each_tools_own_approval(
+        self, monkeypatch
+    ):
+        """`none` is still held to `writes`; only a tool the spec names runs unasked."""
+        seen = self._capture(monkeypatch)
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={}),
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[
+                PlatformMcpServerRef(
+                    account="platform",
+                    approval="none",
+                    tool_approval={"add_virtual_table_record": "never"},
+                )
+            ],
+            platform_credential="aos_key",
+        )
+
+        (platform,) = seen[0]
+        assert platform.approval == "writes"
+        assert platform.tool_approval == {"add_virtual_table_record": "never"}
 
     @pytest.mark.anyio
     async def test_a_server_that_did_not_answer_is_briefed_not_silent(self, monkeypatch):
@@ -7132,3 +7256,33 @@ async def test_only_the_owned_in_process_transport_can_stamp_platform_tool_prove
     )
     tools = await ApprovalMarked(inner, in_process=in_process).get_tools(MagicMock())
     assert tools[definition.name].tool_def.metadata[PLATFORM_TOOL] is in_process
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("internal", [False, True])
+@pytest.mark.parametrize("allowlist", [None, ["change_deployment", "change_organization"]])
+async def test_deployment_mutation_is_external_only_even_when_allowlisted(
+    internal: bool,
+    allowlist: list[str] | None,
+) -> None:
+    from pydantic_ai import RunContext
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.toolsets import FunctionToolset
+    from pydantic_ai.usage import RunUsage
+
+    def change_deployment() -> str:
+        return "deployment"
+
+    def change_organization() -> str:
+        return "organization"
+
+    inner = FunctionToolset([change_deployment, change_organization])
+    spec = McpServerSpec(
+        name="agenticos", url="http://agenticos/mcp", in_process=internal, allowed_tools=allowlist
+    )
+    with patch("app.agents.mcp.MCPToolset", return_value=inner):
+        named = await _make_toolset(spec).get_tools(
+            RunContext(deps=object(), model=TestModel(), usage=RunUsage())
+        )
+    assert "agenticos_change_organization" in named
+    assert ("agenticos_change_deployment" in named) is not internal

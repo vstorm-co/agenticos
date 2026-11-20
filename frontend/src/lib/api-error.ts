@@ -118,6 +118,14 @@ export function parseErrorMessage(body: unknown, fallback: string = FALLBACK_MES
   return fallback;
 }
 
+/** An HTTP Retry-After delay or date, expressed as an absolute client deadline. */
+function retryDeadline(value: string | null): number | null {
+  if (value === null) return null;
+  const text = value.trim();
+  const deadline = /^\d+$/.test(text) ? Date.now() + Number(text) * 1_000 : Date.parse(text);
+  return Number.isFinite(deadline) ? deadline : null;
+}
+
 /**
  * A failed request, carrying enough of the response to act on it.
  *
@@ -127,6 +135,8 @@ export function parseErrorMessage(body: unknown, fallback: string = FALLBACK_MES
 export class ApiError extends Error {
   /** The backend's machine-readable code, e.g. `ALREADY_EXISTS`. */
   readonly code: string;
+  /** Earliest retry time; a 429 without a usable header waits one minute. */
+  readonly retryAt: number | null;
   /** The refusal's structured payload - field problems, spec problems, ids. */
   readonly details: Record<string, unknown> | null;
 
@@ -134,9 +144,11 @@ export class ApiError extends Error {
     public status: number,
     public message: string,
     public data?: unknown,
+    retryAfter: string | null = null,
   ) {
     super(message);
     this.name = "ApiError";
+    this.retryAt = retryDeadline(retryAfter) ?? (status === 429 ? Date.now() + 60_000 : null);
     const envelope = readEnvelope(data);
     this.code = envelope?.code ?? readBffCode(data) ?? UNKNOWN_CODE;
     this.details = envelope?.details ?? null;
