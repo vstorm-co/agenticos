@@ -234,6 +234,7 @@ retranslated is how a stale translation stops being visible.
 | Image, Video and Asset workflows: configuration, holds and recovery | `docs/workflows.md#media-inputs-and-generation`; implementation boundaries in `docs/design/media-workflow-nodes.md` (repo only) |
 | What the console calls each thing, and its name in the API and spec | `docs/reference/glossary.md` |
 | MCP connections, the server catalog, OAuth, managed Composio apps | `docs/mcp.md` |
+| Tailscale connections and user-device access: design only; implementation on hold | `docs/design/tailscale-device-connections.md` (repo only) |
 | Providers, model profiles, fallbacks, cost | `docs/models.md` |
 | Provider quota visibility and account pools: implementation and acceptance status | `docs/design/provider-quota-account-pools.md` (repo only) |
 | Which model to pick, open weights vs closed | `docs/choosing-models.md` |
