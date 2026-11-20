@@ -9,7 +9,7 @@ import hashlib
 import json
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
@@ -148,7 +148,7 @@ from app.services.criterion_access import criterion_source_access
 from app.services.dataset import DatasetService, redact_credentials
 from app.services.embedding_resolution import embeddings_for_collection
 from app.services.eval_comparison import CriterionMove
-from app.services.eval_run import EvalRunService, scoring_hash, spec_hash
+from app.services.eval_run import EvalRunService, family_move, scoring_hash, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.improvement_data import (
     MIN_HOLDOUT_CASES,
@@ -157,11 +157,14 @@ from app.services.improvement_data import (
     input_hash,
     split_seed,
 )
-from app.services.improvement_skills import (
-    ImprovementSkillService,
-    SkillSeed,
+from app.services.improvement_skills import ImprovementSkillService, SkillSeed
+from app.services.improvement_states import (
+    criterion_details,
+    criterion_owners,
+    criterion_skill_ids,
+    family_details,
+    family_skills,
 )
-from app.services.improvement_states import criterion_details, criterion_owners, criterion_skill_ids
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.notifications import NotificationService
 from app.worker.jobs import (
@@ -1160,39 +1163,41 @@ class ImprovementPipelineService:
         run: ImprovementRun,
         iterations: list[ImprovementIterationRead],
     ) -> None:
-        """Criterion text and grades inherit the pinned dataset and named skills' access.
+        """Criterion and family text and grades inherit the pinned dataset and named
+        skills' access.
 
         A suite-based session also pins this one dataset at start. Reading the
         shared agent alone grants no access to its private measurement evidence.
         """
+        evidence = {"criteria", "criterion_change", "families"}
         details = [
             (attempt, detail)
             for attempt in iterations
-            if (detail := attempt.verdict_detail) is not None
-            and ("criteria" in detail or "criterion_change" in detail)
+            if (detail := attempt.verdict_detail) is not None and evidence & detail.keys()
         ]
         if not details:
             return
         ids: set[UUID] = set()
         for _, detail in details:
-            criteria = detail.get("criteria")
-            if isinstance(criteria, list):
-                ids.update(item.skill_id for item in criteria if item.skill_id is not None)
+            for key in ("criteria", "families"):
+                items = detail.get(key)
+                if isinstance(items, list):
+                    ids.update(item.skill_id for item in items if item.skill_id is not None)
         owners = await self._criterion_access(ctx, run, ids)
         for attempt, detail in details:
-            criteria = detail.get("criteria")
-            if owners is None or (
-                isinstance(criteria, list)
-                and any(
-                    (item.skill is not None or item.skill_id is not None)
-                    and (item.skill_id is None or item.skill_id not in owners)
-                    for item in criteria
-                )
+            items = [
+                item
+                for key in ("criteria", "families")
+                if isinstance(found := detail.get(key), list)
+                for item in found
+            ]
+            if owners is None or any(
+                (item.skill is not None or item.skill_id is not None)
+                and (item.skill_id is None or item.skill_id not in owners)
+                for item in items
             ):
                 attempt.verdict_detail = {
-                    key: value
-                    for key, value in detail.items()
-                    if key not in {"criteria", "criterion_change"}
+                    key: value for key, value in detail.items() if key not in evidence
                 }
 
     async def _criterion_access(
@@ -1344,6 +1349,10 @@ class ImprovementPipelineService:
     ) -> ImprovementFinished:
         """Accept the selected round and optionally publish, in one human-confirmed transaction.
 
+        With `data.round`, a session that stopped without a round waiting - on a
+        criterion that got worse, say - has that round selected first, in the same
+        transaction, as `select_round` would.
+
         Normal authoring and publish validation apply to the confirming person.
         Guarded environments remain on their old version until their checks pass.
         """
@@ -1352,6 +1361,9 @@ class ImprovementPipelineService:
         if await agent_repo.lock(self.db, agent_id, organization_id=ctx.organization_id) is None:
             raise NotFoundError(message="Agent not found")
         run = await self._row(ctx, agent_id, run_id, lock=True)
+        if run.status != Status.READY and data.round is not None:
+            await self.select_round(ctx, agent_id, run_id, data.round)
+            run = await self._row(ctx, agent_id, run_id, lock=True)
         if run.status != Status.READY:
             raise BadRequestError(message="Select a checked round before accepting it")
         await self.ensure_current(ctx, run.id, allow_finished=True)
@@ -3122,6 +3134,7 @@ class ImprovementPipelineService:
             else len(child.proposal_check.measurement.holdout_case_ids),
             criterion_change=comparison.criterion_change,
             criteria=tuple(CriterionMove(**move.model_dump()) for move in comparison.criteria),
+            families=tuple(family_move(move) for move in comparison.families),
         )
 
     @staticmethod
@@ -3146,6 +3159,9 @@ class ImprovementPipelineService:
         return {
             "criteria": criterion_details(result.criteria, owners or {}, owner_ids),
             "criterion_change": result.criterion_change,
+            "families": family_details(
+                result.families, result.family_skills, result.family_skill_ids
+            ),
             "reason": None,
             "broken": result.regressions_confirmed,
             "fixed": result.fixed_confirmed,
@@ -3156,6 +3172,24 @@ class ImprovementPipelineService:
             "baseline_pass_rate": result.baseline_pass_rate,
             "held_out": result.held_out,
         }
+
+    @staticmethod
+    def _owned(
+        result: rules.CheckResult, owners: Mapping[str, str], owner_ids: Mapping[str, str]
+    ) -> rules.CheckResult:
+        """The result with the skill each of its families was put down to."""
+        found = family_skills(
+            result.families, {key: (name, owner_ids.get(key)) for key, name in owners.items()}
+        )
+        return replace(
+            result,
+            family_skills={family: name for family, (name, _) in found.items()},
+            family_skill_ids={
+                family: source_id
+                for family, (_, source_id) in found.items()
+                if source_id is not None
+            },
+        )
 
     async def _criterion_owners(self, run: ImprovementRun) -> tuple[dict[str, str], dict[str, str]]:
         """Which skill the session's improver put each criterion down to, by criterion name."""
@@ -3220,8 +3254,10 @@ class ImprovementPipelineService:
                             rules.Transition(Status.STOPPED, Stage.JUDGING, StopReason.PERMISSION),
                         )
                 else:
+                    owners, owner_ids = await self._criterion_owners(run)
+                    result = self._owned(result, owners, owner_ids)
                     verdict = rules.judge(result)
-                    detail = self._result_detail(result, *(await self._criterion_owners(run)))
+                    detail = self._result_detail(result, owners, owner_ids)
                 await improvement_repo.update_iteration(
                     self.db,
                     iteration=iteration,
@@ -3237,7 +3273,8 @@ class ImprovementPipelineService:
     ) -> None:
         child = await self.evals.get(ctx, iteration.eval_run_ids[-1])
         comparison = await self.evals.compare(ctx, child.id)
-        result = self._check_result(child, comparison)
+        owners, owner_ids = await self._criterion_owners(run)
+        result = self._owned(self._check_result(child, comparison), owners, owner_ids)
         verdict = rules.judge(result)
         rounds = await improvement_repo.list_iterations(
             self.db, organization_id=run.organization_id, run_id=run.id
@@ -3253,7 +3290,7 @@ class ImprovementPipelineService:
                 "verdict": verdict.value,
                 "verdict_detail": {
                     **(iteration.verdict_detail or {}),
-                    **self._result_detail(result, *(await self._criterion_owners(run))),
+                    **self._result_detail(result, owners, owner_ids),
                 },
                 "cost_usd": max(Decimal(0), spent - previous_cost),
                 "ended_at": datetime.now(UTC),

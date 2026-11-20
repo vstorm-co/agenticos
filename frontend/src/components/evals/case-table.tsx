@@ -97,6 +97,15 @@ function corrected(attempt: EvalAttempt): boolean {
   return score !== null && score.human_passed !== null && score.human_passed !== score.passed;
 }
 
+/** How many of an answer's required criteria passed, of those that decided; null with none. */
+export function criteriaOfAttempt(attempt: EvalAttempt | undefined): [number, number] | null {
+  const decided = (attempt?.score?.results ?? []).filter(
+    (result) => result.required !== false && (result.status === "pass" || result.status === "fail"),
+  );
+  if (decided.length === 0) return null;
+  return [decided.filter((result) => result.status === "pass").length, decided.length];
+}
+
 /** How each side's first answer to a case came out, one dot per side. */
 function SideDots({
   attempts,
@@ -111,21 +120,32 @@ function SideDots({
   return (
     <span className="flex shrink-0 items-center gap-1">
       {arms.map((arm) => {
-        const state = dotState(
-          attempts.find((attempt) => attempt.arm_id === arm.id && attempt.attempt === 0),
+        const first = attempts.find(
+          (attempt) => attempt.arm_id === arm.id && attempt.attempt === 0,
         );
+        const state = dotState(first);
         const label = t("cases.dot", {
           side: t("sideModel", { name: sideName(arm, t, check), model: arm.model_label }),
           state,
         });
+        const criteria = criteriaOfAttempt(first);
         return (
-          <span
-            key={arm.id}
-            role="img"
-            aria-label={label}
-            title={label}
-            className={cn("h-2.5 w-2.5 rounded-full", DOT_CLASS[state])}
-          />
+          <span key={arm.id} className="flex items-center gap-0.5">
+            <span
+              role="img"
+              aria-label={label}
+              title={label}
+              className={cn("h-2.5 w-2.5 rounded-full", DOT_CLASS[state])}
+            />
+            {criteria && (
+              <span
+                className="text-muted-foreground text-[11px] tabular-nums"
+                title={t("cases.criteriaTitle", { passed: criteria[0], graded: criteria[1] })}
+              >
+                {t("cases.criteria", { passed: criteria[0], graded: criteria[1] })}
+              </span>
+            )}
+          </span>
         );
       })}
     </span>

@@ -38,6 +38,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.skills import SkillBody, SkillBodyFile
+from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AppException,
@@ -73,6 +74,7 @@ from app.repositories import (
     conversation_repo,
     dataset_repo,
     eval_run_repo,
+    improvement_repo,
     skill_check_repo,
     skill_improvement_repo,
     skill_proposal_repo,
@@ -81,7 +83,7 @@ from app.repositories import (
 )
 from app.schemas.dataset import AnswerAs, DatasetCreate, DatasetRead
 from app.schemas.eval_run import EvalComparisonRead, EvalRunRequest, ProposalCheckRecord
-from app.schemas.improvement import VerdictCriterion
+from app.schemas.improvement import VerdictCriterion, VerdictFamily
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
     AgentRef,
@@ -116,9 +118,9 @@ from app.services.background_jobs import enqueue
 from app.services.criterion_access import readable_criterion_skill_ids
 from app.services.dataset import DatasetService
 from app.services.eval_comparison import CriterionMove
-from app.services.eval_run import EvalRunService
+from app.services.eval_run import EvalRunService, family_move
 from app.services.improvement_data import MIN_HOLDOUT_CASES
-from app.services.improvement_states import criterion_details
+from app.services.improvement_states import criterion_details, family_details
 from app.services.notifications import NotificationService
 from app.services.scoring import ScoringService
 from app.services.skill_agents import LineAgent, SkillAgentService
@@ -596,7 +598,14 @@ class SkillCheckService:
         *,
         excluded: Collection[UUID] = (),
     ) -> list[Stage]:
-        """The skill's questions, then the agent's own, as far as each exists."""
+        """The skill's questions, then the agent's own, as far as each exists.
+
+        The agent's own are the dataset its newest improvement session measures on,
+        when that is one of the datasets testing it: a change to a skill it uses is
+        checked on the questions its own Improve already uses, and a dataset kept
+        back for a final measurement stays unasked. Without such a session, the
+        first dataset testing it.
+        """
         stages: list[Stage] = []
         kept = _kept(test_set, holdout)
         if test_set is not None and test_set.case_count and kept != []:
@@ -611,7 +620,14 @@ class SkillCheckService:
         readable = await accessible_ids(
             self.db, ctx, own, Perm.DATASETS_VIEW, resource_type=DATASET
         )
-        dataset = next((item for item in own if item.id in readable), None)
+        sessions = await improvement_repo.list_for_agent(
+            self.db, organization_id=ctx.organization_id, agent_id=user.agent.id, limit=1
+        )
+        improving = sessions[0].dataset_id if sessions else None
+        dataset = next(
+            (item for item in own if item.id in readable and item.id == improving),
+            next((item for item in own if item.id in readable), None),
+        )
         if dataset is None:
             if mode is CheckMode.QUICK:
                 row.sample = SampleKind.SKILL_SET_ONLY
@@ -1056,7 +1072,10 @@ class SkillCheckService:
         """Whether a first stage alone makes the agent worse, by the rule it is judged by."""
         comparison = await self.evals.compare(ctx, run_id, holdout_minimum=False)
         stage = _stage_comparison(comparison)
-        return rules.agent_state([stage], minimum=MIN_HOLDOUT_CASES) is AgentState.WORSE
+        return (
+            rules.agent_state([stage], minimum=MIN_HOLDOUT_CASES, alpha=settings.EVAL_SIGNIFICANCE)
+            is AgentState.WORSE
+        )
 
     async def _judge(self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent) -> None:
         """An agent's result from every stage it ran, their held-out questions pooled, and
@@ -1078,9 +1097,17 @@ class SkillCheckService:
             await self._stage_counts(ctx, kind, run_id, comparison)
             for kind, run_id, comparison in compared
         ]
-        result = rules.pooled(stages, minimum=MIN_HOLDOUT_CASES)
-        state = rules.agent_state(stages, minimum=MIN_HOLDOUT_CASES)
-        reason = UnknownReason.INCONCLUSIVE if state is AgentState.UNKNOWN else None
+        result = rules.pooled(stages, minimum=MIN_HOLDOUT_CASES, alpha=settings.EVAL_SIGNIFICANCE)
+        state = rules.agent_state(
+            stages, minimum=MIN_HOLDOUT_CASES, alpha=settings.EVAL_SIGNIFICANCE
+        )
+        reason = (
+            None
+            if state is not AgentState.UNKNOWN
+            else UnknownReason.TOO_FEW_QUESTIONS
+            if rules.too_few_questions(stages, minimum=MIN_HOLDOUT_CASES)
+            else UnknownReason.INCONCLUSIVE
+        )
         if row.sample == SampleKind.OWN_NOT_ASKED.value and state is not AgentState.WORSE:
             # Its own questions were left for the regression the skill's showed; without
             # it they are what would decide the agent, and nothing asks them by itself.
@@ -1099,6 +1126,7 @@ class SkillCheckService:
                 "noisy": rules.noisy(result),
                 "stages": counted,
                 "criteria": criterion_details(result.check.criteria, {}),
+                "families": family_details(result.check.families, {}),
             },
         )
 
@@ -1591,6 +1619,7 @@ class SkillCheckService:
             }
             expected_datasets = {entry["dataset_id"] for entry in row.stages}
             criteria = [VerdictCriterion.model_validate(item) for item in row.criteria or []]
+            families = [VerdictFamily.model_validate(item) for item in row.families or []]
             if (
                 not ctx.has(Perm.RUNS_VIEW)
                 or not expected_runs
@@ -1604,6 +1633,7 @@ class SkillCheckService:
                 )
             ):
                 criteria = []
+                families = []
             reads.append(
                 SkillCheckAgentRead(
                     agent=AgentRef(id=agent.id, name=agent.name),
@@ -1643,6 +1673,7 @@ class SkillCheckService:
                     regressions_confirmed=row.regressions_confirmed or 0,
                     noisy=bool(row.noisy),
                     criteria=criteria,
+                    families=families,
                     expected_usd=row.expected_usd,
                     at_most_usd=row.at_most_usd,
                 )
@@ -2446,6 +2477,7 @@ def _rejudged(row: SkillCheckAgent, eval_run_ids: Collection[UUID]) -> bool:
     if state is AgentState.UNKNOWN:
         return row.unknown_reason in (
             UnknownReason.INCONCLUSIVE.value,
+            UnknownReason.TOO_FEW_QUESTIONS.value,
             UnknownReason.OWN_NOT_ASKED.value,
         )
     return state.settled
@@ -2479,6 +2511,7 @@ def _stage_comparison(comparison: EvalComparisonRead) -> rules.StageComparison:
         candidate_pass_rate=mine.pass_rate,
         baseline_pass_rate=None if theirs is None else theirs.pass_rate,
         criteria=tuple(CriterionMove(**move.model_dump()) for move in comparison.criteria),
+        families=tuple(family_move(move) for move in comparison.families),
     )
 
 

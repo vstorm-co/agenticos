@@ -13,13 +13,14 @@ a draft. What it answered and called is copied onto the attempt, because a run
 without a conversation keeps no transcript.
 
 After the first answer of every case, an improvement session's check asks once
-more the answers the infrastructure lost, then the cases whose outcome, or any one
-of whose criteria, flipped against the baseline are rerun, and the run ends.
+more the answers the infrastructure lost, then the cases whose outcome flipped
+against the baseline, or in which a family of criteria the first answers cannot
+settle flipped, are rerun, and the run ends.
 """
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection, Sequence
 from contextlib import AbstractAsyncContextManager, aclosing, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -76,8 +77,14 @@ from app.services.access import AGENT, DATASET, resolve_access
 from app.services.agent_registry import Candidate, PublishedCandidate, UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
-from app.services.eval_comparison import Flip, classify, criterion_flipped
-from app.services.eval_run import EvalRunService, drifts, skill_body_from_json
+from app.services.eval_comparison import Flip, classify, family_flipped
+from app.services.eval_run import (
+    EvalRunService,
+    compare_batches,
+    drifts,
+    held_out_cases,
+    skill_body_from_json,
+)
 from app.services.improvement_states import affordable
 from app.services.message_history import HistoryMessage, build_message_history
 from app.services.notifications import NotificationService
@@ -196,6 +203,16 @@ def run_failure(exc: BaseException) -> tuple[str, AttemptFault]:
             AttemptFault.AGENT,
         )
     return run_failure_summary(exc), AttemptFault.AGENT
+
+
+def _splits(cases: Sequence[UUID], held_out: Collection[UUID] | None) -> list[list[UUID]]:
+    """The cases compared together: all of them, or the held-out ones apart from the rest."""
+    if held_out is None:
+        return [list(cases)]
+    return [
+        [case for case in cases if case in held_out],
+        [case for case in cases if case not in held_out],
+    ]
 
 
 def _latency_ms(run: AgentRun) -> int | None:
@@ -984,11 +1001,13 @@ class EvalRunWorker:
             return True
 
     async def _queue_reruns(self, ctx: AuthContext) -> bool:
-        """Queue the confirmation reruns of every flipped case. True if any were queued.
+        """Queue the confirmation reruns of every case that decides. True if any were queued.
 
-        A case flipped when its outcome did, or when any criterion graded on both
-        sides did: a case that kept failing for one reason may pass another now,
-        and only the reruns can confirm that.
+        A case decides when its outcome flipped, or when a family of criteria
+        flipped in it that the first answers alone cannot settle: one that moved
+        on at least two cases with too few of them for an exact test to tell which
+        way. A family settled by its own spread needs no reruns, and one that
+        moved on a single case decides nothing, so neither sends a case again.
 
         A stability run compares nothing: every first answer is asked again.
 
@@ -1046,24 +1065,34 @@ class EvalRunWorker:
                         else None
                     )
                     same, _ = await service.pairing(ctx, run, arm, baseline, attempts)
-                    criterion_flips: set[UUID] = set()
+                    their_arm = baseline.here or baseline.arm
+                    compared = [
+                        case_id for case_id in mine if case_id in same and case_id in theirs
+                    ]
+                    # A measured run is judged on its held-out cases alone, and its
+                    # training cases are compared apart, so each settles its own families.
+                    undecided: dict[UUID, frozenset[str]] = {}
+                    for split in _splits(compared, held_out_cases(run)):
+                        comparison = await compare_batches(
+                            service.criterion_batches(
+                                ctx, arm, attempts, their_arm, their_attempts, case_ids=split
+                            )
+                        )
+                        if comparison.undecided:
+                            undecided |= dict.fromkeys(split, comparison.undecided)
+                    family_flips: set[UUID] = set()
                     async with aclosing(
                         service.criterion_batches(
-                            ctx,
-                            arm,
-                            attempts,
-                            baseline.here or baseline.arm,
-                            their_attempts,
-                            case_ids=[
-                                case_id for case_id in mine if case_id in same and case_id in theirs
-                            ],
+                            ctx, arm, attempts, their_arm, their_attempts, case_ids=list(undecided)
                         )
                     ) as batches:
                         async for batch in batches:
-                            criterion_flips.update(
+                            family_flips.update(
                                 case_id
                                 for case_id, pair in batch
-                                if criterion_flipped(pair.baseline, pair.candidate)
+                                if family_flipped(
+                                    pair.baseline, pair.candidate, pair.named, undecided[case_id]
+                                )
                             )
                     for case_id, (outcome, _, _) in mine.items():
                         first = firsts.get((arm.id, case_id))
@@ -1075,7 +1104,7 @@ class EvalRunWorker:
                                 Flip.REGRESSION,
                                 Flip.FIXED,
                             )
-                            and case_id not in criterion_flips
+                            and case_id not in family_flips
                         ):
                             continue
                         queued[(arm.id, case_id)] = first

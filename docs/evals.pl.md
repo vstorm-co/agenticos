@@ -1,5 +1,5 @@
 ---
-source_sha: "32a6c0a170f0"
+source_sha: "5dd4c3bfb09e"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -299,7 +299,7 @@ Każde ramię runa jest podsumowane na dwóch osiach i per tag:
 
 | Oś | Mierzy |
 |---|---|
-| Jakość | Odsetek zaliczonych wśród rozstrzygniętych przypadków, każdy według tego, jak wypadła większość jego prób; obok odsetek pierwszych odpowiedzi; ile zostało nierozstrzygniętych i dlaczego |
+| Jakość | Odsetek zaliczonych wśród rozstrzygniętych przypadków, każdy według tego, jak wypadła większość jego prób; obok odsetek pierwszych odpowiedzi; ile zostało nierozstrzygniętych i dlaczego; **Spełnione kryteria** (`partial_credit`), średni udział kryteriów przypadku spełnionych przez jego pierwszą odpowiedź - sześć z siedmiu liczy się jako 6/7, gdy odsetek zaliczonych liczy przypadek jako niezaliczony - wraz z `criteria_passed` i `criteria_graded` |
 | Efektywność | Koszt na zaliczony przypadek, tokeny na przypadek i latencję w p50 i p95 |
 
 Każda próba kończy się na jeden z czterech sposobów (`state` w próbie):
@@ -417,9 +417,25 @@ może być winą providera, nie agenta.
 Zakończone ramię baseline'u zastępuje uruchomienie nowego tylko wtedy, gdy
 zgadzają się jego wersja, wersja datasetu, model, ocenianie i sędzia, działało
 w tym samym środowisku z tymi samymi `from_recordings` i `live_reads`, a
-skończyło się w ciągu `EVAL_BASELINE_CACHE_HOURS`. Run mówi, który run
+skończyło się w ciągu `EVAL_BASELINE_CACHE_HOURS`. Żaden plik kontekstowy, który
+agent wiąże, nie mógł się od tamtego runu zmienić: plik kontekstowy jest czytany
+na żywo przy każdej odpowiedzi. Run mówi, który run
 wykorzystał. Wykorzystywane są tylko jego pierwsze odpowiedzi: przypadek, który
 się odwraca, jest mu w tym runie zadawany ponownie.
+
+Baseline będący wersją roboczą agenta - tym, z czym sesja Improve porównuje
+każdą próbę - jest dopasowywany po dokładnym odcisku wersji roboczej i tylko
+wtedy, gdy wcześniejszy run pominął dokładnie te same przypadki. Tym runem może
+być poprzednie sprawdzenie sesji albo run opublikowanej wersji, której spec
+wersja robocza wciąż jest, więc sesja rozpoczęta od nieedytowanej wersji roboczej
+wykorzystuje własną ewaluację tej wersji.
+
+Sesja w każdym sprawdzeniu pomija własne dowody, więc dopóki wersja robocza się
+nie zmienia, baseline odpowiada najwyżej raz na sesję. Run, który zadał więcej
+przypadków, nigdy nie jest przycinany, bo odpowiedzi ponownie użytego ramienia
+są czytane w całości. Ponownie użyty baseline nic nie kosztuje w szacunku.
+Opublikowany baseline z pominiętymi przypadkami nigdy nie jest wykorzystywany
+ponownie.
 
 ### Odwrócenie jest potwierdzane, zanim się liczy { #a-flip-is-confirmed-before-it-counts }
 
@@ -441,22 +457,41 @@ więc nie jest powtarzany, a dryf potwierdzają same powtórki kandydata.
 Przypadek przechodzi dopiero wtedy, gdy spełnia każde kryterium, według którego
 jest oceniany - każdy check, kryterium sędziego, oczekiwane wywołanie narzędzia i
 ocenę względem odpowiedzi wzorcowej - więc zmiana, która naprawia jedno z kilku
-niespełnionych kryteriów przypadku, nie odwraca żadnego przypadku. Przypadek, w
-którym odwróciło się jakiekolwiek kryterium ocenione po obu stronach, też jest
-powtarzany, a `criteria` porównania podaje dla każdego kryterium, na ilu
-przypadkach obie strony je oceniły, ile z nich każda strona spełniła w pierwszej
-odpowiedzi oraz naprawy i zepsucia potwierdzone tak samo jak przy przypadku:
-każda powtórka po obu stronach je powtarza.
+niespełnionych kryteriów przypadku, nie odwraca żadnego przypadku. `criteria`
+porównania podaje dla każdego kryterium, na ilu przypadkach obie strony je
+oceniły, ile z nich każda strona spełniła w pierwszej odpowiedzi oraz naprawy i
+zepsucia, które powtórzyła każda powtórka po obu stronach. Podaje najwyżej 200
+kryteriów: powyżej tej liczby najpierw każde kryterium, które się zmieniło,
+potem te, które najczęściej nie są spełnione.
 
-Porównanie podaje najwyżej 200 kryteriów: powyżej tej liczby najpierw każde
-kryterium, które się zmieniło, potem te, które najczęściej nie są spełnione.
+Kryteria są też liczone według **rodziny**: checków i kryteriów sędziego, które
+sprawdzają jedną rzecz w całym datasecie, nazwanej przez
+[`family`](datasets.md#checks) checka. Kryterium, którego check nie nazywa
+żadnej, jest osobną rodziną. Rodzina przechodzi w przypadku, gdy spełnione jest
+tam każde jej kryterium, a `families` porównania podaje dla każdej rodziny
+przypadki, które oceniły obie strony, ile z nich każda strona spełniła, i
+przypadki, na których się odwróciła. Podaje najwyżej 200 rodzin: powyżej tej
+liczby najpierw każdą gorszą lub lepszą, potem każdą inną, która się ruszyła,
+a potem te, które najczęściej nie przechodzą.
+
+Rodzina jest **rozstrzygnięta**, gdy jej
+własne odwrócone przypadki wystarczą, by dokładny test McNemara wskazał, w którą
+stronę się przesunęła; wtedy liczy się każde odwrócenie. W rodzinie, która
+przesunęła się na dwóch przypadkach lub więcej, nie będąc rozstrzygniętą, te
+przypadki są powtarzane i liczą się tylko odwrócenia, które powtórzyła każda
+powtórka. Rodzina, która przesunęła się na jednym przypadku, niczego nie
+rozstrzyga i nie wysyła niczego do ponownego zadania. Poza przypadkami, których
+wynik się odwrócił, tylko te przypadki są powtarzane.
+
+Run, który odkłada pytania dla sesji Improve, jest oceniany tylko na nich, więc
+jego odłożone przypadki rozstrzygają swoje rodziny osobno od reszty. Rodzina
+rozstrzygnięta w całym runie jest nadal powtarzana na odłożonych przypadkach,
+gdy one same jej nie rozstrzygają.
 
 Werdykt poniżej dotyczy nadal całych
 przypadków; [sesja Improve](authoring.md#the-improve-wizard) i
-[sprawdzenie skilla](skills.md#the-rule) czytają kryteria, gdy żaden przypadek się
-nie odwrócił. Ponowne zadanie tych przypadków kosztuje więcej niż sprawdzenie,
-które powtarza tylko odwrócone przypadki, i mieści się w jego górnej granicy
-ceny, która i tak zakłada ponowne zadanie każdego przypadku.
+[sprawdzenie skilla](skills.md#the-rule) czytają rodziny, gdy żaden przypadek się
+nie odwrócił.
 
 Run porównywany z baseline'em potrzebuje co najmniej jednej powtórki; run bez
 baseline'u może je pominąć. Run porównany z wcześniejszym runem, któremu nigdy

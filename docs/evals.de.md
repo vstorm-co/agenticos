@@ -1,5 +1,5 @@
 ---
-source_sha: "32a6c0a170f0"
+source_sha: "5dd4c3bfb09e"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -316,7 +316,7 @@ Jeder Arm des Runs wird auf zwei Achsen zusammengefasst, und pro Tag:
 
 | Achse | Misst |
 |---|---|
-| Qualität | Bestehensquote unter den entschiedenen Fällen, jeder so gewertet, wie die meisten seiner Versuche ausgingen; daneben die Quote der ersten Antworten; wie viele unentschieden blieben, und warum |
+| Qualität | Bestehensquote unter den entschiedenen Fällen, jeder so gewertet, wie die meisten seiner Versuche ausgingen; daneben die Quote der ersten Antworten; wie viele unentschieden blieben, und warum; **Erfüllte Kriterien** (`partial_credit`), der mittlere Anteil der Kriterien eines Falls, den seine erste Antwort erfüllt hat - sechs von sieben zählen 6/7, wo die Bestehensquote den Fall als nicht bestanden zählt - mit `criteria_passed` und `criteria_graded` |
 | Effizienz | Kosten pro bestandenem Fall, Tokens pro Fall und Latenz bei p50 und p95 |
 
 Jeder Versuch geht auf eine von vier Arten aus (`state` am Versuch):
@@ -441,9 +441,26 @@ Agent.
 Ein abgeschlossener Baseline-Arm ersetzt einen neuen Lauf nur, wenn Version,
 Dataset-Version, Modell, Scoring und Bewerter übereinstimmen, er in derselben
 Umgebung mit denselben `from_recordings` und `live_reads` lief und er
-innerhalb von `EVAL_BASELINE_CACHE_HOURS` fertig wurde. Der Run nennt den Run, den er
+innerhalb von `EVAL_BASELINE_CACHE_HOURS` fertig wurde. Keine Kontextdatei, die der
+Agent bindet, darf sich seit jenem Run geändert haben: Eine Kontextdatei wird bei
+jeder Antwort live gelesen. Der Run nennt den Run, den er
 wiederverwendet hat. Nur seine ersten Antworten werden wiederverwendet: Ein Fall,
 der kippt, wird ihm in diesem Run erneut gestellt.
+
+Eine Baseline, die der Entwurf des Agents ist - das, woran eine Improve-Sitzung
+jeden Versuch misst -, wird über den exakten Fingerabdruck des Entwurfs
+zugeordnet, und nur, wenn der frühere Run genau dieselben Fälle ausgelassen hat.
+Dieser Run kann die vorige Prüfung der Sitzung sein oder ein Run einer
+veröffentlichten Version, deren Spec der Entwurf noch ist, sodass eine Sitzung,
+die von einem unbearbeiteten Entwurf startet, den eigenen Eval dieser Version
+wiederverwendet.
+
+Eine Sitzung lässt bei jeder Prüfung ihre eigenen Belege aus, sodass die
+Baseline, solange der Entwurf unverändert bleibt, höchstens einmal pro Sitzung
+antwortet. Ein Run, der mehr Fälle gefragt hat, wird nie gekürzt, weil die
+Antworten eines wiederverwendeten Arms ganz gelesen werden. Eine
+wiederverwendete Baseline kostet in der Schätzung nichts. Eine veröffentlichte
+Baseline mit ausgelassenen Fällen wird nie wiederverwendet.
 
 ### Ein Kippen wird bestätigt, bevor es zählt { #a-flip-is-confirmed-before-it-counts }
 
@@ -466,23 +483,42 @@ Kandidaten allein bestätigen die Drift.
 Ein Fall besteht erst, wenn jedes Kriterium besteht, nach dem er bewertet wird -
 jeder Check, jedes Kriterium des Bewerters, jeder erwartete Tool-Aufruf und jede
 Bewertung gegen die Referenzantwort -, daher lässt eine Änderung, die eines von
-mehreren nicht erfüllten Kriterien eines Falls behebt, keinen Fall kippen. Ein
-Fall, in dem irgendein auf beiden Seiten bewertetes Kriterium gekippt ist, wird
-ebenfalls wiederholt, und `criteria` des Vergleichs nennt für jedes Kriterium,
-auf wie vielen Fällen beide Seiten es bewertet haben, wie viele davon jede Seite
-mit ihrer ersten Antwort bestanden hat, und die Behebungen und
-Verschlechterungen, die genauso bestätigt werden wie bei einem Fall: Jede
-Wiederholung auf beiden Seiten wiederholt sie.
+mehreren nicht erfüllten Kriterien eines Falls behebt, keinen Fall kippen.
+`criteria` des Vergleichs nennt für jedes Kriterium, auf wie vielen Fällen beide
+Seiten es bewertet haben, wie viele davon jede Seite mit ihrer ersten Antwort
+bestanden hat, und die Behebungen und Verschlechterungen, die jede Wiederholung
+auf beiden Seiten wiederholt hat. Die Liste nennt höchstens 200: Darüber hinaus
+zuerst jedes Kriterium, das sich bewegt hat, dann die am häufigsten nicht
+erfüllten.
 
-Der Vergleich nennt höchstens 200 Kriterien: Darüber hinaus zuerst jedes
-Kriterium, das sich bewegt hat, dann die am häufigsten nicht erfüllten.
+Kriterien werden auch nach **Familie** gezählt: den Checks und Kriterien des
+Bewerters, die eine Sache über das ganze Dataset hinweg prüfen, benannt durch
+die [`family`](datasets.md#checks) eines Checks. Ein Kriterium, dessen Check
+keine nennt, ist eine eigene Familie. Eine Familie besteht in einem Fall, wenn
+dort jedes ihrer Kriterien besteht, und `families` des Vergleichs nennt für jede
+Familie die Fälle, die beide Seiten bewertet haben, wie viele davon jede Seite
+bestanden hat, und die Fälle, auf denen sie gekippt ist. Er nennt höchstens 200
+Familien: darüber hinaus zuerst jede schlechtere oder bessere, dann jede andere,
+die sich bewegt hat, dann die, die am häufigsten durchfallen.
+
+Eine Familie ist
+**entschieden**, wenn ihre eigenen gekippten Fälle ausreichen, damit ein exakter
+McNemar-Test sagen kann, in welche Richtung sie sich bewegt hat; dann zählt jedes
+Kippen. Bei einer Familie, die sich auf zwei oder mehr Fällen bewegt hat, ohne
+entschieden zu sein, werden diese Fälle wiederholt, und nur ein Kippen, das jede
+Wiederholung wiederholt hat, zählt. Eine Familie, die sich auf einem Fall bewegt
+hat, entscheidet nichts und lässt keinen Fall erneut fragen. Neben den Fällen,
+deren Ergebnis gekippt ist, sind dies die einzigen wiederholten Fälle.
+
+Ein Run, der Fragen für eine Improve-Sitzung zurücklegt, wird nur nach ihnen
+beurteilt, daher entscheiden seine zurückgelegten Fälle ihre Familien getrennt
+vom Rest. Eine über den ganzen Run entschiedene Familie wird auf den
+zurückgelegten Fällen trotzdem wiederholt, wenn diese sie nicht entscheiden.
 
 Das Urteil unten bleibt bei
 ganzen Fällen; eine [Improve-Sitzung](authoring.md#the-improve-wizard) und eine
-[Skill-Prüfung](skills.md#the-rule) lesen die Kriterien, wenn kein Fall gekippt
-ist. Diese Fälle erneut zu fragen kostet mehr als eine Prüfung, die nur gekippte
-Fälle wiederholt, und bleibt innerhalb ihrer Preisobergrenze, die ohnehin
-annimmt, dass jeder Fall erneut gefragt wird.
+[Skill-Prüfung](skills.md#the-rule) lesen die Familien, wenn kein Fall gekippt
+ist.
 
 Ein Run, der mit einer Baseline verglichen wird, braucht mindestens eine
 Wiederholung; ein Run ohne Baseline darf sie überspringen. Ein Run, der mit

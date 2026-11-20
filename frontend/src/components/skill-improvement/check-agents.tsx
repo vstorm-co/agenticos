@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronDown, Eye } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { CriteriaTable } from "@/components/improvement/criteria";
+import { CriteriaTable, verdictRows } from "@/components/improvement/criteria";
 import { useReadOnly } from "@/components/improvement/read-only";
 import { StateBadge, type Tone } from "@/components/improvement/widgets";
 import { Checkbox, Input, Label } from "@/components/ui";
@@ -44,6 +44,7 @@ const REASONS: (UnknownReason | "other" | null)[] = [
   "unscorable",
   "all_evidence",
   "own_not_asked",
+  "too_few_questions",
   "cancelled",
   "other",
   null,
@@ -323,9 +324,15 @@ function AgentDetails({ row, measured }: { row: SkillCheckAgent; measured: boole
         </p>
       )}
       {row.unknown_reason !== null && (
-        <p className="text-muted-foreground text-sm">{t(`unknown.${reasonOf(row)}`)}</p>
+        <p className="text-muted-foreground text-sm">
+          {t(`unknown.${reasonOf(row)}`, {
+            fixed: row.fixed,
+            broken: row.broken,
+            heldOut: row.held_out,
+          })}
+        </p>
       )}
-      <CriteriaTable criteria={row.criteria ?? []} />
+      <CriteriaTable criteria={verdictRows(row.criteria ?? [], row.families ?? [])} />
       {row.sample === "skill_set_only" && (
         <p className="text-muted-foreground text-xs">{t("skillSetOnly")}</p>
       )}

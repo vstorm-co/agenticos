@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, CheckCircle2, Coins, ListChecks, XCircle } from "lucide-react";
+import { BookOpen, CheckCircle2, Coins, Gauge, ListChecks, Puzzle, XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { KnowledgeGapDialog } from "@/components/knowledge-gaps/knowledge-gap-dialog";
 import { Skeleton } from "@/components/ui";
@@ -12,6 +12,7 @@ import { subjectOf } from "@/lib/improvement-subject";
 import { useKnowledgeGaps } from "@/hooks/use-knowledge-gaps";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
+import { criteriaTotals } from "./criteria";
 import { StepError } from "./step-error";
 import { Tiles } from "./widgets";
 import { IncomparableResult } from "./incomparable-result";
@@ -56,7 +57,10 @@ export function ResultSummary({
   round: ImprovementIteration | undefined;
 }) {
   const t = useTranslations("improvement");
+  const locale = useLocale();
+  const percent = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 });
   const { topics, added } = useSessionTopics(session);
+  const totals = criteriaTotals(round);
   const runId = round?.eval_run_ids.at(-1);
   const { comparison, error, refetch } = useEvalComparison(runId ?? "", {
     enabled: runId !== undefined,
@@ -99,6 +103,30 @@ export function ResultSummary({
             icon: XCircle,
             caption: measured ? more(unconfirmed("regression")) : undefined,
           },
+          ...(totals
+            ? [
+                {
+                  label: t("widgets.criteriaPassed"),
+                  value: t("widgets.criteriaMove", {
+                    before: percent.format(totals.before),
+                    after: percent.format(totals.after),
+                  }),
+                  tone: "teal" as const,
+                  icon: Gauge,
+                  caption: t("widgets.criteriaBetter", { count: totals.better }),
+                },
+                {
+                  label: t("widgets.heldBySkill"),
+                  value: totals.held,
+                  tone: "amber" as const,
+                  icon: Puzzle,
+                  caption:
+                    totals.skills.length > 0
+                      ? new Intl.ListFormat(locale, { type: "conjunction" }).format(totals.skills)
+                      : undefined,
+                },
+              ]
+            : []),
           {
             label: t("widgets.missingTopics"),
             value: topics.length,

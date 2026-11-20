@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import Field, field_validator
+from pydantic import Field, PrivateAttr, field_validator
 
 from app.db.models.eval_run import (
     ArmRole,
@@ -256,6 +256,19 @@ class ArmSummaryRead(BaseSchema):
         )
     )
     first_pass_rate: float | None = Field(description="The pass rate of the first attempts alone")
+    criteria_passed: int = Field(
+        default=0, description="First answers' required criteria that passed, over every case"
+    )
+    criteria_graded: int = Field(
+        default=0, description="First answers' required criteria that decided, over every case"
+    )
+    partial_credit: float | None = Field(
+        default=None,
+        description=(
+            "The mean share of each case's decided criteria its first answer passed - a case "
+            "passing six of seven counts 6/7; null with no criterion decided"
+        ),
+    )
     cost_usd: Decimal
     cost_per_pass_usd: Decimal | None
     avg_tokens: float | None
@@ -591,6 +604,14 @@ class CaseFlipRead(BaseSchema):
         default=None,
         description="Why the candidate's first answer failed, when its run crashed rather than answered",
     )
+    baseline_criteria: list[int] | None = Field(
+        default=None,
+        description="The baseline's first answer as [criteria passed, criteria decided]",
+    )
+    candidate_criteria: list[int] | None = Field(
+        default=None,
+        description="The candidate's first answer as [criteria passed, criteria decided]",
+    )
 
 
 class CriterionMoveRead(BaseSchema):
@@ -611,6 +632,33 @@ class CriterionMoveRead(BaseSchema):
     broken_confirmed: int
     fixed_unconfirmed: int
     broken_unconfirmed: int
+
+
+class FamilyMoveRead(BaseSchema):
+    """One family of criteria over the cases both sides graded it on, first answers counted.
+
+    A family passes in a case when every criterion of it does. Its direction is
+    `settled` when its own flipped cases are enough for an exact McNemar test to
+    tell; otherwise only the flips every rerun repeated count. A family that moved
+    on fewer than two cases decides nothing.
+    """
+
+    family: str
+    criteria: list[str] = Field(description="The criteria counted in it, by name; at most 50")
+    cases: int = Field(description="Cases both sides' first answers graded it on")
+    baseline_passed: int
+    candidate_passed: int
+    fixed: int = Field(description="Cases it went from fail to pass on, first answers")
+    broken: int = Field(description="Cases it went from pass to fail on, first answers")
+    fixed_confirmed: int
+    broken_confirmed: int
+    p_value: float
+    settled: bool
+    better: bool
+    worse: bool
+    # Every criterion counted in it, past the 50 `criteria` shows: whom a verdict puts
+    # a family down to is found through any of them. Never serialized.
+    _members: tuple[str, ...] = PrivateAttr(default=())
 
 
 class EfficiencyRead(BaseSchema):
@@ -686,4 +734,8 @@ class EvalComparisonRead(BaseSchema):
             "Criteria graded on both sides, by scorer and name: at most 200, the ones "
             "that moved first"
         ),
+    )
+    families: list[FamilyMoveRead] = Field(
+        default_factory=list,
+        description="Each family of criteria graded on both sides, by name",
     )

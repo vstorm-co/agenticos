@@ -1,5 +1,5 @@
 ---
-source_sha: "32a6c0a170f0"
+source_sha: "5dd4c3bfb09e"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -290,7 +290,7 @@ Cada brazo del run se resume en dos ejes, y por etiqueta:
 
 | Eje | Mide |
 |---|---|
-| Calidad | Tasa de aprobados entre los casos decididos, cada uno según cómo salió la mayoría de sus intentos; a su lado, la tasa de las primeras respuestas; cuántos quedaron sin decidir, y por qué |
+| Calidad | Tasa de aprobados entre los casos decididos, cada uno según cómo salió la mayoría de sus intentos; a su lado, la tasa de las primeras respuestas; cuántos quedaron sin decidir, y por qué; **Criteria passed** (`partial_credit`), la proporción media de los criterios de cada caso que cumplió su primera respuesta - seis de siete cuentan 6/7 donde la tasa de aprobados cuenta el caso como suspendido - con `criteria_passed` y `criteria_graded` |
 | Eficiencia | Coste por caso aprobado, tokens por caso y latencia en p50 y p95 |
 
 Cada intento sale de una de cuatro maneras (`state` en el intento):
@@ -410,9 +410,24 @@ del agent.
 Un brazo de baseline completado sustituye a ejecutar uno nuevo solo cuando
 coinciden su versión, la versión del dataset, el modelo, la puntuación y el
 juez, se ejecutó en el mismo entorno con los mismos `from_recordings` y
-`live_reads`, y terminó dentro de `EVAL_BASELINE_CACHE_HOURS`. El run dice qué run
+`live_reads`, y terminó dentro de `EVAL_BASELINE_CACHE_HOURS`. Ningún archivo de
+contexto que el agente vincula puede haber cambiado desde aquel run: un archivo de
+contexto se lee en vivo en cada respuesta. El run dice qué run
 reutilizó. Solo se reutilizan sus primeras respuestas: a un caso que cambia se
 le vuelve a preguntar en este run.
+
+Un baseline que es el borrador del agent - aquello con lo que una sesión de
+Improve mide cada intento - se empareja por la huella exacta del borrador, y solo
+cuando el run anterior dejó fuera exactamente los mismos casos. Ese run puede ser
+la comprobación anterior de la sesión o un run de una versión publicada cuyo spec
+el borrador sigue siendo, así que una sesión iniciada desde un borrador sin editar
+reutiliza el eval propio de esa versión.
+
+Una sesión deja fuera su propia evidencia en cada comprobación, así que mientras
+el borrador no cambia, el baseline responde como mucho una vez por sesión. Un
+run que preguntó más casos nunca se recorta, porque las respuestas de un brazo
+reutilizado se leen enteras. Un baseline reutilizado no cuesta nada en la
+estimación. Un baseline publicado con casos dejados fuera nunca se reutiliza.
 
 ### Un cambio se confirma antes de contar { #a-flip-is-confirmed-before-it-counts }
 
@@ -434,22 +449,40 @@ repite, y solo las repeticiones del candidato confirman la deriva.
 Un caso aprueba solo cuando cumple cada criterio con el que se califica - cada
 check, criterio del juez, llamada a herramienta esperada y calificación frente a
 la respuesta de referencia -, así que un cambio que arregla uno de varios
-criterios fallidos de un caso no cambia ningún caso. Un caso en el que cambió
-cualquier criterio calificado en ambos lados también se repite, y `criteria` de
-la comparación indica, por criterio, en cuántos casos lo calificaron ambos
-lados, cuántos aprobó cada lado con su primera respuesta, y los arreglos y
-roturas confirmados igual que los de un caso: cada repetición en ambos lados
-los repite.
+criterios fallidos de un caso no cambia ningún caso. `criteria` de la
+comparación indica, por criterio, en cuántos casos lo calificaron ambos lados,
+cuántos aprobó cada lado con su primera respuesta, y los arreglos y roturas que
+repitió cada repetición en ambos lados. Indica como máximo 200: por encima de
+esa cifra, primero cada criterio que se movió y después los que fallan con más
+frecuencia.
 
-La comparación indica como máximo 200 criterios: por encima de esa cifra,
-primero cada criterio que se movió y después los que fallan con más frecuencia.
+Los criterios también se cuentan por **familia**: los checks y criterios del
+juez que prueban una misma cosa en todo el dataset, nombrada por el
+[`family`](datasets.md#checks) de un check. Un criterio cuyo check no nombra
+ninguna es una familia propia. Una familia aprueba en un caso cuando allí
+aprueba cada uno de sus criterios, y `families` de la comparación indica, por
+familia, los casos que calificaron ambos lados, cuántos aprobó cada lado y los
+casos en los que cambió. Indica como mucho 200 familias: pasado ese número, primero
+cada familia peor o mejor, luego cualquier otra que se movió y después las que más
+a menudo fallan.
+
+Una familia está **decidida** cuando sus propios casos
+cambiados bastan para que una prueba exacta de McNemar diga en qué dirección se
+movió; entonces cuenta cada cambio. Una familia que se movió en dos casos o más
+sin estar decidida repite esos casos, y solo cuentan los cambios que repitió
+cada repetición. Una familia que se movió en un solo caso no decide nada ni
+manda ningún caso a volver a preguntarse. Además de los casos cuyo resultado
+cambió, estos son los únicos casos que se repiten.
+
+Un run que aparta preguntas para una sesión de Improve se juzga solo por ellas,
+así que sus casos apartados deciden sus familias por separado del resto. Una
+familia decidida en todo el run se sigue repitiendo en los casos apartados
+cuando estos no la deciden.
 
 El veredicto de abajo sigue siendo sobre casos enteros; una
 [sesión de Improve](authoring.md#the-improve-wizard) y una
-[comprobación de skill](skills.md#the-rule) leen los criterios cuando ningún caso
-cambió. Volver a preguntar esos casos cuesta más que una comprobación que solo
-repite los casos cambiados, y se queda dentro de su precio máximo, que ya supone
-que cada caso se vuelve a preguntar.
+[comprobación de skill](skills.md#the-rule) leen las familias cuando ningún caso
+cambió.
 
 Un run comparado con un baseline necesita al menos una repetición; un run sin
 baseline puede omitirlas. Un run comparado con un run anterior al que nunca

@@ -223,6 +223,15 @@ class SkillProblem(BaseModel):
 
     skill: str = Field(description="The skill's name, exactly as listed.")
     problem: str = Field(description="What the skill gets wrong, in terms of the evidence.")
+    skill_line: str = Field(
+        default="",
+        max_length=500,
+        description=(
+            "The line of the skill's body that states the wrong value or rule, copied "
+            "exactly. Empty when the skill is only silent or only forbids other sections: "
+            "the problem is then advice to the skill, and its criteria stay the agent's."
+        ),
+    )
     evidence: list[EvidenceQuote] = Field(default_factory=list)
     criteria: list[str] = Field(
         default_factory=list,
@@ -251,7 +260,10 @@ class ImprovementProposal(BaseModel):
     skill_problems: list[SkillProblem] = Field(
         default_factory=list,
         max_length=4,
-        description="Problems to fix in a skill rather than in the agent; never both.",
+        description=(
+            "Problems in a skill's own text. One that quotes the skill's line is fixed "
+            "in the skill rather than in the agent; one without a line is advice."
+        ),
     )
 
 

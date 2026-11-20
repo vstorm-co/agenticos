@@ -38,6 +38,22 @@ Two things are versioned separately from this file and worth knowing about:
 - Choose in an MCP server's settings in the Builder whether the agent takes tools the server gains later. **Add tools the server gains later** stores `allowed_tools: null`; switched off, the binding lists today's tools. Ticking every tool back after narrowing now keeps today's list instead of returning to null.
 - Let a routine's creator consent in **Action consent** to AgenticOS's own tools, grouped as the Builder groups them. Only changes the agent already runs without asking appear. Before this, every platform change a routine made asked each time, even when the agent let it run freely. Tool search no longer asks in a routine either.
 - Read a routine's **Action consent** in sections - capabilities, AgenticOS and each MCP account - with only the actions that can be consented to, and **Use the agent's settings** to select exactly what the agent runs without asking. **Reviewed sources** now names each skill, knowledge base, table and account, grouped by kind, instead of listing their ids.
+- Count criteria by family. A dataset check takes an optional `family` - every case's `total including VAT` regex, every case's "names the account manager" criterion - and a comparison counts a family case by case: it passes in a case when every criterion of it does. Eval comparisons expose `families`, an Improve attempt keeps them in its verdict, and the result step and the eval run's comparison table them. An attempt with no whole question flipped is judged on its families; one the helper put down to a skill that got worse no longer makes the attempt worse, and the result says the skill is the one to fix. The result step adds **Criteria passed**, before and after, and **Still held back by a skill**, and an attempt that broke questions still names what it made better (#3178).
+- An eval run's sides show **Criteria passed** beside the pass rate: the mean share of each question's criteria its first answer passed, so six of seven counts 6/7 rather than a failure. Arm summaries expose `criteria_passed`, `criteria_graded` and `partial_credit`, compared cases each side's `[passed, decided]` criteria, and the case table shows them per question (#3178).
+- Finishing an Improve session takes an optional `round`, so a session that stopped on its attempt is selected and accepted in one call instead of `rounds/{n}/select` first (#3178).
+- A skill's improver writes an edit for every problem it is given, or says in its expected effect why the skill's text cannot fix one, and keeps every problem an agent's Improve handed over. The grades a helper reads name each criterion's family, so a whole family can be put down to a skill (#3178).
+- Agent Improve puts a criterion down to a skill only when it quotes the skill's own line stating the wrong value or rule, and that line is in the skill's text. Where the skill is only silent, or only forbids other sections, the criterion stays the agent's to fix: the helper proposes the agent change, a skill problem without a line is advice, and the verdict holds the agent to that family (#3178).
+- A skill's Improve started from an agent's Improve learns from the failed training answers that session read that used the skill, so it no longer refuses with "Nothing to learn from yet" when the agent's problems came from evals (#3178).
+
+### Changed
+
+- An eval run asks a case again only when it decides something: its whole outcome flipped, or a family of criteria flipped in it that moved on two cases or more and that an exact McNemar test over its own flipped cases cannot settle. A family settled by its own spread counts every flip it had, and one that moved on a single case decides nothing. Asking every case with any flipped criterion again had cost more than the first answers (#3178).
+- An Improve check settles families on its held-out cases apart from its training cases, as its verdict reads them, so a family that moved on two held-out cases is asked again there even when the whole run would settle it, and a reused baseline is asked those cases again too (#3178).
+- An unchanged draft baseline answers once per Improve session: a later check reuses the earlier check's baseline answers when the draft's fingerprint, the cases left out, the dataset version, model, scoring, environment and judge all match (#3178).
+- An Improve session started from a draft nobody edited since publishing reuses that version's own eval as its baseline, priced at nothing in the estimate, when it left out the same cases as the check (#3178).
+- A skill check asks each agent the dataset its newest Improve session measures on, so a set kept back for a final measurement stays unasked (#3178).
+- A skill check keeps each agent's families of criteria, so its details table one row per family - every case's check of one thing together - instead of one row per case's check. Agents expose `families`; `skill_check_agents` gains the column (#3178).
+- A skill check's agent whose runs graded every answer on fewer held-out questions than a result needs is unknown for `too_few_questions` rather than `inconclusive`, and its row says how many came out better and worse and that they are too few to be sure (#3178).
 
 ### Upgrading
 
@@ -46,6 +62,8 @@ Two things are versioned separately from this file and worth knowing about:
   and read detail tools instead of assuming list entries contain complete bodies.
 
 - Apply `0343_solution_installations.py` for atomic solution-installation receipts. Existing organization API keys retain their public API boundary; new assistant-only lifecycle tools require an OAuth connection with the corresponding scopes.
+- Migration `backend/alembic/versions/0345_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0346_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
 
 ## [1.85.1] - 2026-11-20
 

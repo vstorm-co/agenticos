@@ -1044,12 +1044,29 @@ async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_acces
             }
         ],
         "criterion_change": 1.0,
+        "families": [
+            {
+                "family": "private family text",
+                "criteria": 1,
+                "cases": 5,
+                "before": 0,
+                "after": 5,
+                "fixed": 5,
+                "broken": 0,
+                "settled": True,
+                "better": True,
+                "worse": False,
+                "skill": skill.name,
+                "skill_id": str(skill.id),
+            }
+        ],
         "fixed": 0,
     }
     await db.flush()
     service = ImprovementPipelineService(db)
     owner = await service.read(ctx, agent.id, started.id)
     assert owner.iterations[0].verdict_detail["criteria"][0].name == "private rubric text"
+    assert owner.iterations[0].verdict_detail["families"][0].family == "private family text"
     contexts = [
         replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW})),
         replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW, Perm.RUNS_VIEW})),
@@ -1063,7 +1080,9 @@ async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_acces
         for response in (read, listed):
             detail = response.iterations[0].verdict_detail
             assert "criteria" not in detail and "criterion_change" not in detail
+            assert "families" not in detail
             assert "private rubric text" not in response.model_dump_json()
+            assert "private family text" not in response.model_dump_json()
             assert "private-grading-owner" not in response.model_dump_json()
     # Redaction is per response; neither the stored detail nor an owner's later read loses it.
     assert attempt.verdict_detail["criteria"][0]["name"] == "private rubric text"
@@ -1086,6 +1105,16 @@ async def test_criterion_metadata_in_read_and_list_keeps_dataset_and_skill_acces
         *(await service.list_for_agent(denied_source, agent.id)),
     ):
         assert "criteria" not in response.iterations[0].verdict_detail
+    # A family named for a skill with no identity kept fails closed, as a criterion does.
+    attempt.verdict_detail = {
+        **saved_detail,
+        "families": [
+            {key: value for key, value in saved_detail["families"][0].items() if key != "skill_id"}
+        ],
+    }
+    await db.flush()
+    unproven = (await service.read(ctx, agent.id, started.id)).iterations[0].verdict_detail
+    assert "families" not in unproven and "criteria" not in unproven
     attempt.verdict_detail = saved_detail
     await db.flush()
     original_name = skill.name

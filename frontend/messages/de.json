@@ -15436,7 +15436,9 @@
       "pending": "Ausstehend",
       "reusedFrom": "Ergebnis aus dem Run vom {date}",
       "singleTitle": "Laufmetriken",
-      "singleTitleTag": "Laufmetriken für #{tag}"
+      "singleTitleTag": "Laufmetriken für #{tag}",
+      "criteria": "Erfüllte Kriterien",
+      "criteriaHint": "Jede Frage zählt den Anteil ihrer Kriterien, den ihre erste Antwort erfüllt hat: sechs von sieben zählen 6/7, während die Bestehensquote sie als nicht bestanden zählt."
     },
     "cases": {
       "title": "{count, plural, =1 {1 Fall} other {# Fälle}}",
@@ -15465,7 +15467,9 @@
         "train": "Hilft beim Schreiben",
         "holdout": "Zurückgelegt",
         "excluded": "Belegkopie"
-      }
+      },
+      "criteria": "{passed}/{graded}",
+      "criteriaTitle": "{passed} von {graded} Kriterien erfüllt"
     },
     "case": {
       "firstAnswer": "Antwort",
@@ -16391,7 +16395,9 @@
       "movedBroken": "{count} verschlechtert",
       "movedBoth": "+{fixed} behoben · {broken} verschlechtert",
       "movedNone": "Keine",
-      "skill": "Dem Skill „{skill}“ zugeordnet"
+      "skill": "Dem Skill „{skill}“ zugeordnet",
+      "betterBeside": "Neben den Fragen, die er verschlechtert hat, hat Versuch {number} {agent} bei {count, plural, one {# Kriterium} other {# Kriterien}} verbessert: {list}. Behalte den hilfreichen Teil, indem du es mit einer Notiz erneut versuchst.",
+      "skillWorse": "{agent} folgt dem Skill jetzt genauer und verfehlt öfter {count, plural, one {# Kriterium, das der Skill falsch vorgibt} other {# Kriterien, die der Skill falsch vorgibt}}: {list}. Korrigiere den Skill statt des Agents."
     },
     "noise": {
       "headlineSpread": "Der Test kann eine bessere Version nicht von einer schlechteren unterscheiden: Die heutige Version von {agent} erreichte auf den gemeinsamen Fragen ihrer Versuche {low} und {high}.",
@@ -16683,7 +16689,11 @@
       "alreadyAdded": "{count, plural, one {# schon hinzugefügt} other {# schon hinzugefügt}}",
       "partitionAbout": "Jeder Versuch legt etwa {holdout, plural, one {# Frage} other {# Fragen}} zurück, um das Ergebnis zu prüfen; etwa {train, plural, one {# hilft} other {# helfen}}, die Änderungen zu schreiben. Eine Frage, die auch in den Gesprächen vorkommt, aus denen er lernt, hilft stattdessen beim Schreiben, daher können weniger zurückgelegt werden.",
       "partitionAttempt": "Versuch {attempt} hat {holdout, plural, one {# Frage} other {# Fragen}} zurückgelegt, um das Ergebnis zu prüfen; {train, plural, one {# half} other {# halfen}}, die Änderungen zu schreiben.",
-      "partitionStart": "Der erste Versuch legt {holdout, plural, one {# Frage} other {# Fragen}} zurück, um das Ergebnis zu prüfen; {train, plural, one {# hilft} other {# helfen}}, die Änderungen zu schreiben, einschließlich derer, die auch in den Gesprächen gestellt wurden, aus denen er lernt."
+      "partitionStart": "Der erste Versuch legt {holdout, plural, one {# Frage} other {# Fragen}} zurück, um das Ergebnis zu prüfen; {train, plural, one {# hilft} other {# helfen}}, die Änderungen zu schreiben, einschließlich derer, die auch in den Gesprächen gestellt wurden, aus denen er lernt.",
+      "criteriaPassed": "Erfüllte Kriterien",
+      "criteriaMove": "{before} → {after}",
+      "criteriaBetter": "{count, plural, =0 {Noch kein Kriterium besser} one {# Kriterium besser} other {# Kriterien besser}}",
+      "heldBySkill": "Noch von einem Skill blockiert"
     },
     "sessionLine": "Sitzung",
     "budgetUsed": "Genutztes Ausgabenlimit",
@@ -17592,7 +17602,8 @@
         "unscorable": "Nicht geprüft: Nichts kann seine Fragen bewerten - keine Prüfung, kein erwarteter Tool-Aufruf und kein Bewerter.",
         "all_evidence": "Nicht geprüft: Jede Frage stammt aus den Unterhaltungen, aus denen die Änderung gelernt hat.",
         "cancelled": "Nicht geprüft: Die Prüfung wurde angehalten, bevor ihre Runs fertig waren.",
-        "own_not_asked": "Nicht geprüft: Seine eigenen Fragen blieben ungestellt, und jetzt entscheiden sie über ihn."
+        "own_not_asked": "Nicht geprüft: Seine eigenen Fragen blieben ungestellt, und jetzt entscheiden sie über ihn.",
+        "too_few_questions": "Zu wenige Fragen, um sicher zu sein: {fixed} von {heldOut} fielen besser aus und {broken} schlechter, weniger Fragen, als ein Ergebnis braucht."
       },
       "skillSetOnly": "Nur auf den eigenen Fragen des Skills geprüft: Er hatte keine eigenen, bei denen er den Skill geladen hat.",
       "stage": {
