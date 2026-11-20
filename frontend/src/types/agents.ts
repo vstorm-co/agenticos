@@ -13,7 +13,14 @@ import type { Visibility } from "./sharing";
 
 /** What an agent is for: `agent` for the ones people use, every other kind the platform's own. */
 export type AgentKind =
-  "agent" | "judge" | "drafter" | "generator" | "classifier" | "improver" | "extractor";
+  | "agent"
+  | "judge"
+  | "drafter"
+  | "generator"
+  | "classifier"
+  | "improver"
+  | "extractor"
+  | "coverage";
 
 /** A kind only the platform runs. */
 export type SystemAgentKind = Exclude<AgentKind, "agent">;

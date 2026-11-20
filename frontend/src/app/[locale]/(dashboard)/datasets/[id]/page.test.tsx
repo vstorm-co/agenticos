@@ -104,6 +104,9 @@ vi.mock("@/components/datasets/helper-settings", () => ({
   HelperSettings: () => <p>helper settings</p>,
 }));
 vi.mock("@/components/datasets/review-panel", () => ({ ReviewPanel: () => <p>review</p> }));
+vi.mock("@/components/datasets/key-coverage-panel", () => ({
+  KeyCoveragePanel: ({ datasetId }: { datasetId: string }) => <p>coverage of {datasetId}</p>,
+}));
 vi.mock("@/components/datasets/key-draft-panel", () => ({
   KeyDraftPanel: ({ caseId }: { caseId: string }) => <p>keys of {caseId}</p>,
 }));
@@ -442,6 +445,7 @@ it.each([
   ["grading", "Settings"],
   ["evals", "Results"],
   ["review", "Results"],
+  ["coverage", "Results"],
 ])("keeps the %s deep link inside %s", async (route, section) => {
   state.tab = route;
   await mount();
@@ -455,6 +459,22 @@ it("offers run history and answer review under one Results section", async () =>
   expect(screen.getByText("review")).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Test runs" }));
   expect(new URL(window.location.href).searchParams.get("tab")).toBe("evals");
+});
+
+it("offers key coverage under Results, to a reader who may not read runs too", async () => {
+  state.runsView = false;
+  state.tab = "review";
+  await mount();
+  expect(screen.queryByRole("button", { name: "Test runs" })).toBeNull();
+
+  await userEvent.click(screen.getByRole("button", { name: "Key coverage" }));
+
+  expect(new URL(window.location.href).searchParams.get("tab")).toBe("coverage");
+  expect(screen.getByText("coverage of d1")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Key coverage" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 });
 
 it.each([403, 404])("shows a no-access view for an unreadable dataset (%s)", async (status) => {
