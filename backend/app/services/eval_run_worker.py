@@ -20,7 +20,7 @@ settle flipped, are rerun, and the run ends.
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Collection, Sequence
+from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, aclosing, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -203,16 +203,6 @@ def run_failure(exc: BaseException) -> tuple[str, AttemptFault]:
             AttemptFault.AGENT,
         )
     return run_failure_summary(exc), AttemptFault.AGENT
-
-
-def _splits(cases: Sequence[UUID], held_out: Collection[UUID] | None) -> list[list[UUID]]:
-    """The cases compared together: all of them, or the held-out ones apart from the rest."""
-    if held_out is None:
-        return [list(cases)]
-    return [
-        [case for case in cases if case in held_out],
-        [case for case in cases if case not in held_out],
-    ]
 
 
 def _latency_ms(run: AgentRun) -> int | None:
@@ -1015,7 +1005,9 @@ class EvalRunWorker:
         own baseline arm - one that ran here, or one standing in for an earlier
         run's answers, which is asked the flipped cases again here. A case whose
         content changed since the baseline answered it is not compared, so not
-        rerun.
+        rerun. A measured run is asked again on its held-out cases alone: its
+        verdict reads only those, and what learns from its training cases reads
+        their first answers.
 
         The run is locked while they are queued, as a cancel locks it: a cancel
         landing between the status check and the insert would skip the pending
@@ -1030,6 +1022,7 @@ class EvalRunWorker:
             attempts = await eval_run_repo.list_cases(db, run.id, organization_id=org)
             firsts = {(a.arm_id, a.case_id): a for a in attempts if a.attempt == 0}
             arms = await eval_run_repo.list_arms(db, [run.id], organization_id=org)
+            held_out = held_out_cases(run)
             # Each rerun with the first attempt it repeats: a reused baseline has
             # none of its own here, so it repeats the candidate's case revision.
             queued: dict[tuple[UUID, UUID], EvalRunCase] = {}
@@ -1067,36 +1060,42 @@ class EvalRunWorker:
                     same, _ = await service.pairing(ctx, run, arm, baseline, attempts)
                     their_arm = baseline.here or baseline.arm
                     compared = [
-                        case_id for case_id in mine if case_id in same and case_id in theirs
+                        case_id
+                        for case_id in mine
+                        if case_id in same
+                        and case_id in theirs
+                        and (held_out is None or case_id in held_out)
                     ]
-                    # A measured run is judged on its held-out cases alone, and its
-                    # training cases are compared apart, so each settles its own families.
-                    undecided: dict[UUID, frozenset[str]] = {}
-                    for split in _splits(compared, held_out_cases(run)):
-                        comparison = await compare_batches(
-                            service.criterion_batches(
-                                ctx, arm, attempts, their_arm, their_attempts, case_ids=split
-                            )
-                        )
-                        if comparison.undecided:
-                            undecided |= dict.fromkeys(split, comparison.undecided)
-                    family_flips: set[UUID] = set()
-                    async with aclosing(
+                    comparison = await compare_batches(
                         service.criterion_batches(
-                            ctx, arm, attempts, their_arm, their_attempts, case_ids=list(undecided)
+                            ctx, arm, attempts, their_arm, their_attempts, case_ids=compared
                         )
-                    ) as batches:
-                        async for batch in batches:
-                            family_flips.update(
-                                case_id
-                                for case_id, pair in batch
-                                if family_flipped(
-                                    pair.baseline, pair.candidate, pair.named, undecided[case_id]
-                                )
+                    )
+                    family_flips: set[UUID] = set()
+                    if comparison.undecided:
+                        async with aclosing(
+                            service.criterion_batches(
+                                ctx, arm, attempts, their_arm, their_attempts, case_ids=compared
                             )
+                        ) as batches:
+                            async for batch in batches:
+                                family_flips.update(
+                                    case_id
+                                    for case_id, pair in batch
+                                    if family_flipped(
+                                        pair.baseline,
+                                        pair.candidate,
+                                        pair.named,
+                                        comparison.undecided,
+                                    )
+                                )
                     for case_id, (outcome, _, _) in mine.items():
                         first = firsts.get((arm.id, case_id))
-                        if case_id not in same or first is None:
+                        if (
+                            case_id not in same
+                            or first is None
+                            or (held_out is not None and case_id not in held_out)
+                        ):
                             continue
                         if (
                             classify(theirs[case_id][0], outcome)

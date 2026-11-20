@@ -1696,6 +1696,45 @@ async def test_a_family_that_moved_on_the_held_out_cases_is_asked_again_there(db
     assert judge(result) is ImprovementVerdict.CRITERIA_BETTER
 
 
+async def test_a_measured_run_never_asks_its_training_cases_again(db) -> None:
+    """Its verdict reads the held-out cases alone, and the next attempt reads the
+    training cases' first answers: a family moving on two training cases decides
+    nothing anyone reads, so they are not asked again - and its ceiling holds only the
+    held-out cases."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _with_checks(db, ctx, cases=4)
+    cases = sorted(
+        (await DatasetService(db).list_cases(ctx, dataset.id)).items, key=lambda c: c.input
+    )
+    held_out = [case.case_id for case in cases[:2]]
+    service = EvalRunService(db)
+    request = EvalRunRequest(dataset_id=dataset.id, paired_baseline=True, reruns=1)
+    check = {
+        "candidate_spec": AgentSpec(name="Clerk", instructions="Attempt 1"),
+        "baseline_spec": AgentSpec(name="Clerk", instructions="Draft"),
+    }
+    record = ProposalCheckRecord(
+        kind="agent", base_version=7, suggestions=1, attempt_holdout=held_out
+    )
+
+    def answer(prompt: str, call: int) -> str:
+        candidate = model.calls[call]["candidate"]
+        return _PASS if candidate.spec.instructions.startswith("Attempt") else _FAIL
+
+    estimate = await service.estimate(ctx, agent.id, request, **check, proposal_check=record)
+    started = await service.start(ctx, agent.id, request, **check, proposal_check=record)
+    model = Model(db, answer=answer)
+    await _run_to_end(db, model, started.id, ctx)
+
+    per_case = sum(arm.cost_per_case_usd for arm in estimate.arms)
+    assert estimate.rerun_ceiling_usd == per_case * 2
+    # Four cases on two sides, then the two held-out ones once more on each.
+    assert len(model.calls) == 12
+    asked_again = {call["prompt"] for call in model.calls[8:]}
+    assert asked_again == {case.input for case in cases[:2]}
+
+
 async def test_a_criterion_that_moved_on_one_case_is_not_asked_again(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
@@ -1730,6 +1769,8 @@ async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
     # Judge spend belongs to the judge; the organization reserves both.
     assert estimate.agent_after_usd == Decimal("1.40")
     assert estimate.rerun_ceiling_usd == Decimal("0.80")
+    # With no earlier run to compare with, nothing is asked again.
+    assert estimate.expected_usd == estimate.total_usd
 
     # A draft with a looser cap against v7: v7 stops first, so its cap decides.
     agent.draft_spec = {**agent.draft_spec, "budget": {"monthly_usd": 5}}
@@ -1740,6 +1781,8 @@ async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
         EvalRunRequest(dataset_id=dataset.id, candidate="draft", paired_baseline=True),
     )
     assert paired.agent_remaining_usd == Decimal("2")
+    # A compared run usually asks about half of what its ceiling reserves.
+    assert paired.expected_usd == paired.total_usd + paired.rerun_ceiling_usd / 2
 
 
 async def test_an_older_version_without_a_cap_is_estimated_against_the_current_cap(db) -> None:
@@ -1792,6 +1835,27 @@ async def test_a_model_with_no_history_is_priced_at_its_own_price(db) -> None:
     # 2000 tokens in at $0.10/1M and 400 out at $0.40/1M.
     assert (arm.basis, arm.cost_per_case_usd) == ("fallback", Decimal("0.00036"))
     assert arm.cost_usd == Decimal("0.0036")
+
+
+async def test_with_no_history_an_answer_with_tools_is_priced_as_several_requests(db) -> None:
+    """Each tool call is answered in another request, so an agent that searches its
+    documents is priced at more than one."""
+    ctx = await _owner(db)
+    agent, versions = await _agent(db, ctx)
+    versions[7].spec = {"name": "Clerk", "capabilities": [{"id": "knowledge"}]}
+    dataset = await _dataset(db, ctx, cases=10)
+    await db.flush()
+    nano = await _profile(db, ctx, "gpt-4.1-nano")
+    priced = SimpleNamespace(label="nano", model="gpt-4.1-nano", provider="openai")
+
+    with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
+        estimate = await EvalRunService(db).estimate(
+            ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, model_profile_ids=[nano.id])
+        )
+
+    [arm] = estimate.arms
+    # Three requests: 6000 tokens in at $0.10/1M and 1200 out at $0.40/1M.
+    assert (arm.basis, arm.cost_per_case_usd) == ("fallback", Decimal("0.00108"))
 
 
 async def _assist(db: AsyncSession, ctx: AuthContext, *, on: bool) -> None:
@@ -2738,8 +2802,9 @@ async def test_a_judge_with_no_history_is_priced_at_its_models_price(db) -> None
     with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
         estimate = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
 
-    # Ten cases, each 2000 tokens in at $0.10/1M and 400 out at $0.40/1M.
-    assert estimate.judge_usd == Decimal("0.0036")
+    # Ten cases, each 2000 tokens and the 400-token answer it grades in at $0.10/1M,
+    # and 400 out at $0.40/1M.
+    assert estimate.judge_usd == Decimal("0.0040")
     assert estimate.judge_model_profile_id == nano.id
 
 
