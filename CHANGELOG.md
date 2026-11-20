@@ -40,6 +40,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A skill's Improve session names what accepting it did.** Its status line read "Kept as draft", an agent session's label, for a change applied to the skill. It now says Applied, Made a fork, Caught up with main or Moved to main. A new `skill-checks-rejudge` command judges again, from their stored runs and with no model call, the agents of finished skill checks that an older rule judged: one kept before families shows them, and one kept before `too_few_questions` existed no longer says its run could not grade every answer. It also counts the judge's gradings in a session attempt that counted only its check's answers, and a skill check's cost now counts them, so a session's spend and budget include its judge. A decided check keeps its decision, and the group of agents with too few questions says so once, without any agent's counts (#3189).
+
+### Upgrading
+
+- Migration `backend/alembic/versions/0343_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0344_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+
+## [1.85.1] - 2026-11-20
+
+### Fixed
+
 - The Nginx deployment template now forwards WebSocket upgrades on every API
   path and accepts uploads up to the default 50 MiB file limit on both hosts.
   Console authentication and ordinary JSON keep the 1 MiB limit. The deployment
@@ -51,12 +62,6 @@ Two things are versioned separately from this file and worth knowing about:
   recording the release as healthy or advancing its rollback image pins.
 - Frontend image builds exclude every `.env.*` file except `.env.example`,
   including `.env.production`, `.env.development` and `.env.test`.
-- **A skill's Improve session names what accepting it did.** Its status line read "Kept as draft", an agent session's label, for a change applied to the skill. It now says Applied, Made a fork, Caught up with main or Moved to main. A new `skill-checks-rejudge` command judges again, from their stored runs and with no model call, the agents of finished skill checks that an older rule judged: one kept before families shows them, and one kept before `too_few_questions` existed no longer says its run could not grade every answer. It also counts the judge's gradings in a session attempt that counted only its check's answers, and a skill check's cost now counts them, so a session's spend and budget include its judge. A decided check keeps its decision, and the group of agents with too few questions says so once, without any agent's counts (#3189).
-
-### Upgrading
-
-- Migration `backend/alembic/versions/0343_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
-- Migration `backend/alembic/versions/0344_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
 
 ## [1.85.0] - 2026-11-19
 
@@ -22202,7 +22207,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.85.1...HEAD
+[1.85.1]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...v1.85.1
 [1.85.0]: https://github.com/vstorm-co/agenticos/compare/v1.84.0...v1.85.0
 [1.84.0]: https://github.com/vstorm-co/agenticos/compare/v1.83.0...v1.84.0
 [1.83.0]: https://github.com/vstorm-co/agenticos/compare/v1.82.2...v1.83.0
