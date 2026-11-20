@@ -96,17 +96,18 @@ spooled to a temporary file and read into memory. Behind a session that is not m
 of a risk; on `POST /api/v1/embed/{key}/files`, which a stranger holding a link may
 reach, it is.
 
-So a request declaring a `Content-Length` larger than `MAX_UPLOAD_SIZE_MB` plus a
-5 MiB allowance for the multipart envelope is answered **413** before its body is
-read. There is no setting: it follows `MAX_UPLOAD_SIZE_MB`, because a second number
-to keep in step with the first is a number that ends up below it.
+A request declaring a `Content-Length` larger than the largest of
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` and
+`ML_MAX_UPLOAD_SIZE_MB`, plus 5 MiB for multipart framing, receives **413** before
+its body is read. This ceiling follows the upload settings automatically.
 
-**It is the cheap half of the answer, not the whole one.** `Content-Length` is set
-by the caller, and a chunked request declares none at all — those are let through
-and bounded by the per-route caps, which measure real bytes. A deployment that wants
-the guarantee rather than the courtesy sets `client_max_body_size` (nginx) or the
-equivalent on whatever terminates its connections; the compose files run uvicorn
-with no such limit of its own.
+The caller supplies `Content-Length`; chunked requests declare none and remain
+subject to the per-route limits, which measure actual bytes. Set a body limit on
+the reverse proxy to bound those too. With Nginx this is also necessary to allow
+uploads above its default 1 MiB: the shipped template sets
+`client_max_body_size 55m;` on **both** HTTPS hosts. Raise both values when raising
+the largest upload setting. See [Nginx deployment](deploy.md#option-b-nginx).
+The Compose files run uvicorn without its own body limit.
 
 ## Authentication
 
