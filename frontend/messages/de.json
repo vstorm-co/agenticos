@@ -16268,7 +16268,7 @@
     "evidenceSample": "{count} ausgewählte Beispiele, höchstens {limit}. Gelöschte oder nicht mehr lesbare Quellen werden ausgelassen.",
     "unknownCauses": "Für einige Antworten ist keine Ursache gespeichert. Sie bleiben unklassifiziert und werden mit den Agentenbeispielen zur Prüfung angezeigt.",
     "cause": {
-      "agent": "Im Agenten korrigieren",
+      "agent": "Im Agenten oder seinen Skills korrigieren",
       "missing_knowledge": "Fehlendes Wissen in der Wissensdatenbank",
       "not_a_problem": "Kein zu behebendes Problem",
       "knowledge_added": "Schon in der Wissensdatenbank"
@@ -16560,7 +16560,8 @@
     "changesReplaced": "Diese Vorschläge sind nicht mehr verfügbar. Öffnen Sie den Agenten, um den aktuellen Entwurf zu prüfen.",
     "openVersion": "Version {version} öffnen",
     "publishVersion": "Version {version} veröffentlichen",
-    "problemsFound": "Wir haben {total, plural, one {# Problem} other {# Probleme}} gefunden: {agent} können wir im Agent beheben{knowledge, plural, =0 {} other {, bei {knowledge} fehlen Informationen in der Wissensdatenbank}}{added, plural, =0 {} other {, bei {added} fehlte Wissen, das inzwischen zur Wissensdatenbank hinzugefügt wurde}}.",
+    "problemsFound": "Wir haben {total, plural, one {# Problem} other {# Probleme}} gefunden: {agent} können wir im Agent oder seinen Skills beheben{knowledge, plural, =0 {} other {, bei {knowledge} fehlen Informationen in der Wissensdatenbank}}{added, plural, =0 {} other {, bei {added} fehlte Wissen, das inzwischen zur Wissensdatenbank hinzugefügt wurde}}.",
+    "heldBySkillNote": "Der Helfer hat {count, plural, =1 {ein noch fehlschlagendes Kriterium} other {# noch fehlschlagende Kriterien}} {skills} zugeordnet: Diese werden im Skill behoben, nicht in den Anweisungen des Agents.",
     "topicExamples": "Gespräche zu einem Thema: {count}",
     "otherExamples": "{count, plural, one {# weiteres Gespräch} other {# weitere Gespräche}} dazu",
     "questionSources": "{count, plural, one {# Testfrage} other {# Testfragen}}: {down} aus negativ bewerteten Antworten, {liked} aus positiv bewerteten Antworten, {written} für Themen ohne Beispiel geschrieben{other, plural, =0 {} other {, # von Hand hinzugefügt oder importiert}}.",

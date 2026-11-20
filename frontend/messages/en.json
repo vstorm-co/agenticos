@@ -16582,7 +16582,7 @@
     "evidenceSample": "{count} selected examples, up to {limit}. Sources that were erased or are no longer readable are omitted.",
     "unknownCauses": "Some answers have no recorded cause. They remain unclassified and are shown with the agent examples for review.",
     "cause": {
-      "agent": "Fix in the agent",
+      "agent": "Fix in the agent or its skills",
       "missing_knowledge": "Missing from the knowledge base",
       "not_a_problem": "Not a problem to fix",
       "knowledge_added": "Already in the knowledge base"
@@ -16874,7 +16874,8 @@
     "changesReplaced": "These suggestions are no longer available. Open the agent to review the current draft.",
     "openVersion": "Open version {version}",
     "publishVersion": "Publish version {version}",
-    "problemsFound": "We found {total, plural, one {# problem} other {# problems}}: {agent} we can fix in the agent{knowledge, plural, =0 {} one {, # is information missing from the knowledge base} other {, # are information missing from the knowledge base}}{added, plural, =0 {} other {, # lacked knowledge that has since been added to the knowledge base}}.",
+    "problemsFound": "We found {total, plural, one {# problem} other {# problems}}: {agent} we can fix in the agent or its skills{knowledge, plural, =0 {} one {, # is information missing from the knowledge base} other {, # are information missing from the knowledge base}}{added, plural, =0 {} other {, # lacked knowledge that has since been added to the knowledge base}}.",
+    "heldBySkillNote": "The helper put {count, plural, =1 {one still-failing criterion} other {# still-failing criteria}} down to {skills}: those are fixed in the skill, not in the agent's instructions.",
     "topicExamples": "{count} conversations about one topic",
     "otherExamples": "{count, plural, one {# more conversation} other {# more conversations}} about this",
     "questionSources": "{count, plural, one {# test question} other {# test questions}}: {down} from answers people rated down, {liked} from answers they liked, {written} written for topics with no example{other, plural, =0 {} other {, # added by hand or imported}}.",

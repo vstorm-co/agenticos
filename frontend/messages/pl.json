@@ -16355,7 +16355,7 @@
     "evidenceSample": "Wybrano {count} przykładów, maksymalnie {limit}. Pomijamy źródła usunięte lub już niedostępne.",
     "unknownCauses": "Część odpowiedzi nie ma zapisanej przyczyny błędu. Pozostają niesklasyfikowane i są pokazane z przykładami agenta do przeglądu.",
     "cause": {
-      "agent": "Do poprawy w agencie",
+      "agent": "Do poprawy w agencie lub jego skillach",
       "missing_knowledge": "Braki w bazie wiedzy",
       "not_a_problem": "Nie wymaga poprawy",
       "knowledge_added": "Już w bazie wiedzy"
@@ -16647,7 +16647,8 @@
     "changesReplaced": "Te sugestie nie są już dostępne. Otwórz agenta, aby sprawdzić aktualną wersję roboczą.",
     "openVersion": "Otwórz wersję {version}",
     "publishVersion": "Opublikuj wersję {version}",
-    "problemsFound": "Znaleźliśmy {total, plural, one {# problem} few {# problemy} many {# problemów} other {# problemu}}: {agent} do poprawy w agencie{knowledge, plural, =0 {} other {, {knowledge} to informacje, których brakuje w bazie wiedzy}}{added, plural, =0 {} other {, przy {added} brakowało wiedzy, którą od tego czasu dodano do bazy wiedzy}}.",
+    "problemsFound": "Znaleźliśmy {total, plural, one {# problem} few {# problemy} many {# problemów} other {# problemu}}: {agent} do poprawy w agencie lub jego skillach{knowledge, plural, =0 {} other {, {knowledge} to informacje, których brakuje w bazie wiedzy}}{added, plural, =0 {} other {, przy {added} brakowało wiedzy, którą od tego czasu dodano do bazy wiedzy}}.",
+    "heldBySkillNote": "Pomocnik przypisał {count, plural, one {# niespełnione kryterium} few {# niespełnione kryteria} many {# niespełnionych kryteriów} other {# niespełnionego kryterium}} do {skills}: poprawia się je w skillu, nie w instrukcjach agenta.",
     "topicExamples": "Rozmowy na jeden temat: {count}",
     "otherExamples": "{count, plural, one {# inna rozmowa} few {# inne rozmowy} many {# innych rozmów} other {# innej rozmowy}} na ten temat",
     "questionSources": "{count, plural, one {# pytanie testowe} few {# pytania testowe} many {# pytań testowych} other {# pytania testowego}}: {down} z odpowiedzi ocenionych negatywnie, {liked} z odpowiedzi ocenionych pozytywnie, {written} napisanych dla tematów bez przykładu{other, plural, =0 {} other {, # dodanych ręcznie lub zaimportowanych}}.",
