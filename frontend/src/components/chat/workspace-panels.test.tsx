@@ -162,6 +162,25 @@ describe("manual workspace launchers", () => {
     expect(screen.getByRole("complementary", { name: "Computer" })).toHaveAttribute("id", ids[1]);
   });
 
+  it("unmounts the Tasks panel when its close button is pressed", async () => {
+    vi.mocked(apiClient.get).mockImplementation((path: string) =>
+      Promise.resolve(
+        path === "/conversations/background-tasks"
+          ? []
+          : { backend: "none", items: [], total: 0, bytes_total: 0, unreadable_reason: null },
+      ),
+    );
+    render(<WorkspacePanels {...defaults()} />, { wrapper });
+    await userEvent.click(screen.getByRole("button", { name: "Open tasks" }));
+    expect(screen.getByRole("complementary", { name: "Tasks" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Close tasks" }));
+    expect(screen.queryByRole("complementary", { name: "Tasks" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Open tasks" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
   it("does not attach a personal native browser when the hosted Browser opener is used", async () => {
     const props = defaults();
     render(

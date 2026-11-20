@@ -138,9 +138,11 @@ export function WorkspacePanels(props: WorkspacePanelsProps) {
       />
       {surface !== "browser" && <div id={panelIds.browser} hidden aria-hidden="true" />}
       {surface !== "computer" && <div id={panelIds.computer} hidden aria-hidden="true" />}
+      {/* Files is keyed on the same scope beside this panel. A repeated sibling key keeps
+          this panel mounted after it closes, so the prefix must stay. */}
       {surface === "tasks" ? (
         <WorkspaceTasksPanel
-          key={`${account}:${organization}:${props.agentId}:${props.conversationId}`}
+          key={`tasks:${account}:${organization}:${props.agentId}:${props.conversationId}`}
           panelId={panelIds.tasks}
           conversationId={props.conversationId}
           readOnly={props.readOnly || props.loading}
