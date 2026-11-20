@@ -1,8 +1,10 @@
 """Bounded model context, lossless detail reads and receipts after successful writes."""
 
 import json
+from decimal import Decimal
 from typing import Annotated
 from unittest.mock import AsyncMock, MagicMock
+from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
 
 import pytest
@@ -10,6 +12,7 @@ from fastmcp import Client, FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import Field, JsonValue, ValidationError
 
+from app.schemas.agent import AgentRunResult, ParkedCall, RunStep
 from app.services.platform_mcp import platform_tool_catalog
 from app.services.platform_mcp._disclosure import (
     MAX_RESPONSE_BYTES,
@@ -163,7 +166,6 @@ async def test_large_write_is_a_receipt_with_status_and_questions_not_a_failure(
             "status": "awaiting_answer",
             "content": "x" * 100000,
             "questions": [{"text": "Choose"}],
-            "approval": {"pending": True},
             "next_actions": ["answer"],
             "workflow": {"id": str(ID), "draft_graph": {}},
             "table": {"id": "x" * 100000},
@@ -511,3 +513,97 @@ async def test_workflow_catalog_discloses_only_the_requested_contract_section(se
     api.refuse.side_effect = ToolError("Not found")
     with pytest.raises(ToolError, match="Not found"):
         await tool("no-such-node")
+
+
+@pytest.mark.parametrize("tool", ["run_agent", "test_agent_draft", "answer_agent_questions"])
+async def test_large_run_history_preserves_the_real_pending_approval_contract(tool: str) -> None:
+    pending = ParkedCall(
+        id=ID,
+        tool_call_id="waiting",
+        tool_name="send_email",
+        tool_args={"to": "person@example.com"},
+    )
+    run = AgentRunResult(
+        run_id=ID,
+        output="",
+        status="awaiting_approval",
+        cost_usd=Decimal("0"),
+        input_tokens=1,
+        output_tokens=1,
+        parked=[pending],
+        steps=[RunStep(tool_call_id="finished", tool_name="search", result="x" * 100000)],
+    )
+    calls = 0
+
+    async def write() -> JsonValue:
+        nonlocal calls
+        calls += 1
+        return run.model_dump(mode="json")
+
+    result = await protect(tool, write, writes=True)()
+    assert calls == 1 and result["continuation"] is None
+    assert result["summary"]["status"] == "awaiting_approval"
+    assert result["summary"]["parked"] == [pending.model_dump(mode="json")]
+    assert "approval_details_omitted" not in result["summary"]
+    assert len(encoded(result).encode()) <= MAX_RESPONSE_BYTES
+
+
+async def test_large_pending_approvals_keep_bounded_identities_and_a_full_console_review_link() -> (
+    None
+):
+    run = AgentRunResult(
+        run_id=ID,
+        output="",
+        status="awaiting_approval",
+        cost_usd=Decimal("0"),
+        input_tokens=1,
+        output_tokens=1,
+        parked=[
+            ParkedCall(
+                id=UUID(int=index + 1),
+                tool_call_id=f"waiting-{index}",
+                tool_name="send_email",
+                tool_args={"body": "private argument" * 1000},
+            )
+            for index in range(12)
+        ],
+    )
+
+    async def write() -> JsonValue:
+        return run.model_dump(mode="json")
+
+    result = await protect("run_agent", write, writes=True)()
+    summary = result["summary"]
+    assert summary["parked_total"] == 12 and len(summary["parked"]) == 10
+    assert summary["parked"][0] == {
+        "id": str(UUID(int=1)),
+        "tool_call_id": "waiting-0",
+        "tool_name": "send_email",
+    }
+    assert summary["approval_details_omitted"] is True
+    destination = urlsplit(summary["approval_review_url"])
+    assert destination.path == "/runs"
+    assert parse_qs(destination.query) == {"tab": ["approvals"], "run": [str(ID)]}
+    assert "never approve" in summary["approval_instruction"]
+    assert "private argument" not in encoded(result)
+    assert result["continuation"] is None and result["request_completed"] is True
+    assert len(encoded(result).encode()) <= MAX_RESPONSE_BYTES
+
+
+async def test_an_unidentified_large_interaction_hands_off_to_the_queue_without_inventing_ids() -> (
+    None
+):
+    async def write() -> JsonValue:
+        return {
+            "status": "awaiting_approval",
+            "parked": [
+                {"id": "approval", "tool_name": "tool", "tool_args": {"body": "x" * 100000}},
+                "unsupported entry",
+            ],
+        }
+
+    result = await protect("write", write, writes=True)()
+    summary = result["summary"]
+    assert summary["parked"] == [{"id": "approval", "tool_name": "tool"}]
+    assert parse_qs(urlsplit(summary["approval_review_url"]).query) == {"tab": ["approvals"]}
+    assert len(encoded(result).encode()) <= MAX_RESPONSE_BYTES

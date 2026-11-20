@@ -1,7 +1,9 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
+import userEvent from "@testing-library/user-event";
+import { AppearanceSettings } from "@/components/settings/appearance-settings";
 import { useAccountAppearance } from "./use-account-appearance";
 import { useAuthStore } from "@/stores";
 import { useThemeStore } from "@/stores/theme-store";
@@ -30,7 +32,7 @@ beforeEach(() => {
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   useAuthStore.setState({ user });
-  useThemeStore.setState({ theme: "system", look: "standard", editRevision: 0 });
+  useThemeStore.setState({ theme: "system", look: "standard", editRevision: 0, editedField: null });
   api.read.mockResolvedValue({ theme: "dark", look: "glass", locale: "pl" });
   api.save.mockResolvedValue({ theme: "light", look: "glass", locale: "pl" });
 });
@@ -71,7 +73,7 @@ it("keeps device defaults until a choice, and saves local edits only", async () 
   act(() => {
     useThemeStore.getState().setLook("paper");
   });
-  expect(api.save).toHaveBeenCalledTimes(2);
+  await waitFor(() => expect(api.save).toHaveBeenCalledTimes(3));
 });
 
 it("does not read or save another person's preferences after sign-out", async () => {
@@ -112,4 +114,57 @@ it("keeps local choices while saves are pending and refuses queued writes after 
   });
   await waitFor(() => expect(api.error).toHaveBeenCalled());
   expect(api.save).toHaveBeenCalledTimes(1);
+});
+
+it.each(["theme", "look"] as const)(
+  "saves an explicit %s choice even when it matches the device default",
+  async (field) => {
+    api.read.mockResolvedValue({ theme: null, look: null, locale: null });
+    renderHook(() => useAccountAppearance(), { wrapper });
+    await waitFor(() => expect(client.getQueryData(qk.accountPreferences(user.id))).toBeDefined());
+    expect(api.save).not.toHaveBeenCalled();
+    act(() => {
+      if (field === "theme") useThemeStore.getState().setTheme("system");
+      else useThemeStore.getState().setLook("standard");
+    });
+    await waitFor(() =>
+      expect(api.save).toHaveBeenCalledWith(
+        field === "theme" ? { theme: "system" } : { look: "standard" },
+      ),
+    );
+  },
+);
+
+it("retries the same unsaved selection without changing to another theme first", async () => {
+  api.read.mockResolvedValue({ theme: null, look: null, locale: null });
+  api.save.mockRejectedValueOnce(new Error("offline"));
+  renderHook(() => useAccountAppearance(), { wrapper });
+  await waitFor(() => expect(client.getQueryData(qk.accountPreferences(user.id))).toBeDefined());
+  act(() => useThemeStore.getState().setTheme("light"));
+  await waitFor(() => expect(api.error).toHaveBeenCalled());
+  await waitFor(() => expect(client.isMutating()).toBe(0));
+  expect(useThemeStore.getState().theme).toBe("light");
+  act(() => useThemeStore.getState().setTheme("light"));
+  await waitFor(() => expect(api.save).toHaveBeenCalledTimes(2));
+  expect(api.save).toHaveBeenLastCalledWith({ theme: "light" });
+});
+
+it("persists already-selected Settings defaults as deliberate account choices", async () => {
+  api.read.mockResolvedValue({ theme: null, look: null, locale: null });
+  function Preferences() {
+    useAccountAppearance();
+    return <AppearanceSettings />;
+  }
+  render(<Preferences />, { wrapper });
+  await waitFor(() => expect(client.getQueryData(qk.accountPreferences(user.id))).toBeDefined());
+  const system = within(screen.getByRole("radiogroup", { name: "Theme" })).getByRole("radio", {
+    name: "System",
+  });
+  expect(system).toBeChecked();
+  await userEvent.click(system);
+  await waitFor(() => expect(api.save).toHaveBeenCalledWith({ theme: "system" }));
+  const standard = screen.getByRole("radio", { name: /^Standard/ });
+  expect(standard).toBeChecked();
+  await userEvent.click(standard);
+  await waitFor(() => expect(api.save).toHaveBeenCalledWith({ look: "standard" }));
 });

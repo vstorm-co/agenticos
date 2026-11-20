@@ -1,5 +1,5 @@
 ---
-source_sha: "486b74fc34ac"
+source_sha: "a8bf70087a14"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1587,6 +1587,14 @@ sincronizan las preferencias aproximadamente cada diez segundos. Ajustes escribe
 mismas preferencias de cuenta. La migración `0344_user_appearance.py` añade columnas
 opcionales; las cuentas existentes conservan los valores del dispositivo hasta
 guardar una elección.
+
+Una elección explícita se guarda aunque la pantalla ya use ese valor; vuelve a seleccionarlo para reintentar un guardado fallido.
+
+Las respuestas grandes de ejecuciones conservan `parked`, con los identificadores
+de aprobaciones pendientes. Si las llamadas no caben, la respuesta conserva hasta
+diez identificadores, `parked_total` y una `approval_review_url` a la consola.
+`approval_details_omitted` indica argumentos incompletos: inspecciona allí las
+llamadas completas antes de decidir; nunca apruebes desde la respuesta abreviada.
 
 ## Administración mediante MCP {#administration-through-mcp}
 

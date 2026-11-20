@@ -1482,6 +1482,14 @@ consoles synchronize preferences within about ten seconds while visible. Setting
 writes the same account choices. Existing accounts retain device defaults until
 a choice is saved; migration `0344_user_appearance.py` adds nullable columns.
 
+A deliberate choice is saved even when the screen already uses that value; select it again to retry a failed save.
+
+Large run receipts preserve `parked`, including pending approval IDs. If pending
+calls do not fit, the response keeps up to ten approval identities, `parked_total`
+and an `approval_review_url` for the console. `approval_details_omitted` means the
+arguments are incomplete: inspect the full calls there before deciding; never
+approve from the abbreviated response.
+
 ## Administration through MCP
 
 Search `list_administration_actions` by task or field, then use

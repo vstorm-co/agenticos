@@ -27,7 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - MCP contract 2: bounded metadata discovery, paged detail readers, on-demand
   authoring schemas and credential-bound continuations for large reads. Prepared
-  solution reviews avoid resending large manifests during installation.
+  solution reviews avoid resending large manifests during installation. Large run
+  receipts preserve pending approvals or provide a bounded console review handoff.
 - Self-only MCP console preferences: light/dark/system theme, all existing
   console styles and supported application languages, synchronized with Settings.
 

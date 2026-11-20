@@ -1,5 +1,5 @@
 ---
-source_sha: "486b74fc34ac"
+source_sha: "a8bf70087a14"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1538,6 +1538,14 @@ W czacie zmiana działa od razu; inne otwarte konsole synchronizują preferencje
 więcej co dziesięć sekund, gdy są widoczne. Ustawienia zapisują te same wybory na
 koncie. Migracja `0344_user_appearance.py` dodaje opcjonalne kolumny; dotychczasowe
 konta zachowują domyślny wygląd urządzenia, dopóki nie zapiszą wyboru.
+
+Jawny wybór zapisuje się także wtedy, gdy ekran już używa tej wartości; wybierz ją ponownie, aby powtórzyć nieudany zapis.
+
+Duże odpowiedzi uruchomień zachowują `parked`, w tym identyfikatory oczekujących
+zgód. Gdy wywołania nie mieszczą się w limicie, odpowiedź zawiera maksymalnie
+dziesięć identyfikatorów zgód, `parked_total` i `approval_review_url` do konsoli.
+`approval_details_omitted` oznacza niepełne argumenty: przed decyzją sprawdź tam
+całe wywołania; nigdy nie zatwierdzaj na podstawie skróconej odpowiedzi.
 
 ## Administracja przez MCP {#administration-through-mcp}
 

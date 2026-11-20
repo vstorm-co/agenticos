@@ -15,6 +15,7 @@ import time
 from collections.abc import Awaitable, Callable, Sequence
 from functools import wraps
 from typing import Annotated, Literal, NoReturn
+from urllib.parse import urlencode
 
 from fastmcp.exceptions import ToolError
 from pydantic import (
@@ -350,10 +351,34 @@ def protect[**P](
                             if field in child
                         }
                     )
-            for key in ("questions", "approval", "next_actions"):
+            for key in ("parked", "questions", "next_actions"):
                 item = result.get(key)
                 if item is not None and len(encoded({**receipt, key: item}).encode()) <= 10000:
                     receipt[key] = item
+                elif key == "parked" and isinstance(item, list):
+                    receipt["parked"] = [
+                        metadata(
+                            {
+                                field: call[field]
+                                for field in ("id", "tool_name", "tool_call_id")
+                                if field in call
+                            }
+                        )
+                        for call in item[:10]
+                        if isinstance(call, dict)
+                    ]
+                    receipt["parked_total"] = len(item)
+                    receipt["approval_details_omitted"] = True
+                    query = {"tab": "approvals"}
+                    run_id = receipt.get("run_id")
+                    if isinstance(run_id, str):
+                        query["run"] = run_id
+                    receipt["approval_review_url"] = (
+                        settings.FRONTEND_URL.rstrip("/") + "/runs?" + urlencode(query)
+                    )
+                    receipt["approval_instruction"] = (
+                        "Inspect the full pending calls in the console before deciding. Arguments and possibly additional approvals are omitted here; never approve from this summary."
+                    )
         continuation: str | None = None
         if not writes and name != "read_platform_details":
             caller = credential()

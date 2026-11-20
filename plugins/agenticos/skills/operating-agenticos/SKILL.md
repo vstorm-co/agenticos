@@ -129,3 +129,9 @@ connection if this scope is missing. It is never inherited by built-in agents or
 routines. Use secure console handoffs for secret values and binary branding.
 Before applying an update, explain downtime and inspect its prepared operation;
 read status afterwards and do not equate accepted with finished.
+
+
+Large run receipts preserve `parked` approval identities. When
+`approval_details_omitted` is true, the arguments and possibly some calls are
+missing: open `approval_review_url` for full console inspection. Never approve
+from an abbreviated receipt or repeat the run to recover its pending calls.

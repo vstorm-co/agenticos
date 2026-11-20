@@ -71,11 +71,12 @@ export function useAccountAppearance(): void {
   useEffect(() => {
     if (!userId) return;
     return useThemeStore.subscribe((next, previous) => {
-      if (next.editRevision === previous.editRevision) return;
-      const changes: AppearanceChange = {};
-      if (next.theme !== previous.theme) changes.theme = next.theme;
-      if (next.look !== previous.look) changes.look = next.look;
-      if (Object.keys(changes).length) save.current({ owner: userId, changes });
+      if (next.editRevision === previous.editRevision || next.editedField === null) return;
+      // Choosing the rendered default also sets an account override. Repeating
+      // a choice retries an unsaved value, including before a failed read recovers.
+      const changes: AppearanceChange =
+        next.editedField === "theme" ? { theme: next.theme } : { look: next.look };
+      save.current({ owner: userId, changes });
     });
   }, [userId]);
 

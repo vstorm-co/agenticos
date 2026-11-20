@@ -1,5 +1,5 @@
 ---
-source_sha: "486b74fc34ac"
+source_sha: "a8bf70087a14"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1604,6 +1604,15 @@ Im Chat gilt die Änderung sofort, andere sichtbare Konsolen synchronisieren die
 Einstellungen ungefähr alle zehn Sekunden. Einstellungen schreiben dieselben Kontowerte.
 Migration `0344_user_appearance.py` ergänzt nullable Spalten; bestehende Konten
 behalten die Gerätevorgaben, bis eine Auswahl gespeichert wird.
+
+Eine ausdrückliche Auswahl wird auch gespeichert, wenn der Bildschirm diesen Wert bereits verwendet; wähle ihn erneut, um einen fehlgeschlagenen Speichervorgang zu wiederholen.
+
+Große Laufantworten behalten `parked` samt IDs ausstehender Genehmigungen.
+Passen die Aufrufe nicht in das Limit, enthält die Antwort bis zu zehn
+Genehmigungsidentitäten, `parked_total` und eine `approval_review_url` zur Konsole.
+`approval_details_omitted` kennzeichnet unvollständige Argumente: Prüfe dort die
+vollständigen Aufrufe vor einer Entscheidung; genehmige niemals anhand der
+gekürzten Antwort.
 
 ## Administration über MCP {#administration-through-mcp}
 
