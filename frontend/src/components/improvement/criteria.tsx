@@ -24,6 +24,8 @@ export const GAINS: readonly (ImprovementVerdict | null)[] = ["better", "criteri
 export interface CriterionRow {
   key: string;
   name: string;
+  /** The scorer grading a single criterion; a family has none. */
+  scorer?: string;
   graded: number;
   before: number;
   after: number;
@@ -46,18 +48,22 @@ export function familiesOf(round: ImprovementIteration | undefined): VerdictFami
   return Array.isArray(kept) ? (kept as VerdictFamily[]) : [];
 }
 
-/** Single criteria as rows: better with confirmed fixes and nothing broken, worse with a break. */
+/**
+ * Single criteria as rows: better with confirmed fixes, nothing broken and no fewer passes,
+ * worse with a break.
+ */
 export function criterionRows(criteria: VerdictCriterion[]): CriterionRow[] {
   return criteria.map((item) => ({
     key: `${item.scorer}:${item.name}`,
     name: item.name,
+    scorer: item.scorer,
     graded: item.graded,
     before: item.before,
     after: item.after,
     fixed: item.fixed,
     broken: item.broken,
     skill: item.skill,
-    better: item.fixed > 0 && item.broken === 0,
+    better: item.fixed > 0 && item.broken === 0 && item.after >= item.before,
     worse: item.broken > 0,
   }));
 }
@@ -135,19 +141,32 @@ export function criteriaTotals(round: ImprovementIteration | undefined) {
   };
 }
 
-function listed(t: Translate, locale: string, items: CriterionRow[], named?: number): string {
+/** A row's name, with its scorer when another criterion shares the name. */
+function criterionName(item: CriterionRow, rows: CriterionRow[]): string {
+  return item.scorer && rows.filter((other) => other.name === item.name).length > 1
+    ? `${item.name} [${item.scorer}]`
+    : item.name;
+}
+
+function listed(
+  t: Translate,
+  locale: string,
+  items: CriterionRow[],
+  context: CriterionRow[],
+  named?: number,
+): string {
   const shown = named === undefined ? items : items.slice(0, named);
   const words = shown.map((item) =>
     named === undefined
       ? t("criteria.item", {
-          name: item.name,
+          name: criterionName(item, context),
           before: item.before,
           after: item.after,
           graded: item.graded,
         })
       : item.skill
-        ? t("criteria.failingSkill", { name: item.name, skill: item.skill })
-        : item.name,
+        ? t("criteria.failingSkill", { name: criterionName(item, context), skill: item.skill })
+        : criterionName(item, context),
   );
   if (items.length > shown.length)
     words.push(t("criteria.more", { count: items.length - shown.length }));
@@ -167,6 +186,7 @@ export function criteriaSentences(
   agent: string,
 ): string[] {
   const { better, worse, skillWorse, failing } = movedCriteria(round);
+  const context = rowsOf(round);
   const sentences: string[] = [];
   if (round.verdict === "criteria_better" && better.length > 0) {
     sentences.push(
@@ -174,12 +194,12 @@ export function criteriaSentences(
         number: round.number,
         agent,
         count: better.length,
-        list: listed(t, locale, better),
+        list: listed(t, locale, better, context),
       }),
     );
     if (failing.length > 0)
       sentences.push(
-        t("criteria.stillFailing", { list: listed(t, locale, failing, NAMED_FAILING) }),
+        t("criteria.stillFailing", { list: listed(t, locale, failing, context, NAMED_FAILING) }),
       );
   }
   if (round.verdict === "regression" && better.length > 0)
@@ -188,7 +208,7 @@ export function criteriaSentences(
         number: round.number,
         agent,
         count: better.length,
-        list: listed(t, locale, better),
+        list: listed(t, locale, better, context),
       }),
     );
   if (worse.length > 0)
@@ -197,7 +217,7 @@ export function criteriaSentences(
         number: round.number,
         agent,
         count: worse.length,
-        list: listed(t, locale, worse),
+        list: listed(t, locale, worse, context),
       }),
     );
   if (skillWorse.length > 0)
@@ -205,7 +225,7 @@ export function criteriaSentences(
       t("criteria.skillWorse", {
         agent,
         count: skillWorse.length,
-        list: listed(t, locale, skillWorse),
+        list: listed(t, locale, skillWorse, context),
       }),
     );
   return sentences;
@@ -248,7 +268,7 @@ export function CriteriaTable({ criteria }: { criteria: CriterionRow[] }) {
           {criteria.map((item) => (
             <tr key={item.key} className="border-t">
               <td className="py-1 pr-3">
-                {item.name}
+                {criterionName(item, criteria)}
                 {item.skill && (
                   <span className="text-muted-foreground block text-xs">
                     {t("skill", { skill: item.skill })}

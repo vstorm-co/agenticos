@@ -1,5 +1,5 @@
 ---
-source_sha: "38d87c765236"
+source_sha: "5dd4c3bfb09e"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -210,7 +210,7 @@ Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingab
 
 Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats und Fälle ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
 
-Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat.
+Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat. Der Kontext früherer Versuche enthält begrenzte Auszüge aus höchstens sechs zuletzt gemessenen Versuchen, damit lange Änderungen an Anweisungen oder Skill-Inhalten nicht den Prompt des nächsten Vorschlags füllen.
 
 Eine menschliche Entscheidung und **Entscheidung zurücknehmen** verwerfen abhängige Run-Vergleiche und berechnen gespeicherte Suite-Ergebnisse in derselben Transaktion neu. Run, Suite, Umgebungsschranke und Beförderungsdialog zeigen das korrigierte Urteil und die prüfende Person. Das Audit hält alte und neue Zustände sowie Zählwerte fest; ein geändertes Suite-Urteil erzeugt eine neue Benachrichtigung. Namen werden aus der aktuellen Organisationsmitgliedschaft aufgelöst und nicht in aufbewahrte Ergebnisse kopiert.
 
@@ -385,6 +385,18 @@ Prüfung, die am Entwurf selbst gemessen wurde, zählt in keinem von beiden.
 Ein Bewerterkriterium kann für alle Fälle oder nur für Fälle mit mindestens einem ausgewählten Tag gelten. Wählen Sie unter **Bewertung** (Grading) die Tags und prüfen Sie die Anzahl; ein Fall mit mehreren passenden Tags zählt einmal. Nicht passende Kriterien werden vollständig ausgelassen und können den Fall weder scheitern noch unentschieden lassen. Prüfungsnotizen können Kriterien für einen ausgewählten Fall-Tag werden. Eine Bereichsänderung ändert den Bewertungsfingerabdruck; Wächter übernehmen sie erst nach einem autorisierten Verschieben der Anheftung.
 
 ## Mit einer Baseline vergleichen { #comparing-with-a-baseline }
+
+`criterion_change` ist die Zahl bestätigter Kriterienkorrekturen abzüglich bestätigter Verschlechterungen, geteilt durch alle paarweise verglichenen Kriterienbewertungen. Sie wird vor der Begrenzung der Antwortdetails berechnet. Wenn ganze Fragen unverändert bleiben und mehrere Versuche nur Kriterien verbessern, bevorzugt Improve die größere normalisierte Kriterienänderung; bei exaktem Gleichstand bleibt der frühere Versuch. Bei ungültigen Vergleichen werden Kriterienänderungen weder aggregiert noch zurückgegeben. Nicht vergleichbare Baselines lösen keine kostenpflichtigen Bestätigungswiederholungen aus.
+
+Kriteriennamen, Einzelbewertungen und Skill-Zuordnungen erfordern `runs:view`, Zugriff auf den festgelegten Datensatz der Sitzung und auf jeden genannten Skill. Details einer Skill-Prüfung erfordern Zugriff auf alle beteiligten Datensätze. Verborgene oder fehlende Quellen blenden diese Details aus, ohne gespeicherte Ergebnisse zu ändern. Ergebnisbenachrichtigungen prüfen die aktuellen Zugriffsrechte des Empfängers, bevor sie Kriteriendetails enthalten. Gespeicherte Benachrichtigungen mit Kriteriendetails prüfen diese Quellen beim Lesen des Posteingangs und vor einer verzögerten Zustellung erneut; fehlende Herkunftsdaten oder entzogener Zugriff blenden die Benachrichtigung aus.
+
+Gespeicherte Skill-Quellen verwenden stabile IDs: Eine Umbenennung behält die Identität bei; Löschen und erneutes Verwenden des Namens stellt keinen Zugriff auf alte Belege wieder her. Kriteriendetails einer Sitzung mit benanntem Skill, aber ohne ursprüngliche Skill-ID bleiben ebenfalls verborgen. Der optionale angezeigte Skill-Name gewährt keinen Zugriff: Die ursprüngliche ID wird auch ohne Bezeichnung geprüft.
+
+Interaktive Vergleichsabrufe erlauben bis zu 30 Anfragen pro Person und 60 pro Organisation und Minute; je Organisation wird jeweils ein Vergleich ausgeführt. Konsole und API teilen diese Grenzen. Überschüssige oder gleichzeitige Anfragen erhalten HTTP 429 mit `Retry-After`; Clients sollen vor dem Wiederholen warten. Gemeinsames Redis koordiniert die Worker; bei einem Ausfall bleibt je Worker eine lokale Begrenzung bestehen. Manuelle Bewertungsänderungen für Eval-Antworten nutzen dasselbe Budget und dieselbe Sperre, nach Prüfung des Datensatzzugriffs und vor Änderungen an der Bewertung oder gespeicherten Ergebnissen.
+
+Leser benötigen `runs:view`, bevor sie die Parallelitätssperre belegen oder Kontingent verbrauchen. Aktive Vergleiche erneuern ihre Sperren; der Ablauf nach 120 Sekunden gibt Sperren abgestürzter Prozesse frei. Eine fehlgeschlagene Redis-Erneuerung wird protokolliert und behält die lokale Worker-Sperre bei.
+
+Ablehnungen wegen eines laufenden Vergleichs verbrauchen die Minutenkontingente nicht. Die Konsole pausiert Abfragen bis zum Ablauf von `Retry-After`.
 
 Ein Vergleich ordnet beide Seiten Fall für Fall über die stabile ID des Falls
 zu und meldet jeden Fall als **Regression** (bestanden, jetzt nicht mehr),

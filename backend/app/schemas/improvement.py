@@ -105,6 +105,10 @@ class VerdictFamily(BaseSchema):
     settled: bool
     better: bool
     worse: bool
+    skill_id: UUID | None = Field(
+        default=None,
+        description="Original source identity, checked even when the optional display label is absent",
+    )
     skill: str | None = Field(
         default=None, description="The skill the session's improver put this family down to"
     )

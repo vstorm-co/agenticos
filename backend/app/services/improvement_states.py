@@ -342,12 +342,15 @@ class CheckResult:
     suite: SuiteOutcome | None = None
     crashed: int = 0
     held_out: int | None = None
+    criterion_change: float = 0.0
     criteria: tuple[CriterionMove, ...] = ()
     """Each criterion graded on both sides of the held-out questions, confirmed as flips are."""
     families: tuple[FamilyMove, ...] = ()
     """Each family of criteria graded on both sides of the held-out questions."""
     family_skills: Mapping[str, str] = field(default_factory=dict)
     """The skill each family was put down to, by family; such a family decides no `worse`."""
+    family_skill_ids: Mapping[str, str] = field(default_factory=dict)
+    """The original identity of each family's skill, where its report kept one."""
 
 
 def judge(result: CheckResult) -> ImprovementVerdict:
@@ -380,8 +383,12 @@ def judge(result: CheckResult) -> ImprovementVerdict:
         or result.suite is SuiteOutcome.INCONCLUSIVE
     ):
         return ImprovementVerdict.INCONCLUSIVE
-    if result.fixed_confirmed and result.candidate_pass_rate >= result.baseline_pass_rate:
-        return ImprovementVerdict.BETTER
+    if result.fixed_confirmed:
+        return (
+            ImprovementVerdict.BETTER
+            if result.candidate_pass_rate >= result.baseline_pass_rate
+            else ImprovementVerdict.NO_CHANGE
+        )
     if any(move.worse and move.family not in result.family_skills for move in result.families):
         return ImprovementVerdict.CRITERIA_WORSE
     if any(move.better for move in result.families):
@@ -412,12 +419,45 @@ def criterion_owners(reports: Iterable[Mapping[str, Any] | None]) -> dict[str, s
     return owners
 
 
-def family_skills(families: Iterable[FamilyMove], owners: Mapping[str, str]) -> dict[str, str]:
+def criterion_skill_ids(reports: Iterable[Mapping[str, object] | None]) -> dict[str, str]:
+    """Original source identities from the same newest report that supplies each name.
+
+    Only the problems `criterion_owners` reads are read, so an identity is the named
+    skill's. Historical reports without a valid ID remain name-only; readers fail
+    closed for their attributed evidence rather than resolving a reused display name.
+    """
+    ids: dict[str, str] = {}
+    seen: set[str] = set()
+    for report in reports:
+        problems = (report or {}).get("skill_problems", [])
+        if not isinstance(problems, list):
+            continue
+        for problem in problems:
+            if not isinstance(problem, dict) or not problem.get("skill_line"):
+                continue
+            names = problem.get("criteria", [])
+            if not isinstance(names, list):
+                continue
+            for name in names:
+                if not isinstance(name, str):
+                    continue
+                key = name.casefold()
+                if key in seen:
+                    continue
+                seen.add(key)
+                try:
+                    ids[key] = str(UUID(str(problem.get("skill_id"))))
+                except ValueError:
+                    continue
+    return ids
+
+
+def family_skills[T](families: Iterable[FamilyMove], owners: Mapping[str, T]) -> dict[str, T]:
     """The skill each family was put down to: the one named for it, or for a criterion in it.
 
-    `owners` is `criterion_owners`, keyed by case-folded name.
+    `owners` is `criterion_owners`, keyed by case-folded name, or anything keyed as it is.
     """
-    found: dict[str, str] = {}
+    found: dict[str, T] = {}
     for move in families:
         owner = next(
             (
@@ -432,7 +472,11 @@ def family_skills(families: Iterable[FamilyMove], owners: Mapping[str, str]) -> 
     return found
 
 
-def family_details(families: Sequence[FamilyMove], skills: Mapping[str, str]) -> list[FamilyDetail]:
+def family_details(
+    families: Sequence[FamilyMove],
+    skills: Mapping[str, str],
+    skill_ids: Mapping[str, str] | None = None,
+) -> list[FamilyDetail]:
     """What a verdict keeps of its families: counts and names, never a question's text."""
     details: list[FamilyDetail] = []
     for move in families:
@@ -450,12 +494,16 @@ def family_details(families: Sequence[FamilyMove], skills: Mapping[str, str]) ->
         }
         if move.family in skills:
             detail["skill"] = skills[move.family]
+            if (source_id := (skill_ids or {}).get(move.family)) is not None:
+                detail["skill_id"] = source_id
         details.append(detail)
     return details
 
 
 def criterion_details(
-    moves: Sequence[CriterionMove], owners: Mapping[str, str]
+    moves: Sequence[CriterionMove],
+    owners: Mapping[str, str],
+    owner_ids: Mapping[str, str] | None = None,
 ) -> list[CriterionDetail]:
     """What a verdict keeps of its criteria: counts and names, never a question's text.
 
@@ -465,6 +513,8 @@ def criterion_details(
     ranked = sorted(
         moves,
         key=lambda move: (
+            not move.worse,
+            not move.better,
             not (move.fixed_confirmed or move.broken_confirmed),
             move.candidate_passed - move.graded,
             move.scorer,
@@ -482,9 +532,11 @@ def criterion_details(
             "fixed": move.fixed_confirmed,
             "broken": move.broken_confirmed,
         }
-        owner = owners.get(move.name.casefold())
+        owner = owners.get(move.name.casefold()) if move.scorer == "judge" else None
         if owner is not None and move.candidate_passed < move.graded:
             detail["skill"] = owner
+            if (source_id := (owner_ids or {}).get(move.name.casefold())) is not None:
+                detail["skill_id"] = source_id
         details.append(detail)
     return details
 
@@ -527,6 +579,7 @@ class RoundResult:
     fixed: int
     broken: int
     held_out: int
+    criterion_change: float = 0.0
 
     @property
     def change(self) -> float:
@@ -552,7 +605,12 @@ def best_round(rounds: list[RoundResult]) -> int | None:
     }
     best = max(
         measured,
-        key=lambda item: (order[item.verdict], item.change, -item.number),
+        key=lambda item: (
+            order[item.verdict],
+            item.change,
+            item.criterion_change if item.verdict == ImprovementVerdict.CRITERIA_BETTER else 0.0,
+            -item.number,
+        ),
         default=None,
     )
     return None if best is None else best.number

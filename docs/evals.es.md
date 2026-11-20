@@ -1,5 +1,5 @@
 ---
-source_sha: "38d87c765236"
+source_sha: "5dd4c3bfb09e"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -191,7 +191,7 @@ Se excluyen copias de preguntas de entrenamiento o evidencia mediante el texto n
 
 Una sesión de mejora fija la versión del dataset y las identidades de los chats fuente. Un intento posterior aprende de los resultados de entrenamiento de su propio reparto, así que una pregunta que un intento apartó puede ayudar a escribir el siguiente; nuevos chats y casos no cambian lo que mide la sesión. Los intentos medidos con preguntas distintas se comparan por lo que cambió cada uno frente a su propia base, no por su tasa de aprobados.
 
-Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de la versión propuesta por un intento anterior, que el borrador no contiene. También lee lo que cambió cada intento anterior: su veredicto, los criterios que se movieron en las preguntas de las que aprendió, y solo cuántas preguntas apartadas arregló y rompió.
+Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de la versión propuesta por un intento anterior, que el borrador no contiene. También lee lo que cambió cada intento anterior: su veredicto, los criterios que se movieron en las preguntas de las que aprendió, y solo cuántas preguntas apartadas arregló y rompió. El contexto de intentos anteriores incluye extractos limitados de un máximo de seis intentos medidos recientes, para que los cambios largos de instrucciones o del contenido de una skill no llenen el prompt de la siguiente propuesta.
 
 Una decisión humana y **Retirar decisión** invalidan comparaciones dependientes y recalculan resultados guardados de suites en la misma transacción. El run, la suite, la puerta del entorno y el diálogo de promoción muestran el veredicto corregido y quién lo revisó. La auditoría registra estados y cantidades anteriores y nuevos; un cambio de veredicto envía otra notificación. Los nombres se resuelven desde la pertenencia actual a la organización, sin copiarlos a resultados retenidos.
 
@@ -357,6 +357,18 @@ Una comprobación medida contra el propio borrador no cuenta en ninguno de los d
 Un criterio del juez puede aplicarse a todos los casos o solo a casos con alguna de las etiquetas elegidas. En **Grading**, elija las etiquetas y revise la cobertura; un caso con varias etiquetas coincidentes cuenta una vez. Los criterios que no coinciden se omiten por completo, sin suspender el caso ni dejarlo indeciso. Las notas de Review pueden convertirse en criterios para una etiqueta del caso. Cambiar el ámbito cambia la huella de evaluación; las suites guardianas lo adoptan solo al mover la fijación con autorización.
 
 ## Comparar con un baseline { #comparing-with-a-baseline }
+
+`criterion_change` es el número de correcciones confirmadas de criterios menos los empeoramientos confirmados, dividido por todas las evaluaciones de criterios comparadas por pares. Se calcula antes de limitar los detalles de la respuesta. Si las preguntas completas no cambian y varios intentos solo mejoran criterios, Improve prefiere el mayor cambio normalizado; un empate exacto conserva el intento anterior. Las comparaciones inválidas no agregan ni devuelven cambios de criterios. Las líneas base no comparables no provocan repeticiones de confirmación de pago.
+
+Los nombres de criterios, sus calificaciones y las atribuciones a skills requieren `runs:view`, acceso al dataset fijado para la sesión y a cada skill mencionado. Los detalles de una comprobación de skills requieren acceso a todos los datasets utilizados. Si alguna fuente está oculta o ya no existe, estos detalles se ocultan sin modificar los resultados guardados. Las notificaciones de resultados comprueban el acceso actual del destinatario antes de incluir los detalles de los criterios. Las notificaciones guardadas con criterios vuelven a comprobar estas fuentes al leer la bandeja y antes de una entrega retrasada; si falta la procedencia o se ha revocado el acceso, la notificación se oculta.
+
+Las fuentes de skills guardadas usan ID estables: cambiar el nombre conserva su identidad, mientras que eliminarlo y reutilizar el nombre nunca restablece el acceso a pruebas antiguas. Los detalles de criterios de sesión que nombran un skill sin su ID original también se ocultan. El nombre visible opcional del skill no concede acceso: el ID original se comprueba también cuando falta su etiqueta.
+
+Las lecturas interactivas de comparaciones permiten hasta 30 solicitudes por persona y 60 por organización por minuto, con una comparación en ejecución por organización. La consola y la API comparten estos límites. Las solicitudes excesivas o simultáneas reciben HTTP 429 con `Retry-After`; los clientes deben esperar antes de reintentar. Redis compartido coordina los workers; durante una caída se conserva un límite local por worker. Los cambios manuales de veredicto en respuestas de evaluaciones comparten el mismo presupuesto y bloqueo, después de autorizar el acceso al dataset y antes de modificar la calificación o los resultados guardados.
+
+Los lectores necesitan `runs:view` antes de ocupar la exclusión o consumir cuota. Las comparaciones activas renuevan sus bloqueos; la caducidad de 120 segundos recupera los de procesos caídos. Un fallo de renovación en Redis se registra y mantiene el bloqueo local del worker.
+
+Los rechazos por un comparador ocupado no consumen las cuotas de lectura por minuto. La consola pausa las consultas hasta que expire `Retry-After`.
 
 Una comparación empareja los dos lados caso por caso según el id estable del
 caso, e informa de cada caso como **regresión** (aprobaba, ahora no),

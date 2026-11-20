@@ -103,6 +103,7 @@ export interface VerdictFamily {
   worse: boolean;
   /** The skill the session's improver put this family down to. */
   skill?: string | null;
+  skill_id?: string | null;
 }
 export type ImprovementVerdict =
   "better" | "criteria_better" | "no_change" | "criteria_worse" | "regression" | "inconclusive";

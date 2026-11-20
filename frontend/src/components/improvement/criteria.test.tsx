@@ -151,6 +151,36 @@ it("says no more than what moved when no criterion is left failing", () => {
   ).toBeInTheDocument();
 });
 
+it("does not label a confirmed fix as better when its total passes declined", () => {
+  const declined = { ...PRICE_BREAK, name: "net decline", before: 30, after: 20, fixed: 1 };
+  render(
+    <CriteriaNote
+      round={attempt("criteria_better", [PRICE_BREAK, declined])}
+      agent="Quote Builder"
+    />,
+  );
+  expect(screen.getByText(/better on 1 criterion: price break/)).toBeVisible();
+  expect(screen.queryByText(/better on 2 criteria/)).not.toBeInTheDocument();
+});
+
+it("displays scorer identity for duplicate names in tables and result sentences", () => {
+  const criteria = [
+    { ...PRICE_BREAK, name: "Validity" },
+    { ...failing("Validity"), scorer: "check" },
+  ];
+  render(
+    <>
+      <CriteriaTable criteria={criterionRows(criteria)} />
+      <CriteriaNote round={attempt("criteria_better", criteria)} agent="Clerk" />
+    </>,
+  );
+  expect(screen.getByRole("cell", { name: "Validity [judge]" })).toBeVisible();
+  expect(screen.getByRole("cell", { name: "Validity [check]" })).toBeVisible();
+  const sentence = document.querySelector("p");
+  expect(sentence).toHaveTextContent("Validity [judge]");
+  expect(sentence).toHaveTextContent("Validity [check]");
+});
+
 const family = (overrides: Partial<VerdictFamily>): VerdictFamily => ({
   family: "price break",
   criteria: 22,

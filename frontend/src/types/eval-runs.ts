@@ -402,6 +402,8 @@ export interface EvalComparison {
   efficiency: Efficiency | null;
   cases: CaseFlip[];
   flips_by_tag: Record<string, Partial<Record<Flip, number>>>;
+  /** Net confirmed movement over every paired criterion grade, before detail limits. */
+  criterion_change?: number;
   /** Each family of criteria graded on both sides, counted question by question. */
   families?: FamilyMove[];
 }

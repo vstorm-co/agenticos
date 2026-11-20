@@ -21,8 +21,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Judge an Improve attempt criterion by criterion when no whole question flips. A question passes only when every criterion passes, so an attempt that fixed one criterion while others still failed was reported as no change. It is now **Better on criteria** and is offered for accepting like a better attempt: the result names each criterion with its passes before and after on the held-out questions, then the criteria still failing, with the skill the helper attributed each one to. A criterion that got worse with no question broken is **Worse on criteria**. `better` and `regression` keep their whole-question meaning. A criterion counts only when asking again confirmed it, so an eval run now also re-asks a case where only a criterion flipped. The attempt row, the Accept step, notifications, the Architect's Improve tools and a skill check's agents show the same criteria. Eval comparisons expose `criteria`, at most 200 with the ones that moved first, and `skill_check_agents` gains a `criteria` column.
-
 - Count criteria by family. A dataset check takes an optional `family` - every case's `total including VAT` regex, every case's "names the account manager" criterion - and a comparison counts a family case by case: it passes in a case when every criterion of it does. Eval comparisons expose `families`, an Improve attempt keeps them in its verdict, and the result step and the eval run's comparison table them. An attempt with no whole question flipped is judged on its families; one the helper put down to a skill that got worse no longer makes the attempt worse, and the result says the skill is the one to fix. The result step adds **Criteria passed**, before and after, and **Still held back by a skill**, and an attempt that broke questions still names what it made better (#3178).
 - An eval run's sides show **Criteria passed** beside the pass rate: the mean share of each question's criteria its first answer passed, so six of seven counts 6/7 rather than a failure. Arm summaries expose `criteria_passed`, `criteria_graded` and `partial_credit`, compared cases each side's `[passed, decided]` criteria, and the case table shows them per question (#3178).
 - Finishing an Improve session takes an optional `round`, so a session that stopped on its attempt is selected and accepted in one call instead of `rounds/{n}/select` first (#3178).
@@ -40,7 +38,67 @@ Two things are versioned separately from this file and worth knowing about:
 - A skill check keeps each agent's families of criteria, so its details table one row per family - every case's check of one thing together - instead of one row per case's check. Agents expose `families`; `skill_check_agents` gains the column (#3178).
 - A skill check's agent whose runs graded every answer on fewer held-out questions than a result needs is unknown for `too_few_questions` rather than `inconclusive`, and its row says how many came out better and worse and that they are too few to be sure (#3178).
 
+### Upgrading
+
+- Migration `backend/alembic/versions/0343_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0344_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+
+## [1.85.0] - 2026-11-19
+
+### Added
+
+- Judge an Improve attempt criterion by criterion when no whole question flips. A question passes only when every criterion passes, so an attempt that fixed one criterion while others still failed was reported as no change. It is now **Better on criteria** and is offered for accepting like a better attempt: the result names each criterion with its passes before and after on the held-out questions, then the criteria still failing, with the skill the helper attributed each one to. A criterion that got worse with no question broken is **Worse on criteria**. `better` and `regression` keep their whole-question meaning. A criterion counts only when asking again confirmed it, so an eval run now also re-asks a case where only a criterion flipped. The attempt row, the Accept step, notifications, the Architect's Improve tools and a skill check's agents show the same criteria. Eval comparisons expose `criteria`, at most 200 with the ones that moved first, and `skill_check_agents` gains a `criteria` column.
+
+- **Pinned test data beside Test draft.** A compact pin and count next to **Test draft** opens the names of steps that will hand on pinned test data instead of running, including when testing is blocked.
+- **Connected to this agent filter.** The agent builder's MCP server picker filters by **Organization connections** (formerly **Connected only**) and, separately, by servers **Connected to this agent**.
+- **Why standing consent is unavailable.** A routine's action consent dialog says whether the caller lacks `approvals:decide` or the organization turned standing consent off, and links an approver to the setting. `GET …/action-consents` returns this as `waive_blocked_reason`.
+
+### Changed
+
+- **Workflow tables follow their schema.** When a table's schema changes, the workflow editor moves each step bound to it onto the new schema by itself as long as every column the step reads still exists with the same type. When one was removed or retyped, the step shows a problem and **Update to the current schema** - on the step and in the toolbar's problem list - fixes every such step at once, keeping the chosen columns that still exist. Test runs and publishing no longer fail on a schema change the step never read. A run or publish refused over a table, or coming back to the editor's tab, makes the editor read its tables again at once, with no reload. A step adding or updating a record also drops values bound to a column archived since, which its form no longer shows and every run refused with `UNKNOWN_COLUMN`.
+- **Plainer workflow conflict banner.** A draft edited in two places offers **Keep my changes** and **Load their version** instead of **Overwrite** and **Reload**.
+- **Wide tables scroll sideways from anywhere.** A table that grows with the page keeps its horizontal scrollbar pinned to the bottom of the screen, so you no longer scroll to its last row to move sideways.
+- **Recognizable MCP steps.** Workflow steps use the MCP logo instead of a generic plug, and keep known service logos while their catalog metadata loads.
+
 ### Fixed
+
+- Send the desktop stop signal when a run is cancelled during command dispatch, and bound cancellation-safe Redis channel cleanup.
+
+- Validate Draft-07 tuple-form output schemas locally instead of retaining an incompatible strict provider grammar.
+
+- Keep an Improve attempt with a confirmed whole-question change and a falling pass rate from being offered as **Better on criteria**. Criterion-only verdicts require no confirmed whole-question movement.
+
+- Preserve original skill IDs in stored Improve criterion evidence and reject name-only attributions when checking access. Resolve label-keyed record bindings to the same stable column before automatically rebinding a workflow to a newer table schema.
+
+- Keep persisted criterion notifications bound to original skill IDs across renames, deletion and name reuse. Workflow column labels now use the server’s exact Unicode case folding.
+
+- Recheck dataset and skill access for stored criterion-bearing notifications in the inbox and before delayed delivery, including after permissions are revoked.
+
+- Preserve record-writer bindings keyed by live labels, including escaped keys, and retain a result headline when criterion evidence is hidden.
+
+- Skip paid confirmation reruns when scoring settings or judge pins make the baseline incomparable.
+
+- Admit eval-backed verdict writes through the shared comparison budget before changing scores or cached results.
+
+- Skip criterion aggregation for invalid comparisons and retain scorer labels when notification details are shortened.
+
+- Keep criterion text, grades and skill attributions private when the reader cannot open their source datasets or named skills, including Improve read/list responses, skill checks and result notifications.
+
+- Distinguish equal criterion names by scorer in result tables and sentences. Select criterion-only improvements by their normalized confirmed movement over all graded pairs, before response and evidence detail limits.
+
+- Authorize comparison readers before shared metering and renew active comparison claims. Keep workflow schema warnings until dependent filters, sort columns and value bindings are edited. Preserve scorer identity in MCP criterion exports and name the selected attempt correctly in notifications.
+
+- Keep busy comparison refusals outside the per-minute read quotas. Price replacement answers from each model's frozen estimate, including grading, instead of averaging cheap and expensive models; older checks without those prices retain incomplete answers.
+
+- Bound interactive comparison reads with shared caller and organization rate budgets and one in-flight comparison per organization. Preserve confirmed regressions in truncated evidence, apply net pass counts consistently when naming gains, keep scorer identity in retry prompts, and accumulate tokens and latency across replacement answers.
+
+- Stream paired criterion grades in bounded batches before aggregation, including worker rerun detection, and keep scratch I/O off the API event loop.
+- Include filter, sort and record-write columns when checking safe workflow table rebinding.
+- Handle boolean free-value output schemas in strict-tool fallback, report criterion gains consistently through MCP, and exclude unconfirmed criterion noise from retry prompts.
+
+- Bound criterion aggregation in temporary scratch storage before selecting results, preserve current-agent training answers, cap earlier-attempt prompt excerpts, include criterion-only gains in fork defaults, and keep skill attribution within the judge namespace. Workflow rebinding requests only the schema versions it needs, and saved MCP connections resolve catalog keys to their compiled service logos.
+
+- Preserve every criterion when a literal name already uses a duplicate's numbered suffix, so its confirmed improvement or regression is still counted.
 
 - **Improve proposals on Anthropic models through OpenRouter.** The Improve helper's **Changes** step failed with HTTP 400, because the answer tool was sent strict and a proposal's free JSON value has no type in its schema. An answer schema a strict tool cannot express (a free JSON value, numeric or length bounds, `minItems` above one) now goes through a non-strict tool, still checked against the schema and sent back when it breaks it; any other schema keeps the provider's default, so Gemini still validates every call (#3146).
 
@@ -52,9 +110,41 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Migration `0342_criterion_verdicts` widens the improvement verdict, stop reason and skill-check agent state constraints and adds `skill_check_agents.criteria`. Its downgrade reads the new verdicts and states as `no_change`.
-- Migration `0343_skill_check_families` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
-- Migration `0344_skill_check_too_few` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Comparison clients must honor HTTP 429 and `Retry-After`: the console and API share 30 reads per person and 60 per organization per minute, with one comparison executing per organization. Manual verdict updates for eval-backed scores use the same shared allowance.
+
+- Migration `backend/alembic/versions/0342_criterion_verdicts.py` widens the improvement verdict, stop reason and skill-check agent state constraints and adds `skill_check_agents.criteria`. Its downgrade reads the new verdicts and states as `no_change`.
+
+## [1.84.0] - 2026-11-18
+
+### Added
+
+- Choose who can see a new table in the **New table** dialog itself - only you, everyone, or chosen groups and people - as an agent's create dialog does. `POST /tables` accepts `group_ids` and `user_ids`, and shares the new table with each at `read`.
+
+### Fixed
+
+- Recover App thumbnails after temporary renderer failures or timeouts with two bounded retries. Keep missing configuration and refused access terminal, preserve versioned image caching, and report transient failures in server logs.
+
+## [1.83.0] - 2026-11-18
+
+### Added
+
+- Let external agent runs use the API key or OAuth token issuer's personal MCP connections with the explicit `mcp:personal:use` scope. Existing credentials and presets retain organization-only access; resumed runs and subagents retain the original caller, with live credential and connected-account checks before tool calls (#3154).
+- Delegate to subagents using each signed-in web chat caller's personal LLM keys for the exact model profile selected on a personal-mode root. Organization-mode parents cannot spend personal delegate keys; inline specialists inherit their parent's mode. Missing connections stop the run without borrowing an organization key, and approval resumes recheck the original caller's connections (#3155).
+
+### Fixed
+
+- Refuse coding-task undo when either snapshot leaves out oversized, unreadable or unsupported files. Keep the captured diff available without offering an incomplete restore (#3138).
+
+- Preserve original delegated MCP authority on approval resumes without requiring the approver’s key to delegate its own accounts; leave explicitly disabled environment bindings off even when their production account is unavailable.
+
+- Enforce personal-model consent across delegation trees and recheck both test and production MCP account authority on delegated tool calls. Recover organization MCP queries on later page visits without interrupting personal account editing.
+- Exclude repeated agent instructions and SDK instruction baselines and deltas from conversation checkpoints, preserving more conversation and tool evidence within the existing storage limit. Clean legacy checkpoints before applying restored-history limits too. Later turns continue with the agent's current instructions (#3141).
+- Serialize routine edits with agent publication in the same lock order, preventing deadlocks while retaining model checks and creator-consent withdrawal (#3139).
+- Replay earlier assistant answers once when stored content and streamed parts differ only in edge whitespace, include several final text parts, or contain blank fragments. Preserve human reply ordering and the token anchor used for history compaction, including in existing conversations (#3156).
+- Forward agent avatar uploads through the authenticated console proxy, preserving multipart file bytes, the active organization and backend validation errors (#3153).
+- Let members manage their personal MCP connections without organization permissions. Only request organization connections with `mcp:manage`, use that permission for organization controls, and hide cached organization accounts when the query is disabled (#3152).
+- Build Linux desktop installers when manually dispatching App release for older tags without the build wrapper. These builds warn that pre-upload AppImage validation is unavailable; releases containing the wrapper retain that validation (#3140).
+- Make local workspace updates accessible from the desktop app menu and instance picker, show workspace and target versions separately from the desktop version, and report backup and restart progress with retryable errors (#3157).
 
 ## [1.82.2] - 2026-11-18
 
@@ -22097,7 +22187,10 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.82.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...HEAD
+[1.85.0]: https://github.com/vstorm-co/agenticos/compare/v1.84.0...v1.85.0
+[1.84.0]: https://github.com/vstorm-co/agenticos/compare/v1.83.0...v1.84.0
+[1.83.0]: https://github.com/vstorm-co/agenticos/compare/v1.82.2...v1.83.0
 [1.82.2]: https://github.com/vstorm-co/agenticos/compare/v1.82.1...v1.82.2
 [1.82.1]: https://github.com/vstorm-co/agenticos/compare/v1.82.0...v1.82.1
 [1.82.0]: https://github.com/vstorm-co/agenticos/compare/v1.81.0...v1.82.0

@@ -1,5 +1,5 @@
 ---
-source_sha: "1038cf0df8eb"
+source_sha: "be66ab0d9f19"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -156,7 +156,7 @@ Kopie pytań treningowych lub materiału źródłowego są wykluczane według zn
 
 Sesja poprawy przypina wersję datasetu i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy i przypadki nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
 
-Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła.
+Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła. Kontekst wcześniejszych prób zawiera ograniczone fragmenty z najwyżej sześciu ostatnich zmierzonych prób, aby długie zmiany instrukcji lub treści skilla nie wypełniały promptu następnej propozycji.
 
 Sprawdzenie liczy się jako test wersji roboczej, gdy wersja robocza jest
 dokładnie tym, co sprawdzało - każda sprawdzona sugestia przyjęta i nic poza tym
@@ -351,6 +351,8 @@ więc kilka utraconych odpowiedzi nie powtarza całego testu.
 Kończy się wynikiem: `ready`, gdy próba poprawiła agenta - jej zmiany stają się
 wtedy oczekującym pakietem sugestii - a w przeciwnym razie `stopped`, z
 werdyktem jako powodem.
+
+Ponawiane odpowiedzi są wyceniane osobno dla każdego modelu według zapisanej wyceny pytania, z kosztem oceniającego i rezerwą na ponowienia potwierdzające wynik. Koszt, tokeny i czas uwzględniają nieudaną odpowiedź. Starsze sprawdzenia bez zapisanych cen poszczególnych modeli pozostawiają utracone odpowiedzi niekompletne zamiast zgadywać budżet ponowienia.
 
 Żadna próba nie rusza sama. **Spróbuj ponownie** to ten
 sam `/continue` z wyniku, z opcjonalnym polem `note`, które pomocnik czyta obok

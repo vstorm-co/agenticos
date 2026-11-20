@@ -224,6 +224,7 @@ class FamilyDetail(TypedDict):
     better: bool
     worse: bool
     skill: NotRequired[str]
+    skill_id: NotRequired[str]
     """The skill the session's improver put the family down to."""
 
 

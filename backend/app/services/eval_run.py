@@ -31,13 +31,16 @@ import hashlib
 import json
 import logging
 from collections import defaultdict
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import AsyncGenerator, Callable, Collection, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from functools import partial
+from itertools import batched
 from typing import Literal
 from uuid import UUID
 
+from anyio import from_thread, to_thread
 from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -128,22 +131,21 @@ from app.services.agent_registry import (
 from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
 from app.services.eval_comparison import (
-    MAX_COMPARED_FAMILIES,
     ArmSummary,
     Attempt,
     CaseState,
     Criterion,
+    CriterionComparison,
     FamilyMove,
     Flip,
     Grades,
     Outcome,
     PairedCase,
     PairedGrades,
+    compare_criteria,
     criteria_count,
-    criterion_moves,
     efficiency,
     families,
-    family_moves,
     flips_by_tag,
     grades,
     quality_verdict,
@@ -384,17 +386,34 @@ def family_move(read: FamilyMoveRead) -> FamilyMove:
     )
 
 
-@dataclass(frozen=True)
-class ArmGrades:
-    """Each case's criterion outcomes on one arm, and the families its scores named.
+type CaseGrades = tuple[Grades, tuple[Grades, ...], dict[Criterion, str]]
+"""One case on one arm: its first answer's grades, its reruns', and the families named."""
 
-    Attributes:
-        by_case: Each case's first answer's grades and its reruns' grades.
-        named: The family each criterion's check named, over every attempt read.
+
+async def compare_batches(
+    batches: AsyncGenerator[list[tuple[UUID, PairedGrades]]],
+    *,
+    each: Callable[[UUID, PairedGrades], None] | None = None,
+) -> CriterionComparison:
+    """Criteria and families compared over paired batches, `each` seeing every case.
+
+    The scratch work runs on a worker thread; database reads resume on this event
+    loop one bounded batch at a time, never on the SQLite thread.
     """
 
-    by_case: dict[UUID, tuple[Grades, tuple[Grades, ...]]]
-    named: dict[Criterion, str]
+    def paired_grades() -> Iterator[PairedGrades]:
+        while (batch := from_thread.run(anext, batches, None)) is not None:
+            for case_id, pair in batch:
+                if each is not None:
+                    each(case_id, pair)
+                yield pair
+
+    try:
+        return await to_thread.run_sync(
+            partial(compare_criteria, alpha=settings.EVAL_SIGNIFICANCE), paired_grades()
+        )
+    finally:
+        await batches.aclose()
 
 
 @dataclass(frozen=True)
@@ -481,9 +500,9 @@ def _summary_read(summary: ArmSummary) -> ArmSummaryRead:
     )
 
 
-def _counted(graded: tuple[Grades, tuple[Grades, ...]] | None) -> list[int] | None:
+def _counted(graded: Grades) -> list[int] | None:
     """A case's first answer as `[passed, decided]` criteria, for a person to read."""
-    counted = None if graded is None else criteria_count(graded[0])
+    counted = criteria_count(graded)
     return None if counted is None else list(counted)
 
 
@@ -1367,7 +1386,30 @@ class EvalRunService:
                 }
             )
         estimate = self._knowledge_cost(await self._estimate(ctx, plan), proposal_check)
+        proposal_check = self._priced_check(proposal_check, estimate)
         return estimate.model_copy(update={"proposal_check": proposal_check})
+
+    @staticmethod
+    def _priced_check(
+        record: ProposalCheckRecord | None, estimate: EvalRunEstimate
+    ) -> ProposalCheckRecord | None:
+        """Freeze each arm's replacement price, including its share of judge work."""
+        if record is None:
+            return None
+        fresh = sum(arm.basis != "cached" for arm in estimate.arms)
+        judge = (
+            estimate.judge_usd / (estimate.cases * fresh)
+            if fresh and estimate.cases
+            else Decimal(0)
+        )
+        return record.model_copy(
+            update={
+                "answer_estimates_usd": [
+                    arm.cost_per_case_usd + judge if arm.basis != "cached" else Decimal(0)
+                    for arm in estimate.arms
+                ]
+            }
+        )
 
     @staticmethod
     def _knowledge_cost(
@@ -1732,6 +1774,7 @@ class EvalRunService:
                 }
             )
         estimate = self._knowledge_cost(await self._estimate(ctx, plan), proposal_check)
+        proposal_check = self._priced_check(proposal_check, estimate)
         if not estimate.affordable:
             raise PaymentRequiredError(
                 message=(
@@ -2690,30 +2733,75 @@ class EvalRunService:
             for case_id, first in firsts.items()
         }
 
-    async def criterion_outcomes(
-        self, ctx: AuthContext, arm: EvalRunArm, attempts: Sequence[EvalRunCase]
-    ) -> ArmGrades:
+    async def _criterion_outcomes(
+        self, ctx: AuthContext, own: Sequence[EvalRunCase]
+    ) -> dict[UUID, CaseGrades]:
         """Each case's first criterion outcomes on an arm, and its reruns' - the scorers'
         own grades, which a person's verdict on the whole case leaves as they were -
         with the families their checks named."""
-        own = await self._arm_attempts(ctx, arm, attempts)
         scores = await self._scores(ctx, own)
         firsts: dict[UUID, Grades] = {}
         reruns: dict[UUID, list[Grades]] = defaultdict(list)
-        named: dict[Criterion, str] = {}
+        named: dict[UUID, dict[Criterion, str]] = defaultdict(dict)
         for attempt in sorted(own, key=lambda a: a.attempt):
             score = scores.get(attempt.case_score_id)
             graded = grades(score.results) if score is not None else {}
             if score is not None:
-                named.update(families(score.results))
+                named[attempt.case_id].update(families(score.results))
             if attempt.attempt == 0:
                 firsts[attempt.case_id] = graded
             else:
                 reruns[attempt.case_id].append(graded)
-        return ArmGrades(
-            by_case={case_id: (first, tuple(reruns[case_id])) for case_id, first in firsts.items()},
-            named=named,
-        )
+        return {
+            case_id: (first, tuple(reruns[case_id]), named[case_id])
+            for case_id, first in firsts.items()
+        }
+
+    async def criterion_batches(
+        self,
+        ctx: AuthContext,
+        candidate: EvalRunArm,
+        candidate_attempts: Sequence[EvalRunCase],
+        baseline: EvalRunArm,
+        baseline_attempts: Sequence[EvalRunCase],
+        *,
+        case_ids: Sequence[UUID],
+        confirmed_here: bool = True,
+        drift: bool = False,
+    ) -> AsyncGenerator[list[tuple[UUID, PairedGrades]]]:
+        """Paired criteria in batches of 50 cases, including reused first answers.
+
+        Only attempt metadata is indexed across the run. Score JSON and grade
+        dictionaries are read and released one batch at a time on both arms.
+        """
+        mine: dict[UUID, list[EvalRunCase]] = defaultdict(list)
+        theirs: dict[UUID, list[EvalRunCase]] = defaultdict(list)
+        for attempt in await self._arm_attempts(ctx, candidate, candidate_attempts):
+            mine[attempt.case_id].append(attempt)
+        for attempt in await self._arm_attempts(ctx, baseline, baseline_attempts):
+            theirs[attempt.case_id].append(attempt)
+        for ids in batched(case_ids, 50, strict=False):
+            my_grades = await self._criterion_outcomes(
+                ctx, [attempt for case_id in ids for attempt in mine.get(case_id, ())]
+            )
+            their_grades = await self._criterion_outcomes(
+                ctx, [attempt for case_id in ids for attempt in theirs.get(case_id, ())]
+            )
+            yield [
+                (
+                    case_id,
+                    PairedGrades(
+                        baseline=their_grades[case_id][0],
+                        candidate=my_grades[case_id][0],
+                        baseline_reruns=their_grades[case_id][1] if confirmed_here else (),
+                        candidate_reruns=my_grades[case_id][1],
+                        drift=drift,
+                        named=their_grades[case_id][2] | my_grades[case_id][2],
+                    ),
+                )
+                for case_id in ids
+                if case_id in my_grades and case_id in their_grades
+            ]
 
     async def compare(
         self,
@@ -2725,6 +2813,7 @@ class EvalRunService:
         measurement_only: bool = True,
         holdout_minimum: bool = True,
         training_only: bool = False,
+        include_criteria: bool = True,
     ) -> EvalComparisonRead:
         """One candidate arm against its baseline.
 
@@ -2735,6 +2824,8 @@ class EvalRunService:
         caller, which pools several runs' held-out questions into one result.
         `training_only` compares the questions a measured run did not keep aside
         instead, so nothing about its held-out questions is read.
+        `include_criteria` False omits criterion-grade reads for internal callers
+        that only consume whole-question outcomes.
         """
         run = await self._readable(ctx, run_id)
         return await self._comparison(
@@ -2745,6 +2836,7 @@ class EvalRunService:
             measurement_only=measurement_only and not training_only,
             holdout_minimum=holdout_minimum,
             training_only=training_only,
+            include_criteria=include_criteria,
         )
 
     @staticmethod
@@ -2817,7 +2909,13 @@ class EvalRunService:
         measurement_only: bool = True,
         holdout_minimum: bool = True,
         training_only: bool = False,
+        include_criteria: bool = False,
     ) -> EvalComparisonRead:
+        """Whole-question results, with criterion detail only for explicit comparisons.
+
+        Run reads, suite verdicts and review queues need no criterion-grade batches
+        or scratch aggregation. Only compare() opts into that additional work.
+        """
         arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
         candidates = [a for a in arms if a.role == ArmRole.CANDIDATE.value]
         candidate = (
@@ -2901,27 +2999,6 @@ class EvalRunService:
             )
             for case_id in common
         ]
-        mine_graded = await self.criterion_outcomes(ctx, candidate, attempts)
-        theirs_graded = await self.criterion_outcomes(ctx, their_arm, their_attempts)
-        my_grades, their_grades = mine_graded.by_case, theirs_graded.by_case
-        paired_grades = [
-            PairedGrades(
-                baseline=their_grades[case_id][0],
-                candidate=my_grades[case_id][0],
-                baseline_reruns=their_grades[case_id][1] if confirmed_here else (),
-                candidate_reruns=my_grades[case_id][1],
-                drift=drift,
-            )
-            for case_id in common
-            if case_id in my_grades and case_id in their_grades
-        ]
-        moves = criterion_moves(paired_grades)
-        family_list = family_moves(
-            paired_grades,
-            theirs_graded.named | mine_graded.named,
-            alpha=settings.EVAL_SIGNIFICANCE,
-            limit=MAX_COMPARED_FAMILIES,
-        )
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
         invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None
         if run.proposal_check is not None:
@@ -2958,6 +3035,26 @@ class EvalRunService:
             and any(case.candidate is None or case.baseline is None for case in paired_cases)
         ):
             invalid_reason = "Held-out questions remain ungraded or incomplete"
+        criteria_comparison = CriterionComparison(moves=[], change=0.0)
+        counted: dict[UUID, tuple[list[int] | None, list[int] | None]] = {}
+
+        def count_criteria(case_id: UUID, pair: PairedGrades) -> None:
+            counted[case_id] = (_counted(pair.baseline), _counted(pair.candidate))
+
+        if invalid_reason is None and include_criteria:
+            criteria_comparison = await compare_batches(
+                self.criterion_batches(
+                    ctx,
+                    candidate,
+                    attempts,
+                    their_arm,
+                    their_attempts,
+                    case_ids=common,
+                    confirmed_here=confirmed_here,
+                    drift=drift,
+                ),
+                each=count_criteria,
+            )
         quality = quality_verdict(
             paired_cases, alpha=settings.EVAL_SIGNIFICANCE, invalid=invalid_reason is not None
         )
@@ -3030,8 +3127,8 @@ class EvalRunService:
                     candidate_reruns=list(c.candidate_reruns),
                     tags=list(c.tags),
                     candidate_error=crashed.get(c.case_id),
-                    baseline_criteria=_counted(their_grades.get(c.case_id)),
-                    candidate_criteria=_counted(my_grades.get(c.case_id)),
+                    baseline_criteria=counted.get(c.case_id, (None, None))[0],
+                    candidate_criteria=counted.get(c.case_id, (None, None))[1],
                 )
                 for c in paired_cases
             ],
@@ -3051,9 +3148,10 @@ class EvalRunService:
                     fixed_unconfirmed=move.fixed_unconfirmed,
                     broken_unconfirmed=move.broken_unconfirmed,
                 )
-                for move in moves
+                for move in criteria_comparison.moves
             ],
-            families=[_family_read(move) for move in family_list],
+            criterion_change=criteria_comparison.change,
+            families=[_family_read(move) for move in criteria_comparison.families],
         )
 
     async def _first_attempts(

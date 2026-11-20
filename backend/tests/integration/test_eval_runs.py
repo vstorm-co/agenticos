@@ -16,12 +16,13 @@ attribution - is covered where it lives. What only a database shows is here:
 import asyncio
 import contextlib
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from functools import partial
+from threading import Event, Timer
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -1015,11 +1016,29 @@ async def test_reading_runs_needs_runs_view(db) -> None:
     assert [run.id for run in listed.items] == [started.id]
 
 
-async def test_a_different_scoring_makes_the_comparison_invalid(db) -> None:
+@pytest.mark.security
+@pytest.mark.parametrize("extra_failing_check", [False, True])
+async def test_a_different_scoring_makes_the_comparison_invalid(
+    db, monkeypatch, extra_failing_check
+) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
     dataset = await _dataset(db, ctx, cases=2)
     service = EvalRunService(db)
+    if extra_failing_check:
+        cases = await DatasetService(db).list_cases(ctx, dataset.id)
+        for case in cases.items:
+            await DatasetService(db).update_case(
+                ctx,
+                dataset.id,
+                case.case_id,
+                DatasetCaseUpdate(
+                    checks=[
+                        {"type": "contains", "value": "30 days"},
+                        {"type": "contains", "value": "receipt"},
+                    ]
+                ),
+            )
 
     v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
     await _run_to_end(db, Model(db), v6.id, ctx)
@@ -1028,14 +1047,31 @@ async def test_a_different_scoring_makes_the_comparison_invalid(db) -> None:
     # Graded another way, v6's run is no default baseline; named, it does not compare.
     unnamed = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
     v7 = await service.start(
-        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, baseline_run_id=v6.id)
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, baseline_run_id=v6.id, reruns=1)
     )
-    await _run_to_end(db, Model(db), v7.id, ctx)
+    model = Model(db)
+    with patch.object(
+        EvalRunService,
+        "criterion_batches",
+        side_effect=AssertionError(
+            "incomparable runs must not read criterion grades or pay for confirmation"
+        ),
+    ):
+        await _run_to_end(db, model, v7.id, ctx)
+    assert len(model.calls) == 2
 
+    from unittest.mock import Mock
+
+    aggregate = Mock(
+        side_effect=AssertionError("invalid comparisons must not read criterion grades")
+    )
+    monkeypatch.setattr(service, "criterion_batches", aggregate)
     comparison = await service.compare(ctx, v7.id)
     assert unnamed.missing_baseline_version == 6
     assert comparison.verdict == "invalid"
     assert comparison.invalid_reason is not None
+    assert comparison.criteria == [] and comparison.criterion_change == 0.0
+    aggregate.assert_not_called()
 
 
 async def test_a_dataset_that_decides_nothing_is_refused(db) -> None:
@@ -1595,6 +1631,12 @@ async def test_a_family_that_moved_too_little_to_settle_is_asked_again(db) -> No
     assert before is not None
     assert (after.pass_rate, after.criteria_passed, after.criteria_graded) == (0.0, 2, 4)
     assert (after.partial_credit, before.partial_credit) == (0.5, 0.0)
+    # Two confirmed fixes over four criterion grades; the round keeps that share.
+    assert comparison.criterion_change == 0.5
+    from app.services.improvement_pipeline import ImprovementPipelineService
+
+    read = await EvalRunService(db).get(ctx, comparison.candidate.run_id)
+    assert ImprovementPipelineService._check_result(read, comparison).criterion_change == 0.5
 
 
 async def test_a_family_that_moved_on_the_held_out_cases_is_asked_again_there(db) -> None:
@@ -4146,3 +4188,74 @@ async def test_a_run_that_is_not_a_stability_run_says_nothing_of_stability(db) -
     read = await service.get(ctx, started.id)
 
     assert read.stability is None
+
+
+async def test_latest_training_answers_exclude_an_ordinary_paired_runs_baseline(db):
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    baseline = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), baseline.id, ctx)
+    # PostgreSQL now() is fixed for this fixture's outer transaction; model the
+    # earlier run's real creation time before applying the evidence cutoff.
+    stored_baseline = await db.get(EvalRun, baseline.id)
+    assert stored_baseline is not None
+    stored_baseline.created_at -= timedelta(minutes=1)
+    await db.flush()
+    candidate = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), candidate.id, ctx)
+    cases = (await DatasetService(db).list_cases(ctx, dataset.id)).items
+
+    rows = await authoring_repo.train_answers(
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        dataset_ids=[dataset.id],
+        since=candidate.created_at,
+        case_ids=[case.case_id for case in cases],
+        limit=2,
+    )
+
+    assert len({row.case.case_id for row in rows}) == 2
+    assert {row.arm.role for row in rows} == {"candidate"}
+    assert {row.arm.version_number for row in rows} == {7}
+
+
+@pytest.mark.security
+async def test_comparison_scratch_work_leaves_the_event_loop_responsive(db, monkeypatch):
+    from app.services import eval_run as eval_service
+    from app.services.eval_comparison import CriterionComparison, PairedGrades
+
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    baseline = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), baseline.id, ctx)
+    candidate = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), candidate.id, ctx)
+    started, release, finished = Event(), Event(), Event()
+    original = eval_service.compare_criteria
+
+    def blocked(cases: Iterable[PairedGrades], *, alpha: float) -> CriterionComparison:
+        started.set()
+        release.wait(timeout=5)
+        finished.set()
+        return original(cases, alpha=alpha)
+
+    monkeypatch.setattr(eval_service, "compare_criteria", blocked)
+    # An implementation blocking the event loop must fail instead of hanging the suite.
+    timer = Timer(5, release.set)
+    timer.start()
+    task = asyncio.create_task(service.compare(ctx, candidate.id))
+    try:
+        assert await asyncio.to_thread(started.wait, 5)
+        assert not finished.is_set(), "comparison scratch I/O blocked the event loop"
+    finally:
+        release.set()
+        timer.cancel()
+        try:
+            await task
+        finally:
+            timer.join()

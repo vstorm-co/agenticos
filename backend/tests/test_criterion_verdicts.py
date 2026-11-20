@@ -9,6 +9,8 @@ got worse reads as plainly as one that got better.
 from dataclasses import replace
 from decimal import Decimal
 
+import pytest
+
 from app.db.models.improvement import (
     ImprovementStage,
     ImprovementStatus,
@@ -19,8 +21,7 @@ from app.services.eval_comparison import (
     CriterionMove,
     FamilyMove,
     PairedGrades,
-    criterion_moves,
-    family_moves,
+    compare_criteria,
     grades,
 )
 from app.services.improvement_states import (
@@ -35,6 +36,8 @@ from app.services.improvement_states import (
     family_skills,
     judge,
 )
+
+ALPHA = 0.05
 
 _PRICE = ("judge", "price break")
 _VALIDITY = ("judge", "validity")
@@ -63,7 +66,9 @@ def _held_steady() -> PairedGrades:
 def _experiment() -> list[CriterionMove]:
     """The price break went from 9 of 40 to 40 of 40; every quote still fails validity
     and payment terms, so no question flips."""
-    return criterion_moves([_quote(price=True) for _ in range(31)] + [_held_steady()] * 9)
+    return compare_criteria(
+        [_quote(price=True) for _ in range(31)] + [_held_steady()] * 9, alpha=ALPHA
+    ).moves
 
 
 def _named(moves: list[CriterionMove], name: str) -> CriterionMove:
@@ -88,8 +93,12 @@ def _no_question_flipped(*moves: FamilyMove, skills: dict[str, str] | None = Non
     )
 
 
+def _family_moves(cases: list[PairedGrades]) -> list[FamilyMove]:
+    return compare_criteria(cases, alpha=ALPHA).families
+
+
 def _families() -> list[FamilyMove]:
-    return family_moves(_experiment_cases(), {}, alpha=0.05)
+    return _family_moves(_experiment_cases())
 
 
 def _worse_family() -> FamilyMove:
@@ -143,7 +152,7 @@ def test_a_family_put_down_to_a_skill_that_got_worse_decides_no_worse() -> None:
 
 
 def test_a_criterion_move_on_one_case_is_no_change() -> None:
-    moves = family_moves([_quote(price=True)], {}, alpha=0.05)
+    moves = _family_moves([_quote(price=True)])
 
     assert judge(_no_question_flipped(*moves)) is ImprovementVerdict.NO_CHANGE
 
@@ -211,8 +220,10 @@ def test_a_verdict_keeps_each_family_s_counts_and_its_skill() -> None:
 def test_a_criterion_flip_the_baseline_was_never_rerun_on_is_unconfirmed() -> None:
     unrerun = replace(_quote(price=True), baseline_reruns=())
 
-    assert _named(criterion_moves([unrerun]), "price break").fixed_confirmed == 0
-    drifted = criterion_moves([replace(unrerun, drift=True)])
+    assert (
+        _named(compare_criteria([unrerun], alpha=ALPHA).moves, "price break").fixed_confirmed == 0
+    )
+    drifted = compare_criteria([replace(unrerun, drift=True)], alpha=ALPHA).moves
     assert _named(drifted, "price break").fixed_confirmed == 1
 
 
@@ -309,6 +320,41 @@ def test_two_results_under_one_name_stay_two_criteria() -> None:
     }
 
 
+@pytest.mark.parametrize("suffix_first", [False, True])
+def test_a_literal_duplicate_suffix_does_not_hide_a_confirmed_criterion_flip(
+    suffix_first: bool,
+) -> None:
+    repeated = [
+        {"scorer": "check", "name": "json_schema at $.total", "status": "pass"},
+        {"scorer": "check", "name": "json_schema at $.total", "status": "fail"},
+    ]
+    literal = {"scorer": "check", "name": "json_schema at $.total #2", "status": "pass"}
+    stored = [literal, *repeated] if suffix_first else [*repeated, literal]
+
+    before = grades(iter(stored))
+    after = grades({**row, "status": "pass"} for row in stored)
+
+    assert before == {
+        ("check", "json_schema at $.total"): True,
+        ("check", "json_schema at $.total #2"): True,
+        ("check", "json_schema at $.total #3"): False,
+    }
+    flipped = compare_criteria(
+        [
+            PairedGrades(
+                baseline=before,
+                candidate=after,
+                baseline_reruns=(before,),
+                candidate_reruns=(after,),
+            )
+        ],
+        alpha=ALPHA,
+    )
+    assert [move.name for move in flipped.moves if move.fixed_confirmed] == [
+        "json_schema at $.total #3"
+    ]
+
+
 def test_past_the_limit_the_criteria_that_decide_a_verdict_are_kept() -> None:
     passing = {("check", f"check {n:03}"): True for n in range(300)}
     before = {**passing, _PRICE: False, _VALIDITY: True}
@@ -317,7 +363,7 @@ def test_past_the_limit_the_criteria_that_decide_a_verdict_are_kept() -> None:
         baseline=before, candidate=after, baseline_reruns=(before,), candidate_reruns=(after,)
     )
 
-    moves = criterion_moves([case], limit=3)
+    moves = compare_criteria([case], limit=3, alpha=ALPHA).moves
 
     assert [move.name for move in moves] == ["check 000", "price break", "validity"]
     assert _named(moves, "validity").worse and _named(moves, "price break").better
@@ -326,7 +372,7 @@ def test_past_the_limit_the_criteria_that_decide_a_verdict_are_kept() -> None:
 def test_a_criterion_undecided_on_either_side_is_left_out_of_its_counts() -> None:
     undecided = PairedGrades(baseline={_PRICE: None}, candidate={_PRICE: True})
 
-    assert criterion_moves([undecided]) == []
+    assert compare_criteria([undecided], alpha=ALPHA).moves == []
 
 
 def test_a_criterion_broken_once_and_not_again_is_an_unconfirmed_break() -> None:
@@ -337,7 +383,7 @@ def test_a_criterion_broken_once_and_not_again_is_an_unconfirmed_break() -> None
         candidate_reruns=({_PRICE: True},),
     )
 
-    move = criterion_moves([broke])[0]
+    move = compare_criteria([broke], alpha=ALPHA).moves[0]
     assert (move.broken_unconfirmed, move.broken_confirmed) == (1, 0)
     assert not move.worse
 
@@ -421,3 +467,218 @@ def test_a_verdict_keeps_the_criteria_that_moved_before_the_rest() -> None:
 
     assert len(details) == MAX_CRITERIA
     assert details[0]["name"] == "zz moved"
+
+
+@pytest.mark.security
+def test_a_large_single_pass_comparison_constructs_only_the_kept_moves(monkeypatch):
+    from unittest.mock import Mock
+
+    from app.services import eval_comparison
+
+    factory = Mock(wraps=CriterionMove)
+    monkeypatch.setattr(eval_comparison, "CriterionMove", factory)
+
+    def cases():
+        for number in range(5000):
+            unchanged = {("check", f"check {number:05}"): True}
+            yield PairedGrades(baseline=unchanged, candidate=unchanged)
+        before = {_PRICE: True}
+        after = {_PRICE: False}
+        yield PairedGrades(
+            baseline=before, candidate=after, baseline_reruns=(before,), candidate_reruns=(after,)
+        )
+
+    moves = compare_criteria(cases(), alpha=ALPHA).moves
+
+    assert len(moves) == 200
+    assert factory.call_count == 200
+    assert _named(moves, "price break").worse
+
+
+@pytest.mark.parametrize("limit", [-1, 201])
+def test_a_response_limit_cannot_disable_the_resource_bound(limit):
+    with pytest.raises(ValueError, match="limit"):
+        compare_criteria([], limit=limit, alpha=ALPHA)
+
+
+def test_a_zero_limit_returns_no_moves():
+    assert compare_criteria([_quote(price=True)], limit=0, alpha=ALPHA).moves == []
+
+
+def test_a_name_only_skill_report_does_not_claim_another_scorers_criterion():
+    judge = CriterionMove("judge", "Validity", 2, 0, 1, 1, 0)
+    check = replace(judge, scorer="check")
+
+    details = criterion_details([judge, check], {"validity": "Quote rules"})
+
+    assert next(row for row in details if row["scorer"] == "judge")["skill"] == "Quote rules"
+    assert "skill" not in next(row for row in details if row["scorer"] == "check")
+
+
+def test_scratch_storage_closes_when_reading_criteria_fails(monkeypatch):
+    import sqlite3
+
+    from app.services import eval_comparison
+
+    class TrackedConnection(sqlite3.Connection):
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+            super().close()
+
+    connect = sqlite3.connect
+    connection = connect("", factory=TrackedConnection)
+    monkeypatch.setattr(eval_comparison.sqlite3, "connect", lambda _name: connection)
+
+    def interrupted():
+        yield _quote(price=True)
+        raise RuntimeError("input interrupted")
+
+    with pytest.raises(RuntimeError, match="input interrupted"):
+        compare_criteria(interrupted(), alpha=ALPHA)
+    assert connection.closed
+
+
+def test_a_confirmed_break_survives_detail_truncation_ahead_of_many_fixes():
+    fixes = [CriterionMove("judge", f"fix {n}", 100, 0, 1, 1, 0) for n in range(MAX_CRITERIA)]
+    broken = CriterionMove("check", "critical break", 100, 100, 99, 0, 1)
+    detail = criterion_details([*fixes, broken], {})
+    assert len(detail) == MAX_CRITERIA
+    assert detail[0]["name"] == "critical break" and detail[0]["broken"] == 1
+
+
+@pytest.mark.parametrize("limit", [0, 1, 200])
+def test_normalized_criterion_change_includes_rows_outside_the_display_limit(limit):
+    before = {("check", f"check {number}"): False for number in range(205)}
+    after = {**before, ("check", "check 0"): True}
+    pair = PairedGrades(
+        baseline=before, candidate=after, baseline_reruns=(before,), candidate_reruns=(after,)
+    )
+    result = compare_criteria([pair], limit=limit, alpha=ALPHA)
+    assert len(result.moves) == limit
+    assert result.change == pytest.approx(1 / 205)
+    assert (
+        compare_criteria([PairedGrades(baseline=before, candidate=after)], alpha=ALPHA).change
+        == 0.0
+    )
+    reversed_pair = PairedGrades(
+        baseline=after, candidate=before, baseline_reruns=(after,), candidate_reruns=(before,)
+    )
+    assert compare_criteria([reversed_pair], limit=limit, alpha=ALPHA).change == pytest.approx(
+        -1 / 205
+    )
+    assert compare_criteria([], alpha=ALPHA).change == 0.0
+
+
+def test_criterion_only_rounds_rank_normalized_confirmed_movement_and_keep_exact_ties():
+    verdict = ImprovementVerdict.CRITERIA_BETTER
+    assert (
+        best_round(
+            [
+                RoundResult(1, verdict, 0, 0, 20, criterion_change=0.1),
+                RoundResult(2, verdict, 0, 0, 20, criterion_change=0.3),
+            ]
+        )
+        == 2
+    )
+    assert (
+        best_round(
+            [
+                RoundResult(1, verdict, 0, 0, 10, criterion_change=0.2),
+                RoundResult(2, verdict, 0, 0, 20, criterion_change=0.15),
+            ]
+        )
+        == 1
+    )
+    assert (
+        best_round(
+            [
+                RoundResult(1, verdict, 0, 0, 10, criterion_change=0.2),
+                RoundResult(2, verdict, 0, 0, 20, criterion_change=0.2),
+            ]
+        )
+        == 1
+    )
+
+
+def test_criterion_change_survives_stored_round_details():
+    from app.db.models.improvement import ImprovementIteration
+    from app.services.improvement_pipeline import ImprovementPipelineService
+
+    result = replace(_no_question_flipped(*_families()), criterion_change=0.25)
+    detail = ImprovementPipelineService._result_detail(result)
+    iteration = ImprovementIteration(number=2, verdict="criteria_better", verdict_detail=detail)
+    assert ImprovementPipelineService._round_result(iteration).criterion_change == 0.25
+    assert (
+        ImprovementPipelineService._round_result(
+            ImprovementIteration(number=1, verdict="no_change", verdict_detail=None)
+        ).criterion_change
+        == 0.0
+    )
+
+
+@pytest.mark.parametrize("source", [None, "invalid", "00000000-0000-0000-0000-000000000123"])
+def test_criterion_identity_comes_from_the_same_newest_report(source):
+    from app.services.improvement_states import criterion_skill_ids
+
+    older = {
+        "skill_problems": [
+            {
+                "skill_name": "old",
+                "skill_id": "00000000-0000-0000-0000-000000000001",
+                "skill_line": "Quotes are valid for 7 days.",
+                "criteria": ["Validity"],
+            }
+        ]
+    }
+    newer = {
+        "skill_problems": [
+            {
+                "skill_name": "new",
+                "skill_id": source,
+                "skill_line": "Quotes are valid for 14 days.",
+                "criteria": ["validity", "VALIDITY"],
+            }
+        ]
+    }
+    expected = {} if source in {None, "invalid"} else {"validity": source}
+    assert criterion_skill_ids([newer, None, {}, older]) == expected
+    details = criterion_details(_experiment(), criterion_owners([newer, older]), expected)
+    attributed = [detail for detail in details if detail.get("skill") == "new"]
+    assert attributed
+    assert [detail.get("skill_id") for detail in attributed] == [expected.get("validity")] * len(
+        attributed
+    )
+
+
+@pytest.mark.parametrize(
+    "report",
+    [
+        {"skill_problems": None},
+        {"skill_problems": [None]},
+        {"skill_problems": [{"criteria": None}]},
+        {"skill_problems": [{"criteria": [None]}]},
+    ],
+)
+def test_malformed_historical_attributions_authorize_no_identity(report):
+    from app.services.improvement_states import criterion_skill_ids
+
+    assert criterion_skill_ids([report]) == {}
+
+
+@pytest.mark.parametrize("moves", [(), tuple(_families()), (_worse_family(),)])
+def test_confirmed_whole_question_movement_never_becomes_a_criterion_only_verdict(moves):
+    result = replace(
+        _no_question_flipped(*moves),
+        fixed_confirmed=1,
+        candidate_pass_rate=0.1,
+        baseline_pass_rate=0.5,
+    )
+    verdict = judge(result)
+    assert verdict is ImprovementVerdict.NO_CHANGE
+    transition = after_judging(
+        verdict, reruns_used=0, spent=Decimal(0), rerun_estimate=Decimal(0), budget=Decimal(1)
+    )
+    assert transition.status is ImprovementStatus.STOPPED
+    assert transition.stop_reason is StopReason.NO_CHANGE

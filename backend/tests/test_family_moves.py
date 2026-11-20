@@ -6,17 +6,22 @@ one case per criterion, and one case repeated three times decides a verdict. A
 family counts those checks together, case by case.
 """
 
+from collections.abc import Mapping
+from dataclasses import replace
+
 import pytest
 
 from app.services.eval_comparison import (
+    MAX_COMPARED_FAMILIES,
     MIN_FAMILY_CASES,
     Attempt,
+    Criterion,
     FamilyMove,
     PairedGrades,
+    compare_criteria,
     criteria_count,
     families,
     family_flipped,
-    family_moves,
     family_of,
     family_outcomes,
     summarize,
@@ -44,6 +49,16 @@ def _case(before: dict, after: dict, *, reruns: int = 0, drift: bool = False) ->
         candidate_reruns=(after,) * reruns,
         drift=drift,
     )
+
+
+def _family_moves(
+    cases: list[PairedGrades],
+    named: Mapping[Criterion, str],
+    *,
+    limit: int = MAX_COMPARED_FAMILIES,
+) -> list[FamilyMove]:
+    named_cases = [replace(case, named=named) for case in cases]
+    return compare_criteria(named_cases, alpha=ALPHA, family_limit=limit).families
 
 
 def _move(**overrides) -> FamilyMove:
@@ -112,7 +127,7 @@ class TestFamilyMoves:
         cases = [_case({_PRICE: False, _TERMS: False}, {_PRICE: True, _TERMS: False})] * 25
         cases += [_case({_PRICE: True, _TERMS: False}, {_PRICE: True, _TERMS: False})] * 3
 
-        terms, price = family_moves(cases, {}, alpha=ALPHA)
+        terms, price = _family_moves(cases, {})
 
         assert (price.family, price.cases, price.baseline_passed, price.candidate_passed) == (
             _PRICE[1],
@@ -130,7 +145,7 @@ class TestFamilyMoves:
             for amount in ("913.68", "252.00", "129.60", "198.00")
         ]
 
-        [vat] = family_moves(cases, _NAMED, alpha=ALPHA)
+        [vat] = _family_moves(cases, _NAMED)
 
         assert vat.family == "total including VAT"
         assert vat.criteria == tuple(sorted(name for _, name in _NAMED))
@@ -144,16 +159,14 @@ class TestFamilyMoves:
             _case({_vat("129.60"): True}, {_vat("129.60"): False}),
         ]
 
-        [vat] = family_moves(cases, _NAMED, alpha=ALPHA)
+        [vat] = _family_moves(cases, _NAMED)
 
         assert (vat.broken, vat.broken_confirmed, vat.broken_held) == (3, 2, 2)
         assert vat.worse
 
     def test_one_case_never_decides_a_family_either_way(self) -> None:
-        [vat] = family_moves(
-            [_case({_vat("913.68"): True}, {_vat("913.68"): False}, reruns=2)],
-            _NAMED,
-            alpha=ALPHA,
+        [vat] = _family_moves(
+            [_case({_vat("913.68"): True}, {_vat("913.68"): False}, reruns=2)], _NAMED
         )
 
         assert (vat.broken_confirmed, vat.moved, vat.worse, vat.needs_reruns) == (
@@ -164,7 +177,7 @@ class TestFamilyMoves:
         )
 
     def test_a_criterion_graded_on_one_side_only_is_not_compared(self) -> None:
-        moves = family_moves([_case({_PRICE: False}, {_TERMS: True})], {}, alpha=ALPHA)
+        moves = _family_moves([_case({_PRICE: False}, {_TERMS: True})], {})
 
         assert moves == []
 
@@ -173,11 +186,11 @@ class TestFamilyMoves:
         cases = [_case({_PRICE: False, **lone}, {_PRICE: True, **lone}, reruns=2)] * 3
         cases.append(_case({_TERMS: False}, {_TERMS: False}))
 
-        kept = family_moves(cases, {}, alpha=ALPHA, limit=2)
+        kept = _family_moves(cases, {}, limit=2)
 
         assert [move.family for move in kept] == [_TERMS[1], _PRICE[1]]
         assert kept[1].better
-        assert len(family_moves(cases, {}, alpha=ALPHA)) == 7
+        assert len(_family_moves(cases, {})) == 7
 
 
 class TestFamilyVerdicts:

@@ -1,5 +1,5 @@
 ---
-source_sha: "1038cf0df8eb"
+source_sha: "be66ab0d9f19"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -163,7 +163,7 @@ Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingab
 
 Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats und Fälle ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
 
-Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat.
+Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat. Der Kontext früherer Versuche enthält begrenzte Auszüge aus höchstens sechs zuletzt gemessenen Versuchen, damit lange Änderungen an Anweisungen oder Skill-Inhalten nicht den Prompt des nächsten Vorschlags füllen.
 
 Eine Prüfung zählt als Test des Entwurfs, sobald der Entwurf genau das ist, was
 sie geprüft hat - jeder geprüfte Vorschlag angenommen und sonst nichts geändert -,
@@ -371,6 +371,8 @@ einmal, im selben Test, wenn das restliche Budget sie deckt, damit wenige verlor
 Antworten nicht den ganzen Test wiederholen. Er endet beim Ergebnis: `ready`, wenn der Versuch den
 Agent verbessert hat - seine Änderungen werden dann zum wartenden
 Vorschlagspaket -, sonst `stopped`, mit dem Urteil als Grund.
+
+Ersatzantworten werden je Modell anhand der gespeicherten Schätzung pro Frage einschließlich Bewerter berechnet; Bestätigungswiederholungen bleiben reserviert. Kosten, Tokens und Latenz enthalten den fehlgeschlagenen Versuch. Ältere Prüfungen ohne gespeicherte Preise je Modell lassen verlorene Antworten unvollständig, statt ein Wiederholungsbudget zu schätzen.
 
 Kein Versuch
 startet von selbst. **Erneut versuchen** ist dasselbe `/continue` vom Ergebnis
