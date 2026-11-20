@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **LLMTR as a model provider.** `llmtr` takes an API key and runs on Chat Completions at `https://llmtr.com/v1`. The model picker reads only Chat Completions entries from LLMTR's live list, where `llmtr/...` ids are models hosted in Turkey and the others are routed to their vendors. Models without a known price cannot run under an active dollar ceiling; uncapped runs keep explicitly partial costs.
+
 ### Fixed
 
 - Mount a writable `/app/.next/server/route-cache` in the Helm chart's frontend
