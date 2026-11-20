@@ -684,14 +684,24 @@ class FamilyMove:
         )
 
 
+MAX_COMPARED_FAMILIES = 200
+"""Families a comparison reports. Per-case checks that name no family are one each."""
+
+
 def family_moves(
-    cases: Iterable[PairedGrades], named: Mapping[Criterion, str], *, alpha: float
+    cases: Iterable[PairedGrades],
+    named: Mapping[Criterion, str],
+    *,
+    alpha: float,
+    limit: int | None = None,
 ) -> list[FamilyMove]:
     """Every family graded on both sides of some case, by name.
 
     `named` is the family each criterion's check named, from either side's scores:
     a side scored before families existed names none, and the other side's names
-    hold for both.
+    hold for both. Past `limit`, the ones that decide a verdict are kept first -
+    every family worse, then better, then any other that moved - then the ones
+    failing most often.
     """
     rows: dict[str, Counter[str]] = {}
     members: dict[str, set[str]] = {}
@@ -742,7 +752,18 @@ def family_moves(
                 settled=row["fixed"] + row["broken"] >= MIN_FAMILY_CASES and p < alpha,
             )
         )
-    return moves
+    if limit is None or len(moves) <= limit:
+        return moves
+    kept = sorted(
+        moves,
+        key=lambda move: (
+            not move.worse,
+            not move.better,
+            not (move.fixed or move.broken),
+            move.candidate_passed - move.cases,
+        ),
+    )[:limit]
+    return sorted(kept, key=lambda move: move.family)
 
 
 def family_flipped(

@@ -1,5 +1,5 @@
 ---
-source_sha: "7ecad1d45f1b"
+source_sha: "e3e20f72023b"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -456,7 +456,9 @@ sprawdzają jedną rzecz w całym datasecie, nazwanej przez
 żadnej, jest osobną rodziną. Rodzina przechodzi w przypadku, gdy spełnione jest
 tam każde jej kryterium, a `families` porównania podaje dla każdej rodziny
 przypadki, które oceniły obie strony, ile z nich każda strona spełniła, i
-przypadki, na których się odwróciła.
+przypadki, na których się odwróciła. Podaje najwyżej 200 rodzin: powyżej tej
+liczby najpierw każdą gorszą lub lepszą, potem każdą inną, która się ruszyła,
+a potem te, które najczęściej nie przechodzą.
 
 Rodzina jest **rozstrzygnięta**, gdy jej
 własne odwrócone przypadki wystarczą, by dokładny test McNemara wskazał, w którą

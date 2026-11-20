@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import Field, field_validator
+from pydantic import Field, PrivateAttr, field_validator
 
 from app.db.models.eval_run import (
     ArmRole,
@@ -656,6 +656,9 @@ class FamilyMoveRead(BaseSchema):
     settled: bool
     better: bool
     worse: bool
+    # Every criterion counted in it, past the 50 `criteria` shows: whom a verdict puts
+    # a family down to is found through any of them. Never serialized.
+    _members: tuple[str, ...] = PrivateAttr(default=())
 
 
 class EfficiencyRead(BaseSchema):

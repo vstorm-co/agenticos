@@ -21,6 +21,8 @@ from app.services.eval_comparison import (
     family_outcomes,
     summarize,
 )
+from app.services.eval_run import MAX_FAMILY_CRITERIA, _family_read, family_move
+from app.services.improvement_states import family_skills
 
 ALPHA = 0.05
 _PRICE = ("judge", "Points out the next price band")
@@ -166,6 +168,17 @@ class TestFamilyMoves:
 
         assert moves == []
 
+    def test_past_the_limit_the_families_that_decide_a_verdict_are_kept_first(self) -> None:
+        lone = {("check", f"regex '£{n}.00'"): True for n in range(5)}
+        cases = [_case({_PRICE: False, **lone}, {_PRICE: True, **lone}, reruns=2)] * 3
+        cases.append(_case({_TERMS: False}, {_TERMS: False}))
+
+        kept = family_moves(cases, {}, alpha=ALPHA, limit=2)
+
+        assert [move.family for move in kept] == [_TERMS[1], _PRICE[1]]
+        assert kept[1].better
+        assert len(family_moves(cases, {}, alpha=ALPHA)) == 7
+
 
 class TestFamilyVerdicts:
     def test_more_broken_than_fixed_is_worse_and_the_reverse_better(self) -> None:
@@ -183,6 +196,21 @@ class TestFamilyVerdicts:
 
     def test_the_minimum_is_two_cases(self) -> None:
         assert MIN_FAMILY_CASES == 2
+
+
+class TestFamilyReads:
+    def test_a_verdict_finds_a_family_s_owner_through_a_criterion_it_does_not_show(self) -> None:
+        names = tuple(f"regex '£{n:03}.00'" for n in range(MAX_FAMILY_CRITERIA + 10))
+        move = _move(family="total including VAT", criteria=names, broken_confirmed=3)
+
+        read = _family_read(move)
+
+        assert read.criteria == list(names[:MAX_FAMILY_CRITERIA])
+        assert "_members" not in read.model_dump()
+        assert family_move(read).criteria == names
+        assert family_skills([family_move(read)], {names[-1].casefold(): "quote-format"}) == {
+            "total including VAT": "quote-format"
+        }
 
 
 class TestFamilyFlipped:

@@ -1,5 +1,5 @@
 ---
-source_sha: "7ecad1d45f1b"
+source_sha: "e3e20f72023b"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -448,7 +448,9 @@ juez que prueban una misma cosa en todo el dataset, nombrada por el
 ninguna es una familia propia. Una familia aprueba en un caso cuando allí
 aprueba cada uno de sus criterios, y `families` de la comparación indica, por
 familia, los casos que calificaron ambos lados, cuántos aprobó cada lado y los
-casos en los que cambió.
+casos en los que cambió. Indica como mucho 200 familias: pasado ese número, primero
+cada familia peor o mejor, luego cualquier otra que se movió y después las que más
+a menudo fallan.
 
 Una familia está **decidida** cuando sus propios casos
 cambiados bastan para que una prueba exacta de McNemar diga en qué dirección se

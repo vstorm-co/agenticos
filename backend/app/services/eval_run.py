@@ -127,6 +127,7 @@ from app.services.agent_registry import (
 from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
 from app.services.eval_comparison import (
+    MAX_COMPARED_FAMILIES,
     ArmSummary,
     Attempt,
     CaseState,
@@ -345,7 +346,7 @@ MAX_FAMILY_CRITERIA = 50
 
 
 def _family_read(move: FamilyMove) -> FamilyMoveRead:
-    return FamilyMoveRead(
+    read = FamilyMoveRead(
         family=move.family,
         criteria=list(move.criteria[:MAX_FAMILY_CRITERIA]),
         cases=move.cases,
@@ -360,13 +361,16 @@ def _family_read(move: FamilyMove) -> FamilyMoveRead:
         better=move.better,
         worse=move.worse,
     )
+    read._members = move.criteria
+    return read
 
 
 def family_move(read: FamilyMoveRead) -> FamilyMove:
-    """A family as a comparison returned it, back as the rules read it."""
+    """A family as a comparison returned it, back as the rules read it: every criterion
+    counted in it, where the comparison still holds them, not only those it shows."""
     return FamilyMove(
         family=read.family,
-        criteria=tuple(read.criteria),
+        criteria=read._members or tuple(read.criteria),
         cases=read.cases,
         baseline_passed=read.baseline_passed,
         candidate_passed=read.candidate_passed,
@@ -2900,6 +2904,7 @@ class EvalRunService:
             paired_grades,
             theirs_graded.named | mine_graded.named,
             alpha=settings.EVAL_SIGNIFICANCE,
+            limit=MAX_COMPARED_FAMILIES,
         )
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
         invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None

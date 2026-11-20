@@ -436,7 +436,9 @@ test one thing across the dataset, named by a check's
 [`family`](datasets.md#checks). A criterion whose check names none is a family
 of its own. A family passes in a case when every criterion of it does there, and
 the comparison's `families` lists, per family, the cases both sides graded,
-how many each side passed, and the cases it flipped on.
+how many each side passed, and the cases it flipped on. It lists at most 200
+families: past that, every family worse or better comes first, then any other
+that moved, then the ones failing most often.
 
 A family is **settled**
 when its own flipped cases are enough for an exact McNemar test to tell which

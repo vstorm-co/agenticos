@@ -1,5 +1,5 @@
 ---
-source_sha: "7ecad1d45f1b"
+source_sha: "e3e20f72023b"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -483,7 +483,9 @@ die [`family`](datasets.md#checks) eines Checks. Ein Kriterium, dessen Check
 keine nennt, ist eine eigene Familie. Eine Familie besteht in einem Fall, wenn
 dort jedes ihrer Kriterien besteht, und `families` des Vergleichs nennt für jede
 Familie die Fälle, die beide Seiten bewertet haben, wie viele davon jede Seite
-bestanden hat, und die Fälle, auf denen sie gekippt ist.
+bestanden hat, und die Fälle, auf denen sie gekippt ist. Er nennt höchstens 200
+Familien: darüber hinaus zuerst jede schlechtere oder bessere, dann jede andere,
+die sich bewegt hat, dann die, die am häufigsten durchfallen.
 
 Eine Familie ist
 **entschieden**, wenn ihre eigenen gekippten Fälle ausreichen, damit ein exakter
