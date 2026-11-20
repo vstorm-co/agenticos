@@ -53,6 +53,10 @@ Two things are versioned separately from this file and worth knowing about:
 - A skill check keeps each agent's families of criteria, so its details table one row per family - every case's check of one thing together - instead of one row per case's check. Agents expose `families`; `skill_check_agents` gains the column (#3178).
 - A skill check's agent whose runs graded every answer on fewer held-out questions than a result needs is unknown for `too_few_questions` rather than `inconclusive`, and its row says how many came out better and worse and that they are too few to be sure (#3178).
 
+### Fixed
+
+- **Cost estimates now include the confirming reruns.** An eval run, an Improve check and a skill check showed as their likely cost only the first answers, while a compared run asks about half of its cases again: on the Fernhill run, checks cost 2 to 3.6 times their estimate. The estimate adds `expected_usd`, the first answers and half of the rerun ceiling for a compared run, and the start dialog, a run's page, the Improve check's quote and a skill check show it with the most the step may cost. An Improve check no longer asks its training cases again, since nothing reads those reruns, and its ceiling counts its held-out cases alone. With no history on a model, an answer from an agent with tools is priced as `1 + EVAL_FALLBACK_TOOL_ROUNDS` requests (new, default 2) and a grading as a request that also reads the answer. (#3188).
+
 ### Upgrading
 
 - Apply `0344_user_appearance.py` for account appearance choices. Nullable fields

@@ -1,5 +1,5 @@
 ---
-source_sha: "5dd4c3bfb09e"
+source_sha: "ce67e57114b5"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -152,13 +152,18 @@ das Dataset bewertet .
 
 Die Schätzung berücksichtigt modellgestützte Bewertung, wenn das Dataset sie verlangt, zum unter Bewertung gewählten Modellpreis. Kein Organisationsschalter deaktiviert diesen Bewerter.
 
-Ein Agent ohne Historie auf einem Modell wird als typischer Fall geschätzt -
-`EVAL_FALLBACK_INPUT_TOKENS` hinein, `EVAL_FALLBACK_OUTPUT_TOKENS` heraus - zum
-eigenen Preis des Modells, oder mit `EVAL_FALLBACK_CASE_COST_USD` bei einem
+Ein Agent ohne Historie auf einem Modell wird als typische Anfragen geschätzt -
+je `EVAL_FALLBACK_INPUT_TOKENS` hinein und `EVAL_FALLBACK_OUTPUT_TOKENS` heraus -
+zum eigenen Preis des Modells, oder mit `EVAL_FALLBACK_CASE_COST_USD` bei einem
 Modell ohne bekannten Preis, und die Schätzung sagt, dass es eine grobe Annahme
-ist (`basis: "fallback"`). Ein Bewerter ohne Historie wird genauso bepreist, auf
-dem Modell, das sein veröffentlichter Spec nennt; die Schätzung warnt, wenn das
-das getestete Modell ist, und die Seite eines Runs, wenn es das war. Die Kosten
+ist (`basis: "fallback"`). Eine Antwort ist eine Anfrage, oder
+`1 + EVAL_FALLBACK_TOOL_ROUNDS`, wenn der Agent ein Werkzeug hat: Jeder
+Werkzeugaufruf wird in einer weiteren Anfrage beantwortet.
+
+Ein Bewerter ohne Historie wird als eine Anfrage bepreist, die auch die bewertete
+Antwort liest, auf dem Modell, das sein veröffentlichter Spec nennt; die
+Schätzung warnt, wenn das das getestete Modell ist, und die Seite eines Runs,
+wenn es das war. Die Kosten
 der Baseline gehören zur Summe, außer eine aktuelle passende Baseline wird
 wiederverwendet - dann kosten ihre ersten Antworten nichts, und die Schätzung
 nennt den Run, aus dem sie stammen.
@@ -166,8 +171,16 @@ nennt den Run, aus dem sie stammen.
 ### Das verbleibende Budget { #the-budget-it-leaves }
 
 Ein Eval nutzt die bestehenden Monatsbudgets des Agents und der Organisation.
-Die Schätzung zeigt die verbleibenden Beträge nach dem vollständigen erwarteten
-Aufwand als `agent_after_usd` und `org_after_usd`. Der Start wird mit `402`
+`total_usd` sind die ersten Antworten und ihre Bewertung, `expected_usd` das,
+was der Run voraussichtlich kostet: das, plus die Hälfte von `rerun_ceiling_usd`
+bei einem Run, der mit einer Baseline verglichen wird, denn ein solcher Run
+fragt üblicherweise etwa die Hälfte der Fälle erneut, die er erneut fragen darf.
+Ein Stabilitätsrun fragt jeden Fall erneut, ein Run ohne Vergleich keinen. Der
+Startdialog zeigt `expected_usd` und darunter das Höchste, was der Run kosten
+kann, und die Seite eines Runs, was er gegenüber beidem ausgegeben hat.
+
+Die Schätzung zeigt die in den Budgets verbleibenden Beträge nach dem
+vollständigen erwarteten Aufwand als `agent_after_usd` und `org_after_usd`. Der Start wird mit `402`
 abgelehnt, wenn erster Durchlauf plus `rerun_ceiling_usd` eines der Budgets
 übersteigt. Die Obergrenze enthält alle bestätigenden Versuche bei geänderten
 Ergebnissen, den Richter und Wiederholungen der Baseline, auch bei einer
@@ -511,9 +524,11 @@ hat, entscheidet nichts und lässt keinen Fall erneut fragen. Neben den Fällen,
 deren Ergebnis gekippt ist, sind dies die einzigen wiederholten Fälle.
 
 Ein Run, der Fragen für eine Improve-Sitzung zurücklegt, wird nur nach ihnen
-beurteilt, daher entscheiden seine zurückgelegten Fälle ihre Familien getrennt
-vom Rest. Eine über den ganzen Run entschiedene Familie wird auf den
-zurückgelegten Fällen trotzdem wiederholt, wenn diese sie nicht entscheiden.
+beurteilt, daher werden nur seine zurückgelegten Fälle wiederholt, und seine
+Familien entscheiden sich auf ihnen. Seine Trainingsfälle werden nie erneut
+gefragt: Der nächste Versuch liest ihre ersten Antworten, und eine Wiederholung
+von ihnen liest niemand. Seine Wiederholungsobergrenze zählt nur die
+zurückgelegten Fälle.
 
 Das Urteil unten bleibt bei
 ganzen Fällen; eine [Improve-Sitzung](authoring.md#the-improve-wizard) und eine
@@ -763,8 +778,9 @@ eingeschaltet hat. Slack ist noch kein Benachrichtigungskanal.
 | `EVAL_BASELINE_CACHE_HOURS` | `24` | Wie alt eine passende Baseline sein darf, um wiederverwendet zu werden |
 | `EVAL_SIGNIFICANCE` | `0.05` | Das Niveau, unter dem bestätigte Kippfälle ein Urteil sind |
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | Eine relative Änderung von Kosten, Tokens oder Latenz, die als keine zählt |
-| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Die Input-Tokens, mit denen ein Fall auf einem Modell ohne Historie bepreist wird |
-| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Die Output-Tokens, mit denen ein Fall auf einem Modell ohne Historie bepreist wird |
+| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Die Input-Tokens, mit denen eine Anfrage auf einem Modell ohne Historie bepreist wird |
+| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Die Output-Tokens, mit denen eine Anfrage auf einem Modell ohne Historie bepreist wird |
+| `EVAL_FALLBACK_TOOL_ROUNDS` | `2` | Wie viele Anfragen über eine hinaus die Antwort eines Agents mit Werkzeugen auf einem Modell ohne Historie braucht |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | Die Schätzung pro Fall auf einem Modell ohne Historie und ohne bekannten Preis |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Wie viele letzte Runs die Schätzung mittelt |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Wie lange ein laufender Run bei schweigendem Worker stillstehen darf, bevor der Sweep ihn beendet |

@@ -45,6 +45,7 @@ from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities import all_capabilities
 from app.agents.capabilities.budget import price_request
 from app.agents.capabilities.context import ContextBody
 from app.agents.capabilities.skills import SkillBody, SkillBodyFile
@@ -166,6 +167,41 @@ logger = logging.getLogger(__name__)
 
 _CENT = Decimal("0.000001")
 
+EXPECTED_RERUN_SHARE = Decimal("0.5")
+"""The share of its rerun ceiling a compared run is expected to spend.
+
+The ceiling asks every case that can be asked again. A run asks again only the
+cases whose outcome, or an unsettled family of criteria, flipped: in measured
+paired runs that was 0.53 to 0.80 of the cases, so about half of the ceiling.
+"""
+
+
+def expected_cost(
+    first_answers: Decimal, rerun_ceiling: Decimal, *, purpose: EvalRunPurpose, compared: bool
+) -> Decimal:
+    """What a run most likely costs: its first answers and the reruns it expects.
+
+    A stability run asks every first answer again. A run with nothing to compare
+    with asks nothing again, whatever its ceiling reserves.
+    """
+    if purpose is EvalRunPurpose.STABILITY:
+        return first_answers + rerun_ceiling
+    if not compared:
+        return first_answers
+    return first_answers + (rerun_ceiling * EXPECTED_RERUN_SHARE).quantize(_CENT)
+
+
+def _requests(spec: AgentSpec) -> int:
+    """How many model requests one answer is priced at with no history to go by."""
+    tools = {definition.id: definition for definition in all_capabilities()}
+    calls_tools = bool(spec.mcp_servers or spec.subagents) or any(
+        binding.enabled
+        and (definition := tools.get(binding.id)) is not None
+        and bool(definition.effective_tools(binding.tool_overrides))
+        for binding in spec.capabilities
+    )
+    return 1 + settings.EVAL_FALLBACK_TOOL_ROUNDS if calls_tools else 1
+
 
 def scoring_hash(scoring: DatasetScoring) -> str:
     """A fingerprint of the scoring a run used: equal only when every setting is."""
@@ -192,6 +228,11 @@ def held_out_cases(run: EvalRun) -> frozenset[UUID] | None:
         return None
     measured = ProposalCheckRecord.model_validate(run.proposal_check).measurement
     return None if measured is None else frozenset(measured.holdout_case_ids)
+
+
+def _held_out_count(record: ProposalCheckRecord | None) -> int | None:
+    measured = None if record is None else record.measurement
+    return None if measured is None else len(measured.holdout_case_ids)
 
 
 def spec_hash(
@@ -1351,11 +1392,14 @@ class EvalRunService:
         baseline_skills: Mapping[UUID, SkillBody] | None = None,
         baseline_contexts: Mapping[UUID, ContextBody] | None = None,
         proposal_check: ProposalCheckRecord | None = None,
+        held_out: int | None = None,
     ) -> EvalRunEstimate:
         """What a run would cost, against what the agent and organization have left.
 
         `proposal_check` is what a check of the authoring assistant's proposal
         would measure, returned beside the estimate so both sides can be named.
+        `held_out` prices a measured run whose cases kept aside are known only
+        as a count; a proposal check's own measurement takes its place.
         """
         plan = await self.plan(
             ctx,
@@ -1385,7 +1429,10 @@ class EvalRunService:
                     )
                 }
             )
-        estimate = self._knowledge_cost(await self._estimate(ctx, plan), proposal_check)
+            held_out = _held_out_count(proposal_check)
+        estimate = self._knowledge_cost(
+            await self._estimate(ctx, plan, held_out=held_out), proposal_check
+        )
         proposal_check = self._priced_check(proposal_check, estimate)
         return estimate.model_copy(update={"proposal_check": proposal_check})
 
@@ -1429,6 +1476,9 @@ class EvalRunService:
             update={
                 "total_usd": estimate.total_usd + extra,
                 "rerun_ceiling_usd": estimate.rerun_ceiling_usd + repeats,
+                "expected_usd": estimate.expected_usd
+                + extra
+                + (repeats * EXPECTED_RERUN_SHARE).quantize(_CENT),
                 "agent_after_usd": agent_after,
                 "org_after_usd": org_after,
                 "affordable": estimate.affordable
@@ -1528,10 +1578,14 @@ class EvalRunService:
         agent_id: UUID,
         model_label: str | None,
         profile_id: UUID | None = None,
+        *,
+        requests: int = 1,
+        reads: int = 0,
     ) -> tuple[Decimal, bool]:
         """What one case costs: this agent's recent runs on the model, or - with
-        no history - a typical case at the model's own price, or a flat guess
-        for a model nothing prices. The flag says whether it was history."""
+        no history - `requests` typical requests at the model's own price, reading
+        `reads` tokens more, or a flat guess for a model nothing prices. The flag
+        says whether it was history."""
         average = await agent_run_repo.average_cost(
             self.db,
             organization_id=ctx.organization_id,
@@ -1544,8 +1598,8 @@ class EvalRunService:
         if profile_id is not None:
             model = await self.models.resolve(ctx, profile_id=profile_id)
             typical = RunUsage(
-                input_tokens=settings.EVAL_FALLBACK_INPUT_TOKENS,
-                output_tokens=settings.EVAL_FALLBACK_OUTPUT_TOKENS,
+                input_tokens=settings.EVAL_FALLBACK_INPUT_TOKENS * requests + reads,
+                output_tokens=settings.EVAL_FALLBACK_OUTPUT_TOKENS * requests,
             )
             priced = price_request(typical, model.model, model.provider)
             if priced is not None:
@@ -1578,14 +1632,28 @@ class EvalRunService:
             / settings.EVAL_FALLBACK_INPUT_TOKENS
         ).quantize(_CENT)
 
-    async def _estimate(self, ctx: AuthContext, plan: RunPlan) -> EvalRunEstimate:
+    async def _estimate(
+        self, ctx: AuthContext, plan: RunPlan, *, held_out: int | None = None
+    ) -> EvalRunEstimate:
+        """The run's cost from its sides, its judge and the reruns it may ask.
+
+        `held_out` is how many cases a measured run keeps aside: only those are
+        asked again, so only those count towards its rerun ceiling.
+        """
         cases = len(plan.cases)
+        asked_again = (
+            cases if held_out is None or plan.purpose is EvalRunPurpose.STABILITY else held_out
+        )
         arms: list[ArmEstimate] = []
         arms_usd = Decimal(0)
         rerun_per_case = Decimal(0)
         for arm in plan.arms:
             per_case, known = await self._per_case(
-                ctx, plan.agent.id, arm.model_label, arm.model_profile_id
+                ctx,
+                plan.agent.id,
+                arm.model_label,
+                arm.model_profile_id,
+                requests=_requests(arm.spec),
             )
             per_case += await self._projected_input_cost(ctx, arm)
             # A reused arm's first answers are free, but a case that flips is
@@ -1638,8 +1706,12 @@ class EvalRunService:
             if judge is None:
                 judge_per_case = settings.EVAL_FALLBACK_CASE_COST_USD
             else:
+                # A grading reads the answer it grades, as long as a guessed answer is.
+                answer = settings.EVAL_FALLBACK_OUTPUT_TOKENS * max(
+                    (_requests(arm.spec) for arm in plan.arms), default=1
+                )
                 judge_per_case, known = await self._per_case(
-                    ctx, judge.id, judge_label, judge_model
+                    ctx, judge.id, judge_label, judge_model, reads=answer
                 )
                 # Its history already holds the searches it made; a guess holds one request.
                 if not known:
@@ -1649,7 +1721,8 @@ class EvalRunService:
         fresh_arms = sum(1 for arm in plan.arms if arm.cached is None)
         judge_usd = judge_per_case * cases * fresh_arms
         total = arms_usd + judge_usd
-        rerun_ceiling = (rerun_per_case + judge_per_case * len(plan.arms)) * cases * plan.reruns
+        agent_reruns = rerun_per_case * asked_again * plan.reruns
+        rerun_ceiling = agent_reruns + judge_per_case * len(plan.arms) * asked_again * plan.reruns
 
         agent_left = await self._agent_left(ctx, plan)
         org_left = await self._org_left(ctx)
@@ -1660,16 +1733,18 @@ class EvalRunService:
             judge_model_profile_id=judge_model,
             total_usd=total,
             rerun_ceiling_usd=rerun_ceiling,
+            expected_usd=expected_cost(
+                total,
+                rerun_ceiling,
+                purpose=plan.purpose,
+                compared=plan.paired or plan.baseline_run_id is not None,
+            ),
             agent_remaining_usd=agent_left,
             org_remaining_usd=org_left,
             # The judge bills to its own agent; only the organization pays both.
-            agent_after_usd=None
-            if agent_left is None
-            else agent_left - arms_usd - rerun_per_case * cases * plan.reruns,
+            agent_after_usd=None if agent_left is None else agent_left - arms_usd - agent_reruns,
             org_after_usd=None if org_left is None else org_left - total - rerun_ceiling,
-            affordable=(
-                agent_left is None or arms_usd + rerun_per_case * cases * plan.reruns <= agent_left
-            )
+            affordable=(agent_left is None or arms_usd + agent_reruns <= agent_left)
             and (org_left is None or total + rerun_ceiling <= org_left),
             ungraded_cases=plan.ungraded,
             missing_baseline_version=plan.missing_baseline,
@@ -1773,7 +1848,10 @@ class EvalRunService:
                     )
                 }
             )
-        estimate = self._knowledge_cost(await self._estimate(ctx, plan), proposal_check)
+        estimate = self._knowledge_cost(
+            await self._estimate(ctx, plan, held_out=_held_out_count(proposal_check)),
+            proposal_check,
+        )
         proposal_check = self._priced_check(proposal_check, estimate)
         if not estimate.affordable:
             raise PaymentRequiredError(
@@ -2346,6 +2424,12 @@ class EvalRunService:
                     reruns=run.reruns,
                     estimate_usd=run.estimate_usd,
                     rerun_ceiling_usd=run.rerun_ceiling_usd,
+                    expected_usd=expected_cost(
+                        run.estimate_usd,
+                        run.rerun_ceiling_usd,
+                        purpose=EvalRunPurpose(run.purpose),
+                        compared=run.paired or run.baseline_run_id is not None,
+                    ),
                     cost_usd=attempt_cost + judge_cost,
                     cost_is_partial=judge_partial or any(a.cost_is_partial for a in attempts),
                     attempts_done=sum(1 for a in attempts if a.status in finished),
