@@ -42,6 +42,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Render conversations shared by link as read-only chat transcripts with formatted answers, readable message widths, and inline visuals.
+
 - Move credential selection to a Key tab in the chat model picker and use single-line model labels across shared selectors.
 
 - Simplify Agent Builder section headers and open Variables, Voice, and First messages by default. Move name, description, categories, and tags to the Details dialog in the agent actions menu. Use the standard card surface for MCP servers in both the catalog and Builder.
@@ -52,7 +54,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Align question cards with the chat composer, use catalog model names, and rename conversations in a dialog with explicit save. Share links use the same copy field as Apps and settings open at the top.
 
-- Show personal memories and longer notes together. With Memory enabled, private conversations get a bounded overview automatically, with a separate switch in the Builder.
+- Give short personal memories and longer notes separate tabs. With Memory enabled, private conversations get a bounded overview automatically, with a separate switch in the Builder.
 
 - Review changes to customized AgenticOS and Architect defaults before applying them. Bundled Context updates use the existing Context proposal review.
 

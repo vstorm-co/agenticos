@@ -22,7 +22,6 @@ export function MyNotes() {
     <ListCard
       title={view("notes")}
       namedByPage
-      fill
       counted={isLoading || !page ? null : view("noteCount", { count: page.total })}
       contentClassName="p-0"
       headerTour="my-memory"

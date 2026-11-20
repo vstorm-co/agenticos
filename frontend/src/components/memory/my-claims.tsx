@@ -36,7 +36,6 @@ export function MyClaims() {
     <ListCard
       title={view("memories")}
       namedByPage
-      fill
       counted={isLoading || !page ? null : view("count", { count: page.total })}
       contentClassName="p-0"
       headerTour="my-claims"

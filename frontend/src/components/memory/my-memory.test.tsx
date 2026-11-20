@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MyMemory } from "./my-memory";
 
@@ -7,10 +8,19 @@ vi.mock("./my-notes", () => ({ MyNotes: () => <p>note-list</p> }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 
 describe("memory workspace", () => {
-  it("presents short memories and linked notes together", () => {
+  it("shows one section at a time and switches to notes", async () => {
+    const user = userEvent.setup();
     render(<MyMemory />);
-    const memory = screen.getByRole("region", { name: "viewLabel" });
-    expect(memory).toContainElement(screen.getByText("memory-list"));
-    expect(memory).toContainElement(screen.getByText("note-list"));
+    const memories = screen.getByRole("tab", { name: "memories" });
+    const notes = screen.getByRole("tab", { name: "notes" });
+    expect(memories).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("memory-list")).toBeVisible();
+    expect(screen.queryByText("note-list")).toBeNull();
+
+    await user.click(notes);
+
+    expect(notes).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("note-list")).toBeVisible();
+    expect(screen.queryByText("memory-list")).toBeNull();
   });
 });

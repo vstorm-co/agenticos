@@ -1,6 +1,9 @@
 "use client";
 
+import { Brain } from "lucide-react";
+import { DocumentIcon as Files } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { useOrgStore } from "@/stores";
 import { MyClaims } from "./my-claims";
 import { MyNotes } from "./my-notes";
@@ -9,18 +12,23 @@ export function MyMemory() {
   const t = useTranslations("pages.memory.browser");
   const org = useOrgStore((state) => state.activeOrgId);
   return (
-    <section
-      key={org}
-      data-tour="memory-views"
-      aria-label={t("viewLabel")}
-      className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto xl:grid-cols-2"
-    >
-      <div className="flex min-w-0 flex-col">
+    <Tabs key={org} defaultValue="memories" className="flex min-h-0 flex-1 flex-col gap-4">
+      <TabsList data-tour="memory-views" aria-label={t("viewLabel")} className="w-fit shrink-0">
+        <TabsTrigger value="memories">
+          <Brain className="size-4" aria-hidden />
+          {t("memories")}
+        </TabsTrigger>
+        <TabsTrigger value="notes">
+          <Files className="size-4" aria-hidden />
+          {t("notes")}
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="memories" className="mt-0 flex min-h-0 flex-1 flex-col">
         <MyClaims />
-      </div>
-      <div className="flex min-w-0 flex-col">
+      </TabsContent>
+      <TabsContent value="notes" className="mt-0 flex min-h-0 flex-1 flex-col">
         <MyNotes />
-      </div>
-    </section>
+      </TabsContent>
+    </Tabs>
   );
 }
