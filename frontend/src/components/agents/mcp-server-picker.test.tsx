@@ -918,7 +918,7 @@ describe("which of a server's tools this agent may call", () => {
     expect(onChange).toHaveBeenLastCalledWith([bound("c1", ["search", "create_issue"])]);
   });
 
-  it("selects every tool again, which means every tool rather than a list", async () => {
+  it("selects every tool again as today's tools, leaving later ones to the switch", async () => {
     const onChange = vi.fn();
     render(
       picker({
@@ -931,7 +931,8 @@ describe("which of a server's tools this agent may call", () => {
 
     expect(screen.getByText("1 of 3")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("checkbox", { name: "Every tool in Tools" }));
-    expect(onChange).toHaveBeenLastCalledWith([bound("c1")]);
+    const today = TOOLS.map((tool) => tool.name);
+    expect(onChange).toHaveBeenLastCalledWith([bound("c1", today)]);
   });
 
   it("asks the caller to load the tools of an account never checked", async () => {

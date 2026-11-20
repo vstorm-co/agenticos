@@ -41,6 +41,8 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/test_platform_mcp_disclosure.py::test_large_run_history_preserves_the_real_pending_approval_contract": "preserves pending-call metadata in a bounded response, not an approval authorization refusal",
+    "tests/test_platform_mcp_disclosure.py::test_large_pending_approvals_keep_bounded_identities_and_a_full_console_review_link": "bounds pending-call payloads and hands full review to the console, not an approval decision",
     "tests/api/test_workflow_run_routes.py::TestNodesRoute::test_an_approval_step_says_who_decided_and_when": "decision metadata serialization, not an authorization refusal",
     "tests/test_sandbox_workspace.py::TestRecordedTaskWorkspace::test_reading_undo_permissions_never_opens_a_provider_client": "authorized metadata reads must not create a provider client; no access refusal",
     "tests/test_coverage_edges.py::TestRunNotifications::test_a_budget_stop_hands_its_limit_and_spend_to_the_notification": "budget notification values, not spend enforcement",

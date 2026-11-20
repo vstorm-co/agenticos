@@ -1255,3 +1255,65 @@ async def test_resume_revalidates_sources_changed_since_the_last_review(db: Asyn
         await AgentTriggerService(db).update(
             ctx, trigger.agent_id, trigger.id, TriggerUpdate(is_active=True)
         )
+
+
+async def test_the_review_names_each_source_and_never_another_organizations(db: AsyncSession):
+    """A reader sees names, not ids; a source that is gone, or that is not this
+    organization's or this person's, keeps its id and gains no name."""
+    from app.db.models.knowledge_base import KnowledgeBase
+    from app.db.models.skill import Skill
+
+    ctx, trigger, spec, _ = await world(db)
+    skill = Skill(
+        organization_id=ctx.organization_id,
+        name="deck-review",
+        description="Review a deck",
+        content="# deck-review",
+        visibility="org",
+    )
+
+    def collection(name: str, **owner: object) -> KnowledgeBase:
+        return KnowledgeBase(
+            name=name,
+            scope="personal",
+            collection_name=f"{name}-{uuid4()}",
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            embedding_provider="openrouter",
+            **owner,
+        )
+
+    mine = collection("Notes", owner_user_id=ctx.user_id)
+    foreign = collection("Someone else's")
+    db.add_all([skill, mine, foreign])
+    await db.flush()
+    gone, table = uuid4(), uuid4()
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    version.spec = AgentSpec.model_validate(
+        {
+            **spec.model_dump(mode="json"),
+            "skill_ids": [str(skill.id), str(gone)],
+            "collection_ids": [str(mine.id), str(foreign.id)],
+            "capabilities": [{"id": "thinking"}],
+            "table_bindings": [{"table_id": str(table), "operations": ["read", "create"]}],
+        }
+    ).model_dump(mode="json")
+    await db.flush()
+
+    review = await RoutineSourceService(db).options(ctx, trigger)
+    named = {(item.kind, item.id): (item.name, item.detail) for item in review.items}
+    assert named[("skill", str(skill.id))] == ("deck-review", None)
+    assert named[("skill", str(gone))] == (None, None)
+    assert named[("knowledge", str(mine.id))] == ("Notes", None)
+    assert named[("knowledge", str(foreign.id))] == (None, None)
+    assert named[("capability", "thinking")] == ("Thinking", None)
+    assert named[("table", str(table))] == (None, "read/create")
+    # Grouped by kind, each kind's sources by name.
+    assert [item.kind for item in review.items] == sorted(item.kind for item in review.items)
+    # Naming is presentation: the token a person consents to is unchanged by it.
+    skill.name = "deck-check"
+    await db.flush()
+    assert (
+        await RoutineSourceService(db).options(ctx, trigger)
+    ).review_token == review.review_token

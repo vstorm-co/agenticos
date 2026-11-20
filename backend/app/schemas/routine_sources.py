@@ -1,6 +1,6 @@
 """Explicit source ceilings for recurring work, independent of write exceptions."""
 
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, model_validator
@@ -50,6 +50,40 @@ class RoutineSourcePolicy(BaseModel):
         return self
 
 
+type RoutineSourceKind = Literal[
+    "capability",
+    "skill",
+    "context",
+    "knowledge",
+    "table",
+    "delegate",
+    "remote_agent",
+    "platform",
+    "mcp_account",
+    "chat_connection",
+    "phone",
+    "terminal_account",
+    "terminal_credential",
+    "event_source",
+]
+
+
+class RoutineSourceItem(BaseModel):
+    """One reviewed source, named as the console names it."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: RoutineSourceKind
+    id: str | None = Field(default=None, description="Its identifier, where it has one")
+    name: str | None = Field(
+        default=None,
+        description="Its name, or null when it no longer exists or is not visible here",
+    )
+    detail: str | None = Field(
+        default=None, description="What it is granted, such as a table's operations"
+    )
+
+
 class RoutineSourceReview(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -59,6 +93,10 @@ class RoutineSourceReview(BaseModel):
     resources: list[str]
     accounts: list[str]
     unavailable_sources: list[str]
+    items: list[RoutineSourceItem] = Field(
+        default_factory=list,
+        description="`resources` and `accounts` as named items, which the review shows grouped",
+    )
 
 
 class RoutineSourceConsent(BaseModel):

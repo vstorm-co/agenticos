@@ -175,6 +175,12 @@ loses that tool rather than the agent losing the server. Null on either side
 means no narrowing from there, so a binding that names nothing gets whatever the
 connection allows, which is what every binding did before this existed.
 
+So a binding's null also takes every tool the server gains later. In the
+Builder, **Add tools the server gains later** says which a binding is: on, it is
+null; off, it lists today's tools and a tool added later stays out. Ticking every
+tool back after narrowing gives today's list, never null, and the switch turns on
+only with every tool ticked - a binding cannot say "these, and whatever comes".
+
 The Builder lists a server's tools from its **last successful probe**, recorded
 on the connection. Probing dials out to a third party and is gated on
 `connections:manage`; an agent author holds `agents:edit` and needs the list to
@@ -218,7 +224,8 @@ server enforce at least `writes`, including when configured as `none`, because
 tools act with the caller's permissions. Read-only tools, including `get_project`
 and `read_conversation`, run automatically under `writes`. Creating, updating,
 deleting and other state-changing operations require approval. Use `all` to
-require approval for reads as well.
+require approval for reads as well. The floor is the binding's default only: one
+named tool can still be set to run freely, as on any other server.
 
 In the Builder, a server's settings say this
 per group: its **Reads** and the tools that **Change things** each run freely
@@ -1317,8 +1324,21 @@ named after this deployment; switching it on binds it as
   but do not replace confirmation of a persistent automation call.
   `set_my_profile` also waits because its content reaches future agent runs.
 
-- **The tools can be narrowed** in the card's settings, which list every tool and
-  mark the ones that change something.
+- **The tools can be narrowed** in the card's settings, which group them by what
+  they work on - tables, tasks, workflows, agents, knowledge bases, skills,
+  projects, automations, apps, runs, connections and the account - and mark each
+  tool that changes something with an icon that says so on hover.
+- **Each tool runs freely or asks first.** A group's control sets all of its
+  tools, and the shield beside a tool sets that one. The spec keeps a tool's own
+  setting in the binding's `tool_approval`, keyed by the tool's name; publishing
+  refuses a name the platform does not offer. Letting a change run freely is a
+  decision about that tool alone: the binding's default stays at `writes`, or
+  `all` once every read asks, so a read the platform adds later asks too.
+- **Some tools always ask.** `invite_member` and `update_proactivity_settings`
+  change who has authority in the organization, and they run with the authority
+  of the person the agent runs for, not of its author - so an agent a Builder
+  publishes cannot invite an Admin through an Owner's run unasked. Their shield
+  cannot be switched off, and publishing refuses `never` on either.
 
 The **AgenticOS** template binds it this way, and so does every agent created from
 scratch, so an agent can look the platform up - and set up a routine, or switch the
@@ -1423,3 +1443,83 @@ Its message indexes refer to that filtered transcript. It returns bounded text w
 Named-agent Improve lookup checks every agent page before selecting a match or reporting ambiguity, rather than assuming the first 100 agents are the complete catalog.
 
 `read_conversation` uses the same bounded message and tool-metadata windows as run inspection, with 10 messages by default. `read_conversation_tool_call` reads a selected recorded payload, including older messages without run IDs, through the unchanged owner-scoped conversation API. Existing MCP consumers must follow the window continuations instead of expecting full tool results inline.
+
+## AI client plugin and lifecycle tools
+
+Use the [AI client guide](https://vstorm-co.github.io/agenticos/howto/operate-with-ai/) to install the plugin, configure
+dependencies, release agents through evals and environments, or install reviewed
+solution bundles. Contract-1 discovery distinguishes server features from granted
+scopes. Vault reference discovery returns IDs and metadata, never values or hints;
+credential entry stays in the console. New assistant-only operations require OAuth.
+
+## Bounded results and personal preferences
+
+MCP contract 2 keeps discovery small: search first, use pages of 10 by default,
+and follow `next_skip`. Listings return metadata; named detail tools read a single
+case, Context body, skill file, model/provider, environment, workflow node or
+execution step. `get_authoring_schema` exposes large input contracts on demand;
+the API still validates complete inputs. A metadata summary is not an editable
+workflow graph: read the complete graph and retain bindings before replacement.
+
+Successful results are bounded to 16 KiB. Large reads issue a five-minute,
+credential-bound `continuation` for `read_platform_details`. It can repeat only
+the already authorized read with its original arguments, and rechecks API access.
+Inspect pointers, request content windows, follow continuation offsets and pin
+`expected_hash` to `value_hash`. Assemble JSON fragments before parsing them.
+A changed result or expired handle requires a new authorized read. Large writes
+return identity/status receipts; read the saved resource with its own permission
+instead of repeating the write. A receipt does not prove a background job finished.
+
+For large bundles, `prepare_solution` reserves a principal-scoped review for 24
+hours; `install_solution` accepts its `plan_id`, installation key and reviewed
+manifest hash. Installation receipts remain durable after the review expires.
+
+`get_my_preferences` reads the caller's theme, style and language.
+`set_my_preferences` changes only supplied choices: theme `light`, `dark` or
+`system`; style `standard`, `glass`, `graphite`, `midnight` or `paper`; language
+from the tool's supported enum. In-chat results apply immediately; other open
+consoles synchronize preferences within about ten seconds while visible. Settings
+writes the same account choices. Existing accounts retain device defaults until
+a choice is saved; migration `0344_user_appearance.py` adds nullable columns.
+
+A deliberate choice is saved even when the screen already uses that value; select it again to retry a failed save.
+
+Large run receipts preserve `parked`, including pending approval IDs. If pending
+calls do not fit, the response keeps up to ten approval identities, `parked_total`
+and an `approval_review_url` for the console. `approval_details_omitted` means the
+arguments are incomplete: inspect the full calls there before deciding; never
+approve from the abbreviated response.
+
+## Administration through MCP
+
+Search `list_administration_actions` by task or field, then use
+`get_administration_schema` for the selected action's path and body. The catalog
+covers installation settings, updates, diagnostics and push readiness, plus
+organization settings, retention, AI Architect, system agents, members, groups
+and invitations. Pages contain metadata; `read_administration` retrieves selected
+configuration with the same bounded detail windows as other MCP reads.
+
+Organization actions require the existing organization permissions and stay bound
+to the connected organization. `change_organization` cannot promote an organization
+administrator to installation administrator. Reading AI Architect or system-agent
+configuration creates no resources. Installing or refreshing shipped assistants is
+an explicit write; it may publish ready defaults.
+
+Installation actions require both the user's live application-admin flag and an
+explicit OAuth grant of `deployment:admin`. The consent screen offers a separate,
+initially unchecked checkbox only to application administrators. Reauthorize an
+existing connection to add this scope. It is outside organization permissions and
+presets. Internal agents, routines and ordinary API keys never inherit it;
+`change_deployment` is excluded from internal agent toolsets.
+
+Use `change_deployment` for installation writes and read back the selected action.
+Update preparation, application and cancellation are separate actions: acceptance
+does not mean an update finished. MCP authentication remains available during
+maintenance so an authorized client can reopen the installation; ordinary API
+operations remain blocked. Losing the application-admin flag blocks the next
+installation request, even if the token still lists the originally granted scope.
+
+APNs private-key entry and binary logo/favicon uploads return secure console
+handoffs. Secret values and image bytes stay out of model context. Environment-owned
+settings remain read-only. Console branding fetched through the frontend cache
+can take up to five minutes to reflect a direct MCP change.

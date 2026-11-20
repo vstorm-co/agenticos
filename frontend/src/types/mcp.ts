@@ -97,15 +97,35 @@ export type McpConnectionState =
 /** Whether any accessible account has been saved for a server. */
 export type McpServerStateFilter = "all" | "connected" | "not-connected";
 
+/** What a platform tool works on - `PlatformToolGroup` in `backend/app/schemas/agent.py`. */
+export type PlatformToolGroup =
+  | "tables"
+  | "tasks"
+  | "workflows"
+  | "agents"
+  | "knowledge"
+  | "skills"
+  | "projects"
+  | "automations"
+  | "apps"
+  | "runs"
+  | "connections"
+  | "account"
+  | "administration";
+
 /** One tool of this deployment's own MCP server, as a binding chooses from (#2190). */
 export interface PlatformMcpTool {
   name: string;
   /** The first line of what the model reads. */
   description: string;
+  /** What it works on, which is how the Builder groups the tools. */
+  group: PlatformToolGroup;
   /** Whether it changes something - held for approval under `approval: writes`. */
   writes: boolean;
   /** Runs without approval under every policy: it changes only the caller's own preference. */
   ungated?: boolean;
+  /** Asks under every binding, its own `never` included: it widens who has authority. */
+  always_asks?: boolean;
   /** A read held for approval all the same: it releases a whole past conversation. */
   held?: boolean;
 }

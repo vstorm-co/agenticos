@@ -147,7 +147,7 @@ async def list_review_queue(
     "",
     response_model=DatasetRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require(Perm.DATASETS_EDIT))],
+    dependencies=[ASSISTANT, Depends(require(Perm.DATASETS_EDIT))],
 )
 async def create_dataset(data: DatasetCreate, service: DatasetSvc, ctx: Auth) -> Any:
     """An empty dataset, visible to the organization unless it asks to start private.
@@ -157,7 +157,7 @@ async def create_dataset(data: DatasetCreate, service: DatasetSvc, ctx: Auth) ->
     return await service.create(ctx, data)
 
 
-@router.get("/{dataset_id}", response_model=DatasetRead)
+@router.get("/{dataset_id}", dependencies=[ASSISTANT], response_model=DatasetRead)
 async def get_dataset(dataset_id: UUID, service: DatasetSvc, ctx: Auth) -> Any:
     return await service.read(ctx, dataset_id)
 
@@ -187,7 +187,7 @@ async def list_dataset_versions(
     return await service.list_versions(ctx, dataset_id, skip=skip, limit=limit)
 
 
-@router.get("/{dataset_id}/cases", response_model=DatasetCaseList)
+@router.get("/{dataset_id}/cases", dependencies=[ASSISTANT], response_model=DatasetCaseList)
 async def list_dataset_cases(
     dataset_id: UUID,
     service: DatasetSvc,
@@ -217,7 +217,10 @@ async def find_dataset_case_twins(
 
 
 @router.post(
-    "/{dataset_id}/cases", response_model=DatasetCaseRead, status_code=status.HTTP_201_CREATED
+    "/{dataset_id}/cases",
+    dependencies=[ASSISTANT],
+    response_model=DatasetCaseRead,
+    status_code=status.HTTP_201_CREATED,
 )
 async def add_dataset_case(
     dataset_id: UUID, data: DatasetCaseCreate, service: DatasetSvc, ctx: Auth
@@ -242,7 +245,9 @@ async def add_dataset_case_from_message(
     return await service.add_from_message(ctx, dataset_id, data)
 
 
-@router.get("/{dataset_id}/cases/{case_id}", response_model=DatasetCaseRead)
+@router.get(
+    "/{dataset_id}/cases/{case_id}", dependencies=[ASSISTANT], response_model=DatasetCaseRead
+)
 async def get_dataset_case(
     dataset_id: UUID,
     case_id: UUID,

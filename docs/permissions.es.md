@@ -1,5 +1,5 @@
 ---
-source_sha: "0ec0a9a4159f"
+source_sha: "758431de6963"
 ---
 
 # Permisos { #permissions }
@@ -695,3 +695,5 @@ que ignore estas APIs no gana nada.
 ::: app.core.permissions.Scope
 
 ::: app.core.permissions.AuthContext
+
+La administración de la instalación mediante MCP requiere el indicador vigente de administrador de aplicación y el alcance OAuth `deployment:admin` aprobado por separado. No es un `Perm`, permiso de rol ni configuración predefinida. Administrar una organización no permite concederlo. Solo lo recibe un cliente externo autorizado explícitamente; los agentes internos, rutinas y claves API ordinarias nunca lo heredan. Las conexiones existentes requieren nueva autorización. Consulta [administración mediante MCP](mcp.es.md#administration-through-mcp).
