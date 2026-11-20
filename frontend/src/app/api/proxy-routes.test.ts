@@ -13,6 +13,7 @@ import * as adminRatingsSummary from "./admin/ratings/summary/route";
 import * as adminSettings from "./admin/settings/[[...path]]/route";
 import * as adminStats from "./admin/stats/route";
 import * as adminSystem from "./admin/system/route";
+import * as adminUserPasswordReset from "./admin/users/[userId]/password-reset/route";
 import * as adminUserDetail from "./admin/users/[userId]/detail/route";
 import * as adminUser from "./admin/users/[userId]/route";
 import * as adminUsers from "./admin/users/route";
@@ -227,6 +228,14 @@ const MOUNTED: [string, Record<string, unknown>][] = [
 const VERBS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 describe("the proxied route mounts", () => {
+  it("requires a session before issuing an administrator recovery link", async () => {
+    const { NextRequest } = await import("next/server");
+    expect(Object.keys(adminUserPasswordReset)).toEqual(["POST"]);
+    const response = await adminUserPasswordReset.POST(
+      new NextRequest("http://localhost/api/admin/users/user-1/password-reset", { method: "POST" }),
+    );
+    expect(response.status).toBe(401);
+  });
   it("limits received invitations to session-authenticated reads and acceptance", async () => {
     const { NextRequest } = await import("next/server");
     expect(Object.keys(receivedInvitations)).toEqual(["GET"]);

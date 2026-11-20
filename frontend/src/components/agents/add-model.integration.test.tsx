@@ -1807,6 +1807,12 @@ describe("native decision model setup", () => {
       }),
       capabilities("openrouter", "OpenRouter"),
     ];
+    state.catalog = [
+      capabilities("openai", "OpenAI", {
+        ...OPENAI_CAPABILITIES,
+        apis: ["responses", "chat", "decisions"],
+      }),
+    ];
     state.models = [{ id: "gpt-6-luna", name: "GPT-6 Luna" }];
     state.createProfile.mutateAsync.mockResolvedValue({
       id: "decision-1",
@@ -1845,4 +1851,19 @@ describe("native decision model setup", () => {
     expect(screen.getByRole("option", { name: /OpenAI/ })).toBeVisible();
     expect(screen.queryByRole("option", { name: /OpenRouter/ })).not.toBeInTheDocument();
   });
+});
+
+it("does not offer the native decision API for a chat profile", async () => {
+  state.catalog = [
+    capabilities("openai", "OpenAI", {
+      ...OPENAI_CAPABILITIES,
+      apis: ["responses", "chat", "decisions"],
+    }),
+  ];
+  mount({ purpose: "chat" });
+  await pickProvider("OpenAI");
+  await userEvent.click(screen.getByLabelText("API"));
+  expect(screen.getByRole("option", { name: "Responses" })).toBeVisible();
+  expect(screen.getByRole("option", { name: "Chat Completions" })).toBeVisible();
+  expect(screen.queryByRole("option", { name: "Decisions" })).toBeNull();
 });

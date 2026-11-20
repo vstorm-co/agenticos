@@ -211,6 +211,7 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   for (const name of ["Asked by", "Model", "Tokens"]) {
     await page.getByRole("button", { name: "Columns", exact: true }).click();
     await page.getByRole("menuitemcheckbox", { name, exact: true }).check();
+    await page.keyboard.press("Escape");
   }
   const delegateRuns = page.getByRole("row").filter({ hasText: modelLabel });
   await expect(
