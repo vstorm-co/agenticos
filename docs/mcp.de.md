@@ -1,5 +1,5 @@
 ---
-source_sha: "1e5dec50f597"
+source_sha: "fee3ce48942b"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1602,5 +1602,5 @@ geprüften Manifest-Hash. Dauerhafte Installationsquittungen bleiben danach erha
 Stil `standard`, `glass`, `graphite`, `midnight`, `paper`; Sprache aus dem Tool-Enum.
 Im Chat gilt die Änderung sofort, andere sichtbare Konsolen synchronisieren die
 Einstellungen ungefähr alle zehn Sekunden. Einstellungen schreiben dieselben Kontowerte.
-Migration `0343_user_appearance.py` ergänzt nullable Spalten; bestehende Konten
+Migration `0344_user_appearance.py` ergänzt nullable Spalten; bestehende Konten
 behalten die Gerätevorgaben, bis eine Auswahl gespeichert wird.

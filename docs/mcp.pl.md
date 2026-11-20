@@ -1,5 +1,5 @@
 ---
-source_sha: "1e5dec50f597"
+source_sha: "fee3ce48942b"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1536,5 +1536,5 @@ sprawdzony hash manifestu. Trwałe potwierdzenia instalacji przeżywają ten prz
 styl `standard`, `glass`, `graphite`, `midnight`, `paper`; język z enumu narzędzia.
 W czacie zmiana działa od razu; inne otwarte konsole synchronizują preferencje mniej
 więcej co dziesięć sekund, gdy są widoczne. Ustawienia zapisują te same wybory na
-koncie. Migracja `0343_user_appearance.py` dodaje opcjonalne kolumny; dotychczasowe
+koncie. Migracja `0344_user_appearance.py` dodaje opcjonalne kolumny; dotychczasowe
 konta zachowują domyślny wygląd urządzenia, dopóki nie zapiszą wyboru.

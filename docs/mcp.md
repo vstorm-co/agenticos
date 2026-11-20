@@ -1480,4 +1480,4 @@ manifest hash. Installation receipts remain durable after the review expires.
 from the tool's supported enum. In-chat results apply immediately; other open
 consoles synchronize preferences within about ten seconds while visible. Settings
 writes the same account choices. Existing accounts retain device defaults until
-a choice is saved; migration `0343_user_appearance.py` adds nullable columns.
+a choice is saved; migration `0344_user_appearance.py` adds nullable columns.

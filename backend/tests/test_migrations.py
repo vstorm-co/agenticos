@@ -2688,7 +2688,7 @@ def test_organization_speech_defaults_preserve_old_agents_and_run_destinations()
 def test_account_appearance_migration_preserves_existing_users_and_defaults() -> None:
     result = _alembic("upgrade", "head")
     assert result.returncode == 0, result.stderr
-    result = _alembic("downgrade", "0342_solution_installations")
+    result = _alembic("downgrade", "0343_solution_installations")
     assert result.returncode == 0, result.stderr
     engine = create_engine(_url(MIGRATION_DATABASE))
     user_id = uuid4()
@@ -2711,7 +2711,7 @@ def test_account_appearance_migration_preserves_existing_users_and_defaults() ->
             )
         result = _alembic("check")
         assert result.returncode == 0, result.stderr + result.stdout
-        result = _alembic("downgrade", "0342_solution_installations")
+        result = _alembic("downgrade", "0343_solution_installations")
         assert result.returncode == 0, result.stderr
         with engine.connect() as connection:
             assert (

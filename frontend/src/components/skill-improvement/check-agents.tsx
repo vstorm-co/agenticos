@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronDown, Eye } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { CriteriaTable } from "@/components/improvement/criteria";
 import { useReadOnly } from "@/components/improvement/read-only";
 import { StateBadge, type Tone } from "@/components/improvement/widgets";
 import { Checkbox, Input, Label } from "@/components/ui";
@@ -20,7 +21,9 @@ const TONE: Record<ReturnType<typeof shownState>, Tone> = {
   queued: "neutral",
   running: "neutral",
   better: "good",
+  criteria_better: "good",
   no_change: "neutral",
+  criteria_worse: "bad",
   worse: "bad",
   unknown: "warn",
 };
@@ -322,6 +325,7 @@ function AgentDetails({ row, measured }: { row: SkillCheckAgent; measured: boole
       {row.unknown_reason !== null && (
         <p className="text-muted-foreground text-sm">{t(`unknown.${reasonOf(row)}`)}</p>
       )}
+      <CriteriaTable criteria={row.criteria ?? []} />
       {row.sample === "skill_set_only" && (
         <p className="text-muted-foreground text-xs">{t("skillSetOnly")}</p>
       )}

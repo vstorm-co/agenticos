@@ -318,6 +318,25 @@ async def test_disallowed_standing_consent_can_still_be_revoked(
     assert world.trigger.action_consents == []
 
 
+@pytest.mark.parametrize(
+    ("restriction", "reason"),
+    [(None, None), ("policy", "organization"), ("permission", "permission")],
+)
+async def test_options_say_why_standing_consent_cannot_be_given(
+    db: AsyncSession, world: World, restriction: str | None, reason: str | None
+) -> None:
+    """A refusal the console cannot explain reads as a broken checkbox."""
+    ctx = world.ctx
+    if restriction == "policy":
+        world.org.chat_may_waive_approvals = False
+        await db.flush()
+    elif restriction == "permission":
+        ctx = replace(ctx, role=OrgRoleName.MEMBER)
+    options = await RoutineActionService(db).options(ctx, world.trigger)
+    assert options.can_waive is (reason is None)
+    assert options.waive_blocked_reason == reason
+
+
 async def test_consent_uses_the_pinned_version_and_ignores_disabled_bindings(
     db: AsyncSession, world: World
 ) -> None:

@@ -166,6 +166,17 @@ class TestRedisClient:
         assert script[1:] == (1, "lease", "me")
 
     @pytest.mark.anyio
+    async def test_a_lease_renewal_compares_its_token_atomically(self, redis_client, mock_aioredis):
+        redis_client.client = mock_aioredis
+        mock_aioredis.eval = AsyncMock(side_effect=[1, 0])
+        assert await redis_client.expire_if_equals("lease", "mine", 120)
+        assert not await redis_client.expire_if_equals("lease", "other", 120)
+        assert mock_aioredis.eval.await_args.args[1:] == (1, "lease", "other", 120)
+        redis_client.client = None
+        with pytest.raises(RuntimeError, match="not connected"):
+            await redis_client.expire_if_equals("lease", "mine", 120)
+
+    @pytest.mark.anyio
     async def test_a_lease_cannot_be_touched_while_not_connected(self, redis_client: RedisClient):
         redis_client.client = None
 

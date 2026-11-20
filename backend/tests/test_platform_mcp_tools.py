@@ -1513,6 +1513,9 @@ class TestTheInProcessCall:
         assert answer is None
 
     async def test_an_unauthenticated_call_never_reaches_the_api(self) -> None:
+        assert (
+            _api(lambda request: httpx.Response(200, json={}), token=None).credential_id() is None
+        )
         with pytest.raises(ToolError, match="authenticated"):
             await _api(lambda request: httpx.Response(200, json={}), token=None).request(
                 "GET", "/agents"

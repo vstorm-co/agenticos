@@ -11,8 +11,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0342_solution_installations"
-down_revision: str = "0341_workflow_run_tested_step"
+revision: str = "0343_solution_installations"
+down_revision: str = "0342_criterion_verdicts"
 branch_labels: None = None
 depends_on: None = None
 

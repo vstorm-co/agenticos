@@ -68,6 +68,7 @@ from app.db.models.case_generation import CaseGeneration, GenerationStatus
 from app.db.models.context import ContextFile
 from app.db.models.eval_run import EvalRun, EvalRunPurpose, EvalRunStatus
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult, EvalSuiteResultStatus
+from app.db.models.improvement import CriterionDetail
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.notification import NotificationChannel, NotificationEventType
 from app.db.models.promotion_gate import PromotionOverride
@@ -92,6 +93,7 @@ from app.repositories import watch as watch_repo
 from app.schemas.change_event import ChangeEvent
 from app.schemas.eval_suite import EvalSuiteSummary, ThresholdReason
 from app.schemas.improvement import NextStepBlocked
+from app.schemas.notification import CriterionSources, MovedCriterion
 from app.services.notification_center import NotificationCenterService, absolute_context_url
 from app.services.outcome import OutcomeService, routine_failure_cause
 from app.services.spend import month_start, organization_spend_since
@@ -1682,16 +1684,26 @@ class NotificationService:
         reason: str | None,
         end: str,
         next_step_blocked: NextStepBlocked | None = None,
+        verdict: str | None = None,
+        criteria: Sequence[CriterionDetail] = (),
+        criterion_sources: CriterionSources | None = None,
     ) -> None:
         """One end of a session - each end once, however often it is reported.
 
         A session ends more than once: stopped on its budget, continued, then
         ready. `end` names which end this is, so the next one is not taken for a
-        repeat of the last. No evidence text is put in the notification.
+        repeat of the last. No question or answer text is put in the notification.
+        `criteria` must be filtered for the recipient's current access by the caller.
         `next_step_blocked` says why a stop's next step cannot be taken.
+        `verdict` and `criteria` are the kept attempt's once one is offered or
+        decided, the latest attempt's before: the criteria it moved are named
+        when no whole question decided it.
         """
         if user_id is None:
             return
+        moved = moved_criteria(verdict, criteria)
+        if moved and criterion_sources is None:
+            raise ValueError("Criterion notification evidence requires its source provenance")
         recipients = await member_repo.list_member_ids_for(
             self.db, organization_id=agent.organization_id, user_ids=[user_id]
         )
@@ -1700,13 +1712,21 @@ class NotificationService:
             recipients=list(recipients),
             event_type=NotificationEventType.IMPROVEMENT_FINISHED,
             occurrence_id=f"{run_id}:{end}",
-            summary=_improvement_summary(agent.name, status, reason, blocked=next_step_blocked),
+            summary=_improvement_summary(
+                agent.name, status, reason, blocked=next_step_blocked, criteria=moved
+            ),
             context_url=path,
             render_context={
                 "agent_name": agent.name,
                 **agent_face(agent),
                 "status": status,
                 "reason": reason,
+                "criteria": moved,
+                **(
+                    {"criterion_sources": criterion_sources.model_dump(mode="json")}
+                    if moved and criterion_sources is not None
+                    else {}
+                ),
                 "next_step_blocked": None
                 if next_step_blocked is None
                 else next_step_blocked.model_dump(),
@@ -2701,9 +2721,66 @@ _STOP_SENTENCE = {
     "knowledge_only": "topics are missing from the knowledge base - draft the ones you want.",
     "draft": "drafting the knowledge documents failed.",
     "expired": "nobody took the next step for seven days.",
+    "criteria_worse": "a criterion the answers are graded on got worse, though no question broke.",
 }
 # An attempt that did not do better ends where a person decides whether to try again.
-_RESULT_REASONS = frozenset({"no_change", "regression", "inconclusive"})
+_RESULT_REASONS = frozenset({"no_change", "regression", "inconclusive", "criteria_worse"})
+_CRITERIA_VERDICTS = frozenset({"criteria_better", "criteria_worse"})
+NOTIFIED_CRITERIA = 3
+"""Criteria a notification names; the result page shows every one."""
+
+
+def moved_criteria(
+    verdict: str | None, criteria: Sequence[CriterionDetail]
+) -> list[MovedCriterion]:
+    """The criteria an attempt judged on criteria moved, worse first, with their counts.
+
+    Empty for any other verdict: a question that flipped says more than a criterion.
+    """
+    if verdict not in _CRITERIA_VERDICTS:
+        return []
+    moved: list[MovedCriterion] = [
+        {
+            "scorer": item["scorer"],
+            "name": item["name"],
+            "graded": item["graded"],
+            "before": item["before"],
+            "after": item["after"],
+            "direction": "worse" if item["broken"] else "better",
+        }
+        for item in criteria
+        if item["broken"] or (item["fixed"] and item["after"] >= item["before"])
+    ]
+    moved.sort(key=lambda item: item["direction"] != "worse")
+    for item in moved:
+        if sum(other["name"] == item["name"] for other in criteria) > 1:
+            item["display_name"] = f"{item['name']} [{item['scorer']}]"
+    return moved[:NOTIFIED_CRITERIA]
+
+
+def _criteria_sentence(criteria: Sequence[MovedCriterion]) -> str:
+    better = [item for item in criteria if item["direction"] == "better"]
+    worse = [item for item in criteria if item["direction"] == "worse"]
+
+    def label(item: MovedCriterion) -> str:
+        if (display_name := item.get("display_name")) is not None:
+            return display_name
+        scorer = item.get("scorer")
+        duplicate = sum(other["name"] == item["name"] for other in criteria) > 1
+        return f"{item['name']} [{scorer}]" if scorer and duplicate else item["name"]
+
+    def listed(items: Sequence[MovedCriterion]) -> str:
+        return ", ".join(
+            f"{label(item)} {item['before']}/{item['graded']} → {item['after']}/{item['graded']}"
+            for item in items
+        )
+
+    parts = []
+    if better:
+        parts.append(f"better on {listed(better)}")
+    if worse:
+        parts.append(f"worse on {listed(worse)}")
+    return f" The selected attempt is {' and '.join(parts)}; no whole question flipped."
 
 
 _CHECK_SUMMARY = {
@@ -2728,9 +2805,21 @@ _WAITING_SUMMARY = {
 
 
 def _improvement_summary(
-    agent_name: str, status: str, reason: str | None, *, blocked: NextStepBlocked | None = None
+    agent_name: str,
+    status: str,
+    reason: str | None,
+    *,
+    blocked: NextStepBlocked | None = None,
+    criteria: Sequence[MovedCriterion] = (),
 ) -> str:
     """The bell's English line for a finished session; it names no internal status."""
+    line = _improvement_line(agent_name, status, reason, blocked=blocked)
+    return line + _criteria_sentence(criteria) if criteria else line
+
+
+def _improvement_line(
+    agent_name: str, status: str, reason: str | None, *, blocked: NextStepBlocked | None
+) -> str:
     if blocked is not None:
         return (
             f"Your improvement of {agent_name} has changes, but too few test questions are "

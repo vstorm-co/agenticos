@@ -1,5 +1,5 @@
 ---
-source_sha: "9bc0bd6a3c5a"
+source_sha: "54b551bbe389"
 ---
 
 # Skille { #skills }
@@ -323,6 +323,12 @@ startem, ze wskazaniem datasetu, do którego trzeba dodać inne pytania.
 - Co najmniej jeden agent musi być **lepszy**.
 - Różnica, której sprawdzenie nie potwierdziło, jest **w granicach szumu**: to
   ostrzeżenie, nie blokada.
+- Agent, dla którego nie zmieniło się żadne całe pytanie, ale ponowne pytania
+  potwierdziły poprawę kryterium i żadnego pogorszenia, jest **lepiej w
+  kryteriach**; agent z kryterium potwierdzonym jako gorsze jest **gorzej w
+  kryteriach**. Żaden z nich nie zmienia powyższej reguły, która dotyczy całych
+  pytań: na pasku liczą się z agentami lepszymi i gorszymi, a szczegóły agenta
+  wymieniają każde kryterium ze spełnieniami przed i po.
 - Agent, którego nie dało się sprawdzić - brak pytań, pytania, których nic nie
   ocenia albo wzięte w całości z rozmów samej zmiany, brak dostępu, brak
   budżetu, brak opublikowanej wersji, nieudany run, zatrzymane sprawdzenie - jest
@@ -852,8 +858,8 @@ albo run, który nie ocenił wszystkich odpowiedzi. Agentów, których nie widzi
 liczy.
 
 Wynik zaczyna się od paska, który liczy agentów lepszych, bez zmian, gorszych i
-tych, o których nie wiadomo. Pod nim jest wiersz dla każdego agenta: lepiej, bez
-zmian, w granicach szumu, gorzej albo nie wiadomo, z agentami do obejrzenia na
+tych, o których nie wiadomo. Pod nim jest wiersz dla każdego agenta: lepiej, lepiej w
+kryteriach, bez zmian, w granicach szumu, gorzej w kryteriach, gorzej albo nie wiadomo, z agentami do obejrzenia na
 górze. Każdy wiersz ma mały pasek pytań naprawionych wobec zepsutych.
 
 Cały wiersz rozwija się do szczegółów kliknięciem w dowolnym miejscu albo

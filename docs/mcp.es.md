@@ -1,5 +1,5 @@
 ---
-source_sha: "1e5dec50f597"
+source_sha: "fee3ce48942b"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1584,6 +1584,6 @@ revisado. Los recibos permanentes sobreviven a la caducidad de la revisión.
 `system`; estilo `standard`, `glass`, `graphite`, `midnight`, `paper`; idioma del
 enum de la herramienta. En el chat se aplica de inmediato; otras consolas visibles
 sincronizan las preferencias aproximadamente cada diez segundos. Ajustes escribe las
-mismas preferencias de cuenta. La migración `0343_user_appearance.py` añade columnas
+mismas preferencias de cuenta. La migración `0344_user_appearance.py` añade columnas
 opcionales; las cuentas existentes conservan los valores del dispositivo hasta
 guardar una elección.

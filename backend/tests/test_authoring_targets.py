@@ -50,7 +50,7 @@ ANSWERS = {
         "new_skills",
         "skill_problems",
     },
-    SkillProblem: {"skill", "problem", "evidence"},
+    SkillProblem: {"skill", "problem", "evidence", "criteria"},
     NewSkillChange: {"name", "description", "content", "rationale", "evidence"},
     VerifyReport: {"findings", "instructions", "tools", "fields"},
     FieldChange: {"path", "op", "value", "rationale", "expected_effect", "evidence"},
