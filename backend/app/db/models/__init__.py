@@ -75,10 +75,13 @@ from app.db.models.authoring import (
 )
 from app.db.models.improvement import (
     ImprovementIteration,
+    ImprovementMode,
     ImprovementRun,
+    ImprovementSearchVariant,
     ImprovementStage,
     ImprovementStatus,
     ImprovementVerdict,
+    SearchVariantStatus,
     StopReason,
 )
 from app.db.models.eval_run import (
@@ -331,10 +334,13 @@ __all__ = [
     "SpecProposalBatch",
     "SpecProposalHunk",
     "ImprovementIteration",
+    "ImprovementMode",
     "ImprovementRun",
+    "ImprovementSearchVariant",
     "ImprovementStage",
     "ImprovementStatus",
     "ImprovementVerdict",
+    "SearchVariantStatus",
     "StopReason",
     "EvalRun",
     "EvalRunArm",
