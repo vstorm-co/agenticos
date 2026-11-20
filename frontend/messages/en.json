@@ -17900,6 +17900,7 @@
       },
       "fixedBroken": "{fixed, plural, =1 {Fixes 1 question} other {Fixes # questions}}, {broken, plural, =1 {breaks 1} other {breaks #}}.",
       "fixedBrokenUnconfirmed": "{fixed, plural, =1 {1 question looked fixed} other {# questions looked fixed}} and {broken, plural, =1 {1 looked broken} other {# looked broken}} at first, but asking them again did not confirm it, so the agent counts as no change.",
+      "tooFewGroup": "Too few questions to be sure: each agent below was asked fewer held-out questions than a result needs.",
       "unknown": {
         "no_questions": "Not checked: it has no test questions where it loaded the skill, and the skill has none of its own.",
         "no_access": "Not checked: you may not run this agent.",

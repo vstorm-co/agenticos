@@ -205,7 +205,11 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
                   return (
                     <div key={reason ?? "other"} className="space-y-1.5 pl-5">
                       {reason !== null && (
-                        <p className="text-muted-foreground text-xs">{t(`unknown.${reason}`)}</p>
+                        <p className="text-muted-foreground text-xs">
+                          {reason === "too_few_questions"
+                            ? t("tooFewGroup")
+                            : t(`unknown.${reason}`)}
+                        </p>
                       )}
                       {(reason === "no_questions" || reason === "all_evidence") && !readOnly && (
                         <AddTestQuestions skillId={check.skill_id} />
