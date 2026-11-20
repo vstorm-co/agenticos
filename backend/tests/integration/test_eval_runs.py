@@ -88,6 +88,7 @@ from app.services.improvement_states import judge
 from app.services.model_profile import ModelProfileService
 from app.services.scorers import JUDGE_PROMPT_VERSION
 from app.services.scoring import ScoringService
+from app.services.skill_check import SkillCheckService
 from app.services.transcript import RecordedToolCall
 from tests.integration.test_skill_bindings import _skill as _a_skill
 
@@ -2315,6 +2316,36 @@ async def _checked_run(
     await db.flush()
     await _run_to_end(db, Model(db, breaks="Question 0"), v7.id, ctx)
     return check, dataset, v7
+
+
+async def test_an_agent_an_older_rule_judged_is_judged_again_from_the_runs_it_kept(db) -> None:
+    """A row judged before families were kept, or before `too_few_questions` existed,
+    reads what its runs say once judged again - and a decided check keeps its status."""
+    ctx = await _owner(db)
+    check, _, v7 = await _checked_run(db, ctx)
+    check.status = "applied"
+    row = await db.scalar(select(SkillCheckAgent).where(SkillCheckAgent.check_id == check.id))
+    assert row is not None
+    row.state, row.unknown_reason, row.families = "unknown", "inconclusive", []
+    await db.flush()
+
+    found = await skill_check_repo.judged_before_families(db)
+
+    assert (ctx.organization_id, check.id, [v7.id]) in found
+    # A running check is judged when its runs finish, not by a sweep.
+    check.status = "running"
+    await db.flush()
+    assert await skill_check_repo.judged_before_families(db, check_ids=[check.id]) == []
+    check.status = "applied"
+    await db.flush()
+
+    await SkillCheckService(db).recompute_after_review(ctx.organization_id, [v7.id])
+
+    await db.refresh(row)
+    assert (row.state, row.unknown_reason) == ("worse", None)
+    assert row.families
+    assert check.status == "applied"
+    assert await skill_check_repo.judged_before_families(db, check_ids=[check.id]) == []
 
 
 async def test_a_skill_checks_regression_its_re_asks_confirmed_outlasts_a_verdict_on_one_answer(
