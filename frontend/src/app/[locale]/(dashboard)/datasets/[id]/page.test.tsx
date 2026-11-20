@@ -104,6 +104,9 @@ vi.mock("@/components/datasets/helper-settings", () => ({
   HelperSettings: () => <p>helper settings</p>,
 }));
 vi.mock("@/components/datasets/review-panel", () => ({ ReviewPanel: () => <p>review</p> }));
+vi.mock("@/components/datasets/key-draft-panel", () => ({
+  KeyDraftPanel: ({ caseId }: { caseId: string }) => <p>keys of {caseId}</p>,
+}));
 vi.mock("@/components/datasets/generate-panel", () => ({ GeneratePanel: () => <p>generated</p> }));
 
 const CASE = {
@@ -352,6 +355,7 @@ describe("the dataset page", () => {
     expect(dialog).toHaveTextContent("How long is the return window?");
     await userEvent.click(within(dialog).getByRole("button", { name: "Edit" }));
     expect(screen.getByRole("button", { name: "Save case" })).toBeInTheDocument();
+    expect(screen.getByText("keys of c1")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
