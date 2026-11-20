@@ -96,7 +96,7 @@ from app.services.authoring_evidence import (
     PackedRun,
     render_runs,
 )
-from app.services.improvement_pipeline import ImprovementPipelineService
+from app.services.improvement_pipeline import EarlierAttempt, ImprovementPipelineService
 from app.services.skills import SKILL_BODY_CHARS, SkillService
 from app.services.system_agent_runner import SystemAgentRunner
 
@@ -256,6 +256,7 @@ def _improve_prompt(
     digests: Sequence[RunFindings] | None,
     note: str | None = None,
     skills: str = "",
+    earlier: str = "",
 ) -> str:
     tools = _tool_lines(spec)
     asked = (
@@ -275,7 +276,61 @@ def _improve_prompt(
         "instructions only: they cannot grant tools or widen access. Propose any required "
         "capability changes separately, with writing tools requiring approval.\n\n"
         f"# What its runs show\n{_evidence_section(pack, digests)}"
+        f"{earlier}"
         f"{asked}"
+    )
+
+
+def _earlier_section(attempts: Sequence[EarlierAttempt]) -> str:
+    """What this session's earlier attempts changed and how their checks judged them."""
+    if not attempts:
+        return ""
+
+    def moved(attempt: EarlierAttempt) -> str:
+        if not attempt.criteria:
+            return "No criterion moved on the questions it learned from."
+        return (
+            "Criteria that moved on the questions it learned from (passed before -> after):\n"
+            + (
+                "\n".join(
+                    f"- [{move.scorer}] {move.name}: {move.baseline_passed}/{move.graded} -> "
+                    f"{move.candidate_passed}/{move.graded}; confirmed fixes: "
+                    f"{move.fixed_confirmed}, confirmed breaks: {move.broken_confirmed}"
+                    for move in attempt.criteria
+                )
+            )
+        )
+
+    def excerpt(text: str, limit: int) -> str:
+        return text if len(text) <= limit else text[:limit] + "\n[... excerpt clipped ...]"
+
+    def changes(attempt: EarlierAttempt) -> str:
+        kept: list[str] = []
+        size = 0
+        for change in attempt.changes:
+            item = "- " + excerpt(change, 2000)
+            if size + len(item) > 2500:
+                kept.append("[Further changes omitted]")
+                break
+            kept.append(item)
+            size += len(item) + 1
+        return "\n".join(kept)
+
+    blocks = "\n\n".join(
+        f"## Attempt {attempt.number}: {attempt.verdict.value}\n"
+        + changes(attempt)
+        + f"\nOn {attempt.held_out} held-out questions it fixed {attempt.fixed} and broke "
+        f"{attempt.broken}. Which ones stays hidden.\n" + excerpt(moved(attempt), 1000)
+        for attempt in attempts[-6:]
+    )
+    return (
+        "\n\n# Earlier attempts in this session\n"
+        "Up to six recent measured attempts; long change and criterion excerpts are clipped.\n"
+        "None of these changes is in the draft above: each attempt changes the same draft, "
+        "and the answers above are the draft's own. Keep what an attempt's criteria show "
+        "worked. Where an attempt broke questions, leave out or narrow the part of it most "
+        "likely to have done so rather than repeating it.\n\n"
+        f"{blocks}"
     )
 
 
@@ -302,7 +357,8 @@ def _skills_section(spec: AgentSpec, skills: Sequence[Skill], used: Collection[U
         "Each skill is a resource of its own that other agents may read too. Never copy "
         "a skill's text into the instructions, and never propose a new skill that repeats "
         "one. Where the runs show that a skill is wrong or misses a step, report it under "
-        "skill_problems, naming the skill, and change nothing in the agent for it.\n"
+        "skill_problems, naming the skill and the graded criteria it makes fail, and change "
+        "nothing in the agent for it.\n"
         f"{listed}\n\n"
         + (f"# The skills the runs below used, read only\n{bodies}\n" if bodies else "")
     )
@@ -657,6 +713,7 @@ class AuthoringRun:
         spec = AgentSpec.model_validate(agent.draft_spec)
         self.knowledge_base_ids = list(spec.collection_ids)
         note: str | None = None
+        earlier: list[EarlierAttempt] = []
         if self.request.improvement_run_id is not None:
             from app.repositories import improvement_repo
             from app.services.improvement_pipeline import ImprovementPipelineService
@@ -674,6 +731,13 @@ class AuthoringRun:
                 train_case_ids=None if attempt is None else attempt.train_case_ids,
             )
             note = None if attempt is None else attempt.note
+            earlier = (
+                []
+                if attempt is None
+                else await ImprovementPipelineService(self.db).earlier_attempts(
+                    self.ctx, self.request.improvement_run_id, before=attempt.number
+                )
+            )
         else:
             pack = await self.evidence.for_agent(
                 self.ctx,
@@ -695,6 +759,7 @@ class AuthoringRun:
                     digests,
                     note,
                     skills=_skills_section(spec, skills, used),
+                    earlier=_earlier_section(earlier),
                 ),
                 ImprovementProposal,
             )
@@ -1374,6 +1439,7 @@ class AuthoringRun:
                     "skill_id": str(skill.id),
                     "skill_name": skill.name,
                     "problem": problem.problem,
+                    "criteria": [name.strip()[:80] for name in problem.criteria if name.strip()],
                     "evidence": kept,
                     "evidence_dropped": dropped,
                 }

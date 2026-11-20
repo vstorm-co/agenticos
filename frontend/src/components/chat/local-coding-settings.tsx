@@ -1,5 +1,6 @@
 "use client";
 
+import { NativeSelect } from "@/components/ui/native-select";
 import { useId } from "react";
 import { useTranslations } from "next-intl";
 import { useLocalCodingOptions } from "@/hooks/use-desktop";
@@ -8,6 +9,7 @@ import { useWorkOnStore, type CodingPreferences } from "@/stores/work-on-store";
 import { useConversationStore } from "@/stores";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
 /** Choices come from the installed harness; leaving either unset retains its settings. */
 export function LocalCodingSettings({ harness }: { harness: LocalAgent["id"] }) {
@@ -59,13 +61,13 @@ export function LocalCodingSettings({ harness }: { harness: LocalAgent["id"] }) 
       data-tour="chat-coding-settings"
     >
       <div className="min-w-0 space-y-1">
-        <label htmlFor={`${id}-model`} className="text-muted-foreground text-xs">
+        <Label htmlFor={`${id}-model`} className="text-muted-foreground text-xs">
           {t("model")}
-        </label>
-        <select
+        </Label>
+        <NativeSelect
           id={`${id}-model`}
           value={preferences.model ?? ""}
-          className="bg-background border-input h-8 w-full rounded-md border px-2 text-xs"
+          className="h-8 px-2 text-xs"
           onChange={(event) => {
             const model = event.target.value || null;
             const next = models.find((entry) => entry.value === (model ?? data.current_model));
@@ -88,17 +90,17 @@ export function LocalCodingSettings({ harness }: { harness: LocalAgent["id"] }) 
               {model.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <div className="min-w-0 space-y-1">
-        <label htmlFor={`${id}-effort`} className="text-muted-foreground text-xs">
+        <Label htmlFor={`${id}-effort`} className="text-muted-foreground text-xs">
           {t("effort")}
-        </label>
-        <select
+        </Label>
+        <NativeSelect
           id={`${id}-effort`}
           value={preferences.effort ?? ""}
           disabled={efforts.length === 0 && preferences.effort === null}
-          className="bg-background border-input h-8 w-full rounded-md border px-2 text-xs disabled:opacity-50"
+          className="h-8 px-2 text-xs"
           onChange={(event) => save({ ...preferences, effort: event.target.value || null })}
         >
           <option value="">{efforts.length === 0 ? t("effortUnsupported") : t("ownEffort")}</option>
@@ -114,7 +116,7 @@ export function LocalCodingSettings({ harness }: { harness: LocalAgent["id"] }) 
                 : effort.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <div className="col-span-full">
         {state.error && (

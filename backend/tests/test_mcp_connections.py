@@ -39,12 +39,12 @@ from app.agents.mcp import (
     MAX_INPUT_SCHEMA_BYTES,
     MCP_ISOLATION,
     TOOL_NAME_LIMIT,
-    AnsweredRecently,
     FittedNames,
     LeftOutOnClash,
     McpProbeError,
     McpServerSpec,
     McpToolInfo,
+    ResilientMcpToolset,
     ToolOrigins,
     _answered,
     _make_toolset,
@@ -430,7 +430,12 @@ class TestMakeToolset:
 
         assert _make_toolset(spec).wrapped.wrapped.wrapped.wrapped.include_instructions is include
 
-    def test_a_run_connects_on_the_short_timeout(self, monkeypatch):
+    @pytest.mark.parametrize("in_process", [False, True])
+    def test_initialization_deadline_distinguishes_local_platform_from_remote_servers(
+        self,
+        monkeypatch,
+        in_process: bool,
+    ):
         """A server that answered a probe recently is entered with no probe, so
         a run's own connect-and-initialize is what notices it went down - in
         seconds, not in the probe's whole-session budget."""
@@ -439,9 +444,14 @@ class TestMakeToolset:
         made = MagicMock(wraps=MCPToolset)
         monkeypatch.setattr("app.agents.mcp.MCPToolset", made)
 
-        _make_toolset(McpServerSpec(name="slow", url="https://example.com/mcp"))
+        monkeypatch.setattr("app.agents.mcp._in_process_client", lambda _: None)
+        _make_toolset(
+            McpServerSpec(name="slow", url="https://example.com/mcp", in_process=in_process)
+        )
 
-        assert made.call_args.kwargs["init_timeout"] == CONNECT_TIMEOUT_SECS
+        assert made.call_args.kwargs["init_timeout"] == (
+            15.0 if in_process else CONNECT_TIMEOUT_SECS
+        )
 
     def test_a_tool_error_is_shown_to_the_model_not_spent_as_a_retry(self):
         """A retry spends the tool's single attempt, and the error after it ends
@@ -755,7 +765,7 @@ class TestRecentAnswers:
         toolsets = await build_mcp_toolsets([spec])
 
         assert calls == ["https://example.com/mcp"]
-        assert isinstance(toolsets[0], AnsweredRecently)
+        assert isinstance(toolsets[0], ResilientMcpToolset)
 
     @pytest.mark.anyio
     async def test_the_answer_goes_stale(self, monkeypatch):
@@ -837,7 +847,7 @@ class TestRecentAnswers:
 
     @pytest.mark.anyio
     async def test_an_answering_server_keeps_its_own_instructions(self):
-        toolset = AnsweredRecently(
+        toolset = ResilientMcpToolset(
             FunctionToolset(instructions="Use search first."), name="live", key="k"
         )
         seen: list[str | None] = []
@@ -911,7 +921,9 @@ class TestRecentAnswers:
         await toolset.__aenter__()
         await toolset.__aenter__()
 
-        refuse.assert_awaited_once()
+        assert refuse.await_count == 2
+        await toolset.__aexit__(None, None, None)
+        await toolset.__aexit__(None, None, None)
 
 
 class TestProbeSuccess:

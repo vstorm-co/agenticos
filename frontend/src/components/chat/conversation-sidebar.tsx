@@ -43,6 +43,7 @@ import {
   ChevronLeft,
   ChevronDown,
   ChevronRight,
+  GitBranch,
   LogOut,
   Users,
   Loader2,
@@ -272,6 +273,22 @@ function ConversationItem({
           {avatar}
           <span className="min-w-0 flex-1">
             <span className="flex min-w-0 items-center gap-1">
+              {/* A fork keeps its source's title and agent, so without this the
+                  two rows differ only in their time. */}
+              {conversation.forked_from && (
+                <span
+                  role="img"
+                  aria-label={t("sidebar.forkOf", {
+                    title: conversation.forked_from.title || t("untitledFork"),
+                  })}
+                  title={t("sidebar.forkOf", {
+                    title: conversation.forked_from.title || t("untitledFork"),
+                  })}
+                  className="text-muted-foreground shrink-0"
+                >
+                  <GitBranch className="h-3 w-3" aria-hidden />
+                </span>
+              )}
               <span
                 id={`${rowId}-title`}
                 className={cn(
@@ -1156,6 +1173,7 @@ export function ConversationSidebar({ className, onSelectSearchResult }: Convers
       onHideApiChange={changeHideApi}
       view={view}
       onViewChange={changeView}
+      compact
       beside={beside}
     />
   );

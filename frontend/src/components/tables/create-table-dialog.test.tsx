@@ -5,7 +5,44 @@ import { describe, expect, it, vi } from "vitest";
 import { CreateTableDialog } from "./create-table-dialog";
 import { ApiError } from "@/lib/api-client";
 
+vi.mock("@/components/sharing/audience-search", () => ({
+  AudienceSearch: ({
+    value,
+    onChange,
+  }: {
+    value: { mode: "chosen"; group_ids: string[]; user_ids: string[] };
+    onChange: (next: typeof value) => void;
+  }) => (
+    <button type="button" onClick={() => onChange({ ...value, group_ids: ["finance"] })}>
+      Choose Finance
+    </button>
+  ),
+}));
+
 describe("CreateTableDialog", () => {
+  it("clears recipients when the caller closes a successfully created table", async () => {
+    const props = { onOpenChange: vi.fn(), onCreate: vi.fn(), isCreating: false, error: null };
+    const { rerender } = render(<CreateTableDialog {...props} open />);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Finance plan" } });
+    await userEvent.click(screen.getByRole("radio", { name: /Some people/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Choose Finance" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create table" }));
+    expect(props.onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ group_ids: ["finance"] }),
+      null,
+    );
+    rerender(<CreateTableDialog {...props} open={false} />);
+    rerender(<CreateTableDialog {...props} open />);
+    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.getByRole("radio", { name: /Only me/ })).toHaveAttribute("aria-checked", "true");
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Private plan" } });
+    await userEvent.click(screen.getByRole("button", { name: "Create table" }));
+    expect(props.onCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ visibility: "private", group_ids: [], user_ids: [] }),
+      null,
+    );
+  });
+
   it("submit is disabled until a name is typed", () => {
     render(
       <CreateTableDialog
@@ -19,7 +56,7 @@ describe("CreateTableDialog", () => {
     expect(screen.getByRole("button", { name: /create table/i })).toBeDisabled();
   });
 
-  it("creates a private table with optional details folded, keeping its walkthrough reachable", async () => {
+  it("creates a private table with who sees it up front and details folded", async () => {
     const onCreate = vi.fn();
     render(
       <CreateTableDialog
@@ -31,13 +68,19 @@ describe("CreateTableDialog", () => {
       />,
     );
     expect(screen.queryByLabelText("Description")).toBeNull();
-    expect(screen.queryByLabelText("Visibility")).toBeNull();
     const guide = document.querySelector('[data-tour="table-dialog-visibility"]');
-    expect(guide).toContainElement(screen.getByRole("button", { name: "More options" }));
+    expect(guide).toContainElement(screen.getByRole("radio", { name: /Only me/ }));
+    expect(screen.getByRole("radio", { name: /Only me/ })).toHaveAttribute("aria-checked", "true");
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Leads" } });
     await userEvent.click(screen.getByRole("button", { name: "Create table" }));
     expect(onCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "Leads", visibility: "private", description: null }),
+      expect.objectContaining({
+        name: "Leads",
+        visibility: "private",
+        group_ids: [],
+        user_ids: [],
+        description: null,
+      }),
       null,
     );
   });
@@ -84,13 +127,15 @@ describe("CreateTableDialog", () => {
         name: "Orders",
         description: null,
         visibility: "private",
+        group_ids: [],
+        user_ids: [],
         columns: [{ label: "Name", type: "text" }],
       },
       null,
     );
   });
 
-  it("changing visibility is reflected in the submission", async () => {
+  it("choosing everyone is reflected in the submission", async () => {
     const onCreate = vi.fn();
     const user = userEvent.setup();
     render(
@@ -104,12 +149,35 @@ describe("CreateTableDialog", () => {
     );
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Orders" } });
 
-    await user.click(screen.getByRole("button", { name: "More options" }));
-    await user.click(screen.getByRole("combobox", { name: "Visibility" }));
-    await user.click(screen.getByRole("option", { name: "Organization" }));
+    await user.click(screen.getByRole("radio", { name: /Everyone/ }));
     await user.click(screen.getByRole("button", { name: /create table/i }));
 
     expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ visibility: "org" }), null);
+  });
+
+  it("shares with the groups chosen, and waits until somebody is chosen", async () => {
+    const onCreate = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <CreateTableDialog
+        open
+        onOpenChange={vi.fn()}
+        onCreate={onCreate}
+        isCreating={false}
+        error={null}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Invoices" } });
+
+    await user.click(screen.getByRole("radio", { name: /Some people/ }));
+    expect(screen.getByRole("button", { name: /create table/i })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Choose Finance" }));
+    await user.click(screen.getByRole("button", { name: /create table/i }));
+
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ visibility: "private", group_ids: ["finance"], user_ids: [] }),
+      null,
+    );
   });
 
   it("adds a column, edits its label and type, and includes it in the submission", async () => {

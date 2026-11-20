@@ -1,5 +1,5 @@
 ---
-source_sha: "a6eae1ab61a9"
+source_sha: "3da9f2a96156"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -281,10 +281,12 @@ narzędzia na serwerze. Grupa, której narzędzia się różnią, pokazuje
 **Dla każdego narzędzia**, a wybór dla grupy znów ustawia wszystkie jej
 narzędzia. Narzędzie dodane później przez serwer podąża za swoją grupą.
 
-W dwóch miejscach decyduje wskazówka serwera. W komunikatorze narzędzie, którego
-serwer nie oznaczył jako tylko do odczytu, najpierw pyta, nawet gdy ma działać bez
-pytania, a obserwacja nigdy nie czyta narzędzia, przed którym jej powiązanie pyta,
-bo nikt nie może wtedy odpowiedzieć.
+Uruchomienia w kanałach stosują politykę powiązania i poszczególnych narzędzi dla
+każdego dopuszczonego nadawcy, także bez powiązanego konta. Kanał nie dodaje
+osobnej bramki akceptacji. Konta osobiste nadal wymagają powiązanej tożsamości
+nadawcy i jego autoryzowanego połączenia; połączenia platformy zachowują minimum
+`writes`. Obserwacja nie odczytuje narzędzia wymagającego akceptacji, bo nikt
+nie może wtedy odpowiedzieć.
 
 ### Przez czyje konto mówi powiązanie { #whose-account-a-binding-speaks-through }
 
@@ -311,7 +313,7 @@ oddawałoby go kanałowi.
 
 !!! info "Gdzie nikt nie rozmawia, narzędzi nie ma — i agent to mówi"
 
-    Klucz API, osadzony widget, harmonogram, trigger i nadawca z kanału, który
+    Klucz API bez [jawnego delegowania MCP](api.md#explicit-personal-mcp-delegation), osadzony widget, harmonogram, trigger i nadawca z kanału, który
     nie powiązał swojego konta czatu, nie mają konta, przez które mogliby mówić.
     Run idzie dalej bez tego serwera, z nietkniętymi pozostałymi powiązaniami,
     a do jego instrukcji dokładany jest jeden wiersz mówiący, której usługi
@@ -603,6 +605,8 @@ szesnastkowych skrótu, więc dwie długie nazwy pozostają dwoma narzędziami. 
 jest nadal wywoływany pod prawdziwą nazwą.
 
 !!! warning "Nieosiągalny serwer zostaje pominięty z ostrzeżeniem, a nie podnosi wyjątku"
+
+    Inicjalizacja jest ponawiana raz, zanim wykona się jakiekolwiek narzędzie. Ochrona obejmuje świeżo odpytane serwery, zapamiętane połączenia i wbudowane MCP platformy. Błąd odkrywania narzędzi pozostawia pozostałe narzędzia dostępne. Błąd transportu podczas wywołania trafia do modelu jako nieudane żądanie o nieznanym wyniku; zapisy nigdy nie są automatycznie powtarzane. Lokalna inicjalizacja platformy ma limit 15 sekund na uwierzytelnienie i pierwsze przygotowanie, a połączenia zdalne zachowują limit 3 sekund.
 
     Pydantic AI wchodzi w każdy toolset przy starcie runa, więc martwy serwer
     przerwałby inaczej całą turę: jeden wygasły token na jednym połączeniu

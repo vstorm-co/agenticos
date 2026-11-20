@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
-import { ArrowUpRight, MonitorDown, X } from "lucide-react";
+import { MonitorDown, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useShell } from "@/hooks/use-shell";
@@ -61,9 +61,19 @@ export function DesktopInstallPrompt() {
 
   return (
     <aside
-      className="bg-foreground/4 relative mx-3 mb-3 hidden rounded-xl p-3 md:block"
+      className="border-border mx-3 mb-2 hidden shrink-0 items-center gap-1 rounded-lg border p-1 md:flex"
       aria-label={t("title")}
     >
+      <a
+        href="https://github.com/vstorm-co/agenticos/releases/latest"
+        target="_blank"
+        rel="noopener noreferrer"
+        title={t("description")}
+        className="hover:bg-accent focus-visible:outline-foreground flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-xs font-medium focus-visible:outline-2"
+      >
+        <MonitorDown className="size-4 shrink-0" aria-hidden />
+        <span className="truncate">{t("download")}</span>
+      </a>
       <button
         type="button"
         aria-label={t("dismiss")}
@@ -77,22 +87,10 @@ export function DesktopInstallPrompt() {
           }
           window.dispatchEvent(new Event(CHANGED));
         }}
-        className="text-muted-foreground hover:bg-accent hover:text-foreground absolute top-1.5 right-1.5 rounded-md p-1.5"
+        className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-foreground shrink-0 rounded-md p-2 focus-visible:outline-2"
       >
         <X className="size-3.5" aria-hidden />
       </button>
-      <MonitorDown className="mb-2 size-5" aria-hidden />
-      <p className="pr-4 text-sm font-medium">{t("title")}</p>
-      <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{t("description")}</p>
-      <a
-        href="https://github.com/vstorm-co/agenticos/releases/latest"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="bg-foreground/5 hover:bg-foreground/10 mt-2.5 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium"
-      >
-        {t("download")}
-        <ArrowUpRight className="size-3.5" aria-hidden />
-      </a>
     </aside>
   );
 }

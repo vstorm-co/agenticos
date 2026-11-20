@@ -357,8 +357,8 @@ lint: lint-backend lint-frontend lint-spelling lint-precommit
 # outside `backend/` and so is a fourth path rather than a second invocation; its
 # relaxations are declared in `pyproject.toml` under `../scripts/**`.
 lint-backend:
-	uv run --directory backend ruff check . ../scripts ../deploy/updater
-	uv run --directory backend ruff format . ../scripts ../deploy/updater --check
+	uv run --directory backend ruff check . ../scripts ../deploy/updater ../evals
+	uv run --directory backend ruff format . ../scripts ../deploy/updater ../evals --check
 	uv run --directory backend ty check
 	uv run --directory backend vulture
 	uv run --directory backend deptry app cli alembic
@@ -372,6 +372,7 @@ lint-backend:
 	uv run --directory backend python3 ../scripts/check_comments.py
 	uv run --directory backend python3 ../scripts/check_docs_paragraphs.py
 	uv run --directory backend python3 ../scripts/check_docs_i18n.py
+	uv run --directory backend python3 ../scripts/gen_architect_guide.py --check
 	uv run --directory backend python3 ../scripts/check_docs_glossary.py
 
 # Unused functions and methods, reported rather than gated. `make lint` runs
@@ -450,8 +451,8 @@ lint-precommit:
 # applying it, so without the second line here the only way to fix a formatting
 # failure would be to let the pre-commit hook rewrite the file for you.
 format:
-	uv run --directory backend ruff format . ../scripts ../deploy/updater
-	uv run --directory backend ruff check . ../scripts ../deploy/updater --fix
+	uv run --directory backend ruff format . ../scripts ../deploy/updater ../evals
+	uv run --directory backend ruff check . ../scripts ../deploy/updater ../evals --fix
 	cd frontend && bunx prettier --write "src/**/*.{ts,tsx}" "e2e/**/*.ts"
 
 # === Testing ===
@@ -718,7 +719,7 @@ audit:
 # target was added: `next` and `postcss` raised, `nanoid` and `js-yaml` pinned
 # forward through their parents.
 AUDIT_LEVEL ?= high
-# The one other case is a finding with no fixed release anywhere in its chain: it
+# The other case is a finding with no fixed release anywhere in its chain: it
 # is named here with the path it arrives by and the condition that removes it,
 # and the audit ignores that advisory only.
 #   GHSA-vfj7-8cjw-p6xm (CVE-2026-93687): braces <= 3.0.3 has no patched release.
@@ -726,7 +727,13 @@ AUDIT_LEVEL ?= high
 #   > fast-glob > micromatch, a lint-time dependency that the built console does
 #   not ship. Remove when braces publishes a fix or @next/eslint-plugin-next
 #   drops fast-glob. bun matches advisories by their GHSA id, not the CVE.
-AUDIT_IGNORE ?= GHSA-vfj7-8cjw-p6xm
+#   GHSA-fc5q-39xc-vjpf (CVE-2026-112366): picomatch <= 4.0.7 has no fixed
+#   release. The locked paths are lint/build/test tools and next-intl's source
+#   watcher, absent from the standalone image. Next's bundled matcher is traced
+#   only by image pattern checks; this build has no remote patterns and the
+#   fixed local pattern **. Requests cannot supply glob patterns. Track #3102;
+#   remove after an upstream fix, and reassess if runtime patterns change.
+AUDIT_IGNORE ?= GHSA-vfj7-8cjw-p6xm GHSA-fc5q-39xc-vjpf
 
 audit-frontend:
 	cd frontend && bun audit --audit-level=$(AUDIT_LEVEL) $(addprefix --ignore=,$(AUDIT_IGNORE))
@@ -831,6 +838,14 @@ load-test:
 	uv run --directory backend python ../loadtest/run.py \
 		$(if $(API_PID),--api-pid $(API_PID),) \
 		$(if $(DATABASE_URL),--database-url $(DATABASE_URL),)
+
+# The retrieval evaluation (#2482): a question set over docs/ and the harness
+# that measures knowledge retrieval on it. Not part of `make check` and never in
+# CI: every run makes billed embedding and model calls. `docs/retrieval-eval.md`
+# has what it needs, the options and what a run costs.
+EVAL_ARGS ?=
+eval-retrieval:
+	@uv run --directory backend python ../evals/retrieval/run.py $(EVAL_ARGS)
 
 # Every CI job, in the order the workflow declares them, with the exceptions
 # named below. This is the one claim in this file that has to be exactly true:
@@ -1179,6 +1194,9 @@ help:
 	@echo "  make load-stub-model  The slow-on-purpose model the suite measures against"
 	@echo "  make load-seed        Build the fixture: an agent, a collection, a routine"
 	@echo "  make load-test        Offer the workload and print the report"
+	@echo ""
+	@echo "Retrieval evaluation (billed model calls - see docs/retrieval-eval.md):"
+	@echo "  make eval-retrieval   Measure knowledge retrieval on the docs; EVAL_ARGS= passes options"
 	@echo ""
 	@echo "Database:"
 	@echo "  make db-init       Initialize database (start + migrate)"

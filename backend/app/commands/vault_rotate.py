@@ -25,6 +25,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import click
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +35,7 @@ from app.core.secret_scopes import browser_sign_in_scope, organization_secret_sc
 from app.core.vault import VaultScope, current_key_version, needs_rotation, rewrap, unseal
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_trigger import AgentTrigger
+from app.db.models.background_job import BackgroundJob
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.coding_account import CodingAccount
@@ -41,9 +43,11 @@ from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.diagnostics import DiagnosticsIdentity
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.personal_model_key import PersonalModelKey
 from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.session import get_db_context
 from app.services.mcp_connection import connection_scope
+from app.worker.jobs import ChannelMessage
 
 
 def _org_scope(
@@ -61,7 +65,7 @@ def _secret_scope(row: OrganizationSecret) -> VaultScope:
     )
 
 
-def _person_scope(row: CodingAccount) -> VaultScope:
+def _person_scope(row: CodingAccount | PersonalModelKey) -> VaultScope:
     return VaultScope.user(row.user_id)
 
 
@@ -102,6 +106,7 @@ class SealedTable:
         | WorkflowExposure
         | BrowserSignIn
         | CodingAccount
+        | PersonalModelKey
         | DeploymentSettings
         | DiagnosticsIdentity
     ]
@@ -158,6 +163,13 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         columns=("secret_encrypted",),
         version_attr="secret_key_version",
         scope=_org_scope,
+    ),
+    SealedTable(
+        label="personal_model_keys",
+        model=PersonalModelKey,
+        columns=("sealed_secret",),
+        version_attr="key_version",
+        scope=_person_scope,
     ),
     SealedTable(
         label="coding_accounts",
@@ -275,12 +287,80 @@ async def _rotate_table(
         report.rotated += 1
 
 
+async def _rotate_channel_files(
+    db: AsyncSession, *, target: int, dry_run: bool, report: Report
+) -> None:
+    statement = select(BackgroundJob).where(
+        BackgroundJob.kind.in_(("process-channel-message", "process-channel-control"))
+    )
+    if not dry_run:
+        statement = statement.with_for_update()
+    for row in (await db.execute(statement)).scalars().all():
+        try:
+            message = ChannelMessage.model_validate(row.payload)
+            if row.organization_id != message.organization_id:
+                report.failures.append(f"background_jobs {row.id}: invalid channel owner")
+                continue
+            changed = False
+            scope = VaultScope.organization(message.organization_id)
+            interaction = message.interaction_handle
+            interaction_version = message.interaction_key_version
+            if interaction is not None:
+                if dry_run:
+                    unseal(interaction, scope=scope, key_version=interaction_version)
+                if needs_rotation(interaction, key_version=interaction_version):
+                    if not dry_run:
+                        interaction = rewrap(
+                            interaction,
+                            scope=scope,
+                            from_version=interaction_version,
+                            to_version=target,
+                        )
+                        interaction_version = target
+                    changed = True
+            attachments = list(message.attachments)
+            for index, file in enumerate(message.attachments):
+                if file.handle_key_version is None:
+                    continue
+                if dry_run:
+                    unseal(file.handle, scope=scope, key_version=file.handle_key_version)
+                if needs_rotation(file.handle, key_version=file.handle_key_version):
+                    if not dry_run:
+                        handle = rewrap(
+                            file.handle,
+                            scope=scope,
+                            from_version=file.handle_key_version,
+                            to_version=target,
+                        )
+                        attachments[index] = file.model_copy(
+                            update={"handle": handle, "handle_key_version": target}
+                        )
+                    changed = True
+            if changed:
+                if not dry_run:
+                    row.payload = message.model_copy(
+                        update={
+                            "attachments": attachments,
+                            "interaction_handle": interaction,
+                            "interaction_key_version": interaction_version,
+                        }
+                    ).model_dump(mode="json")
+                report.rotated += 1
+            else:
+                report.current += 1
+        except AppException, ValidationError:
+            report.failures.append(
+                f"background_jobs {row.id}: channel credential could not be rotated"
+            )
+
+
 async def _run(*, dry_run: bool) -> Report:
     target = current_key_version()
     report = Report()
     async with get_db_context() as db:
         for spec in SEALED_TABLES:
             await _rotate_table(db, spec, target=target, dry_run=dry_run, report=report)
+        await _rotate_channel_files(db, target=target, dry_run=dry_run, report=report)
     return report
 
 

@@ -241,19 +241,36 @@ async def test_browser_filter_contract_refuses_invalid_input(query: str) -> None
 
 
 async def test_only_the_reviewed_personal_decision_fields_leave_memory():
-    from app.schemas.decision_episode import ImproveDecisionCase
+    from datetime import UTC, datetime
 
+    from app.schemas.dataset import DatasetCaseRead
+
+    dataset_id = uuid4()
     prepared = AsyncMock(
-        return_value=ImproveDecisionCase(
+        return_value=DatasetCaseRead(
+            id=uuid4(),
+            case_id=uuid4(),
+            source="manual",
             input="A delayed shipment",
             reference_answer="Ask for a confirmed date",
-            tags=["decision"],
-            note="Reviewed",
+            tags=["decision-episode"],
+            created_at=datetime.now(UTC),
         )
     )
+    review = {
+        "dataset_id": str(dataset_id),
+        "input": "A delayed shipment",
+        "reference_answer": "Ask for a confirmed date",
+    }
     with patch("app.services.memory.MemoryService.improve_case", new=prepared):
         async with _client() as client:
             response = await client.post(
+                f"{ROOT}/claims/mine/{_CLAIM_ID}/improve-case", json={"confirmed": True, **review}
+            )
+            unconfirmed = await client.post(
+                f"{ROOT}/claims/mine/{_CLAIM_ID}/improve-case", json={"confirmed": False, **review}
+            )
+            nowhere = await client.post(
                 f"{ROOT}/claims/mine/{_CLAIM_ID}/improve-case",
                 json={
                     "confirmed": True,
@@ -261,17 +278,11 @@ async def test_only_the_reviewed_personal_decision_fields_leave_memory():
                     "reference_answer": "Ask for a confirmed date",
                 },
             )
-            unconfirmed = await client.post(
-                f"{ROOT}/claims/mine/{_CLAIM_ID}/improve-case",
-                json={
-                    "confirmed": False,
-                    "input": "A delayed shipment",
-                    "reference_answer": "Ask for a confirmed date",
-                },
-            )
-    assert response.status_code == 200
+    assert response.status_code == 201
     assert response.json()["reference_answer"] == "Ask for a confirmed date"
     assert unconfirmed.status_code == 422
+    assert nowhere.status_code == 422
+    assert prepared.await_args.args[2].dataset_id == dataset_id
     assert prepared.await_args.args[0].user_id == PERSON
     assert prepared.await_args.args[1] == _CLAIM_ID
     prepared.assert_awaited_once()

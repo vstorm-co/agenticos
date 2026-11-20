@@ -12,7 +12,6 @@ import { DesktopInstallPrompt } from "@/components/layout/desktop-install-prompt
 import { ConsoleVersion } from "@/components/layout/console-version";
 
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarUser } from "@/components/layout/sidebar-user";
 import { OrganizationSwitcher } from "@/components/layout/organization-switcher";
 import { buttonVariants } from "@/components/ui/button";
@@ -38,13 +37,15 @@ export function SidebarShell({
           <Link
             href="/chat?new=workspace"
             onClick={onNavigate}
-            className={cn(buttonVariants(), "w-full justify-start gap-2.5 rounded-xl px-3")}
+            className={cn(
+              buttonVariants({ variant: "secondary" }),
+              "w-full justify-start gap-2.5 px-3",
+            )}
             data-tour="chat-start"
           >
             <SquarePen className="size-4" aria-hidden />
             {t("newChat")}
           </Link>
-          <SidebarSearch variant="row" />
         </div>
       )}
       <div className="flex min-h-0 flex-1 scrollbar-thin flex-col overflow-y-auto overscroll-contain">
@@ -52,13 +53,17 @@ export function SidebarShell({
       </div>
 
       {!collapsed && <DesktopInstallPrompt />}
-      <div className={cn("flex flex-col gap-1 py-2", collapsed ? "items-center px-1" : "px-3")}>
+      <div
+        className={cn(
+          "flex shrink-0 flex-col gap-1 py-2",
+          collapsed ? "items-center px-1" : "px-3",
+        )}
+      >
         {/* The language and the theme used to be
             here too, which filed "set this once" beside "find something" under
             four unlabelled glyphs; they are named rows in the account menu
             below now. */}
         <div className={cn("flex items-center gap-0.5", collapsed && "flex-col")}>
-          {collapsed && <SidebarSearch variant="icon" />}
           <NotificationBell variant="icon" />
           <ConsoleVersion collapsed={collapsed} />
         </div>

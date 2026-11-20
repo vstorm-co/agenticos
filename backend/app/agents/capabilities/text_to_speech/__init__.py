@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StrictBool, model_validator
 
 from app.agents.capabilities._config_refusal import Refusal, refused_at
 from app.agents.capabilities._registry import (
@@ -56,6 +56,12 @@ class TextToSpeechConfig(BaseModel):
     provider whose voices belong to the account, where only the author knows
     which of theirs to use.
     """
+
+    use_organization_defaults: StrictBool = Field(
+        default=False,
+        title="Use organization defaults",
+        description="Inherit the organization's provider, model, voice and key as one group. Turn off to choose an agent override.",
+    )
 
     provider: str = Field(
         title="Provider",
@@ -122,6 +128,8 @@ class TextToSpeechConfig(BaseModel):
         Each is refused at its own field, so the Builder can mark the control it is
         about.
         """
+        if self.use_organization_defaults:
+            return self
         title = type(self).__name__
         entry = by_provider(self.provider)
         model = entry.model(self.model) if entry is not None else None

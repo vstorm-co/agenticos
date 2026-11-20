@@ -36,6 +36,10 @@
 </p>
 
 <p>
+  <a href="https://trendshift.io/repositories/220030?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-220030" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/220030" alt="vstorm-co/agenticos | Trendshift" width="250" height="55"></a>
+</p>
+
+<p>
   <b>English</b> &middot;
   <a href="README.pl.md">Polski</a> &middot;
   <a href="README.de.md">Deutsch</a> &middot;
@@ -421,7 +425,7 @@ Bring existing company accounts through **OIDC single sign-on** (Entra ID, Okta,
 
 ## 🧭 Find your path
 
-Building on it? Go to [For developers and operators](#-for-developers-and-operators).
+Building on it? Go to [For developers and operators](#for-developers-and-operators).
 
 <details>
 <summary><b>Deciding whether to adopt it</b>: the problem it solves, what it takes, how to start</summary>
@@ -540,7 +544,7 @@ Source-system permissions are not mirrored automatically; an agent can lend its 
 
 There are two common setups. **Self-hosted, with hosted models:** AgenticOS, documents, vectors and logs run on your servers, and models come from a provider under your own contract and keys. **Fully local:** the same layer with open models through Ollama or vLLM on your hardware, plus local parsers and tools. Self-hosting the console does not make every model, parser or tool local, so review each destination you configure. [Configure models](https://vstorm-co.github.io/agenticos/models/) · [Security and data flows](https://vstorm-co.github.io/agenticos/security/)
 
-## 🛠️ For developers and operators
+## For developers and operators
 
 AgenticOS is built with FastAPI, Pydantic AI, PostgreSQL with pgvector, Redis and Next.js. Engineers add capabilities, sync connectors and MCP catalog entries in typed Python; teams compose agents from the registered capabilities in the console.
 
@@ -625,3 +629,13 @@ Built with care by [**Vstorm**](https://vstorm.co) · [Vstorm on GitHub](https:/
 Everyone who has helped build AgenticOS:
 
 <a href="https://github.com/vstorm-co/agenticos/graphs/contributors"><img src="https://contrib.rocks/image?repo=vstorm-co/agenticos" alt="Avatars of everyone who has contributed to AgenticOS"></a>
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=vstorm-co%2Fagenticos&type=date&legend=bottom-right">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&theme=dark&legend=bottom-right" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&legend=bottom-right" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&legend=bottom-right" />
+ </picture>
+</a>

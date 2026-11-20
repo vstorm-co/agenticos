@@ -62,6 +62,7 @@ async def world(
         name="Worker",
         slug=f"worker-{uuid4()}",
         status="published",
+        draft_spec=spec.model_dump(mode="json"),
     )
     db.add(agent)
     await db.flush()
@@ -1211,3 +1212,46 @@ async def test_routine_chat_grants_are_recorded_and_live_revocation_requires_rev
     await db.flush()
     with pytest.raises(RoutineSourcesRequired):
         await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
+
+
+@pytest.mark.security
+async def test_deferred_setup_must_be_reviewed_before_resume(db: AsyncSession) -> None:
+    from app.schemas.agent_trigger import TriggerCreate, TriggerUpdate
+
+    ctx, original, _, _ = await world(db)
+    service = AgentTriggerService(db)
+    created = await service.create(
+        ctx,
+        original.agent_id,
+        TriggerCreate(
+            prompt="Check later",
+            schedule_kind="interval",
+            interval_seconds=300,
+            review_before_activation=True,
+        ),
+    )
+    assert not created.is_active and created.setup_required
+    with pytest.raises(RoutineSourcesRequired):
+        await service.update(ctx, created.agent_id, created.id, TriggerUpdate(is_active=True))
+    source_service = RoutineSourceService(db)
+    options = await source_service.options(ctx, created)
+    await source_service.replace(
+        ctx, created, RoutineSourceConsent(review_token=options.review_token)
+    )
+    resumed = await service.update(ctx, created.agent_id, created.id, TriggerUpdate(is_active=True))
+    assert resumed.is_active and not resumed.setup_required
+
+
+@pytest.mark.security
+async def test_resume_revalidates_sources_changed_since_the_last_review(db: AsyncSession) -> None:
+    from app.schemas.agent_trigger import TriggerUpdate
+
+    ctx, trigger, _, account = await world(db, mcp=True)
+    assert account is not None
+    trigger.is_active = False
+    account.authorization_generation = uuid4()
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired):
+        await AgentTriggerService(db).update(
+            ctx, trigger.agent_id, trigger.id, TriggerUpdate(is_active=True)
+        )

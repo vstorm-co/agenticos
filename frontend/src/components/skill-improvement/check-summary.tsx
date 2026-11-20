@@ -9,10 +9,15 @@ import type { AgentCheckState, SkillCheckAgent } from "@/types/skill-checks";
 export const BUCKETS = ["worse", "unknown", "same", "better", "pending"] as const;
 export type Bucket = (typeof BUCKETS)[number];
 
-/** Within the test's noise is no change a person can act on, so it counts as the same. */
+/**
+ * Within the test's noise is no change a person can act on, so it counts as the same.
+ * An agent better or worse on criteria alone is counted with the better or the worse.
+ */
 export function bucketOf(state: AgentCheckState): Bucket {
   if (state === "no_change" || state === "within_noise") return "same";
   if (state === "queued" || state === "running") return "pending";
+  if (state === "criteria_better") return "better";
+  if (state === "criteria_worse") return "worse";
   return state;
 }
 

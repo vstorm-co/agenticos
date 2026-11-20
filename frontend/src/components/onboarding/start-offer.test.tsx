@@ -85,7 +85,7 @@ it.each(["application", "organization"])(
     env.orgAdmin = kind === "organization";
     render(<StartOffer />);
     expect(
-      screen.getByRole("complementary", { name: "Set up your team’s workspace" }),
+      screen.getByRole("complementary", { name: "Set up your team’s organization" }),
     ).toBeVisible();
     expect(screen.getByRole("link", { name: "Continue setup" })).toHaveAttribute(
       "href",

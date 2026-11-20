@@ -30,14 +30,13 @@ import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
  * scrolled with the destinations, so a long nav can never push signing out off
  * the screen.
  *
- * The name and the address are on the trigger rather than inside the menu. The
+ * The name and the address are on the trigger as well as inside the menu. The
  * column has the width for them, and "which account is this" is a question
  * worth answering without a click on a platform where the answer decides what
  * every request is allowed to do.
  *
  * `compact` is the collapsed rail, where it does not: the avatar alone opens
- * the same menu, and the name and address are the first thing inside it rather
- * than gone.
+ * the same menu. Its identity header keeps the account visible on either layout.
  */
 export function SidebarUser({ compact = false }: { compact?: boolean }) {
   const { user, logout } = useAuth();
@@ -57,8 +56,10 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
           aria-label={compact ? user.full_name || user.email : undefined}
           title={compact ? user.email : undefined}
           className={cn(
-            "hover:bg-accent/60 focus-visible:ring-ring flex items-center rounded-md text-left transition-colors outline-none focus-visible:ring-1",
-            compact ? "h-9 w-9 justify-center" : "w-full gap-2.5 px-2 py-1.5",
+            "hover:bg-control-hover data-[state=open]:bg-control focus-visible:ring-ring flex items-center rounded-lg text-left transition-colors outline-none focus-visible:ring-2",
+            compact
+              ? "touch:min-h-11 touch:min-w-11 h-9 w-9 justify-center"
+              : "w-full gap-2.5 px-2 py-1.5",
           )}
         >
           {/* Decoration: the initials repeat the address underneath, and read
@@ -86,20 +87,34 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
           )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" className="w-56">
-        {/* On the rail the trigger is an avatar, so the menu is the only place
-            the account is named at all. */}
-        {compact ? (
-          <>
-            <div className="px-2 py-1.5">
-              <p className="truncate text-sm font-medium">
-                {user.full_name || user.email.split("@")[0]}
-              </p>
-              <p className="text-muted-foreground truncate text-xs">{user.email}</p>
-            </div>
-            <DropdownMenuSeparator />
-          </>
-        ) : null}
+      <DropdownMenuContent
+        side="top"
+        align="start"
+        sideOffset={8}
+        collisionPadding={12}
+        className="w-68 p-1.5 [&_[role=menuitem]]:min-h-9 [&_[role=separator]]:opacity-60"
+      >
+        <div className="flex min-w-0 items-center gap-3 px-2.5 py-3">
+          <EntityAvatar
+            seed={user.id}
+            name={user.full_name || user.email}
+            imageSrc={`/api/users/avatar/${user.id}?v=${avatarVersion}`}
+            hasImage={!!user.avatar_url}
+            colorSlot={user.avatar_color}
+            size="sm"
+            className="shrink-0"
+            ariaHidden
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium" title={user.full_name || user.email}>
+              {user.full_name || user.email.split("@")[0]}
+            </p>
+            <p className="text-muted-foreground truncate text-xs" title={user.email}>
+              {user.email}
+            </p>
+          </div>
+        </div>
+        <DropdownMenuSeparator />
         {/* How this looks and what language it is in. Both were unlabelled
             glyphs in a strip at the foot of the column; here they are named,
             each showing its current value, in the menu that already answers
@@ -113,7 +128,7 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
             until you click both. */}
         <DropdownMenuItem asChild>
           <Link href={ROUTES.SETTINGS_PROFILE}>
-            <UserCircle className="mr-2 h-4 w-4" />
+            <UserCircle className="h-4 w-4" />
             {t("profileAndSettings")}
           </Link>
         </DropdownMenuItem>
@@ -128,9 +143,9 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => useUnsavedChangesStore.getState().leave(() => void logout())}
-          className="text-destructive focus:text-destructive"
+          className="text-muted-foreground focus:text-foreground"
         >
-          <LogOut className="mr-2 h-4 w-4" />
+          <LogOut className="h-4 w-4" />
           {t("logout")}
         </DropdownMenuItem>
       </DropdownMenuContent>

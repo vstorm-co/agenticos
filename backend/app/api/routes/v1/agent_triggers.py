@@ -28,9 +28,12 @@ from app.api.deps import AgentTriggerSvc, Auth, require
 from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.schemas.agent_trigger import (
+    TriggerActivationRead,
     TriggerAttemptList,
     TriggerCreate,
     TriggerCreateRead,
+    TriggerDispatchRead,
+    TriggerFilteredEventRead,
     TriggerList,
     TriggerRead,
     TriggerUpdate,
@@ -159,7 +162,7 @@ async def create_trigger(
 
 @router.post(
     "/{agent_id}/triggers/{trigger_id}/run",
-    response_model=TriggerRead,
+    response_model=TriggerDispatchRead,
     status_code=status.HTTP_202_ACCEPTED,
     dependencies=[PUBLIC],
 )
@@ -175,9 +178,38 @@ async def run_trigger_now(
 
     202, not 200: the fire is dispatched once this request commits rather than run
     inside it, so the trigger comes back as it stands and its `last_run_id` still
-    names the previous run (#658).
+    names a previous finished or parked run (#658). `activation_id` identifies
+    this specific fire: its run records it as `routine_activation_id`, or its
+    before-run attempt records it as `activation_id`. Other concurrent fires
+    cannot settle this dispatch, and client and worker clocks need not agree.
     """
-    return await service.run_now(ctx, agent_id, trigger_id)
+    accepted = await service.run_now(ctx, agent_id, trigger_id)
+    return TriggerDispatchRead(
+        **TriggerRead.model_validate(accepted.trigger).model_dump(),
+        activation_id=accepted.activation_id,
+        job_id=accepted.job_id,
+    )
+
+
+@router.get(
+    "/{agent_id}/triggers/{trigger_id}/activations/{activation_id}",
+    response_model=TriggerActivationRead,
+)
+async def trigger_activation_status(
+    agent_id: UUID,
+    trigger_id: UUID,
+    activation_id: UUID,
+    ctx: Auth,
+    service: AgentTriggerSvc,
+    job_id: UUID | None = Query(None),
+) -> Any:
+    """Console receipt for one accepted fire, independent of history pagination.
+
+    `job_id` is the accepted response's queue receipt. Missing or inaccessible
+    activations return 404. A completed job without a run or refusal reports
+    `not_started`, including a routine paused before its worker admitted it.
+    """
+    return await service.activation_status(ctx, agent_id, trigger_id, activation_id, job_id)
 
 
 @router.post(
@@ -289,3 +321,17 @@ async def trigger_attempts(
     credentials. Reading delegates to the agent's resource access checks.
     """
     return await service.attempts(ctx, agent_id, trigger_id, skip=skip, limit=limit)
+
+
+@router.get(
+    "/{agent_id}/triggers/{trigger_id}/filtered-event", response_model=TriggerFilteredEventRead
+)
+async def read_filtered_event(
+    ctx: Auth, agent_id: UUID, trigger_id: UUID, service: AgentTriggerSvc
+) -> Any:
+    """The owner's latest filtered GitHub delivery: time, reason and author policy.
+
+    Only verified deliveries are recorded. One snapshot replaces the previous
+    one; no payload, signing secret or artificial agent run is retained.
+    """
+    return await service.filtered_event(ctx, agent_id, trigger_id)

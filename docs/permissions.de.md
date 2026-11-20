@@ -1,5 +1,5 @@
 ---
-source_sha: "5ddb966db952"
+source_sha: "b50c2e4de07b"
 ---
 
 # Berechtigungen { #permissions }
@@ -101,7 +101,9 @@ Zwei Arten von Berechtigung, und sie verhalten sich unterschiedlich.
 **Globale** Berechtigungen sind binär und organisationsweit: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
 `approvals:decide`, `promotions:override`, `connections:view`, `connections:manage`,
-`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`, `mcp:personal:use`.
+
+Der ausdrückliche Scope `mcp:personal:use` erlaubt externen API- oder OAuth-Runs, persönliche MCP-Verbindungen des Zugangsausstellers zu verwenden. Wählen Sie ihn unter **Custom** und bestätigen Sie die Delegation; keine Voreinstellung, auch **Full access** nicht, enthält ihn. Bestehende Zugänge behalten ausschließlich Organisationszugriff. Er gewährt weder persönlichen Speicher noch Gesprächssuche oder Zustimmung zu Routinen. Fortsetzungen nach einer Genehmigung behalten den ursprünglichen Eigentümer und Zugang bei; vor persönlichen Tool-Aufrufen werden verbundene Konten, aktuelle Schlüssel-Scopes sowie der Zugriff auf den Hauptagent und automatisch ausgewählte Subagents erneut geprüft.
 
 Für das Genehmigen persönlicher Routinen und Watches ist der ausdrückliche Scope `personal:consent` nötig, ausgewählt unter **Custom** beim Ausstellen eines Schlüssels oder Autorisieren eines MCP-Clients. Er ist in keiner Voreinstellung enthalten, auch nicht in **Full access**. Die Bestätigung erlaubt dem Zugang, dauerhafte Routinen und Watches mit Ihren persönlichen Verbindungen und Daten zu genehmigen; die üblichen Scopes `agents:run` und `runs:view` erlauben das nicht. Bestehende Schlüssel und MCP-Autorisierungen erhalten diese persönliche Zustimmung nicht automatisch.
 

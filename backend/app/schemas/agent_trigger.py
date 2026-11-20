@@ -119,12 +119,14 @@ GithubConclusion = Literal[
 ]
 """A finished workflow run's `conclusion`, as GitHub spells it."""
 
-GithubAuthors = Literal["members", "anyone"]
+GithubAuthors = Literal["members", "contributors", "anyone"]
 """Whose issues, pull requests and comments may fire a trigger.
 
 `members` - the default - is an author GitHub calls the repository's `OWNER`,
 `MEMBER` or `COLLABORATOR`. On a public repository anyone can open an issue, and
-every one would otherwise be an agent run and a page of somebody's text in it."""
+every one would otherwise be an agent run and a page of somebody's text in it.
+`contributors` also admits `CONTRIBUTOR`; first-time contributors still need
+`anyone`. Bot and connected-account exclusions apply to all three choices."""
 
 # Where the filter's per-event fields belong, so one sent for another event is a
 # 422 rather than a filter that silently never applies.
@@ -140,8 +142,8 @@ class GithubTriggerConfig(BaseSchema):
 
     `event` is the webhook it fires on (the `X-GitHub-Event` header), `issues`
     unless it says otherwise; `actions` narrows which of that event's actions
-    fire, defaulting to the one somebody would act on. `authors` keeps issues,
-    pull requests and comments to the repository's own people, and a bot never
+    fire, defaulting to the one somebody would act on. `authors` chooses whose
+    issues, pull requests and comments may fire (members by default), and a bot never
     fires a trigger except through a workflow run.
 
     `mention` is a phrase a comment has to contain (`@agent`), `branches` the
@@ -460,6 +462,10 @@ class TriggerCreate(BaseSchema):
 
     is_active: bool = Field(
         default=True, description="Create paused while configuring device consent."
+    )
+    review_before_activation: bool = Field(
+        default=False,
+        description="Save paused with source review required before the first activation.",
     )
     prompt: str = Field(min_length=1, max_length=10000)
     # An optional human title; null lists the trigger by its agent's name instead.
@@ -815,6 +821,33 @@ class TriggerUpdate(BaseSchema):
         return data
 
 
+GithubFilterReason = Literal[
+    "event",
+    "action",
+    "bot",
+    "ignored_login",
+    "author",
+    "draft",
+    "branch",
+    "mention",
+    "conclusion",
+    "not_branch",
+]
+
+
+class GithubFilteredEvent(BaseSchema):
+    """The latest retained sample of verified GitHub rejections, without event content."""
+
+    received_at: datetime
+    recorded_at: datetime | None = Field(default=None, exclude=True)
+    reason: GithubFilterReason
+    authors: GithubAuthors
+
+
+class TriggerFilteredEventRead(BaseSchema):
+    last_event: GithubFilteredEvent | None = None
+
+
 class TriggerRead(BaseSchema, TimestampSchema):
     one_shot: bool = False
 
@@ -934,6 +967,17 @@ class TriggerRead(BaseSchema, TimestampSchema):
         return webhook_url(self.event_source, self.id)
 
 
+class TriggerDispatchRead(TriggerRead):
+    """Accepted manual fire, identified through its queued activation."""
+
+    activation_id: UUID
+    job_id: UUID | None
+
+
+class TriggerActivationRead(BaseSchema):
+    state: Literal["pending", "recorded", "not_started"]
+
+
 class TriggerCreateRead(TriggerRead):
     """The create response - a `TriggerRead` that may carry the secret once.
 
@@ -962,6 +1006,7 @@ TriggerAttemptReason = Literal[
     "source_review_required",
     "agent_unavailable",
     "preparation_failed",
+    "previous_run_active",
 ]
 
 

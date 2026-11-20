@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useRunHistory, useUrlState, useWorkflows } from "@/hooks";
+import { useNodeCatalog, useRunHistory, useUrlState, useWorkflows } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { formatRunCostUsd, formatDateTime, formatRunDuration } from "@/lib/utils";
 import { RUN_HISTORY_PAGE } from "@/lib/workflows/runs-api";
@@ -27,7 +27,14 @@ import { WorkflowRunStatusBadge, RUN_DOT } from "./run-status";
 
 const ALL = "all";
 const STATUSES = Object.keys(RUN_DOT) as WorkflowRunStatus[];
-const MODES = ["test", "real"] as const;
+/** A run's version: a test of the whole draft, a test of one step, or the published one. */
+const MODES = ["test", "step", "real"] as const;
+const MODE_LABEL = { test: "runModeTest", step: "runModeStep", real: "runModeReal" } as const;
+const MODE_QUERY: Record<string, { mode: "real" | "test"; stepTest?: boolean }> = {
+  test: { mode: "test", stepTest: false },
+  step: { mode: "test", stepTest: true },
+  real: { mode: "real" },
+};
 const TRIGGERS = [
   "api",
   "websocket",
@@ -57,10 +64,10 @@ const SINCE_MS: Record<string, number> = {
 };
 
 /**
- * A run history: newest first, a page at a time, narrowed by state, by draft or
- * published version, by what started it and by how recently - every filter
- * applied on the server, and each kept in the address so a filtered list can be
- * linked. One workflow's
+ * A run history: newest first, a page at a time, narrowed by state, by draft,
+ * step test or published version, by what started it and by how recently -
+ * every filter applied on the server, and each kept in the address so a
+ * filtered list can be linked. One workflow's
  * runs, or with no `workflowId` every workflow's the caller may see, each row
  * naming its workflow. A row opens the run.
  */
@@ -79,16 +86,31 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
   const reach = since === null ? undefined : SINCE_MS[since];
   const [pageParam, setPage] = useUrlState("page");
   const page = Math.max(0, Number(pageParam ?? "0") || 0);
+  const version = mode === null ? undefined : MODE_QUERY[mode];
   const { runs, total, isLoading, error, refetch } = useRunHistory({
     workflowId,
     status: (status ?? undefined) as WorkflowRunStatus | undefined,
-    mode: (mode ?? undefined) as "real" | "test" | undefined,
+    ...version,
     triggeredBy: trigger ?? undefined,
     createdAfter: reach === undefined ? undefined : new Date(anchor - reach).toISOString(),
     page,
   });
   const { workflows } = useWorkflows({ enabled: workflowId === undefined });
   const names = new Map(workflows.map((workflow) => [workflow.id, workflow.name]));
+  const { nodes } = useNodeCatalog();
+
+  const modeLabel = (run: WorkflowRunRead) => {
+    const step = run.tested_step;
+    if (step) {
+      // An unnamed step reads as what it is - "Map fields" - not as its id.
+      const name =
+        step.label?.trim() ||
+        nodes.find((definition) => definition.id === step.definition_id)?.name ||
+        null;
+      return name === null ? t("runModeStep") : t("runModeStepNamed", { step: name });
+    }
+    return run.mode === "test" ? t("runModeTest") : t("runModeReal");
+  };
 
   /** A filter changed: back to the first page, which is where its results start. */
   const narrow = (set: (value: string | null) => void) => (value: string) => {
@@ -121,7 +143,7 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
     {
       key: "mode",
       header: t("runColumns.mode"),
-      cell: (run) => (run.mode === "test" ? t("runModeTest") : t("runModeReal")),
+      cell: modeLabel,
     },
     {
       key: "trigger",
@@ -151,7 +173,8 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
     },
   ];
 
-  const filtered = status !== null || mode !== null || trigger !== null || reach !== undefined;
+  const filtered =
+    status !== null || version !== undefined || trigger !== null || reach !== undefined;
   return (
     <ListCard
       fill
@@ -166,7 +189,7 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
             compact
             active={
               Number(status !== null) +
-              Number(mode !== null) +
+              Number(version !== undefined) +
               Number(trigger !== null) +
               Number(reach !== undefined)
             }
@@ -181,12 +204,9 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
             <Filter
               label={t("runFilterMode")}
               any={t("runFilterAnyMode")}
-              value={mode ?? ALL}
+              value={version === undefined ? ALL : (mode as string)}
               onChange={narrow(setMode)}
-              options={MODES.map((value) => [
-                value,
-                value === "test" ? t("runModeTest") : t("runModeReal"),
-              ])}
+              options={MODES.map((value) => [value, t(MODE_LABEL[value])])}
             />
             <Filter
               label={t("runFilterTrigger")}

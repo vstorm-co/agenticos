@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { usePortals } from "./use-portals";
 import { apiClient } from "@/lib/api-client";
+import { Perm } from "@/types/permissions";
 import type { PortalCatalogEntry } from "@/types/portals";
 
 vi.mock("@/lib/api-client", async () => {
@@ -82,6 +83,12 @@ const MCP_CATALOG = {
 
 function serve(github: PortalCatalogEntry, manageable = true) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path === "/me/permissions")
+      return {
+        permissions: manageable ? [{ permission: Perm.mcpManage, scope: "all" }] : [],
+        role: "member",
+        is_app_admin: false,
+      };
     if (path === "/trigger-portals") return { items: [github, EMAIL_PORTAL], total: 2 };
     if (path === "/agents/mcp-catalog") return MCP_CATALOG;
     // The management-only listings: a caller without mcp:manage gets a 403 here,

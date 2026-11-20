@@ -62,7 +62,7 @@ from app.core.security import (
     verify_password,
     verify_special_token,
 )
-from app.db.locks import LockScope, hold_subject
+from app.db.locks import LOCK_NOT_AVAILABLE, LockScope, hold_subject
 from app.db.models.artifact import (
     SERVED_STATES,
     Artifact,
@@ -212,6 +212,10 @@ from app.services.virtual_tables import ReadDeadline, TableSource, VirtualTableS
 from app.services.virtual_tables.exceptions import DeadlineReached, InvalidQueryError
 
 logger = logging.getLogger(__name__)
+
+_DELETE_LOCK_SECONDS = 2.0
+"""Bound source-lock contention before returning a retryable 409, with no writes."""
+
 
 NAME_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
 """What a name may be. The same rule as the column's CHECK, stated once for the tool."""
@@ -3199,17 +3203,42 @@ class ArtifactService:
         )
         return await self._detail(ctx, artifact, can_edit=True)
 
+    async def _lock_for_delete(self, artifact: Artifact) -> None:
+        """Release partial row locks before waiting for a busy writer to finish."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + _DELETE_LOCK_SECONDS
+        while True:
+            try:
+                async with self.db.begin_nested():
+                    await artifact_repo.lock_for_delete(self.db, artifact)
+            except DBAPIError as failure:
+                if getattr(failure.orig, "sqlstate", None) != LOCK_NOT_AVAILABLE:
+                    raise
+                if loop.time() >= deadline:
+                    raise ConcurrentChangeError(
+                        message="This App is being updated. Nothing was deleted; try again.",
+                        details={"artifact_id": artifact.id},
+                    ) from failure
+                await asyncio.sleep(0.05)
+            else:
+                return
+
     async def delete(self, ctx: AuthContext, artifact_id: UUID) -> None:
         """Delete an artifact, every version, its grants and its link - archived or not.
 
         The bytes go after the commit, so a rollback leaves rows that still point
         at what is stored.
+
+        Raises:
+            ConcurrentChangeError: Source locks stay busy beyond the short retry
+                window. No grants, rows or stored bytes have been removed.
         """
         artifact = await self.get(ctx, artifact_id, perm=Perm.ARTIFACTS_EDIT, archived=True)
         # A late workflow update can recheck its artifact foreign key while holding
         # the run row. Take the workers' guards before DELETE locks the artifact.
         await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
         await hold_subject(self.db, LockScope.WORKFLOW_INLINE_RESULTS_PER_ORG, ctx.organization_id)
+        await self._lock_for_delete(artifact)
         await resource_grant_repo.delete_for_resource(
             self.db,
             organization_id=ctx.organization_id,

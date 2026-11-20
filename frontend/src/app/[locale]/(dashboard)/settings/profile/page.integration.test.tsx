@@ -12,9 +12,15 @@ vi.mock("@/hooks", () => ({ useAuth: () => ({ user: useAuthStore((state) => stat
 vi.mock("@/lib/api-client", () => ({ apiClient: { patch: vi.fn() } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("@/components/dashboard/active-sessions", () => ({ ActiveSessions: () => null }));
-vi.mock("@/components/settings/appearance-settings", () => ({ AppearanceSettings: () => null }));
-vi.mock("@/components/settings/coding-accounts", () => ({ CodingAccounts: () => null }));
-vi.mock("@/components/settings/chat-accounts", () => ({ ChatAccounts: () => null }));
+vi.mock("@/components/settings/appearance-settings", () => ({
+  AppearanceSettings: () => <h2>Appearance</h2>,
+}));
+vi.mock("@/components/settings/coding-accounts", () => ({
+  CodingAccounts: () => <h2>Coding accounts</h2>,
+}));
+vi.mock("@/components/settings/chat-accounts", () => ({
+  ChatAccounts: () => <h2>Connected accounts</h2>,
+}));
 vi.mock("@/components/memory/forget-me", () => ({ ForgetMe: () => null }));
 
 const USER: User = {
@@ -92,4 +98,13 @@ it("saves the guided identity before moving to the next question", async () => {
   expect(screen.getByRole("textbox", { name: "Display name" })).toHaveValue("Jamie edited");
   await userEvent.click(screen.getByRole("button", { name: "Continue" }));
   await waitFor(() => expect(next).toHaveBeenCalledOnce());
+});
+
+it("places connected accounts before appearance in reading and keyboard order", () => {
+  render(<ProfileSettingsPage />);
+  const headings = screen
+    .getAllByRole("heading", { level: 2 })
+    .map((heading) => heading.textContent);
+  expect(headings.indexOf("Connected accounts")).toBeLessThan(headings.indexOf("Coding accounts"));
+  expect(headings.indexOf("Coding accounts")).toBeLessThan(headings.indexOf("Appearance"));
 });

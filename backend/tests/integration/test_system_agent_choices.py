@@ -16,7 +16,7 @@ from app.agents.system_agents import (
     KNOWLEDGE_GAP_CLASSIFIER,
     KNOWLEDGE_GAP_DRAFTER,
 )
-from app.core.exceptions import SystemAgentUnavailableError
+from app.core.exceptions import NotFoundError, SystemAgentUnavailableError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunSurface
@@ -105,6 +105,7 @@ class ScriptedHelper:
         )
         self.db.add(run)
         await self.db.flush()
+        _kwargs["structured"].append(output)  # type: ignore[union-attr]
         return json.dumps(output), run
 
     def replacing_runner(self):
@@ -215,6 +216,7 @@ async def test_knowledge_base_uses_its_chosen_classifier(db):
 @pytest.mark.parametrize(
     "definition", [CASE_GENERATOR, IMPROVER, KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER]
 )
+@pytest.mark.security
 async def test_each_choice_refuses_the_wrong_kind_unpublished_inaccessible_and_deleted_agents(
     db, definition
 ):
@@ -235,23 +237,26 @@ async def test_each_choice_refuses_the_wrong_kind_unpublished_inaccessible_and_d
     chosen.current_version_id = version
     chosen.visibility = "private"
     member = await _member(db, ctx, OrgRoleName.MEMBER)
-    with pytest.raises(SystemAgentUnavailableError) as private:
+    with pytest.raises(NotFoundError) as private:
         await runner.require_runnable(member, key=definition.key, agent_id=chosen.id)
-    assert private.value.reason == "no_access"
+    assert private.value.details == {"agent_id": chosen.id}
     stranger = await _owner(db)
     their_org = await db.get(Organization, stranger.organization_id)
     assert their_org is not None
     their_org.ai_assistance_enabled = True
-    with pytest.raises(SystemAgentUnavailableError) as foreign:
+    with pytest.raises(NotFoundError) as foreign:
         await runner.require_runnable(stranger, key=definition.key, agent_id=chosen.id)
-    assert foreign.value.reason == "missing"
+    assert foreign.value.details == private.value.details
+    assert foreign.value.message == private.value.message
 
 
 @pytest.mark.parametrize(
     "definition", [CASE_GENERATOR, IMPROVER, KNOWLEDGE_GAP_CLASSIFIER, KNOWLEDGE_GAP_DRAFTER]
 )
+@pytest.mark.security
 async def test_a_removed_helper_never_adopts_the_seeded_agent(db, definition):
     ctx, _, _ = await _setup(db)
-    with pytest.raises(SystemAgentUnavailableError) as missing:
-        await SystemAgentRunner(db).require_runnable(ctx, key=definition.key, agent_id=uuid4())
-    assert missing.value.reason == "missing"
+    agent_id = uuid4()
+    with pytest.raises(NotFoundError) as missing:
+        await SystemAgentRunner(db).require_runnable(ctx, key=definition.key, agent_id=agent_id)
+    assert missing.value.details == {"agent_id": agent_id}

@@ -88,3 +88,52 @@ describe("calendar lead validation", () => {
     expect(eventOptionsValid({ minutes_before })).toBe(expected);
   });
 });
+
+describe("GitHub author filters", () => {
+  it.each([{}, { actions: ["opened"] }])(
+    "shows the effective default for legacy configs %j",
+    (initial) => {
+      render(<Editor source="github" initial={initial} />);
+      expect(
+        screen.getByRole("combobox", { name: "Whose events can start this routine" }),
+      ).toHaveValue("members");
+      expect(screen.getByText(/OWNER, MEMBER and COLLABORATOR/)).toBeVisible();
+      expect(screen.getByTestId("config")).not.toHaveTextContent('"authors"');
+    },
+  );
+  it.each(["members", "contributors", "anyone"])(
+    "edits %s while preserving the other filters",
+    async (authors) => {
+      render(
+        <Editor
+          source="github"
+          initial={{
+            event: "issue_comment",
+            authors: "anyone",
+            mention: "@agent",
+            ignore_login: "agent-bot",
+          }}
+        />,
+      );
+      await userEvent.selectOptions(
+        screen.getByRole("combobox", { name: "Whose events can start this routine" }),
+        authors,
+      );
+      expect(JSON.parse(screen.getByTestId("config").textContent ?? "{}")).toEqual({
+        event: "issue_comment",
+        authors,
+        mention: "@agent",
+        ignore_login: "agent-bot",
+      });
+    },
+  );
+  it.each(["push", "workflow_run", "release"])(
+    "does not offer an inactive author filter for %s",
+    (event) => {
+      render(<Editor source="github" initial={{ event }} />);
+      expect(
+        screen.queryByRole("combobox", { name: "Whose events can start this routine" }),
+      ).toBeNull();
+    },
+  );
+});

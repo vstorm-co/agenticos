@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "24e2df11cc74"
+source_sha: "c8a333081821"
 ---
 
 # Proyectos { #projects }
@@ -71,6 +71,17 @@ Dos formas de entrar:
 
 Un chat se queda en el proyecto en el que empezó. La etiqueta de un chat existente
 lleva de vuelta al proyecto.
+
+Un agente con Sandbox puede llamar a `select_project_workspace` con el ID de un
+proyecto accesible para usar sus archivos y consola durante la ejecución actual,
+también desde un canal conectado. La respuesta muestra los proyectos elegidos.
+Sin ID se restaura el workspace original. Las continuaciones tras una aprobación
+conservan la selección; el siguiente mensaje empieza en el workspace original.
+La selección no mueve el historial, copia archivos privados ni cambia las
+instrucciones. Cada operación comprueba de nuevo el acceso. Las rutinas siguen
+limitadas a las fuentes revisadas; las evaluaciones aisladas no pueden seleccionar
+proyectos activos. Los archivos quedan en el proyecto; para entregarlos, publica
+una App o envía explícitamente el archivo.
 
 ## Lo que recibe un agent en un proyecto { #what-an-agent-gets-in-a-project }
 
@@ -260,9 +271,8 @@ quien lo empezó. En la pestaña **Chats** cada fila dice de quién es el chat, 
 agents responden en él, cuándo se movió por última vez o quién está trabajando en
 él ahora, y quién lo ha abierto - las últimas caras, con todos
 los nombres al pasar el ratón; quien lo tiene abierto ahora mismo va primero, con
-un punto verde. Un chat fuera de un proyecto empieza como privado. Su propietario
-puede añadir expresamente personas o agents y convertir la conversación existente
-en una sala compartida sin perder su historial.
+un punto verde. Un chat fuera de un proyecto sigue siendo de su
+autor, como en el resto de la consola.
 
 Un chat de un proyecto no se comparte por separado, ni por enlace ni con una
 persona: se lee a través del proyecto, así que comparte el proyecto.
@@ -275,27 +285,12 @@ muestran una cabecera con la audiencia del proyecto y los participantes presente
 aunque estés solo. **Share** gestiona el acceso al proyecto; un participante con
 permiso de lectura puede seguir la transcripción, pero no publicar mensajes.
 
-Escribe `@` y selecciona a una persona o un agent para mencionarlo. Las personas
-reciben una notificación; cada agent seleccionado recibe su propia respuesta en
-cola al mismo mensaje escrito por una persona. Los nombres visibles similares
-siguen siendo opciones distintas. Escribir un nombre sin elegir una sugerencia no
-selecciona quién responderá. Los mensajes y las respuestas identifican al
-remitente; **Reply** incluye una cita en el mensaje y en el contexto del agent.
-
-Abre la lista de participantes para añadir un agent autorizado antes de
-mencionarlo. El uso compartido del proyecto sigue determinando qué personas pueden
-leer o escribir; la lista de participantes de la sala no puede conceder acceso al
-proyecto. De forma predeterminada, los agents solo responden a menciones. Un
-responsable de la sala puede activar las respuestas automáticas de agents
-seleccionados; entonces, un mensaje sin menciones puede llegar hasta a cuatro de
-ellos. Las menciones solo a personas no los convocan.
-
-La barra lateral del chat también ofrece salas fuera de un proyecto. Crea una sala
-privada o visible para la organización, o únete a una sala pública antes de
-escribir. Añadir a un compañero a un chat existente con un agent lo convierte en
-sala en el mismo lugar. La confirmación explica que el nuevo participante puede
-leer el historial guardado. El trabajo privado que ya esté en curso debe terminar
-o cancelarse antes de esa conversión.
+El campo de mensajes comienza con **Team only** seleccionado. Publicar guarda un
+mensaje humano sin pedir una respuesta a un modelo. Elige un agent de nube
+publicado en el selector de destinatario para solicitar su respuesta
+expresamente. Escribir su nombre en el mensaje no selecciona al agent que
+responde. Los mensajes y las respuestas identifican al remitente; **Reply**
+incluye una cita en el mensaje y en el contexto del agent.
 
 Las solicitudes a agents entran en una cola persistente por sala. Un run que
 espera una aprobación o respuesta mantiene su lugar hasta resolverse. Puedes
@@ -309,17 +304,11 @@ de una publicación es incierto, reintenta el mensaje pendiente para reutilizar 
 identidad. Una solicitud interrumpida no se reinicia automáticamente; revisa el
 run guardado antes de crear otra solicitud.
 
-Adjunta directamente hasta diez archivos a un mensaje de la sala, con o sin pie.
-Se aplican los límites actuales de tipo y tamaño de subida. Los mismos archivos
-adjuntos llegan a cada agent seleccionado para responder; al reintentar un envío,
-no se vuelven a adjuntar. La pestaña **Files** del proyecto sigue siendo el
-workspace compartido para el material de referencia a largo plazo. Responden
-agents publicados compatibles con la nube; los agents de escritorio y los que usan
-un sandbox personal siguen necesitando el flujo de chat específico de su dispositivo.
-
-Usa el control de reacciones en un mensaje guardado de una persona o un agent para
-añadir o quitar tu emoji. Los recuentos reúnen las reacciones de todos, y tus
-selecciones siguen marcadas. Cada mensaje admite hasta veinte emoji distintos.
+Este campo admite texto, respuestas con cita e hilos laterales. Sube los archivos de referencia en
+la pestaña **Files** del proyecto; los agents de la sala usan ese workspace
+compartido. Los agents locales de escritorio y los adjuntos por mensaje quedan
+fuera de esta interfaz. Los chats
+personales y el asistente flotante conservan sus campos de mensajes actuales.
 
 ### Hilos laterales { #side-threads }
 
@@ -331,13 +320,13 @@ estrechas, el hilo ocupa el ancho disponible. **Reply** sigue añadiendo una cit
 dentro de la discusión actual.
 
 Un hilo tiene la misma audiencia y los mismos permisos de publicación que su sala.
-Abrirlo no solicita una respuesta a un agent. Selecciona un agent con `@` para
-pedirle una respuesta, o menciona solo a personas para hablar con ellas. La
-respuesta pertenece a ese hilo, incluso si el run se reanuda después de una
-pregunta o aprobación. La sala principal y sus hilos comparten una cola de
-solicitudes a agents; un run en espera mantiene las solicitudes posteriores en cola.
+Abrirlo no solicita una respuesta a un agent. Mantén **Team only** para hablar con
+personas o elige **Ask @agent** expresamente. La respuesta pertenece a ese hilo,
+incluso si el run se reanuda después de una pregunta o aprobación. La sala principal
+y sus hilos comparten una cola de solicitudes a agents; un run en espera mantiene
+las solicitudes posteriores en cola.
 
-Sin un rango de contexto seleccionado, el agent prioriza el mensaje original y las
+El contexto de conversación del agent prioriza el mensaje original y las
 respuestas del hilo. El espacio restante del historial puede incluir mensajes de
 la sala principal anteriores al mensaje original. Se excluyen las respuestas de
 otros hilos y los mensajes posteriores de la sala principal. Siguen aplicándose
@@ -347,66 +336,15 @@ Las citas dentro de un hilo se refieren a su mensaje original o a una de sus res
 Los planes y pasos pendientes pertenecen a cada run. Se conservan al reanudarlo;
 una solicitud distinta al agent dentro del hilo inicia un plan nuevo.
 
-Quien inicia el hilo y las personas que responden lo siguen de forma
-predeterminada. Síguelo o deja de seguirlo explícitamente para controlar las
-notificaciones de respuestas; una mención directa con `@` aún te notifica. Leer la
-sala principal no marca como leídas las respuestas sin leer del hilo. La sala
-muestra el número de respuestas sin leer junto al resumen del hilo; al abrirlo,
-solo se marcan como leídas las respuestas que hayas visto.
-
-Quien inicia el hilo o un responsable de la sala puede cerrarlo o archivarlo. Una
-respuesta vuelve a abrir un hilo cerrado. Un hilo archivado es de solo lectura;
-al desarchivarlo se restaura su estado anterior, abierto o cerrado. Estas acciones
-conservan los mensajes originales y las respuestas.
-
 Cada discusión conserva su borrador y su reintento pendiente al cambiar entre
 hilos durante la sesión actual. Vuelve a la discusión original para reintentar una
 publicación incierta con la misma identidad; seleccionar otro hilo no redirige
 esa publicación pendiente. Cambiar de cuenta u organización borra estos borradores.
 
 Si el chat se separa del proyecto, sus hilos existentes siguen siendo legibles
-para quienes conservan acceso al chat. Las respuestas de los hilos pasan a ser de
-solo lectura, salvo que el propietario convierta explícitamente el chat en una
-sala independiente. Haber sido miembro del proyecto ya no concede acceso por sí solo.
-
-### Contexto seleccionado del hilo { #selected-thread-context }
-
-Usa **Select context** para elegir el primer y el último mensaje guardado de un
-nuevo hilo. Puedes excluir mensajes concretos antes de crearlo. La selección
-contiene entre 1 y 500 mensajes en el orden de la transcripción. El nuevo hilo
-tiene su propio título y muestra el contexto separado de las respuestas.
-Crearlo no solicita una respuesta a un agent.
-
-**Move into thread** retira los mensajes seleccionados de la conversación
-principal y deja un título y un recuento que enlazan con el hilo.
-**Return to room** devuelve solo los mensajes trasladados; las respuestas
-permanecen en el hilo. Se conservan identidades, autores, adjuntos, reacciones
-y orden original. Puedes editar directamente una selección trasladada:
-el rango anterior vuelve y el nuevo se traslada en una misma operación.
-
-Elige otra sala de origen para referenciar sus mensajes sin trasladarlos.
-Debe pertenecer a la misma organización y ser legible para todos los lectores
-actuales del destino. Las fuentes privadas y de proyecto también requieren
-participación compatible de agents. Un destino con un enlace público compartido
-no puede importar contexto. El acceso se comprueba al leerlo y antes de que
-un agent lo utilice.
-
-Los lectores deben conservar acceso a cada fuente vinculada para abrir la sala
-de destino, sus archivos o sus resultados de búsqueda. Compartir el destino no
-comparte la fuente. No se permiten enlaces públicos ni bifurcaciones que incluyan
-contexto importado. Cuando una solicitud o respuesta ya lo ha utilizado, su
-fuente y el marcador del hilo permanecen vinculados aunque se borren las
-respuestas. Puedes seguir editando la selección dentro de esa fuente. Las
-respuestas aparecen después de guardarse y comprobar de nuevo el acceso;
-el texto derivado de la fuente no se transmite en directo.
-
-Quien inició el hilo o un responsable de la sala puede cambiar el contexto
-cuando ambas salas estén inactivas. Finaliza primero el trabajo en cola,
-en curso o pausado. Los hilos archivados son de solo lectura y no se puede
-trasladar una selección que contenga otro hilo. El contexto no aumenta
-los recuentos de respuestas o de mensajes sin leer. Las exclusiones no entran
-en el historial seleccionado del agent, tampoco mediante citas automáticas.
-
+para quienes conservan acceso al chat. Las respuestas de los hilos pasan a ser
+de solo lectura hasta que el chat vuelva a pertenecer a un proyecto; haber sido
+miembro del proyecto ya no concede acceso por sí solo.
 
 ## Borrar un proyecto { #deleting-a-project }
 

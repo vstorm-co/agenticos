@@ -61,6 +61,18 @@ After an ad-hoc update, macOS may request microphone, Screen Recording, Accessib
 
 When the release workflow has a stable self-signed certificate (`scripts/create_macos_signing_cert.sh` makes one), macOS keeps the Screen Recording and Microphone grants across updates, because they are bound to the signing identity. Create it once and never replace it: a new certificate asks every user again. Self-signing does not remove the Gatekeeper warning; only Developer ID signing and notarization do.
 
+## Native Arch Linux package
+
+Download `agenticos-VERSION-1-x86_64.pkg.tar.zst` from the GitHub release and install it with `sudo pacman -U ./agenticos-VERSION-1-x86_64.pkg.tar.zst`. Replace `VERSION` with the release number. Pacman resolves the declared system dependencies, including WebKitGTK 4.1. This package does not bundle WebKitGTK or the Wayland client library.
+
+Download `SHA256SUMS.arch` beside the package and verify it with `sha256sum -c SHA256SUMS.arch` before installation. These release packages are not signed by the Arch Linux keyring.
+
+Upgrade by downloading the newer package and running the same `pacman -U` command. Remove it with `sudo pacman -R agenticos`; personal settings remain in your home directory. **Check for Updates…** explains this package-manager policy instead of downloading an AppImage. There is no automatic pacman repository or official AUR publication.
+
+The maintained recipe is `packaging/arch/PKGBUILD.in`. `scripts/build_arch_package.sh OUTPUT_DIRECTORY` generates a versioned recipe and checksummed archive from the current Git commit, then runs makepkg as an ordinary user. Build inside an updated Arch x86_64 environment with the recipe's build and runtime dependencies installed. The release workflow repeats this build for each platform release; rolling system dependencies are resolved at build time.
+
+The native Arch CI job installs the package, upgrades its package revision, checks ownership and removal, and runs the installed executable's isolated WebKit rendering check under Xvfb/X11 and headless Weston/Wayland. Its `arch-native` artifact records library paths, package versions and rendering logs. These software-rendered checks do not establish compatibility with every physical GPU, Mesa version, compositor or CachyOS installation.
+
 ## Running it
 
 The first-run wizard starts with a language choice and whether to create a local
@@ -146,7 +158,7 @@ checks, not workload sizing guarantees. Image downloads show progress and have a
 Git, Python, uv and Node.js are not required on the host for ordinary app use.
 
 New instances pin the platform version shipped with the app. Updating the desktop
-app does not silently replace a running instance's version. **Update** downloads
+app does not silently replace a running instance's version. **Update local workspace** downloads
 the matching platform images, pauses writers and backs up the database, media and
 deployment keys under the instance's private `backups/` directory before applying
 the update. A failed backup blocks the update. Backups contain personal data and
@@ -173,7 +185,7 @@ setup refuses an older image before creating the owner or opening a session.
 The local screen lists saved instances, their addresses and whether they are
 running. **Start and connect** starts the selected instance; **Finish setup**
 retries an interrupted installation using its existing files and keys. The menu
-bar's Start, Stop and Update act on the connected managed instance. Connecting
+bar's Start and Stop act on the connected managed instance. **Update local workspace…** opens the local instance picker. Connecting
 to an externally started development stack does not make it managed by the app.
 
 A local instance runs the API, the worker, the console, the database and Redis,
@@ -190,6 +202,21 @@ these files or putting them on the Docker command line. Deployment keys stay
 in the instance's private `.env`; provider keys are stored by the server's vault.
 The native setup controls use a neutral keyboard focus indicator and do not
 focus choice buttons automatically.
+
+The desktop app and workspace update separately. In the main macOS menu, choose
+**AgenticOS → Update local workspace…**; on Windows and Linux, use the tray menu.
+The same action is available beside each installed instance in **Change server… →
+On this computer**. The picker shows the desktop app version, each workspace's
+configured version and the update target bundled with the app. An older unpinned
+workspace shows its version as unavailable; the updater still checks it before
+changing anything. A newer workspace cannot be downgraded. A current workspace offers **Reapply workspace update** to recover from an interrupted restart or migration.
+
+Choose **Update local workspace**, then confirm the native backup and restart
+notice. The picker reports image download, backup and restart progress, then
+lets you connect again. On failure it shows the error and permits retry; cancelling
+leaves the workspace unchanged. **Check for Updates…** updates only the desktop
+app and points you to the separate workspace action, including when the app is
+already current. This path works even when the connected console is older.
 
 ## Connection setup and app readiness
 
@@ -615,6 +642,10 @@ one-way notification that the person took control. A binding with
 ## Installers and updates
 
 The Apps workflow also builds development installers and tests installation without UI automation: copying the Mac app from its DMG, silent installation and removal on Windows, Debian installation and removal, and portable AppImage extraction. It verifies the embedded macOS widget and signatures, persistent session isolation, and rejection of tampered updater downloads. These checks use ad-hoc or unsigned builds and do not establish public notarization or store approval.
+
+Installer CI and Linux release builds also inspect the extracted AppImage and reject a bundled Wayland client library (`libwayland-client.so*`), which can conflict with the host Mesa driver and crash WebKitGTK. Release validation runs before installers and updater signatures are uploaded. This library check does not establish rendering compatibility on every Wayland compositor or GPU.
+
+When manually dispatching an older tag without `scripts/build_linux_desktop_release.sh`, the Linux job builds directly with Tauri and logs a warning that pre-upload AppImage validation is unavailable. Tags containing the wrapper keep that validation; a build or validation failure still prevents updater publication.
 
 The **Apps** GitHub Actions workflow checks native crates on macOS, Windows and
 Linux and builds Android debug APKs and an iOS simulator app. Full native checks

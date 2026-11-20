@@ -120,6 +120,7 @@ def load_builtins() -> None:
         data_combine,
         data_filter,
         data_map,
+        data_value,
         debug_echo,
         debug_relay,
         decide_choose,

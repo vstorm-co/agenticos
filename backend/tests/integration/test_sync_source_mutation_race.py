@@ -58,6 +58,7 @@ class _Estate:
     kb_id: uuid.UUID
     collection: str
     other_collection: str
+    other_kb_id: uuid.UUID
     source_id: uuid.UUID
 
     async def stored(self) -> SyncSource | None:
@@ -143,6 +144,7 @@ async def estate(engine: AsyncEngine) -> _Estate:
             name="Drive",
             connector_type="gdrive",
             collection_name=base.collection_name,
+            knowledge_base_id=base.id,
             config={"folder_id": "abc"},
         )
         s.add(source)
@@ -156,6 +158,7 @@ async def estate(engine: AsyncEngine) -> _Estate:
         kb_id=base.id,
         collection=base.collection_name,
         other_collection=other.collection_name,
+        other_kb_id=other.id,
         source_id=source.id,
     )
 
@@ -284,7 +287,10 @@ class TestAMoveDuringTheCheck:
     ) -> None:
         async with estate.factory() as mover:
             await sync_source_repo.update(
-                mover, estate.source_id, collection_name=estate.other_collection
+                mover,
+                estate.source_id,
+                collection_name=estate.other_collection,
+                knowledge_base_id=estate.other_kb_id,
             )
             with pytest.raises(NotFoundError):
                 await _while_committing(estate, mover, lambda: act(estate, estate.member))
@@ -311,7 +317,10 @@ class TestAMoveDuringTheCheck:
         """An authorized move still invalidates network validation of the old target."""
         async with estate.factory() as mover:
             await sync_source_repo.update(
-                mover, estate.source_id, collection_name=estate.other_collection
+                mover,
+                estate.source_id,
+                collection_name=estate.other_collection,
+                knowledge_base_id=estate.other_kb_id,
             )
             with pytest.raises(ConcurrentChangeError):
                 await _while_committing(estate, mover, lambda: _rag_update(estate, estate.owner))
@@ -325,6 +334,25 @@ class TestAMoveDuringTheCheck:
 class TestTheLockOrder:
     """The row lock comes after every lock another transaction holds while reaching for it."""
 
+    async def test_an_id_selected_clone_target_waits_for_its_teardown(
+        self, estate: _Estate
+    ) -> None:
+        async with estate.factory() as teardown, estate.factory() as cloning:
+            target = await cloning.get(KnowledgeBase, estate.kb_id)
+            assert target is not None
+            await hold_name(teardown, LockScope.COLLECTION_TEARDOWN, estate.collection)
+            task = asyncio.ensure_future(
+                CollectionAccessService(cloning).hold_source_target(target)
+            )
+            try:
+                await _until_a_statement_waits_on_a_lock(estate.factory)
+                assert not task.done()
+                await teardown.commit()
+                await asyncio.wait_for(task, timeout=_SETTLED)
+            finally:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+
     async def test_a_move_takes_the_name_before_the_row(self, estate: _Estate) -> None:
         """A base's deletion detaches its sources under the name: name, then rows.
 
@@ -337,14 +365,14 @@ class TestTheLockOrder:
                 estate,
                 lambda s: rag_routes.update_sync_source(
                     source_id=str(estate.source_id),
-                    data=SyncSourceUpdate(collection_name=estate.collection),
+                    data=SyncSourceUpdate(collection_name=estate.other_collection),
                     ctx=estate.owner,
                     **_services(s),
                 ),
             )
 
         async with estate.factory() as teardown:
-            await hold_name(teardown, LockScope.COLLECTION_TEARDOWN, estate.collection)
+            await hold_name(teardown, LockScope.COLLECTION_TEARDOWN, estate.other_collection)
             task = asyncio.ensure_future(repoint())
             await _until_a_statement_waits_on_a_lock(estate.factory)
             kb = await teardown.get(KnowledgeBase, estate.kb_id)

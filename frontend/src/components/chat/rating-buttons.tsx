@@ -1,4 +1,5 @@
 "use client";
+import { Textarea } from "@/components/ui/textarea";
 import { useState, useCallback, useMemo, useRef } from "react";
 import { Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -209,11 +210,11 @@ export function RatingButtons({
             <DialogTitle>{t("whatWentWrong")}</DialogTitle>
             <DialogDescription>{t("feedbackHelp")}</DialogDescription>
           </DialogHeader>
-          <textarea
+          <Textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             placeholder={t("describeIssue")}
-            className="bg-background min-h-[100px] w-full rounded-md border p-2"
+            className="min-h-[100px]"
             maxLength={2000}
             autoFocus
           />

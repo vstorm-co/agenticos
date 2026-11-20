@@ -470,7 +470,9 @@ def _read_output(ref: NodeOutputRef, outputs: dict[UUID, dict[str, Any] | None])
     if stored.get("status") != wanted:
         value = None
     for part in ref.field_path:
-        value = None if value is None else value.get(part)
+        # A dynamic value may stop being an object partway through the path.
+        # Treat that as missing; the target schema decides whether it accepts null.
+        value = value.get(part) if isinstance(value, dict) else None
     return value
 
 
@@ -799,7 +801,6 @@ async def _wait_for_budget(
     run: WorkflowRun,
     node_run: NodeRun,
     outbox: DispatchOutbox,
-    now: datetime,
 ) -> None:
     """Hold a spender back until the steps holding the run's budget have settled.
 
@@ -818,14 +819,18 @@ async def _wait_for_budget(
         await events.append(
             db, run=run, kind=events.EventKind.NODE_BUDGET_WAIT, node_run_id=node_run.id
         )
-    waited = 0.0 if began is None else (now - began).total_seconds()
+    waited = (
+        0.0
+        if began is None
+        else (await workflow_run_repo.database_time(db) - began).total_seconds()
+    )
     delay = min(
         max(settings.WORKFLOW_RETRY_BACKOFF_BASE_SECONDS, waited),
         settings.WORKFLOW_RETRY_BACKOFF_MAX_SECONDS,
     )
     await workflow_run_repo.mark_outbox_done(db, outbox=outbox)
     await dispatch_queue.queue_dispatch(
-        db, run=run, node_run_id=node_run.id, available_at=now + timedelta(seconds=delay)
+        db, run=run, node_run_id=node_run.id, delay=timedelta(seconds=delay)
     )
 
 
@@ -1023,7 +1028,7 @@ async def begin_attempt(
         if not free:
             # The cap is not spent (`over_budget` above) but parallel steps hold all
             # that is left. Try again once one of them settles; nothing is handed out.
-            await _wait_for_budget(db, run=run, node_run=node_run, outbox=outbox, now=now)
+            await _wait_for_budget(db, run=run, node_run=node_run, outbox=outbox)
             return None
         # A step that calls a workflow reserves like any spender; the hold moves to the
         # called run's own row when it is admitted (`admit_call`).
@@ -1506,7 +1511,6 @@ async def resolve_orphaned_attempt(
                 attempt=attempt,
                 result=waiting,
                 waiting_agent_run_id=child.id,
-                now=now,
             )
             await refresh_run_status(db, run=run)
             return
@@ -1602,7 +1606,7 @@ async def _resolve_orphan_of_live_run(
             db,
             run=run,
             node_run_id=node_run.id,
-            available_at=now + timedelta(seconds=_backoff_seconds(failures, retry)),
+            delay=timedelta(seconds=_backoff_seconds(failures, retry)),
         )
         return
 
@@ -1936,7 +1940,6 @@ async def _settle_loaded(
             attempt=attempt,
             result=result,
             waiting_agent_run_id=outcome.waiting_agent_run_id,
-            now=now,
         )
     elif isinstance(result, Uncertain):
         await _settle_uncertain(db, run=run, node_run=node_run, result=result)
@@ -2330,7 +2333,6 @@ async def _settle_waiting(
     attempt: NodeAttempt,
     result: Waiting,
     waiting_agent_run_id: UUID | None,
-    now: datetime,
 ) -> None:
     called: WorkflowRun | None = None
     if result.reason == WaitingReason.QUESTION.value and waiting_agent_run_id is None:
@@ -2414,7 +2416,7 @@ async def _settle_waiting(
             db,
             run=run,
             node_run_id=node_run.id,
-            available_at=result.resume_at or now,
+            available_at=result.resume_at,
         )
         return
     await refresh_run_status(db, run=run)
@@ -2435,7 +2437,7 @@ async def _settle_waiting(
             db,
             run=run,
             node_run_id=node_run.id,
-            available_at=now + timedelta(seconds=_backoff_seconds(attempt.attempt_no)),
+            delay=timedelta(seconds=_backoff_seconds(attempt.attempt_no)),
         )
 
 
@@ -2513,7 +2515,7 @@ async def _settle_failed(
             db,
             run=run,
             node_run_id=node_run.id,
-            available_at=now + timedelta(seconds=_backoff_seconds(failures, retry)),
+            delay=timedelta(seconds=_backoff_seconds(failures, retry)),
         )
         return []
 

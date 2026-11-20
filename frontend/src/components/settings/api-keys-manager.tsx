@@ -152,11 +152,7 @@ export function ApiKeysManager() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <WorkspaceFullscreenButton
-              expanded={expanded}
-              onToggle={toggle}
-              className="md:inline-flex"
-            />
+            <WorkspaceFullscreenButton expanded={expanded} onToggle={toggle} />
             {canCreate && catalog && (
               <Button size="sm" className="w-full sm:w-auto" onClick={() => setCreating(true)}>
                 <Plus className="h-4 w-4" />

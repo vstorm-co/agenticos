@@ -37,3 +37,11 @@ For each number, identify its source, period and unit. An illustrative model lab
 ## Polish with evidence
 
 Read the result as its recipient. Check a narrow phone, a large screen, a long name, an empty result and an unavailable source. Exercise the primary action using a keyboard. Inspect the actual publication rather than only a screenshot of an HTML file. Change one concrete defect at a time; keep the existing user's edits and working behavior.
+
+## A report is an argument with inspectable evidence
+
+Use the report template for an executive lead, a dominant measure, an annotated comparison and a compact source table. Its supplier scope changes the chart, denominator and selected totals together; its recommendation explicitly keeps the full-sample scope. Recompute rates from the selected underlying counts, not by averaging percentages. Identify illustrative fixtures in the opening and source note, rather than presenting them as a real system export.
+
+For other Apps, sketch the primary interaction before writing the interface. A calculator starts with useful inputs and a visible result; a record workbench starts with a searchable list and selected detail; a report starts with the conclusion. Give the initial screen the final content hierarchy. Avoid filling a generic four-KPI dashboard when the requested job needs another structure.
+
+Review the finished artifact as a recipient: the first screen should communicate its topic, main result and useful action without opening a settings panel. Check the primary interaction, long content and an empty selection. Keep exact labels selectable and charts accompanied by values. A polished screenshot cannot substitute for working controls or a correctly scoped data source.

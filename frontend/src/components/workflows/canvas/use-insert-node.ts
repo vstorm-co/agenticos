@@ -27,6 +27,7 @@ export interface InsertOptions {
   from?: InsertFrom;
   dropAt?: NodePosition;
   between?: WorkflowEdge;
+  keepOnward?: boolean;
   /** The step's config, when it is added already set up - an app's action, an `mcp.call` for a tool. */
   config?: Record<string, unknown>;
 }

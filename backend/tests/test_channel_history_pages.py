@@ -185,6 +185,8 @@ async def test_mattermost_thread_and_native_pages_filter_exactly() -> None:
 
     def respond(request: httpx.Request) -> httpx.Response:
         requests.append(request)
+        if request.url.path.endswith("/posts/anchor"):
+            return httpx.Response(200, json=_post("room", "report", root="thread"))
         return httpx.Response(
             200,
             json={
@@ -220,9 +222,9 @@ async def test_mattermost_thread_and_native_pages_filter_exactly() -> None:
         )
     assert [post.post_id for post in page.posts] == ["match"]
     assert page.cursor == "match"
-    assert requests[0].url.params["fromPost"] == "anchor"
-    assert requests[0].url.params["perPage"] == "3"
-    assert requests[1].url.params["before"] == "anchor"
+    assert requests[1].url.params["fromPost"] == "anchor"
+    assert requests[1].url.params["perPage"] == "3"
+    assert requests[2].url.params["before"] == "anchor"
     assert native.posts == () and native.cursor is None
 
 
@@ -409,6 +411,8 @@ async def test_mattermost_repeated_thread_root_does_not_end_paging_early() -> No
     }
 
     def respond(request: httpx.Request) -> httpx.Response:
+        if not request.url.path.endswith("/thread"):
+            return httpx.Response(200, json=replies[request.url.path.rsplit("/", 1)[-1]])
         anchor = request.url.params.get("fromPost")
         ids = ["c", "b"] if anchor is None else (["b", "a"] if anchor == "b" else ["a"])
         return httpx.Response(
@@ -449,4 +453,112 @@ async def test_mattermost_repeated_thread_root_does_not_end_paging_early() -> No
     assert [post.post_id for post in first.posts] == ["b", "c"]
     assert [post.post_id for post in second.posts] == ["a"]
     assert [post.post_id for post in last.posts] == ["thread"]
+    assert last.cursor is None
+
+
+@pytest.mark.parametrize("limit", [2, 100])
+async def test_mattermost_complete_thread_includes_its_root_without_a_false_gap(limit):
+    payload = {
+        "has_next": False,
+        "order": ["reply", "thread"],
+        "posts": {
+            "thread": _post("room", "QA-THREAD-A: RYŚ-482", hour=9),
+            "reply": _post("room", "Sala B", hour=10, root="thread"),
+        },
+    }
+    with patch.object(
+        MattermostAdapter,
+        "_client",
+        lambda _: httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _request: httpx.Response(200, json=payload))
+        ),
+    ):
+        page = await MattermostAdapter().channel_history_page(
+            "token",
+            "room",
+            api_base_url="https://mm.example",
+            limit=limit,
+            thread_id="thread",
+            filters=HistoryQuery(),
+        )
+    assert [post.post_id for post in page.posts] == ["thread", "reply"]
+    assert page.cursor is None
+
+
+@pytest.mark.parametrize("wrong", ["channel", "thread"])
+async def test_mattermost_continuation_requires_a_cursor_from_the_bound_thread(wrong):
+    anchor = _post(
+        "other" if wrong == "channel" else "room",
+        "outside",
+        root="other" if wrong == "thread" else "thread",
+    )
+    with (
+        patch.object(
+            MattermostAdapter,
+            "_client",
+            lambda _: httpx.AsyncClient(
+                transport=httpx.MockTransport(lambda _request: httpx.Response(200, json=anchor))
+            ),
+        ),
+        pytest.raises(ChannelDirectoryUnsupported, match="no longer belongs"),
+    ):
+        await MattermostAdapter().channel_history_page(
+            "token",
+            "room",
+            api_base_url="https://mm.example",
+            limit=20,
+            thread_id="thread",
+            filters=HistoryQuery(cursor="anchor"),
+        )
+
+
+async def test_mattermost_native_paging_carries_the_anchor_timestamp_and_reaches_the_root():
+    root = _post("room", "Original date and code", hour=1)
+    replies = {
+        "a": _post("room", "first", hour=9, root="thread"),
+        "b": _post("room", "second", hour=10, root="thread"),
+        "c": _post("room", "third", hour=11, root="thread"),
+    }
+
+    def respond(request):
+        if request.url.path.endswith("/posts/b"):
+            return httpx.Response(200, json=replies["b"])
+        continued = "fromPost" in request.url.params
+        if continued:
+            assert request.url.params["fromPost"] == "b"
+            assert request.url.params["fromCreateAt"] == str(replies["b"]["create_at"])
+        ids = ["a", "b"] if continued else ["a", "b", "c"]
+        return httpx.Response(
+            200,
+            json={
+                "has_next": not continued,
+                "order": ["thread", *ids],
+                "posts": {"thread": root, **{key: replies[key] for key in ids}},
+            },
+        )
+
+    with patch.object(
+        MattermostAdapter,
+        "_client",
+        lambda _: httpx.AsyncClient(transport=httpx.MockTransport(respond)),
+    ):
+        adapter = MattermostAdapter()
+        first = await adapter.channel_history_page(
+            "token",
+            "room",
+            api_base_url="https://mm.example",
+            limit=2,
+            thread_id="thread",
+            filters=HistoryQuery(),
+        )
+        last = await adapter.channel_history_page(
+            "token",
+            "room",
+            api_base_url="https://mm.example",
+            limit=2,
+            thread_id="thread",
+            filters=HistoryQuery(cursor=first.cursor),
+        )
+    assert [post.post_id for post in first.posts] == ["b", "c"]
+    assert [post.post_id for post in last.posts] == ["thread", "a"]
     assert last.cursor is None

@@ -18,6 +18,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
+from app.db.models.resource_grant import GrantLevel
 from app.db.models.virtual_table import VirtualTable
 from app.db.table_rls import bind_table_access
 from app.db.updates import writable
@@ -44,6 +45,7 @@ from app.schemas.virtual_table import (
     TableUpdate,
 )
 from app.services.access import TABLE, accessible_ids, visible_resource_ids
+from app.services.sharing import SharingService
 from app.services.task_access import table_audience
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.conversions import convert, option_labels
@@ -140,9 +142,23 @@ class TableOperations(Operations):
                 columns=_dump(columns),
                 created_by=ctx.subject_id,
             )
+            if data.group_ids or data.user_ids:
+                await SharingService(self.db).restrict_to(
+                    ctx,
+                    table,
+                    resource_type=TABLE,
+                    group_ids=data.group_ids,
+                    user_ids=data.user_ids,
+                    level=GrantLevel.READ,
+                )
             return self._read(table, columns, can_edit=await self._can_edit(ctx, table))
 
-        payload = data.model_dump(mode="json")
+        # Empty audience fields must keep the hash of receipts written before
+        # table creation accepted recipients, including retries across upgrades.
+        payload = data.model_dump(
+            mode="json",
+            exclude={"group_ids", "user_ids"} if not data.group_ids and not data.user_ids else None,
+        )
         # This optional field did not exist in older receipt fingerprints. Its
         # absent/null form preserves the old request; an explicit limit is new.
         for column in payload["columns"]:
@@ -292,10 +308,14 @@ class TableOperations(Operations):
             columns=await self._columns(table, deadline=deadline),
         )
 
-    async def list_schema_versions(self, ctx: AuthContext, table_id: UUID) -> SchemaVersionList:
-        """Every schema version the table has had, oldest first."""
+    async def list_schema_versions(
+        self, ctx: AuthContext, table_id: UUID, *, version: int | None = None
+    ) -> SchemaVersionList:
+        """Schema history, optionally restricted to one exact version."""
         table = await self._load_table(ctx, table_id, Perm.TABLES_VIEW)
-        versions = await virtual_table_repo.list_schema_versions(self.db, table_id=table.id)
+        versions = await virtual_table_repo.list_schema_versions(
+            self.db, table_id=table.id, version=version
+        )
         return SchemaVersionList(
             items=[SchemaVersionRead.model_validate(version) for version in versions]
         )

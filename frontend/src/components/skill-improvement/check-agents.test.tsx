@@ -168,12 +168,35 @@ describe("CheckAgents", () => {
       "queued",
       "running",
       "better",
+      "criteria_better",
       "no_change",
+      "criteria_worse",
       "within_noise",
       "worse",
       "unknown",
     ];
     for (const state of states) expect(catalog.skillImprovement.agents.state).toHaveProperty(state);
+  });
+
+  it("names an agent better or worse on criteria alone, groups it with the better or the worse, and tables its criteria", async () => {
+    const helped = checkAgent("Quotes", "criteria_better");
+    helped.criteria = [
+      { scorer: "judge", name: "validity", graded: 10, before: 0, after: 10, fixed: 10, broken: 0 },
+    ];
+    render(
+      <CheckAgents
+        check={skillCheck({ agents: [helped, checkAgent("Billing", "criteria_worse")] })}
+      />,
+    );
+
+    expect(screen.getByText("Better on criteria")).toBeInTheDocument();
+    expect(screen.getByText("Worse on criteria")).toBeInTheDocument();
+    expect(screen.getByText("1 better")).toBeVisible();
+    expect(screen.getByText("1 worse")).toBeVisible();
+    await openAll();
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("validity")).toBeInTheDocument();
+    expect(within(table).getByText("+10 fixed")).toBeInTheDocument();
   });
 
   it("names an agent within the test's noise as no change, as its group and count do", () => {

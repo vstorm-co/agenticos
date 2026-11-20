@@ -17,6 +17,7 @@ fixed.
 """
 
 import hashlib
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -85,6 +86,7 @@ from app.schemas.scoring import (
     ScorerResult,
     SkillCheckAnswer,
 )
+from app.services import rate_limit
 from app.services.access import (
     AGENT,
     DATASET,
@@ -111,6 +113,7 @@ from app.services.scorers import (
     rubric_hash,
     run_checks,
     score_trajectory,
+    verdict_schema,
 )
 from app.services.system_agent_runner import SystemAgentRunner
 from app.services.system_agents import SystemAgentService
@@ -865,12 +868,17 @@ class ScoringService:
                 key=JUDGE.key,
                 prompt=judge_prompt(case, answer, criteria, scale_max=scoring.judge.scale_max),
                 output_type=JudgeVerdict,
+                schema=verdict_schema(criteria, scale_max=scoring.judge.scale_max),
                 agent_id=scoring.judge.agent_id,
                 model_profile_id=scoring.judge.model_profile_id,
                 instructions=scoring.judge.instructions,
                 version_id=judge_version_id,
                 improvement_run_id=improvement_run_id,
                 knowledge_base_ids=await self._answering_bases(ctx, answer),
+            )
+        except NotFoundError as exc:
+            return Evaluation(
+                not_graded(criteria, skipped=True, code="judge_missing", reason=exc.message)
             )
         except SystemAgentUnavailableError as exc:
             skipped = not_graded(
@@ -888,14 +896,14 @@ class ScoringService:
             )
             return Evaluation(failed, await self._failed_pin(ctx, exc.run_id, criteria, scoring))
         except SystemAgentOutputError as exc:
-            said = " ".join(exc.answer.split())
+            said = " ".join(exc.answer.split()) or None
             failed = not_graded(
                 criteria,
                 skipped=False,
                 code="judge_output_invalid",
                 reason=exc.message,
                 run_id=exc.run_id,
-                said=said if len(said) <= _SAID else f"{said[:_SAID]}…",
+                said=said if said is None or len(said) <= _SAID else f"{said[:_SAID]}…",
             )
             return Evaluation(failed, await self._failed_pin(ctx, exc.run_id, criteria, scoring))
         grades = graded(
@@ -1206,45 +1214,54 @@ class ScoringService:
         it stays out when a newer score of its case and agent waits there. A
         score of an eval run drops the run's kept verdict, given or withdrawn,
         so it is compared afresh.
+
+        Eval-backed writes share comparison admission after authorization and
+        before any score or cache mutation; a rate refusal leaves them unchanged.
         """
         score = await self._score(ctx, dataset_id, score_id)
-        decided = data.passed is not None
-        score = await case_score_repo.update(
-            self.db,
-            score=score,
-            update_data={
-                "human_passed": data.passed,
-                "human_note": _redact(data.note) if decided else None,
-                "reviewed_by_user_id": ctx.user_id if decided else None,
-                "reviewed_at": datetime.now(UTC) if decided else None,
-                "review_state": "done" if decided else "none",
-            },
-        )
-        if not decided:
-            await self.route_to_review(ctx, dataset_id=dataset_id, score_ids=[score.id])
-        if score.eval_run_id is not None:
-            affected = await eval_run_repo.forget_outcomes(
-                self.db, [score.eval_run_id], organization_id=ctx.organization_id
+        admission = nullcontext() if score.eval_run_id is None else rate_limit.eval_computation(ctx)
+        async with admission:
+            decided = data.passed is not None
+            score = await case_score_repo.update(
+                self.db,
+                score=score,
+                update_data={
+                    "human_passed": data.passed,
+                    "human_note": _redact(data.note) if decided else None,
+                    "reviewed_by_user_id": ctx.user_id if decided else None,
+                    "reviewed_at": datetime.now(UTC) if decided else None,
+                    "review_state": "done" if decided else "none",
+                },
             )
-            from app.services.eval_suite import EvalSuiteService
+            if not decided:
+                await self.route_to_review(ctx, dataset_id=dataset_id, score_ids=[score.id])
+            if score.eval_run_id is not None:
+                affected = await eval_run_repo.forget_outcomes(
+                    self.db, [score.eval_run_id], organization_id=ctx.organization_id
+                )
+                from app.services.eval_suite import EvalSuiteService
 
-            await EvalSuiteService(self.db).recompute_after_review(ctx, affected, undo=not decided)
-            from app.services.improvement_pipeline import ImprovementPipelineService
+                await EvalSuiteService(self.db).recompute_after_review(
+                    ctx, affected, undo=not decided
+                )
+                from app.services.improvement_pipeline import ImprovementPipelineService
 
-            await ImprovementPipelineService(self.db).recompute_after_review(ctx, affected)
-            from app.services.skill_check import SkillCheckService
+                await ImprovementPipelineService(self.db).recompute_after_review(ctx, affected)
+                from app.services.skill_check import SkillCheckService
 
-            await SkillCheckService(self.db).recompute_after_review(ctx.organization_id, affected)
-        await record_audit(
-            self.db,
-            actor_user_id=ctx.subject_id,
-            organization_id=ctx.organization_id,
-            action="case_score.verdict",
-            target_type="case_score",
-            target_id=str(score.id),
-            details={"dataset_id": str(dataset_id), "passed": data.passed},
-        )
-        return (await self._reads(ctx, [score]))[0]
+                await SkillCheckService(self.db).recompute_after_review(
+                    ctx.organization_id, affected
+                )
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="case_score.verdict",
+                target_type="case_score",
+                target_id=str(score.id),
+                details={"dataset_id": str(dataset_id), "passed": data.passed},
+            )
+            return (await self._reads(ctx, [score]))[0]
 
     async def request_review(
         self, ctx: AuthContext, dataset_id: UUID, score_id: UUID

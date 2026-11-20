@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { nodeNames, ProblemsFooter } from "@/components/workflows/property-panel/problems";
 import type { ValidationProblem } from "@/components/workflows/validation";
-import { validateGraph } from "@/components/workflows/validation";
+import { graphWarnings, validateGraph, withTableDrift } from "@/components/workflows/validation";
 import { ApiError, fieldProblems } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
@@ -33,8 +33,10 @@ import type {
 import { useWorkflowVersions } from "@/hooks";
 import { WebhookSecretDialog } from "@/components/workflows/triggers";
 import { triggerNodeOf } from "@/lib/workflows/triggers";
-import { resolveDefinitions } from "@/components/workflows/validation/topology";
+import { deriveScopes, resolveDefinitions } from "@/components/workflows/validation/topology";
+import { scopePathTo } from "@/components/workflows/canvas/scope-view";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
+import { isTableRefusalField } from "@/lib/workflows/table-drift";
 
 import { useLiveChanges } from "./workflow-status";
 
@@ -86,8 +88,12 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
   const expectedRevision = useWorkflowEditorStore((state) => state.expectedRevision);
   const isDirty = useWorkflowEditorStore((state) => state.isDirty);
   const focusNode = useWorkflowEditorStore((state) => state.focusNode);
+  const editNode = useWorkflowEditorStore((state) => state.editNode);
+  const setScopePath = useWorkflowEditorStore((state) => state.setScopePath);
   const setConflict = useWorkflowEditorStore((state) => state.setConflict);
   const revealProblems = useWorkflowEditorStore((state) => state.revealProblems);
+  const refreshTables = useWorkflowEditorStore((state) => state.refreshTables);
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
 
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -102,8 +108,9 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
   );
 
   const clientProblems = useMemo(
-    () => (graph === null ? [] : validateGraph(graph, nodeCatalog, t)),
-    [graph, nodeCatalog, t],
+    () =>
+      graph === null ? [] : withTableDrift(validateGraph(graph, nodeCatalog, t), tableDrift, t),
+    [graph, nodeCatalog, t, tableDrift],
   );
 
   const trigger = useMemo(() => {
@@ -114,8 +121,30 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
       : (catalog.find((definition) => definition.id === node.definition_id)?.name ?? null);
   }, [graph, nodeCatalog, catalog]);
 
+  const warnings = useMemo(
+    () => (graph === null ? [] : graphWarnings(graph, nodeCatalog, t)),
+    [graph, nodeCatalog, t],
+  );
+
+  const names = useMemo(() => nodeNames(graph, nodeCatalog), [graph, nodeCatalog]);
   const blocked = clientProblems.length > 0;
   const problems = clientProblems.length > 0 ? clientProblems : serverProblems;
+
+  // A warning is read where the step is set up: in its loop, with its settings open.
+  const openStep = (nodeId: Uuid) => {
+    // The loops as the draft holds them now: the graph's stored scopes are the ones
+    // last loaded, and a step moved into a loop since would open outside it.
+    if (graph !== null) {
+      const live = {
+        ...graph,
+        scopes: deriveScopes(graph, resolveDefinitions(graph, nodeCatalog)),
+      };
+      setScopePath(scopePathTo(live, nodeId));
+    }
+    focusNode(nodeId);
+    editNode(nodeId);
+    setOpen(false);
+  };
 
   const selectNode = (nodeId: Uuid) => {
     focusNode(nodeId);
@@ -154,7 +183,7 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
       // A `REVISION_CONFLICT` (`409`) means the draft moved on since this editor
       // read it — publishing into a stale revision. It carries the current
       // revision but no field problems, so it would otherwise vanish. Hand it to
-      // the shared conflict banner (Overwrite / Reload) and close the dialog.
+      // the shared conflict banner (Keep my changes / Load their version) and close the dialog.
       if (error instanceof ApiError && error.status === 409) {
         const current = error.details?.current_revision;
         if (typeof current === "number") {
@@ -163,8 +192,13 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
           return;
         }
       }
+      const problems = fieldProblems(error);
+      // A table changed or went away since the editor last read it: read it
+      // again, so the steps it safely can are updated and the rest show why.
+      const tables = problems.some(({ field }) => isTableRefusalField(field, graph));
+      if (tables) refreshTables();
       setServerProblems(
-        fieldProblems(error).map((problem) => toValidationProblem(problem.field, problem.message)),
+        problems.map((problem) => toValidationProblem(problem.field, problem.message)),
       );
     } finally {
       setSubmitting(false);
@@ -216,12 +250,28 @@ export function PublishDialog({ workflow, catalog, publish }: PublishDialogProps
             <p className="text-muted-foreground text-xs">{t("publishBlocked")}</p>
           )}
           {isDirty && <p className="text-muted-foreground text-xs">{t("publishSaving")}</p>}
-          <ProblemsFooter
-            problems={problems}
-            names={nodeNames(graph, nodeCatalog)}
-            onSelectNode={selectNode}
-            defaultOpen
-          />
+          {!blocked && warnings.length > 0 && (
+            <div className="text-warning space-y-1 text-xs">
+              <p>{t("publishWarnings")}</p>
+              <ul className="space-y-1">
+                {warnings.map((warning, index) => (
+                  <li key={index}>
+                    <button
+                      type="button"
+                      className="text-left underline-offset-2 hover:underline"
+                      onClick={() => openStep(warning.nodeId!)}
+                    >
+                      {t("publishWarningAt", {
+                        step: names.get(warning.nodeId!) ?? "",
+                        warning: warning.message,
+                      })}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <ProblemsFooter problems={problems} names={names} onSelectNode={selectNode} defaultOpen />
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>

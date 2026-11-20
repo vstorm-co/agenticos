@@ -1,19 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, Brain, ChevronDown, Loader2, Newspaper, Wallet } from "lucide-react";
+import { Brain, Loader2, Newspaper, Wallet } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
-import Link from "next/link";
 import { toast } from "sonner";
 
+import { ServiceCard } from "@/components/settings/service-card";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
-import { SetupIndicator } from "@/components/settings/setup-indicator";
-import { systemAgentSetupHints } from "@/lib/setup-hints";
-import { SettingsSection } from "@/components/settings/settings-section";
 import { ErrorState } from "@/components/states";
-import { Badge, Button, Input, Label, Skeleton, Switch } from "@/components/ui";
+import { Badge, Button, Input, Skeleton, Switch } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
-import { useModelProviders, usePermissions } from "@/hooks";
+import { useModelProviders, useOrganizations, usePermissions } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useSystemAgents } from "@/hooks/use-system-agents";
@@ -32,11 +29,16 @@ const BUDGET_FIELD = "monthly_budget_usd";
  * Roles are not agents. Nothing here has instructions a person wrote, so nothing
  * is attributed to the starter agent or anyone else whose instructions did not
  * run; each execution is listed under the role that did it. The daily briefing is
- * the setting in the Proactivity tab, shown with its history; memory maintenance is
- * configured here, on a model somebody chose and inside a budget of its own.
+ * edited here through the organization setting, so it shares its model and limit
+ * with suggestions. Memory maintenance has its own model and budget.
  */
-export function OrgSystemAgents({ org }: { org: Organization }) {
-  const t = useTranslations("teams.systemAgents");
+export function OrgSystemAgents({
+  org,
+  excludeBriefing = false,
+}: {
+  org: Organization;
+  excludeBriefing?: boolean;
+}) {
   const { can } = usePermissions();
   const tenantId = useTenantId();
   // The roles are the active organization's: this page can be opened for another one the
@@ -50,137 +52,60 @@ export function OrgSystemAgents({ org }: { org: Organization }) {
   // system-agent settings.
   if (error || !roles) return <ErrorState />;
   return (
-    <SettingsSection title={t("title")} description={t("description")}>
-      <div data-tour="org-system-agents" className="grid items-stretch gap-4 lg:grid-cols-2">
-        {roles.map((role) => (
-          <Role key={role.role} agent={role} orgId={org.id} />
+    <div className="grid items-stretch gap-3" data-tour="org-system-agents">
+      {roles
+        .filter((role) => !excludeBriefing || role.role !== "daily_briefing")
+        .map((role) => (
+          <Role key={role.role} agent={role} org={org} />
         ))}
-      </div>
-    </SettingsSection>
-  );
-}
-
-function RolesLoading() {
-  const t = useTranslations("teams.systemAgents");
-  const states = useTranslations("states");
-  return (
-    <SettingsSection title={t("title")} description={t("description")}>
-      <div
-        role="status"
-        aria-label={states("loading")}
-        aria-busy="true"
-        className="grid gap-4 lg:grid-cols-2"
-      >
-        {[0, 1].map((item) => (
-          <div key={item} aria-hidden className="bg-background overflow-hidden rounded-xl border">
-            <div className="flex min-h-32 gap-3 border-b p-4 sm:p-5">
-              <Skeleton className="size-9 shrink-0 rounded-lg" />
-              <div className="flex-1 space-y-3">
-                <Skeleton className="h-4 w-36" />
-                <Skeleton className="h-3 w-full max-w-72" />
-              </div>
-            </div>
-            <div className="min-h-24 p-4 sm:p-5">
-              <Skeleton className="h-9 w-full rounded-lg" />
-            </div>
-            <div className="bg-muted/30 space-y-3 border-t p-4 sm:px-5">
-              <Skeleton className="h-4 w-40" />
-              <Skeleton className="h-3 w-28" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </SettingsSection>
-  );
-}
-
-function Role({ agent, orgId }: { agent: SystemAgent; orgId: string }) {
-  const nav = useTranslations("pages.orgs");
-  const t = useTranslations("teams.systemAgents");
-  return (
-    <div
-      role="region"
-      aria-label={t(`roles.${agent.role}.name`)}
-      className="bg-background flex min-w-0 flex-col overflow-hidden rounded-xl border"
-      data-testid={`system-agent-${agent.role}`}
-    >
-      <div className="flex min-h-32 items-start gap-3 border-b p-4 sm:p-5">
-        <span className="bg-muted text-muted-foreground grid size-9 shrink-0 place-items-center rounded-lg">
-          {agent.role === "daily_briefing" ? (
-            <Newspaper className="size-4" aria-hidden />
-          ) : (
-            <Brain className="size-4" aria-hidden />
-          )}
-        </span>
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex items-center gap-1.5">
-            <h3 className="text-sm font-medium">{t(`roles.${agent.role}.name`)}</h3>
-            <SetupIndicator hints={systemAgentSetupHints(agent)} />
-          </div>
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            {t(`roles.${agent.role}.what`)}
-          </p>
-        </div>
-        <Badge variant={agent.enabled ? "success" : "secondary"}>
-          {agent.enabled ? t("on") : t("off")}
-        </Badge>
-      </div>
-      <div className="flex min-h-24 flex-1 flex-col gap-4 p-4 sm:p-5">
-        {agent.unavailable ? (
-          <p role="status" className="text-destructive text-xs">
-            {t("starterAgentMissing")}
-          </p>
-        ) : null}
-        {agent.managed_in ? (
-          <div className="flex flex-1 flex-col items-start gap-3">
-            <p className="text-muted-foreground text-xs">
-              {agent.model_label
-                ? t("managedIn", { model: agent.model_label })
-                : t("managedInNoModel")}
-            </p>
-            <Button asChild variant="outline" size="sm" className="mt-auto">
-              <Link href={`/orgs/${orgId}/members?tab=proactivity`}>
-                {nav("tabProactivity")}
-                <ArrowRight className="size-3.5" aria-hidden />
-              </Link>
-            </Button>
-          </div>
-        ) : (
-          <details className="group open:bg-muted/30 rounded-lg border">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
-              {t("configure")}
-              <ChevronDown
-                className="text-muted-foreground size-4 shrink-0 transition-transform group-open:rotate-180"
-                aria-hidden
-              />
-            </summary>
-            <div className="border-t p-3">
-              <Profile agent={agent} />
-            </div>
-          </details>
-        )}
-      </div>
-      <div className="bg-muted/30 mt-auto space-y-3 border-t p-4 sm:px-5">
-        <Spend agent={agent} />
-        <History agent={agent} />
-      </div>
     </div>
   );
 }
 
-function Profile({ agent }: { agent: SystemAgent }) {
+function RolesLoading() {
+  const states = useTranslations("states");
+  return (
+    <div role="status" aria-label={states("loading")} aria-busy="true" className="grid gap-3">
+      {[0, 1].map((item) => (
+        <div key={item} aria-hidden className="bg-background overflow-hidden rounded-xl border">
+          <div className="flex items-center gap-3 p-4">
+            <Skeleton className="size-9 shrink-0 rounded-lg" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-36" />
+              <Skeleton className="h-3 w-48" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Role({ agent, org }: { agent: SystemAgent; org: Organization }) {
+  return <Profile agent={agent} org={org} />;
+}
+
+function Profile({ agent, org }: { agent: SystemAgent; org: Organization }) {
   const t = useTranslations("teams.systemAgents");
   const tErrors = useTranslations("errors");
   const { profiles, profilesStatus } = useModelProviders();
   const { can } = usePermissions();
-  const { update } = useSystemAgents(true);
+  const { update, refresh } = useSystemAgents(true);
+  const { setProactivity } = useOrganizations();
+  const proactive = useTranslations("teams.proactive");
+  const briefing = agent.role === "daily_briefing";
+  const [open, setOpen] = useState(false);
+  const modelId = briefing ? (org.proactive_model_profile_id ?? null) : agent.model_profile_id;
+  const budget = briefing ? (org.proactive_limit_usd ?? "1") : agent.monthly_budget_usd;
   const saved = {
-    enabled: agent.enabled,
-    modelId: agent.model_profile_id,
-    budget: agent.monthly_budget_usd === null ? "" : String(Number(agent.monthly_budget_usd)),
+    enabled: Boolean((briefing ? org.proactive_enabled : agent.enabled) && modelId),
+    modelId,
+    budget: budget === null ? "" : String(Number(budget)),
   };
   const [form, setForm] = useState(saved);
   const [pending, setPending] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const busy = saving || update.isPending;
   const [errors, setErrors] = useState<Record<string, string>>({});
   if (useChanged(JSON.stringify(saved))) setForm(saved);
   const changed = JSON.stringify(form) !== JSON.stringify(saved);
@@ -191,7 +116,10 @@ function Profile({ agent }: { agent: SystemAgent }) {
 
   const save = async () => {
     const budget = form.budget.trim();
-    if (budget !== "" && (!Number.isFinite(Number(budget)) || Number(budget) < 0)) {
+    if (
+      (briefing && budget === "") ||
+      (budget !== "" && (!Number.isFinite(Number(budget)) || Number(budget) < 0))
+    ) {
       setErrors({ [BUDGET_FIELD]: t("invalid") });
       return;
     }
@@ -199,44 +127,85 @@ function Profile({ agent }: { agent: SystemAgent }) {
       setErrors({ [MODEL_FIELD]: t("modelRequired") });
       return;
     }
+    setSaving(true);
     try {
-      await update.mutateAsync({
-        role: agent.role,
-        change: {
-          enabled: form.enabled,
-          model_profile_id: form.modelId,
-          monthly_budget_usd: budget === "" ? null : budget,
-        },
-      });
+      if (briefing) {
+        await setProactivity(org.id, {
+          proactive_enabled: form.enabled,
+          proactive_model_profile_id: form.modelId,
+          proactive_limit_usd: Number(budget),
+        });
+        await refresh();
+      } else
+        await update.mutateAsync({
+          role: agent.role,
+          change: {
+            enabled: form.enabled,
+            model_profile_id: form.modelId,
+            monthly_budget_usd: budget === "" ? null : budget,
+          },
+        });
       toast.success(form.enabled ? t("saved") : t("savedOff"));
     } catch (failure) {
-      const problem = submitFailure(failure, { fields: [MODEL_FIELD, BUDGET_FIELD] }, tErrors);
-      setErrors(problem.fields);
+      const modelField = briefing ? "proactive_model_profile_id" : MODEL_FIELD;
+      const budgetField = briefing ? "proactive_limit_usd" : BUDGET_FIELD;
+      const problem = submitFailure(failure, { fields: [modelField, budgetField] }, tErrors);
+      setErrors({
+        ...(problem.fields[modelField] ? { [MODEL_FIELD]: problem.fields[modelField] } : {}),
+        ...(problem.fields[budgetField] ? { [BUDGET_FIELD]: problem.fields[budgetField] } : {}),
+      });
       if (problem.toast) toast.error(problem.toast);
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <Label htmlFor={`system-agent-${agent.role}-enabled`}>{t("enabled")}</Label>
+    <ServiceCard
+      title={t(`roles.${agent.role}.name`)}
+      description={t("configure")}
+      icon={briefing ? Newspaper : Brain}
+      collapsible
+      open={open}
+      onOpenChange={setOpen}
+      id={`system-agent-${agent.role}-settings`}
+      testId={`system-agent-${agent.role}`}
+      status={
+        <Badge variant={form.enabled ? "success" : "secondary"}>
+          {form.enabled ? t("on") : t("off")}
+        </Badge>
+      }
+      action={
         <Switch
           id={`system-agent-${agent.role}-enabled`}
+          aria-label={t("enabled")}
           checked={form.enabled}
-          disabled={update.isPending}
-          onCheckedChange={(enabled) => edit({ enabled })}
+          disabled={busy || form.modelId === null}
+          onCheckedChange={(enabled) => {
+            edit({ enabled });
+            setOpen(true);
+          }}
         />
-      </div>
-      <fieldset className="min-w-0 space-y-2" disabled={update.isPending}>
+      }
+    >
+      <p className="text-muted-foreground max-w-3xl text-sm leading-relaxed">
+        {t(`roles.${agent.role}.what`)}
+      </p>
+      {agent.unavailable && (
+        <p role="status" className="text-destructive text-sm">
+          {t("starterAgentMissing")}
+        </p>
+      )}
+      <fieldset className="min-w-0 space-y-2" disabled={busy}>
         <legend className="text-sm font-medium">{t("model")}</legend>
         <ModelProfilePicker
           profiles={profiles}
           profilesStatus={profilesStatus}
           value={form.modelId}
-          onChange={(modelId) => edit({ modelId })}
+          onChange={(modelId) => edit({ modelId, ...(modelId === null ? { enabled: false } : {}) })}
           onCreationPendingChange={(creating) => setPending((count) => count + (creating ? 1 : -1))}
           allowAdd={can(Perm.connectionsManage)}
-          disabled={update.isPending}
+          disabled={busy}
         />
         {errors[MODEL_FIELD] ? (
           <p className="text-destructive text-xs">{errors[MODEL_FIELD]}</p>
@@ -245,7 +214,7 @@ function Profile({ agent }: { agent: SystemAgent }) {
         )}
       </fieldset>
       <FormField
-        label={t("budget")}
+        label={briefing ? proactive("label") : t("budget")}
         htmlFor={`system-agent-${agent.role}-budget`}
         error={errors[BUDGET_FIELD] ?? null}
       >
@@ -256,14 +225,24 @@ function Profile({ agent }: { agent: SystemAgent }) {
           step="0.5"
           placeholder={t("noBudget")}
           value={form.budget}
-          disabled={update.isPending}
+          disabled={busy}
           onChange={(event) => edit({ budget: event.target.value })}
         />
       </FormField>
-      <Button onClick={save} disabled={!changed || update.isPending || pending > 0}>
-        {update.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+      <Button onClick={save} disabled={!changed || busy || pending > 0}>
+        {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
         {t("save")}
       </Button>
+      <SystemAgentActivity agent={agent} />
+    </ServiceCard>
+  );
+}
+
+export function SystemAgentActivity({ agent }: { agent: SystemAgent }) {
+  return (
+    <div className="space-y-3 border-t pt-4">
+      <Spend agent={agent} />
+      <History agent={agent} />
     </div>
   );
 }

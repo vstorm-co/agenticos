@@ -30,7 +30,7 @@ from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
-from app.repositories import agent_run_repo
+from app.repositories import agent_run_repo, voice_call_repo
 from app.repositories.agent_run import ApprovalFilters, ChatAsker
 from app.services.agent_runner import AgentRunnerService
 from app.services.approvals import ApprovalService
@@ -436,6 +436,44 @@ class TestNarrowingTheQueue:
         )
 
         assert ([row.id for row in rows], total) == ([recent.id], 1)
+
+    async def test_a_call_a_live_voice_call_decides_is_left_out_when_asked(self, db) -> None:
+        org, owner = await _org(db)
+        agent = await _agent(db, org)
+        in_call = await _run(db, org, agent, started_by=owner)
+        after_call = await _run(db, org, agent, started_by=owner)
+        await _approval(db, org, in_call)
+        open_here = await _approval(db, org, after_call)
+        for run, ended in ((in_call, None), (after_call, _NOW)):
+            call = await voice_call_repo.create(
+                db,
+                organization_id=org.id,
+                agent_id=agent.id,
+                run_id=run.id,
+                user_id=owner.id,
+                conversation_id=None,
+                embed_id=None,
+                surface="web",
+                provider="openai",
+                model="gpt-realtime",
+                transport="webrtc",
+                secret_id=None,
+                worker_id="host:1",
+                resume_of=None,
+                resume_token_hash="0" * 64,
+                started_at=_NOW - timedelta(minutes=5),
+            )
+            call.ended_at = ended
+        await db.flush()
+
+        service = ApprovalService(db)
+        everything, all_total = await service.list_approvals(_ctx(org, owner))
+        here, total = await service.list_approvals(
+            _ctx(org, owner), filters=ApprovalFilters(outside_live_calls=True)
+        )
+
+        assert all_total == 2 and len(everything) == 2
+        assert ([row.id for row in here], total) == ([open_here.id], 1)
 
     async def test_the_count_narrows_with_the_page(self, db) -> None:
         """Two queries. A filter reaching one and not the other gives a total that

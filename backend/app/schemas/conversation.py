@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import ConfigDict, Field, JsonValue, ValidationInfo, field_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.mention import MentionKind
@@ -18,6 +18,44 @@ from app.schemas.room_thread import RoomThreadMovedStubRead, RoomThreadSummary
 
 if TYPE_CHECKING:
     from app.db.models.user import User
+
+
+class HistoryCheckpointFrontier(BaseSchema):
+    """The checkpoint and visible transcript frontier a model history was built from."""
+
+    model_config = ConfigDict(frozen=True)
+
+    summary_ordinal: int | None = Field(ge=0)
+    message_ordinal: int = Field(ge=0)
+
+
+class HistoryProvenance(BaseSchema):
+    """The agent and credential-free digest of a checkpoint's approved recipients."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    agent_id: UUID
+    configuration_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    mcp_destination_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+
+class HistoryCheckpoint(BaseSchema):
+    """Versioned private replay storage; older list snapshots have no recipient proof."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+    version: Literal[1]
+    provenance: HistoryProvenance
+    messages: list[dict[str, JsonValue]]
+
+
+class HistorySource(BaseSchema):
+    """The authorized transcript window to reload when a checkpoint is incompatible."""
+
+    model_config = ConfigDict(frozen=True)
+    conversation_id: UUID
+    limit: int
+    exclude_message_id: UUID | None = None
+    before_message_id: UUID | None = None
+    snapshot: bool = False
 
 
 class ChatPageResource(BaseSchema):

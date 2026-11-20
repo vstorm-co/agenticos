@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   held: [] as string[],
   roles: undefined as unknown,
   mutateAsync: vi.fn(),
+  setProactivity: vi.fn(),
+  refresh: vi.fn(),
   isPending: false,
   fail: undefined as unknown,
   loading: false,
@@ -22,11 +24,13 @@ const toastError = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks", () => ({
   usePermissions: () => ({ can: (permission: Permission) => state.held.includes(permission) }),
+  useOrganizations: () => ({ setProactivity: state.setProactivity }),
   useModelProviders: () => ({ profiles: [], profilesStatus: "loaded" }),
 }));
 vi.mock("@/hooks/use-organizations", () => ({ useTenantId: () => state.tenantId }));
 vi.mock("@/hooks/use-system-agents", () => ({
   useSystemAgents: () => ({
+    refresh: state.refresh,
     roles: state.roles,
     isLoading: state.loading,
     error: state.failed,
@@ -46,6 +50,7 @@ vi.mock("@/components/agents/model-profile-picker", () => ({
     <div>
       <span>picked:{value ?? "none"}</span>
       <button onClick={() => onChange("model-2")}>pick</button>
+      <button onClick={() => onChange(null)}>clear</button>
       <button onClick={() => onCreationPendingChange(true)}>creating</button>
       <button onClick={() => onCreationPendingChange(false)}>created</button>
     </div>
@@ -86,7 +91,13 @@ const briefing = agent({
   managed_in: "proactivity",
 });
 
-const ORG = { id: "o1", name: "Acme" } as Organization;
+const ORG = {
+  id: "o1",
+  name: "Acme",
+  proactive_enabled: true,
+  proactive_model_profile_id: "model-1",
+  proactive_limit_usd: "1",
+} as Organization;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -135,33 +146,75 @@ describe("OrgSystemAgents", () => {
     expect(render(<OrgSystemAgents org={ORG} />).container).toBeEmptyDOMElement();
   });
 
-  it("shows the briefing as the proactivity setting, with no form of its own", () => {
+  it("configures the briefing in place through the organization setting", async () => {
     render(<OrgSystemAgents org={ORG} />);
-
-    const card = screen.getByTestId("system-agent-daily_briefing");
-    expect(card).toHaveTextContent("managedIn:Sonnet");
-    expect(card).toHaveTextContent("on");
-    expect(card.querySelector("button")).toBeNull();
-    expect(screen.getByRole("link", { name: "tabProactivity" })).toHaveAttribute(
-      "href",
-      "/orgs/o1/members?tab=proactivity",
-    );
+    const card = within(screen.getByTestId("system-agent-daily_briefing"));
+    expect(card.queryByRole("link")).not.toBeInTheDocument();
+    await userEvent.click(card.getByRole("button", { name: /^roles\./ }));
+    await userEvent.click(card.getByRole("button", { name: "pick" }));
+    await userEvent.click(card.getByRole("button", { name: "save" }));
+    expect(state.setProactivity).toHaveBeenCalledWith("o1", {
+      proactive_enabled: true,
+      proactive_model_profile_id: "model-2",
+      proactive_limit_usd: 1,
+    });
+    expect(state.mutateAsync).not.toHaveBeenCalled();
   });
 
-  it("keeps service configuration collapsed while its usage stays visible", async () => {
+  it("keeps legacy model-less memory off and prevents enabling it", async () => {
+    state.roles = [agent({ enabled: true })];
     render(<OrgSystemAgents org={ORG} />);
-    expect(screen.getByRole("button", { name: "pick" })).not.toBeVisible();
-    expect(screen.getByTestId("system-agent-memory_maintenance")).toHaveTextContent("noRuns");
-    await userEvent.click(screen.getByText("configure"));
-    expect(screen.getByRole("button", { name: "pick" })).toBeVisible();
+    const card = within(screen.getByTestId("system-agent-memory_maintenance"));
+    expect(card.getByText("off")).toBeVisible();
+    await userEvent.click(card.getByRole("button", { name: /^roles\./ }));
+    expect(card.getByRole("switch")).not.toBeChecked();
+    expect(card.getByRole("switch")).toBeDisabled();
+    await userEvent.click(card.getByRole("button", { name: "pick" }));
+    await userEvent.click(card.getByRole("switch"));
+    expect(card.getByRole("switch")).toBeChecked();
+    await userEvent.click(card.getByRole("button", { name: "clear" }));
+    expect(card.getByRole("switch")).not.toBeChecked();
+    expect(card.getByRole("switch")).toBeDisabled();
+  });
+
+  it("keeps service configuration and activity hidden until expanded", async () => {
+    render(<OrgSystemAgents org={ORG} />);
+    expect(
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: "pick",
+        hidden: true,
+      }),
+    ).not.toBeVisible();
+    const card = within(screen.getByTestId("system-agent-memory_maintenance"));
+    expect(card.getByText("noRuns")).not.toBeVisible();
+    expect(card.getByText(/^spent:/)).not.toBeVisible();
+    await userEvent.click(
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: /^roles\./,
+      }),
+    );
+    expect(
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: "pick",
+      }),
+    ).toBeVisible();
+    expect(card.getByText("noRuns")).toBeVisible();
+    expect(card.getByText(/^spent:/)).toBeVisible();
+    await userEvent.click(card.getByRole("button", { name: /^roles\./ }));
+    expect(card.getByText("noRuns")).not.toBeVisible();
+    expect(card.getByText(/^spent:/)).not.toBeVisible();
   });
 
   it("says when the briefing has no model yet, and when it is off", () => {
     state.roles = [{ ...briefing, enabled: false, model_label: null }, agent()];
-    render(<OrgSystemAgents org={ORG} />);
+    render(
+      <OrgSystemAgents
+        org={{ ...ORG, proactive_enabled: false, proactive_model_profile_id: null }}
+      />,
+    );
 
     const card = screen.getByTestId("system-agent-daily_briefing");
-    expect(card).toHaveTextContent("managedInNoModel");
+    expect(card.querySelector("a")).toBeNull();
     expect(card).toHaveTextContent("off");
   });
 
@@ -203,28 +256,42 @@ describe("OrgSystemAgents", () => {
 
   it("refuses to turn on without a model and a budget that is not a number", async () => {
     render(<OrgSystemAgents org={ORG} />);
-    await userEvent.click(screen.getByText("configure"));
+    await userEvent.click(
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: /^roles\./,
+      }),
+    );
     const card = screen.getByTestId("system-agent-memory_maintenance");
 
-    await userEvent.click(card.querySelector("button[role=switch]") as HTMLElement);
-    await userEvent.click(screen.getByRole("button", { name: "save" }));
-    expect(card).toHaveTextContent("modelRequired");
+    expect(card.querySelector("button[role=switch]")).toBeDisabled();
 
     await userEvent.type(screen.getByLabelText("budget"), "-1");
-    await userEvent.click(screen.getByRole("button", { name: "save" }));
+    await userEvent.click(
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: "save",
+      }),
+    );
     expect(card).toHaveTextContent("invalid");
     expect(state.mutateAsync).not.toHaveBeenCalled();
   });
 
   it("saves the switch, the model and the budget together", async () => {
     render(<OrgSystemAgents org={ORG} />);
-    await userEvent.click(screen.getByText("configure"));
+    await userEvent.click(
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: /^roles\./,
+      }),
+    );
     const card = screen.getByTestId("system-agent-memory_maintenance");
 
+    await userEvent.click(within(card).getByRole("button", { name: "pick" }));
     await userEvent.click(card.querySelector("button[role=switch]") as HTMLElement);
-    await userEvent.click(screen.getByRole("button", { name: "pick" }));
     await userEvent.type(screen.getByLabelText("budget"), "5");
-    await userEvent.click(screen.getByRole("button", { name: "save" }));
+    await userEvent.click(
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: "save",
+      }),
+    );
 
     expect(state.mutateAsync).toHaveBeenCalledWith({
       role: "memory_maintenance",
@@ -239,12 +306,20 @@ describe("OrgSystemAgents", () => {
       agent({ enabled: true, model_profile_id: "model-1", monthly_budget_usd: "5" }),
     ];
     render(<OrgSystemAgents org={ORG} />);
-    await userEvent.click(screen.getByText("configure"));
+    await userEvent.click(
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: /^roles\./,
+      }),
+    );
     const card = screen.getByTestId("system-agent-memory_maintenance");
 
     await userEvent.click(card.querySelector("button[role=switch]") as HTMLElement);
     await userEvent.clear(screen.getByLabelText("budget"));
-    await userEvent.click(screen.getByRole("button", { name: "save" }));
+    await userEvent.click(
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: "save",
+      }),
+    );
 
     expect(state.mutateAsync).toHaveBeenCalledWith({
       role: "memory_maintenance",
@@ -255,13 +330,27 @@ describe("OrgSystemAgents", () => {
 
   it("holds the save while a model is being created", async () => {
     render(<OrgSystemAgents org={ORG} />);
-    await userEvent.click(screen.getByText("configure"));
+    await userEvent.click(
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: /^roles\./,
+      }),
+    );
     await userEvent.type(screen.getByLabelText("budget"), "1");
-    const save = screen.getByRole("button", { name: "save" });
+    const save = within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+      name: "save",
+    });
 
-    await userEvent.click(screen.getByRole("button", { name: "creating" }));
+    await userEvent.click(
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: "creating",
+      }),
+    );
     expect(save).toBeDisabled();
-    await userEvent.click(screen.getByRole("button", { name: "created" }));
+    await userEvent.click(
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: "created",
+      }),
+    );
     expect(save).toBeEnabled();
   });
 
@@ -273,9 +362,17 @@ describe("OrgSystemAgents", () => {
       }),
     );
     render(<OrgSystemAgents org={ORG} />);
-    await userEvent.click(screen.getByText("configure"));
+    await userEvent.click(
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: /^roles\./,
+      }),
+    );
     await userEvent.type(screen.getByLabelText("budget"), "1");
-    await userEvent.click(screen.getByRole("button", { name: "save" }));
+    await userEvent.click(
+      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+        name: "save",
+      }),
+    );
 
     await waitFor(() => expect(toastSuccess).not.toHaveBeenCalled());
     await waitFor(() => expect(state.mutateAsync).toHaveBeenCalled());
@@ -284,11 +381,26 @@ describe("OrgSystemAgents", () => {
 
 it("keeps Save disabled until the role configuration changes and after it is restored", async () => {
   render(<OrgSystemAgents org={ORG} />);
-  await userEvent.click(screen.getByText("configure"));
-  const save = screen.getByRole("button", { name: "save" });
+  await userEvent.click(
+    within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+      name: /^roles\./,
+    }),
+  );
+  const save = within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
+    name: "save",
+  });
   expect(save).toBeDisabled();
   await userEvent.type(screen.getByLabelText("budget"), "5");
   expect(save).toBeEnabled();
   await userEvent.clear(screen.getByLabelText("budget"));
   expect(save).toBeDisabled();
+});
+
+it("leaves briefing configuration to the combined card and keeps memory directly accessible", () => {
+  state.roles = [briefing, agent()];
+  render(<OrgSystemAgents org={ORG} excludeBriefing />);
+  expect(screen.queryByTestId("system-agent-daily_briefing")).not.toBeInTheDocument();
+  expect(
+    within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("switch"),
+  ).toBeVisible();
 });

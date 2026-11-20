@@ -403,6 +403,8 @@ _WHY_STOPPED = {
     "knowledge_only": "Every problem was missing knowledge, so there was nothing to change "
     "in the agent.",
     "expired": "It waited too long for a person.",
+    "criteria_worse": "The changes made a criterion the answers are graded on worse, though no "
+    "question broke.",
 }
 """Why a session stopped, in the words a person reads; never the stored reason's name."""
 
@@ -455,20 +457,75 @@ def _person_chose(session: dict[str, Any]) -> str | None:
     return last.get("actor_name") or last["actor_user_id"]
 
 
+def _criterion(item: dict[str, Any], names: list[str]) -> str:
+    owner = f' (skill "{item["skill"]}")' if item.get("skill") else ""
+    name = item["name"]
+    if names.count(name) > 1:
+        name = f"{name} [{item['scorer']}]"
+    return f"{name} {item['before']}/{item['graded']} → {item['after']}/{item['graded']}{owner}"
+
+
+def _criteria_sentences(detail: dict[str, Any], verdict: str) -> list[str]:
+    """What an attempt moved criterion by criterion, and what still fails, in plain words."""
+    criteria = detail.get("criteria") or []
+    names = [item["name"] for item in criteria]
+    better = [
+        item
+        for item in criteria
+        if item["fixed"] and not item["broken"] and item["after"] >= item["before"]
+    ]
+    worse = [item for item in criteria if item["broken"]]
+    failing = [
+        item
+        for item in criteria
+        if item["after"] < item["graded"] and not item["fixed"] and not item["broken"]
+    ]
+    sentences = []
+    if worse:
+        sentences.append(
+            "Criteria that got worse: " + ", ".join(_criterion(item, names) for item in worse) + "."
+        )
+    if verdict == "criteria_better" and better:
+        sentences.append(
+            "Criteria that got better: "
+            + ", ".join(_criterion(item, names) for item in better)
+            + "."
+        )
+        if failing:
+            sentences.append(
+                "No additional question passes yet: other criteria still fail - "
+                + ", ".join(_criterion(item, names) for item in failing)
+                + "."
+            )
+    return sentences
+
+
 def _attempt_sentence(attempt: dict[str, Any]) -> str:
     detail = attempt.get("verdict_detail") or {}
     fixed, broken = detail.get("fixed") or 0, detail.get("broken") or 0
-    number = attempt["number"]
-    if broken or attempt["verdict"] == "regression":
-        return (
+    number, verdict = attempt["number"], attempt["verdict"]
+    if broken or verdict == "regression":
+        head = (
             f"Warning: attempt {number} makes the agent worse - it breaks "
             f"{_questions(broken)} the agent answered well before, and fixes {fixed}."
         )
-    if attempt["verdict"] == "better":
-        return f"Attempt {number} fixes {_questions(fixed)} and breaks none."
-    if attempt["verdict"] == "no_change":
-        return f"Attempt {number} made no measurable difference."
-    return f"The test could not tell whether attempt {number} helped."
+    elif verdict == "better":
+        head = f"Attempt {number} fixes {_questions(fixed)} and breaks none."
+    elif verdict == "criteria_better":
+        head = (
+            f"Attempt {number} makes the agent better on some criteria, though no whole "
+            "question flipped."
+        )
+    elif verdict == "criteria_worse":
+        head = (
+            f"Warning: attempt {number} makes the agent worse on some criteria, though no "
+            "question broke."
+        )
+    elif verdict == "no_change":
+        head = f"Attempt {number} made no measurable difference."
+    else:
+        return f"The test could not tell whether attempt {number} helped."
+    return " ".join([head, *_criteria_sentences(detail, verdict)])
 
 
 def _price_sentence(price: dict[str, Any]) -> str:
@@ -607,6 +664,10 @@ def _can_try_again(session: dict[str, Any]) -> bool:
     )
 
 
+_GAINS = frozenset({"better", "criteria_better"})
+"""Verdicts that measured a gain: whole questions, or criteria with nothing worse."""
+
+
 def _keep_actions(session: dict[str, Any]) -> list[str]:
     """The wizard's choice between measured attempts: each one the session does not keep yet."""
     measured = _measured(session)
@@ -618,7 +679,7 @@ def _keep_actions(session: dict[str, Any]) -> list[str]:
         return []
     kept = session.get("best_iteration_id") if session["status"] == "ready" else None
     return [
-        f"Keep attempt {it['number']}" + ("" if it["verdict"] == "better" else " anyway")
+        f"Keep attempt {it['number']}" + ("" if it["verdict"] in _GAINS else " anyway")
         for it in measured
         if it["id"] != kept
     ]
@@ -690,9 +751,22 @@ def _attempt(iteration: dict[str, Any], chosen: Any) -> dict[str, Any]:
             "pass_rate_before": detail.get("baseline_pass_rate"),
             "pass_rate_after": detail.get("candidate_pass_rate"),
         },
+        "criteria": [
+            {
+                "scorer": item["scorer"],
+                "name": item["name"],
+                "passed_before": item["before"],
+                "passed_after": item["after"],
+                "graded": item["graded"],
+                "fixed": item["fixed"],
+                "broken": item["broken"],
+                "skill": item.get("skill"),
+            }
+            for item in detail.get("criteria") or []
+        ],
         "cost_usd": iteration.get("cost_usd"),
         "chosen": iteration["id"] == chosen,
-        "best": iteration.get("verdict") == "better",
+        "best": iteration.get("verdict") in _GAINS,
     }
 
 
@@ -1369,7 +1443,14 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             spec["context_ids"] = [str(context_id) for context_id in context_ids]
         if starters is not None:
             spec["starters"] = starters
-        return await api.request("PUT", f"/agents/{agent_id}/draft", json={"spec": spec})
+        revision = agent.get("draft_revision")
+        if not isinstance(revision, str):
+            raise TypeError("Agent detail response has no draft revision")
+        return await api.request(
+            "PUT",
+            f"/agents/{agent_id}/draft",
+            json={"spec": spec, "expected_revision": revision},
+        )
 
     async def test_agent_draft(
         agent_id: UUID, prompt: str, conversation_id: UUID | None = None
@@ -2808,6 +2889,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         on a rerun) and its `change` - fixed less broken - on `held_out`
         questions of its own; compare attempts by that, not by the pass rates in
         their `details`, which come from different questions. Each has its cost.
+        Its `criteria` count, per criterion the answers are graded on, how many
+        held-out questions passed it before and after and how many it fixed and
+        broke (confirmed on a rerun), with the skill a still-failing one was put
+        down to. A question passes only when every criterion does, so a verdict
+        of `criteria_better` - better on criteria, no question flipped yet - is a
+        gain, and `criteria_worse` a loss, as much as `better` and `regression`.
         `chosen` marks the attempt the session keeps - picked by `chosen_by`, or
         by the session itself when that is empty - and `best` only an attempt
         whose verdict is better; a chosen attempt need not be one. Each knowledge

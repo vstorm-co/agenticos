@@ -32,5 +32,11 @@ export function useSystemAgents(enabled: boolean) {
         roles?.map((known) => (known.role === saved.role ? saved : known)),
       ),
   });
-  return { roles: query.data, isLoading: query.isLoading, error: query.error, update };
+  return {
+    refresh: query.refetch,
+    roles: query.data,
+    isLoading: query.isLoading,
+    error: query.error,
+    update,
+  };
 }

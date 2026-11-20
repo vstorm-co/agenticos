@@ -12,19 +12,22 @@ import { ExportMenu } from "@/components/runs/export-menu";
 import { RunFilterBar } from "@/components/runs/run-filter-bar";
 import { ListFilters } from "@/components/ui/list-filters";
 import { activeFilterCount } from "@/lib/runs/filter-params";
-import { RunTable, type RunSort } from "@/components/runs/run-table";
+import { RunTable, type RunSort, type RunDetailColumn } from "@/components/runs/run-table";
 import { VersionStrip } from "@/components/runs/version-strip";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
-  ListCardControlsRow,
   ListCardEmpty,
   ListCardFootRow,
   PaginationBar,
+  Button,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
 } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { useAgents, useMembers, usePermissions, useRuns } from "@/hooks";
@@ -93,6 +96,7 @@ export function RunHistoryTab({
   focusedRunId?: string | null;
   initialDurationSort?: boolean;
 }) {
+  const [detailColumns, setDetailColumns] = useState<RunDetailColumn[]>(["surface"]);
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const router = useRouter();
@@ -218,22 +222,69 @@ export function RunHistoryTab({
           the same figure the dashboard's Outcomes donut shows (§8a.4). */}
       {agentId !== null && canView && <VersionStrip agentId={agentId} period={period} />}
       <Card className="flex min-h-0 flex-1 flex-col">
-        {/* The shared list-card header dialect - border-b, px-5 py-4, text-sm
-            title - so this card reads as the same container as the vault's or
-            the workspaces'. The export sits in the header's right, where every
-            list card keeps its primary control. */}
-        <CardHeader className="shrink-0 flex-col items-start justify-between gap-3 space-y-0 border-b px-4 py-4 sm:flex-row sm:px-5">
-          <div className="w-full min-w-0 space-y-1 sm:flex-1">
-            <CardTitle className="text-sm">{t("runHistory2")}</CardTitle>
-            <CardDescription className="text-xs">
-              {t.rich("runHistoryDescription", { em: (chunks) => <em>{chunks}</em> })}
-            </CardDescription>
-            {/* Said out loud, with the way out beside it. A narrowed table
-                that does not mention the filter is a table somebody reads as
-                the whole history, and then wonders where the rest went. The
-                way out is an action that clears the state the page shares - a
-                plain link to /runs would rewrite the URL and leave it standing. */}
-            {agentId !== null && (
+        <CardHeader className="shrink-0 gap-3 space-y-0 border-b px-4 py-3 sm:px-5">
+          <CardTitle className="sr-only">{t("runHistory2")}</CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            {canView && (
+              <>
+                {periodControl}
+                <ListFilters active={activeFilterCount(filters) + (agentId === null ? 0 : 1)}>
+                  <RunFilterBar
+                    filters={filters}
+                    period={period}
+                    onChange={onFiltersChange}
+                    agentId={agentId}
+                    onAgentChange={changeAgent}
+                  />
+                </ListFilters>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline">{t("visibleColumns")}</Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {(
+                      [
+                        ["user", "askedByColumn"],
+                        ["surface", "surface"],
+                        ["model", "model"],
+                        ["tokens", "tokens"],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <DropdownMenuCheckboxItem
+                        key={key}
+                        checked={detailColumns.includes(key)}
+                        onCheckedChange={(checked) => {
+                          setDetailColumns((current) =>
+                            checked
+                              ? [...current, key]
+                              : current.filter((column) => column !== key),
+                          );
+                          if (!checked && key === "tokens" && sort.by === "tokens")
+                            changeSort({ by: "started_at", dir: "desc" });
+                        }}
+                      >
+                        {t(label)}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
+            <div className="ml-auto">
+              {canView && (
+                <ExportMenu
+                  permission={Perm.runsView}
+                  endpoint="/runs/export"
+                  kind="runs"
+                  params={Object.keys(exportParams).length > 0 ? exportParams : undefined}
+                  rangeParams={{ from: "started_from", to: "started_to" }}
+                  range={{ from: periodStart(period), to: periodEnd(period) }}
+                />
+              )}
+            </div>
+          </div>
+          {agentId !== null && (
+            <div className="min-w-0">
               <p className="text-muted-foreground text-xs">
                 {t("narrowedToOneAgent")}{" "}
                 <button
@@ -244,40 +295,12 @@ export function RunHistoryTab({
                   {t("showEveryAgent")}
                 </button>
               </p>
-            )}
-          </div>
-          {canView && (
-            <ExportMenu
-              permission={Perm.runsView}
-              endpoint="/runs/export"
-              kind="runs"
-              params={Object.keys(exportParams).length > 0 ? exportParams : undefined}
-              rangeParams={{ from: "started_from", to: "started_to" }}
-              range={{ from: periodStart(period), to: periodEnd(period) }}
-            />
+            </div>
           )}
         </CardHeader>
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           {
             <>
-              {/* The filters live inside the container they narrow, like every
-                  list card's. Offered only to a caller who may read runs: a
-                  filter over a list whose request would be refused is a
-                  control with nothing to do. */}
-              {canView && (
-                <ListCardControlsRow className="shrink-0">
-                  {periodControl}
-                  <ListFilters active={activeFilterCount(filters) + (agentId === null ? 0 : 1)}>
-                    <RunFilterBar
-                      filters={filters}
-                      period={period}
-                      onChange={onFiltersChange}
-                      agentId={agentId}
-                      onAgentChange={changeAgent}
-                    />
-                  </ListFilters>
-                </ListCardControlsRow>
-              )}
               {!canView ? (
                 // Whose decision the absence is - nothing above asked, so
                 // nothing below failed, and the window's empty state would
@@ -325,6 +348,7 @@ export function RunHistoryTab({
               ) : (
                 <>
                   <RunTable
+                    detailColumns={detailColumns}
                     fillHeight
                     runs={runs}
                     sort={sort}

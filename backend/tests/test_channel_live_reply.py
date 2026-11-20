@@ -536,7 +536,7 @@ class TestAParkedTurnOffersItsChoices:
             next_steps_service.return_value.offer = offer_steps
             handled = await router._run_turn(
                 MagicMock(),
-                MagicMock(platform="slack", platform_chat_id="C1:1.0"),
+                MagicMock(platform="slack", platform_chat_id="C1:1.0", message_id=None),
                 MagicMock(),
                 run=turn(),
                 handle=lambda: None,

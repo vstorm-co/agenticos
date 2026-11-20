@@ -66,10 +66,12 @@ def _build(
     resources: dict[str, object] | None = None,
     request_approval: ApprovalCallback | None = None,
     agent_id: UUID | None = None,
+    instructions: str = "",
 ) -> BuiltAgent:
     return build_agent(
         AgentSpec(
             name="Selection fixture",
+            instructions=instructions,
             capabilities=[
                 *capabilities,
                 CapabilityBindingSpec(id="tool_search", config=config.model_dump()),
@@ -168,7 +170,18 @@ async def test_sandbox_child_tools_follow_their_configured_parent_selection(
     )
     expected = {"search_tools"} if defer_capabilities else {"create_chart"}
     if not defer_capabilities or "sandbox" in exclude_capabilities:
-        expected.update({"ls", "read_file", "glob", "grep", "write_file", "edit_file", "execute"})
+        expected.update(
+            {
+                "ls",
+                "read_file",
+                "glob",
+                "grep",
+                "write_file",
+                "edit_file",
+                "execute",
+                "select_project_workspace",
+            }
+        )
 
     assert await _visible_names(built) == expected
 
@@ -491,3 +504,24 @@ async def test_tool_search_preserves_a_skills_read_skill_disclosure_gate(
         await built.agent.run("Read the refund guide.", deps=built.deps)
 
     assert requests == 3
+
+
+async def test_a_follow_up_uses_the_current_published_instructions() -> None:
+    from app.services.message_history import without_standing_instructions
+
+    def first_reply(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        return ModelResponse(parts=[TextPart("Ready")])
+
+    first = _build(ToolSearchConfig(), instructions="OLD_PUBLISHED_INSTRUCTIONS")
+    with first.agent.override(model=FunctionModel(first_reply)):
+        result = await first.agent.run("Hello", deps=first.deps)
+    history = without_standing_instructions(result.all_messages())
+    second = _build(ToolSearchConfig(), instructions="CURRENT_PUBLISHED_INSTRUCTIONS")
+
+    def follow_up(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        assert "CURRENT_PUBLISHED_INSTRUCTIONS" in (info.instructions or "")
+        assert "OLD_PUBLISHED_INSTRUCTIONS" not in (info.instructions or "")
+        return ModelResponse(parts=[TextPart("Using the current version")])
+
+    with second.agent.override(model=FunctionModel(follow_up)):
+        await second.agent.run("Continue", deps=second.deps, message_history=history)

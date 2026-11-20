@@ -29,6 +29,8 @@ import {
   type WorkflowRunRead,
 } from "@/lib/workflows/types";
 import { toastDone } from "@/lib/toast";
+import { isTableRefusalField } from "@/lib/workflows/table-drift";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
 /** How often a live run is read again - its steps move on their own. */
 const LIVE_POLL_MS = 2000;
@@ -52,15 +54,23 @@ export function useWorkflowRuns(workflowId: string, inputErrorsInForm = false) {
       toastDone(t("runStarted"));
     },
     onError: (error) => {
-      const fields = fieldProblems(error);
+      const all = fieldProblems(error);
+      // Refresh stale references, while retaining refusals a refresh cannot settle:
+      // a missing table, lost access or an invalid column needs the author's edit.
+      const graph = useWorkflowEditorStore.getState().graph;
+      const isTable = (field: string) => isTableRefusalField(field, graph);
+      const tables = all.some(({ field }) => isTable(field));
+      if (tables) {
+        useWorkflowEditorStore.getState().refreshTables();
+      }
       const toastFields = inputErrorsInForm
-        ? fields.filter(({ field }) => field !== "input" && !field.startsWith("input."))
-        : fields;
+        ? all.filter(({ field }) => field !== "input" && !field.startsWith("input."))
+        : all;
       if (toastFields.length > 0)
         toast.error(
           toastFields.map((problem) => `${problem.field}: ${problem.message}`).join("\n"),
         );
-      else if (fields.length === 0) toast.error(getErrorMessage(error, tErrors));
+      else if (all.length === 0) toast.error(getErrorMessage(error, tErrors));
     },
   });
   return { runs: data?.items ?? [], total: data?.total ?? 0, isLoading, start };

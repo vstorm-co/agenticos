@@ -82,7 +82,11 @@ export function useMembers(orgId: string) {
         );
         writeCache((prev) => ({
           ...prev,
-          items: prev.items.map((m) => (m.user_id === userId ? updated : m)),
+          items: prev.items.map((m) =>
+            m.user_id === userId
+              ? { ...updated, last_action_at: updated.last_action_at ?? m.last_action_at }
+              : m,
+          ),
         }));
         toast.success(t("roleUpdated"));
       } catch {

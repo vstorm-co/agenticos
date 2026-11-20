@@ -386,8 +386,8 @@ class ConversationShareService:
         )
         await ConversationService(self.db).attach_listing_state(items, user_id=user_id)
         for item in items:
-            item.is_favourite = item.id in starred  # ty: ignore[unresolved-attribute]
-            item.share_permission = permissions.get(item.id)  # ty: ignore[unresolved-attribute]
+            item.is_favourite = item.id in starred  # ty: ignore[missing-attribute]
+            item.share_permission = permissions.get(item.id)  # ty: ignore[missing-attribute]
         return items, total
 
     async def get_by_token(self, token: str) -> SharedConversationRead:

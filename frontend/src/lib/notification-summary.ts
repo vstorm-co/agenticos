@@ -1,6 +1,7 @@
 import type { Translate } from "@/lib/agent-step-captions";
 import { ATTEMPT_RESULT_REASONS } from "@/lib/improvement-steps";
-import type { Notification } from "@/lib/notifications-api";
+import type { MovedCriterion, Notification } from "@/lib/notifications-api";
+import { usd, wordedSummary } from "@/lib/notification-wording";
 import { formatCostUsd } from "@/lib/utils";
 
 const IMPROVEMENT = ["ready", "stopped", "failed", "stale"];
@@ -24,6 +25,7 @@ const STOP_REASONS = [
   "knowledge_only",
   "draft",
   "expired",
+  "criteria_worse",
 ];
 
 /**
@@ -67,9 +69,11 @@ export function notificationSummary(item: Notification, t: Translate, tStop: Tra
           ? "attemptFinished"
           : outcome.status;
     const head = t(`outcome.improvement.${status}`, { agent: item.agent.name });
-    return outcome.status !== "ready" && outcome.reason && STOP_REASONS.includes(outcome.reason)
-      ? `${head} ${tStop(outcome.reason)}`
-      : head;
+    const line =
+      outcome.status !== "ready" && outcome.reason && STOP_REASONS.includes(outcome.reason)
+        ? `${head} ${tStop(outcome.reason)}`
+        : head;
+    return outcome.criteria?.length ? `${line} ${criteriaSentence(outcome.criteria, t)}` : line;
   }
   if (item.event_type === "eval_run_finished" && TEST.includes(outcome.status))
     return t(`outcome.test.${outcome.status}`);
@@ -78,14 +82,24 @@ export function notificationSummary(item: Notification, t: Translate, tStop: Tra
   return item.summary;
 }
 
-/** Dollars to the cent, or to the place spend is shown at when the cent would read as nothing. */
-function usd(value: string): string {
-  const amount = Number(value);
-  return amount > 0 && amount < 0.01 ? formatCostUsd(amount) : `$${amount.toFixed(2)}`;
+/** What an attempt moved criterion by criterion, when no whole question flipped. */
+function criteriaSentence(criteria: MovedCriterion[], t: Translate): string {
+  const listed = (direction: MovedCriterion["direction"]) =>
+    criteria
+      .filter((item) => item.direction === direction)
+      .map((item) => {
+        const { scorer, display_name, ...counts } = item;
+        const duplicate = criteria.filter((other) => other.name === item.name).length > 1;
+        const name = display_name ?? (scorer && duplicate ? `${item.name} [${scorer}]` : item.name);
+        return t("outcome.improvement.criterion", { ...counts, name });
+      })
+      .join(", ") || "none";
+  return t("outcome.improvement.criteria", { better: listed("better"), worse: listed("worse") });
 }
 
-/** An approval request or a budget limit, worded from the values the server kept. */
+/** A row worded from the values the server kept: by its `wording` when it names one. */
 function paramsSummary(item: Notification, t: Translate): string | null {
+  if (item.wording_params) return wordedSummary(item.wording_params, t);
   const params = item.params;
   if (!params) return null;
   switch (item.event_type) {
@@ -100,6 +114,8 @@ function paramsSummary(item: Notification, t: Translate): string | null {
         spent: formatCostUsd(Number(params.spent_usd ?? "0")),
         limit: usd(params.limit_usd ?? "0"),
       });
+    case "workflow_notification":
+      return t("kind.workflowApproval", { title: params.approval_title ?? "" });
     case "budget_warning":
       return t("kind.budgetWarning", {
         group: params.group_name ?? "",

@@ -1,5 +1,5 @@
 ---
-source_sha: "ebe2636bfc0c"
+source_sha: "05c6c8dd7ace"
 ---
 
 # Workflows { #workflows }
@@ -149,7 +149,10 @@ robi, albo po grupie. Krok dodajesz na cztery sposoby:
   otwiera wybór. Krok trafia za zaznaczony krok albo na koniec widocznego przepływu i
   łączy się z nim, gdy porty pasują. Krok startowy trafia zamiast tego przed obecny
   start i staje się nim.
-- **+** przy wyjściu kroku otwiera wybór kroku, który idzie po tym wyjściu.
+- **+** przy wyjściu kroku otwiera wybór kroku, który idzie po tym wyjściu. Gdy
+  wyjście prowadzi już do kroku, wybór pyta, gdzie trafi nowy: **Insert before** wstawia
+  go w to połączenie, a **Add a parallel branch** zostawia połączenie i uruchamia nowy
+  krok obok. Wyjście, które prowadzi już do kilku kroków, przyjmie tylko kolejną gałąź.
 - **Prawy przycisk** na kanwie: ten sam wybór kroków otwiera się tam, gdzie kliknąłeś,
   i tam trafia krok. Pod nim **Dodaj notatkę** (Add a note) oraz, gdy coś skopiowano, **Wklej** (Paste).
 - **Przeciągnij** krok z wyboru, żeby położyć go tam, gdzie go upuścisz, bez połączeń.
@@ -285,7 +288,9 @@ i porównanie pokazują zapisany rozmiar bez uchwytów.
 ## Konfigurowanie węzła { #configuring-a-node }
 
 Co robi każdy węzeł, czym się go konfiguruje i co znaczą jego błędy, opisuje
-[referencja węzłów](reference/workflow-nodes.md).
+[referencja węzłów](reference/workflow-nodes.md). Konsola nazywa każdy krok, jego porty i
+ustawienia w języku czytelnika; referencja, API i wyeksportowany workflow zachowują
+angielskie nazwy.
 
 Kliknięcie zaznacza krok, a dwuklik otwiera go nad kanwą. W opublikowanej wersji lub w trybie **View only** wystarczy jedno kliknięcie. Nagłówek pokazuje nazwę kroku i jedno rozwijane podsumowanie brakującej konfiguracji. Rozwiń je, aby zobaczyć braki; wybranie pola przenosi do jego inputu. Po próbie testu lub publikacji szczegóły walidacji rozwijają się automatycznie.
 
@@ -435,9 +440,17 @@ krok nazywa realną rzecz, którą ma Twoja organizacja:
 Każde pole wyboru rozróżnia jednakowo nazwane wiersze przez kontekst i oznacza
 referencję, której cel zniknął. Pola wyboru **Agent** i **Secret** mają też link do
 utworzenia nowego — zawsze, nie tylko gdy lista jest pusta — natomiast pole wyboru
-**Table** nie ma żadnego. Tabela, której schemat zmienił się od czasu powiązania, mówi o tym i oferuje
-**Rebind to the current schema**, więc nieaktualny zestaw kolumn jest widoczną
-zachętą, a nie cichym pęknięciem.
+**Table** nie ma żadnego.
+
+Gdy schemat tabeli zmieni się po powiązaniu z nią kroku, edytor sam przenosi krok
+na nowy schemat, o ile każda kolumna, którą krok czyta, nadal istnieje i ma ten sam
+typ - dodana kolumna albo zmiana kolumny, której krok nie czyta, nie wymaga od
+ciebie niczego. Gdy czytana kolumna została usunięta albo zmieniła typ, krok
+pokazuje problem, a zarówno pole **Table** kroku, jak i lista problemów na pasku
+narzędzi oferują **Update to the current schema**, które zachowuje każdą wybraną
+kolumnę, która nadal istnieje. Potem sprawdź, co czyta ten krok.
+
+Edytor sprawdza też filtry, kolumny sortowania i powiązania wartości. Usuń lub zastąp zależne ustawienia używające zmienionych kolumn przed aktualizacją schematu tabeli; zbiorcza aktualizacja pozostawia takie kroki bez zmian. Powiązanie wartości całego rekordu również wymaga ręcznego przeglądu.
 
 ### Ewaluacje kroku z modelem { #evals-for-a-model-step }
 
@@ -745,12 +758,11 @@ gdy zapis oczekuje, **Saving…**, gdy trwa, **Saved**, gdy się dokona, i **Sav
 
 Każdy zapis jest zapisywany względem rewizji, którą otworzyłeś, więc draft edytowany
 w dwóch miejscach naraz nie może po cichu nadpisać. Gdy to się zdarza, edytor podnosi
-banner zatytułowany **This draft changed elsewhere**: *Someone edited this workflow
-since you opened it. Overwrite keeps your changes; reload replaces them with the
-latest saved draft.* Wybierasz:
+banner zatytułowany **Someone else also edited this workflow**: *They saved changes while you were editing. Keep your changes, or load
+their version and lose your unsaved edits.* Wybierasz:
 
-- **Overwrite** — zachowaj swoją wersję i zapisz ją nad tą zapisaną gdzie indziej.
-- **Reload** — odrzuć niezapisane zmiany i weź ostatnio zapisany draft.
+- **Keep my changes** — zachowaj swoją wersję i zapisz ją nad tą zapisaną gdzie indziej.
+- **Load their version** — odrzuć niezapisane zmiany i weź ostatnio zapisany draft.
 
 ## Publikowanie wersji i historia wersji { #publishing-a-version-and-version-history }
 
@@ -772,6 +784,11 @@ nie jest zmieniana po utworzeniu. Okno publikowania mówi, którą wersję utwor
 wersji, mówi to najpierw. Jeśli graf wciąż ma problemy, publikowanie jest
 zablokowane z **Fix the problems below before publishing**, więc wersja, która by nie
 przeszła walidacji, nigdy nie powstaje.
+
+Niektóre rzeczy warto sprawdzić, choć nie są błędem, i oznacza je bursztynowy znak na
+kroku: wynik **Ask for approval**, który nigdzie nie prowadzi, albo krok wybierający
+między wyjściami, z których żadne nigdzie nie prowadzi. Run po prostu się tam kończy.
+Okno publikacji też je wymienia, ale nigdy nie blokują testu ani publikacji.
 
 Publikowanie nie kończy Twojej edycji. Draft istnieje dalej niezależnie od każdej
 opublikowanej wersji, więc edytujesz go od razu dalej. **Versions** pod **More** w nagłówku edytora
@@ -973,8 +990,11 @@ jest portem wyjściowym kroku, więc workflow idzie dalej tym, który wybrał za
 a zdecydowany wiersz go wymienia. Edycja idzie z dowolnym naciśniętym przyciskiem.
 
 
-Na liście wersja testowego przebiegu to **Draft (test)**, a prawdziwego
-**Published**, a przebieg uruchomiony z konsoli albo przez HTTP API ma **Console or
+Na liście test całej wersji roboczej ma **Draft (test)**, [test jednego kroku](#a-steps-data-pinning-and-testing-one-step)
+**Step test** z nazwą kroku, a prawdziwy przebieg **Published**. **Version** może
+pokazać same testy kroków albo je pominąć.
+
+Przebieg uruchomiony z konsoli albo przez HTTP API ma **Console or
 API**. **Status**, **Version**, **Started by** i **Started** (ostatnia godzina, doba, tydzień
 albo 30 dni) zawężają przebiegi, a lista odpowiada po
 jednej stronie naraz; każdy filtr trafia do adresu, więc przefiltrowaną listę można
@@ -1523,8 +1543,8 @@ Galerie skills i kontekstu agenta w kroku pobierają wszystkie strony metadanych
   samym kształcie tworzy bindingi za Ciebie.
 - Parametr to **wartość albo dane z kroku** — **Data** czyta je z osiągalnego, zgodnego
   typem wyjścia wcześniejszego kroku albo wstawia je do tekstu.
-- Draft **zapisuje się sam**, a edycja z dwóch miejsc podnosi banner z **Overwrite**
-  lub **Reload**.
+- Draft **zapisuje się sam**, a edycja z dwóch miejsc podnosi banner z **Keep my changes**
+  lub **Load their version**.
 - **Publish** jest zablokowany, dopóki problem istnieje, i waliduje ponownie na
   serwerze; wcześniejsze wersje pozostają widoczne tylko do odczytu, a **Restore to
   draft** robi z jednej z nich z powrotem draft.

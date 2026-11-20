@@ -52,6 +52,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 from app.agents import mcp_oauth
 from app.agents.connect_on_use import OwnAccountGap, ServiceOutcome
 from app.agents.mcp import (
+    AuthorityChecked,
     LeftOutOnClash,
     McpServerSpec,
     McpSourceIdentity,
@@ -3336,6 +3337,7 @@ async def build_toolsets_for_agent(
     personal_sources: Mapping[UUID, McpSourceIdentity] | None = None,
     organization_sources: Mapping[UUID, McpSourceIdentity] | None = None,
     taken_names: Mapping[str, str] | None = None,
+    recheck_sources: bool = False,
 ) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -3350,7 +3352,7 @@ async def build_toolsets_for_agent(
     reached, and it is reached on purpose: the spec says every person speaks to
     this service as themselves. `sender_user_id` is who is talking - the author
     of this message, never the thread's first speaker - and `None` where nobody
-    is: an API key, the widget, a schedule, a channel sender with no linked
+    is: a key without personal MCP delegation, the widget, a schedule, a channel sender with no linked
     account. The binding is then reported unavailable rather than quietly
     skipped, so the run can say so and say where the person connects one.
 
@@ -3377,6 +3379,9 @@ async def build_toolsets_for_agent(
     tools apart from another's but not from those, so every server is attached
     inside :class:`~app.agents.mcp.LeftOutOnClash`, which leaves it out of a step
     where one of its tool names is taken (#2890).
+
+    `recheck_sources` guards delegated external runs against connected-account
+    revocation or narrowing before each tool call, using a fresh session.
 
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.
@@ -3433,6 +3438,15 @@ async def build_toolsets_for_agent(
                 unavailable.append(UnavailablePersonalService(ref.catalog_key, gap))
             continue
         if ref.connection_id in overrides:
+            production = found.get(ref.connection_id)
+            if (
+                recheck_sources
+                and overrides[ref.connection_id] is not None
+                and (production is None or not production.is_enabled)
+            ):
+                raise AuthorizationError(
+                    message="The production MCP account is no longer available"
+                )
             spec = await _test_spec(
                 ref,
                 production=found.get(ref.connection_id),
@@ -3557,6 +3571,13 @@ async def build_toolsets_for_agent(
     toolsets: list[Any] = []
     for spec, toolset in attached:
         guarded = _guarded(toolset, spec, binding=bindings[id(spec)], taken=taken_names)
+        if recheck_sources and spec.source_connection_id is not None:
+            guarded = AuthorityChecked(
+                wrapped=guarded,
+                check=_delegated_source_check(
+                    spec, organization_id=organization_id, user_id=sender_user_id
+                ),
+            )
         toolsets.append(
             guarded
             if spec.connection_id is None
@@ -3588,6 +3609,65 @@ async def build_toolsets_for_agent(
             if spec.source_connection_id is not None and spec.authorization_generation is not None
         },
     )
+
+
+def _delegated_source_check(
+    spec: McpServerSpec, *, organization_id: UUID, user_id: UUID | None
+) -> Callable[[], Awaitable[None]]:
+    """Keep a cached toolset from outliving its connected account's authority."""
+
+    async def check() -> None:
+        assert spec.source_connection_id is not None
+        async with get_db_context() as db:
+            connection = await mcp_connection_repo.get_by_id(db, spec.source_connection_id)
+            if (
+                connection is None
+                or not connection.is_enabled
+                or connection.purpose != "mcp"
+                or connection.url != spec.url
+                or connection.authorization_generation != spec.authorization_generation
+                or (spec.include_instructions and not connection.include_instructions)
+                or (spec.trust_read_only_hints and not connection.trust_read_only_hints)
+                or (
+                    connection.scope == "user"
+                    and (user_id is None or connection.user_id != user_id)
+                )
+                or (connection.scope == "org" and connection.organization_id != organization_id)
+                or (
+                    connection.allowed_tools is not None
+                    and (
+                        spec.allowed_tools is None
+                        or not set(spec.allowed_tools).issubset(connection.allowed_tools)
+                    )
+                )
+            ):
+                raise AuthorizationError(
+                    message="An MCP account changed or was disconnected. Reconnect it and start a new run."
+                )
+            if spec.ceiling_source is not None:
+                ceiling_id, identity = spec.ceiling_source
+                ceiling = await mcp_connection_repo.get_by_id(db, ceiling_id)
+                if (
+                    ceiling is None
+                    or not ceiling.is_enabled
+                    or ceiling.purpose != "mcp"
+                    or ceiling.scope != "org"
+                    or ceiling.organization_id != organization_id
+                    or hashlib.sha256(ceiling.url.encode()).hexdigest() != identity.endpoint_hash
+                    or ceiling.authorization_generation != identity.authorization_generation
+                    or (
+                        ceiling.allowed_tools is not None
+                        and (
+                            spec.allowed_tools is None
+                            or not set(spec.allowed_tools).issubset(ceiling.allowed_tools)
+                        )
+                    )
+                ):
+                    raise AuthorizationError(
+                        message="The production MCP account changed. Start a new run."
+                    )
+
+    return check
 
 
 def _guarded(
@@ -3655,6 +3735,17 @@ async def _test_spec(
         include_instructions=test.include_instructions,
         account=test.label,
         connection_id=test.id,
+        source_connection_id=test.id,
+        authorization_generation=test.authorization_generation,
+        ceiling_source=(
+            production.id,
+            McpSourceIdentity(
+                endpoint_hash=hashlib.sha256(production.url.encode()).hexdigest(),
+                authorization_generation=production.authorization_generation,
+            ),
+        )
+        if production is not None
+        else None,
     )
 
 

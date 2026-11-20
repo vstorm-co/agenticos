@@ -59,6 +59,7 @@ function agent(id = "agent-a", changes: Partial<AgentDetail> = {}): AgentDetail 
     can_run: true,
     can_edit: true,
     can_publish: false,
+    draft_revision: "rev-1",
     draft_spec: {
       name: id,
       description: "Original description",
@@ -208,6 +209,7 @@ describe("agent settings beside the chat", () => {
     expect(result.current.spec?.name).toBe("Submitted draft");
     expect(apiClient.put).toHaveBeenCalledExactlyOnceWith("/agents/agent-a/draft", {
       spec: expect.objectContaining({ name: "Submitted draft" }),
+      expected_revision: "rev-1",
     });
     await act(async () => {
       records["agent-a"] = {
@@ -265,6 +267,7 @@ describe("agent settings beside the chat", () => {
           expect.objectContaining({ config: { target: "hosted" }, approval: "required" }),
         ],
       }),
+      expected_revision: "rev-1",
     });
     expect(apiClient.post).not.toHaveBeenCalled();
   });

@@ -15,11 +15,9 @@ another provider, or - where the platform spends it for everybody - is no
 longer organization-visible, is refused as `not_configured`. The deployment's
 own environment key is never used.
 
-**One API shape.** Every catalogued provider serves OpenAI's
-`POST /audio/transcriptions`: multipart in, `{"text": ...}` out. That is what
-makes three providers one client. The shape is declared per entry in the catalog
-rather than assumed here, so a provider whose only route to audio is a chat call
-arrives as another branch instead of a name check in the middle of this.
+**Catalogued API shapes.** OpenAI-compatible transcription and ElevenLabs Scribe
+both upload multipart audio and return text. Their endpoint, key header, model
+and language fields differ; the catalog selects the transport.
 
 **A failure raises, and says why.** Every refusal is a domain exception carrying
 `details.reason` - `not_configured`, `too_large`, `empty`, `provider_error`,
@@ -227,6 +225,7 @@ class TranscriptionService:
             language_field=offered.language_field,
             response_format=entry.response_format,
             context=context,
+            api=entry.api,
         )
 
     async def has_key(
@@ -256,24 +255,26 @@ class TranscriptionService:
         language_field: LanguageField,
         response_format: str | None,
         context: dict[str, str],
+        api: str = "transcriptions",
     ) -> TranscriptionResult:
-        """`POST /audio/transcriptions`, as OpenAI defined it.
+        """Post multipart audio using the catalogued OpenAI or ElevenLabs shape.
 
         The provider's own error text is logged and never raised: it reaches a
         chat or a composer as part of an answer, and a provider client puts the
         failing request URL - key in the query string - in its message.
         """
-        headers = {"Authorization": f"Bearer {api_key}"}
-        data = {"model": model}
+        elevenlabs = api == "elevenlabs"
+        headers = {"xi-api-key": api_key} if elevenlabs else {"Authorization": f"Bearer {api_key}"}
+        data = {"model_id" if elevenlabs else "model": model}
         if language is not None:
             # A list field, form-encoded the way OpenAI's own clients send one.
-            data["languages[]" if language_field == "languages" else "language"] = language
+            data["languages[]" if language_field == "languages" else language_field] = language
         if response_format is not None:
             data["response_format"] = response_format
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
                 response = await client.post(
-                    f"{base_url.rstrip('/')}/audio/transcriptions",
+                    f"{base_url.rstrip('/')}/{'speech-to-text' if elevenlabs else 'audio/transcriptions'}",
                     headers=headers,
                     data=data,
                     files={"file": (recording.filename, recording.content, recording.mime_type)},

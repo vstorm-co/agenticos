@@ -1,5 +1,5 @@
 ---
-source_sha: "a6011726f555"
+source_sha: "e9fd1a945f31"
 ---
 
 # La API HTTP { #the-http-api }
@@ -230,6 +230,36 @@ run o en la petición.
 
 La caducidad solo limita lo que una clave puede iniciar: el trabajo que inició siendo
 válida sigue después de que caduque.
+
+
+### Delegación explícita de conexiones MCP personales { #explicit-personal-mcp-delegation }
+
+En **Settings → API → Create key → Custom**, selecciona `agents:run` y
+`mcp:personal:use` para que los runs externos usen las cuentas MCP del propietario
+de la clave. Los clientes OAuth requieren la misma selección explícita. Ningún
+conjunto predefinido, incluido Full access, contiene este permiso. Las credenciales
+existentes no lo obtienen automáticamente.
+
+Solo afecta a los enlaces MCP publicados con `account: personal`. Los enlaces de
+la organización conservan su cuenta configurada. Si falta una conexión personal,
+nunca se sustituye por una cuenta de la organización o del publicador. Conecta o
+repara la cuenta en la consola antes de repetir la solicitud. Este permiso no abre
+la memoria personal, chats anteriores, sesiones de navegador iniciadas, terminales
+personales ni workspaces del usuario. Las credenciales internas del agent no
+pueden transmitir esta delegación.
+
+Se comprueban las credenciales originales, su propietario y el acceso al agent al
+admitir el run, reanudarlo y antes de las llamadas MCP, incluidos los delegados.
+La caducidad o revocación impide nuevas llamadas; una solicitud ya enviada a la
+fuente no se cancela. Desconectar, reemplazar o limitar una cuenta MCP también
+bloquea sus herramientas en caché; vuelve a conectarla e inicia otro run.
+
+Un run pausado sigue vinculado a las credenciales originales,
+incluida la caducidad del token OAuth, y no puede usar las cuentas de quien lo
+aprueba. El cliente puede iniciar otro run con credenciales nuevas. Los runs antiguos
+pausados no obtienen delegación MCP. La auditoría conserva la atribución de usuario,
+clave e identificadores de conexión; los secretos no entran en prompts ni auditoría.
+
 
 ## La cabecera de organización { #the-organization-header }
 

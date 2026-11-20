@@ -10,7 +10,7 @@ it("explains the missing configuration on keyboard focus without changing it", a
   expect(indicator).toHaveAttribute("tabindex", "0");
   await userEvent.tab();
   expect(indicator).toHaveFocus();
-  expect(await screen.findByRole("tooltip")).toHaveTextContent("Workspace → Voice");
+  expect(await screen.findByRole("tooltip")).toHaveTextContent("AI & services → Voice");
 });
 it("renders nothing after configuration is complete", () => {
   const { container } = render(<SetupIndicator hints={[]} />);

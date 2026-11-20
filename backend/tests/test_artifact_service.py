@@ -652,6 +652,7 @@ class TestDelete:
             patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
             patch(f"{PATH}.hold_subject", new=AsyncMock()),
             patch(f"{PATH}.resource_grant_repo.delete_for_resource", new=AsyncMock()) as grants,
+            patch(f"{PATH}.artifact_repo.lock_for_delete", new=AsyncMock()),
             patch(f"{PATH}.artifact_repo.delete_artifact", new=AsyncMock()) as delete,
             patch(f"{PATH}.record_audit", new=AsyncMock()),
             patch(f"{PATH}.spawn_after_commit") as after_commit,
@@ -661,6 +662,24 @@ class TestDelete:
         delete.assert_awaited_once()
         after_commit.call_args.args[1].close()
         assert after_commit.call_args.kwargs["name"] == "artifact-delete"
+
+    async def test_unrelated_database_errors_in_the_lock_phase_remain_errors(self) -> None:
+        ctx = _ctx()
+        artifact = _artifact(ctx)
+        failure = DBAPIError("lock", {}, RuntimeError("broken connection"))
+        with (
+            patch(f"{PATH}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(f"{PATH}.resolve_access", new=AsyncMock(return_value=True)),
+            patch(f"{PATH}.hold_subject", new=AsyncMock()),
+            patch(f"{PATH}.artifact_repo.lock_for_delete", new=AsyncMock(side_effect=failure)),
+            patch(f"{PATH}.artifact_repo.delete_artifact", new=AsyncMock()) as delete,
+            patch(f"{PATH}.spawn_after_commit") as cleanup,
+            pytest.raises(DBAPIError) as raised,
+        ):
+            await _service().delete(ctx, artifact.id)
+        assert raised.value is failure
+        delete.assert_not_awaited()
+        cleanup.assert_not_called()
 
 
 class TestView:

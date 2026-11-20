@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import Field, field_validator
@@ -76,6 +76,11 @@ class ProposalCheckRecord(BaseSchema):
     on_draft: bool = False
     suggestions: int = Field(ge=1)
     improvement_run_id: UUID | None = None
+    answer_estimates_usd: list[Annotated[Decimal, Field(ge=0)]] = Field(
+        default_factory=list,
+        description="Frozen replacement answer and judge cost per case, indexed by arm position; "
+        "older records without prices do not automatically replace lost answers",
+    )
     skill_check_id: UUID | None = Field(
         default=None,
         description="The check of a skill change on every agent this run is one stage of",
@@ -588,6 +593,26 @@ class CaseFlipRead(BaseSchema):
     )
 
 
+class CriterionMoveRead(BaseSchema):
+    """One criterion over the cases both sides graded on it, first answers counted.
+
+    A criterion is one check, judge criterion, expected-call check or reference
+    grade, named as the scores name it. A flip on it is confirmed as a case's is:
+    every rerun on both sides repeated it. A case that kept failing can still
+    have criteria that moved.
+    """
+
+    scorer: str = Field(description="The scorer kind: check, judge, trajectory or reference")
+    name: str
+    graded: int = Field(description="Cases both sides' first answers were graded on it")
+    baseline_passed: int
+    candidate_passed: int
+    fixed_confirmed: int
+    broken_confirmed: int
+    fixed_unconfirmed: int
+    broken_unconfirmed: int
+
+
 class EfficiencyRead(BaseSchema):
     cost_per_pass: TrendLiteral
     avg_tokens: TrendLiteral
@@ -648,3 +673,17 @@ class EvalComparisonRead(BaseSchema):
     efficiency: EfficiencyRead | None
     cases: list[CaseFlipRead]
     flips_by_tag: dict[str, dict[FlipLiteral, int]]
+    criterion_change: float = Field(
+        default=0.0,
+        ge=-1,
+        le=1,
+        description="Net confirmed criterion fixes divided by all paired criterion grades, "
+        "computed before limiting the returned detail",
+    )
+    criteria: list[CriterionMoveRead] = Field(
+        default_factory=list,
+        description=(
+            "Criteria graded on both sides, by scorer and name: at most 200, the ones "
+            "that moved first"
+        ),
+    )

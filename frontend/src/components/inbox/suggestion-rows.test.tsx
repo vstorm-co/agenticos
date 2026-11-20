@@ -81,6 +81,20 @@ describe("SuggestionRows", () => {
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(state.accept).toHaveBeenCalledWith("selected");
   });
+  it("keeps compact briefing actions while leaving details to the inbox", async () => {
+    render(
+      <SuggestionRows
+        dense
+        showDetails={false}
+        items={[item("idea", { detail: "Long context" })]}
+      />,
+    );
+    expect(screen.getByText("Title idea")).toBeVisible();
+    expect(screen.queryByText("Long context")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+    expect(state.dismiss).toHaveBeenCalledWith("idea");
+  });
+
   it("keeps an acknowledged finding actionable and labels its shared state", () => {
     render(
       <SuggestionRows items={[item("ack", { kind: "finding", outcome_status: "acknowledged" })]} />,

@@ -903,17 +903,22 @@ async def delete_conversation(
     ctx: Auth,
 ) -> None:
     """Delete a conversation and all its messages."""
+    await conversation_service.lock_for_deletion(
+        conversation_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        ctx=ctx,
+    )
+    # Read workspace refs before the conversation delete flushes their cascade.
+    # The purge queues remote destruction after commit, so a later refusal or
+    # rollback cannot delete the files of a restored conversation.
+    await workspaces.purge_for_conversation(ctx, conversation_id=conversation_id)
     await conversation_service.delete_conversation(
         conversation_id,
         organization_id=active_org.id,
         user_id=current_user.id,
         ctx=ctx,
     )
-    # The rows would cascade away with the conversation, but a container-backed
-    # workspace lives outside this database and would sit on the host until its
-    # TTL swept it - holding files whose conversation the user just deleted. Only
-    # this platform knows the conversation is gone.
-    await workspaces.purge_for_conversation(ctx, conversation_id=conversation_id)
 
 
 @router.post(

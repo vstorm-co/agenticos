@@ -472,6 +472,7 @@ export function useChat(options: UseChatOptions = {}) {
     requestId: string;
     runId: string;
     stream: { started: boolean };
+    accepted: () => void;
     resolve: (result: ResumedRun) => void;
     reject: (error: Error) => void;
   } | null>(null);
@@ -977,6 +978,7 @@ export function useChat(options: UseChatOptions = {}) {
             // Earlier buffered frames still belong to the followed turn. This
             // server marker is where our own admitted continuation begins.
             pendingAnswer.stream.started = true;
+            pendingAnswer.accepted();
             followingRef.current = null;
             if (currentMessageIdRef.current !== null) {
               updateMessage(currentMessageIdRef.current, (message) => ({
@@ -3573,7 +3575,26 @@ export function useChat(options: UseChatOptions = {}) {
         setSessionReady(false);
         const resumed = await new Promise<ResumedRun>((resolve, reject) => {
           const requestId = clientId();
-          pendingRunAnswerRef.current = { requestId, runId: parked.runId, stream, resolve, reject };
+          pendingRunAnswerRef.current = {
+            requestId,
+            runId: parked.runId,
+            stream,
+            resolve,
+            reject,
+            accepted: () => {
+              if (!stillHere()) return;
+              // This marker arrives only after the runner admits the answers.
+              // The correlated result follows the whole continuation, which may
+              // run for minutes or ask another question in a different message.
+              updateMessage(parked.messageId, (message) => ({
+                ...message,
+                runWaitingFor: undefined,
+              }));
+              for (const call of parked.calls) {
+                updateToolCallPart(parked.messageId, call.toolCallId, { status: "completed" });
+              }
+            },
+          };
           sendMessage({
             type: "answer_run",
             request_id: requestId,

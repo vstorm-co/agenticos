@@ -214,3 +214,98 @@ it("keeps the metered spend precision above a cent", () => {
     ),
   ).toBe("kind.budgetExceeded(Probe,agent,,$0.0101,$0.01)");
 });
+
+it("words a workflow step's approval request from its title", () => {
+  expect(
+    notificationSummary(
+      worded("workflow_notification", { approval_title: "Send the refund?" }),
+      t,
+      stop,
+    ),
+  ).toBe("kind.workflowApproval(Send the refund?)");
+});
+
+it("words a row by the wording the server named, and keeps the summary for one it does not know", () => {
+  const worded = (params: Record<string, string>) =>
+    notificationSummary({ ...row("run_failed", null), wording_params: params }, t, stop);
+  expect(worded({ wording: "run_completed", agent_name: "Refund desk" })).toBe(
+    "kind.runCompleted(Refund desk)",
+  );
+  expect(worded({ wording: "something_new" })).toBe("server summary");
+});
+
+it("names the criteria an attempt moved when no whole question flipped", () => {
+  const criteria = [
+    { name: "length", graded: 40, before: 40, after: 30, direction: "worse" as const },
+    { name: "price break", graded: 40, before: 9, after: 40, direction: "better" as const },
+  ];
+  expect(
+    notificationSummary(
+      row("improvement_finished", { status: "stopped", reason: "criteria_worse", criteria }),
+      t,
+      stop,
+    ),
+  ).toBe(
+    "outcome.improvement.attemptFinished(Refund desk) stop:criteria_worse " +
+      "outcome.improvement.criteria(outcome.improvement.criterion(price break,40,9,40,better)," +
+      "outcome.improvement.criterion(length,40,40,30,worse))",
+  );
+  expect(
+    notificationSummary(
+      row("improvement_finished", { status: "ready", reason: null, criteria: [criteria[1]!] }),
+      t,
+      stop,
+    ),
+  ).toBe(
+    "outcome.improvement.ready(Refund desk) outcome.improvement.criteria(" +
+      "outcome.improvement.criterion(price break,40,9,40,better),none)",
+  );
+});
+
+it("keeps equal criterion names distinct across scorer namespaces", () => {
+  const criteria = [
+    {
+      name: "Validity",
+      scorer: "judge",
+      graded: 3,
+      before: 1,
+      after: 2,
+      direction: "better" as const,
+    },
+    {
+      name: "Validity",
+      scorer: "check",
+      graded: 3,
+      before: 3,
+      after: 2,
+      direction: "worse" as const,
+    },
+  ];
+  const summary = notificationSummary(
+    row("improvement_finished", { status: "ready", reason: null, criteria }),
+    t,
+    stop,
+  );
+  expect(summary).toContain("Validity [judge]");
+  expect(summary).toContain("Validity [check]");
+});
+
+it("keeps a scorer-qualified label when its duplicate was omitted from the notification", () => {
+  const criteria = [
+    {
+      name: "Validity",
+      scorer: "check",
+      display_name: "Validity [check]",
+      graded: 3,
+      before: 3,
+      after: 2,
+      direction: "worse" as const,
+    },
+  ];
+  const summary = notificationSummary(
+    row("improvement_finished", { status: "ready", reason: null, criteria }),
+    t,
+    stop,
+  );
+  expect(summary).toContain("Validity [check]");
+});

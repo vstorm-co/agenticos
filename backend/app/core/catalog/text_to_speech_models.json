@@ -169,6 +169,43 @@
             "usd_per_million_characters": "40"
           }
         ]
+      },
+      {
+        "id": "eleven_v4",
+        "name": "Eleven v4",
+        "description": "Expressive speech in 90+ languages through the Text to Dialogue API. Requests are split at 2,000 characters for reliable generation.",
+        "max_characters": 2000,
+        "api": "elevenlabs_dialogue",
+        "prices": [
+          {
+            "since": "2026-11-17",
+            "usd_per_million_characters": "80"
+          }
+        ]
+      },
+      {
+        "id": "eleven_v3",
+        "name": "Eleven v3",
+        "description": "Expressive speech and audio tags in 70+ languages. Up to 5,000 characters per request.",
+        "max_characters": 5000,
+        "prices": [
+          {
+            "since": "2026-11-17",
+            "usd_per_million_characters": "80"
+          }
+        ]
+      },
+      {
+        "id": "eleven_flash_v2",
+        "name": "Eleven Flash v2",
+        "description": "Low-latency English speech. Choose Flash v2.5 for multilingual recordings.",
+        "max_characters": 30000,
+        "prices": [
+          {
+            "since": "2026-11-17",
+            "usd_per_million_characters": "40"
+          }
+        ]
       }
     ]
   },

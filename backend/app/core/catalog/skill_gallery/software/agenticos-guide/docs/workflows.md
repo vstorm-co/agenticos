@@ -145,7 +145,10 @@ group. You add a step four ways:
   flow in view, wired to it when their ports fit. A starting step goes before the
   current start instead and becomes it.
 - **+** beside a step's output opens the picker for the step that comes after that
-  output.
+  output. When the output already leads to a step, the picker asks where the new one
+  goes: **Insert before** that step puts it into the connection, and **Add a parallel
+  branch** keeps the connection and runs the new step beside it. An output that already
+  leads to several steps can only take another branch.
 - **Right-click** the canvas: the same picker opens where you clicked, and the step
   lands there. Beneath it, **Add a note** and, once something is copied, **Paste**.
 - **Drag** a step from the picker to put it where you drop it, wired to nothing.
@@ -278,7 +281,9 @@ published version, a run and a comparison show the saved size without handles.
 ## Configuring a node { #configuring-a-node }
 
 What each node does, what it is configured with and what its failures mean is in
-the [node reference](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/).
+the [node reference](https://vstorm-co.github.io/agenticos/reference/workflow-nodes/). The console names each step, its ports and
+its settings in the reader's language; the reference, the API and an exported workflow keep
+the English names.
 
 A click selects a step; a double click opens it over the canvas. In a published version or **View only**, one click opens it. The header names the step and folds unfinished setup into one expandable summary. Open it to see what is missing; choosing a field takes you to its input. After a test or publish attempt, the summary opens with validation details.
 
@@ -426,9 +431,17 @@ step names a real thing your organization has:
 Each picker disambiguates same-named rows with context and marks a reference
 whose target has gone away. The **Agent** and **Secret** pickers also carry a
 create-new link — always, not only when the list is empty — while the **Table**
-picker has none. A table whose schema changed since it was bound says so and offers
-**Rebind to the current schema**, so a stale column set is a visible prompt
-rather than a silent break.
+picker has none.
+
+When a table's schema changes after a step was bound to it, the editor moves the
+step onto the new schema by itself as long as every column the step reads still
+exists with the same type - an added column, or a change to one the step does not
+read, needs nothing from you. When a column it reads was removed or changed type,
+the step shows a problem instead, and both the step's **Table** field and the
+toolbar's problem list offer **Update to the current schema**, which keeps every
+chosen column that still exists. Check what reads the step afterwards.
+
+Filters, sort columns and value bindings are checked too. Remove or replace dependent settings that use changed columns before updating the table schema; the bulk update leaves those steps unchanged. A whole-record value binding also requires this manual review.
 
 ### Evals for a model step { #evals-for-a-model-step }
 
@@ -723,12 +736,11 @@ failed — will retry** if it did not.
 
 Each save is written against the revision you opened, so a draft edited in two
 places at once cannot silently overwrite. When that happens the editor raises a
-banner titled **This draft changed elsewhere**: *Someone edited this workflow
-since you opened it. Overwrite keeps your changes; reload replaces them with the
-latest saved draft.* You choose:
+banner titled **Someone else also edited this workflow**: *They saved changes while you were editing. Keep your changes, or load
+their version and lose your unsaved edits.* You choose:
 
-- **Overwrite** — keep your version and write it over the one saved elsewhere.
-- **Reload** — discard your unsaved edits and take the latest saved draft.
+- **Keep my changes** — keep your version and write it over the one saved elsewhere.
+- **Load their version** — discard your unsaved edits and take the latest saved draft.
 
 ## Publishing a version and version history { #publishing-a-version-and-version-history }
 
@@ -750,6 +762,11 @@ version is never changed after it is created. The publish dialog names the versi
 version, it says so first. If the graph still has
 problems, publishing is blocked with **Fix the problems below before
 publishing**, so a version that would not validate is never created.
+
+Some things are worth a look without being wrong, and an amber sign on the step marks
+them: an **Ask for approval** outcome that leads nowhere, or a step that decides
+between outputs when none of them leads anywhere. The run simply ends there. The
+publish dialog lists them too, but they never block a test run or a publish.
 
 Publishing does not end your editing. The draft goes on existing independently of
 any published version, so you keep editing it straight away. **Versions** under **More** in the
@@ -940,9 +957,11 @@ label its author wrote, in place of **Approve**; **Reject** stays. Each way is a
 port of the step, so the workflow goes on by the one the approver pressed, and the
 decided row names it. An edit goes with whichever button is pressed.
 
-In the list a test run's version reads **Draft (test)** and a real one's
-**Published**, and a run started from the console or the HTTP API reads **Console or
-API**. **Status**, **Version**, **Started by** and **Started** (the last hour, day, week or
+In the list a test of the whole draft reads **Draft (test)**, a
+[test of one step](#a-steps-data-pinning-and-testing-one-step) **Step test** followed by the step's name, and a
+real run **Published**. **Version** can show step tests alone or leave them out.
+
+A run started from the console or the HTTP API reads **Console or API**. **Status**, **Version**, **Started by** and **Started** (the last hour, day, week or
 30 days) narrow the runs, and the list answers a
 page at a time; each filter is kept in the address, so a filtered list can be
 linked. **Runs** on the workflows list shows every workflow's runs together. On a
@@ -1482,7 +1501,7 @@ Inline-agent skill and context galleries load every metadata page and offer Retr
 - A parameter is **a value or data from a step** — **Data** reads one from a
   reachable, type-compatible upstream output, or puts it into text.
 - The draft **saves itself**, and an edit from two places raises a banner with
-  **Overwrite** or **Reload**.
+  **Keep my changes** or **Load their version**.
 - **Publish** is blocked while a problem stands and re-validates on the server;
   past versions stay viewable read-only, and **Restore to draft** makes one the
   draft again.

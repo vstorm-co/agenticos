@@ -20,6 +20,7 @@ import { MAX_RATING, type CellValue, type ColumnDef, type RecordRead } from "@/t
  * Given the viewer's `locale`, a date reads as that locale writes one - "Oct 4,
  * 2026", "4 paź 2026" - and a date and time in the viewer's own zone; without
  * one, as it is stored. A date has no zone, so it is read as the day it names.
+ * A number takes the locale's decimal separator the same way - "12.177", "12,177".
  */
 export function formatCellValue(
   column: ColumnDef,
@@ -48,15 +49,20 @@ export function formatCellValue(
     }
     case "formula":
       // A formula answers with whatever it works out - a yes or no reads as one.
-      return typeof value === "boolean" ? boolLabel(value) : String(value);
+      return typeof value === "boolean" ? boolLabel(value) : scalarText(value, locale);
     case "lookup":
-      return Array.isArray(value) ? value.map(String).join(", ") : String(value);
+      return Array.isArray(value)
+        ? value.map((item) => scalarText(item, locale)).join(listSeparator(locale))
+        : scalarText(value, locale);
     case "link":
       // Ids name nothing to a reader; `recordCellText` names them from the record.
       return Array.isArray(value) ? String(value.length) : "";
     case "rating":
-      return typeof value === "number"
-        ? "★".repeat(value) + "☆".repeat(Math.max(0, MAX_RATING - value))
+      return typeof value === "number" &&
+        Number.isInteger(value) &&
+        value >= 0 &&
+        value <= MAX_RATING
+        ? "★".repeat(value) + "☆".repeat(MAX_RATING - value)
         : "";
     case "date":
     case "datetime": {
@@ -65,8 +71,63 @@ export function formatCellValue(
       return dated ?? value;
     }
     default:
-      return String(value);
+      return scalarText(value, locale);
   }
+}
+
+const numberFormats = new Map<string, Intl.NumberFormat>();
+
+/** One formatter per locale: a grid formats thousands of cells on every render. */
+function numberFormat(locale: string): Intl.NumberFormat {
+  let format = numberFormats.get(locale);
+  if (format === undefined) {
+    format = new Intl.NumberFormat(locale, { maximumFractionDigits: 20, useGrouping: "min2" });
+    numberFormats.set(locale, format);
+  }
+  return format;
+}
+
+const scientificFormats = new Map<string, Intl.NumberFormat>();
+
+/** The same, in scientific notation: `1,5E-7` under `pl`. */
+function scientificFormat(locale: string): Intl.NumberFormat {
+  let format = scientificFormats.get(locale);
+  if (format === undefined) {
+    format = new Intl.NumberFormat(locale, {
+      notation: "scientific",
+      maximumSignificantDigits: 17,
+    });
+    scientificFormats.set(locale, format);
+  }
+  return format;
+}
+
+/** The most fraction digits fixed notation shows in every supported browser. */
+const FIXED_FRACTION_DIGITS = 20;
+
+/** How many fraction digits `value`'s shortest form needs: `1.5e-7` needs 8. */
+function fractionDigits(value: number): number {
+  const [mantissa = "", exponent] = String(Math.abs(value)).split("e");
+  const decimals = mantissa.split(".")[1]?.length ?? 0;
+  return Math.max(0, decimals - Number(exponent ?? 0));
+}
+
+/**
+ * A value as text, a number written the way `locale` writes one. Every digit the
+ * stored number has is shown - only the separators change - and a four-digit number
+ * (a year, a code) is not grouped. One whose digits run past what fixed notation
+ * shows reads in scientific notation instead, so `1e-21` is not 0.
+ */
+function scalarText(value: unknown, locale: string | undefined): string {
+  if (typeof value !== "number" || locale === undefined) return String(value);
+  return fractionDigits(value) > FIXED_FRACTION_DIGITS
+    ? scientificFormat(locale).format(value)
+    : numberFormat(locale).format(value);
+}
+
+/** What joins a lookup's values: "; " where a comma is the decimal separator, so 12,5; 3,7. */
+function listSeparator(locale: string | undefined): string {
+  return locale !== undefined && numberFormat(locale).format(0.5).includes(",") ? "; " : ", ";
 }
 
 /** A stored date or date-time as `locale` writes it, or null when it is not one. */

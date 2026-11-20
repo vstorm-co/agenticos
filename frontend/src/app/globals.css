@@ -177,9 +177,9 @@
   --color-track: oklch(95% 0.022 277);
 
   /* Neutral page chrome. Page, card and floating surfaces have separate roles;
-     fields use the page surface as a well inside a card or dialog. */
-  --color-sidebar: #eeeef1;
-  --color-background: #f7f7f9;
+     fields share the raised surface so they stay legible on the page and in dialogs. */
+  --color-sidebar: #f5f5f2;
+  --color-background: #fbfbf9;
   --color-foreground: #242428;
   --color-card: oklch(100% 0 0);
   --color-card-foreground: #242428;
@@ -202,15 +202,15 @@
   --color-action-foreground: #f7f7f9;
   --color-action-hover: #3b3b3b;
   --color-action-active: #232323;
-  --color-secondary: #eeeef1;
+  --color-secondary: #efefeb;
   --color-secondary-foreground: oklch(22% 0.004 265);
-  --color-muted: #eeeef1;
-  --color-muted-foreground: #62626c;
+  --color-muted: #efefeb;
+  --color-muted-foreground: #63635f;
   /* Deeper than `muted`, where the two used to be the same value. `accent` is
      what paints a selected nav row and a hover, and the sidebar it paints them
      on is now a tinted surface of its own - at the muted step the selected row
      was a 1.01:1 difference from the column behind it, which is no difference. */
-  --color-accent: #e5e5ea;
+  --color-accent: #e6e6e0;
   --color-accent-foreground: oklch(22% 0.004 265);
   /* Washed from `oklch(57.7% 0.245 27.325)`, which was the loudest thing on
      any page it appeared on. At this chroma the fill still carries white text
@@ -229,11 +229,7 @@
      the loudest. */
   --color-warning: oklch(64% 0.1 72);
   --color-success: oklch(58% 0.1 155);
-  /* Fields use a soft filled surface and a quiet edge. Focus adds a wider,
-     low-opacity halo rather than a bright hairline. */
-  --color-border: #dddde3;
-  --color-input: #c6c6ce;
-  --color-switch-off: #72727c;
+  --color-border: #e1e1dc;
   --color-destructive-ink: #a52a34;
   --color-warning-ink: #795000;
   --color-success-ink: #236846;
@@ -250,7 +246,7 @@
      the shadow only lifts the surface off the page - and a heavier one for
      things that float (menus, dialogs). */
   --shadow-card: 0 1px 2px 0 oklch(0% 0 0 / 0.05), 0 1px 3px 0 oklch(0% 0 0 / 0.03);
-  --shadow-float: 0 4px 6px -2px oklch(0% 0 0 / 0.05), 0 10px 15px -3px oklch(0% 0 0 / 0.08);
+  --shadow-float: 0 1px 2px 0 oklch(0% 0 0 / 0.05), 0 8px 24px -4px oklch(0% 0 0 / 0.1);
 
   /* Typography */
   --font-display: var(--font-display), "Bricolage Grotesque", system-ui, sans-serif;
@@ -266,14 +262,15 @@
 }
 
 /* Dark surfaces rise from navigation to page, cards and floating panels.
-   Input wells use the page surface. Their edge stays stronger than decorative
-   card borders. Keep both root dark mappings aligned. */
+   Fields use a filled surface and a soft edge derived from the current look.
+   Keep both root dark mappings aligned. */
 @theme inline {
   /* Neutral controls resolve against the current look, not whatever sits behind them. */
   --color-control: color-mix(in oklab, var(--color-card) 92%, var(--color-foreground));
   --color-control-hover: color-mix(in oklab, var(--color-card) 87%, var(--color-foreground));
   --color-control-active: color-mix(in oklab, var(--color-card) 82%, var(--color-foreground));
-  --color-field: color-mix(in oklab, var(--color-background) 80%, var(--color-card));
+  --color-input: color-mix(in oklab, var(--color-card) 82%, var(--color-foreground));
+  --color-field: color-mix(in oklab, var(--color-card) 94%, var(--color-foreground));
   --color-sidebar-secondary: color-mix(in oklab, var(--color-sidebar) 45%, var(--color-background));
   /* Dataset accents follow the foreground lightness, keeping their hue visible in both themes. */
   --color-dataset-blue-foreground: oklch(
@@ -350,12 +347,12 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --color-sidebar: #141416;
-    --color-background: #1c1c1f;
+    --color-sidebar: #27272a;
+    --color-background: #222224;
     --color-foreground: #eeeef1;
-    --color-card: #232326;
+    --color-card: #29292c;
     --color-card-foreground: #eeeef1;
-    --color-popover: #2b2b30;
+    --color-popover: #323236;
     --color-popover-foreground: #eeeef1;
     --color-peek-well: oklch(21.5% 0.0025 265);
     --color-peek-sheet: oklch(25.5% 0.0025 265);
@@ -385,9 +382,7 @@
     --color-muted-foreground: #b1b1b9;
     --color-accent: #38383f;
     --color-accent-foreground: oklch(95% 0 0);
-    --color-border: #3b3b43;
-    --color-input: #51515c;
-    --color-switch-off: #777781;
+    --color-border: #3c3c40;
     --color-destructive-ink: #ffb4b4;
     --color-warning-ink: #f0cc84;
     --color-success-ink: #99d5b1;
@@ -405,12 +400,12 @@
 }
 
 :root.dark {
-  --color-sidebar: #141416;
-  --color-background: #1c1c1f;
+  --color-sidebar: #27272a;
+  --color-background: #222224;
   --color-foreground: #eeeef1;
-  --color-card: #232326;
+  --color-card: #29292c;
   --color-card-foreground: #eeeef1;
-  --color-popover: #2b2b30;
+  --color-popover: #323236;
   --color-popover-foreground: #eeeef1;
   --color-peek-well: oklch(21.5% 0.0025 265);
   --color-peek-sheet: oklch(25.5% 0.0025 265);
@@ -438,9 +433,7 @@
   --color-muted-foreground: #b1b1b9;
   --color-accent: #38383f;
   --color-accent-foreground: oklch(95% 0 0);
-  --color-border: #3b3b43;
-  --color-input: #51515c;
-  --color-switch-off: #777781;
+  --color-border: #3c3c40;
   --color-destructive-ink: #ffb4b4;
   --color-warning-ink: #f0cc84;
   --color-success-ink: #99d5b1;
@@ -462,20 +455,18 @@
    ========================================================================= */
 
 .theme-light {
-  --color-input: #c6c6ce;
-  --color-switch-off: #72727c;
   --color-destructive-ink: #a52a34;
   --color-warning-ink: #795000;
   --color-success-ink: #236846;
   --color-popover: #ffffff;
   --color-popover-foreground: #242428;
-  --color-background: #f7f7f9;
+  --color-background: #fafaf8;
   --color-foreground: #242428;
   --color-card: #ffffff;
   --color-card-foreground: #242428;
   --color-muted: #eeeef1;
-  --color-muted-foreground: #62626c;
-  --color-border: #dddde3;
+  --color-muted-foreground: #63635f;
+  --color-border: #e1e1dc;
   /* A pinned-light subtree inside a dark root needs the light accent mapping
      too, or its buttons and links keep the root theme's accent. */
   --color-primary: oklch(21% 0.01 250);
@@ -503,7 +494,7 @@
   --series-3: oklch(80% 0.15 78);
   --series-4: oklch(64% 0.19 22);
   --series-5: oklch(58% 0.18 312);
-  --color-sidebar: #eeeef1;
+  --color-sidebar: #f5f5f2;
   --color-secondary: #eeeef1;
   --color-secondary-foreground: #242428;
   --color-accent: #e5e5ea;
@@ -511,21 +502,19 @@
 }
 
 .theme-dark {
-  --color-input: #51515c;
-  --color-switch-off: #777781;
   --color-destructive-ink: #ffb4b4;
   --color-warning-ink: #f0cc84;
   --color-success-ink: #99d5b1;
-  --color-popover: #2b2b30;
+  --color-popover: #323236;
   --color-popover-foreground: #eeeef1;
-  --color-sidebar: #141416;
-  --color-background: #1c1c1f;
+  --color-sidebar: #27272a;
+  --color-background: #222224;
   --color-foreground: #eeeef1;
-  --color-card: #232326;
+  --color-card: #29292c;
   --color-card-foreground: #eeeef1;
   --color-muted: #2d2d32;
   --color-muted-foreground: #b1b1b9;
-  --color-border: #3b3b43;
+  --color-border: #3c3c40;
   --color-primary: oklch(96% 0.003 250);
   --color-primary-foreground: oklch(16% 0.01 250);
   --color-primary-hover: oklch(88% 0.004 250);
@@ -593,9 +582,9 @@
 
   /* Visible focus ring on every interactive element. Browsers handle :focus-visible
      correctly only when we don't override outline universally; here we set a
-     consistent brand ring with a 2px offset. */
+     consistent neutral outline with a 2px offset. */
   :focus-visible {
-    outline: 2px solid var(--color-ring);
+    outline: 2px solid color-mix(in oklab, var(--color-foreground) 60%, transparent);
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -610,23 +599,6 @@
   /* Remove the default inner button focus ring on Firefox. */
   ::-moz-focus-inner {
     border: 0;
-  }
-
-  /* Route transition - subtle fade + slide-up on each page change.
-     Keyed on pathname in components/layout/page-transition.tsx so it replays
-     on navigation. Neutralized under reduced motion below. */
-  .page-enter {
-    animation: page-enter var(--duration-base) var(--ease-out);
-  }
-  @keyframes page-enter {
-    from {
-      opacity: 0;
-      transform: translateY(6px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
   }
 
   /* The bar along the top edge while a navigation is on its way
@@ -663,7 +635,7 @@
   .skip-link:focus,
   .skip-link:focus-visible {
     transform: translateY(0);
-    outline: 2px solid var(--color-ring);
+    outline: 2px solid color-mix(in oklab, var(--color-foreground) 60%, transparent);
     outline-offset: 2px;
   }
 }
@@ -2476,6 +2448,13 @@ body .tour-spotlight {
   }
 }
 
+.dash-widget[data-widget-surface="plain"],
+.dash-widget[data-widget-surface="plain"]:hover {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
 /* A live thumbnail fades in once its frame has painted, rather than popping
    from the placeholder to the page. */
 .peek-frame {
@@ -2488,11 +2467,11 @@ body .tour-spotlight {
 
 /* A grid of cards arriving: each rises into place a beat after the one before,
    so a page of twelve reads as twelve things rather than one block. Capped at
-   the ninth, past which a delay is waiting rather than rhythm. */
+   the seventh, past which a delay is waiting rather than rhythm. */
 @keyframes rise-in {
   from {
-    opacity: 0;
-    transform: translateY(8px);
+    opacity: 0.5;
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -2500,34 +2479,28 @@ body .tour-spotlight {
   }
 }
 .rise-in > * {
-  animation: rise-in 240ms var(--ease-out) both;
+  animation: rise-in 180ms var(--ease-out) both;
 }
 .rise-in > :nth-child(2) {
-  animation-delay: 24ms;
+  animation-delay: 12ms;
 }
 .rise-in > :nth-child(3) {
-  animation-delay: 48ms;
+  animation-delay: 24ms;
 }
 .rise-in > :nth-child(4) {
-  animation-delay: 72ms;
+  animation-delay: 36ms;
 }
 .rise-in > :nth-child(5) {
-  animation-delay: 96ms;
+  animation-delay: 48ms;
 }
 .rise-in > :nth-child(6) {
-  animation-delay: 120ms;
+  animation-delay: 60ms;
 }
-.rise-in > :nth-child(7) {
-  animation-delay: 144ms;
-}
-.rise-in > :nth-child(8) {
-  animation-delay: 168ms;
-}
-.rise-in > :nth-child(n + 9) {
-  animation-delay: 192ms;
+.rise-in > :nth-child(n + 7) {
+  animation-delay: 72ms;
 }
 /* The global reduced-motion rule shortens durations but keeps these delays, and
-   with `both` fill a later card would sit invisible for up to 192ms and then
+   with `both` fill a later card would wait for up to 72ms and then
    appear at once (#1930). Without motion the grid is simply there. */
 @media (prefers-reduced-motion: reduce) {
   .rise-in > * {
@@ -2617,11 +2590,11 @@ body .tour-spotlight {
 }
 
 @utility animate-in {
-  animation: overlay-enter var(--tw-duration, var(--duration-base)) var(--tw-ease, var(--ease-out))
+  animation: overlay-enter var(--tw-duration, var(--duration-fast)) var(--tw-ease, var(--ease-out))
     both;
 }
 @utility animate-out {
-  animation: overlay-exit var(--tw-duration, var(--duration-fast)) var(--ease-out) both;
+  animation: overlay-exit var(--tw-duration, calc(var(--duration-fast) * 0.8)) var(--ease-out) both;
 }
 @utility fade-in-* {
   --tw-enter-opacity: calc(--value(integer) * 1%);
@@ -3083,4 +3056,67 @@ body .tour-spotlight {
 }
 .soft-enter {
   animation: soft-enter var(--duration-base) var(--ease-out) both;
+}
+
+/* Closed groups retain their DOM for an interruptible reveal. Inert and
+   aria-hidden remove their links from interaction as soon as they close. */
+.sidebar-group-content {
+  display: grid;
+  width: 100%;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+}
+.sidebar-group-content[data-open] {
+  grid-template-rows: 1fr;
+  visibility: visible;
+}
+.sidebar-group-links {
+  overflow: hidden;
+}
+.sidebar-nav-link:active {
+  background-color: color-mix(in oklab, var(--color-foreground) 8%, transparent);
+}
+.pressable-icon:active {
+  background-color: var(--color-control-active);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) {
+    .sidebar-width-motion {
+      transition: width var(--duration-base) var(--ease-out);
+    }
+    .sidebar-group-content {
+      transition:
+        grid-template-rows var(--duration-base) var(--ease-out),
+        visibility var(--duration-base);
+    }
+    .pressable-control:not(.pressable-icon) {
+      transition:
+        background-color var(--duration-fast),
+        border-color var(--duration-fast),
+        color var(--duration-fast),
+        box-shadow var(--duration-fast),
+        translate var(--duration-fast) var(--ease-out);
+    }
+    .pressable-control:not(.pressable-icon):not(:disabled):not([aria-disabled="true"]):not(
+        [data-loading="true"]
+      ):active {
+      translate: 0 1px;
+      transition-duration: 70ms;
+    }
+    .pressable-icon {
+      transition:
+        background-color var(--duration-fast),
+        color var(--duration-fast),
+        box-shadow var(--duration-fast),
+        scale var(--duration-fast) var(--ease-out);
+    }
+    .pressable-icon:active {
+      scale: 0.94;
+      transition-duration: 70ms;
+    }
+  }
+}
+
+.console-toasts [data-sonner-toast][data-removed="true"] {
+  transition-duration: 150ms;
 }

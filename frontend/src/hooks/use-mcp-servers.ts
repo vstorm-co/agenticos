@@ -9,6 +9,8 @@ import { mergeServers, type McpServerRow } from "@/lib/mcp-servers";
 import { qk } from "@/lib/query-keys";
 import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
 import type { McpCatalog, McpServerStateFilter, PlatformMcpToolList } from "@/types/mcp";
+import { Perm } from "@/types/permissions";
+import { usePermissions } from "./use-permissions";
 import { useMcpConnections } from "./use-mcp-connections";
 import { useOrgMcpConnections } from "./use-org-mcp-connections";
 
@@ -91,7 +93,7 @@ export function useMcpCatalogPage(
   state: McpServerStateFilter = "all",
 ) {
   const needle = query.trim();
-  const { data, isLoading, isFetching, isPlaceholderData } = useQuery({
+  const { data, isLoading, isFetching, isPlaceholderData, error, refetch } = useQuery({
     queryKey: qk.mcpServers.listPage(needle, category, auth, page, state),
     enabled,
     queryFn: () =>
@@ -111,6 +113,8 @@ export function useMcpCatalogPage(
     isLoading,
     isFetching,
     isPlaceholderData,
+    error,
+    refetch,
   };
 }
 
@@ -129,13 +133,14 @@ export type { McpServerRow };
  * check somebody asked for. The lists, which a check does change server-side,
  * are refetched by the hook that owns them.
  */
-export function useMcpServers() {
+export function useMcpServers({ retryOnMount = true }: { retryOnMount?: boolean } = {}) {
+  const { can, isLoading: permissionsLoading } = usePermissions();
   const catalog = useQuery({
     queryKey: qk.mcpServers.catalog(),
     queryFn: () => apiClient.get<McpCatalog>("/agents/mcp-catalog"),
     staleTime: Infinity,
   });
-  const organization = useOrgMcpConnections();
+  const organization = useOrgMcpConnections({ enabled: can(Perm.mcpManage), retryOnMount });
   const personal = useMcpConnections();
 
   const [toolsByConnection, setToolsByConnection] = useState<Record<string, McpToolInfo[]>>({});
@@ -147,13 +152,13 @@ export function useMcpServers() {
 
   return {
     rows,
-    isLoading: catalog.isLoading || organization.isLoading || personal.isLoading,
+    isLoading:
+      permissionsLoading || catalog.isLoading || organization.isLoading || personal.isLoading,
     /**
      * A failure everybody's view depends on is reported — the catalog and the
-     * caller's own connections. The organization list's is not: a member
-     * without `connections:manage` gets a 403 there and can still read the
-     * other two, so surfacing it as the page's error would replace a usable
-     * screen with a refusal about one column of it. A failed catalog is the
+     * caller's own connections. The organization list's is not: its failure
+     * must not prevent managing a personal account. Members without
+     * `mcp:manage` do not request that list at all. A failed catalog is the
      * opposite case — without it `mergeServers` yields an empty page dressed
      * as "no servers", on the one deployment state that cannot be true.
      */

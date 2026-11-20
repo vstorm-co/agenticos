@@ -117,7 +117,10 @@ it("says no attempt helped and which broke, and leads to the missing topics", ()
   const topics = screen.getByRole("link", { name: "Draft the ones you need" });
   expect(topics).toHaveAttribute("href", "#improvement-documents");
   expect(topics).toHaveClass("bg-action");
-  expect(screen.getByRole("button", { name: "End without changes" })).toHaveClass("border");
+  expect(screen.getByRole("button", { name: "End without changes" })).toHaveClass(
+    "border-2",
+    "border-input",
+  );
   expect(screen.queryByRole("button", { name: /Try again|Improve again/ })).toBeNull();
   expect(screen.getByText("Topic list").parentElement).toHaveAttribute(
     "id",
@@ -394,3 +397,82 @@ it("gives the whole session's cost above the attempts, so a row's cost is not re
   show({ ...EXHAUSTED, spent_usd: "0.0912" });
   expect(screen.getByText("The whole session, analysis included: $0.0912")).toBeInTheDocument();
 });
+
+const PRICE_BREAK = {
+  scorer: "judge",
+  name: "price break",
+  graded: 40,
+  before: 9,
+  after: 40,
+  fixed: 31,
+  broken: 0,
+};
+const VALIDITY = {
+  scorer: "judge",
+  name: "validity",
+  graded: 40,
+  before: 0,
+  after: 0,
+  fixed: 0,
+  broken: 0,
+  skill: "Quote rules",
+};
+
+it("says what an attempt fixed criterion by criterion instead of no change, and offers Accept", () => {
+  const criteriaBetter = {
+    ...round(1, "criteria_better"),
+    verdict_detail: { fixed: 0, broken: 0, criteria: [PRICE_BREAK, VALIDITY] },
+  };
+  show(
+    { ...SESSION, status: "ready", best_iteration_id: "r1", iterations: [criteriaBetter] },
+    { candidate: true },
+  );
+
+  expect(
+    screen.getByText(
+      "Attempt 1 made Refund desk better on 1 criterion: price break 9/40 → 40/40. " +
+        "No additional question passes yet, because other criteria still fail: " +
+        "validity (skill “Quote rules”).",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/did not make Refund desk better/)).not.toBeInTheDocument();
+  primary("Review and accept the changes");
+});
+
+it("says an attempt made a criterion worse once, beside the attempts that did no better", () => {
+  const LENGTH = { ...PRICE_BREAK, name: "under 200 words", before: 40, after: 30, fixed: 0 };
+  const worse = {
+    ...round(1, "criteria_worse"),
+    verdict_detail: { fixed: 0, broken: 0, criteria: [{ ...LENGTH, broken: 10 }] },
+  };
+  show({
+    ...SESSION,
+    status: "stopped",
+    stop_reason: "criteria_worse",
+    best_iteration_id: "r1",
+    iterations: [worse],
+  });
+
+  expect(
+    screen.getByText(
+      "The attempt did not make Refund desk better. Attempt 1 made Refund desk worse on " +
+        "1 criterion, though no question broke: under 200 words 40/40 → 30/40.",
+    ),
+  ).toBeInTheDocument();
+});
+
+it.each(["ready", "accepted", "published"] as const)(
+  "keeps a result headline when criterion evidence is hidden: %s",
+  (status) => {
+    const gained = round(1, "criteria_better");
+    show(
+      { ...SESSION, status, best_iteration_id: gained.id, iterations: [gained] },
+      { candidate: status === "ready" },
+    );
+    expect(
+      screen.getByText(
+        /Attempt 1 improved some grading criteria for Refund desk; no whole question changed\./,
+      ),
+    ).toBeVisible();
+  },
+);

@@ -65,6 +65,8 @@ export type NavItem = {
 export type NavDomain = "use" | "build" | "knowledge" | "workspace" | "admin";
 
 export type NavGroup = {
+  /** Reached through the organization switcher rather than the main rail. */
+  switcherOnly?: boolean;
   /** `null` for the first group, which needs no label above the top item. */
   labelKey: string | null;
   domain: NavDomain;
@@ -227,6 +229,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     labelKey: "organization",
+    switcherOnly: true,
     domain: "workspace",
     collapsible: true,
     items: [

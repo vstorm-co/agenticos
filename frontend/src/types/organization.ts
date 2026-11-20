@@ -54,6 +54,18 @@ export interface WelcomeDmChanges {
   welcome_dm_text?: string | null;
 }
 
+export interface OrganizationTextToSpeech {
+  enabled: boolean;
+  provider: string;
+  model: string;
+  voice: string | null;
+  secret_id: string;
+}
+
+export interface TextToSpeechSettingsUpdate {
+  text_to_speech: OrganizationTextToSpeech | null;
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -118,6 +130,7 @@ export interface Organization {
    * A provider from the speech-to-text catalog: the default agents and channel
    * bots inherit when they transcribe with a provider.
    */
+  text_to_speech?: OrganizationTextToSpeech | null;
   speech_to_text_provider: string | null;
   /** A model that provider offers in the catalog. Set and cleared with the provider. */
   speech_to_text_model: string | null;
@@ -171,6 +184,8 @@ export interface OrganizationMember {
    *  Optional because only the members list computes it; absent reads as "no",
    *  which is the safe default for a control that would otherwise 403. */
   can_change_role?: boolean;
+  /** Latest audited action in this workspace, not a sign-in or visit. */
+  last_action_at?: string | null;
 }
 
 export interface OrganizationMemberList {

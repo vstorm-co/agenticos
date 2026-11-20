@@ -43,6 +43,9 @@ export default function RemoteAgentsPage() {
 
       <ListCard
         fill
+        namedByPage
+        layout={agents.length === 0 ? "grid" : "panel"}
+        empty={!isLoading && error === null && agents.length === 0}
         data-tour="remote-agents-list"
         title={t("listTitle")}
         counted={

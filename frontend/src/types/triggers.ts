@@ -24,6 +24,11 @@ export type ScheduleKind = "interval" | "cron";
  */
 export type TriggerOverlap = "skip" | "queue" | "allow";
 
+/** The run-now 202 response identifies the exact queued activation. */
+export interface TriggerDispatch extends Trigger {
+  activation_id: string;
+  job_id: string | null;
+}
 /**
  * Which conversation a fire's run goes in. Mirrors the backend's
  * `TriggerConversationMode` (#14): `continue` appends every fire to the
@@ -165,6 +170,7 @@ export interface TriggerList {
 export type TriggerAnswerTo = "run_log" | "primary" | "conversation";
 
 export interface TriggerCreate {
+  review_before_activation?: boolean;
   max_failures?: number | null;
   is_active?: boolean;
   notification_channels?: RoutineNotificationChannel[] | null;
@@ -265,11 +271,34 @@ export interface TriggerAttempt {
     | "platform_identity_required"
     | "source_review_required"
     | "agent_unavailable"
-    | "preparation_failed";
+    | "preparation_failed"
+    | "previous_run_active";
   occurred_at: string;
 }
 
 export interface TriggerAttemptList {
   items: TriggerAttempt[];
   total: number;
+}
+
+export interface TriggerActivationStatus {
+  state: "pending" | "recorded" | "not_started";
+}
+
+export interface TriggerFilteredEventRead {
+  last_event: {
+    received_at: string;
+    reason:
+      | "event"
+      | "action"
+      | "bot"
+      | "ignored_login"
+      | "author"
+      | "draft"
+      | "branch"
+      | "mention"
+      | "conclusion"
+      | "not_branch";
+    authors: "members" | "contributors" | "anyone";
+  } | null;
 }

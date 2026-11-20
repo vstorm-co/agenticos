@@ -1,5 +1,5 @@
 ---
-source_sha: "ebe2636bfc0c"
+source_sha: "05c6c8dd7ace"
 ---
 
 # Workflows { #workflows }
@@ -155,7 +155,10 @@ hace o por su grupo. Añades un paso de cuatro maneras:
   a la vista, conectado a él cuando sus puertos encajan. Un paso de inicio va en
   cambio antes del inicio actual y pasa a serlo.
 - **+** junto a la salida de un paso abre el selector para el paso que va tras esa
-  salida.
+  salida. Si la salida ya lleva a un paso, el selector pregunta dónde va el nuevo:
+  **Insert before** lo coloca en esa conexión y **Add a parallel branch** conserva la
+  conexión y ejecuta el nuevo paso a su lado. Una salida que ya lleva a varios pasos solo
+  admite otra rama.
 - **Clic derecho** en el lienzo: el mismo selector se abre donde hiciste clic, y el
   paso aparece allí. Debajo, **Add a note** y, cuando hay algo copiado, **Paste**.
 - **Arrastra** un paso desde el selector para dejarlo donde lo sueltes, sin conectar.
@@ -295,7 +298,9 @@ comparación muestran el tamaño guardado sin controles.
 ## Configurar un nodo { #configuring-a-node }
 
 Qué hace cada nodo, con qué se configura y qué significan sus fallos está en la
-[referencia de nodos](reference/workflow-nodes.md).
+[referencia de nodos](reference/workflow-nodes.md). La consola nombra cada paso, sus puertos y
+sus ajustes en el idioma de quien lee; la referencia, la API y un workflow exportado conservan
+los nombres en inglés.
 
 Un clic selecciona un paso y un doble clic lo abre sobre el lienzo. En una versión publicada o **View only** basta un clic. La cabecera muestra el nombre y un resumen desplegable de la configuración pendiente. Ábrelo para ver qué falta; elegir un campo lleva a su entrada. Después de intentar probar o publicar, los detalles de validación se abren automáticamente.
 
@@ -447,9 +452,17 @@ que un paso nombre algo real que tu organización tiene:
 Cada selector desambigua filas con el mismo nombre mediante contexto y marca una
 referencia cuyo destino ha desaparecido. Los selectores **Agent** y **Secret**
 ofrecen además un enlace para crear uno nuevo — siempre, no solo cuando la lista
-está vacía — mientras que el selector **Table** no tiene ninguno. Una tabla cuyo esquema cambió desde que se vinculó lo dice y
-ofrece **Rebind to the current schema**, para que un conjunto de columnas obsoleto sea
-un aviso visible y no una ruptura silenciosa.
+está vacía — mientras que el selector **Table** no tiene ninguno.
+
+Cuando el esquema de una tabla cambia después de vincular un paso a ella, el editor
+mueve el paso al nuevo esquema por sí solo siempre que cada columna que el paso lee
+siga existiendo con el mismo tipo - una columna añadida, o un cambio en una que el
+paso no lee, no te pide nada. Cuando una columna que lee se eliminó o cambió de
+tipo, el paso muestra un problema, y tanto el campo **Table** del paso como la lista
+de problemas de la barra de herramientas ofrecen **Update to the current schema**,
+que conserva cada columna elegida que aún existe. Después, revisa lo que lee el paso.
+
+También se comprueban los filtros, las columnas de ordenación y los enlaces de valores. Elimina o sustituye los ajustes dependientes que usan columnas cambiadas antes de actualizar el esquema; la actualización conjunta deja esos pasos intactos. Un enlace de valores del registro completo también requiere esta revisión manual.
 
 ### Evals de un paso con modelo { #evals-for-a-model-step }
 
@@ -768,12 +781,11 @@ vez que aterriza, y **Save failed — will retry** si no lo hizo.
 
 Cada guardado se escribe contra la revisión que abriste, así que un draft editado en
 dos sitios a la vez no puede sobrescribir en silencio. Cuando eso ocurre, el editor
-levanta un banner titulado **This draft changed elsewhere**: *Someone edited this
-workflow since you opened it. Overwrite keeps your changes; reload replaces them with
-the latest saved draft.* Eliges:
+levanta un banner titulado **Someone else also edited this workflow**: *They saved changes while you were editing. Keep your changes, or load
+their version and lose your unsaved edits.* Eliges:
 
-- **Overwrite** — conserva tu versión y escríbela sobre la guardada en otro sitio.
-- **Reload** — descarta tus ediciones sin guardar y toma el último draft guardado.
+- **Keep my changes** — conserva tu versión y escríbela sobre la guardada en otro sitio.
+- **Load their version** — descarta tus ediciones sin guardar y toma el último draft guardado.
 
 ## Publicar una versión y el historial de versiones { #publishing-a-version-and-version-history }
 
@@ -795,6 +807,12 @@ versión nunca se cambia después de crearse. El diálogo de publicación nombra
 versión en vivo, lo dice primero. Si el grafo aún tiene problemas, la
 publicación se bloquea con **Fix the problems below before publishing**, así que una
 versión que no validaría nunca se crea.
+
+Algunas cosas merecen un vistazo sin ser errores, y un signo ámbar en el paso las marca:
+un resultado de **Ask for approval** que no lleva a ninguna parte, o un paso que decide
+entre salidas cuando ninguna lleva a ninguna parte. El run simplemente termina ahí. El
+diálogo de publicación también las enumera, pero nunca bloquean una prueba ni una
+publicación.
 
 Publicar no termina tu edición. El draft sigue existiendo con independencia de
 cualquier versión publicada, así que lo sigues editando enseguida. **Versions** en la
@@ -999,8 +1017,11 @@ es un puerto de salida del paso, así que el workflow sigue por la que pulsó qu
 aprueba, y la fila decidida la nombra. Una edición va con el botón que se pulse.
 
 
-En la lista, la versión de un run de prueba dice **Draft (test)** y la de uno real
-**Published**, y un run iniciado desde la consola o la API HTTP dice **Console or
+En la lista, una prueba de todo el borrador dice **Draft (test)**, una [prueba de un
+paso](#a-steps-data-pinning-and-testing-one-step) **Step test** seguido del nombre del paso, y un run real **Published**.
+**Version** puede mostrar solo las pruebas de paso u omitirlas.
+
+Un run iniciado desde la consola o la API HTTP dice **Console or
 API**. **Status**, **Version**, **Started by** y **Started** (la última hora, día, semana o 30
 días) acotan las ejecuciones, y la lista responde
 una página cada vez; cada filtro queda en la dirección, así que una lista filtrada
@@ -1571,7 +1592,7 @@ Las galerías de skills y contexto del agente integrado cargan todas las página
 - Un parámetro es **un valor o datos de un paso** — **Data** los lee de una salida previa
   alcanzable y de tipo compatible, o los mete en un texto.
 - El draft **se guarda solo**, y una edición desde dos sitios levanta un banner con
-  **Overwrite** o **Reload**.
+  **Keep my changes** o **Load their version**.
 - **Publish** se bloquea mientras un problema persiste y vuelve a validar en el
   servidor; las versiones anteriores quedan visibles en solo lectura, y **Restore to
   draft** vuelve a convertir una de ellas en el draft.

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ArrowRight } from "lucide-react";
@@ -10,6 +10,7 @@ import { ArrowRight } from "lucide-react";
 import { DirectoryLoginForm } from "@/components/auth/directory-login-form";
 import { MfaCodeForm } from "@/components/auth/mfa-code-form";
 import { OAuthBlock } from "@/components/auth/oauth-buttons";
+import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { returnToForAttempt } from "@/lib/oauth-return";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth, type MfaChallenge } from "@/hooks/use-auth";
@@ -23,7 +24,8 @@ export function LoginForm() {
   const t = useTranslations("auth");
   const tErrors = useTranslations("errors");
   const search = useSearchParams();
-  const { login } = useAuth();
+  const router = useRouter();
+  const { login, isAuthenticated, isLoading: checkingSession } = useAuth();
   // Where "create an account" goes. An invitee with no account is bounced here by
   // `AuthGuard` with the invitation in `returnTo`, and a plain link to /register
   // would drop it - leaving an `invite_only` deployment refusing somebody who is
@@ -40,6 +42,15 @@ export function LoginForm() {
   // The password step passed and the sign-in is waiting on the second
   // factor: the form swaps to the code step instead of signing in.
   const [mfa, setMfa] = useState<MfaChallenge | null>(null);
+
+  // Somebody already signed in - in this tab, or in another one the session
+  // check hears about - goes on to where a sign-in would take them, not to a
+  // form asking for the password again.
+  useEffect(() => {
+    if (checkingSession || !isAuthenticated) return;
+    const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+    goToDestination(postSignInDestination(returnTo), (href) => router.replace(href), true);
+  }, [checkingSession, isAuthenticated, router]);
 
   const emailValid = !email || EMAIL_RE.test(email);
 
@@ -110,7 +121,7 @@ export function LoginForm() {
               required
               disabled={isLoading}
               autoComplete="email"
-              className={`h-11 rounded-lg text-base md:text-[15px] ${emailTouched && email && !emailValid ? "border-destructive" : ""}`}
+              aria-invalid={Boolean(emailTouched && email && !emailValid)}
             />
             {emailTouched && email && !emailValid && (
               <p className="text-destructive text-xs">{t("emailRequired")}</p>
@@ -138,7 +149,6 @@ export function LoginForm() {
               required
               disabled={isLoading}
               autoComplete="current-password"
-              className="h-11 rounded-lg text-base md:text-[15px]"
             />
           </div>
 
@@ -148,7 +158,7 @@ export function LoginForm() {
             </p>
           )}
 
-          <Button type="submit" disabled={isLoading} className="h-11 w-full text-[15px]">
+          <Button type="submit" disabled={isLoading} size="lg" className="w-full">
             {isLoading ? (
               t("loggingIn")
             ) : (

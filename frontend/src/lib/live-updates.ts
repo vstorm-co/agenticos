@@ -45,6 +45,7 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   notification: () => [qk.notifications.all(), qk.outcomes.all()],
   secret: () => [qk.secrets.all(), qk.sharing.all()],
   mcp_connection: () => [
+    qk.triggers.all(),
     qk.mcpConnections.all(),
     qk.mcpServers.lists(),
     qk.mcpServers.entries(),

@@ -541,3 +541,40 @@ it("labels a required independent model without promising the default model", ()
     "Choose a decision model",
   );
 });
+
+it("offers a keyless chat destination only when the agent uses a personal key", async () => {
+  const changed = vi.fn();
+  const { rerender } = render(
+    <ModelProfilePicker
+      profiles={[keyless]}
+      profilesStatus="loaded"
+      value={null}
+      onChange={changed}
+      compact
+    />,
+    { wrapper },
+  );
+  expect(screen.queryByRole("radio", { name: /openai default/ })).toBeNull();
+  rerender(
+    <ModelProfilePicker
+      profiles={[keyless]}
+      profilesStatus="loaded"
+      value={null}
+      onChange={changed}
+      requireOrganizationKey={false}
+    />,
+  );
+  await userEvent.click(screen.getByRole("radio", { name: /openai default/ }));
+  expect(changed).toHaveBeenCalledWith("p1");
+  rerender(
+    <ModelProfilePicker
+      profiles={[keyless]}
+      profilesStatus="loaded"
+      value="p1"
+      onChange={changed}
+      requireOrganizationKey={false}
+    />,
+  );
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.queryByText("No key")).toBeNull();
+});

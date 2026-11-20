@@ -42,6 +42,7 @@ from app.services.channels.mentions import AnsweredTurn, UnaddressedMessage
 from app.services.channels.router import ChannelMessageRouter
 from app.services.file_storage import LocalFileStorage
 from app.services.file_upload import FileUploadService
+from app.services.message_history import ModelHistory
 from app.services.workflow_execution.exceptions import WorkflowAdmissionQuotaError
 from tests.workspaces import document_workspace
 
@@ -177,6 +178,7 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
             f"{router}.channel_session_repo.get_by_bot_and_chat", AsyncMock(return_value=session)
         ),
         patch(f"{router}.channel_session_repo.touch", AsyncMock(return_value=session)),
+        patch(f"{router}.channel_session_repo.update", AsyncMock(return_value=session)),
         # The chat's conversation belongs to the sender, so the session is not rotated.
         patch(
             f"{router}.conversation_repo.get_owner",
@@ -189,7 +191,9 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
         # because where a summary has run that is where the history starts.
         patch(
             f"{router}.ConversationService",
-            return_value=MagicMock(model_history=AsyncMock(return_value=[])),
+            return_value=MagicMock(
+                model_history=AsyncMock(return_value=ModelHistory([], revision=None))
+            ),
         ),
         patch(
             f"{router}.get_adapter",
@@ -429,7 +433,7 @@ class TestATurnRefusedBeforeTheRunKeepsNothing:
         router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
         # The window is read off the database and these tests hand `_route_inner`
         # a mock; what they are about is the file rows, not the history.
-        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
 
         with _channel(
             _agent_router(
@@ -463,7 +467,7 @@ class TestATurnRefusedBeforeTheRunKeepsNothing:
         router, _replies, rows = _router()
         router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
         router._deliver = AsyncMock()  # type: ignore[method-assign]
-        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
 
         with _channel(_agent_router(answer_default=None), rows):
             await router._route_inner(
@@ -798,6 +802,7 @@ async def _route_one_file(text: str) -> tuple[MagicMock, MagicMock, AsyncMock]:
             f"{router}.channel_session_repo.get_by_bot_and_chat", AsyncMock(return_value=session)
         ),
         patch(f"{router}.channel_session_repo.touch", AsyncMock(return_value=session)),
+        patch(f"{router}.channel_session_repo.update", AsyncMock(return_value=session)),
         # The chat's conversation belongs to the sender, so the session is not rotated.
         patch(
             f"{router}.conversation_repo.get_owner",
@@ -811,7 +816,9 @@ async def _route_one_file(text: str) -> tuple[MagicMock, MagicMock, AsyncMock]:
         patch(f"{router}.conversation_repo.count_messages", AsyncMock(return_value=0)),
         patch(
             f"{router}.ConversationService",
-            return_value=MagicMock(model_history=AsyncMock(return_value=[])),
+            return_value=MagicMock(
+                model_history=AsyncMock(return_value=ModelHistory([], revision=None))
+            ),
         ),
         patch(f"{router}.ChannelAgentRouter", return_value=agents),
         patch.object(FileUploadService, "upload", upload),
@@ -860,7 +867,7 @@ class TestACrashAnswersTheSameOnEitherPath:
 
     async def test_a_crash_on_the_mention_path_answers_like_one_on_the_default_path(self):
         router_m, replies_m, rows_m = _router()
-        router_m._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router_m._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
         with _channel(_agent_router(answer=RuntimeError("provider exploded")), rows_m):
             # Without the fix this would raise out of `_route_inner` and answer
             # nothing; with it the crash is caught and apologised for.
@@ -868,7 +875,7 @@ class TestACrashAnswersTheSameOnEitherPath:
 
         router_d, replies_d, rows_d = _router()
         router_d._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
-        router_d._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router_d._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
         with _channel(_agent_router(answer_default=RuntimeError("provider exploded")), rows_d):
             await router_d._route_inner(_incoming("just a question"), MagicMock(commit=AsyncMock()))
 
@@ -883,7 +890,7 @@ class TestACrashAnswersTheSameOnEitherPath:
         either path. A crash that had already linked them keeps them - covered
         below (#1503)."""
         router_m, _replies_m, rows_m = _router()
-        router_m._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router_m._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
         with _channel(_agent_router(answer=RuntimeError("provider exploded")), rows_m):
             await router_m._route_inner(
                 _incoming("@support here is the report"), MagicMock(commit=AsyncMock())
@@ -891,7 +898,7 @@ class TestACrashAnswersTheSameOnEitherPath:
 
         router_d, _replies_d, rows_d = _router()
         router_d._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
-        router_d._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router_d._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
         with _channel(_agent_router(answer_default=RuntimeError("provider exploded")), rows_d):
             await router_d._route_inner(
                 _incoming("here is the report"), MagicMock(commit=AsyncMock())
@@ -1021,7 +1028,7 @@ class TestADeactivatedLinkedSenderIsRefusedEarly:
         router._receive_files = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
         router._transcribe = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
         router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
-        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
         router._deliver = AsyncMock()  # type: ignore[method-assign]
 
         incoming = IncomingMessage(
@@ -1057,7 +1064,7 @@ class TestADeactivatedLinkedSenderIsRefusedEarly:
         router._receive_files = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
         router._transcribe = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
         router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
-        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router._load_history = AsyncMock(return_value=ModelHistory([], revision=None))  # type: ignore[method-assign]
         router._deliver = AsyncMock()  # type: ignore[method-assign]
 
         incoming = IncomingMessage(
@@ -1336,7 +1343,7 @@ async def test_attachment_attempt_budget_survives_sender_reassembly():
 
 @pytest.mark.parametrize("text", ["@support improve the map", "improve the map"])
 @pytest.mark.parametrize("has_backfill", [False, True])
-async def test_mentions_and_default_turns_both_receive_the_saved_thread_history(
+async def test_mentions_and_default_turns_receive_the_canonical_thread_history(
     text: str, has_backfill: bool
 ) -> None:
     from pydantic_ai.messages import ModelRequest, UserPromptPart
@@ -1345,23 +1352,24 @@ async def test_mentions_and_default_turns_both_receive_the_saved_thread_history(
 
     earlier = ModelRequest(parts=[UserPromptPart(content="Alice asked for the town-hall app.")])
     backfill = ModelRequest(parts=[UserPromptPart(content="Earlier channel discussion.")])
+    canonical = [backfill, earlier] if has_backfill else [earlier]
     with (
         patch.object(
             ChannelMessageRouter,
             "_load_history",
-            new=AsyncMock(return_value=ModelHistory([earlier], revision=7)),
+            new=AsyncMock(return_value=ModelHistory(canonical, revision=7)),
         ) as load,
         patch.object(
             ChannelMessageRouter,
             "_thread_context",
-            new=AsyncMock(return_value=([backfill] if has_backfill else [], [], [])),
+            new=AsyncMock(return_value=([], [], [])),
         ),
     ):
         _, agents, _ = await _route_one_file(text)
     answer = agents.answer if text.startswith("@") else agents.answer_default
     history = answer.await_args.kwargs["message_history"]
     assert isinstance(history, ModelHistory) and history.revision == 7
-    assert history == ([backfill, earlier] if has_backfill else [earlier])
+    assert history == canonical
     load.assert_awaited_once()
 
 

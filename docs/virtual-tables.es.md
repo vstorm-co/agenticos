@@ -1,5 +1,5 @@
 ---
-source_sha: "8d167fac78c1"
+source_sha: "3e730a85b6b4"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -268,6 +268,19 @@ qué le pasa. Un valor que no puede calcular - una división por cero, texto en 
 suma, una celda vacía - deja vacía la celda de ese registro. Una fórmula se
 calcula al leer el registro y nunca se guarda, escribe, filtra ni ordena.
 
+Los decimales se escriben con punto, `{Price} * 1.23`, en cualquier idioma: una
+coma separa los argumentos de una función, así que `{Price} * 1,23` se rechaza con
+esa indicación en lugar de leerse como número, y lo mismo una llamada a la que la coma da un valor de
+más, como `IF({Price} > 0,5, "yes", "no")`.
+
+El número de valores de una llamada se comprueba al guardar su
+fórmula: una guardada antes sigue funcionando, y las demás columnas de la tabla se pueden
+cambiar, hasta que alguien la edite. El rechazo da un motivo estable en
+`details.formula.reason`, como `decimal_comma` o `not_a_column`, que la consola usa
+para decirlo en el idioma de quien lee. La consola muestra los números, también el
+resultado de una fórmula, con el separador decimal de quien lee - `12,177` en
+polaco - y no agrupa un número de cuatro cifras.
+
 ## Cambiar un esquema { #changing-a-schema }
 
 `PUT /tables/{id}/schema` recibe la lista completa de columnas que debe tener la tabla y
@@ -511,7 +524,7 @@ empezó según el reloj del servidor, y los demás lo devuelven. Una fila que re
 externo que el archivo ya nombró se lista en lugar de enviarse, y el lote rechaza con
 `INVALID_RECORD` una fila que repite un id que ya contiene.
 
-**New table** empieza con una columna **Name**. Primero indica el nombre y las columnas; la descripción y la visibilidad están en **More options**, con visibilidad privada por defecto. En su lugar puede empezar desde un
+**New table** empieza con una columna **Name**. Indica el nombre, elige quién puede verla y añade las columnas; la descripción está en **More options**. Una tabla empieza como **Only me**; **Everyone** la abre a la organización y **Some people** la comparte con los grupos y miembros que elijas, cada uno con `read`, en la misma solicitud (`group_ids` y `user_ids` en `POST /tables`). En su lugar puede empezar desde un
 archivo: **Start from a CSV file** convierte la cabecera en columnas y da a cada una el tipo más estrecho
 en que se leen todos sus valores - entero, número, sí/no, fecha, fecha y hora ISO, una dirección de correo o un enlace -
 y si no, texto, o texto largo cuando un valor tiene un salto de línea o pasa de 1.000
@@ -548,6 +561,13 @@ es una escritura nueva: se ejecuta de nuevo en vez de devolver la primera respue
 Reintenta dentro de la ventana y trata una pausa más larga como una solicitud nueva. La duración se aplica al usar la
 clave, así que se cumple a la hora exacta; el barrido diario solo recupera el espacio de los
 receipts que nadie reintentó.
+
+Al eliminar un grupo, proyecto o cuenta se purgan los receipts asociados a la tabla
+de su tablero de tareas, incluidos los resultados de lotes. Durante la actualización
+se borran los resultados de lotes antiguos sin id de tabla, porque no se puede recuperar
+su tabla asociada. Sus claves se conservan hasta caducar: un reintento con la misma
+solicitud devuelve `IDEMPOTENCY_RESULT_PURGED` (409) y no escribe nada. Comprueba la tabla
+antes de iniciar una escritura nueva. Los demás tipos de receipts no cambian.
 
 ## Listar y filtrar { #listing-and-filtering }
 
@@ -942,6 +962,7 @@ un cliente usa para bifurcar.
 | `INVALID_QUERY` | 422 | Un filtro u orden que la tabla no puede responder |
 | `INVALID_SCHEMA` | 422 | Un cambio de esquema incoherente |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | La clave se usó para una solicitud distinta |
+| `IDEMPOTENCY_RESULT_PURGED` | 409 | Un resultado de lote antiguo se borró durante la actualización; su clave impide otra escritura hasta caducar |
 | `QUOTA_EXCEEDED` | 402 | La escritura superaría un límite de almacenamiento; `details` nombra el límite (`tables`, `records`, `record_bytes`, `storage_bytes`) y su techo |
 | `RATE_LIMIT_EXCEEDED` | 429 | Demasiadas escrituras de tablas en el último minuto; consulta `Retry-After` |
 | `VALIDATION_ERROR` | 422 | La solicitud misma es defectuosa: un tipo erróneo, un campo desconocido, un límite, o NUL, un salto de línea o un sustituto aislado en un id, clave o nombre. La ruta la rechaza antes de que se ejecute el servicio |

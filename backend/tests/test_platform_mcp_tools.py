@@ -1265,7 +1265,10 @@ class TestEditingADraft:
             "capabilities": [{"id": "ask_user"}, {"id": "clock", "config": {"timezone": "UTC"}}],
             "skill_ids": [],
         }
-        api.request.side_effect = [{"id": str(AGENT), "draft_spec": draft}, {"id": str(AGENT)}]
+        api.request.side_effect = [
+            {"id": str(AGENT), "draft_spec": draft, "draft_revision": "0" * 64},
+            {"id": str(AGENT)},
+        ]
 
         await server.call_tool(
             "update_agent_draft",
@@ -1287,6 +1290,7 @@ class TestEditingADraft:
         read, write = api.request.await_args_list
         assert read.args == ("GET", f"/agents/{AGENT}")
         assert write.args == ("PUT", f"/agents/{AGENT}/draft")
+        assert write.kwargs["json"]["expected_revision"] == "0" * 64
         assert write.kwargs["json"]["spec"] == {
             "name": "Renamed Bot",
             "instructions": "New",
@@ -1300,11 +1304,20 @@ class TestEditingADraft:
             "starters": ["How do refunds work?"],
         }
 
+    async def test_a_missing_revision_cannot_send_an_unconditional_write(
+        self, api: MagicMock
+    ) -> None:
+        api.request.return_value = {"draft_spec": {"name": "Bot", "capabilities": []}}
+        tool = {tool.name: tool for tool in platform_tools(api)}["update_agent_draft"]
+        with pytest.raises(TypeError, match="no draft revision"):
+            await tool.function(agent_id=AGENT)
+        assert api.request.await_count == 1
+
     async def test_a_draft_left_alone_is_written_back_as_it_was(
         self, server: FastMCP, api: MagicMock
     ) -> None:
         draft = {"name": "Bot", "instructions": "Old", "capabilities": [{"id": "ask_user"}]}
-        api.request.side_effect = [{"draft_spec": draft}, {}]
+        api.request.side_effect = [{"draft_spec": draft, "draft_revision": "0" * 64}, {}]
 
         await server.call_tool("update_agent_draft", {"agent_id": str(AGENT)})
 
@@ -1613,7 +1626,7 @@ class TestConfiguredDrafts:
             ],
             "mcp_servers": [],
         }
-        api.request.side_effect = [{"draft_spec": draft}, {}]
+        api.request.side_effect = [{"draft_spec": draft, "draft_revision": "0" * 64}, {}]
         await server.call_tool(
             "update_agent_draft",
             {
@@ -1651,11 +1664,12 @@ class TestConfiguredDrafts:
     ) -> None:
         api.request.side_effect = [
             {
+                "draft_revision": "0" * 64,
                 "draft_spec": {
                     "capabilities": [
                         {"id": "media", "secret_id": str(KB), "approval": "required"},
                     ]
-                }
+                },
             },
             {},
         ]
@@ -1674,12 +1688,13 @@ class TestConfiguredDrafts:
     ) -> None:
         api.request.side_effect = [
             {
+                "draft_revision": "0" * 64,
                 "draft_spec": {
                     "capabilities": [
                         {"id": "sandbox", "config": {"backend": "service"}},
                     ],
                     "mcp_servers": [{"account": "personal", "catalog_key": "github"}],
-                }
+                },
             },
             {},
         ]

@@ -201,6 +201,8 @@ interface CapabilityDetailProps {
    * the same for every capability and is not worth a second implementation.
    */
   hideConfigForm?: boolean;
+  /** An inherited credential is configured by its organization rather than this binding. */
+  hideSecret?: boolean;
   /**
    * What publish validation said about the inputs on these forms.
    *
@@ -308,6 +310,7 @@ export function CapabilityDetail({
   onChange,
   disabled,
   hideConfigForm,
+  hideSecret,
   configProblems,
   onToggleEnabled,
   readOnly,
@@ -377,7 +380,8 @@ export function CapabilityDetail({
             free provider and a paid one declares the requirement once and
             names the configurations it applies to; asking for a key the server
             will not demand is as wrong as not asking for one it will. */}
-      {definition.requires_secret !== null &&
+      {!hideSecret &&
+        definition.requires_secret !== null &&
         secretIsOffered(definition.requires_secret, keyed.config) && (
           <SecretField
             binding={keyed}
@@ -389,7 +393,7 @@ export function CapabilityDetail({
           />
         )}
 
-      {definition.requires_secret === null && binding.secret_id !== null && (
+      {!hideSecret && definition.requires_secret === null && binding.secret_id !== null && (
         <StaleSecretNotice binding={binding} onChange={onChange} disabled={disabled} />
       )}
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "4cdebab6f99e"
+source_sha: "6aaedf36ba33"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -177,16 +177,16 @@ flowchart TD
   | `zendesk` | `X-Zendesk-Webhook-Signature` | `X-Zendesk-Webhook-Signature-Timestamp` und der Body, base64                                    |
 
   GitHub, HubSpot, Zendesk und Linear signieren ihre Zustellungen selbst, Sie geben dem
-  Provider also das Secret - oder übernehmen bei HubSpot, Zendesk und Linear das, das er
-  ausgestellt hat - und er signiert. Die Quelle API verwendet standardmäßig das Schema von
+  Provider also das Secret oder verwenden das von ihm ausgestellte, und er signiert.
+  Die Quelle API verwendet standardmäßig das Schema von
   GitHub unter `X-Signature-256`, das setzen muss, was immer Sie auf die URL
   richten. Eine **abgefragte** Quelle signiert nichts und hält kein Secret: sie
   wurde nicht adressiert, sondern gelesen, und die eigene OAuth-Zustimmung des
   Kontos hat das Lesen autorisiert.
 
-Der generische `webhook` verwendet standardmäßig die obige Signatur. Beim Erstellen oder Ändern per API setzt `event_config` mit `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` das Shopify-Verfahren; für Hookdecks Standardsignatur dient `X-Hookdeck-Signature`. `hmac-sha256-hex` erwartet einen Hex-Digest ohne Präfix. Beide signieren den unveränderten Body und benötigen das Secret des Providers als `event_secret`; Headernamen unterscheiden keine Groß- und Kleinschreibung.
+Der generische `webhook` verwendet standardmäßig die obige Signatur. Wählen Sie in der Konsole beim Erstellen oder Bearbeiten eines API-Triggers das Signaturverfahren und den Header. Über die API setzt `event_config` mit `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` das Shopify-Verfahren; für Hookdecks Standardsignatur dient `X-Hookdeck-Signature`. `hmac-sha256-hex` erwartet einen Hex-Digest ohne Präfix. Beide signieren den unveränderten Body und benötigen das Secret des Providers als `event_secret`; Headernamen unterscheiden keine Groß- und Kleinschreibung.
 
-Diese Verfahren authentifizieren keinen Zeitstempel; abgefangene Anfragen sind erneut abspielbar. Der generische Delivery-ID-Header ist nicht signiert und lässt sich ändern. Filtern Sie beim Provider und verwenden Sie eine eigene Integration, wenn dessen Vertrag Zeitstempelprüfungen, einen anderen Erfolgsstatus oder ein anderes Signaturverfahren verlangt. Insbesondere implementieren diese Optionen nicht den Linear-Webhook-Vertrag. Die Konsole erstellt derzeit das Standardverfahren; Alternativen werden per API konfiguriert.
+Diese Verfahren authentifizieren keinen Zeitstempel; abgefangene Anfragen sind erneut abspielbar. Der generische Delivery-ID-Header ist nicht signiert und lässt sich ändern. Filtern Sie beim Provider und verwenden Sie eine eigene Integration, wenn dessen Vertrag Zeitstempelprüfungen, einen anderen Erfolgsstatus oder ein anderes Signaturverfahren verlangt. Insbesondere implementieren diese Optionen nicht den Linear-Webhook-Vertrag.
 
 Shopify und Hookdeck senden normalerweise kein `X-Delivery-ID`; Wiederholungen können daher erneut auslösen. Ihre eigenen Delivery-IDs prüft dieser Trigger nicht. Body-Signaturen binden weder Ziel-URL noch Provider-Header: Verwenden Sie für jede Vertrauensgrenze ein eigenes Secret und verlassen Sie sich zur Autorisierung nicht auf unsignierte Shop- oder Topic-Header. Shopifys App-Secret kann für mehrere Shops gelten; verwenden Sie diesen Modus nicht, wenn die Signatur den Shop oder das Abonnement nachweisen muss.
 
@@ -447,10 +447,19 @@ Text wird als Teil der Adresse gesucht. DMARC authentifiziert keinen Anzeigename
 
 ## Linear { #linear }
 
-1. Öffnen Sie die Webhook-Einstellungen in Linear und kopieren Sie das Signatur-Secret.
-2. Erstellen Sie in AgenticOS einen Event-Trigger mit Quelle **Linear**. Fügen Sie
-   das Secret ein und schließen Sie die Einrichtung ab.
-3. Kopieren Sie die Trigger-URL nach Linear, wählen Sie die Ereignisse und speichern Sie den Webhook.
+1. Erzeugen Sie ein starkes Signatur-Secret und halten Sie es geheim. Erstellen Sie
+   in AgenticOS einen Event-Trigger mit Quelle **Linear** und geben Sie das Secret ein.
+   Kopieren Sie dessen Webhook-URL.
+2. Verwenden Sie die Mutation `webhookCreate` der GraphQL-API von Linear mit dieser URL
+   und demselben `secret`. Geben Sie mindestens einen Eintrag in `resourceTypes` und
+   entweder eine `teamId` oder `allPublicTeams: true` an. Die Felder stehen im
+   [Webhook-Schema von Linear](https://github.com/linear/linear/blob/master/packages/sdk/src/schema.graphql).
+
+Alternativ erstellen Sie einen deaktivierten Linear-Webhook mit einer vorläufigen
+öffentlichen HTTPS-URL und kopieren dessen erzeugtes Secret in einen neuen Linear-Trigger
+in AgenticOS. Setzen Sie dann mit `webhookUpdate` in Linear die Trigger-URL und aktivieren
+Sie die Zustellung. Verwenden Sie keinen vorläufigen Endpunkt, den Sie nicht kontrollieren.
+Diese Einrichtungswege wurden nicht mit echten Linear-Zustellungen getestet.
 
 Die API unterstützt zusätzlich optionale Filter `event_types` und `actions` in `event_config`.
 
@@ -892,8 +901,8 @@ hindurch:
   erfordert einen neuen Trigger.
 - Die Signatur ist ein `HMAC-SHA256` über die **exakten rohen Bytes**, im Schema
   des jeweiligen Providers, und sie ist das, was eine Zustellung authentisch macht
-  statt bloß korrekt adressiert. Die Secrets von HubSpot, Zendesk und Linear stellt der
-  Provider aus.
+  statt bloß korrekt adressiert. Verwenden Sie dasselbe Signatur-Secret beim Provider und
+  in AgenticOS.
 - Eine Erfolgsantwort (`202`, bei Linear `200`) bedeutet **angenommen**, nicht fertig. Lesen Sie den Run in Aktivität.
 - **Postfächer, Dateien und Kalender werden abgefragt**, sie haben also überhaupt
   keine URL und kein Secret - verbinden Sie das Konto, und das ist die Einrichtung.

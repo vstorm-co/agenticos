@@ -89,7 +89,7 @@ export function JudgeSettings({
         disabled={disabled}
       >
         <div className="grid gap-4 sm:grid-cols-2">
-          <FormField htmlFor="grading-scale" label={t("scaleMax")} description={t("scaleHelp")}>
+          <FormField htmlFor="grading-scale" label={t("scaleMax")} help={t("scaleHelp")}>
             <Input
               type="number"
               min={2}
@@ -99,7 +99,7 @@ export function JudgeSettings({
               disabled={disabled}
             />
           </FormField>
-          <FormField htmlFor="grading-pass" label={t("passAt")} description={t("passHelp")}>
+          <FormField htmlFor="grading-pass" label={t("passAt")} help={t("passHelp")}>
             <Input
               type="number"
               min={1}

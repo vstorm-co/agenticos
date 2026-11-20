@@ -1,5 +1,5 @@
 ---
-source_sha: "e0f27fa2e9f9"
+source_sha: "32a6c0a170f0"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -26,6 +26,9 @@ run po runie, od najstarszego po lewej, z linią na każdy dataset, każdą z in
 kreską. Punkt jest czerwony, gdy run zepsuł przypadki, zielony, gdy je naprawił,
 bursztynowy, gdy zrobił jedno i drugie, a pusty dla wersji roboczej; najechanie na punkt
 mówi, co uruchomiono, z czym porównano i kiedy, a kliknięcie otwiera run.
+
+Mniej niż trzy zmierzone runy to jeszcze nie trend: w miejscu wykresu jest ich
+lista, każdy z odsetkiem zaliczeń i odnośnikiem, oraz informacja, ile runów jest na razie.
 
 Oś pokazuje godziny, gdy historia mieści się w jednym dniu, także minionym. Przy historii obejmującej kilka dni pokazuje daty starszych runów i godziny dzisiejszych, bez powtarzania identycznych etykiet. Podpowiedź zachowuje pełną datę i godzinę startu. Powyżej 10 runów przełącznik nad wykresem
 pokazuje ostatnie 10, ostatnie 30 albo wszystkie runy; otwiera się na ostatnich
@@ -196,6 +199,8 @@ Kopie pytań treningowych lub materiału źródłowego są wykluczane według zn
 
 Sesja poprawy przypina wersję datasetu i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy i przypadki nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
 
+Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła. Kontekst wcześniejszych prób zawiera ograniczone fragmenty z najwyżej sześciu ostatnich zmierzonych prób, aby długie zmiany instrukcji lub treści skilla nie wypełniały promptu następnej propozycji.
+
 Decyzja człowieka i **Wycofaj decyzję** unieważniają zależne porównania runów i przeliczają zapisane wyniki suit w tej samej transakcji. Run, suita, bramka środowiska i dialog promocji pokazują poprawiony werdykt oraz osobę, która go przejrzała. Audyt zapisuje poprzednie i nowe statusy oraz liczby; zmiana werdyktu suity wysyła nowe powiadomienie. Nazwy osób są odczytywane z aktualnego członkostwa organizacji, bez kopiowania do zachowanych wyników.
 
 Wynik pozytywny uzyskany przez przegląd pozwala na ręczną promocję. Nigdy sam nie promuje ani nie przesuwa środowiska śledzącego publikacje, także podczas okresowego uzgadniania. Wiersz środowiska pokazuje rzeczywisty błędny albo poprawiony wynik bramki i link do sprawdzenia. Wcześniejszy wynik na innych pytaniach, ocenianiu, progach lub wobec innej obsługiwanej wersji pozostaje widoczny jako **Nieaktualny**, z linkiem do runu, zamiast **Niesprawdzony**.
@@ -362,6 +367,18 @@ Kryterium sędziego może dotyczyć wszystkich przypadków albo tylko przypadkó
 
 ## Porównanie z baseline'em { #comparing-with-a-baseline }
 
+`criterion_change` to liczba potwierdzonych napraw kryteriów pomniejszona o potwierdzone pogorszenia, podzielona przez liczbę wszystkich ocen kryteriów porównanych parami. Jest obliczana przed ograniczeniem szczegółów odpowiedzi. Gdy całe pytania nie zmieniają wyniku, a kilka prób poprawia same kryteria, Improve wybiera większą znormalizowaną poprawę kryteriów; dokładny remis pozostawia wcześniejszą próbę. Nieporównywalne testy nie powodują agregacji ani zwracania zmian kryteriów. Nieporównywalny wynik bazowy nie uruchamia płatnych powtórzeń potwierdzających.
+
+Nazwy kryteriów, oceny poszczególnych kryteriów i przypisania do skilli wymagają `runs:view`, dostępu do datasetu przypisanego do sesji i do każdego wskazanego skilla. Szczegóły sprawdzania skilla wymagają dostępu do wszystkich użytych datasetów. Ukryte lub usunięte źródła powodują ukrycie tych szczegółów bez zmiany zapisanych wyników. Powiadomienia o wynikach sprawdzają aktualny dostęp odbiorcy przed dołączeniem szczegółów kryteriów. Zapisane powiadomienia zawierające kryteria ponownie sprawdzają te źródła przy odczycie skrzynki i przed opóźnioną wysyłką; brak informacji o źródłach lub cofnięty dostęp ukrywa powiadomienie.
+
+Zapisane źródła skilli używają stałych ID: zmiana nazwy zachowuje tożsamość skilla, a jego usunięcie i ponowne użycie nazwy nie przywraca dostępu do dawnych dowodów. Szczegóły kryteriów sesji wskazujące skill bez jego pierwotnego ID również pozostają ukryte. Opcjonalna nazwa wyświetlana skilla nie nadaje dostępu: pierwotne ID jest sprawdzane również bez etykiety.
+
+Interaktywne odczyty porównań dopuszczają do 30 żądań na osobę i 60 na organizację na minutę, z jednym wykonywanym porównaniem na organizację jednocześnie. Konsola i API współdzielą te limity. Nadmiarowe lub równoległe żądania zwracają HTTP 429 z `Retry-After`; klient powinien odczekać przed ponowieniem. Wspólny Redis koordynuje workery, a podczas awarii każdy worker zachowuje lokalny limit. Ręczne zmiany oceny odpowiedzi pochodzących z ewaluacji korzystają z tego samego budżetu i blokady, po sprawdzeniu dostępu do datasetu, a przed zmianą oceny lub zapisanych wyników.
+
+Odczyt wymaga `runs:view` przed zajęciem blokady współbieżności lub zużyciem limitu. Aktywne porównania odnawiają blokady; wygaśnięcie po 120 sekundach zwalnia blokady procesów, które przestały działać. Błąd odnowienia w Redisie jest logowany i pozostawia lokalną blokadę workera.
+
+Odmowy z powodu zajętego porównania nie zużywają minutowych limitów odczytów. Konsola wstrzymuje polling do upływu `Retry-After`.
+
 Porównanie dopasowuje obie strony przypadek po przypadku według stałego id
 przypadku i podaje każdy jako **regresję** (był zaliczony, teraz nie jest),
 **naprawiony** (nie był, teraz jest), bez zmian albo niepełny. Przypadki, na
@@ -420,6 +437,26 @@ samym kandydatem we wcześniejszym czasie - ten sam spec na tym samym modelu,
 uruchomiony tak samo, jak ten, z którym porównuje się suita sprawdzająca
 codziennie jedną wersję: jego powtórki byłyby znowu tylko powtórkami kandydata,
 więc nie jest powtarzany, a dryf potwierdzają same powtórki kandydata.
+
+Przypadek przechodzi dopiero wtedy, gdy spełnia każde kryterium, według którego
+jest oceniany - każdy check, kryterium sędziego, oczekiwane wywołanie narzędzia i
+ocenę względem odpowiedzi wzorcowej - więc zmiana, która naprawia jedno z kilku
+niespełnionych kryteriów przypadku, nie odwraca żadnego przypadku. Przypadek, w
+którym odwróciło się jakiekolwiek kryterium ocenione po obu stronach, też jest
+powtarzany, a `criteria` porównania podaje dla każdego kryterium, na ilu
+przypadkach obie strony je oceniły, ile z nich każda strona spełniła w pierwszej
+odpowiedzi oraz naprawy i zepsucia potwierdzone tak samo jak przy przypadku:
+każda powtórka po obu stronach je powtarza.
+
+Porównanie podaje najwyżej 200 kryteriów: powyżej tej liczby najpierw każde
+kryterium, które się zmieniło, potem te, które najczęściej nie są spełnione.
+
+Werdykt poniżej dotyczy nadal całych
+przypadków; [sesja Improve](authoring.md#the-improve-wizard) i
+[sprawdzenie skilla](skills.md#the-rule) czytają kryteria, gdy żaden przypadek się
+nie odwrócił. Ponowne zadanie tych przypadków kosztuje więcej niż sprawdzenie,
+które powtarza tylko odwrócone przypadki, i mieści się w jego górnej granicy
+ceny, która i tak zakłada ponowne zadanie każdego przypadku.
 
 Run porównywany z baseline'em potrzebuje co najmniej jednej powtórki; run bez
 baseline'u może je pominąć. Run porównany z wcześniejszym runem, któremu nigdy

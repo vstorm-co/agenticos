@@ -4,6 +4,7 @@ A mock can only say the client sent a script; whether Redis gives a lease back
 for its holder alone, and refuses everyone else, is Redis's to answer.
 """
 
+import asyncio
 from collections.abc import AsyncGenerator
 from uuid import uuid4
 
@@ -38,4 +39,40 @@ async def test_only_the_holder_gives_back_a_lease(redis: RedisClient) -> None:
         assert await redis.get(key) is None
         assert await redis.expire(key, 60) is False
     finally:
+        await redis.delete(key)
+
+
+async def test_renewal_never_extends_a_successors_lease(redis: RedisClient) -> None:
+    key = f"test:lease:renew:{uuid4().hex}"
+    try:
+        await redis.set(key, "first", ttl=5)
+        assert await redis.expire_if_equals(key, "wrong", 60) is False
+        assert await redis.raw.ttl(key) <= 5
+        assert await redis.expire_if_equals(key, "first", 60) is True
+        assert await redis.raw.ttl(key) > 5
+        await redis.set(key, "second", ttl=5)
+        assert await redis.expire_if_equals(key, "first", 60) is False
+        assert await redis.get(key) == "second" and await redis.raw.ttl(key) <= 5
+        await redis.delete(key)
+        assert await redis.expire_if_equals(key, "first", 60) is False
+    finally:
+        await redis.delete(key)
+
+
+async def test_active_comparison_renews_redis_exclusion_past_the_initial_ttl(redis: RedisClient):
+    from app.services import rate_limit
+
+    caller = f"test:comparison:{uuid4().hex}"
+    key = f"inflight:eval_comparison:{caller}"
+    previous = rate_limit._redis
+    rate_limit.configure(redis)
+    try:
+        async with rate_limit.one_in_flight(
+            "eval_comparison", caller, ttl_seconds=1, message="Busy", renew=True
+        ):
+            await asyncio.sleep(1.1)
+            assert await redis.set(key, "contender", ttl=1, nx=True) is False
+        assert await redis.get(key) is None
+    finally:
+        rate_limit.configure(previous)
         await redis.delete(key)

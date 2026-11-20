@@ -26,6 +26,7 @@
  * set filtered by rule 3's compatibility.
  */
 
+import type { TableDrift } from "@/lib/workflows/table-drift";
 import { entryGraph, entryNodes } from "@/lib/workflows/triggers";
 import type { NodeCatalog, WorkflowGraph } from "@/lib/workflows/types";
 
@@ -70,6 +71,7 @@ export {
   schemaTypeToken,
 } from "./schema";
 export { deriveScopes, resolveDefinitions } from "./topology";
+export { graphWarnings } from "./warnings";
 export type { ValidationCode, ValidationTranslator } from "./types";
 export { MESSAGE_KEYS } from "./types";
 
@@ -100,6 +102,31 @@ function render(problem: RawProblem, t: ValidationTranslator): ValidationProblem
     code: problem.code,
     message: t(MESSAGE_KEYS[problem.code], problem.params),
   };
+}
+
+/**
+ * `problems` with one more per table reference the editor could not move onto
+ * its table's current schema (`tableDrift` in the editor store) - the server's
+ * `table_ref_problems`, said before a run or a publish is refused for it.
+ */
+export function withTableDrift(
+  problems: ValidationProblem[],
+  drift: readonly TableDrift[],
+  t: ValidationTranslator,
+): ValidationProblem[] {
+  if (drift.length === 0) return problems;
+  return [
+    ...problems,
+    ...drift.map((entry) => ({
+      nodeId: entry.nodeId,
+      edgeId: null,
+      field: entry.field ?? "table",
+      code: "table-schema-changed",
+      message: t(
+        entry.requiresReview ? "problemTableDependenciesChanged" : "problemTableSchemaChanged",
+      ),
+    })),
+  ];
 }
 
 /**

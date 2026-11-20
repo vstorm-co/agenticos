@@ -12,7 +12,7 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return {
     ...actual,
-    apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+    apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -58,9 +58,33 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
 }
 
 function serve() {
-  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
-    path === "/me/permissions" ? { permissions: [] } : { items: [], total: 0 },
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.endsWith("/sources"))
+      return {
+        current: true,
+        review_token: "sources",
+        version_id: "v1",
+        resources: ["Skill instructions"],
+        accounts: [],
+        unavailable_sources: [],
+      };
+    if (path.endsWith("/action-consents"))
+      return { can_waive: true, review_token: "actions", items: [] };
+    return path === "/me/permissions" ? { permissions: [] } : { items: [], total: 0 };
+  });
+  vi.mocked(apiClient.put).mockImplementation(async (path) =>
+    path.endsWith("/sources")
+      ? {
+          current: true,
+          review_token: "sources",
+          version_id: "v1",
+          resources: [],
+          accounts: [],
+          unavailable_sources: [],
+        }
+      : { can_waive: true, review_token: "actions", items: [] },
   );
+  vi.mocked(apiClient.patch).mockResolvedValue(trigger());
 }
 
 it.each([false, true])(
@@ -116,6 +140,119 @@ beforeEach(() => {
  * grid is), so it is exercised here directly rather than through a panel button.
  */
 describe("TriggerFormDialog custom-webhook event form", () => {
+  it("creates a raw-body HMAC trigger and refuses an invalid header", async () => {
+    const user = userEvent.setup();
+    vi.mocked(apiClient.post).mockResolvedValue(trigger({ event_source: "webhook" }));
+    const dialog = await openEvent();
+    await user.type(dialog.getByLabelText("Signing secret"), "a-provider-issued-secret");
+    await user.click(dialog.getByRole("combobox", { name: "Signature format" }));
+    await user.click(await screen.findByRole("option", { name: "HMAC-SHA256 (base64)" }));
+    expect(dialog.getByText(/does not authenticate a timestamp or prevent replay/)).toBeVisible();
+    const header = dialog.getByLabelText("Signature header");
+    expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await user.type(header, "bad header");
+    expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await user.clear(header);
+    await user.type(header, "X-Shopify-Hmac-Sha256");
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.type(dialog.getByLabelText("Message"), "Handle it");
+    await user.click(dialog.getByRole("button", { name: "Create" }));
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/agents/${AGENT_ID}/triggers`,
+      expect.objectContaining({
+        event_secret: "a-provider-issued-secret",
+        event_config: {
+          signature_scheme: "hmac-sha256-base64",
+          signature_header: "X-Shopify-Hmac-Sha256",
+        },
+      }),
+    );
+  });
+
+  it("does not send webhook signature settings when switching to another source", async () => {
+    const user = userEvent.setup();
+    vi.mocked(apiClient.post).mockResolvedValue(trigger({ event_source: "hubspot" }));
+    const dialog = await openEvent();
+    await user.type(dialog.getByLabelText("Signing secret"), "a-provider-issued-secret");
+    await user.click(dialog.getByRole("combobox", { name: "Signature format" }));
+    await user.click(await screen.findByRole("option", { name: "HMAC-SHA256 (hex)" }));
+    await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
+    await user.click(await screen.findByRole("option", { name: "A HubSpot webhook" }));
+    await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
+    await user.click(await screen.findByRole("option", { name: "API (your own code)" }));
+    expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await user.type(dialog.getByLabelText("Signature header"), "x-signature");
+    await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
+    await user.click(await screen.findByRole("option", { name: "A HubSpot webhook" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.type(dialog.getByLabelText("Message"), "Handle it");
+    await user.click(dialog.getByRole("button", { name: "Create" }));
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/agents/${AGENT_ID}/triggers`,
+      expect.objectContaining({ event_source: "hubspot", event_config: undefined }),
+    );
+  });
+
+  it("preserves a saved HMAC configuration on unrelated edits and can switch back to the default", async () => {
+    const user = userEvent.setup();
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger());
+    const configured = trigger({
+      event_source: "webhook",
+      event_config: { signature_scheme: "hmac-sha256-hex", signature_header: "x-signature" },
+    });
+    const { unmount } = render(
+      <TriggerFormDialog agentId={AGENT_ID} open onOpenChange={vi.fn()} trigger={configured} />,
+      { wrapper },
+    );
+    let dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByLabelText<HTMLInputElement>("Signature header").value).toBe("x-signature");
+    await user.clear(dialog.getByLabelText("Signature header"));
+    expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
+    await user.type(dialog.getByLabelText("Signature header"), "x-signature");
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    expect(vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1]).not.toHaveProperty("event_config");
+    unmount();
+    vi.mocked(apiClient.patch).mockClear();
+    render(
+      <TriggerFormDialog agentId={AGENT_ID} open onOpenChange={vi.fn()} trigger={configured} />,
+      { wrapper },
+    );
+    dialog = within(await screen.findByRole("dialog"));
+    await user.click(dialog.getByRole("combobox", { name: "Signature format" }));
+    await user.click(await screen.findByRole("option", { name: "Default relay signature" }));
+    expect(dialog.queryByLabelText("Signature header")).toBeNull();
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    expect(vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1]).toHaveProperty("event_config", {});
+  });
+
+  it("updates the signature header and encoding of an existing webhook", async () => {
+    const user = userEvent.setup();
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger());
+    render(
+      <TriggerFormDialog
+        agentId={AGENT_ID}
+        open
+        onOpenChange={vi.fn()}
+        trigger={trigger({ event_source: "webhook", event_config: {} })}
+      />,
+      { wrapper },
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+    await user.click(dialog.getByRole("combobox", { name: "Signature format" }));
+    await user.click(await screen.findByRole("option", { name: "HMAC-SHA256 (hex)" }));
+    await user.type(dialog.getByLabelText("Signature header"), "X-Custom-Signature");
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    expect(vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1]).toHaveProperty("event_config", {
+      signature_scheme: "hmac-sha256-hex",
+      signature_header: "X-Custom-Signature",
+    });
+  });
+
   it("offers no schedule/event type switch - the kind is fixed by the entry point", async () => {
     const dialog = await openEvent();
 
@@ -135,6 +272,8 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      review_before_activation: true,
+      is_active: false,
       prompt: "Triage it",
       name: null,
       trigger_type: "event",
@@ -164,6 +303,8 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.type(dialog.getByLabelText("Message"), "Triage");
     await user.click(dialog.getByRole("button", { name: "Create" }));
+
+    await user.click(await screen.findByRole("button", { name: "Enable routine" }));
 
     // The dialog does not just close: an event trigger needs its URL pasted into
     // the provider, so it stays open on that URL with a way to copy it.
@@ -201,6 +342,8 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
+      review_before_activation: true,
+      is_active: false,
       prompt: "Handle it",
       name: null,
       trigger_type: "event",
@@ -251,7 +394,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     expect(dialog.getByText(/Create a Zendesk webhook pointing at this URL/)).toBeInTheDocument();
   });
 
-  it("uses Linear's secret and shows the URL to paste into Linear", async () => {
+  it("uses a shared Linear secret and shows the webhook URL", async () => {
     const user = userEvent.setup();
     const url = "https://api.example.com/api/v1/webhooks/triggers/linear/t1";
     vi.mocked(apiClient.post).mockResolvedValue(
@@ -262,6 +405,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.click(dialog.getByRole("combobox", { name: "Fires on" }));
     await user.click(await screen.findByRole("option", { name: "A Linear webhook" }));
     expect(dialog.queryByRole("button", { name: "Generate" })).toBeNull();
+    expect(dialog.getByText(/Keep it to create the Linear webhook/)).toBeVisible();
     await user.type(dialog.getByLabelText("Signing secret"), "linear-signing-secret");
     await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.click(dialog.getByRole("button", { name: "Continue" }));
@@ -272,9 +416,13 @@ describe("TriggerFormDialog custom-webhook event form", () => {
       `/agents/${AGENT_ID}/triggers`,
       expect.objectContaining({ event_source: "linear", event_secret: "linear-signing-secret" }),
     );
+    await user.click(await screen.findByRole("button", { name: "Enable routine" }));
     const createdDialog = within(await screen.findByRole("dialog", { name: "One more step" }));
     expect(createdDialog.getByLabelText<HTMLInputElement>("Webhook URL").value).toBe(url);
-    expect(createdDialog.getByText(/Paste this URL into Linear/)).toBeInTheDocument();
+    expect(createdDialog.getByText(/Linear API accepts both/)).toBeInTheDocument();
+    expect(createdDialog.getByLabelText<HTMLInputElement>("Signing secret").value).toBe(
+      "linear-signing-secret",
+    );
   });
 
   it("does not offer Gmail at all, because this form is the signed-POST one", async () => {
@@ -438,4 +586,58 @@ it("locks edited trigger fields and dismissal until a refused save restores the 
   expect(dialog.getByLabelText("Name")).toHaveValue("Customer review");
   expect(dialog.getByRole("textbox", { name: "Message" })).toHaveValue("Triage it");
   expect(onOpenChange).not.toHaveBeenCalled();
+});
+
+it.each([undefined, "members", "contributors", "anyone"])(
+  "shows and preserves the stored author policy %s",
+  async (authors) => {
+    serve();
+    const user = userEvent.setup();
+    const config = {
+      ...(authors ? { authors } : {}),
+      mention: "@agent",
+      event: "issue_comment",
+      ignore_login: "connected-user",
+    };
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger());
+    render(
+      <TriggerFormDialog
+        agentId={AGENT_ID}
+        open
+        onOpenChange={vi.fn()}
+        trigger={trigger({ event_config: config })}
+      />,
+      { wrapper },
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(
+      dialog.getByRole("combobox", { name: "Whose events can start this routine" }),
+    ).toHaveValue(authors ?? "members");
+    fireEvent.change(dialog.getByLabelText("Mention phrase"), { target: { value: "@reviewer" } });
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    expect(vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1]).toHaveProperty("event_config", {
+      ...config,
+      mention: "@reviewer",
+    });
+  },
+);
+
+it("saves an explicitly widened author policy", async () => {
+  serve();
+  const user = userEvent.setup();
+  vi.mocked(apiClient.patch).mockResolvedValue(trigger());
+  render(<TriggerFormDialog agentId={AGENT_ID} open onOpenChange={vi.fn()} trigger={trigger()} />, {
+    wrapper,
+  });
+  const dialog = within(await screen.findByRole("dialog"));
+  await user.selectOptions(
+    dialog.getByRole("combobox", { name: "Whose events can start this routine" }),
+    "contributors",
+  );
+  await user.click(dialog.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+  expect(vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1]).toHaveProperty("event_config", {
+    authors: "contributors",
+  });
 });

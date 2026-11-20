@@ -1,5 +1,5 @@
 ---
-source_sha: "8d167fac78c1"
+source_sha: "3e730a85b6b4"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -276,6 +276,19 @@ Summe, eine leere Zelle - lässt die Zelle dieses Datensatzes leer. Eine Formel
 wird beim Lesen ermittelt und nie gespeichert, geschrieben, gefiltert oder
 sortiert.
 
+Dezimalzahlen werden in jeder Sprache mit Punkt geschrieben, `{Price} * 1.23`: Ein
+Komma trennt die Argumente einer Funktion, deshalb wird `{Price} * 1,23` mit diesem
+Hinweis abgelehnt, statt als Zahl gelesen zu werden; ebenso ein Aufruf, dem das Komma einen Wert zu viel
+gibt, etwa `IF({Price} > 0,5, "yes", "no")`.
+
+Die Zahl der Werte eines Aufrufs wird geprüft, wenn
+seine Formel gespeichert wird: Eine früher gespeicherte funktioniert weiter, und die übrigen
+Spalten der Tabelle lassen sich ändern, bis jemand diese Formel bearbeitet. Eine Ablehnung nennt einen
+festen Grund in `details.formula.reason`, etwa `decimal_comma` oder `not_a_column`,
+mit dem die Konsole ihn in der Sprache der lesenden Person sagt. Die Konsole zeigt
+Zahlen, auch das Ergebnis einer Formel, mit dem Dezimaltrennzeichen der lesenden
+Person - `12,177` auf Deutsch - und gruppiert eine vierstellige Zahl nicht.
+
 ## Ein Schema ändern { #changing-a-schema }
 
 `PUT /tables/{id}/schema` nimmt die vollständige Liste der Spalten entgegen, die die
@@ -538,7 +551,7 @@ externe ID wiederholt, die die Datei schon genannt hat, wird aufgeführt statt g
 und der Batch lehnt eine Zeile, die eine ID wiederholt, die er schon enthält, mit
 `INVALID_RECORD` ab.
 
-**New table** beginnt mit einer Spalte **Name**. Geben Sie zuerst den Tabellennamen und die Spalten an; Beschreibung und Sichtbarkeit stehen unter **More options**, standardmäßig privat. Stattdessen kann sie mit einer Datei
+**New table** beginnt mit einer Spalte **Name**. Geben Sie den Tabellennamen an, wählen Sie, wer sie sehen kann, und fügen Sie die Spalten hinzu; die Beschreibung steht unter **More options**. Eine Tabelle beginnt als **Only me**; **Everyone** öffnet sie für die Organisation, und **Some people** teilt sie mit den gewählten Gruppen und Mitgliedern, jeweils auf `read`, in derselben Anfrage (`group_ids` und `user_ids` bei `POST /tables`). Stattdessen kann sie mit einer Datei
 beginnen: **Start from a CSV file** macht aus der Kopfzeile Spalten und gibt jeder den engsten Typ, als den
 sich alle ihre Werte lesen lassen - Ganzzahl, Zahl, Ja/Nein, Datum, Datum und
 Uhrzeit in ISO, eine E-Mail-Adresse oder ein Link - und sonst Text, oder langen Text, sobald ein Wert einen Zeilenumbruch
@@ -579,6 +592,14 @@ Antwort zurückzugeben. Wiederholen Sie innerhalb des Fensters und behandeln Sie
 längere Pause als neue Anfrage. Die Lebensdauer wird beim Verwenden des Schlüssels
 durchgesetzt und gilt daher auf die Stunde genau; der tägliche Sweep gibt nur den Platz
 von Receipts frei, die niemand wiederholt hat.
+
+Beim Entfernen einer Gruppe, eines Projekts oder eines Kontos werden die der
+Task-Board-Tabelle zugeordneten Receipts gelöscht, einschließlich der Batch-Ergebnisse.
+Beim Upgrade werden ältere Batch-Ergebnisse ohne Tabellen-id gelöscht, da sich ihre
+Tabellenzuordnung nicht rekonstruieren lässt. Ihre Schlüssel bleiben bis zum Ablauf
+erhalten: Dieselbe Anfrage liefert `IDEMPOTENCY_RESULT_PURGED` (409) und schreibt nichts.
+Prüfen Sie die Tabelle, bevor Sie einen neuen Schreibzugriff starten. Andere Receipt-Arten
+bleiben unverändert.
 
 ## Auflisten und Filtern { #listing-and-filtering }
 
@@ -992,6 +1013,7 @@ Jede Ablehnung antwortet mit `{"error": {"code", "message", "details"}}`, und de
 | `INVALID_QUERY` | 422 | Ein Filter oder eine Sortierung, die die Tabelle nicht beantworten kann |
 | `INVALID_SCHEMA` | 422 | Eine widersprüchliche Schemaänderung |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Der Schlüssel wurde für eine andere Anfrage verwendet |
+| `IDEMPOTENCY_RESULT_PURGED` | 409 | Ein älteres Batch-Ergebnis wurde beim Upgrade gelöscht; sein Schlüssel verhindert bis zum Ablauf einen erneuten Schreibzugriff |
 | `QUOTA_EXCEEDED` | 402 | Der Schreibzugriff würde ein Speicherlimit überschreiten; `details` nennt das Limit (`tables`, `records`, `record_bytes`, `storage_bytes`) und seine Obergrenze |
 | `RATE_LIMIT_EXCEEDED` | 429 | Zu viele Tabellenschreibzugriffe in der letzten Minute; siehe `Retry-After` |
 | `VALIDATION_ERROR` | 422 | Die Anfrage selbst ist fehlerhaft: ein falscher Typ, ein unbekanntes Feld, eine Grenze oder NUL, ein Zeilenumbruch oder ein einzelnes Surrogat in einer id, einem Schlüssel oder Namen. Die Route lehnt sie ab, bevor der Service läuft |

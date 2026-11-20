@@ -1411,6 +1411,18 @@ class TestTheBundledSkill:
             "templates/slide-deck.html",
         }
 
+    def test_product_studio_is_admitted_as_a_self_contained_page(self) -> None:
+        from app.services import skill_library
+
+        skill = skill_library.get("visual-design")
+        assert skill is not None
+        page = next(
+            resource.content
+            for resource in skill.resources
+            if resource.name == "templates/product-studio.html"
+        )
+        assert lint_page(page.encode()) == []
+
     def test_its_class_table_is_exactly_what_kit_3_defines(self) -> None:
         """Every class the skill names is real, and every real one is named."""
         recipes = next(

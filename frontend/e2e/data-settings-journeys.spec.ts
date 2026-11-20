@@ -207,11 +207,16 @@ test("organization name, budget and voice settings survive guarded navigation", 
   const field = page.getByRole("textbox", { name: "Organization name", exact: true });
   const edited = `${name} edited`;
   await field.fill(edited);
-  const leave = () =>
-    page
-      .getByRole("navigation", { name: "Breadcrumb" })
-      .getByRole("link", { name: "Organizations", exact: true })
-      .click();
+  const leave = async () => {
+    const workspace = page.getByRole("dialog", { name: "Edit workspace", exact: true });
+    if (await workspace.isVisible())
+      await workspace.getByRole("button", { name: "Close", exact: true }).click();
+    else
+      await page
+        .getByRole("navigation", { name: "Breadcrumb" })
+        .getByRole("link", { name: "Organizations", exact: true })
+        .click();
+  };
   await leave();
   const guard = page.getByRole("dialog", { name: "You have unsaved changes" });
   await guard.getByRole("button", { name: "Stay", exact: true }).click();
@@ -228,11 +233,14 @@ test("organization name, budget and voice settings survive guarded navigation", 
   await page.unroute(`**/api/orgs/${org.id}`);
   await leave();
   await guard.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Edit workspace", exact: true })).toBeHidden();
+  await leave();
   await expect(page).toHaveURL(/\/orgs$/);
   await page.goto(`${path}?tab=governance`);
   const budget = page.getByRole("spinbutton", { name: "Limit (USD)", exact: true });
   await budget.fill("75.5");
-  await page.getByRole("tab", { name: "Workspace", exact: true }).click();
+  await page.getByRole("tab", { name: "AI & services", exact: true }).click();
+  await page.getByRole("button", { name: "Speech to text", exact: true }).click();
   const length = page.getByRole("textbox", { name: "Max recording length", exact: true });
   await length.fill("8");
   await leave();
@@ -240,6 +248,12 @@ test("organization name, budget and voice settings survive guarded navigation", 
   await expect(page).toHaveURL(/\/orgs$/);
   await page.goto(`${path}?tab=profile`);
   await expect(field).toHaveValue(edited);
+  await page
+    .getByRole("dialog", { name: "Edit workspace", exact: true })
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  await page.getByRole("tab", { name: "AI & services", exact: true }).click();
+  await page.getByRole("button", { name: "Speech to text", exact: true }).click();
   await expect(length).toHaveValue("8");
   await page.getByRole("tab", { name: "Budget and approvals", exact: true }).click();
   await expect(budget).toHaveValue("75.5");

@@ -28,7 +28,7 @@ const SelectTrigger = React.forwardRef<
       ref={ref}
       className={cn(
         FORM_CONTROL,
-        "data-[state=open]:border-foreground/40 data-[state=open]:bg-control touch:min-h-11 flex h-10 touch-manipulation items-center justify-between gap-2 px-3 py-2 text-sm [&>span:first-of-type]:min-w-0 [&>span:first-of-type]:flex-1 [&>span:first-of-type]:truncate [&>span:first-of-type]:text-left [&>span:last-child]:shrink-0",
+        "group/select data-[state=open]:border-foreground/50 data-[state=open]:bg-control touch:min-h-11 flex h-10 touch-manipulation items-center justify-between gap-2 px-3 py-1.5 text-sm [&>span:first-of-type]:min-w-0 [&>span:first-of-type]:flex-1 [&>span:first-of-type]:truncate [&>span:first-of-type]:text-left [&>span:last-child]:shrink-0",
         size === "sm" && FILTER_CONTROL,
         className,
       )}
@@ -39,7 +39,7 @@ const SelectTrigger = React.forwardRef<
       <SelectPrimitive.Icon asChild>
         <ChevronDown
           className={cn(
-            "text-foreground/60 shrink-0 stroke-2",
+            "text-foreground/60 shrink-0 stroke-2 transition-transform duration-[var(--duration-fast)] group-data-[state=open]/select:rotate-180 motion-reduce:transition-none",
             size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4",
           )}
         />

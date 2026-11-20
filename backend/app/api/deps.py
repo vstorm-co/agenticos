@@ -13,7 +13,7 @@ is why every write in this API used to be acknowledged before it was durable
 """
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -1871,6 +1871,19 @@ async def limit_table_write(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many table writes in the last minute. Wait and try again.")
 
 
+async def limit_eval_comparison(ctx: Auth) -> AsyncGenerator[None]:
+    """Bound interactive comparisons per person and organization, including the console.
+
+    Thirty computations per person and sixty per organization per minute leave room for
+    the console's three-second polling. One comparison may execute per organization
+    at a time, so parallel requests cannot fill every worker with the same large run.
+    Shared Redis owns both controls; the established local floors apply on outage.
+    """
+    _refuse_missing(ctx, (Perm.RUNS_VIEW,))
+    async with rate_limit.eval_computation(ctx):
+        yield
+
+
 async def limit_coding_revert(ctx: Auth) -> None:
     """Bound queued file verification per person and organization, even without Redis."""
     for caller, attempts in (
@@ -2802,3 +2815,13 @@ def get_onboarding_service(db: DBSession) -> OnboardingService:
 
 
 OnboardingSvc = Annotated[OnboardingService, Depends(get_onboarding_service)]
+
+
+from app.services.personal_model_key import PersonalModelKeyService
+
+
+def get_personal_model_key_service(db: DBSession) -> PersonalModelKeyService:
+    return PersonalModelKeyService(db)
+
+
+PersonalModelKeySvc = Annotated[PersonalModelKeyService, Depends(get_personal_model_key_service)]

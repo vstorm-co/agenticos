@@ -10,6 +10,7 @@ import { surfaceLabel } from "@/components/runs/surface-icon";
 import { Button, SwipeToDecide } from "@/components/ui";
 import { approvalSummary } from "@/lib/agent-step-captions";
 import { callSummary } from "@/lib/approval-view";
+import { isTableTool } from "@/lib/table-tool-calls";
 import { cn, formatDateTime, timeAgo } from "@/lib/utils";
 import type { ToolApproval } from "@/types/runs";
 import {
@@ -29,10 +30,11 @@ function useCallLine(approval: ToolApproval, withArguments: boolean): string | n
   const tTools = useTranslations("chat.tools");
   if (browserCredentialApproval(approval).kind !== "ordinary") return null;
   if (approval.content_hidden) return t("contentHidden");
-  return (
-    approvalSummary(approval.capability_tool_id, approval.context, tTools) ??
-    (withArguments ? callSummary(approval.tool_args) : null)
-  );
+  // A table write's first string argument is its table's id: the card shows it
+  // only as the fallback of `TableCallReadout`, which names the table instead.
+  const argumentLine =
+    withArguments && !isTableTool(approval.tool_id) ? callSummary(approval.tool_args) : null;
+  return approvalSummary(approval.capability_tool_id, approval.context, tTools) ?? argumentLine;
 }
 
 /**
@@ -88,6 +90,12 @@ export function PendingApproval({
   const phrase = useActionPhrase();
   const ago = approval.created_at ? timeAgo(approval.created_at, tTime, locale) : null;
   const summary = useCallLine(approval, true);
+  // Kept for a table write whose table this approver cannot read, so the card
+  // still says what it targets; replaced by the named summary when it can.
+  const tableLine =
+    isTableTool(approval.tool_id) && !approval.content_hidden
+      ? callSummary(approval.tool_args)
+      : null;
   const askedLine = useAskedLine(approval);
   const mayApprove = !(approval.always_asks && approval.content_hidden);
   const browser = useTranslations("browserCredentials");
@@ -183,7 +191,17 @@ export function PendingApproval({
             {isBrowserCredentialPreparation(approval.capability_tool_id ?? approval.tool_id) && (
               <p className="text-muted-foreground text-sm">{browser("requestPreparationOnly")}</p>
             )}
-            <ApprovalDetails toolName={approval.tool_id} args={approval.tool_args} />
+            <ApprovalDetails
+              toolName={approval.tool_id}
+              args={approval.tool_args}
+              fallback={
+                tableLine !== null && (
+                  <p className="text-foreground/80 truncate text-sm" title={tableLine}>
+                    {tableLine}
+                  </p>
+                )
+              }
+            />
           </div>
         </div>
         <div className="flex shrink-0 gap-2 sm:flex-col">

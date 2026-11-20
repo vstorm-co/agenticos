@@ -419,12 +419,12 @@ class TestRun:
             hint="abcd",
             key_version=1,
         )
-        db = _db_returning([secret], *[[] for _ in SEALED_TABLES[1:]])
+        db = _db_returning([secret], *[[] for _ in SEALED_TABLES[1:]], [])
 
         with patch.object(sweep, "get_db_context", self._db_context(db)):
             report = await _run(dry_run=False)
 
-        assert db.execute.await_count == len(SEALED_TABLES)
+        assert db.execute.await_count == len(SEALED_TABLES) + 1
         assert report.rotated == 1 and secret.key_version == 2
 
 
@@ -449,3 +449,110 @@ class TestEntryPoint:
             result = CliRunner().invoke(vault_rotate, [])
         assert result.exit_code == 1
         assert "keep the old key" in result.output
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+async def test_queued_channel_file_credentials_rotate_with_the_vault(monkeypatch, dry_run):
+    from app.db.models.background_job import BackgroundJob
+    from app.services.channels.base import IncomingAttachment, IncomingMessage
+    from app.services.channels.ingress import normalize, restore
+
+    org_id = uuid.uuid4()
+    bot = _bot(org_id)
+    bot.authorization_generation = uuid.uuid4()
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A})
+    url = "https://cdn.example.test/file?signature=credential"
+    message = normalize(
+        bot,
+        IncomingMessage(
+            platform="discord",
+            bot_id=str(bot.id),
+            platform_user_id="sender",
+            platform_chat_id="thread",
+            chat_type="group",
+            text="Read file",
+            discord_interaction=("application", "private-token"),
+            attachments=[
+                IncomingAttachment(
+                    filename="a.pdf", mime_type="application/pdf", size=2, handle=url
+                )
+            ],
+        ),
+    )
+    row = BackgroundJob(
+        id=uuid.uuid4(),
+        organization_id=org_id,
+        kind="process-channel-message",
+        pool="agent",
+        max_attempts=1,
+        payload=message.model_dump(mode="json"),
+    )
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A, 2: KEY_B})
+    report = Report()
+    await sweep._rotate_channel_files(
+        _db_returning([row]), target=2, dry_run=dry_run, report=report
+    )
+    assert report.rotated == 1 and not report.failures
+    restored = sweep.ChannelMessage.model_validate(row.payload)
+    assert restored.attachments[0].handle_key_version == (1 if dry_run else 2)
+    assert restored.interaction_key_version == (1 if dry_run else 2)
+    if not dry_run:
+        monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {2: KEY_B})
+    assert restore(restored).attachments[0].handle == url
+    assert restore(restored).discord_interaction == ("application", "private-token")
+
+
+@pytest.mark.parametrize(
+    "state", ["current", "legacy", "no_interaction", "foreign_owner", "corrupt", "malformed"]
+)
+async def test_channel_file_rotation_preserves_current_and_reports_invalid_rows(monkeypatch, state):
+    from types import SimpleNamespace
+
+    from app.worker.jobs import ChannelMessage, ChannelMessageFile
+
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A})
+    org = uuid.uuid4()
+    sealed = seal(
+        "https://cdn.example.test/file?signature=credential", scope=VaultScope.organization(org)
+    )
+    payload = ChannelMessage(
+        receipt_id=uuid.uuid4(),
+        organization_id=org,
+        bot_id=uuid.uuid4(),
+        authorization_generation=uuid.uuid4(),
+        platform="discord",
+        platform_user_id="sender",
+        platform_chat_id="thread",
+        chat_type="group",
+        text="Read file",
+        interaction_handle=None
+        if state == "no_interaction"
+        else seal('["application","private-token"]', scope=VaultScope.organization(org)).ciphertext,
+        interaction_key_version=1,
+        attachments=[
+            ChannelMessageFile(
+                filename="a",
+                mime_type="text/plain",
+                size=2,
+                handle="native-id"
+                if state == "legacy"
+                else "broken"
+                if state == "corrupt"
+                else sealed.ciphertext,
+                handle_key_version=None if state == "legacy" else 1,
+            )
+        ],
+    ).model_dump(mode="json")
+    row = SimpleNamespace(
+        id=uuid.uuid4(),
+        organization_id=uuid.uuid4() if state == "foreign_owner" else org,
+        payload={} if state == "malformed" else payload,
+    )
+    report = Report()
+    await sweep._rotate_channel_files(
+        _db_returning([row]), target=1, dry_run=state == "corrupt", report=report
+    )
+    assert bool(report.failures) is (state in {"foreign_owner", "corrupt", "malformed"})
+    assert report.current == int(state in {"current", "legacy", "no_interaction"})
+    assert "signature" not in str(report.failures)
+    assert row.payload == ({} if state == "malformed" else payload)

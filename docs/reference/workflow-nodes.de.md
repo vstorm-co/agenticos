@@ -1,5 +1,5 @@
 ---
-source_sha: "66a7891467fd"
+source_sha: "8bc14e41e751"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -396,6 +396,22 @@ nennt das Feld.
 ::: app.workflows.nodes.data_map._handler.DataMapConfig
 
 ::: app.workflows.nodes.data_map._handler.FieldMapping
+
+## data.value { #data-value }
+
+**Data** hält einen Wert für spätere Schritte bereit: ein Objekt, eine Liste
+oder eine einzelne Zahl, einen Text oder einen Wahrheitswert. Geben Sie ihn als
+JSON ein oder binden Sie ihn als Ganzes an eine frühere Ausgabe. Der Schritt
+gibt ihn unverändert als `value` weiter, und ein späterer Schritt bindet den
+ganzen Wert oder einen Pfad darin, etwa `value.customer.email`.
+
+Der Wert wird einmal pro Run gesetzt und nie überschrieben. Die Ausgabe eines
+Schritts steht fest, sobald er abgeschlossen ist, daher kann kein späterer
+Schritt sie ändern: Data ist eine benannte Konstante, keine Variable. Um einen
+Wert zu ändern, fügen Sie einen Schritt hinzu, der daraus einen neuen bildet.
+Um Werte aus den Elementen einer Schleife zu sammeln, verwenden Sie
+`loop.yield`. Ein Test-Run eines Data-Schritts ohne Wert schlägt mit
+`DATA_NOT_SET` fehl.
 
 ## data.filter und data.combine { #data-filter-and-data-combine }
 
@@ -1042,8 +1058,12 @@ Idempotenzschlüssel, daher sendet ein wiederholter Schritt erneut.
 er gleich tun wird, und geht dann über `approved` oder `rejected` weiter. Wer
 freigibt, liest den `title` des Schritts und die daran gebundenen `details` im
 Tab **Approvals** unter Activity oder über `GET /api/v1/workflow-approvals`.
-`approvers` nennt, wer entscheiden darf, und diese Personen werden in der App
-benachrichtigt; leer darf jeder mit `approvals:decide`. Nach `timeout_hours`
+`approvers` und `approver_groups` nennen, wer entscheiden darf: diese Personen und
+die Gruppenmitglieder mit `approvals:decide`
+([Genehmigungsgruppen](../governance.md#approval-groups)). Sie werden in der App
+benachrichtigt. Sind beide leer, darf jeder mit `approvals:decide` entscheiden,
+und alle diese Personen werden benachrichtigt. Die Anfrage steht außerdem oben im Inbox aller, die sie
+entscheiden dürfen. Nach `timeout_hours`
 läuft die Anfrage ab, und der Schritt geht über `rejected` mit
 `decision: "expired"` weiter. Einen Run abzubrechen bricht seine Anfragen ab, ebenso der Abbruch eines Workflows, der diesen Run aufgerufen hat.
 Jeder Lauf des Schritts fragt einmal, sodass eine Wiederholung oder eine
@@ -1349,6 +1369,8 @@ nichts.
 Kleinschreibung, sodass ein Workflow seine Tabelle beim ersten Lauf anlegen und
 danach wiederverwenden kann. Beide Fragen verlassen den Schritt über genau einen
 Port, und ein `logic.merge` kann die Zweige wieder zusammenführen.
+
+`table.record.exists` und `table.record.query` akzeptieren in gespeicherten Filtern Optionsnamen von Auswahlspalten sowie IDs. Sie lösen Namen anhand der aktuellen Tabelle vor der Abfrage auf; unbekannte oder mehrdeutige Namen bleiben Validierungsfehler.
 
 ::: app.workflows.nodes.table_list._handler.TableListOutput
 

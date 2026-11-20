@@ -89,6 +89,7 @@ def _run_row(**overrides: object):
     run.causation_run_id = None
     run.parent_node_run_id = None
     run.retry_of_run_id = None
+    run.tested_step_node_id = None
     run.depth = 0
     run.started_at = datetime.now(UTC)
     run.ended_at = None

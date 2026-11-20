@@ -255,7 +255,7 @@ test("agent gallery keeps its full height after filtering to no matches", async 
     await expect
       .poll(() =>
         search.evaluate((element) => {
-          const gallery = element.closest(".rounded-xl");
+          const gallery = element.closest("[data-list-layout]");
           const frame = element.closest(".page-enter");
           if (!gallery || !frame) throw new Error("The agent gallery has no page frame");
           const bottom =

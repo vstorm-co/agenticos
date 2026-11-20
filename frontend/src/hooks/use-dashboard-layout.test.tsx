@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDashboardLayout } from "./use-dashboard-layout";
 import * as api from "@/lib/dashboard-layout-api";
+import { ApiError } from "@/lib/api-client";
 import { useOrgStore } from "@/stores";
 
 vi.mock("@/lib/dashboard-layout-api", () => ({
@@ -86,5 +87,62 @@ describe("useDashboardLayout", () => {
     vi.mocked(api.getLayout).mockResolvedValue(null);
     const result = await hook();
     expect(result.current.storedEntries).toBeNull();
+  });
+
+  it("reports a failed read as a load error, not as no saved arrangement", async () => {
+    // The page renders the audience default for `null`, so a 5xx must never land there.
+    vi.mocked(api.getLayout).mockRejectedValue(new ApiError(503, "Service unavailable"));
+    const result = await hook();
+    expect(result.current.loadError).toBeInstanceOf(ApiError);
+    expect(result.current.storedEntries).toBeNull();
+  });
+
+  it("reports a network failure as a load error too", async () => {
+    vi.mocked(api.getLayout).mockRejectedValue(new TypeError("Failed to fetch"));
+    const result = await hook();
+    expect(result.current.loadError).toBeInstanceOf(TypeError);
+    expect(result.current.storedEntries).toBeNull();
+  });
+
+  it("does not report a confirmed 404 (no saved layout) as a load error", async () => {
+    vi.mocked(api.getLayout).mockResolvedValue(null);
+    const result = await hook();
+    expect(result.current.loadError).toBeNull();
+    expect(result.current.storedEntries).toBeNull();
+  });
+
+  it("retries a failed read and exposes the saved arrangement once the retry succeeds", async () => {
+    vi.mocked(api.getLayout)
+      .mockRejectedValueOnce(new ApiError(503, "Service unavailable"))
+      .mockResolvedValueOnce({ entries: [{ widget: "runs", span: "s8" }] });
+    const result = await hook();
+    expect(result.current.loadError).toBeInstanceOf(ApiError);
+
+    await act(async () => {
+      await result.current.retryLoad();
+    });
+
+    expect(api.getLayout).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(result.current.loadError).toBeNull());
+    expect(result.current.storedEntries).toEqual([{ widget: "runs", span: "s8" }]);
+  });
+
+  it("keeps the arrangement already read when a later refresh fails", async () => {
+    // Once a read has succeeded the arrangement is known; a failed refresh must not
+    // hide it or turn it into the default.
+    vi.mocked(api.getLayout)
+      .mockResolvedValueOnce({ entries: [{ widget: "runs", span: "s8" }] })
+      .mockRejectedValueOnce(new ApiError(500, "boom"));
+    const result = await hook();
+
+    await act(async () => {
+      await result.current.retryLoad();
+      // TanStack Query notifies observers on a timer; let the failed refresh reach the hook.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(api.getLayout).toHaveBeenCalledTimes(2);
+    expect(result.current.loadError).toBeNull();
+    expect(result.current.storedEntries).toEqual([{ widget: "runs", span: "s8" }]);
   });
 });

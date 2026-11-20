@@ -290,6 +290,11 @@ class VirtualTableReceipt(Base):
     that pick the same key, or one caller using it for two operations, never
     meet. `payload_hash` is what makes a reused key with a changed body a
     refusal rather than a silent replay of the old answer.
+
+    `table_id` is set on a `record.batch` receipt only: its outcome holds the
+    refused rows' details, which can carry personal data, and does not name the
+    table, so a table purge finds it by this column. Legacy receipts whose result
+    was erased retain their key without a table until the normal expiry.
     """
 
     __tablename__ = "virtual_table_receipts"
@@ -307,6 +312,7 @@ class VirtualTableReceipt(Base):
     operation_key: Mapped[str] = mapped_column(String(128), nullable=False)
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     outcome: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    table_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()"), nullable=False
     )
@@ -318,6 +324,10 @@ class VirtualTableReceipt(Base):
             "operation",
             "operation_key",
             name="uq_virtual_table_receipt_key",
+        ),
+        CheckConstraint(
+            "operation <> 'record.batch' OR table_id IS NOT NULL OR outcome = '{\"_purged\": true}'::jsonb",
+            name="batch_names_table",
         ),
         Index("virtual_table_receipts_org_created_idx", "organization_id", "created_at"),
         CheckConstraint(

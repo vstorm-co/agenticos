@@ -10,9 +10,10 @@ because pydantic-ai enters every toolset when the run starts and a dead
 server would otherwise abort the whole turn. A server that answered a probe in
 the last :data:`ANSWERED_FOR` seconds is not probed again: a conversation's
 every turn used to pay a second connection and a second `tools/list` per server
-for an answer it had a minute ago. Such a server is attached through
-:class:`AnsweredRecently`, which leaves it out of the turn if it has gone down
-since, so skipping the probe never turns an outage back into a failed turn.
+for an answer it had a minute ago. Every attached server, the local platform
+included, uses :class:`ResilientMcpToolset`: initialization retries once, then a
+failed server is left out with an explicit briefing. Discovery and tool transport
+failures stay within the turn; uncertain tool requests are never replayed.
 
 The transport (streamable HTTP or SSE) is inferred from each server's URL, so
 SSE-only servers such as Atlassian/Jira work alongside streamable-HTTP ones.
@@ -25,16 +26,16 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncGenerator, Iterable, Mapping, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 from uuid import UUID
 
 import httpx2
 from pydantic import JsonValue, TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
-from pydantic_ai.exceptions import ToolFailed
+from pydantic_ai.exceptions import ApprovalRequired, CallDeferred, ModelRetry, ToolFailed
 
 # At import, not on the first turn: `pydantic_ai.mcp` brings in fastmcp's client,
 # and lazily that was a few hundred milliseconds - seconds on a host short of CPU -
@@ -64,6 +65,13 @@ logger = logging.getLogger(__name__)
 # A constant rather than a setting: the right value is a property of the
 # protocol round-trip, not of a deployment, and no installation ever tuned it.
 CONNECT_TIMEOUT_SECS = 3.0
+PLATFORM_INIT_TIMEOUT_SECS = 15.0
+"""Bound local MCP authentication and cold schema setup independently of network connect.
+
+The platform transport makes no network connection. Its first authenticated
+request can take more than three seconds on a busy worker, so applying the
+remote connect budget aborts healthy channel runs before the model starts.
+"""
 
 #: Tool metadata saying which side of an environment override a tool came from and
 #: whether its connection trusts the server's annotations. Stamped here after the
@@ -186,6 +194,15 @@ MAX_INPUT_SCHEMA_BYTES = 20_000
 
 
 @dataclass(frozen=True)
+class McpSourceIdentity:
+    """A consented endpoint and credential generation, without credential contents."""
+
+    endpoint_hash: str
+    authorization_generation: UUID
+    tool_prefix: str | None = None
+
+
+@dataclass(frozen=True)
 class McpServerSpec:
     """Transport-level description of one MCP server to attach to a run."""
 
@@ -218,6 +235,8 @@ class McpServerSpec:
     # Both personal and organization accounts; independent of usage tracking.
     source_connection_id: UUID | None = None
     authorization_generation: UUID | None = None
+    # An environment replacement still owes the production account its ceiling.
+    ceiling_source: tuple[UUID, McpSourceIdentity] | None = None
     # A managed gateway creates a transport URL per run; consent still belongs
     # to the stable connection endpoint, not that temporary session URL.
     source_url: str | None = None
@@ -227,15 +246,6 @@ class McpServerSpec:
     # Tools, by the name the server gives them, that never wait for approval
     # whatever `approval` says. Only this deployment's own server names any.
     ungated: frozenset[str] = frozenset()
-
-
-@dataclass(frozen=True)
-class McpSourceIdentity:
-    """A consented endpoint and credential generation, without credential contents."""
-
-    endpoint_hash: str
-    authorization_generation: UUID
-    tool_prefix: str | None = None
 
 
 MCP_ORIGIN = "agenticos_mcp_origin"
@@ -251,6 +261,34 @@ class McpToolOrigin:
 def tool_origin(tool: ToolDefinition) -> McpToolOrigin | None:
     origin = (tool.metadata or {}).get(MCP_ORIGIN)
     return origin if isinstance(origin, McpToolOrigin) else None
+
+
+@dataclass
+class AuthorityChecked(WrapperToolset[Any]):
+    """Recheck delegated authority before connecting, discovery and tool execution."""
+
+    check: Callable[[], Awaitable[None]]
+
+    async def __aenter__(self) -> Self:
+        await self.check()
+        await super().__aenter__()
+        return self
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        await self.check()
+        return await super().get_tools(ctx)
+
+    async def get_instructions(
+        self, ctx: RunContext[Any]
+    ) -> str | InstructionPart | Sequence[str | InstructionPart] | None:
+        await self.check()
+        return await super().get_instructions(ctx)
+
+    async def call_tool(
+        self, name: str, tool_args: dict[str, Any], ctx: RunContext[Any], tool: ToolsetTool[Any]
+    ) -> Any:
+        await self.check()
+        return await super().call_tool(name, tool_args, ctx, tool)
 
 
 @dataclass
@@ -501,7 +539,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         headers=None if http_client is not None else spec.headers or None,
         http_client=http_client,
         id=f"mcp-{prefix}",
-        init_timeout=CONNECT_TIMEOUT_SECS,
+        init_timeout=PLATFORM_INIT_TIMEOUT_SECS if spec.in_process else CONNECT_TIMEOUT_SECS,
         tool_error_behavior="failed",
         process_tool_call=_platform_domain_result if spec.in_process else None,
         include_instructions=spec.include_instructions,
@@ -713,51 +751,98 @@ def unreachable_briefing(server: str, *, binding: str | None, held_by: str | Non
 
 
 @dataclass
-class AnsweredRecently(WrapperToolset[Any]):
-    """A server attached on a recent probe's word, left out of the turn if it is down now.
+class ResilientMcpToolset[DepsT](WrapperToolset[DepsT]):
+    """Keep MCP outages inside the turn, with explicit missing-service feedback.
 
-    Entering is where pydantic-ai connects, so a server that stopped answering
-    since its probe fails here; the turn goes on without its tools, as it would
-    have had the probe run, and the memo is dropped so the next turn probes again.
-    The probe's own failure is briefed by the turn that ran it; this one happens
-    after that briefing was written, so the toolset briefs it itself.
+    Reconnect once during initialization, before any tool can run. Discovery or
+    execution failures disable this server for the turn; tool calls are never
+    replayed because a remote write may already have been accepted.
     """
 
     name: str = ""
     key: str = ""
     down: bool = field(default=False, init=False)
+    _entries: list[bool] = field(default_factory=list, init=False)
 
-    async def __aenter__(self) -> AnsweredRecently:
+    def _unavailable(self, error: BaseException) -> None:
+        if carries_base_exception(error):
+            raise error
+        logger.warning(
+            "Skipping MCP server %r for this turn: %s", self.name, probe_error_message(error)
+        )
+        _answered.pop(self.key, None)
+        self.down = True
+
+    async def __aenter__(self) -> ResilientMcpToolset[DepsT]:
         if self.down:
+            self._entries.append(False)
             return self
-        try:
-            await self.wrapped.__aenter__()
-        except (Exception, BaseExceptionGroup) as exc:
-            if carries_base_exception(exc):
-                raise
-            logger.warning(
-                "Skipping MCP server %r for this turn: %s", self.name, probe_error_message(exc)
-            )
-            _answered.pop(self.key, None)
-            self.down = True
+        for attempt in range(2):
+            try:
+                await self.wrapped.__aenter__()
+            except (Exception, BaseExceptionGroup) as error:
+                if carries_base_exception(error):
+                    raise
+                logger.warning(
+                    "MCP server %r initialization attempt %s failed: %s",
+                    self.name,
+                    attempt + 1,
+                    probe_error_message(error),
+                )
+            else:
+                self._entries.append(True)
+                return self
+        _answered.pop(self.key, None)
+        self.down = True
+        self._entries.append(False)
         return self
 
-    async def __aexit__(self, *args: Any) -> bool | None:
-        if self.down:
+    async def __aexit__(self, *args: object) -> bool | None:
+        if not self._entries.pop():
             return None
-        return await self.wrapped.__aexit__(*args)
+        try:
+            return await self.wrapped.__aexit__(*args)
+        except (Exception, BaseExceptionGroup) as error:
+            self._unavailable(error)
+            return None
 
-    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+    async def get_tools(self, ctx: RunContext[DepsT]) -> dict[str, ToolsetTool[DepsT]]:
         if self.down:
             return {}
-        return await super().get_tools(ctx)
+        try:
+            return await super().get_tools(ctx)
+        except (Exception, BaseExceptionGroup) as error:
+            self._unavailable(error)
+            return {}
 
     async def get_instructions(
-        self, ctx: RunContext[Any]
-    ) -> str | InstructionPart | Sequence[str | InstructionPart] | None:
-        if self.down:
-            return unreachable_briefing(self.name, binding=None)
-        return await super().get_instructions(ctx)
+        self, ctx: RunContext[DepsT]
+    ) -> str | InstructionPart | Sequence[InstructionPart | str] | None:
+        if not self.down:
+            try:
+                return await super().get_instructions(ctx)
+            except (Exception, BaseExceptionGroup) as error:
+                self._unavailable(error)
+        return unreachable_briefing(self.name, binding=None)
+
+    async def call_tool(
+        self,
+        name: str,
+        tool_args: dict[str, object],
+        ctx: RunContext[DepsT],
+        tool: ToolsetTool[DepsT],
+    ) -> object:
+        try:
+            return await super().call_tool(name, tool_args, ctx, tool)
+        except ApprovalRequired, CallDeferred, ModelRetry, ToolFailed:
+            raise
+        except (Exception, BaseExceptionGroup) as error:
+            self._unavailable(error)
+            raise ToolFailed(
+                f"The {self.name} MCP request failed. Its outcome is unknown; do not "
+                "claim it succeeded or returned no data. Do not automatically repeat a "
+                "state-changing request: it may already have been accepted."
+            ) from error
 
 
 @dataclass
@@ -912,12 +997,11 @@ async def probe_toolsets(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec
     """
 
     async def _try(spec: McpServerSpec) -> Any | None:
-        if spec.in_process:
-            # This deployment's own server: there is no remote to be down.
-            return _make_toolset(spec)
         key = _answer_key(spec)
+        if spec.in_process:
+            return ResilientMcpToolset(_make_toolset(spec), name=spec.name, key=key)
         if _answered_recently(key):
-            return AnsweredRecently(_make_toolset(spec), name=spec.name, key=key)
+            return ResilientMcpToolset(_make_toolset(spec), name=spec.name, key=key)
         try:
             if spec.credential_origin is None:
                 await probe_mcp_server(spec.url, spec.headers)
@@ -931,7 +1015,7 @@ async def probe_toolsets(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec
             )
             return None
         _note_answer(key)
-        return _make_toolset(spec)
+        return ResilientMcpToolset(_make_toolset(spec), name=spec.name, key=key)
 
     results = await asyncio.gather(*(_try(spec) for spec in specs))
     return list(zip(specs, results, strict=True))

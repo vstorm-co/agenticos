@@ -15,15 +15,10 @@ summary and skips it at a ceiling (agenticos#1808), pins the summariser to a
 content-free copy of the run's model so the summary honours `content="none"`
 (agenticos#1809), and runs it under the run's own model settings (agenticos#1810).
 
-**A scope somebody can reason about.** This reaches the messages of *one run*.
-Between turns the history is rebuilt from the transcript by
-`app.services.agent.build_message_history`, which reconstructs a conversation as
-text and drops tool calls, tool returns and thinking - so no edit made here
-survives a turn boundary. That is not a defect in the capability: the history
-worth compacting is the hundred-step tool loop `DEFAULT_MAX_STEPS` allows, where
-one sandbox listing or one knowledge search can be tens of thousands of tokens.
-It does mean a summarizing pass is paid for once per run rather than amortised
-across a conversation, which is why the cheap tiers come first.
+**One conversation history.** Completed turns checkpoint structured model messages
+through `ConversationService.keep_summary`, including discovery and tool results.
+The next run continues that same history, so summaries survive turn boundaries.
+A separate storage ceiling bounds the checkpoint without charging a model call.
 
 What *does* cross the boundary is what each replayed answer cost, and it is what
 makes any of this fire. The estimator anchors on the most recent response carrying

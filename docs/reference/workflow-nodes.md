@@ -367,6 +367,19 @@ fails with `MAPPING_COERCION_FAILED` and names the field.
 
 ::: app.workflows.nodes.data_map._handler.FieldMapping
 
+## data.value { #data-value }
+
+**Data** holds one value for later steps: an object, a list, or a single number,
+text or boolean. Type it in as JSON, or bind it whole from an earlier output. The
+step hands it on unchanged as `value`, and a later step binds to the whole value
+or to a path into it, such as `value.customer.email`.
+
+The value is set once per run and is never overwritten. A step's output is fixed
+when the step completes, so no later step can change it: Data is a named
+constant, not a variable. To change a value, add a step that builds a new one
+from it. To collect values from the items of a loop, use `loop.yield`. A draft
+run of a Data step with no value fails with `DATA_NOT_SET`.
+
 ## data.filter and data.combine { #data-filter-and-data-combine }
 
 **Filter a list** keeps the items of a bound list for which a JMESPath condition
@@ -969,9 +982,12 @@ key, so a retried step sends again.
 **Ask for approval** stops the run until a person approves or rejects what it is
 about to do, then goes on by `approved` or `rejected`. The approver reads the
 step's `title` and the `details` bound to it, in the **Approvals** tab of
-Activity or over `GET /api/v1/workflow-approvals`. `approvers` names who may
-decide, and they are notified in the app; left empty, anyone holding
-`approvals:decide` may. Past `timeout_hours` the request expires and the step
+Activity or over `GET /api/v1/workflow-approvals`. `approvers` and
+`approver_groups` name who may decide: those people and the group members
+holding `approvals:decide` ([approval groups](../governance.md#approval-groups)).
+They are notified in the app. With both left empty, anyone holding
+`approvals:decide` may decide, and they are all notified. The request also leads the
+Inbox of whoever may decide it. Past `timeout_hours` the request expires and the step
 leaves by `rejected` with `decision: "expired"`. Cancelling the run cancels what
 it asked, and so does cancelling a workflow that called the run. Each run of the step asks once, so a retry or a loop iteration never
 asks twice for the same thing.
@@ -1247,6 +1263,8 @@ Four more steps read what the organization's tables are, and change nothing.
 `table.exists` matches the whole name without regard to case, so a workflow can
 create its table the first time it runs and reuse it after. The two questions
 leave by exactly one port, and a `logic.merge` can join the branches again.
+
+`table.record.exists` and `table.record.query` accept select option labels as well as IDs in saved filters. They resolve labels against the current table before querying; unknown or ambiguous labels remain validation errors.
 
 ::: app.workflows.nodes.table_list._handler.TableListOutput
 

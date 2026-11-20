@@ -19,6 +19,7 @@ from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import conversation as conversation_repo
 from app.services.conversation import ConversationService
+from tests.history_fixtures import stored_checkpoint as _checkpoint
 
 pytestmark = pytest.mark.anyio
 
@@ -392,7 +393,7 @@ class TestASummarisedSource:
         summarised = await _turn(db, source, "assistant", "Old answer")
         await _turn(db, source, "user", "New question")
         answer = await _turn(db, source, "assistant", "New answer")
-        source.summary_messages = [{"kind": "request", "parts": []}]
+        source.summary_messages = _checkpoint([{"kind": "request", "parts": []}])
         source.summary_ordinal = summarised.ordinal
         await db.flush()
 
@@ -401,7 +402,7 @@ class TestASummarisedSource:
         )
 
         copied = await _messages(db, fork.id)
-        assert fork.summary_messages == [{"kind": "request", "parts": []}]
+        assert fork.summary_messages == _checkpoint([{"kind": "request", "parts": []}])
         assert fork.summary_ordinal == copied[1].ordinal
         after = await conversation_repo.get_messages_after(
             db, fork.id, ordinal=fork.summary_ordinal, limit=200
@@ -414,7 +415,7 @@ class TestASummarisedSource:
         source = await _source(db)
         answer = await _turn(db, source, "assistant", "Early answer")
         later = await _turn(db, source, "assistant", "Later answer")
-        source.summary_messages = [{"kind": "request", "parts": []}]
+        source.summary_messages = _checkpoint([{"kind": "request", "parts": []}])
         source.summary_ordinal = later.ordinal
         await db.flush()
 
@@ -557,9 +558,9 @@ async def test_the_byte_quota_covers_every_copied_payload(
             )
         )
     if field == "summary":
-        source.summary_messages = [
-            {"kind": "request", "parts": [{"part_kind": "user-prompt", "content": payload}]}
-        ]
+        source.summary_messages = _checkpoint(
+            [{"kind": "request", "parts": [{"part_kind": "user-prompt", "content": payload}]}]
+        )
         source.summary_ordinal = answer.ordinal
     await db.flush()
     monkeypatch.setattr(service_module, "MAX_FORK_BYTES", 64)
@@ -876,10 +877,12 @@ async def test_fork_summary_survives_deleting_the_sources_externalized_text_and_
             "caller": {"__harness_external_media__": True, "uri": "caller-data"}
         }
     dumped = ModelMessagesTypeAdapter.dump_python(original, mode="json")
-    source.summary_messages = await externalize_media(
-        dumped,
-        media_store=OrganizationMediaStore(source.organization_id, source.id),
-        threshold_bytes=100,
+    source.summary_messages = _checkpoint(
+        await externalize_media(
+            dumped,
+            media_store=OrganizationMediaStore(source.organization_id, source.id),
+            threshold_bytes=100,
+        )
     )
     source.summary_ordinal = answer.ordinal
     await db.flush()
@@ -893,7 +896,7 @@ async def test_fork_summary_survives_deleting_the_sources_externalized_text_and_
         ),
     )
     if not literal_marker:
-        assert fork.summary_messages == dumped
+        assert fork.summary_messages == _checkpoint(dumped)
     await LocalFileStorage(base_dir=tmp_path).delete_prefix(
         prefix_for(source.organization_id, source.id)
     )
@@ -924,10 +927,12 @@ async def test_restored_summary_quota_counts_postgres_numeric_expansion_before_i
     source = await _source(db)
     answer = await _turn(db, source, "assistant", "Answer")
     restored = [{"part_kind": "text", "content": "x" * 1500, "numbers": [1e100] * 3}]
-    source.summary_messages = await externalize_media(
-        restored,
-        media_store=OrganizationMediaStore(source.organization_id, source.id),
-        threshold_bytes=100,
+    source.summary_messages = _checkpoint(
+        await externalize_media(
+            restored,
+            media_store=OrganizationMediaStore(source.organization_id, source.id),
+            threshold_bytes=100,
+        )
     )
     source.summary_ordinal = answer.ordinal
     await db.flush()
@@ -936,8 +941,8 @@ async def test_restored_summary_quota_counts_postgres_numeric_expansion_before_i
     payload = await conversation_repo.fork_payload_bytes(
         db, source_id=source.id, ordinal=answer.ordinal
     )
-    python_size = len(json.dumps(restored, ensure_ascii=False).encode())
-    database_size = await conversation_repo.fork_summary_bytes(db, restored)
+    python_size = len(json.dumps(_checkpoint(restored), ensure_ascii=False).encode())
+    database_size = await conversation_repo.fork_summary_bytes(db, _checkpoint(restored))
     assert database_size > python_size
     limit = payload - saved.stored_bytes + python_size + 1
     assert payload < limit

@@ -560,6 +560,26 @@ async def get_case(
     return result.scalar_one_or_none()
 
 
+async def ask_again(db: AsyncSession, *, cases: Sequence[EvalRunCase]) -> None:
+    """Queue finished attempts to be answered afresh, in place.
+
+    What an attempt spent stays on it, so the run's cost still counts the try the
+    new answer replaces; everything that try answered, linked or graded goes.
+    """
+    for case in cases:
+        case.status = CaseAttemptStatus.PENDING.value
+        case.agent_run_id = None
+        case.case_score_id = None
+        case.answer = None
+        case.calls = []
+        case.knowledge_overlay_topic_ids = []
+        case.error = None
+        case.fault = None
+        case.started_at = None
+        case.ended_at = None
+    await db.flush()
+
+
 async def finish_case(db: AsyncSession, *, case: EvalRunCase, values: dict[str, Any]) -> bool:
     """Write how a running attempt ended. `False` when it is not running any more.
 
@@ -690,7 +710,7 @@ async def skip_pending(db: AsyncSession, eval_run_id: UUID, *, organization_id: 
     await db.flush()
     # `execute` is typed to return `Result`, which has no `rowcount`; a DML
     # statement's result does have one.
-    return int(result.rowcount or 0)  # ty: ignore[unresolved-attribute]
+    return int(result.rowcount or 0)  # ty: ignore[missing-attribute]
 
 
 class RunExecution(NamedTuple):

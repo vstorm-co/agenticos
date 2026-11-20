@@ -1,4 +1,5 @@
 "use client";
+import { cn } from "@/lib/utils";
 
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
@@ -22,6 +23,9 @@ import type { AgentRun } from "@/types/runs";
 
 /** The orders `GET /runs` offers, matching `RunOrder` on the backend. */
 export type RunSortKey = "started_at" | "duration" | "cost" | "tokens";
+export type RunDetailColumn = "user" | "surface" | "model" | "tokens";
+const DETAIL_COLUMNS: ReadonlySet<string> = new Set(["user", "surface", "model", "tokens"]);
+
 export interface RunSort {
   by: RunSortKey;
   dir: "asc" | "desc";
@@ -83,8 +87,11 @@ export function RunTable({
   fillHeight,
   agentsById,
   membersById,
+  detailColumns,
 }: {
   runs: AgentRun[];
+  /** Omit for all metadata, or choose the detail columns shown beside the essentials. */
+  detailColumns?: readonly RunDetailColumn[];
   sort?: RunSort;
   onSort?: (sort: RunSort) => void;
   /** Opens a row's detail. Given, every row becomes clickable; a delegations
@@ -448,7 +455,14 @@ export function RunTable({
 
   return (
     <DataTable<AgentRun>
-      columns={columns}
+      columns={
+        detailColumns === undefined
+          ? columns
+          : columns.filter(
+              (column) =>
+                !DETAIL_COLUMNS.has(column.key) || detailColumns.some((key) => key === column.key),
+            )
+      }
       rows={runs}
       getRowKey={(run) => run.id}
       sort={sort}
@@ -460,7 +474,10 @@ export function RunTable({
       fillHeight={fillHeight}
       // Wide enough for every column from the small breakpoint up; a phone
       // shows two columns and needs no floor.
-      className="rounded-none border-0 bg-transparent sm:[&_table]:min-w-[46rem]"
+      className={cn(
+        "rounded-none border-0 bg-transparent",
+        detailColumns === undefined && "sm:[&_table]:min-w-[46rem]",
+      )}
     />
   );
 }

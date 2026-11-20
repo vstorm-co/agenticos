@@ -1402,3 +1402,17 @@ async def fence_deletion(db: AsyncSession, agent_id: UUID, *, organization_id: U
         .where(Agent.id == agent_id, Agent.organization_id == organization_id)
         .with_for_update()
     )
+
+
+async def published_personal_model_keys(
+    db: AsyncSession, *, version_ids: Sequence[UUID]
+) -> set[UUID]:
+    if not version_ids:
+        return set()
+    result = await db.execute(
+        select(AgentVersion.id).where(
+            AgentVersion.id.in_(list(version_ids)),
+            AgentVersion.spec["model_credential_mode"].astext == "personal",
+        )
+    )
+    return set(result.scalars().all())

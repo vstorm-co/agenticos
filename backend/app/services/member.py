@@ -15,6 +15,7 @@ from app.repositories import (
     agent_exposure_repo,
     agent_trigger_repo,
     api_key_repo,
+    audit_log_repo,
     group_repo,
     mcp_connection_repo,
     member_repo,
@@ -132,7 +133,14 @@ class MemberService:
         *,
         skip: int = 0,
         limit: int = 100,
-    ) -> tuple[list[tuple[OrganizationMember, str, str | None, str | None, int | None, bool]], int]:
+    ) -> tuple[
+        list[
+            tuple[
+                OrganizationMember, str, str | None, str | None, int | None, datetime | None, bool
+            ]
+        ],
+        int,
+    ]:
         """List members with their joined user info and whether the caller may
         change each one's role. Any org member may list."""
         membership = await member_repo.get(
@@ -154,7 +162,13 @@ class MemberService:
         # one. An Owner target is excluded because no role assigns `owner`.
         may_manage = role_has(membership.role, Perm.ROLES_MANAGE)
         assignable = assignable_roles(membership.role)
-        rows_with_flag = [(*row, may_manage and row[0].role in assignable) for row in rows]
+        activity = await audit_log_repo.latest_member_actions(
+            self.db, organization_id=organization_id, user_ids=[row[0].user_id for row in rows]
+        )
+        rows_with_flag = [
+            (*row, activity.get(row[0].user_id), may_manage and row[0].role in assignable)
+            for row in rows
+        ]
         return rows_with_flag, total
 
     async def change_role(

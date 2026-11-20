@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ListX, ThumbsDown } from "lucide-react";
+import { AlertTriangle, ListChecks, ListX, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { useImprovementEvidence } from "@/hooks/use-improvements";
 import { useDataset, useDatasetCases } from "@/hooks/use-datasets";
-import { useAgentAttention } from "@/hooks/use-usage-stats";
 import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement } from "@/types/improvement";
@@ -20,21 +19,22 @@ import { useReadOnly } from "./read-only";
 export function StartSignals({ agentId, datasetId }: { agentId: string; datasetId: string }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
-  const [period] = useState(() => {
-    const end = new Date();
-    const start = new Date(end);
-    start.setUTCDate(start.getUTCDate() - 29);
-    return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
-  });
-  const attention = useAgentAttention(period);
   const sources = useImprovementEvidence(agentId, { datasetId: datasetId || null });
   const evidence = sources.evidence;
-  const counts = attention.agents.find((agent) => agent.agent_id === agentId);
+  const counts = { down: 0, liked: 0, failed: 0, training: 0, reviewed: 0 };
+  for (const item of evidence?.items ?? []) {
+    if (item.kind === "train_eval") {
+      if (item.status === "train_eval_failure") counts.training++;
+      else counts.reviewed++;
+    } else if (item.rating < 0) counts.down++;
+    else if (item.rating > 0) counts.liked++;
+    else counts.failed++;
+  }
   return (
     <section className="space-y-2" aria-label={t("sourceSignals")}>
-      {attention.error || sources.error ? (
-        <p role="alert">{getErrorMessage(attention.error || sources.error, tErrors)}</p>
-      ) : attention.isLoading || sources.isLoading || !evidence ? (
+      {sources.error ? (
+        <p role="alert">{getErrorMessage(sources.error, tErrors)}</p>
+      ) : sources.isLoading || !evidence || (sources.isFetching && evidence.items.length === 0) ? (
         <p role="status">{t("loading")}</p>
       ) : (
         <>
@@ -42,22 +42,30 @@ export function StartSignals({ agentId, datasetId }: { agentId: string; datasetI
             {[
               {
                 label: t("ratedSignals"),
-                value: counts?.rated_down ?? 0,
+                value: counts.down,
                 icon: ThumbsDown,
               },
               {
+                label: t("likedSignals"),
+                value: counts.liked,
+                icon: ThumbsUp,
+              },
+              {
                 label: t("failedSignals"),
-                value: counts?.failed_runs ?? 0,
+                value: counts.failed,
                 icon: AlertTriangle,
               },
-              ...(evidence.training_failures > 0
+              ...(counts.training > 0
                 ? [
                     {
                       label: t("trainSignals"),
-                      value: evidence.training_failures,
+                      value: counts.training,
                       icon: ListX,
                     },
                   ]
+                : []),
+              ...(counts.reviewed > 0
+                ? [{ label: t("reviewedSignals"), value: counts.reviewed, icon: ListChecks }]
                 : []),
             ].map(({ label, value, icon: Icon }) => (
               <div
@@ -82,7 +90,9 @@ export function StartSignals({ agentId, datasetId }: { agentId: string; datasetI
               </div>
             ))}
           </dl>
-          <p className="text-muted-foreground text-xs">{t("signalWindow")}</p>
+          <p className="text-muted-foreground text-xs">
+            {t("signalWindow", { count: evidence.items.length, limit: evidence.sample_limit })}
+          </p>
           {evidence.items.length === 0 && (
             <p className="text-muted-foreground text-sm">{t("noLearningExamples")}</p>
           )}

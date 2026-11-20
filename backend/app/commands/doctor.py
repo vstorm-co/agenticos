@@ -27,6 +27,7 @@ import click
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.agents.capabilities.browser_use._endpoint import pin_host
 from app.commands import command, error, info, success, warning
 from app.core.config import settings
 from app.core.sanitize import deployment_allowlist, mcp_allowlist, parse_private_allowlist
@@ -321,16 +322,32 @@ async def _browser_endpoints() -> tuple[str, str]:
     reached: list[str] = []
     for host in hosts:
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                answer = await client.get(f"http://{host}:{_ASSUMED_CDP_PORT}/json/version")
-                answer.raise_for_status()
-                version = answer.json().get("Browser", "a browser")
+            async with asyncio.timeout(5.0):
+                answers = await asyncio.get_running_loop().getaddrinfo(
+                    host, _ASSUMED_CDP_PORT, type=socket.SOCK_STREAM
+                )
+                authority = f"[{host}]" if ":" in host else host
+                addresses = dict.fromkeys(str(answer[4][0]) for answer in answers)
+                version: object | None = None
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    for address in addresses:
+                        endpoint = pin_host(f"http://{authority}:{_ASSUMED_CDP_PORT}", address)
+                        try:
+                            answer = await client.get(f"{endpoint}/json/version")
+                            answer.raise_for_status()
+                            version = answer.json().get("Browser", "a browser")
+                        except httpx.HTTPError, ValueError, AttributeError:
+                            continue
+                        break
         # Every way this can fail - refused, timed out, not a browser - is the
         # same answer to the only question being asked.
         except Exception:
             silent.append(host)
         else:
-            reached.append(f"{host} ({version})")
+            if version is None:
+                silent.append(host)
+            else:
+                reached.append(f"{host} ({version})")
 
     if reached and silent:
         return (

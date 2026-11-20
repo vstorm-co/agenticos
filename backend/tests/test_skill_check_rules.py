@@ -9,6 +9,7 @@ from decimal import Decimal
 import pytest
 
 from app.db.models.skill_check import AgentState, CheckOutcome, CheckVerdict
+from app.services.eval_comparison import CriterionMove
 from app.services.improvement_states import CheckResult
 from app.services.skill_check_rules import (
     EXPECTED_RERUN_SHARE,
@@ -332,3 +333,32 @@ class TestSample:
 def test_money_adds_up_without_floats() -> None:
     assert total([Decimal("0.1"), Decimal("0.2")]) == Decimal("0.3")
     assert total([]) == Decimal(0)
+
+
+class TestCriteria:
+    """An agent no whole question moved for is read criterion by criterion."""
+
+    def test_two_stages_add_up_each_criterion_and_the_agent_is_better_on_it(self) -> None:
+        price = CriterionMove("judge", "price break", 4, 1, 4, 3, 0)
+        sample = replace(_compared(held_out=4), criteria=(price,))
+        skill_set = replace(
+            _compared(held_out=6),
+            criteria=(CriterionMove("judge", "price break", 6, 2, 6, 4, 0),),
+        )
+
+        result = pooled([sample, skill_set], minimum=5)
+
+        assert result.check.criteria == (
+            CriterionMove("judge", "price break", 10, 3, 10, 7, 0, 0, 0),
+        )
+        assert agent_state([sample, skill_set], minimum=5) is AgentState.CRITERIA_BETTER
+
+    def test_a_criterion_that_got_worse_makes_the_agent_criteria_worse(self) -> None:
+        worse = CriterionMove("check", "under 200 words", 10, 10, 8, 0, 2)
+        stage = replace(_compared(held_out=10), criteria=(worse,))
+
+        assert agent_state([stage], minimum=5) is AgentState.CRITERIA_WORSE
+
+    def test_criteria_alone_do_not_pass_the_change(self) -> None:
+        assert verdict([AgentState.CRITERIA_BETTER]) is CheckVerdict.NO_BETTER
+        assert verdict([AgentState.BETTER, AgentState.CRITERIA_WORSE]) is CheckVerdict.PASSED
