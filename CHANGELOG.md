@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- An agent on an OpenRouter model that the run sends back - an output
+  validator, a structured answer that breaks its schema, a tool's retry - no
+  longer fails when the provider refuses the reasoning blocks echoed from the
+  previous answer as modified. That request is sent once more without them;
+  the run's history keeps them.
+
 ## [1.87.0] - 2026-11-20
 
 ### Added
