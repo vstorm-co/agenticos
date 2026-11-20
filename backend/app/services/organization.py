@@ -867,6 +867,11 @@ class OrganizationService:
         from app.services.sandbox_workspace import SandboxWorkspaceService
 
         await SandboxWorkspaceService(self.db).purge_personal_coding(organization_id=org.id)
+        from app.services.subscription_accounts import queue_wipe
+
+        await queue_wipe(
+            self.db, org.id, await member_repo.list_user_ids(self.db, organization_id=org.id)
+        )
         await organization_repo.delete(self.db, org)
 
         restamps = [

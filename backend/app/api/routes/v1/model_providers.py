@@ -15,8 +15,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 
 from app.agents.model_resolver import PROVIDERS, ModelApi, is_decision_api
-from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require
+from app.api.deps import Auth, ModelProfileSvc, SecretSvc, SubscriptionAccountSvc, require
 from app.api.public_api import ASSISTANT, PUBLIC
+from app.clients.subscription_gateway import configured_gateway
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.field_errors import refused_field
 from app.core.permissions import Perm
@@ -402,12 +403,34 @@ async def list_video_models() -> Any:
 async def list_provider_models(
     provider: str,
     secrets: SecretSvc,
+    accounts: SubscriptionAccountSvc,
     ctx: Auth,
     base_url: str | None = None,
     secret_id: UUID | None = None,
     api: ModelApi | None = None,
 ) -> Any:
     """List suggestions; custom authenticated endpoints require a visible selected key."""
+    if provider == "subscription_accounts":
+        # The caller's own signed-in accounts decide what the gateway serves;
+        # somebody who signed in to none sees nothing to pick from.
+        if configured_gateway() is None:
+            return ProviderModelList(items=[], total=0, source="unlisted")
+        served = await accounts.models(ctx)
+        return ProviderModelList(
+            items=[
+                ProviderModelRead(
+                    id=model,
+                    name=model,
+                    context_length=None,
+                    output_modalities=[],
+                    apis=[],
+                    chat_capable=True,
+                )
+                for model in served
+            ],
+            total=len(served),
+            source="live",
+        )
     if provider == "openai_chatgpt":
         if base_url is not None or api not in (None, "responses"):
             raise BadRequestError(

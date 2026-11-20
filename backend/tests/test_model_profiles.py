@@ -396,10 +396,16 @@ class TestProviderCatalog:
         # OpenRouter is the one provider that rejects a bare model id, and does
         # so in the constructor rather than at request time.
         model = "openai/gpt-4.1" if provider_id == "openrouter" else "some-model"
+        # A subscription-accounts credential reaches a client only once bound
+        # to a person's gateway scope, as a key and an endpoint.
         credential = ResolvedCredential(
             provider=provider_id,
-            secret=secret_for(spec),
-            base_url="https://gateway.example.com" if spec.supports_base_url else None,
+            secret=ApiKeySecret(api_key="gateway-token")
+            if spec.personal_gateway
+            else secret_for(spec),
+            base_url="https://gateway.example.com"
+            if spec.supports_base_url or spec.personal_gateway
+            else None,
             credential_source=VaultCodexCredentials(
                 organization_id=uuid.uuid4(), secret_id=uuid.uuid4()
             ),

@@ -139,6 +139,10 @@ class ProviderSpec:
     regions: tuple[ModelRegion, ...] = ()
     # Resolve the API from advertised model surfaces rather than a form selection.
     api_from_model: bool = False
+    # Served by the bundled subscription gateway: no key and no endpoint on the
+    # profile, because each run reaches the running person's own signed-in
+    # accounts (`app.services.subscription_accounts.bind_to_person`).
+    personal_gateway: bool = False
 
     @property
     def prefix(self) -> str:
@@ -363,6 +367,15 @@ PROVIDERS: dict[str, ProviderSpec] = {
             requires_base_url=True,
             model_prefix="openai-chat",
         ),
+        # The gateway that ships with the stack: each person signs in to their
+        # own accounts from the console, and a run spends only the runner's.
+        ProviderSpec(
+            id="subscription_accounts",
+            name="Subscription accounts",
+            secret_kind=SecretKind.NONE,
+            model_prefix="openai-chat",
+            personal_gateway=True,
+        ),
         _api_key("moonshotai", "Moonshot AI"),
         _api_key("nebius", "Nebius AI Studio"),
         _api_key("ovhcloud", "OVHcloud AI Endpoints"),
@@ -475,6 +488,8 @@ def lacks_key(
     if secret_id is not None:
         return False
     spec = PROVIDERS.get(provider)
+    if spec is not None and spec.personal_gateway:
+        return False
     return not (runs_without_key and spec is not None and spec.keyless and base_url)
 
 
@@ -586,6 +601,19 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
     endpoint: dict[str, str] = {}
     if credential.base_url is not None and spec.base_url_param is not None:
         endpoint[spec.base_url_param] = credential.base_url
+    if spec.personal_gateway:
+        from pydantic_ai.providers.openai_compatible import OpenAICompatibleProvider
+
+        # Bound to one person's gateway scope by `ModelProfileService.resolve`;
+        # anything that skipped it has nobody whose accounts to spend.
+        if credential.base_url is None or not isinstance(secret, ApiKeySecret):
+            raise BadRequestError(
+                message=f"{spec.name} run on the signed-in person's own accounts, "
+                "so only a person's own run can use them"
+            )
+        return OpenAICompatibleProvider(
+            spec.id, base_url=credential.base_url, api_key=secret.api_key.get_secret_value()
+        )
     if (default := COMPATIBLE_ENDPOINTS.get(spec.id)) is not None:
         from pydantic_ai.providers.openai_compatible import OpenAICompatibleProvider
 

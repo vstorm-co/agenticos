@@ -61,6 +61,22 @@ class Settings(BaseSettings):
     # withhold a runtime or attest plan-usage eligibility.
     GITHUB_COPILOT_OAUTH_CLIENT_ID: str = Field(default="", max_length=128)
 
+    SUBSCRIPTION_GATEWAY_URL: str | None = None
+    """The bundled subscription gateway (`subscription-gateway` in compose); unset turns
+    subscription accounts off."""
+
+    SUBSCRIPTION_GATEWAY_TOKEN: str = ""
+    """Shared with the gateway container; it accepts nothing without it."""
+
+    @model_validator(mode="after")
+    def subscription_gateway_token(self) -> Settings:
+        if self.SUBSCRIPTION_GATEWAY_URL and len(self.SUBSCRIPTION_GATEWAY_TOKEN) < 32:
+            raise ValueError(
+                "SUBSCRIPTION_GATEWAY_URL is set, so SUBSCRIPTION_GATEWAY_TOKEN must be "
+                "at least 32 characters - the same value the gateway container runs with"
+            )
+        return self
+
     CLAUDE_NATIVE_CONVERSATION_ENABLED: bool = True
     """Disable to withhold Claude Agent; each person answers for their own account's terms."""
 

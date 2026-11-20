@@ -78,6 +78,8 @@ services:
     environment:
       - DEBUG=false
       - ENVIRONMENT=production
+      # Set with the token by `scripts/deploy.sh` when backend/.env has one.
+      - SUBSCRIPTION_GATEWAY_URL=${SUBSCRIPTION_GATEWAY_URL:-}
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
       # Empty unless the sandbox profile is up. Note what is absent from
@@ -274,6 +276,8 @@ services:
     environment:
       - DEBUG=false
       - ENVIRONMENT=production
+      # Set with the token by `scripts/deploy.sh` when backend/.env has one.
+      - SUBSCRIPTION_GATEWAY_URL=${SUBSCRIPTION_GATEWAY_URL:-}
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
       # One ingest child by default here: with its limit below, that is the
@@ -474,6 +478,37 @@ services:
           cpus: "1"
           memory: 1G
 
+  # Subscription accounts (docs/models.md): people sign in to their own Claude,
+  # ChatGPT, Antigravity, Kimi, Grok and other accounts from the console, and
+  # this service runs a separate CLIProxyAPI for each person on demand, stopping
+  # it when idle. Only `app` and `worker` reach it, with the shared token; it
+  # publishes no port. Sign-ins live in its own volume.
+  subscription-gateway:
+    # Opt-in on a server: `--profile subscriptions` with SUBSCRIPTION_GATEWAY_TOKEN
+    # (32+ characters) and SUBSCRIPTION_GATEWAY_URL=http://subscription-gateway:8400
+    # in the env file. `scripts/deploy.sh` does both when the token is there.
+    profiles: [subscriptions]
+    logging: *logging
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend:${AGENTICOS_VERSION:-latest}
+    command: python -m app.subscription_gateway
+    init: true
+    environment:
+      - SUBSCRIPTION_GATEWAY_TOKEN=${SUBSCRIPTION_GATEWAY_TOKEN:-}
+    volumes:
+      - subscription_accounts:/data/subscription-gateway
+    # `data` so the API and the worker reach it; `edge` for its egress to the
+    # providers' sign-in and model APIs.
+    networks:
+      - data
+      - edge
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8400/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
 networks:
   browser:
     driver: bridge
@@ -497,5 +532,6 @@ networks:
     driver: bridge
 
 volumes:
+  subscription_accounts:
   media_data:
   postgres_data:

@@ -2515,6 +2515,17 @@ def get_coding_account_service(db: DBSession) -> CodingAccountService:
 
 CodingAccountSvc = Annotated[CodingAccountService, Depends(get_coding_account_service)]
 
+from app.services.subscription_accounts import SubscriptionAccountService
+
+
+def get_subscription_account_service(db: DBSession) -> SubscriptionAccountService:
+    return SubscriptionAccountService(db)
+
+
+SubscriptionAccountSvc = Annotated[
+    SubscriptionAccountService, Depends(get_subscription_account_service)
+]
+
 
 from app.services.onboarding import OnboardingService
 

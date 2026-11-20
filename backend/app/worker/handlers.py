@@ -46,6 +46,7 @@ def ingest() -> Handlers:
 def production() -> Handlers:
     """Every kind, for a worker that runs the agent and system pools on its own loop."""
     from app.services.sandbox_workspace import retry_pending_destroys
+    from app.services.subscription_accounts import wipe_scopes
     from app.worker.tasks import (
         approval_tasks,
         authoring_tasks,
@@ -118,6 +119,7 @@ def production() -> Handlers:
             Handler(jobs.WELCOME_MEMBER, proactive_tasks.welcome_member),
             Handler(jobs.CLEANUP_EXTERNAL_STATE, teardown_tasks.run_external_state_cleanup),
             Handler(jobs.DISCARD_VECTOR_DOCUMENT, teardown_tasks.discard_vector_document),
+            Handler(jobs.WIPE_SUBSCRIPTION_ACCOUNTS, wipe_scopes),
             Handler(jobs.CHECK_AGENT_TRIGGERS, _each_tick(trigger_tasks.check_agent_triggers)),
             Handler(jobs.POLL_PORTAL_GRANTS, _each_tick(trigger_tasks.poll_portal_grants)),
             Handler(

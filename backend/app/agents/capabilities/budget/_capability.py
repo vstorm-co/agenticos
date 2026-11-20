@@ -179,6 +179,7 @@ def price_request(
         "opencode_go",
         "ollama_cloud",
         "cliproxyapi",
+        "subscription_accounts",
         "nous_portal",
         "chutes",
         "synthetic",

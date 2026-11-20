@@ -326,6 +326,15 @@ if [ -n "$(env_value SANDBOXD_TOKEN)" ]; then
   export DOCKER_GID
 fi
 
+# Subscription accounts, the same way: a token in `backend/.env` is this host
+# running the gateway, and the API and worker are pointed at it unless the file
+# names another address.
+if [ -n "$(env_value SUBSCRIPTION_GATEWAY_TOKEN)" ]; then
+  PROFILES+=(--profile subscriptions)
+  SUBSCRIPTION_GATEWAY_URL="${SUBSCRIPTION_GATEWAY_URL:-$(env_value SUBSCRIPTION_GATEWAY_URL)}"
+  export SUBSCRIPTION_GATEWAY_URL="${SUBSCRIPTION_GATEWAY_URL:-http://subscription-gateway:8400}"
+fi
+
 # Keep the isolated visual renderer running across deploys, like the sandbox.
 case "$(env_value VISUAL_RENDER_CDP_URL)" in
   http://visual-render:9222|http://visual-render:9222/)
