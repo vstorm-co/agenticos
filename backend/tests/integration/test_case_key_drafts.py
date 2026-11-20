@@ -27,12 +27,19 @@ from app.db.models.background_job import BackgroundJob
 from app.db.models.case_key_draft import KEY_DRAFT_RETENTION_DAYS, CaseKeyDraft
 from app.db.models.dataset import DatasetCase
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.resource_grant import ResourceGrant
 from app.db.models.user import User
 from app.repositories import personal_data_repo
 from app.schemas.case_key_draft import ExtractedKeys
-from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
-from app.schemas.scoring import DocumentKey
+from app.schemas.dataset import (
+    DatasetCaseCreate,
+    DatasetCaseFromMessage,
+    DatasetCaseUpdate,
+    DatasetCreate,
+)
+from app.schemas.scoring import MAX_KEYS, DocumentKey
 from app.services import case_key_draft as drafts_module
+from app.services.api_key import KEY_GONE
 from app.services.case_key_draft import (
     NO_REFERENCE,
     REQUESTER_GONE,
@@ -43,6 +50,7 @@ from app.services.case_key_draft import (
 from app.services.dataset import DatasetService
 from app.services.system_agent_runner import SystemAgentResult, SystemAgentRunner
 from app.worker.tasks.case_key_tasks import expire_case_key_drafts
+from tests.integration.test_datasets import _rated_down_turn
 
 pytestmark = pytest.mark.anyio
 
@@ -176,6 +184,32 @@ class TestAsking:
         with pytest.raises(NotFoundError):
             await CaseKeyDraftService(db).get(stranger, dataset.id, case.case_id)
 
+    async def test_a_case_whose_conversation_the_editor_may_not_read_is_refused(self, db) -> None:
+        owner = await _owner(db)
+        editor = await _member(db, owner.organization_id, OrgRoleName.VIEWER)
+        datasets = DatasetService(db)
+        dataset = await datasets.create(owner, DatasetCreate(name="from chats"))
+        _, answer = await _rated_down_turn(db, owner)
+        case = await datasets.add_from_message(
+            owner, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
+        )
+        await datasets.update_case(
+            owner, dataset.id, case.case_id, DatasetCaseUpdate(reference_answer=DOCUMENT)
+        )
+        db.add(
+            ResourceGrant(
+                organization_id=owner.organization_id,
+                subject_user_id=editor.user_id,
+                resource_type="dataset",
+                resource_id=dataset.id,
+                level="edit",
+            )
+        )
+        await db.flush()
+
+        with pytest.raises(AuthorizationError, match="source conversation"):
+            await CaseKeyDraftService(db).start(editor, dataset.id, case.case_id)
+
     async def test_an_extractor_that_cannot_run_is_refused_before_anything_is_queued(
         self, db, monkeypatch
     ) -> None:
@@ -286,6 +320,59 @@ class TestTheJob:
         assert (row.status, row.error) == ("failed", REQUESTER_GONE)
         calls.assert_not_awaited()
 
+    async def test_a_revoked_key_fails_the_draft(self, db, monkeypatch) -> None:
+        owner = await _owner(db)
+        _, _, draft = await _started(db, owner)
+        row = await db.get(CaseKeyDraft, draft.id)
+        assert row is not None
+        row.created_by_api_key_id = uuid.uuid4()
+        await db.flush()
+        calls = _answer(monkeypatch, RuntimeError("must not run"))
+
+        await CaseKeyDraftService(db).extract(draft.id, owner.organization_id)
+
+        await db.refresh(row)
+        assert (row.status, row.error) == ("failed", KEY_GONE)
+        calls.assert_not_awaited()
+
+    async def test_a_requester_who_may_no_longer_edit_fails_the_draft(
+        self, db, monkeypatch
+    ) -> None:
+        owner = await _owner(db)
+        builder = await _member(db, owner.organization_id, OrgRoleName.BUILDER)
+        dataset, case = await _case(db, owner)
+        draft = await CaseKeyDraftService(db).start(builder, dataset.id, case.case_id)
+        member = await db.scalar(
+            select(OrganizationMember).where(OrganizationMember.user_id == builder.user_id)
+        )
+        assert member is not None
+        member.role = OrgRoleName.VIEWER.value
+        await db.flush()
+        calls = _answer(monkeypatch, RuntimeError("must not run"))
+
+        await CaseKeyDraftService(db).extract(draft.id, owner.organization_id)
+
+        row = await db.get(CaseKeyDraft, draft.id)
+        assert row is not None
+        assert row.status == "failed" and row.error
+        calls.assert_not_awaited()
+
+    async def test_a_reference_answer_removed_since_fails_the_draft(self, db, monkeypatch) -> None:
+        owner = await _owner(db)
+        _, case, draft = await _started(db, owner)
+        revision = await db.get(DatasetCase, case.id)
+        assert revision is not None
+        revision.reference_answer = "  "
+        await db.flush()
+        calls = _answer(monkeypatch, RuntimeError("must not run"))
+
+        await CaseKeyDraftService(db).extract(draft.id, owner.organization_id)
+
+        row = await db.get(CaseKeyDraft, draft.id)
+        assert row is not None
+        assert (row.status, row.error) == ("failed", NO_REFERENCE)
+        calls.assert_not_awaited()
+
     async def test_a_draft_already_ended_is_left_as_it_is(self, db, monkeypatch) -> None:
         owner = await _owner(db)
         _, _, draft = await _started(db, owner)
@@ -305,6 +392,8 @@ class TestTheJob:
         await db.commit()
 
         await drafts_module.settle_lost(draft.id, owner.organization_id)
+        await drafts_module.settle_lost(draft.id, owner.organization_id)
+        await drafts_module.extract_case_keys(uuid.uuid4(), owner.organization_id)
 
         row = await db.get(CaseKeyDraft, draft.id)
         assert row is not None
@@ -372,3 +461,10 @@ def test_kept_keys_drop_what_the_document_does_not_say_and_repeated_labels() -> 
         {"key": "Invoice", "value": "INV-7"},
         {"key": "Total", "value": "1234,50"},
     ]
+
+
+def test_kept_keys_stop_at_the_keys_a_check_may_hold() -> None:
+    document = " ".join(f"V{number}" for number in range(MAX_KEYS + 5))
+    keys = [DocumentKey(key=f"K{number}", value=f"V{number}") for number in range(MAX_KEYS + 5)]
+
+    assert len(kept_keys(document, keys)) == MAX_KEYS
