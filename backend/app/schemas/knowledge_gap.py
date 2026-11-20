@@ -64,6 +64,14 @@ class ClassifiedAnswer(BaseSchema):
         max_length=300,
         description="One sentence on why, naming the source that shows it",
     )
+    topic: str = Field(
+        default="",
+        max_length=80,
+        description=(
+            "For `did_not_know` and `missing_information`: what the knowledge base lacks, "
+            "in two to six words; empty otherwise"
+        ),
+    )
 
     @field_validator(
         "signal",
@@ -249,7 +257,10 @@ class KnowledgeGapTopicRead(BaseSchema):
     knowledge_base_id: UUID
     knowledge_base_name: str
     status: TopicStatusLiteral
-    label: str = Field(description="The first question of the topic, as the agent searched it")
+    label: str = Field(
+        description="What the classifier named the topic's missing content, or else its first "
+        "question as the agent searched it"
+    )
     question_count: int = Field(description="Searches in the topic that found nothing relevant")
     asker_count: int = Field(
         default=0,

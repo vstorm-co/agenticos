@@ -489,7 +489,11 @@ def _classification_prompt(
         "have refused, and so is a refusal of something the rules allow.\n"
         "Give each a `reason`: one sentence on why, naming the source that shows it by its "
         "name only - the context file whose rule was misapplied, or that nothing below "
-        "mentions it. Never repeat what an answer, a comment or a source says.",
+        "mentions it. Never repeat what an answer, a comment or a source says.\n"
+        "Give each `did_not_know` and `missing_information` a `topic`: what the knowledge "
+        "base lacks, in two to six words that name the subject rather than one person's "
+        'case - "Lead times by product", not "When will my 500 flyers arrive?". Answers '
+        "missing the same thing get the same words.",
     ]
     numbered = list(dict.fromkeys(c.agent_version_id for c in candidates if c.agent_version_id))
     agent_numbers = {
@@ -554,6 +558,7 @@ def _verdicts(candidates: list[CandidateRow], answers: list[ClassifiedAnswer]) -
                 signal=None if candidate.missed else signal,
                 query=(candidate.question or candidate.answer)[:MAX_QUERY_CHARS],
                 reason=answer.reason or None,
+                subject=(answer.topic.strip() or None) if signal is not None else None,
             )
         )
     return verdicts
@@ -577,6 +582,11 @@ def _branch(signals: list[str]) -> CauseBranch:
         if signal in signals:
             return branch
     return "unknown"
+
+
+def _grouped_by(search: KnowledgeSearch) -> str:
+    """What a miss is grouped by: the subject the classifier named, or else its query."""
+    return search.subject or search.query
 
 
 def _cause(verdicts: list[tuple[str, str | None]]) -> tuple[CauseBranch, str | None]:
@@ -706,7 +716,7 @@ class KnowledgeGapService:
                 knowledge_base_id=row.topic.knowledge_base_id,
                 knowledge_base_name=bases[row.topic.knowledge_base_id].name,
                 status=TopicStatus(row.status).value,
-                label=row.queries[0] if row.queries else "",
+                label=row.subjects[0] if row.subjects else row.queries[0] if row.queries else "",
                 question_count=row.question_count,
                 asker_count=row.asker_count,
                 last_asked_at=row.last_asked_at,
@@ -2055,7 +2065,7 @@ class KnowledgeGapService:
         )
         width = len(next(iter(vectors.values())))
         clusters = _assign(
-            [(search.id, vectors[search.query]) for search in misses],
+            [(search.id, vectors[_grouped_by(search)]) for search in misses],
             [
                 _Cluster(
                     centroid=np.asarray(topic.centroid, dtype=np.float64),
@@ -2095,8 +2105,8 @@ class KnowledgeGapService:
     async def _embed(
         collection_name: str, resolved: ResolvedEmbeddings, misses: list[KnowledgeSearch]
     ) -> dict[str, Vector]:
-        """Each distinct query once, in one request, off the event loop."""
+        """Each distinct text a miss is grouped by once, in one request, off the event loop."""
         embedder = embedder_for(collection_name, resolved)
-        queries = list(dict.fromkeys(search.query for search in misses))
+        queries = list(dict.fromkeys(_grouped_by(search) for search in misses))
         embedded = await asyncio.to_thread(embedder.embed_queries, queries)
         return {query: _unit(vector) for query, vector in zip(queries, embedded, strict=True)}

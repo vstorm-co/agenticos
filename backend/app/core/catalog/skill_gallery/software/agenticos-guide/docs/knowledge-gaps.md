@@ -130,6 +130,11 @@ of that knowledge base, or starts a new one. A pass embeds at most 500 misses
 per knowledge base; the rest wait for the next one. A knowledge base with no
 new misses costs no embedding call.
 
+A question read from an answer is grouped instead by what the classifier named
+as missing, in a few words - "Lead times by product" - so different people's
+questions about one subject share a topic, and the topic is named for the
+subject rather than for its first question.
+
 A miss joins the closest topic only when it is at least as similar to it as
 `KNOWLEDGE_GAP_TOPIC_SIMILARITY`; otherwise it starts a new one.
 

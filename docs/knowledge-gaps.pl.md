@@ -1,5 +1,5 @@
 ---
-source_sha: "efd4f647f085"
+source_sha: "38ff682d373d"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -135,6 +135,11 @@ temacie tej bazy albo zakłada nowy. Jedno przejście tworzy embeddingi dla
 najwyżej 500 chybionych wyszukiwań na bazę wiedzy; reszta czeka na następne.
 Baza wiedzy bez nowych chybionych wyszukiwań nie kosztuje żadnego wywołania
 embeddingów.
+
+Pytanie odczytane z odpowiedzi jest grupowane według tego, co klasyfikator nazwał
+brakującym, w kilku słowach - "Lead times by product" - więc pytania różnych osób
+o jedną rzecz trafiają do jednego tematu, a temat nosi nazwę tej rzeczy, a nie
+swojego pierwszego pytania.
 
 Chybienie trafia do najbliższego tematu tylko wtedy, gdy jest do niego co
 najmniej tak podobne jak `KNOWLEDGE_GAP_TOPIC_SIMILARITY`; inaczej zakłada nowy.

@@ -127,8 +127,8 @@ class TestAssign:
         assert near.moved and not far.moved
 
 
-def _search(query: str) -> MagicMock:
-    return MagicMock(id=uuid.uuid4(), query=query)
+def _search(query: str, subject: str | None = None) -> MagicMock:
+    return MagicMock(id=uuid.uuid4(), query=query, subject=subject)
 
 
 def _kb(*, organization_id: uuid.UUID = ORG) -> MagicMock:

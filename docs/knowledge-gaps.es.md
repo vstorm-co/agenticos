@@ -1,5 +1,5 @@
 ---
-source_sha: "efd4f647f085"
+source_sha: "38ff682d373d"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -139,6 +139,11 @@ y coloca cada uno en el tema más cercano de esa base de conocimiento, o abre un
 nuevo. Una pasada procesa como mucho 500 fallos por base de conocimiento; el
 resto espera a la siguiente. Una base de conocimiento sin fallos nuevos no
 cuesta ninguna llamada de embeddings.
+
+Una pregunta leída de una respuesta se agrupa en cambio por lo que el
+clasificador nombró como ausente, en pocas palabras - "Lead times by product" -,
+así que las preguntas de distintas personas sobre un mismo asunto comparten tema,
+y el tema lleva el nombre del asunto en lugar de su primera pregunta.
 
 Un fallo entra en el tema más cercano solo si se le parece al menos tanto como
 `KNOWLEDGE_GAP_TOPIC_SIMILARITY`; si no, abre uno nuevo.

@@ -108,6 +108,9 @@ class KnowledgeSearch(Base):
         ARRAY(PG_UUID(as_uuid=True)), nullable=False
     )
     query: Mapped[str] = mapped_column(Text, nullable=False)
+    # What a miss read from an answer lacks, as the classifier named it: the words its
+    # topic is grouped and named by. None for a search, which is its own query.
+    subject: Mapped[str | None] = mapped_column(Text, nullable=True)
     result_count: Mapped[int] = mapped_column(Integer, nullable=False)
     top_similarity: Mapped[float | None] = mapped_column(Float, nullable=True)
     signal: Mapped[str] = mapped_column(

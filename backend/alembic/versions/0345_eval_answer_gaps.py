@@ -10,8 +10,13 @@ that gave it, as `knowledge_gap_classifications` does by message. A miss read
 from one is a `knowledge_searches` row with no message, unique per run and
 knowledge base, so a second read records none.
 
-**Downgrade** drops the table and the index, and the misses read from eval
-answers with them: without the index nothing keeps them to one per run.
+`knowledge_searches.subject` is what a miss read from an answer lacks, as the
+classifier named it - "Lead times by product" rather than one customer's question -
+so its topic is grouped and named by it. Earlier misses have none and stay grouped
+and named by their question.
+
+**Downgrade** drops the table, the index and the column, and the misses read from
+eval answers with them: without the index nothing keeps them to one per run.
 
 Revision ID: 0345_eval_answer_gaps
 Revises: 0344_skill_check_too_few
@@ -86,6 +91,7 @@ def upgrade() -> None:
         "knowledge_gap_eval_classifications",
         ["organization_id"],
     )
+    op.add_column("knowledge_searches", sa.Column("subject", sa.Text(), nullable=True))
     op.create_index(
         "uq_knowledge_searches_eval_answer",
         "knowledge_searches",
@@ -98,6 +104,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute("DELETE FROM knowledge_searches WHERE message_id IS NULL AND signal <> 'retrieval'")
     op.drop_index("uq_knowledge_searches_eval_answer", table_name="knowledge_searches")
+    op.drop_column("knowledge_searches", "subject")
     op.drop_index(
         op.f("knowledge_gap_eval_classifications_organization_id_idx"),
         table_name="knowledge_gap_eval_classifications",

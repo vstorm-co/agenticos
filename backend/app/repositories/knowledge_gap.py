@@ -344,6 +344,8 @@ class TopicRow(NamedTuple):
     last_asked_at: datetime
     queries: list[str]
     agent_ids: list[UUID]
+    subjects: list[str] = []
+    """What the classifier named the misses read from answers, the oldest first."""
 
 
 class QuestionRow(NamedTuple):
@@ -396,6 +398,13 @@ async def list_topics(
             func.array_agg(distinct(KnowledgeSearch.agent_id), type_=ARRAY(PG_UUID())).label(
                 "agent_ids"
             ),
+            func.array_remove(
+                func.array_agg(
+                    aggregate_order_by(KnowledgeSearch.subject, KnowledgeSearch.created_at),
+                    type_=ARRAY(Text),
+                ),
+                None,
+            ).label("subjects"),
         )
         .join(KnowledgeGapMember, KnowledgeGapMember.topic_id == KnowledgeGapTopic.id)
         .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
@@ -427,6 +436,7 @@ async def list_topics(
             last_asked_at=row[4],
             queries=list(row[5] or []),
             agent_ids=[agent for agent in row[6] or [] if agent is not None],
+            subjects=list(row[7] or []),
         )
         for row in result.all()
     ], total
@@ -1188,6 +1198,8 @@ class Verdict(NamedTuple):
     """What a miss is grouped by: the person's question, bounded as a search's query is."""
     reason: str | None = None
     """The model's one sentence on why."""
+    subject: str | None = None
+    """What a miss lacks, as the model named it: what its topic is grouped and named by."""
 
 
 async def still_asked(
@@ -1287,6 +1299,7 @@ async def record_classifications(
                     "conversation_id": verdict.candidate.conversation_id,
                     "knowledge_base_ids": [knowledge_base_id],
                     "query": verdict.query,
+                    "subject": verdict.subject,
                     "result_count": verdict.candidate.result_count,
                     "top_similarity": verdict.candidate.top_similarity,
                     "signal": verdict.signal.value,
@@ -1367,6 +1380,7 @@ async def record_eval_classifications(
                     "conversation_id": None,
                     "knowledge_base_ids": [knowledge_base_id],
                     "query": verdict.query,
+                    "subject": verdict.subject,
                     "result_count": 0,
                     "top_similarity": None,
                     "signal": verdict.signal.value,

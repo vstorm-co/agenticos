@@ -28,28 +28,35 @@ from tests.integration.test_eval_runs import Model, _agent, _dataset, _owner, _r
 from tests.integration.test_eval_runs import _environment as _environment
 from tests.integration.test_knowledge_gap_causes import _classifier
 from tests.integration.test_knowledge_gap_signals import _ANSWER, _classifier_run, _decide
-from tests.integration.test_knowledge_gaps import _knowledge_base
+from tests.integration.test_knowledge_gaps import _embedding, _knowledge_base
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("knowledge_search")]
 
 _SILENT = "I don't know the lead time: the documents do not state it."
 
 
-async def _answered(db: AsyncSession, ctx: AuthContext) -> tuple[Agent, dict[str, EvalRunCase]]:
-    """An eval of two questions: one the documents are silent on, one answered wrong."""
+async def _answered(
+    db: AsyncSession, ctx: AuthContext, *, silent_on: tuple[str, ...] = ("Question 0",)
+) -> tuple[Agent, dict[str, EvalRunCase]]:
+    """An eval of two questions: those in `silent_on` the documents are silent on, the
+    rest answered wrong."""
     agent, _ = await _agent(db, ctx)
     dataset = await _dataset(db, ctx, cases=2)
     run = await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
     model = Model(
         db,
-        answer=lambda prompt, call: _SILENT if "Question 0" in prompt else "It costs 10 pounds.",
+        answer=lambda prompt, call: (
+            _SILENT if any(question in prompt for question in silent_on) else "It costs 10 pounds."
+        ),
     )
     await _run_to_end(db, model, run.id, ctx)
     attempts = (
         await db.scalars(select(EvalRunCase).where(EvalRunCase.eval_run_id == run.id))
     ).all()
-    asked = {"silent" if attempt.answer == _SILENT else "wrong": attempt for attempt in attempts}
-    return agent, asked
+    named = {"silent" if attempt.answer == _SILENT else "wrong": attempt for attempt in attempts}
+    if len(named) == len(attempts):
+        return agent, named
+    return agent, {f"silent {attempt.position}": attempt for attempt in attempts}
 
 
 def _runs(asked: dict[str, EvalRunCase]) -> list[UUID]:
@@ -137,3 +144,37 @@ async def test_an_answer_cleared_while_the_model_read_it_records_nothing(db) -> 
     silent = asked["silent"].agent_run_id
     kept = (await db.scalars(select(KnowledgeGapEvalClassification.run_id))).all()
     assert silent not in kept and asked["wrong"].agent_run_id in kept
+
+
+async def test_misses_the_classifier_named_alike_form_one_topic_named_for_what_is_missing(
+    db,
+) -> None:
+    """Two customers' different questions about lead times are one topic, named for
+    the subject rather than for whichever question came first."""
+    ctx = await _owner(db)
+    agent, asked = await _answered(db, ctx, silent_on=("Question 0", "Question 1"))
+    kb = await _knowledge_base(db, ctx)
+    classifier = await _classifier_run(db, ctx, agent)
+
+    async def classify(ctx: AuthContext, **kwargs: object) -> SystemAgentResult[Report]:
+        answers = [
+            ClassifiedAnswer(
+                number=int(number), signal="did_not_know", topic=" Lead times by product "
+            )
+            for number, _ in _ANSWER.findall(str(kwargs["prompt"]))
+        ]
+        return SystemAgentResult(output=Report(answers=answers), run=classifier)
+
+    service = KnowledgeGapService(db)
+    with patch(
+        "app.services.knowledge_gaps.SystemAgentRunner.run", new=AsyncMock(side_effect=classify)
+    ):
+        await service.classify_batch(ctx, kb.id, message_ids=[], eval_run_ids=_runs(asked))
+    with _embedding() as embedder:
+        await service.group_pending(organization_id=ctx.organization_id, knowledge_base_id=kb.id)
+    topics = await service.list_for_knowledge_base(ctx, kb.id)
+
+    embedder.embed_queries.assert_called_once_with(["Lead times by product"])
+    [topic] = topics.items
+    assert topic.label == "Lead times by product"
+    assert sorted(topic.examples) == ["Question 0", "Question 1"]

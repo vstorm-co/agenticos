@@ -1,5 +1,5 @@
 ---
-source_sha: "efd4f647f085"
+source_sha: "38ff682d373d"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -141,6 +141,11 @@ in das nächste Thema dieser Wissensbasis oder beginnt ein neues. Ein Lauf bette
 höchstens 500 Fehltreffer pro Wissensbasis ein; der Rest wartet auf den
 nächsten. Eine Wissensbasis ohne neue Fehltreffer kostet keinen
 Embedding-Aufruf.
+
+Eine aus einer Antwort gelesene Frage wird stattdessen nach dem gruppiert, was
+der Klassifizierer in wenigen Worten als fehlend benannt hat - "Lead times by
+product" -, sodass Fragen verschiedener Personen zu einer Sache ein Thema teilen
+und das Thema nach der Sache heißt statt nach seiner ersten Frage.
 
 Ein Fehltreffer kommt nur dann in das nächste Thema, wenn er ihm mindestens so
 ähnlich ist wie `KNOWLEDGE_GAP_TOPIC_SIMILARITY`; sonst beginnt er ein neues.
