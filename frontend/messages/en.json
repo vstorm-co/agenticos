@@ -15523,6 +15523,7 @@
     "topicSummary": "{count, plural, =1 {Asked once} other {Asked # times}} by {askers, plural, =1 {one person} other {# people}} in {knowledgeBase}",
     "questions": "Questions",
     "noConversation": "No conversation is kept for this run, so only the search is known.",
+    "testQuestion": "Test question",
     "searchedFor": "Searched for: {query}",
     "signalAnswer": "The agent said it did not know",
     "signalRating": "A reader said information was missing",

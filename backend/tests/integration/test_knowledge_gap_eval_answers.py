@@ -178,3 +178,9 @@ async def test_misses_the_classifier_named_alike_form_one_topic_named_for_what_i
     [topic] = topics.items
     assert topic.label == "Lead times by product"
     assert sorted(topic.examples) == ["Question 0", "Question 1"]
+    # The topic's own page names each as the test question it was, not a lost conversation.
+    detail = await service.read(ctx, topic.id)
+    assert sorted((q.question, q.test_question) for q in detail.questions) == [
+        ("Question 0", True),
+        ("Question 1", True),
+    ]

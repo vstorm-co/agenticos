@@ -15296,6 +15296,7 @@
     "topicSummary": "{count, plural, one {Zadane raz} few {Zadane # razy} many {Zadane # razy} other {Zadane # razy}} przez {askers, plural, one {jedną osobę} few {# osoby} many {# osób} other {# osoby}} w {knowledgeBase}",
     "questions": "Pytania",
     "noConversation": "Dla tego runu nie zachowano rozmowy, więc znane jest tylko wyszukiwanie.",
+    "testQuestion": "Pytanie testowe",
     "searchedFor": "Szukano: {query}",
     "signalAnswer": "Agent odpowiedział, że nie wie",
     "signalRating": "Czytelnik napisał, że brakowało informacji",

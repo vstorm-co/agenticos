@@ -1,5 +1,5 @@
 ---
-source_sha: "38ff682d373d"
+source_sha: "ed987fe8a046"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -188,8 +188,11 @@ todos los que preguntaron de forma anónima, a través de un widget o sin una
 persona detrás del run, cuentan como una. Ábrelo para ver las preguntas más
 recientes: qué preguntó la persona, qué buscó el agent, lo cerca que estaba el
 fragmento más cercano y el comentario de quien valoró negativamente la
-respuesta. Una pregunta leída de una respuesta dice si el agent no lo sabía o si
-un lector escribió que faltaba información.
+respuesta.
+
+Una pregunta leída de una respuesta dice si el agent no lo sabía o si
+un lector escribió que faltaba información; una leída de la respuesta de un eval
+es la pregunta del caso del dataset, marcada como pregunta de prueba.
 
 ## Qué hacer con una laguna { #acting-on-a-gap }
 

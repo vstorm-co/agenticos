@@ -358,7 +358,13 @@ class KnowledgeGapQuestion(BaseSchema):
         ),
     )
     question: str | None = Field(
-        default=None, description="What the person asked, when the conversation is kept"
+        default=None,
+        description="What the person asked, when the conversation is kept, or the test "
+        "question an eval answered",
+    )
+    test_question: bool = Field(
+        default=False,
+        description="The question is a dataset case's, read from the answer an eval gave it",
     )
     top_similarity: float | None
     result_count: int

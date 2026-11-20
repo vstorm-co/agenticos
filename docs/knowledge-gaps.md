@@ -174,8 +174,11 @@ who asked through a channel count by their chat account; everybody who asked
 anonymously, through a widget or with no person behind the run, counts as one. Open it to see the most
 recent questions: what the person asked, what the agent searched for, how
 close the closest passage was, and the comment of anyone who rated the answer
-down. A question read from an answer says whether the agent did not know or a
-reader said information was missing.
+down.
+
+A question read from an answer says whether the agent did not know or a
+reader said information was missing; one read from an eval's answer is the
+dataset case's question, marked as a test question.
 
 ## Acting on a gap { #acting-on-a-gap }
 

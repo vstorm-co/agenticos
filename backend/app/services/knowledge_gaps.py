@@ -584,6 +584,17 @@ def _branch(signals: list[str]) -> CauseBranch:
     return "unknown"
 
 
+def _test_question(search: KnowledgeSearch) -> str | None:
+    """The dataset case's question a miss read from an eval answer holds as its query.
+
+    A chat answer's miss names its message; an eval answer has none, and nothing
+    else records a miss without one.
+    """
+    if search.message_id is None and search.signal != GapSignal.RETRIEVAL.value:
+        return search.query
+    return None
+
+
 def _grouped_by(search: KnowledgeSearch) -> str:
     """What a miss is grouped by: the subject the classifier named, or else its query."""
     return search.subject or search.query
@@ -919,7 +930,8 @@ class KnowledgeGapService:
                     search_id=q.search.id,
                     query=q.search.query,
                     signal=GapSignal(q.search.signal).value,
-                    question=q.question,
+                    question=q.question if q.question is not None else _test_question(q.search),
+                    test_question=q.question is None and _test_question(q.search) is not None,
                     top_similarity=q.search.top_similarity,
                     result_count=q.search.result_count,
                     agent=agents.get(q.search.agent_id),

@@ -15209,6 +15209,7 @@
     "topicSummary": "{count, plural, =1 {Einmal gefragt} other {# Mal gefragt}} von {askers, plural, =1 {einer Person} other {# Personen}} in {knowledgeBase}",
     "questions": "Fragen",
     "noConversation": "Zu diesem Run ist kein Gespräch gespeichert, daher ist nur die Suche bekannt.",
+    "testQuestion": "Testfrage",
     "searchedFor": "Gesucht nach: {query}",
     "signalAnswer": "Der Agent sagte, er wisse es nicht",
     "signalRating": "Ein Leser schrieb, dass Informationen fehlten",

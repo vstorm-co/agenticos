@@ -1,5 +1,5 @@
 ---
-source_sha: "38ff682d373d"
+source_sha: "ed987fe8a046"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -188,8 +188,11 @@ gefragt haben, über ein Widget oder ohne Person hinter dem Run, zählen als ein
 Person. Öffne es, um die neuesten Fragen
 zu sehen: was die Person gefragt hat, wonach der Agent gesucht hat, wie nah die
 nächste Passage war und den Kommentar aller, die die Antwort negativ bewertet
-haben. Eine aus einer Antwort gelesene Frage sagt, ob der Agent es nicht wusste
-oder ein Leser schrieb, dass Informationen fehlten.
+haben.
+
+Eine aus einer Antwort gelesene Frage sagt, ob der Agent es nicht wusste
+oder ein Leser schrieb, dass Informationen fehlten; eine aus einer Eval-Antwort
+gelesene ist die Frage des Dataset-Falls, als Testfrage markiert.
 
 ## Was mit einer Lücke zu tun ist { #acting-on-a-gap }
 

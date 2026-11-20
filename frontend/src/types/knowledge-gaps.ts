@@ -87,6 +87,8 @@ export interface KnowledgeGapQuestion {
   signal: KnowledgeGapSignal;
   /** What the person asked; null where no conversation is kept, as for an API run. */
   question: string | null;
+  /** The question is a dataset case's, read from the answer an eval gave it. */
+  test_question?: boolean;
   top_similarity: number | null;
   result_count: number;
   agent: KnowledgeGapAgent | null;

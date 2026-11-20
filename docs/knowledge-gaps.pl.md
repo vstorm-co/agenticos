@@ -1,5 +1,5 @@
 ---
-source_sha: "38ff682d373d"
+source_sha: "ed987fe8a046"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -177,8 +177,12 @@ agenci go zadali, i do trzech jego pytań. Osoby pytające przez kanał są licz
 według konta czatu; wszyscy, którzy pytali anonimowo, przez widżet albo w runie
 bez osoby za nim, liczą się jako jedna. Otwórz go, żeby zobaczyć najnowsze pytania: o co zapytała
 osoba, czego szukał agent, jak blisko był najbliższy fragment i komentarz
-każdego, kto ocenił odpowiedź łapką w dół. Pytanie odczytane z odpowiedzi mówi,
-czy agent nie wiedział, czy czytelnik napisał, że brakowało informacji.
+każdego, kto ocenił odpowiedź łapką w dół.
+
+Pytanie odczytane z odpowiedzi mówi,
+czy agent nie wiedział, czy czytelnik napisał, że brakowało informacji; odczytane
+z odpowiedzi z ewaluacji to pytanie przypadku z datasetu, oznaczone jako pytanie
+testowe.
 
 ## Co zrobić z luką { #acting-on-a-gap }
 
