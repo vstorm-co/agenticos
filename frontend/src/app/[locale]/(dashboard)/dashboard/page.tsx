@@ -126,10 +126,15 @@ export default function DashboardPage() {
   // A link to a group's view waits for the groups too: deciding without them
   // would open the organization's view for a moment and ask all of its
   // questions unnarrowed before the group arrived.
+  // Retain the header instance so resolving the layout does not close page help.
   if (isLoading || layoutLoading || (viewParam === "group" && groupsLoading)) {
     return (
       <div className="space-y-4">
-        <DashboardHeader description={t("views.me.description")} />
+        {personal ? (
+          <MeHeader period={period} canRun={!isLoading && can(Perm.agentsRun)} />
+        ) : (
+          <DashboardHeader description={t("views.me.description")} />
+        )}
         <div className="flex min-h-56 items-center justify-center">
           <div role="status" aria-busy="true" aria-label={t("states.loading")}>
             <Spinner className="text-muted-foreground size-5" aria-hidden />
