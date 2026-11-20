@@ -201,6 +201,8 @@ export interface KeyCoverageReport {
   status: "running" | "ready" | "failed";
   items: CoverageItem[];
   unseen_sources: number;
+  /** False once the agent was published again or the dataset gained a version since. */
+  current: boolean;
   error: string | null;
   created_at: string;
   finished_at: string | null;

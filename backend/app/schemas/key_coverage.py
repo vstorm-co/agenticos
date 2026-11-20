@@ -64,8 +64,8 @@ class CoverageSource(BaseSchema):
 class CoverageItem(BaseSchema):
     """One key label, whether a source covers it, and which.
 
-    `why` is null when a source it names is one the reader may not see: it may
-    quote what that source holds.
+    `why` is null unless the reader may see every source the judge was shown: it
+    may quote what any of them holds.
     """
 
     key: str
@@ -79,7 +79,9 @@ class KeyCoverageReportRead(BaseSchema):
 
     Labels and source names only: a key's value never reaches a report.
     `unseen_sources` counts the sources the agent binds that the person who asked
-    could not see, so none of them was read.
+    could not see, so none of them was read. `current` is false once the agent was
+    published again or the dataset gained a version since: the report judged other
+    sources or other keys, and Improve no longer reads it.
     """
 
     id: UUID
@@ -89,6 +91,7 @@ class KeyCoverageReportRead(BaseSchema):
     status: Literal["running", "ready", "failed"]
     items: list[CoverageItem]
     unseen_sources: int
+    current: bool
     error: str | None
     created_at: datetime
     finished_at: datetime | None

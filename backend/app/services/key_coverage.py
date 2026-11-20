@@ -227,7 +227,7 @@ class KeyCoverageService:
             ReportKeyCoverage(report_id=report.id, organization_id=ctx.organization_id),
             organization_id=ctx.organization_id,
         )
-        return await self._read(ctx, agent, report)
+        return await self._read(ctx, agent, report, dataset)
 
     async def get(
         self, ctx: AuthContext, dataset_id: UUID, agent_id: UUID
@@ -248,7 +248,7 @@ class KeyCoverageService:
                 message="This agent has no coverage report for this dataset",
                 details={"agent_id": agent.id, "dataset_id": dataset.id},
             )
-        return await self._read(ctx, agent, report)
+        return await self._read(ctx, agent, report, dataset)
 
     async def uncovered_labels(
         self, ctx: AuthContext, agent_id: UUID, dataset_ids: list[UUID]
@@ -333,6 +333,7 @@ class KeyCoverageService:
                 for item in settled_items(labels, result.output.keys, sources)
             ],
             unseen_sources=max(_bound(spec) - len(sources), 0),
+            judged_sources=[source.id for source in sources.values()],
             run_id=result.run.id,
         )
 
@@ -436,24 +437,24 @@ class KeyCoverageService:
         return lines
 
     async def _read(
-        self, ctx: AuthContext, agent: Agent, report: KeyCoverageReport
+        self, ctx: AuthContext, agent: Agent, report: KeyCoverageReport, dataset: Dataset
     ) -> KeyCoverageReportRead:
         visible = await self._visible_sources(ctx, agent, report)
+        reasons = all(UUID(source) in visible for source in report.judged_sources)
         items: list[CoverageItem] = []
         for raw in report.items:
             stored = StoredItem.model_validate(raw)
-            seen = [visible.get(source.id) for source in stored.sources]
             items.append(
                 CoverageItem(
                     key=stored.key,
                     verdict=stored.verdict,
                     sources=[
                         CoverageSource(kind=shown.kind, id=shown.id, name=shown.name)
-                        if shown
+                        if (shown := visible.get(source.id))
                         else CoverageSource(kind=source.kind, id=None, name=None)
-                        for source, shown in zip(stored.sources, seen, strict=True)
+                        for source in stored.sources
                     ],
-                    why=stored.why if all(seen) else None,
+                    why=stored.why if reasons else None,
                 )
             )
         return KeyCoverageReportRead.model_validate(
@@ -465,6 +466,8 @@ class KeyCoverageService:
                 "status": report.status,
                 "items": items,
                 "unseen_sources": report.unseen_sources,
+                "current": report.agent_version_id == agent.current_version_id
+                and report.dataset_version == dataset.latest_version,
                 "error": report.error,
                 "created_at": report.created_at,
                 "finished_at": report.finished_at,
@@ -475,7 +478,7 @@ class KeyCoverageService:
         self, ctx: AuthContext, agent: Agent, report: KeyCoverageReport
     ) -> dict[UUID, KnowledgeSource]:
         """The judged version's sources this reader may see, by id, as the Builder shows them."""
-        if not any(item.get("sources") for item in report.items):
+        if not report.judged_sources:
             return {}
         version = await self._version(ctx, report)
         reach = await KnowledgeReachService(self.db).for_spec(

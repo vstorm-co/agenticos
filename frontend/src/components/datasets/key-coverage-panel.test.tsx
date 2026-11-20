@@ -56,6 +56,7 @@ function report(overrides: Partial<KeyCoverageReport> = {}): KeyCoverageReport {
       { key: "Due date", verdict: "not_covered", sources: [], why: "Nothing names it" },
     ],
     unseen_sources: 0,
+    current: true,
     error: null,
     created_at: "2026-11-20T00:00:00Z",
     finished_at: null,
@@ -131,6 +132,7 @@ describe("KeyCoveragePanel", () => {
   it("lists keys with no source first and leaves a hidden source unnamed", async () => {
     coverage.report = report({ unseen_sources: 2 });
     await choose("Writer");
+    expect(screen.queryByText(/Made for an earlier version/)).not.toBeInTheDocument();
 
     expect(screen.getByText("1 key has no source of 3 keys in version 3.")).toBeInTheDocument();
     expect(screen.getByText(/2 sources of this agent were not read/)).toBeInTheDocument();
@@ -139,6 +141,14 @@ describe("KeyCoveragePanel", () => {
     expect(screen.getByText("From: a source you cannot see, crm")).toBeInTheDocument();
     expect(screen.getByText("Nothing names it")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
+  });
+
+  it("says a report made for an earlier version is out of date", async () => {
+    coverage.report = report({ current: false });
+    await choose("Writer");
+
+    expect(screen.getByText(/Made for an earlier version/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check again" })).toBeEnabled();
   });
 
   it("shows a report being judged, one that failed, and one still loading", async () => {

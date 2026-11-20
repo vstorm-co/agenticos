@@ -15123,6 +15123,7 @@
       "running": "Es wird beurteilt, welche Quellen jeden Schlüssel enthalten…",
       "failed": "Die Abdeckung konnte nicht beurteilt werden: {error}",
       "summary": "{uncovered, plural, =0 {Jeder Schlüssel hat eine Quelle} one {# Schlüssel hat keine Quelle} other {# Schlüssel haben keine Quelle}} von {count, plural, one {# Schlüssel} other {# Schlüsseln}} in Version {version}.",
+      "outOfDate": "Für eine frühere Version des Agenten oder des Datasets erstellt, daher liest Improve ihn nicht mehr. Prüfen Sie erneut, um ihn zu aktualisieren.",
       "unseen": "{count, plural, one {# Quelle dieses Agenten wurde} other {# Quellen dieses Agenten wurden}} nicht gelesen: Die Person, die gefragt hat, darf sie nicht sehen.",
       "from": "Aus: {sources}",
       "hiddenSource": "eine Quelle, die Sie nicht sehen dürfen",

@@ -1,5 +1,5 @@
 ---
-source_sha: "eaf244fd2a07"
+source_sha: "d82a2b1092c5"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -468,12 +468,16 @@ Ve etiquetas y nunca sus valores. Se ejecuta en un job, como la persona que lo
 pidió, que debe poder editar el agent, con coste medido y en Actividad. Cada
 agent y dataset conserva un informe, que sustituye el siguiente. Una fuente que
 la persona que lo pidió no puede ver no se lee, y el informe dice cuántas se
-omitieron; quien no puede ver una fuente que el informe nombra la ve sin nombre.
+omitieron; quien no puede ver una fuente que el informe nombra la ve sin nombre, y quien
+no puede ver todas las fuentes que leyó el juez recibe veredictos sin motivos.
 
 Una clave sin fuente tiene que llegar al agent como conocimiento - un
 documento, un archivo de contexto, una herramienta -, porque ningún cambio en
 sus instrucciones puede aportarla.
-[Improve](authoring.md#background-improvement-sessions) la lee así.
+[Improve](authoring.md#background-improvement-sessions) la lee así, pero solo
+desde un informe hecho para la versión que el agent ejecuta ahora. Cuando el
+agent se publica de nuevo o el dataset gana una versión, el informe aparece
+como desactualizado hasta que vuelvas a comprobarlo.
 
 ### Llamadas a herramientas esperadas { #trajectory }
 

@@ -539,6 +539,7 @@ class TestReading:
                         source_ids=[_ref(prompt, "MCP server 'crm'")],
                         why="Tool",
                     ),
+                    JudgedKey(key="Due date", verdict="not_covered", why="Only notes mention it"),
                 ]
             ),
             await _run(db, owner, agent),
@@ -559,7 +560,10 @@ class TestReading:
             ("mcp", hidden["Total"].sources[0].id, "crm"),
         ]
         assert hidden["Customer"].why is None
-        assert hidden["Total"].why == "Tool"
+        # The judge read the notes as well; any reason may repeat them.
+        assert [item.why for item in theirs.items] == [None, None, None, None]
+        assert {item.key: item.why for item in mine.items}["Due date"] == "Only notes mention it"
+        assert hidden["Due date"].verdict == "not_covered" and hidden["Due date"].sources == []
         assert theirs.model_dump_json().count("Fernhill") == 0
 
     async def test_a_pair_without_a_report_is_not_found(self, db) -> None:
@@ -595,3 +599,39 @@ class TestReading:
             dataset.id: frozenset({"due date"})
         }
         assert await service.uncovered_labels(owner, agent.id, []) == {}
+        assert (await service.get(owner, dataset.id, agent.id)).current
+
+    async def test_a_report_on_an_earlier_version_or_dataset_is_out_of_date(
+        self, db, monkeypatch, searched
+    ) -> None:
+        owner = await _owner(db)
+        dataset, agent, report = await _started(db, owner)
+        _answer(
+            monkeypatch,
+            JudgedCoverage(keys=[JudgedKey(key="Due date", verdict="not_covered")]),
+            await _run(db, owner, agent),
+        )
+        service = KeyCoverageService(db)
+        await service.judge(report.id, owner.organization_id)
+        await DatasetService(db).add_case(
+            owner,
+            dataset.id,
+            DatasetCaseCreate(input="Another", checks=[{"type": "keys", "keys": INVOICE}]),
+        )
+
+        assert not (await service.get(owner, dataset.id, agent.id)).current
+
+        republished = AgentVersion(
+            id=uuid.uuid4(),
+            agent_id=agent.id,
+            organization_id=owner.organization_id,
+            version=2,
+            spec={"name": "Writer"},
+        )
+        db.add(republished)
+        await db.flush()
+        agent.current_version_id = republished.id
+        await db.flush()
+
+        assert not (await service.get(owner, dataset.id, agent.id)).current
+        assert await service.uncovered_labels(owner, agent.id, [dataset.id]) == {}

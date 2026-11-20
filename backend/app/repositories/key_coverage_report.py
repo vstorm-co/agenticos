@@ -8,6 +8,7 @@ from pydantic import JsonValue
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent import Agent
 from app.db.models.key_coverage_report import CoverageStatus, KeyCoverageReport
 
 
@@ -64,6 +65,7 @@ async def replace(
         status=CoverageStatus.RUNNING.value,
         items=[],
         unseen_sources=0,
+        judged_sources=[],
     )
     db.add(report)
     await db.flush()
@@ -80,6 +82,7 @@ async def finish(
     finished_at: datetime,
     items: Sequence[dict[str, JsonValue]] = (),
     unseen_sources: int = 0,
+    judged_sources: Sequence[UUID] = (),
     error: str | None = None,
     run_id: UUID | None = None,
 ) -> bool:
@@ -98,6 +101,7 @@ async def finish(
             status=status.value,
             items=list(items),
             unseen_sources=unseen_sources,
+            judged_sources=[str(source) for source in judged_sources],
             error=error,
             run_id=run_id,
             finished_at=finished_at,
@@ -111,15 +115,21 @@ async def finish(
 async def ready_for_agent(
     db: AsyncSession, *, organization_id: UUID, agent_id: UUID, dataset_ids: Sequence[UUID]
 ) -> list[KeyCoverageReport]:
-    """The agent's ready reports over these datasets."""
+    """The agent's ready reports over these datasets, made for the version it runs now.
+
+    A report on an earlier version judged sources the agent may since have gained.
+    """
     if not dataset_ids:
         return []
     result = await db.scalars(
-        select(KeyCoverageReport).where(
+        select(KeyCoverageReport)
+        .join(Agent, Agent.current_version_id == KeyCoverageReport.agent_version_id)
+        .where(
             KeyCoverageReport.organization_id == organization_id,
             KeyCoverageReport.agent_id == agent_id,
             KeyCoverageReport.dataset_id.in_(dataset_ids),
             KeyCoverageReport.status == CoverageStatus.READY.value,
+            Agent.id == agent_id,
         )
     )
     return list(result.all())

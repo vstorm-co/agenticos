@@ -1,5 +1,5 @@
 ---
-source_sha: "eaf244fd2a07"
+source_sha: "d82a2b1092c5"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -462,11 +462,15 @@ zleciła sprawdzenie i musi móc edytować agenta, z naliczaniem kosztu i wpisem
 Aktywności. Każda para agenta i datasetu ma jeden raport, który zastępuje
 następny. Źródło, którego zlecający nie widzi, nie jest czytane, a raport podaje,
 ile ich pominięto; czytelnik, który nie widzi źródła wskazanego w raporcie,
-widzi je bez nazwy.
+widzi je bez nazwy, a ten, kto nie widzi każdego źródła przeczytanego przez
+agenta oceniającego, dostaje oceny bez uzasadnień.
 
 Klucz bez źródła musi trafić do agenta jako wiedza - dokument, plik kontekstu,
 narzędzie - bo żadna zmiana instrukcji go nie dostarczy.
-[Improve](authoring.md#background-improvement-sessions) traktuje go właśnie tak.
+[Improve](authoring.md#background-improvement-sessions) traktuje go właśnie tak,
+ale tylko z raportu zrobionego dla wersji, którą agent uruchamia teraz. Po
+ponownej publikacji agenta albo nowej wersji datasetu raport jest oznaczony jako
+nieaktualny, dopóki nie sprawdzisz ponownie.
 
 ### Oczekiwane wywołania narzędzi { #trajectory }
 

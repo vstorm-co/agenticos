@@ -87,6 +87,11 @@ class KeyCoverageReport(Base):
     )
     # Sources the agent binds that the requester could not see, so nothing of theirs was read.
     unseen_sources: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Every source the judge was shown: its reasons may draw on any of them, so a reader
+    # who may not see one of them reads verdicts without reasons.
+    judged_sources: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
     # Written by this platform, never a provider's message: everyone who may view
     # the report reads it.
     error: Mapped[str | None] = mapped_column(String(500), nullable=True)

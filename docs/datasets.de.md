@@ -1,5 +1,5 @@
 ---
-source_sha: "eaf244fd2a07"
+source_sha: "d82a2b1092c5"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -491,11 +491,15 @@ die gefragt hat und den Agenten bearbeiten können muss, abgerechnet und in der
 Aktivität. Jedes Paar aus Agent und Dataset behält einen Bericht, den der
 nächste ersetzt. Eine Quelle, die die fragende Person nicht sehen darf, wird
 nicht gelesen, und der Bericht sagt, wie viele ausgelassen wurden; wer eine im
-Bericht genannte Quelle nicht sehen darf, sieht sie ohne Namen.
+Bericht genannte Quelle nicht sehen darf, sieht sie ohne Namen, und wer nicht
+jede vom Urteilenden gelesene Quelle sehen darf, erhält Urteile ohne Begründung.
 
 Ein Schlüssel ohne Quelle muss den Agenten als Wissen erreichen - ein Dokument,
 eine Kontextdatei, ein Tool -, denn keine Änderung seiner Anweisungen kann ihn
-liefern. [Improve](authoring.md#background-improvement-sessions) liest ihn so.
+liefern. [Improve](authoring.md#background-improvement-sessions) liest ihn so, aber nur
+aus einem Bericht für die Version, die der Agent jetzt ausführt. Sobald der
+Agent erneut veröffentlicht wird oder das Dataset eine Version hinzugewinnt,
+gilt der Bericht als veraltet, bis Sie erneut prüfen.
 
 ### Erwartete Tool-Aufrufe { #trajectory }
 

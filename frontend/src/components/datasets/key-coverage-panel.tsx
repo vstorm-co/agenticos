@@ -117,6 +117,7 @@ function Report({ report }: { report: KeyCoverageReport }) {
       <p className="text-sm" role="status">
         {t("summary", { uncovered, count: items.length, version: report.dataset_version })}
       </p>
+      {!report.current && <p className="text-muted-foreground text-sm">{t("outOfDate")}</p>}
       {report.unseen_sources > 0 && (
         <p className="text-muted-foreground text-sm">
           {t("unseen", { count: report.unseen_sources })}

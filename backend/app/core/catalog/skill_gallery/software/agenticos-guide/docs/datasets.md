@@ -441,11 +441,16 @@ It is shown key labels and never their values. It runs in a job, as the person
 who asked, who must be able to edit the agent, metered and in Activity. Each
 agent and dataset keeps one report, which the next one replaces. A source the
 person who asked may not see is not read, and the report says how many were
-left out; a reader who may not see a source the report names sees it unnamed.
+left out; a reader who may not see a source the report names sees it unnamed,
+and one who may not see every source the judge read gets verdicts without
+reasons.
 
 A key no source holds has to reach the agent as knowledge - a document, a
 context file, a tool - since no change to its instructions can supply it.
-[Improve](authoring.md#background-improvement-sessions) reads it that way.
+[Improve](authoring.md#background-improvement-sessions) reads it that way,
+but only from a report made for the version the agent runs now. Once the agent
+is published again or the dataset gains a version, the report shows as out of
+date until you check again.
 
 ### Expected tool calls { #trajectory }
 

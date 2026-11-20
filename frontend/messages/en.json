@@ -15437,6 +15437,7 @@
       "running": "Judging which sources hold each key…",
       "failed": "The coverage could not be judged: {error}",
       "summary": "{uncovered, plural, =0 {Every key has a source} =1 {1 key has no source} other {# keys have no source}} of {count, plural, =1 {1 key} other {# keys}} in version {version}.",
+      "outOfDate": "Made for an earlier version of the agent or the dataset, so Improve no longer reads it. Check again to bring it up to date.",
       "unseen": "{count, plural, =1 {1 source of this agent was} other {# sources of this agent were}} not read: the person who asked may not see {count, plural, =1 {it} other {them}}.",
       "from": "From: {sources}",
       "hiddenSource": "a source you cannot see",
