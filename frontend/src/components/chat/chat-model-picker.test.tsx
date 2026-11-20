@@ -19,6 +19,7 @@ const loadingModels = vi.fn(() => false);
 const modelCatalog = vi.fn<(provider: string, endpoint?: string, key?: string) => void>();
 const mutateAsync = vi.fn();
 const refetchProfiles = vi.fn();
+const refetchSecrets = vi.fn();
 const profileRead: { isLoading: boolean; profilesStatus: ProfilesStatus } = {
   isLoading: false,
   profilesStatus: "loaded",
@@ -57,7 +58,7 @@ vi.mock("@/hooks", () => ({
   useSecrets: () => ({
     secrets: listedSecrets(),
     ...secretRead,
-    refetch: vi.fn(),
+    refetch: refetchSecrets,
     create: { mutate: vi.fn(), isPending: false },
   }),
 }));
@@ -133,6 +134,38 @@ beforeEach(() => {
 });
 
 describe("the chat's two-step model picker", () => {
+  it.each(["loading", "failed"])(
+    "waits for a successful credential read before selecting a saved model (%s)",
+    async (state) => {
+      secretRead.isLoading = state === "loading";
+      secretRead.listError = state === "failed" ? new Error("offline") : null;
+      listedProfiles.mockReturnValue([profile("saved", "openai", "gpt-5")]);
+      const onChange = vi.fn();
+      const props = { value: null, agentModel: null, onChange };
+      const { rerender } = renderExpandedPicker(<ChatModelPicker {...props} />);
+      await pickProvider("OpenAI");
+      await typeModel("gpt-5");
+      const apply = screen.getByRole("button", { name: "Run on this model" });
+      expect(apply).toBeDisabled();
+      await userEvent.click(apply);
+      expect(onChange).not.toHaveBeenCalled();
+      expect(mutateAsync).not.toHaveBeenCalled();
+      if (state === "failed") {
+        expect(screen.getByRole("alert")).toHaveTextContent("Model settings could not be read");
+        await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+        expect(refetchProfiles).toHaveBeenCalledOnce();
+        expect(refetchSecrets).toHaveBeenCalledOnce();
+      }
+
+      secretRead.isLoading = false;
+      secretRead.listError = null;
+      listedSecrets.mockReturnValue([{ id: "s1", purpose: "openai" }]);
+      rerender(<ChatModelPicker {...props} />);
+      await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
+      expect(onChange).toHaveBeenCalledWith("saved");
+    },
+  );
+
   it("offers only model providers in step one, not every vault purpose", async () => {
     renderExpandedPicker(<ChatModelPicker value={null} agentModel={null} onChange={vi.fn()} />);
 

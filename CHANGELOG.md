@@ -102,6 +102,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Keep dashboard help open when the saved personal layout finishes loading.
 
+- Wait for a successful credential read before applying a model in chat settings, and let users retry a failed read.
+
 ### Upgrading
 
 - Run `alembic upgrade head` to apply `0342_personal_coding_sessions.py`, `0343_bundled_context.py` and the merge revisions through `0346_merge_console_matrix.py`. Update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
