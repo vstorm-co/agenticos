@@ -1,5 +1,5 @@
 ---
-source_sha: "8bd13a03cf07"
+source_sha: "a26f053e3a1c"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -387,7 +387,6 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | Chutes | `chutes` | klucz API | ✓ |
 | Synthetic | `synthetic` | klucz API | ✓ |
 | CLIProxyAPI (subscription gateway) | `cliproxyapi` | klucz API | ✓ |
-| Konta subskrypcyjne | `subscription_accounts` | Brak: każda osoba się loguje | |
 | Moonshot AI | `moonshotai` | klucz API | |
 | Nebius AI Studio | `nebius` | klucz API | |
 | OVHcloud AI Endpoints | `ovhcloud` | klucz API | |
@@ -506,6 +505,7 @@ ani nic, czym się uwierzytelnić.
 | Google Vertex AI | `google_cloud` | JSON konta serwisowego |
 | ChatGPT (Codex subscription) | `openai_codex` | logowanie do ChatGPT, zapisywane przez zalogowanie się, a nie wpisywane |
 | ChatGPT (oficjalne użycie planu) | `openai_chatgpt` | grant aplikacji z osobną zgodą na korzystanie z planu, utworzony przez logowanie |
+| Konta subskrypcyjne | `subscription_accounts` | własne logowania każdej osoby do subskrypcji, przez dołączoną bramę; bez klucza |
 
 Pierwsze trzy są powodem, dla którego sekret w ogóle ma *rodzaj*. Formularz, który
 zbierałby dla Azure jeden nieprzejrzysty token, zbierałby coś, co da się wypełnić

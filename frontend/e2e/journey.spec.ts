@@ -398,6 +398,8 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
 
   await page.getByRole("button", { name: "Columns", exact: true }).click();
   await page.getByRole("menuitemcheckbox", { name: "Model", exact: true }).check();
+  // Model is shown by default, so the check changes nothing and the menu stays open.
+  if (await page.getByRole("menu").isVisible()) await page.keyboard.press("Escape");
   const row = page.getByRole("row").filter({ hasText: modelLabel }).first();
   await expect(
     row,

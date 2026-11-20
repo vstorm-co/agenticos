@@ -10,6 +10,7 @@ from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext
 from app.services.model_catalog import CatalogModel
 from app.services.organization_secret import OrganizationSecretService
+from app.services.subscription_accounts import SubscriptionAccountService
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -25,7 +26,11 @@ async def test_custom_listing_uses_the_endpoint_without_opening_a_vault_key():
         new=AsyncMock(return_value=([CatalogModel(id="vendor/chat", name="Chat")], "live")),
     ) as listing:
         response = await list_provider_models(
-            "openrouter", secrets, context(), base_url="https://eu.openrouter.ai/api/v1"
+            "openrouter",
+            secrets,
+            context(),
+            base_url="https://eu.openrouter.ai/api/v1",
+            accounts=MagicMock(spec=SubscriptionAccountService),
         )
     listing.assert_awaited_once_with(
         "openrouter", api_key=None, base_url="https://eu.openrouter.ai/api/v1"
@@ -50,7 +55,12 @@ async def test_a_custom_authenticated_listing_sends_the_selected_key(provider: s
         ) as listing,
     ):
         await list_provider_models(
-            provider, secrets, ctx, base_url="https://staging-api.stav.ai/v1", secret_id=secret_id
+            provider,
+            secrets,
+            ctx,
+            base_url="https://staging-api.stav.ai/v1",
+            secret_id=secret_id,
+            accounts=MagicMock(spec=SubscriptionAccountService),
         )
     listing.assert_awaited_once_with(
         provider, api_key="sk_stav_test", base_url="https://staging-api.stav.ai/v1"
@@ -70,7 +80,9 @@ async def test_a_stav_listing_says_which_apis_each_model_is_served_on():
         "app.api.routes.v1.model_providers.models_for",
         new=AsyncMock(return_value=(models, "live")),
     ):
-        response = await list_provider_models("stav", secrets, context())
+        response = await list_provider_models(
+            "stav", secrets, context(), accounts=MagicMock(spec=SubscriptionAccountService)
+        )
     assert [item.apis for item in response.items] == [["chat", "responses"], ["responses"], []]
 
 
@@ -84,6 +96,7 @@ async def test_custom_listing_requires_connection_management_before_fetching():
             MagicMock(spec=OrganizationSecretService),
             context("member"),
             base_url="http://internal/v1",
+            accounts=MagicMock(spec=SubscriptionAccountService),
         )
     listing.assert_not_called()
 
@@ -101,7 +114,11 @@ async def test_custom_listing_refuses_unsupported_provider_or_unsafe_url(
 ):
     with pytest.raises(BadRequestError):
         await list_provider_models(
-            provider, MagicMock(spec=OrganizationSecretService), context(), base_url=endpoint
+            provider,
+            MagicMock(spec=OrganizationSecretService),
+            context(),
+            base_url=endpoint,
+            accounts=MagicMock(spec=SubscriptionAccountService),
         )
 
 
@@ -117,7 +134,11 @@ async def test_custom_listing_cannot_use_an_implicit_organization_key(provider: 
         pytest.raises(BadRequestError),
     ):
         await list_provider_models(
-            provider, secrets, context(), base_url="https://attacker.example/v1"
+            provider,
+            secrets,
+            context(),
+            base_url="https://attacker.example/v1",
+            accounts=MagicMock(spec=SubscriptionAccountService),
         )
     secrets.listing_key.assert_not_called()
     listing.assert_not_called()
@@ -127,7 +148,11 @@ async def test_otari_listing_without_a_destination_does_not_open_a_key() -> None
     secrets = MagicMock(spec=OrganizationSecretService)
     with patch("app.api.routes.v1.model_providers.models_for", new=AsyncMock()) as listing:
         response = await list_provider_models(
-            "otari", secrets, context("builder"), secret_id=uuid4()
+            "otari",
+            secrets,
+            context("builder"),
+            secret_id=uuid4(),
+            accounts=MagicMock(spec=SubscriptionAccountService),
         )
     assert response.items == []
     assert response.source == "unlisted"

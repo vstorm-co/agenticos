@@ -406,8 +406,8 @@ async def list_video_models() -> Any:
 async def list_provider_models(
     provider: str,
     secrets: SecretSvc,
-    accounts: SubscriptionAccountSvc,
     ctx: Auth,
+    accounts: SubscriptionAccountSvc,
     base_url: str | None = None,
     secret_id: UUID | None = None,
     api: ModelApi | None = None,

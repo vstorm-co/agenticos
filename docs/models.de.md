@@ -1,5 +1,5 @@
 ---
-source_sha: "8bd13a03cf07"
+source_sha: "a26f053e3a1c"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -416,7 +416,6 @@ Standard-Provider verwenden die Modell- und Provider-Ableitung von Pydantic AI. 
 | Chutes | `chutes` | API-Key | ✓ |
 | Synthetic | `synthetic` | API-Key | ✓ |
 | CLIProxyAPI (subscription gateway) | `cliproxyapi` | API-Key | ✓ |
-| Abonnement-Konten | `subscription_accounts` | Keiner: jede Person meldet sich an | |
 | Moonshot AI | `moonshotai` | API-Key | |
 | Nebius AI Studio | `nebius` | API-Key | |
 | OVHcloud AI Endpoints | `ovhcloud` | API-Key | |
@@ -537,6 +536,7 @@ zurückfallen könnte, und nichts, womit man authentifizieren könnte.
 | Google Vertex AI | `google_cloud` | Service-Account-JSON |
 | ChatGPT (Codex-Abonnement) | `openai_codex` | eine ChatGPT-Anmeldung, gespeichert durch Anmelden statt durch Eintippen |
 | ChatGPT (offizielle Plannutzung) | `openai_chatgpt` | eine durch Anmeldung erstellte Anwendungsfreigabe mit gesonderter Planzustimmung |
+| Abonnement-Konten | `subscription_accounts` | die eigenen Abonnement-Anmeldungen jeder Person, über das mitgelieferte Gateway; kein Schlüssel |
 
 Die ersten drei sind der Grund, warum ein Secret überhaupt eine *Art* hat. Ein
 Formular, das für Azure ein einzelnes undurchsichtiges Token einsammelte, würde

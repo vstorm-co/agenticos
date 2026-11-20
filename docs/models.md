@@ -375,7 +375,6 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | Chutes | `chutes` | API key | ✓ |
 | Synthetic | `synthetic` | API key | ✓ |
 | CLIProxyAPI (subscription gateway) | `cliproxyapi` | API key | ✓ |
-| Subscription accounts | `subscription_accounts` | None: each person signs in | |
 | Moonshot AI | `moonshotai` | API key | |
 | Nebius AI Studio | `nebius` | API key | |
 | OVHcloud AI Endpoints | `ovhcloud` | API key | |
@@ -492,6 +491,7 @@ authenticate with.
 | Google Vertex AI | `google_cloud` | service account JSON |
 | ChatGPT (Codex subscription) | `openai_codex` | a ChatGPT sign-in, stored by signing in rather than typed |
 | ChatGPT (official plan usage) | `openai_chatgpt` | an application grant with separate plan consent, created by signing in |
+| Subscription accounts | `subscription_accounts` | each person's own subscription sign-ins, through the bundled gateway; no key |
 
 The first three are the reason a secret has a *kind* at all. A form that collected one
 opaque token for Azure would collect something fillable-in-correctly that still

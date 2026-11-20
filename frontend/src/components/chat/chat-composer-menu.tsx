@@ -16,10 +16,13 @@ interface ComposerAction {
 export function ChatComposerMenu({
   actions,
   disabled,
+  withVoice = false,
   children,
 }: {
   actions: readonly ComposerAction[];
   disabled?: boolean;
+  /** Offer dictation here, for when a draft has turned the composer's mic into Send. */
+  withVoice?: boolean;
   children?: ReactNode;
 }) {
   const input = useTranslations("chat.input");
@@ -61,7 +64,7 @@ export function ChatComposerMenu({
         }}
       >
         {actions
-          .filter((action) => action.key !== "voice")
+          .filter((action) => withVoice || action.key !== "voice")
           .map((action) => (
             <button
               type="button"

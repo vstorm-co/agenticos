@@ -502,10 +502,33 @@ async def test_the_catalog_offers_subscription_accounts_only_with_a_gateway(
 
 async def test_deleting_an_account_wipes_it_in_every_organization(enabled: None) -> None:
     person, first, second = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
-    with patch.object(module, "enqueue", AsyncMock()) as enqueue:
-        await module.queue_wipe_person(MagicMock(), person, [first, second])
-        await module.queue_wipe_person(MagicMock(), person, [])
+    listing = AsyncMock(side_effect=[[first, second], []])
+    with (
+        patch.object(module.member_repo, "list_organization_ids", listing),
+        patch.object(module, "enqueue", AsyncMock()) as enqueue,
+    ):
+        await module.queue_wipe_person(MagicMock(), person)
+        await module.queue_wipe_person(MagicMock(), person)
     enqueue.assert_awaited_once()
     payload = enqueue.await_args.args[2]
     assert payload.scopes == sorted([gateway_scope(first, person), gateway_scope(second, person)])
     assert enqueue.await_args.kwargs["organization_id"] is None
+
+
+async def test_deleting_an_organization_wipes_every_members_accounts(enabled: None) -> None:
+    org, first, second = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    with (
+        patch.object(module.member_repo, "list_user_ids", AsyncMock(return_value=[first, second])),
+        patch.object(module, "enqueue", AsyncMock()) as enqueue,
+    ):
+        await module.queue_organization_wipe(MagicMock(), org)
+    payload = enqueue.await_args.args[2]
+    assert payload.scopes == sorted([gateway_scope(org, first), gateway_scope(org, second)])
+    assert enqueue.await_args.kwargs["organization_id"] == org
+
+
+async def test_teardown_reads_no_membership_without_a_gateway(disabled: None) -> None:
+    db = MagicMock()
+    await module.queue_organization_wipe(db, uuid.uuid4())
+    await module.queue_wipe_person(db, uuid.uuid4())
+    db.execute.assert_not_called()

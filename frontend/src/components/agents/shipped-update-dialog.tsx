@@ -56,7 +56,7 @@ export function ShippedUpdateDialog({
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
         {preview.isPending ? (
-          <LoadingState />
+          <LoadingState variant="skeleton-list" rows={3} />
         ) : preview.isError ? (
           <ErrorState title={getErrorMessage(preview.error, errors)} />
         ) : update?.changes.length ? (

@@ -46,3 +46,16 @@ it("shows every secondary action in the first panel and restores focus on Escape
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(plus).toHaveFocus();
 });
+
+it("offers dictation once a draft has put Send where the mic was", async () => {
+  const voice = vi.fn();
+  render(
+    <ChatComposerMenu
+      withVoice
+      actions={[{ key: "voice", icon: Mic, label: "Voice input", run: voice }]}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Add to message" }));
+  await userEvent.click(screen.getByRole("button", { name: "Voice input" }));
+  expect(voice).toHaveBeenCalledOnce();
+});

@@ -577,7 +577,6 @@ class TestReadOnlyDeclarations:
             ("background_tasks", "stop_background_task"),
             ("drafts", "write_draft"),
             ("memory_files", "correct_memory"),
-            ("memory_files", "recall"),
             ("memory_files", "remember"),
             ("memory_files", "share_memory"),
             ("mirage", "mirage_edit_file"),

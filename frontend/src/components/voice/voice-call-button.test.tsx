@@ -43,7 +43,7 @@ describe("VoiceCallButton", () => {
     );
 
     expect(screen.getByRole("button", { name: NAME }).className).not.toBe(quiet);
-    expect(screen.getByRole("button", { name: NAME }).className).toContain("active:scale-90");
+    expect(screen.getByRole("button", { name: NAME }).className).toContain("bg-action");
   });
 
   it("says, beside a draft being tested, that a call runs the published version", () => {

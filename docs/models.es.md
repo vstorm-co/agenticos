@@ -1,5 +1,5 @@
 ---
-source_sha: "8bd13a03cf07"
+source_sha: "a26f053e3a1c"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -396,7 +396,6 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | Chutes | `chutes` | clave de API | ✓ |
 | Synthetic | `synthetic` | clave de API | ✓ |
 | CLIProxyAPI (subscription gateway) | `cliproxyapi` | clave de API | ✓ |
-| Cuentas de suscripción | `subscription_accounts` | Ninguna: cada persona inicia sesión | |
 | Moonshot AI | `moonshotai` | clave de API | |
 | Nebius AI Studio | `nebius` | clave de API | |
 | OVHcloud AI Endpoints | `ovhcloud` | clave de API | |
@@ -518,6 +517,7 @@ autenticarse.
 | Google Vertex AI | `google_cloud` | JSON de la cuenta de servicio |
 | ChatGPT (suscripción de Codex) | `openai_codex` | un inicio de sesión de ChatGPT, guardado iniciando sesión en vez de tecleado |
 | ChatGPT (uso oficial del plan) | `openai_chatgpt` | una autorización de aplicación con consentimiento separado del plan, creada al iniciar sesión |
+| Cuentas de suscripción | `subscription_accounts` | los inicios de sesión de suscripción de cada persona, a través de la pasarela incluida; sin clave |
 
 Los tres primeros son la razón de que un secreto tenga un *kind*. Un formulario que
 recogiera un único token opaco para Azure recogería algo que se puede rellenar

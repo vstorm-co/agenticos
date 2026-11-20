@@ -1081,6 +1081,9 @@ export function ChatInput({
           // The agent's engine: the browser's recogniser, or a recording sent
           // to its provider.
           onVoice={server ? startDictation : toggleMic}
+          // A draft turns the minimal composer's mic into Send; dictating into
+          // that draft is still offered, from the menu.
+          voiceInMenu={minimal && primary !== "mic"}
           onCommand={
             slashContext
               ? () => {

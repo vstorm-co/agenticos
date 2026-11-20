@@ -30,6 +30,7 @@ from app.core.audit import record_audit
 from app.core.exceptions import BadRequestError, ConfigurationError
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret
+from app.repositories import member as member_repo
 from app.services.background_jobs import enqueue
 from app.services.personal_model_key import personal_connection_owner
 from app.worker.jobs import WIPE_SUBSCRIPTION_ACCOUNTS, WipeSubscriptionAccounts
@@ -86,10 +87,23 @@ async def queue_wipe(db: AsyncSession, organization_id: UUID, user_ids: Iterable
     )
 
 
-async def queue_wipe_person(
-    db: AsyncSession, user_id: UUID, organization_ids: Iterable[UUID]
-) -> None:
-    """Delete one person's sign-ins in every organization, when their account goes."""
+async def queue_organization_wipe(db: AsyncSession, organization_id: UUID) -> None:
+    """Delete every member's sign-ins in an organization that is going away."""
+    if configured_gateway() is None:
+        return
+    await queue_wipe(
+        db, organization_id, await member_repo.list_user_ids(db, organization_id=organization_id)
+    )
+
+
+async def queue_wipe_person(db: AsyncSession, user_id: UUID) -> None:
+    """Delete one person's sign-ins in every organization, when their account goes.
+
+    Reads the memberships, so call it before they cascade away with the user.
+    """
+    if configured_gateway() is None:
+        return
+    organization_ids = await member_repo.list_organization_ids(db, user_id=user_id)
     await _queue(
         db, [gateway_scope(organization_id, user_id) for organization_id in organization_ids], None
     )
