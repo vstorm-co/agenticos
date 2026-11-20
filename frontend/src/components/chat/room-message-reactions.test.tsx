@@ -78,7 +78,7 @@ describe("RoomMessageReactions", () => {
 
     await user.click(screen.getByRole("button", { name: "Add reaction" }));
     await user.type(screen.getByRole("textbox", { name: "Type or paste an emoji" }), "👩🏽‍💻");
-    await user.click(screen.getByRole("button", { name: "Add", exact: true }));
+    await user.click(screen.getByRole("button", { name: /^Add$/ }));
     expect(hooks.add).toHaveBeenCalledWith("👩🏽‍💻");
   });
 });
