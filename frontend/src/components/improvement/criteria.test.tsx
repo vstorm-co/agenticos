@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import { SESSION } from "@/test-utils/improvement";
 import type { ImprovementIteration, VerdictCriterion, VerdictFamily } from "@/types/improvement";
 import {
+  criterionName,
   CriteriaNote,
   CriteriaTable,
   criteriaOf,
@@ -276,4 +277,17 @@ it("counts an unsettled family's confirmed flips and a settled one's every flip"
 
   expect([unsettled!.fixed, unsettled!.broken]).toEqual([0, 2]);
   expect([settled!.fixed, settled!.broken]).toEqual([1, 4]);
+});
+
+it("ends a criterion name cut at the stored length at its last whole word", () => {
+  const cut = "States that brochures take 7 working days of standard production plus 1 working ";
+  expect(cut.length).toBe(80);
+  expect(criterionName(cut)).toBe(
+    "States that brochures take 7 working days of standard production plus 1 working…",
+  );
+  expect(criterionName(`${cut.trimEnd()}d`)).toBe(
+    "States that brochures take 7 working days of standard production plus 1…",
+  );
+  expect(criterionName("x".repeat(80))).toBe(`${"x".repeat(80)}…`);
+  expect(criterionName("total including VAT")).toBe("total including VAT");
 });
