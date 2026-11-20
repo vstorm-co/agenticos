@@ -148,6 +148,18 @@ describe("the patch an edited bot sends", () => {
     });
   });
 
+  it("sends a changed Matrix homeserver and nothing Mattermost-only", () => {
+    const matrix = bot({ platform: "matrix", api_base_url: "https://matrix.acme.com" });
+    const leftovers = { webhookSecret: "leftover", commandToken: "leftover" };
+
+    expect(botPatch(matrix, draft({ serverUrl: "https://matrix.acme.com", ...leftovers }))).toEqual(
+      {},
+    );
+    expect(
+      botPatch(matrix, draft({ serverUrl: "https://matrix.globex.com", ...leftovers })),
+    ).toEqual({ api_base_url: "https://matrix.globex.com" });
+  });
+
   it("keeps a Telegram bot to the two fields it has", () => {
     const patch = botPatch(
       bot({ platform: "telegram" }),

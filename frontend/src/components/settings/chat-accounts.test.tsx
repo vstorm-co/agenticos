@@ -168,3 +168,30 @@ it("retries a failed read without inventing an empty account list", async () => 
   expect(await screen.findByText("Kacper")).toBeVisible();
   expect(listLinkedAccounts).toHaveBeenCalledTimes(2);
 });
+
+it("distinguishes identical Matrix accounts linked on different homeservers", async () => {
+  vi.mocked(listLinkedAccounts).mockResolvedValue([
+    account({
+      id: "matrix-a",
+      platform: "matrix",
+      platform_username: "@ada:domain",
+      server_url: "https://a.example.org",
+    }),
+    account({
+      id: "matrix-b",
+      platform: "matrix",
+      platform_username: "@ada:domain",
+      server_url: "https://b.example.org",
+    }),
+  ]);
+  render(<ChatAccounts />);
+  expect(await screen.findByText("https://a.example.org")).toBeVisible();
+  expect(screen.getByText("https://b.example.org")).toBeVisible();
+  expect(screen.getAllByText("@ada:domain")).toHaveLength(2);
+  await userEvent.click(
+    screen.getByRole("button", { name: "Disconnect @ada:domain · https://b.example.org" }),
+  );
+  expect(unlinkAccount).toHaveBeenCalledWith("matrix-b");
+  await waitFor(() => expect(screen.queryByText("https://b.example.org")).toBeNull());
+  expect(screen.getByText("https://a.example.org")).toBeVisible();
+});

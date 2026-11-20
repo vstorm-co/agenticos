@@ -366,3 +366,17 @@ async def test_a_server_lookup_that_fails_names_nothing(monkeypatch, asked, fail
     )
 
     assert await membership.platform_server(asked.bot, "C1") is None
+
+
+@pytest.mark.parametrize("server", ["https://original.example.org", "https://other.example.org"])
+async def test_matrix_resumptions_retain_the_identitys_original_homeserver(access, server):
+    access.bot.platform = access.run.surface = access.identity.platform = "matrix"
+    access.bot.api_base_url = server
+    access.identity.server_url = "https://original.example.org"
+    incoming = replace(access.incoming, platform="matrix", raw={"server_url": server})
+    admission = await ChannelMessageRouter().admission(access.db, access.run, incoming)
+    if server == access.identity.server_url:
+        assert admission.verdict == "admitted"
+    else:
+        assert admission == Admission("refused", "identity")
+        access.mocks["platform_says_member"].assert_not_awaited()
