@@ -136,7 +136,7 @@ export function ImportCsvDialog({
     const values: Record<string, CellValue> = {};
     let externalId: string | null = null;
     for (const [at, target] of mapping.entries()) {
-      const raw = row[at] ?? "";
+      const raw = row[at] as string;
       if (target === SKIP) continue;
       if (target === EXTERNAL_ID) {
         externalId = raw.trim() || null;
@@ -150,7 +150,7 @@ export function ImportCsvDialog({
     return { record: { external_id: externalId, values } };
   };
 
-  const run = async (rows: string[][]) => {
+  const run = async (headers: string[], rows: string[][]) => {
     if (duplicates.size === 0) {
       const failures: Failure[] = [];
       const ready: { line: number; record: RecordCreate }[] = [];
@@ -158,6 +158,13 @@ export function ImportCsvDialog({
       const firstLine = new Map<string, number>();
       rows.forEach((row, index) => {
         const line = index + 2;
+        if (row.length !== headers.length) {
+          failures.push({
+            line,
+            reason: t("rowWidth", { cells: row.length, columns: headers.length }),
+          });
+          return;
+        }
         const read = toRecord(row);
         if ("reason" in read) {
           failures.push({ line, reason: read.reason });
@@ -365,7 +372,7 @@ export function ImportCsvDialog({
               </Button>
               <Button
                 disabled={duplicates.size > 0 || mapping.every((target) => target === SKIP)}
-                onClick={() => void run(step.rows)}
+                onClick={() => void run(step.headers, step.rows)}
               >
                 {t("import", { count: step.rows.length })}
               </Button>

@@ -13531,6 +13531,7 @@
       },
       "progress": "{done} of {total} sent",
       "repeatedExternalId": "Repeats the external id on line {line}",
+      "rowWidth": "Has {cells, plural, =1 {# cell} other {# cells}}, but the header has {columns, plural, =1 {# column} other {# columns}}.",
       "skip": "Don't import",
       "title": "Import records from CSV",
       "unnamed": "Unnamed column",
