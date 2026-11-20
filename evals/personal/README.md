@@ -122,4 +122,4 @@ uv run --directory backend --env-file ../evals/personal/.env sh -c '
 ' sh "../$report" > "${report%.jsonl}-judge.jsonl"
 ```
 
-The judge grades only rows that passed deterministic checks. Keep its model fixed across candidate comparisons and log its cost separately. Compare tool accuracy, judged correctness, cost per passing case, p50/p95 latency and incomplete-cost rows. The [design and cost assumptions](DESIGN.md) specify the initial model and expected spend.
+The judge grades only rows that passed deterministic checks. It evaluates an isolated write by the attempted action and what the answer claims happened. Live probes verify the actual effect. A judge provider or token-limit failure is recorded separately from a model verdict. Keep its model fixed across candidate comparisons and log its cost separately. Compare tool accuracy, judged correctness, cost per passing case, p50/p95 latency and incomplete-cost rows. The [design and cost assumptions](DESIGN.md) specify the initial model and expected spend.

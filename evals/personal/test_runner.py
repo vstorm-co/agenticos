@@ -48,6 +48,31 @@ class TraceTests(unittest.TestCase):
             ],
         )
 
+    def test_judge_evidence_captures_a_bounded_official_release_excerpt(self):
+        payload = json.dumps(
+            {
+                "url": "https://www.python.org/downloads/",
+                "content": "Page header\nPython 3.15.2 October 25\nUnrelated page text",
+            }
+        )
+        call = runner.RecordedToolCall("fetch", "web_fetch", {}, payload)
+        self.assertEqual(
+            runner.public_source_evidence("python-release", [call]),
+            [{"url": "https://www.python.org/downloads/", "excerpt": "Python 3.15.2 October 25"}],
+        )
+        self.assertEqual(runner.public_source_evidence("private-doc-search", [call]), [])
+
+    def test_the_delegation_check_uses_the_existing_specialist_tool(self):
+        scenarios = {item.id: item for item in runner.load("agenticos")}
+        accepted = scenarios["delegate-user-accepts"]
+        rejected = scenarios["delegate-offer-rejected"]
+        expected = accepted.case.expected_tool_calls
+        self.assertEqual(
+            [(call.tool, call.args) for call in expected or []],
+            [("task", {"subagent_type": "review"})],
+        )
+        self.assertIn("task", rejected.forbidden)
+
 
 class JudgeTests(unittest.IsolatedAsyncioTestCase):
     async def test_judge_skips_failed_traces_and_respects_limit(self):
@@ -75,6 +100,28 @@ class JudgeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(await runner.judge_report("judge", path, 1), 0)
             self.assertEqual(emit.call_count, 1)
             self.assertTrue(json.loads(emit.call_args.args[0])["verdict"]["passed"])
+
+    async def test_per_case_judge_failure_keeps_the_next_verdict(self):
+        judge = Agent(
+            TestModel(custom_output_args={"passed": True, "reason": "Matches"}),
+            output_type=runner.JudgeVerdict,
+        )
+        result = await judge.run("fixture")
+        failed = runner.UsageLimitExceeded("fixture")
+        run = AsyncMock(side_effect=[failed, result])
+        evidence = runner.Evidence(case="inbox-direct", model="fixture", output="Answer", errors=[])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "candidate.jsonl"
+            path.write_text((evidence.model_dump_json() + "\n") * 2)
+            with (
+                patch.object(runner, "Agent", return_value=SimpleNamespace(run=run)),
+                patch.object(runner, "print", create=True) as emit,
+            ):
+                self.assertEqual(await runner.judge_report("judge", path, 2), 1)
+            first, second = [json.loads(call.args[0]) for call in emit.call_args_list]
+            self.assertIsNone(first["verdict"])
+            self.assertEqual(first["error"], "UsageLimitExceeded")
+            self.assertTrue(second["verdict"]["passed"])
 
 
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):

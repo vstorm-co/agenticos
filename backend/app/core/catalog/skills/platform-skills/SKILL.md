@@ -8,7 +8,7 @@ category: engineering
 
 Use when authoring or evaluating a skill. Use current tool descriptions for storing, updating, binding and loading it; do not copy their API contracts into the skill.
 
-Start with repeatable decisions a future agent cannot infer from a tool schema. A skill is useful know-how, not a transcript, a fact store, an inventory of tools or a grant of authority. Inspect existing methods before adding another.
+Start with repeatable decisions a future agent cannot infer from a tool schema. A skill is useful know-how, not a transcript, a fact store, an inventory of tools or a grant of authority. Before creating a named skill, search existing skills by its requested name with `list_skills`. If a matching skill already owns the procedure, review it before deciding whether to update it. Otherwise submit the new skill through `create_skill`.
 
 Write a precise description that selects the skill for the right requests and excludes nearby routine operations. Keep its body short: purpose, decisions, failure handling, quality checks and the evidence needed to finish. Put examples, templates and lengthy references in separately named resources loaded only when necessary.
 
