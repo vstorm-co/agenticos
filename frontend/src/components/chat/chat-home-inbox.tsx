@@ -4,19 +4,16 @@ import Link from "next/link";
 import { MessageSquare, ShieldCheck } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
-import { SuggestionMark, useSuggestionSource } from "./suggestion-actions";
+import { SuggestionMark, urgentFirst, useSuggestionSource } from "./suggestion-actions";
 
-/** An ordered preview of the same findings and proposals the Inbox shows. */
-export function ChatHomeInbox({
-  expanded = false,
-  onDiscuss,
-}: {
-  expanded?: boolean;
-  onDiscuss: (prompt: string) => void;
-}) {
+const PREVIEW_LIMIT = 4;
+
+/** A priority-ordered preview of the same findings and proposals the Inbox shows. */
+export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => void }) {
   const suggested = useSuggestions();
   const pending = usePendingApprovals();
   const t = useTranslations("chat.homeInbox");
@@ -27,11 +24,10 @@ export function ChatHomeInbox({
   const loading = suggested.isLoading || pending.isLoading;
   const failed = suggested.error || pending.error;
   const hasCachedContent = suggested.suggestions.length > 0 || pending.count > 0;
-  const previewLimit = expanded ? 8 : 4;
   const discussLabel = inbox("discuss");
-  const items = suggested.suggestions
-    .toSorted((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
-    .slice(0, previewLimit - Number(pending.count > 0));
+  const items = urgentFirst(
+    suggested.suggestions.toSorted((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)),
+  ).slice(0, PREVIEW_LIMIT - Number(pending.count > 0));
   return (
     <section
       className="chat-home-inbox chat-home-hints chat-composer-width"
@@ -73,11 +69,7 @@ export function ChatHomeInbox({
           {items.length > 0 ? (
             <ol>
               {items.map((item) => (
-                <li
-                  key={item.id}
-                  className="chat-home-timeline-entry"
-                  data-priority={item.urgent ? "" : undefined}
-                >
+                <li key={item.id} className="chat-home-timeline-entry">
                   {Number.isFinite(Date.parse(item.created_at)) && (
                     <time
                       dateTime={item.created_at}
@@ -96,7 +88,11 @@ export function ChatHomeInbox({
                         {sourceOf(item)?.name ?? inbox(`source.${item.kind}`)}
                       </span>
                       <span className="chat-home-inbox-title">{item.title}</span>
-                      {item.urgent && <span className="chat-home-inbox-urgent">{t("urgent")}</span>}
+                      {item.urgent && (
+                        <Badge variant="warning" className="shrink-0 px-2 py-0 text-[11px]">
+                          {t("urgent")}
+                        </Badge>
+                      )}
                     </span>
                   </Link>
                   <button

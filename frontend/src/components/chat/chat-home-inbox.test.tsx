@@ -29,10 +29,9 @@ vi.mock("@/hooks/use-pending-approvals", () => ({
     refetch: state.refetchPending,
   }),
 }));
-vi.mock("./suggestion-actions", () => ({
+vi.mock("./suggestion-actions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./suggestion-actions")>()),
   useSuggestionSource: () => ({ sourceOf: () => ({ name: "Notion" }) }),
-  urgentFirst: (items: Suggestion[]) =>
-    [...items].sort((a, b) => Number(!!b.urgent) - Number(!!a.urgent)),
   SuggestionMark: ({ suggestion }: { suggestion: Suggestion }) => (
     <span>{String(suggestion.payload.server)}</span>
   ),
@@ -78,16 +77,29 @@ it("limits the timeline preview and keeps approval and item links without a visu
   expect(screen.queryByRole("link", { name: "Open inbox" })).toBeNull();
 });
 
-it("shows up to eight entries in the expanded Inbox", () => {
-  state.items = Array.from({ length: 10 }, (_, index) => suggestion(String(index)));
-  render(<ChatHomeInbox expanded onDiscuss={vi.fn()} />);
-  expect(within(screen.getByRole("list")).getAllByRole("listitem")).toHaveLength(8);
-  expect(screen.getByRole("link", { name: /Topic 7/ })).toBeVisible();
+it("shows at most four entries and includes older priority items before newer regular items", () => {
+  state.items = [
+    ...Array.from({ length: 5 }, (_, index) => ({
+      ...suggestion(String(index)),
+      created_at: `2026-11-20T0${index}:00:00Z`,
+    })),
+    { ...suggestion("older-priority", true), created_at: "2026-11-18T09:00:00Z" },
+    suggestion("newer-priority", true),
+  ];
+  render(<ChatHomeInbox onDiscuss={vi.fn()} />);
+  const links = within(screen.getByRole("list")).getAllByRole("link");
+  expect(links.map((link) => link.getAttribute("href"))).toEqual([
+    "/inbox#suggestion-newer-priority",
+    "/inbox#suggestion-older-priority",
+    "/inbox#suggestion-4",
+    "/inbox#suggestion-3",
+  ]);
+  expect(screen.getAllByText("Priority")).toHaveLength(2);
 });
 
-it("shows real Inbox entries in chronological order and composes a question about the picked item", async () => {
+it("shows short dates and composes a question about the picked item", async () => {
   state.items = [
-    suggestion("urgent", true),
+    suggestion("older"),
     { ...suggestion("latest"), created_at: "2026-11-20T10:15:00Z" },
   ];
   const discuss = vi.fn();
@@ -98,7 +110,7 @@ it("shows real Inbox entries in chronological order and composes a question abou
   expect(within(latest).getByRole("link")).toHaveAttribute("href", "/inbox#suggestion-latest");
   expect(latest.querySelector("time")).toHaveAttribute("datetime", "2026-11-20T10:15:00Z");
   expect(latest.querySelector("time")).toHaveTextContent(/^Nov 20$/);
-  expect(older).toHaveTextContent("Topic urgent");
+  expect(older).toHaveTextContent("Topic older");
   const action = within(latest).getByRole("button", { name: "Discuss with agent" });
   expect(action).not.toHaveTextContent("Discuss with agent");
   await userEvent.click(action);

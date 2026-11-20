@@ -162,22 +162,6 @@
   align-items: center;
   gap: 0.5rem;
 }
-.chat-home-inbox-urgent {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 0.25rem;
-  color: var(--color-warning);
-  font-size: 0.625rem;
-  font-weight: 500;
-}
-.chat-home-inbox-urgent::before {
-  content: "";
-  width: 0.25rem;
-  height: 0.25rem;
-  border-radius: 50%;
-  background: currentColor;
-}
 .chat-home-inbox-title {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -495,9 +479,6 @@
   block-size: 7px;
   border-radius: 50%;
   background: var(--color-muted-foreground);
-}
-.chat-home-timeline-entry[data-priority]::after {
-  background: var(--color-warning);
 }
 .chat-home-timeline-entry time {
   grid-area: date;
