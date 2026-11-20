@@ -553,3 +553,22 @@ def test_agenticos_delegates_only_at_the_users_explicit_request() -> None:
     assert template is not None
     assert "Use subagents only when the user explicitly asks" in template.instructions
     assert "research or review alone is not a request for subagents" in template.instructions
+
+
+def test_agenticos_authoring_skills_ship_their_worked_references() -> None:
+    from app.services import skill_library
+
+    template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
+    assert template is not None
+    for key, resource in {
+        "platform-automation": "references/recurrence.md",
+        "platform-context": "references/scopes.md",
+        "platform-skills": "references/authoring.md",
+        "research-and-evidence": "references/coverage.md",
+    }.items():
+        assert key in template.skills
+        skill = skill_library.get(key)
+        assert skill is not None
+        assert resource in skill.content
+        assert resource in {file.name for file in skill.resources}
+    assert "accepts your offer naming the specialist and scope" in template.instructions

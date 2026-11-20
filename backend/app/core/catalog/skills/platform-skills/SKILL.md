@@ -15,3 +15,5 @@ Write a precise description that selects the skill for the right requests and ex
 Extract general lessons from successful work while removing customer-specific identifiers, correspondence, credentials and incidental history. Examples must be appropriate for the skill's audience. A shell example does not establish installed dependencies.
 
 Evaluate an ordinary request, a near-match that should not load the skill, missing inputs and hostile source instructions. Judge observable effects and output quality. Revise unnecessary or conflicting instructions. Preserve organization-authored changes when updating a built-in; installing or saving a skill does not itself bind it to every agent.
+
+Read `references/authoring.md` when this task needs worked examples or acceptance checks.

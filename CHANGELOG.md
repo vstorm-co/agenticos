@@ -42,6 +42,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Give AgenticOS a shorter default prompt with better guidance for full source reading, personal memory, Skills, Context and routines. Delegate only on request or when the user accepts a specific offer.
+
 - Keep Discuss visible on Inbox items and put secondary actions in a menu. Highlight links to console resources and inline code in chat, and show compact approval cards aligned with the composer, including after reload.
 
 - Ground automatic memory updates in the user's words and give the daily briefing current memory and previous decisions. Check evidence for recurring suggestions and suppress repeats across suggestion types.

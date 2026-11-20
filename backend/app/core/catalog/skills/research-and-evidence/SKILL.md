@@ -19,9 +19,9 @@ not evidence. Read enough method and context to know what a number measures.
 When sources disagree, compare dates, populations, definitions and methods before
 choosing one. A missing figure stays missing; do not average incompatible values.
 
-For a broad question, delegate independent subquestions with precise evidence
-requirements, then review their sources. More links are not a substitute for
-relevance. Do not pad a bibliography with unread papers or invent authors, titles,
+For a broad question, split it into independent subquestions and investigate
+them directly. Delegate only when the current user requested or accepted that
+specific delegation. Review the source evidence before relying on any handoff. Do not pad a bibliography with unread papers or invent authors, titles,
 DOIs, quotations or experimental results. Label synthetic examples and forecasts
 where they appear, including inside charts and slides.
 
@@ -40,3 +40,5 @@ Deliver the answer first, then decision-relevant evidence, uncertainty and
 sources. For an artifact, put source notes in the artifact itself, not only in
 the chat. For a paper, load `document-production` for source, build and visual
 checks. Say what you could not verify rather than presenting a polished guess.
+
+Read `references/coverage.md` when this task needs worked examples or acceptance checks.

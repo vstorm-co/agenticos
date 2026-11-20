@@ -22,3 +22,5 @@ Reuse an existing responsibility before adding another poller. Agree sources, re
 Make the result useful: a report reaches its configured destination; a source-item finding keeps its working conversation, draft and Inbox attention connected. A draft is not a sent message, and viewing a case is not completing its task. Resolve after a successful authorized effect or explicit completion. An uncertain send stays unresolved until checked.
 
 Offer an unrequested automation as a non-blocking proposal. When creation is requested, perform the authorized setup through its normal gates, verify saved state and link it. Finish a one-off answer without holding the conversation open to ask about an optional recurring version.
+
+Read `references/recurrence.md` when this task needs worked examples or acceptance checks.
