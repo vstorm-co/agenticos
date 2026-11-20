@@ -307,6 +307,22 @@ describe("the detail page's tabs", () => {
   });
 });
 
+describe("a link naming a tab on a system agent", () => {
+  it("opens no tab of a page the console does not offer, and no empty panel", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.kind = "judge";
+    for (const params of ["tab=evals", "tab=gaps"]) {
+      page.params = params;
+      const { unmount } = await mountAndReturn();
+      expect(await screen.findByText("Resource unavailable")).toBeVisible();
+      expect(screen.queryByRole("tab")).toBeNull();
+      expect(screen.queryByRole("tabpanel")).toBeNull();
+      expect(screen.queryByTestId("eval-results")).toBeNull();
+      unmount();
+    }
+  });
+});
+
 describe("the detail page's Knowledge gaps tab", () => {
   it("opens when a link names it for a caller who may read runs", async () => {
     allowed = new Set([Perm.runsView]);
