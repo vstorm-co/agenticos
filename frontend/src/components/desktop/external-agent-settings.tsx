@@ -5,7 +5,8 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { SectionCard } from "@/components/settings/settings-section";
-import { Button, Input, Label } from "@/components/ui";
+import { TriangleAlert } from "lucide-react";
+import { Alert, AlertDescription, Button, Checkbox, Input, Label } from "@/components/ui";
 import { useExternalAgents } from "@/hooks/use-desktop";
 import type { ExternalAgent } from "@/lib/desktop/commands";
 import { getErrorMessage } from "@/lib/api-error";
@@ -236,16 +237,20 @@ export function ExternalAgentSettings() {
         {provider === "antigravity" && (
           <>
             <p className="text-muted-foreground text-xs">{t("antigravityHelp")}</p>
-            <p className="text-xs text-amber-700 dark:text-amber-400">{t("antigravityRisk")}</p>
-            <label className="flex items-start gap-2 text-xs">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={riskAccepted}
-                onChange={(event) => setRiskAccepted(event.target.checked)}
-              />
-              {t("antigravityRiskAccept")}
-            </label>
+            <Alert role="note" variant="warning" className="p-3 [&>svg]:top-3 [&>svg]:left-3">
+              <TriangleAlert aria-hidden className="size-4" />
+              <div className="space-y-3">
+                <AlertDescription className="text-xs">{t("antigravityRisk")}</AlertDescription>
+                <label className="flex min-h-6 cursor-pointer items-start gap-2 text-xs font-medium">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={riskAccepted}
+                    onCheckedChange={(checked) => setRiskAccepted(checked === true)}
+                  />
+                  {t("antigravityRiskAccept")}
+                </label>
+              </div>
+            </Alert>
           </>
         )}
         {provider === "antigravity_api_key" && (

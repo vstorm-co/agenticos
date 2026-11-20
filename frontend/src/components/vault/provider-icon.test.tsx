@@ -54,6 +54,25 @@ describe("ProviderIcon", () => {
     }
   });
 
+  it("wears the vendor's mark for a plan or account of that vendor", () => {
+    const pairs: [string, string][] = [
+      ["kimi_code", "moonshotai"],
+      ["alibaba_coding_plan", "alibaba"],
+      ["ollama_cloud", "ollama"],
+      ["openai_chatgpt", "openai"],
+      ["github_copilot", "github"],
+    ];
+    for (const [provider, vendor] of pairs) {
+      const plan = render(<ProviderIcon provider={provider} />);
+      const own = render(<ProviderIcon provider={vendor} />);
+      expect(plan.container.querySelector("svg path")?.getAttribute("d"), provider).toBe(
+        own.container.querySelector("svg path")?.getAttribute("d"),
+      );
+      plan.unmount();
+      own.unmount();
+    }
+  });
+
   it("renders a monogram for one it does not, rather than nothing", () => {
     // A deployment gains a provider whenever Pydantic AI does, so one with no
     // mark is the normal case. A blank gap would read as a logo that failed to

@@ -1,6 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
+import { TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { Alert, AlertDescription } from "@/components/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -63,7 +66,7 @@ export function NativeConversationControl({
         {t("primaryRuntime")}
         <NativeSelect
           aria-label={t("primaryRuntime")}
-          className="mt-1"
+          className="mt-1 px-2"
           value={runtime?.harness ?? "agent"}
           onChange={(event) => {
             const harness = event.target.value;
@@ -107,13 +110,13 @@ export function NativeConversationControl({
       {runtime && (
         <>
           <p className="text-muted-foreground text-xs">{t("primaryRuntimeHelp")}</p>
-          <p className="text-xs text-amber-700 dark:text-amber-400">{t("primaryRuntimeTerms")}</p>
+          <RuntimeNotice>{t("primaryRuntimeTerms")}</RuntimeNotice>
           {runtime.harness !== "external" && (
             <label className="block text-xs">
               {t("primaryRuntimeAccess")}
               <NativeSelect
                 aria-label={t("primaryRuntimeAccess")}
-                className="mt-1"
+                className="mt-1 px-2"
                 value={runtime.access}
                 onChange={(event) => {
                   const access = event.target.value;
@@ -195,7 +198,7 @@ function ExternalChoices({
           {t("externalRegistration")}
           <NativeSelect
             aria-label={t("externalRegistration")}
-            className="mt-1"
+            className="mt-1 px-2"
             value={runtime.registration_id ?? ""}
             onChange={(event) =>
               onChange({
@@ -223,7 +226,7 @@ function ExternalChoices({
         <p className="text-muted-foreground text-xs">{t("externalCliModels")}</p>
       )}
       {selected?.provider === "antigravity" && (
-        <p className="text-xs text-amber-700 dark:text-amber-400">{t("antigravityPersonalRisk")}</p>
+        <RuntimeNotice>{t("antigravityPersonalRisk")}</RuntimeNotice>
       )}
       <p className="text-muted-foreground text-xs">{t("externalHelp")}</p>
     </div>
@@ -248,7 +251,7 @@ function ExternalModels({
         {t("externalModel")}
         <NativeSelect
           aria-label={t("externalModel")}
-          className="mt-1"
+          className="mt-1 px-2"
           disabled={!options.isSuccess}
           value={runtime.model_id ?? ""}
           onChange={(event) => onChange({ ...runtime, model_id: event.target.value || null })}
@@ -302,7 +305,7 @@ function VaultKeyChoice({
         {t("geminiVaultKey")}
         <NativeSelect
           aria-label={t("geminiVaultKey")}
-          className="mt-1"
+          className="mt-1 px-2"
           value={runtime.secret_id ?? ""}
           onChange={(event) => onChange({ ...runtime, secret_id: event.target.value || null })}
         >
@@ -318,5 +321,15 @@ function VaultKeyChoice({
         <p className="text-muted-foreground text-xs">{t("geminiVaultUnavailable")}</p>
       ) : null}
     </>
+  );
+}
+
+/** A provider-terms warning in the runtime picker: the account and its risk are the person's. */
+function RuntimeNotice({ children }: { children: ReactNode }) {
+  return (
+    <Alert role="note" variant="warning" className="p-3 [&>svg]:top-3 [&>svg]:left-3">
+      <TriangleAlert aria-hidden className="size-4" />
+      <AlertDescription className="text-xs">{children}</AlertDescription>
+    </Alert>
   );
 }

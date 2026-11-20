@@ -5,6 +5,11 @@ import { PickerMark } from "@/components/icons/picker-mark";
 
 const MAKERS: Readonly<Record<string, string>> = {
   alibaba: "alibaba",
+  alibaba_coding_plan: "alibaba",
+  github_copilot: "github",
+  kimi_code: "moonshotai",
+  ollama_cloud: "ollama",
+  openai_chatgpt: "openai",
   amazon: "bedrock",
   anthropic: "anthropic",
   cohere: "cohere",

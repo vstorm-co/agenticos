@@ -26,6 +26,19 @@ const SERVICE_MARKS: Readonly<Record<string, LucideIcon>> = {
   litellm: TrainFront,
 };
 
+/**
+ * Provider ids that are a plan or account of a vendor whose mark exists: a
+ * Kimi Code plan wears Moonshot's, a Copilot account GitHub's. The vendor's
+ * real mark, never a drawn one.
+ */
+const VENDOR_OF: Readonly<Record<string, string>> = {
+  alibaba_coding_plan: "alibaba",
+  github_copilot: "github",
+  kimi_code: "moonshotai",
+  ollama_cloud: "ollama",
+  openai_chatgpt: "openai",
+};
+
 /** Every provider id with a mark - what the monochrome pin in the test iterates. */
 export const MARKED_PROVIDERS: readonly string[] = Object.keys(PROVIDER_GLYPHS);
 
@@ -71,7 +84,11 @@ interface ProviderIconProps {
  */
 export function ProviderIcon({ provider, brand, className }: ProviderIconProps) {
   const custom = useCustomIcons();
-  const glyph = (brand && BRAND_GLYPHS[brand as BrandName]) || PROVIDER_GLYPHS[provider];
+  const vendor = VENDOR_OF[provider];
+  const glyph =
+    (brand && BRAND_GLYPHS[brand as BrandName]) ||
+    PROVIDER_GLYPHS[provider] ||
+    (vendor !== undefined && (PROVIDER_GLYPHS[vendor] ?? BRAND_GLYPHS[vendor as BrandName]));
   const size = cn("h-5 w-5 shrink-0", className);
 
   if (glyph) return <GlyphIcon glyph={glyph} aria-hidden className={size} />;

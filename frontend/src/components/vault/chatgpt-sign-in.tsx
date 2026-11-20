@@ -6,7 +6,7 @@ import { Check, Copy, ExternalLink, KeyRound, LogIn } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { Button, FormField, Input } from "@/components/ui";
+import { Button, FormField, IconButton, Input, NativeDisclosure } from "@/components/ui";
 import { useChatGPTSignIn, usePermissions } from "@/hooks";
 import { apiClient } from "@/lib/api-client";
 import { getErrorMessage, submitFailure } from "@/lib/api-error";
@@ -108,21 +108,20 @@ export function CodexDeviceCode({
     <div className="space-y-2" aria-live="polite">
       <p className="text-muted-foreground text-xs">{t("chatgptDeviceEnter")}</p>
       <div className="flex flex-wrap items-center gap-3">
-        <code className="bg-muted rounded px-3 py-1.5 font-mono text-lg tracking-widest">
+        <code className="bg-muted rounded-md px-3 py-1.5 font-mono text-lg tracking-[0.2em] tabular-nums">
           {started.user_code}
         </code>
-        <Button
+        <IconButton
           type="button"
           variant="ghost"
-          size="sm"
           aria-label={t("chatgptDeviceCopy")}
           onClick={() => {
             void navigator.clipboard?.writeText(started.user_code);
             setCopied(true);
           }}
         >
-          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-        </Button>
+          {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+        </IconButton>
         <a
           href={started.verification_url}
           target="_blank"
@@ -271,12 +270,12 @@ export function ChatGPTCallbackSteps({
         onAuthorized={onDeviceAuthorized}
         disabled={disabled}
       />
-      <details className="text-xs">
+      <NativeDisclosure className="text-xs">
         <summary className="text-muted-foreground hover:text-foreground cursor-pointer">
           {t("chatgptPasteInstead")}
         </summary>
         <div className="pt-3">{paste}</div>
-      </details>
+      </NativeDisclosure>
     </div>
   );
 }
