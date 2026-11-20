@@ -85,6 +85,8 @@ The trace runner starts each case in a fresh private test chat with the authored
 
 The 60 appended cases cover product choices, exact resource reads, approval boundaries, and ordinary requests. A synthetic resource ID tests routing to the correct reader and an honest unavailable result. Populate a matching resource separately to test a successful read against real state. The arguments column accepts a JSON object when a check needs numbers, booleans, arrays or nested values.
 
+`table-query-exact` creates a private scratch table with six pending vendors and one approved vendor. The runner substitutes the real table ID into the conversation and checks the equality filter and five-record first page. It archives the table after the case.
+
 ## Background replay
 
 Run from the repository root with the configured `evals/personal/.env`.

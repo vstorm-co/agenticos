@@ -22,6 +22,7 @@ from uuid import UUID, uuid4
 
 import httpx
 from pydantic import BaseModel, JsonValue, TypeAdapter
+from pydantic import ValidationError as PydanticValidationError
 from pydantic_ai import Agent, RunContext, capture_run_messages
 from pydantic_ai.exceptions import (
     ModelAPIError,
@@ -52,6 +53,13 @@ from app.schemas.dataset import CaseMessage, DatasetCaseContent
 from app.schemas.eval_run import EvalCallRead
 from app.schemas.memory import MemoryClaimList
 from app.schemas.scoring import ExpectedToolCall
+from app.schemas.virtual_table import (
+    ColumnInput,
+    RecordBatchCreate,
+    RecordCreate,
+    RecordQuery,
+    TableCreate,
+)
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
 from app.services.conversation import ConversationService
@@ -63,6 +71,7 @@ from app.services.proactive import _nightly as nightly
 from app.services.role_packs import PACKS
 from app.services.shipped_agents import ShippedAgentService
 from app.services.transcript import RecordedToolCall
+from app.services.virtual_tables.facade import VirtualTableService
 
 DATASETS = Path(__file__).resolve().parent / "datasets"
 Suite = Literal["memory", "briefing", "agenticos"]
@@ -372,6 +381,7 @@ def trace_errors(
     answer: str,
     calls: list[EvalCallRead],
     watch_source: tuple[UUID, UUID] | None = None,
+    table_status_column: UUID | None = None,
 ) -> list[str]:
     if not answer.strip():
         return ["no final answer"]
@@ -406,6 +416,12 @@ def trace_errors(
             for call in calls
         ):
             errors.append("watch did not target the test source and agent at 30-minute cadence")
+    if table_status_column is not None and not any(
+        _queries_pending_vendors(call, table_status_column)
+        for call in calls
+        if call.tool == "agenticos_query_virtual_table" and call.outcome == "executed"
+    ):
+        errors.append("vendor query did not filter Status = Pending with a five-record page")
     if scenario.id == "context-reuse" and answer.strip().removesuffix(".") not in {
         "Pilot",
         "**Pilot**",
@@ -420,6 +436,21 @@ def trace_errors(
     if scenario.id == "natural-hello" and calls:
         errors.append("greeting called tools")
     return errors
+
+
+def _queries_pending_vendors(call: EvalCallRead, column_id: UUID) -> bool:
+    try:
+        query = RecordQuery.model_validate(call.args.get("query"))
+    except PydanticValidationError:
+        return False
+    return (
+        query.limit == 5
+        and query.skip == 0
+        and len(query.filters) == 1
+        and query.filters[0].column_id == column_id
+        and query.filters[0].op == "eq"
+        and query.filters[0].value == "Pending"
+    )
 
 
 async def judge_report(model: str, path: Path, limit: int) -> int:
@@ -829,6 +860,55 @@ async def open_eval_conversation(ctx: AuthContext, case_id: str) -> UUID:
         return conversation.id
 
 
+@asynccontextmanager
+async def pending_vendors_fixture(
+    ctx: AuthContext, item: Scenario
+) -> AsyncIterator[tuple[Scenario, UUID]]:
+    async with get_db_context() as db:
+        tables = VirtualTableService(db)
+        table = await tables.create_table(
+            ctx,
+            TableCreate(
+                name=f"Eval vendor register {uuid4().hex[:8]}",
+                columns=[
+                    ColumnInput(label="Vendor", type="text"),
+                    ColumnInput(label="Status", type="text"),
+                ],
+            ),
+        )
+        table_id = table.id
+        vendor_column, status_column = table.columns
+        status_column_id = status_column.id
+        records = [
+            RecordCreate(
+                values={str(vendor_column.id): f"Vendor {index}", str(status_column.id): status}
+            )
+            for index, status in enumerate(["Pending"] * 6 + ["Approved"], start=1)
+        ]
+        result = await tables.create_records(ctx, table_id, RecordBatchCreate(records=records))
+        if result.created != len(records):
+            raise RuntimeError("The eval vendor register could not be seeded.")
+    try:
+        expected = (item.case.expected_tool_calls or [])[0]
+        old_id = str((expected.args or {})["table_id"])
+        new_id = str(table_id)
+        case = item.case.model_copy(
+            update={
+                "history": [
+                    turn.model_copy(update={"content": turn.content.replace(old_id, new_id)})
+                    for turn in item.case.history
+                ],
+                "expected_tool_calls": [
+                    ExpectedToolCall(tool=expected.tool, args={"table_id": new_id})
+                ],
+            }
+        )
+        yield item._replace(case=case), status_column_id
+    finally:
+        async with get_db_context() as db:
+            await VirtualTableService(db).archive_table(ctx, table_id)
+
+
 async def evaluate_agenticos(
     ctx: AuthContext,
     agent_id: UUID,
@@ -845,19 +925,27 @@ async def evaluate_agenticos(
             console("Stopped before the next case: eval budget exhausted.")
             break
         calls: list[RecordedToolCall] = []
-        history = build_message_history(
-            [HistoryMessage(role=turn.role, content=turn.content) for turn in item.case.history]
-        )
         started = perf_counter()
         with progress.case(item.id):
             async with AsyncExitStack() as fixtures:
                 watch_source = None
+                table_status_column = None
                 if item.id == "check-then-watch":
                     from watch_fixture import notion_watch_source
 
                     watch_source = await fixtures.enter_async_context(
                         notion_watch_source(ctx, profile_id)
                     )
+                if item.id == "table-query-exact":
+                    item, table_status_column = await fixtures.enter_async_context(
+                        pending_vendors_fixture(ctx, item)
+                    )
+                history = build_message_history(
+                    [
+                        HistoryMessage(role=turn.role, content=turn.content)
+                        for turn in item.case.history
+                    ]
+                )
                 conversation_id = await open_eval_conversation(ctx, item.id)
                 failure: RunFailedError | None = None
                 try:
@@ -907,7 +995,11 @@ async def evaluate_agenticos(
                         errors = [f"technical: {run.error or failure.code}"]
                     elif status == RunStatus.COMPLETED.value:
                         errors = trace_errors(
-                            item, answer=answer, calls=trace, watch_source=watch_source
+                            item,
+                            answer=answer,
+                            calls=trace,
+                            watch_source=watch_source,
+                            table_status_column=table_status_column,
                         )
                     else:
                         errors = [f"run {status}"]

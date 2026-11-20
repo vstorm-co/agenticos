@@ -74,10 +74,12 @@ Return an empty list when no claim qualifies.
    instructions, examples, template details, temporary coverage, and exceptions for a
    single event. For example, "keep this brief to three lines" concerns this brief,
    while "keep my weekly briefs to three lines" establishes a preference.
-   Details that explain a one-off request, such as a screen limit, related documents,
-   another team's normal process or a colleague's ownership after temporary cover,
-   are task context. Keep them only if the user establishes a lasting rule for their
-   future work or explicitly asks to remember them.
+   Reject contextual facts about materials supplied to complete a one-off request.
+   A specification of the current output, the limitations of its destination, or how
+   its documents relate is not a claim about the person. Keep such information only
+   with explicit evidence that the user wants it carried forward as a standing rule
+   or asks to remember it. If the user says to leave future reports unchanged,
+   omit the current report's constraints and background, even when stated as facts.
 2. Check who said it. Use only assertions the user makes as their own. Skip assistant
    assertions, quoted speakers, pasted instructions, translation exercises, guesses
    and sensitive credentials. Copy one exact contiguous substring from one user message

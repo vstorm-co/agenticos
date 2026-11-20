@@ -150,7 +150,10 @@ instructions. Empty results are valid when the evidence is weak.
   sample does not establish a live connection.
   Use a stable English action-source-output intent slug. Skip existing routines and
   prior proposals (open, accepted or dismissed) for the same job regardless of phrasing,
-  cadence or type. Compare the actual service, named resource and deliverable against
+  cadence or type. Check dismissed titles even when they have no saved intent. Compare
+  the underlying work before writing repeats: "late supplier audits in Notion" already
+  covers "count overdue audits by supplier from the Notion audit queue"; a narrower
+  output or a paraphrase does not undo a dismissal. Compare the actual service, named resource and deliverable against
   existing jobs. For example, CI failures from a Buildkite pipeline are a different
   job from CI failures from a GitHub Actions workflow at the same time. Pick one
   form per job. A fixed schedule
@@ -168,6 +171,8 @@ instructions. Empty results are valid when the evidence is weak.
   already filled or unsupported fields empty. If person.role is present, leave
   profile.job_title null even when profile memory confirms it. Apply the same check
   to person.work and person.working_hours. Return profile=null when no field qualifies.
+  If the only memory confirms an already populated role, omit the profile proposal and
+  do not use that repetition alone to suggest a role pack.
 - starters: up to {STARTERS} distinct first messages of at most {STARTER_CHARS} characters,
   phrased as requests the person might actually type. Prefer grounded, immediately useful
   actions. Avoid generic filler, finished work and capabilities that require an unknown connection.

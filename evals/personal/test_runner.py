@@ -28,6 +28,37 @@ from app.services.platform_mcp._tools import platform_tools
 
 
 class TraceTests(unittest.TestCase):
+    def test_vendor_query_requires_a_typed_filter_and_correct_page(self) -> None:
+        scenario = next(item for item in runner.load("agenticos") if item.id == "table-query-exact")
+        expected = (scenario.case.expected_tool_calls or [])[0]
+        column = uuid4()
+        args = {
+            **(expected.args or {}),
+            "query": {
+                "limit": 5,
+                "filters": [{"column_id": str(column), "op": "eq", "value": "Pending"}],
+            },
+        }
+        correct = EvalCallRead(tool=expected.tool, args=args, outcome="executed")
+        self.assertEqual(
+            runner.trace_errors(
+                scenario, answer="Five, with more.", calls=[correct], table_status_column=column
+            ),
+            [],
+        )
+        for bad_query in (
+            {"limit": 5},
+            {**args["query"], "limit": 50},
+            {"limit": 5, "filters": ["Pending"]},
+        ):
+            wrong = correct.model_copy(update={"args": {**args, "query": bad_query}})
+            self.assertEqual(
+                runner.trace_errors(
+                    scenario, answer="Five.", calls=[wrong], table_status_column=column
+                ),
+                ["vendor query did not filter Status = Pending with a five-record page"],
+            )
+
     def test_authored_platform_tools_and_argument_names_exist(self) -> None:
         api = PlatformApi(Starlette(), token=lambda: None, on_refusal=lambda reason: reason)
         tools = {f"agenticos_{tool.name}": tool.function for tool in platform_tools(api)}
