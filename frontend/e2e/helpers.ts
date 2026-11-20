@@ -432,6 +432,9 @@ export async function openAgent(page: Page, name: string): Promise<void> {
   await expect(card).toBeVisible();
   await card.getByRole("link", { name: `Open ${name}`, exact: true }).click();
   await expect(pageHeading(page)).toContainText(name);
+  // A card opens an agent needing attention on its Evals tab, and whether a
+  // seeded agent does depends on what earlier specs ran; the callers mean Build.
+  await openBuilderTab(page, "Build");
 }
 
 /**
