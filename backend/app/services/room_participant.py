@@ -379,6 +379,9 @@ class RoomParticipantService:
                 can_manage=True,
                 actor_can_post=True,
             )
+        # The room_visibility write advanced updated_at server-side; reload it so the
+        # response can be serialized without further IO.
+        await self.db.refresh(conversation)
         return await self.conversations.get_metadata(
             conversation.id,
             organization_id=organization_id,
