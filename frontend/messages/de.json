@@ -6030,6 +6030,10 @@
       "agent-model-credentials": {
         "title": "Wer den Modellschlüssel bereitstellt",
         "body": "Nutze den Organisationsschlüssel oder verlange von jedem angemeldeten Chat-Nutzer einen privaten Tresorschlüssel. Modell und Endpunkt bleiben fest; Kanäle und automatische Läufe benötigen den Organisationsschlüssel."
+      },
+      "improvement-mode": {
+        "title": "Schritt für Schritt oder Suche",
+        "body": "Wählen Sie, wie der Helfer Änderungen findet: ein Vorschlag pro Versuch oder eine Suche vieler Varianten der Anweisungen, bewertet an Trainingsfragen. Die Suche braucht mindestens zehn Trainingsfragen."
       }
     },
     "chooseLanguage": "Sprache",
@@ -16471,7 +16475,8 @@
       "knowledge_only": "In der Wissensdatenbank fehlen einige Themen. Entwerfen Sie die, die Sie brauchen, prüfen Sie jeden Entwurf und fügen Sie ihn hinzu.",
       "draft": "Das Entwerfen fehlenden Wissens ist fehlgeschlagen.",
       "expired": "Niemand hat diese Sitzung 7 Tage lang weitergeführt, daher wurde sie geschlossen. Starten Sie eine neue, um es erneut zu versuchen.",
-      "criteria_worse": "Die Änderungen haben ein Kriterium verschlechtert, nach dem die Antworten bewertet werden, aber keine Frage."
+      "criteria_worse": "Die Änderungen haben ein Kriterium verschlechtert, nach dem die Antworten bewertet werden, aber keine Frage.",
+      "no_variant": "Die Suche fand keine Variante, die an den Trainingsfragen besser abschnitt als die aktuellen Anweisungen."
     },
     "before": "Vorher",
     "after": "Nachher",
@@ -16874,7 +16879,41 @@
       "addQuestions": "Fragen aus anderen Gesprächen hinzufügen"
     },
     "likedSignals": "Positiv bewertete Antworten",
-    "reviewedSignals": "Weitere überprüfte Testantworten"
+    "reviewedSignals": "Weitere überprüfte Testantworten",
+    "startSearch": {
+      "label": "Wie Änderungen gefunden werden",
+      "steps": "Schritt für Schritt",
+      "stepsHint": "Der Helfer schlägt pro Versuch einen Satz Änderungen vor, und Sie prüfen jeden.",
+      "search": "Varianten suchen",
+      "searchHint": "Der Helfer schreibt viele Fassungen der Anweisungen und bewertet jede an den Trainingsfragen. Die beste kommt zu den Änderungen und wird dann wie jeder Versuch geprüft.",
+      "tooFew": "Die Suche braucht mindestens {needed} Trainingsfragen; dieses Dataset hat {count, plural, =0 {keine} =1 {eine} other {#}}. Fügen Sie Fragen hinzu oder verbessern Sie Schritt für Schritt.",
+      "budget": "Budget der Suche (USD)",
+      "budgetHint": "Die Suche endet, sobald die nächste Variante nicht mehr passt. Sie kann das Budget höchstens um die eine gerade bewertete Variante überschreiten.",
+      "gradingModel": "Modell, das die Varianten bewertet",
+      "datasetJudge": "Das Modell des Bewerters im Dataset",
+      "gradingHint": "Ein günstigeres oder lokales Modell hält die Suche günstig. Die Prüfung nach den Änderungen bewertet immer der Bewerter des Datasets.",
+      "quote": "Enthält das Budget der Suche ({search}) und die Prüfung der gefundenen Variante ({check})."
+    },
+    "search": {
+      "title": "Variantensuche",
+      "progress": "{tried} von höchstens {max} Varianten versucht, jede an denselben {questions} Trainingsfragen.",
+      "spent": "{cost} von {budget} Budget der Suche ausgegeben.",
+      "scores": "Aktuelle Anweisungen: {seed} der Pflichtkriterien erfüllt · beste Variante: {best}.",
+      "ended": {
+        "budget": "Die Suche hat an ihrem Budget angehalten.",
+        "max_variants": "Die Suche hat so viele Varianten versucht wie erlaubt.",
+        "patience": "Die Suche hat nach Runden ohne bessere Variante angehalten.",
+        "proposal": "Die Suche hat angehalten, weil der Helfer keine weiteren Varianten schreiben konnte.",
+        "questions": "Die Suche hat angehalten, weil ihre Trainingsfragen nicht mehr beantwortet werden können.",
+        "no_variant": "Die aktuellen Anweisungen ließen sich nicht bewerten, daher konnte keine Variante besser sein."
+      },
+      "notVerdict": "Diese Werte stammen nur aus Trainingsfragen. Das Urteil kommt aus der Prüfung an den zurückgehaltenen Fragen.",
+      "overshoot": "Eine Suche kann ihr Budget höchstens um die eine gerade bewertete Variante überschreiten.",
+      "variant": "Variante {number}: {score}",
+      "chosen": "Zu den Änderungen gebracht",
+      "choose": "Stattdessen zu den Änderungen bringen"
+    },
+    "searchWorking": "Wir suchen bessere Anweisungen. Sie können diese Seite schließen — wir melden uns, sobald die beste Variante zur Prüfung bereit ist."
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",
