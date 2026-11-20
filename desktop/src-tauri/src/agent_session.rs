@@ -276,6 +276,31 @@ fn cline_environment(
     Ok(())
 }
 
+/// Account mode never sees a key; key mode never falls back to the saved Google sign-in.
+pub(crate) fn antigravity_environment(
+    command: &mut tokio::process::Command,
+    api_key_mode: bool,
+    key: Option<&std::ffi::OsStr>,
+) -> Result<(), Refusal> {
+    command
+        .env_remove("GEMINI_API_KEY")
+        .env_remove("GOOGLE_API_KEY")
+        .env_remove("GOOGLE_GENAI_USE_VERTEXAI")
+        .env_remove("GOOGLE_GENAI_USE_GCA");
+    if api_key_mode {
+        let key = key
+            .filter(|value| value.to_str().is_some_and(|text| !text.trim().is_empty()))
+            .ok_or_else(|| {
+                Refusal::new(
+                    "denied",
+                    "Start Desktop with GEMINI_API_KEY set to use this registration. The saved Google sign-in was not used.",
+                )
+            })?;
+        command.env("GEMINI_API_KEY", key);
+    }
+    Ok(())
+}
+
 fn cursor_account_environment(command: &mut tokio::process::Command) {
     command
         .env_remove("CURSOR_API_KEY")
@@ -347,12 +372,16 @@ fn spawn_with_bridge(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    if provider == crate::external_agents::Provider::Antigravity {
-        command
-            .env_remove("GEMINI_API_KEY")
-            .env_remove("GOOGLE_API_KEY")
-            .env_remove("GOOGLE_GENAI_USE_VERTEXAI")
-            .env_remove("GOOGLE_GENAI_USE_GCA");
+    if matches!(
+        provider,
+        crate::external_agents::Provider::Antigravity | crate::external_agents::Provider::AntigravityApiKey
+    ) {
+        let key = std::env::var_os("GEMINI_API_KEY");
+        antigravity_environment(
+            &mut command,
+            provider == crate::external_agents::Provider::AntigravityApiKey,
+            key.as_deref(),
+        )?;
     }
     if matches!(
         provider,
@@ -624,7 +653,7 @@ fn bad(error: serde_json::Error) -> Refusal {
 /// The directory of `program`, put first on `PATH`, so child tools find the
 /// private `node` even when the app was started
 /// from Finder and inherited no shell `PATH`.
-fn path_with(program: &Path) -> Option<String> {
+pub(crate) fn path_with(program: &Path) -> Option<String> {
     let dir = program.parent()?;
     let existing = std::env::var_os("PATH").unwrap_or_default();
     std::env::join_paths(std::iter::once(dir.to_path_buf()).chain(std::env::split_paths(&existing)))
@@ -693,6 +722,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         matches!(
             item.provider,
             crate::external_agents::Provider::Antigravity
+                | crate::external_agents::Provider::AntigravityApiKey
                 | crate::external_agents::Provider::Cursor
                 | crate::external_agents::Provider::Cline
                 | crate::external_agents::Provider::MistralVibe
@@ -981,6 +1011,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     drop(slot);
     let auth_method = external.as_ref().and_then(|item| match item.provider {
         crate::external_agents::Provider::Antigravity => Some("oauth-personal"),
+        crate::external_agents::Provider::AntigravityApiKey => Some("gemini-api-key"),
         crate::external_agents::Provider::Cursor => Some("cursor_login"),
         crate::external_agents::Provider::Cline => Some("cline"),
         crate::external_agents::Provider::MistralVibe => Some("browser-auth"),
@@ -1548,6 +1579,34 @@ mod tests {
             Some(&Some(OsStr::new("true")))
         );
         assert!(!environment.contains_key(OsStr::new("MISTRAL_API_KEY")));
+    }
+
+    #[test]
+    fn antigravity_account_and_key_modes_never_share_a_credential_fallback() {
+        use std::ffi::OsStr;
+        let mut account = tokio::process::Command::new("agy");
+        antigravity_environment(&mut account, false, Some(OsStr::new("inherited-key"))).unwrap();
+        let environment: std::collections::BTreeMap<_, _> = account.as_std().get_envs().collect();
+        for name in [
+            "GEMINI_API_KEY",
+            "GOOGLE_API_KEY",
+            "GOOGLE_GENAI_USE_VERTEXAI",
+            "GOOGLE_GENAI_USE_GCA",
+        ] {
+            assert_eq!(environment.get(OsStr::new(name)), Some(&None));
+        }
+        for key in [None, Some(OsStr::new("")), Some(OsStr::new(" "))] {
+            let refused = antigravity_environment(&mut tokio::process::Command::new("agy"), true, key).unwrap_err();
+            assert!(refused.message.contains("saved Google sign-in was not used"));
+        }
+        let mut keyed = tokio::process::Command::new("agy");
+        antigravity_environment(&mut keyed, true, Some(OsStr::new("explicit-key"))).unwrap();
+        let environment: std::collections::BTreeMap<_, _> = keyed.as_std().get_envs().collect();
+        assert_eq!(
+            environment.get(OsStr::new("GEMINI_API_KEY")),
+            Some(&Some(OsStr::new("explicit-key")))
+        );
+        assert_eq!(environment.get(OsStr::new("GOOGLE_GENAI_USE_VERTEXAI")), Some(&None));
     }
 
     #[test]

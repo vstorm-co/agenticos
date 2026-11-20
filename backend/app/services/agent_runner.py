@@ -240,7 +240,7 @@ from app.agents.mcp import (
 )
 from app.agents.model_context import ModelContextCheck, checking_model_context
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
-from app.agents.native_model_spec import NativeModelSpec
+from app.agents.native_model_spec import NATIVE_RUNTIME_LABELS, NativeModelSpec
 from app.agents.observability import current_trace_id
 from app.agents.person_briefing import Person, with_person
 from app.agents.routine_actions import RoutineToolCheck
@@ -2381,7 +2381,7 @@ def _with_execution_environment(spec: AgentSpec, local: LocalTarget | None) -> A
             )
         if local.conversation_runtime is not None:
             selected.append(
-                f"The primary conversation runs in {local.conversation_runtime.harness} on this computer. Its CLI owns login, native context and opaque charges; this is not a delegated coding task."
+                f"The primary conversation runs in {NATIVE_RUNTIME_LABELS[local.conversation_runtime.harness]} on this computer. Its CLI owns login, native context and opaque charges; this is not a delegated coding task."
             )
         if local.model_service is not None:
             selected.append(
@@ -4345,11 +4345,11 @@ class AgentRunnerService:
             )
             model_spec = await PersonalModelKeyService(self.db).resolve(models_ctx, profile)
         elif local is not None and local.conversation_runtime is not None:
-            if not (
-                settings.CODEX_NATIVE_CONVERSATION_ENABLED
-                if local.conversation_runtime.harness == "codex"
-                else settings.CLAUDE_NATIVE_CONVERSATION_ENABLED
-            ):
+            if not {
+                "codex": settings.CODEX_NATIVE_CONVERSATION_ENABLED,
+                "claude_code": settings.CLAUDE_NATIVE_CONVERSATION_ENABLED,
+                "antigravity": settings.ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED,
+            }[local.conversation_runtime.harness]:
                 raise BadRequestError(
                     message="The operator has not enabled an eligible deployment for this primary conversation runtime"
                 )
@@ -4371,17 +4371,12 @@ class AgentRunnerService:
             profile = await self.models.profile_for_organization(
                 models_ctx.organization_id, profile_id=model_profile_id or spec.model_profile_id
             )
-            from app.agents.capabilities.coding_agent._harness import LABELS
             from app.core.secret_kinds import NoSecret
 
             native_provider = f"native-{local.conversation_runtime.harness}"
             model_spec = NativeModelSpec(
                 profile_id=profile.id,
-                label=(
-                    "Claude Agent (native conversation)"
-                    if local.conversation_runtime.harness == "claude_code"
-                    else f"{LABELS[local.conversation_runtime.harness]} (native conversation)"
-                ),
+                label=f"{NATIVE_RUNTIME_LABELS[local.conversation_runtime.harness]} (native conversation)",
                 provider=native_provider,
                 model=native_provider,
                 params={},

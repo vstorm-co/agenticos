@@ -20,10 +20,10 @@ from tests.test_runtime_tools import bridge
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
-@pytest.mark.parametrize("harness", ["codex", "claude_code"])
+@pytest.mark.parametrize("harness", ["codex", "claude_code", "antigravity"])
 async def test_primary_streaming_resumes_the_exact_native_receipt_and_sends_only_new_context(
     monkeypatch: pytest.MonkeyPatch,
-    harness: Literal["codex", "claude_code"],
+    harness: Literal["codex", "claude_code", "antigravity"],
 ) -> None:
     context = _ctx(_local_workspace(), [])
     from app.agents.audience import RunAudience
@@ -35,12 +35,25 @@ async def test_primary_streaming_resumes_the_exact_native_receipt_and_sends_only
     context.tool_manager = tools._ctx.tool_manager
     sessions: dict[str, str] = {}
     prompts: list[dict[str, object]] = []
+    registration = "agy" if harness == "antigravity" else None
+    launched = "custom" if harness == "antigravity" else harness
 
     class Pipe:
-        def __init__(self, _workspace, _harness, *, resume_key: str, platform_tools: bool) -> None:
+        def __init__(
+            self,
+            _workspace,
+            acp_harness,
+            *,
+            resume_key: str,
+            platform_tools: bool,
+            custom_agent_id: str | None,
+        ) -> None:
             assert platform_tools
+            assert (acp_harness, custom_agent_id) == (launched, registration)
             self.scope = resume_key
             self.session_id = None
+            self.auth_method = "gemini-api-key" if registration else None
+            self.configuration_policy = "session"
 
         async def open(self) -> None:
             self.session_id = sessions.get(self.scope)
@@ -52,12 +65,13 @@ async def test_primary_streaming_resumes_the_exact_native_receipt_and_sends_only
             pass
 
     async def run(pipe, **options) -> CodingReport:
+        assert options["harness"] == launched and options["auth_method"] == pipe.auth_method
         prompts.append(json.loads(options["task"]))
         identifier = pipe.session_id or f"native-{len(sessions)}"
         await options["remember"](identifier)
         await options["shown"]([Said("Hello"), Said(" world")])
         return CodingReport(
-            harness=harness,
+            harness=launched,
             access="edit",
             outcome="completed",
             answer="Hello world",
@@ -66,7 +80,9 @@ async def test_primary_streaming_resumes_the_exact_native_receipt_and_sends_only
 
     monkeypatch.setattr(native, "DevicePipe", Pipe)
     monkeypatch.setattr(native, "run_task", run)
-    model = NativeConversationModel(harness=harness, epoch=str(uuid4()), access="edit")
+    model = NativeConversationModel(
+        harness=harness, epoch=str(uuid4()), access="edit", registration_id=registration
+    )
     history = [ModelRequest.user_text_prompt("first", instructions="Instruction one")]
     async with model.request_stream(history, None, ModelRequestParameters(), context) as stream:
         events = [event async for event in stream]
@@ -264,3 +280,75 @@ def test_operator_eligibility_is_separate_from_a_native_account(
     assert not native_runtime_availability().codex
     monkeypatch.setattr(settings, "CODEX_NATIVE_CONVERSATION_ENABLED", True)
     assert native_runtime_availability().codex
+    monkeypatch.setattr(settings, "ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED", False)
+    assert not native_runtime_availability().antigravity
+    monkeypatch.setattr(settings, "ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED", True)
+    assert native_runtime_availability().antigravity
+
+
+async def test_an_antigravity_runtime_refuses_a_registration_without_google_personal_login(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A registration id is the person's label; Desktop's login method proves the template."""
+    context = _ctx(_local_workspace(), [])
+    from app.agents.audience import RunAudience
+
+    context.deps.run_person = context.workspace.backend.owner_id
+    context.deps.user_id = str(context.deps.run_person)
+    context.deps.audience = RunAudience(user_id=context.deps.run_person)
+    tools, _calls = await bridge()
+    context.tool_manager = tools._ctx.tool_manager
+    closed: list[bool] = []
+
+    class Pipe:
+        def __init__(self, *_args, **_kwargs) -> None:
+            self.session_id = None
+            self.auth_method = None
+
+        async def open(self) -> None:
+            pass
+
+        async def close(self) -> None:
+            closed.append(True)
+
+    run = AsyncMock()
+    monkeypatch.setattr(native, "DevicePipe", Pipe)
+    monkeypatch.setattr(native, "run_task", run)
+    model = NativeConversationModel(
+        harness="antigravity", epoch=str(uuid4()), access="edit", registration_id="custom-acp"
+    )
+    with pytest.raises(
+        native.AcpError, match="not an Antigravity account or Gemini API key template"
+    ):
+        async with model.request_stream(
+            [ModelRequest.user_text_prompt("hello")], None, ModelRequestParameters(), context
+        ) as stream:
+            _ = [event async for event in stream]
+    run.assert_not_awaited()
+    assert closed == [True]
+
+
+def test_only_antigravity_names_a_registration_and_it_never_claims_read_only() -> None:
+    from app.schemas.local_target import NativeConversationTarget
+
+    epoch = uuid4()
+    chosen = NativeConversationTarget(
+        harness="antigravity", session_epoch=epoch, access="edit", registration_id="agy"
+    )
+    assert chosen.registration_id == "agy"
+    with pytest.raises(ValidationError, match="requires its Desktop registration"):
+        NativeConversationTarget(harness="antigravity", session_epoch=epoch, access="edit")
+    with pytest.raises(ValidationError, match="choose edit"):
+        NativeConversationTarget(harness="antigravity", session_epoch=epoch, registration_id="agy")
+    with pytest.raises(ValidationError, match="Only an Antigravity runtime"):
+        NativeConversationTarget(harness="codex", session_epoch=epoch, registration_id="agy")
+    with pytest.raises(ValidationError):
+        NativeConversationTarget(
+            harness="antigravity", session_epoch=epoch, access="edit", registration_id="../agy"
+        )
+    with pytest.raises(native.AcpError, match="Desktop registration"):
+        NativeConversationModel(harness="antigravity", epoch=str(epoch), access="edit")
+    with pytest.raises(native.AcpError, match="Desktop registration"):
+        NativeConversationModel(
+            harness="codex", epoch=str(epoch), access="edit", registration_id="agy"
+        )

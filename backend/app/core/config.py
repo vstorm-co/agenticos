@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     CLAUDE_NATIVE_CONVERSATION_ENABLED: bool = False
     """Enable only after verifying SDK deployment and selected credential eligibility."""
 
+    ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED: bool = False
+    """Enable only after verifying Google's terms for Antigravity CLI use in this deployment."""
+
     CODEX_NATIVE_CONVERSATION_ENABLED: bool = False
     """Enable only for an eligible local/open-source or provider-approved deployment."""
 

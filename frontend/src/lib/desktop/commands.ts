@@ -381,10 +381,12 @@ export interface LocalTarget {
   coding_model?: string | null;
   coding_effort?: string | null;
   conversation_runtime?: {
-    harness: "codex" | "claude_code";
+    harness: "codex" | "claude_code" | "antigravity";
     session_epoch: string;
     access: "read_only" | "edit";
     model_id?: string | null;
+    /** The Desktop registration running Antigravity; builtin harnesses have none. */
+    registration_id?: string | null;
   } | null;
   model_service?: string | null;
   mcp_services?: string[];
@@ -625,6 +627,11 @@ export async function getLocalCodingOptions(id: LocalAgent["id"]): Promise<Local
   return parseLocalCodingOptions(await invokeShell("local_agent_options", { id }));
 }
 
+/** The signed-in Antigravity account's models, read by Desktop without a model turn. */
+export async function getExternalAgentOptions(id: string): Promise<LocalCodingOptions> {
+  return parseLocalCodingOptions(await invokeShell("external_agent_options", { id }));
+}
+
 /** The agent opens browser OAuth; credentials stay with its native process. */
 export async function signInLocalAgent(id: LocalAgent["id"]): Promise<void> {
   await invokeShell("local_agent_sign_in", { id });
@@ -692,6 +699,7 @@ export interface ExternalAgent {
   provider:
     | "custom"
     | "antigravity"
+    | "antigravity_api_key"
     | "cursor"
     | "cline"
     | "cline_api_key"
@@ -727,6 +735,7 @@ export function parseExternalAgents(value: unknown): ExternalAgent[] {
     if (
       provider !== "custom" &&
       provider !== "antigravity" &&
+      provider !== "antigravity_api_key" &&
       provider !== "cursor" &&
       provider !== "cline" &&
       provider !== "cline_api_key" &&

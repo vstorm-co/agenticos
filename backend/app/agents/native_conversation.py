@@ -6,7 +6,6 @@ from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
-from typing import Literal
 from uuid import uuid4
 
 import anyio
@@ -37,16 +36,20 @@ from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.budget import assert_ambient_budget, record_ambient_usage
 from app.agents.capabilities.coding_agent._acp import AcpError, DevicePipe, run_task
-from app.agents.capabilities.coding_agent._harness import Access, LiveItem, Said
+from app.agents.capabilities.coding_agent._harness import Access, AcpHarness, LiveItem, Said
 from app.agents.capabilities.coding_agent._narration import Narration
 from app.agents.deps import AgentDeps
 from app.agents.isolation import ToolClass
 from app.agents.model_context import check_model_context
 from app.agents.native_model_spec import current_native_context
 from app.agents.runtime_tools import RuntimeTools
+from app.schemas.local_target import NativeHarness
 from app.services.device_hub import DeviceWorkspace
 
 _RECEIPT = "agenticos_native_conversation"
+
+ANTIGRAVITY_LOGINS = frozenset({"oauth-personal", "gemini-api-key"})
+"""What Desktop enforces for its two Antigravity templates, and for no other registration."""
 
 
 class NativeReceipt(BaseModel):
@@ -124,14 +127,18 @@ class NativeConversationModel(Model):
     def __init__(
         self,
         *,
-        harness: Literal["codex", "claude_code"],
+        harness: NativeHarness,
         epoch: str,
         access: Access,
         native_model: str | None = None,
         readonly_tools: Mapping[str, ToolClass] | None = None,
         timeout_seconds: int = 900,
+        registration_id: str | None = None,
     ) -> None:
         super().__init__()
+        if (harness == "antigravity") != (registration_id is not None):
+            raise AcpError("Only an Antigravity runtime runs through a Desktop registration")
+        self.registration_id = registration_id
         self.harness = harness
         self.epoch = epoch
         self.access = access
@@ -265,6 +272,7 @@ class NativeConversationModel(Model):
                 self.epoch,
                 self.access,
                 self.native_model,
+                self.registration_id,
             ]
         )
         rows = history_rows(messages)
@@ -303,8 +311,15 @@ class NativeConversationModel(Model):
         tools = RuntimeTools(
             ctx, readonly_tools=(self.readonly_tools or {}) if self.access == "read_only" else None
         )
-        pipe = DevicePipe(workspace, self.harness, resume_key=scope, platform_tools=True)
-        narration = Narration.for_call(deps, f"primary-runtime-{uuid4()}", self.harness)
+        acp_harness: AcpHarness = "custom" if self.harness == "antigravity" else self.harness
+        pipe = DevicePipe(
+            workspace,
+            acp_harness,
+            resume_key=scope,
+            platform_tools=True,
+            custom_agent_id=self.registration_id,
+        )
+        narration = Narration.for_call(deps, f"primary-runtime-{uuid4()}", acp_harness)
         said: list[str] = []
         size = 0
 
@@ -328,13 +343,17 @@ class NativeConversationModel(Model):
         settled = False
         try:
             await pipe.open()
+            if self.harness == "antigravity" and pipe.auth_method not in ANTIGRAVITY_LOGINS:
+                raise AcpError(
+                    "This Desktop registration is not an Antigravity account or Gemini API key template. No prompt was sent."
+                )
             if pipe.session_id != (previous.session_id if previous is not None else None):
                 raise AcpError(
                     "The native session has no matching settled conversation receipt; reset it explicitly before continuing"
                 )
             report = await run_task(
                 pipe,
-                harness=self.harness,
+                harness=acp_harness,
                 access=self.access,
                 root=root,
                 task=prompt,
@@ -342,6 +361,8 @@ class NativeConversationModel(Model):
                 shown=shown,
                 model=self.native_model,
                 previous_session=pipe.session_id,
+                auth_method=pipe.auth_method,
+                configuration_policy=pipe.configuration_policy,
                 remember=pipe.remember,
                 runtime_questions=deps.runtime_questions,
                 platform_tools=tools,

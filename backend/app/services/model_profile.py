@@ -1017,4 +1017,5 @@ def native_runtime_availability() -> NativeRuntimeAvailability:
     return NativeRuntimeAvailability(
         codex=settings.CODEX_NATIVE_CONVERSATION_ENABLED,
         claude_code=settings.CLAUDE_NATIVE_CONVERSATION_ENABLED,
+        antigravity=settings.ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED,
     )

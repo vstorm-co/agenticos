@@ -10,7 +10,9 @@ import type { DeviceStatus, LocalGrant, LocalMode } from "@/lib/desktop/commands
 import { WorkOn } from "./work-on";
 
 vi.mock("@/hooks/use-model-providers", () => ({
-  useProviderCatalog: () => ({ data: { native_runtimes: { codex: true, claude_code: true } } }),
+  useProviderCatalog: () => ({
+    data: { native_runtimes: { codex: true, claude_code: true, antigravity: true } },
+  }),
 }));
 
 function render(ui: ReactElement, expandFolders = true) {
@@ -60,6 +62,22 @@ vi.mock("@/hooks/use-shell", () => ({
   useShell: () => ({ platform: "macos", window: "main", version: "0.2.0", vibrancy: false }),
 }));
 vi.mock("@/hooks/use-desktop", () => ({
+  useExternalAgents: () => ({
+    state: {
+      data: [
+        { provider: "custom", id: "other", name: "Other", program: "/x", args: [], revision: "1" },
+        {
+          provider: "antigravity",
+          id: "agy",
+          name: "Agy",
+          program: "/agy",
+          args: [],
+          revision: "1",
+        },
+      ],
+    },
+  }),
+  useExternalAgentOptions: () => ({ isSuccess: false, isPending: true, isError: false }),
   useDeviceStatus: () => ({
     data: deviceState.ready
       ? { linked: deviceState.linked, connected: deviceState.connected }
@@ -504,6 +522,14 @@ it("keeps native primary selection distinct from local model services and clears
     "codex",
   );
   expect(useWorkOnStore.getState().targetFor("chat")?.conversation_runtime?.harness).toBe("codex");
+  await userEvent.selectOptions(
+    screen.getByRole("combobox", { name: "Conversation runtime" }),
+    "antigravity",
+  );
+  expect(useWorkOnStore.getState().targetFor("chat")?.conversation_runtime).toMatchObject({
+    harness: "antigravity",
+    registration_id: "agy",
+  });
   await userEvent.selectOptions(
     screen.getByRole("combobox", { name: "Model for this chat" }),
     "model",

@@ -12,7 +12,14 @@ from pydantic_ai.models import Model, ModelRequestContext
 from app.agents.deps import AgentDeps
 from app.agents.isolation import ToolClass
 from app.agents.model_resolver import ModelRequestSpec
-from app.schemas.local_target import NativeConversationTarget
+from app.schemas.local_target import NativeConversationTarget, NativeHarness
+
+NATIVE_RUNTIME_LABELS: Mapping[NativeHarness, str] = {
+    "codex": "Codex",
+    "claude_code": "Claude Agent",
+    "antigravity": "Antigravity",
+}
+"""Display names; "Claude Agent" is the name the SDK branding rules permit."""
 
 _BOUND: ContextVar[RunContext[AgentDeps] | None] = ContextVar(
     "native_conversation_context", default=None
@@ -52,6 +59,7 @@ class NativeModelSpec(ModelRequestSpec):
 
         return NativeConversationModel(
             harness=self.target.harness,
+            registration_id=self.target.registration_id,
             epoch=str(self.target.session_epoch),
             access=self.target.access,
             native_model=self.target.model_id,

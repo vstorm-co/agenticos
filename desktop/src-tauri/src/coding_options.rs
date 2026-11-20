@@ -222,20 +222,53 @@ async fn request(
     Err("The coding agent sent too many messages while checking its settings.".into())
 }
 
-async fn probe(runtime: &crate::coding_runtime::Runtime, id: AgentId, directory: &Path) -> Result<Options, String> {
+/// Whose choices are read: a managed builtin harness, or a registered Antigravity CLI.
+#[derive(Clone, Copy)]
+enum Target<'a> {
+    Builtin(&'a crate::coding_runtime::Runtime, AgentId),
+    Antigravity(&'a crate::external_agents::Registration),
+}
+
+/// The catalog after the same login a session of this registration is held to.
+fn antigravity_login_method(provider: crate::external_agents::Provider) -> &'static str {
+    if provider == crate::external_agents::Provider::AntigravityApiKey {
+        "gemini-api-key"
+    } else {
+        "oauth-personal"
+    }
+}
+
+async fn probe(target: Target<'_>, directory: &Path) -> Result<Options, String> {
     let working_directory = directory
         .to_str()
         .ok_or("The settings directory is not a valid text path.")?;
-    let mut command = match id {
-        AgentId::ClaudeCode => {
+    let mut command = match target {
+        Target::Builtin(runtime, id @ AgentId::ClaudeCode) => {
             let mut command = runtime.command()?;
             command.arg(runtime.adapter(id));
             command
         }
-        AgentId::Codex => {
+        Target::Builtin(runtime, id @ AgentId::Codex) => {
             let (program, prefix) = runtime.cli(id)?;
             let mut command = tokio::process::Command::new(program);
             command.args(prefix).arg("app-server");
+            command
+        }
+        Target::Antigravity(registration) => {
+            let program = Path::new(&registration.program);
+            let mut command = tokio::process::Command::new(program);
+            command.args(&registration.args);
+            // The catalog must describe the same credential a session of this registration uses.
+            let key = std::env::var_os("GEMINI_API_KEY");
+            crate::agent_session::antigravity_environment(
+                &mut command,
+                registration.provider == crate::external_agents::Provider::AntigravityApiKey,
+                key.as_deref(),
+            )
+            .map_err(|refusal| refusal.message)?;
+            if let Some(path) = crate::agent_session::path_with(program) {
+                command.env("PATH", path);
+            }
             command
         }
     };
@@ -260,13 +293,21 @@ async fn probe(runtime: &crate::coding_runtime::Runtime, id: AgentId, directory:
             .ok_or("The coding agent provided no output pipe.")?,
     );
     let result = tokio::time::timeout(Duration::from_secs(45), async {
-        match id {
-            AgentId::ClaudeCode => {
+        match target {
+            Target::Antigravity(registration) => {
+                let method = antigravity_login_method(registration.provider);
+                let initialized = request(&mut input, &mut output, 1, "initialize", json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"agenticos-settings","version":"1"}})).await?;
+                antigravity_login(&initialized, method)?;
+                request(&mut input, &mut output, 2, "authenticate", json!({"methodId":method})).await?;
+                let session = request(&mut input, &mut output, 3, "session/new", json!({"cwd":working_directory,"mcpServers":[]})).await?;
+                claude_options(&session)
+            }
+            Target::Builtin(_, AgentId::ClaudeCode) => {
                 request(&mut input, &mut output, 1, "initialize", json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"agenticos-settings","version":"1"}})).await?;
                 let session = request(&mut input, &mut output, 2, "session/new", json!({"cwd":working_directory,"mcpServers":[],"_meta":{"claudeCode":{"options":{"persistSession":false,"tools":[],"mcpServers":{},"settingSources":[],"plugins":[]}}}})).await?;
                 claude_options(&session)
             }
-            AgentId::Codex => {
+            Target::Builtin(_, AgentId::Codex) => {
                 request(&mut input, &mut output, 1, "initialize", json!({"clientInfo":{"name":"agenticos-settings","version":"1"},"capabilities":{"experimentalApi":true}})).await?;
                 let models = request(&mut input, &mut output, 2, "model/list", json!({"limit":100,"includeHidden":false})).await?;
                 let config = request(&mut input, &mut output, 3, "config/read", json!({"includeLayers":false})).await?;
@@ -284,9 +325,46 @@ async fn probe(runtime: &crate::coding_runtime::Runtime, id: AgentId, directory:
     }
 }
 
+/// Refuse a CLI that does not advertise the login this registration's sessions enforce.
+fn antigravity_login(initialized: &Value, method: &str) -> Result<(), String> {
+    if initialized["protocolVersion"] != 1 {
+        return Err("This Antigravity CLI did not negotiate ACP protocol version 1.".into());
+    }
+    let advertised = initialized["authMethods"]
+        .as_array()
+        .is_some_and(|methods| methods.iter().any(|advertised| advertised["id"] == method));
+    if !advertised {
+        return Err(format!(
+            "This Antigravity CLI does not offer the {method} login. Update it; no other account or billing mode was selected."
+        ));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn local_agent_options(app: AppHandle, id: AgentId) -> Result<Options, String> {
     let runtime = crate::coding_runtime::prepare(&app).await?;
+    in_scratch(&app, Target::Builtin(&runtime, id)).await
+}
+
+/// The signed-in account's models for a registered Antigravity CLI, without a model turn.
+#[tauri::command]
+pub async fn external_agent_options(app: AppHandle, id: String) -> Result<Options, String> {
+    let registration = crate::settings::current(&app)
+        .external_agents
+        .into_iter()
+        .find(|item| item.id == id)
+        .ok_or("That ACP registration no longer exists.")?;
+    if !matches!(
+        registration.provider,
+        crate::external_agents::Provider::Antigravity | crate::external_agents::Provider::AntigravityApiKey
+    ) {
+        return Err("Only Antigravity registrations list account models here.".into());
+    }
+    in_scratch(&app, Target::Antigravity(&registration)).await
+}
+
+async fn in_scratch(app: &AppHandle, target: Target<'_>) -> Result<Options, String> {
     let directory = app
         .path()
         .app_cache_dir()
@@ -301,7 +379,7 @@ pub async fn local_agent_options(app: AppHandle, id: AgentId) -> Result<Options,
                 .await
                 .map_err(|e| e.to_string())?;
         }
-        probe(&runtime, id, &directory).await
+        probe(target, &directory).await
     }
     .await;
     let removed = tokio::fs::remove_dir_all(directory).await;
@@ -315,6 +393,27 @@ pub async fn local_agent_options(app: AppHandle, id: AgentId) -> Result<Options,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn antigravity_options_require_the_registrations_login_and_protocol_one() {
+        use crate::external_agents::Provider;
+        let account = antigravity_login_method(Provider::Antigravity);
+        let keyed = antigravity_login_method(Provider::AntigravityApiKey);
+        assert_eq!((account, keyed), ("oauth-personal", "gemini-api-key"));
+        let login = json!({"protocolVersion":1,"authMethods":[{"id":"gemini-api-key"},{"id":"oauth-personal"}]});
+        assert!(antigravity_login(&login, account).is_ok() && antigravity_login(&login, keyed).is_ok());
+        let key_only = json!({"protocolVersion":1,"authMethods":[{"id":"gemini-api-key"}]});
+        assert!(antigravity_login(&key_only, account)
+            .unwrap_err()
+            .contains("no other account"));
+        assert!(antigravity_login(&key_only, keyed).is_ok());
+        assert!(antigravity_login(
+            &json!({"protocolVersion":2,"authMethods":[{"id":"oauth-personal"}]}),
+            account
+        )
+        .is_err());
+        assert!(antigravity_login(&json!({"protocolVersion":1}), account).is_err());
+    }
 
     #[test]
     fn claude_exposes_grouped_models_and_the_actual_reasoning_choices() {
@@ -415,7 +514,7 @@ mod tests {
         let directory = std::env::temp_dir().join(format!("agenticos-options-smoke-{}", uuid::Uuid::new_v4()));
         tokio::fs::create_dir_all(&directory).await.unwrap();
         for agent in [AgentId::ClaudeCode, AgentId::Codex] {
-            let options = probe(&runtime, agent, &directory).await.unwrap();
+            let options = probe(Target::Builtin(&runtime, agent), &directory).await.unwrap();
             assert!(!options.models.is_empty());
         }
         tokio::fs::remove_dir_all(directory).await.unwrap();

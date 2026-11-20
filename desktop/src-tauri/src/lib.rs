@@ -1699,6 +1699,7 @@ pub fn run() {
             local_agents::local_agents,
             local_agents::local_agent_prepare,
             coding_options::local_agent_options,
+            coding_options::external_agent_options,
             local_agents::local_agent_sign_in,
             local_agents::local_agent_sign_out,
             local_skills::local_skills,

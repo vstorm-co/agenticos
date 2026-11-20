@@ -125,6 +125,29 @@ it("registers the Antigravity personal-account template without an API key", asy
   );
 });
 
+it("registers the Antigravity Gemini API key template and warns about consumer sign-in", async () => {
+  mount();
+  await userEvent.selectOptions(screen.getByLabelText("Setup template"), "antigravity");
+  expect(screen.getByText(/section 6/)).toBeVisible();
+  await userEvent.selectOptions(screen.getByLabelText("Setup template"), "antigravity_api_key");
+  expect(screen.getByLabelText("Agent ID")).toHaveValue("antigravity-api-key");
+  expect(screen.getByLabelText("Arguments (JSON array)")).toHaveValue('["acp"]');
+  expect(screen.getByText(/never falls back to the saved Google sign-in/)).toBeVisible();
+  await userEvent.type(screen.getByLabelText("Absolute executable path"), "/opt/bin/agy");
+  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith("external_save_agent", {
+      registration: {
+        provider: "antigravity_api_key",
+        id: "antigravity-api-key",
+        name: "Antigravity · Gemini API key",
+        program: "/opt/bin/agy",
+        args: ["acp"],
+      },
+    }),
+  );
+});
+
 it.each([
   ["cursor", "cursor", "Cursor"],
   ["opencode", "opencode", "OpenCode"],

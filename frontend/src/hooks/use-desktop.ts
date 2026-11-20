@@ -12,6 +12,7 @@ import {
   changeServer,
   getLocalAgents,
   getLocalCodingOptions,
+  getExternalAgentOptions,
   getLocalSkills,
   SKILL_SOURCES,
   getLocalServices,
@@ -367,6 +368,19 @@ export function useLocalSkills() {
 }
 
 /** Native registration and consent own the executable; HTTP never receives it. */
+/** An Antigravity registration's account models; refreshed only on request, never in a turn. */
+export function useExternalAgentOptions(id: string | null) {
+  const shell = useShell();
+  return useQuery({
+    queryKey: qk.desktop.externalOptions(id),
+    queryFn: id === null ? skipToken : () => getExternalAgentOptions(id),
+    enabled: isDesktopShell(shell) && id !== null,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
 export function useExternalAgents() {
   const shell = useShell();
   const client = useQueryClient();

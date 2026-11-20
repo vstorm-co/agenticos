@@ -1,5 +1,5 @@
 ---
-source_sha: "26ac48acc5f2"
+source_sha: "c4a9ee7d537d"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -770,33 +770,66 @@ Akcja wymagająca zgody pokazuje w czacie pełne argumenty. Zgoda jest zapisywan
 
 ## Antigravity przez ACP { #antigravity-acp }
 
-Zainstaluj CLI Antigravity firmy Google i uruchom w terminalu `agy acp --login`.
-W **Zewnętrzni agenci ACP** wybierz szablon **Antigravity** i podaj bezwzględną
-ścieżkę z `which agy`. Natywna rejestracja dopuszcza argument `acp` i wymaga
-osobistego logowania Google. Proces usuwa odziedziczone klucze Gemini API oraz
-przełączniki uwierzytelniania API/Vertex; pliki tokenów nie są kopiowane.
+Zainstaluj Antigravity CLI od Google. W sekcji **Zewnętrzni agenci ACP** wybierz jeden
+z dwóch szablonów i wpisz ścieżkę bezwzględną zwróconą przez `which agy`. Oba
+dopuszczają wyłącznie argument `acp` i żaden nie kopiuje plików z tokenami.
 
-W Builderze włącz **Zewnętrzny agent ACP** z zarejestrowanym ID. Rejestracja Desktop
-wymaga uwierzytelnienia ACP `oauth-personal` przed rozpoczęciem sesji, również gdy
-binding korzysta z trybu ustawień programu. Odmowa lub brak osobistego logowania
-kończy się błędem bez próby użycia innego konta lub rozliczenia API.
+| Szablon | Logowanie | Rozliczenie |
+| --- | --- | --- |
+| **Antigravity** | Osobiste logowanie Google (`oauth-personal`). Najpierw uruchom `agy acp --login`. Odziedziczone klucze Gemini API i selektory API/Vertex są usuwane. | Twój plan Google AI |
+| **Antigravity · klucz Gemini API** | `gemini-api-key`, wyłącznie z `GEMINI_API_KEY` odziedziczonym przez aplikację desktopową. Brak klucza blokuje uruchomienie; zapisane logowanie Google nigdy nie jest użyte zamiast niego. AgenticOS nie przechowuje klucza. | Cennik i warunki Gemini API |
 
-Poproś agenta o użycie `inspect_acp_agent`, aby odczytać modele i poziomy reasoning
-bieżącej sesji. Katalog nie wysyła promptu do inferencji i nie jest przechowywany
-między kontami. Brak pola wyboru różni się od pustej listy. W **ID modelu
-zewnętrznego** podaj dokładne ID z wyniku; puste pole zachowuje ustawienie CLI.
-Brak obsługi wyboru modelu kończy się jawnym błędem.
+Warunki Google ograniczają pierwszy szablon. Opiekun projektu po stronie Google
+[napisał w trackerze CLI](https://github.com/google-antigravity/antigravity-cli/issues/1493),
+że logowanie konsumenckie może obsługiwać `agy acp` tylko w sesji prowadzonej
+bezpośrednio przez człowieka, a nie jako zaplecze agenta firmy trzeciej, zgodnie
+z sekcją 6 [dodatkowych warunków Antigravity](https://antigravity.google/terms).
+Taki ruch podlega egzekwowaniu przeciw nadużyciom i zawieszeniu konta. Pytanie, czy
+dotyczy to platformy, która otacza każdą wpisaną wiadomość instrukcjami, historią
+i narzędziami, zostało tam zadane i pozostaje bez odpowiedzi. AgenticOS nie
+przedstawia szablonu osobistego jako dozwolonego; dla agentów preferuj szablon
+z kluczem Gemini API.
 
-To delegowane zadania korzystające z narzędzi Antigravity. Integracja jest oddzielna
-od profili Gemini API; domyślnie nie przekazuje narzędzi platformy AgenticOS ani
-nie zastępuje głównej rozmowy. Użycie subskrypcji pozostaje niewycenione. Google
-ogranicza część modeli innych dostawców do nazwanych klientów; AgenticOS przedstawia
-się własną nazwą i nie obiecuje dostępu poza katalogiem swojej sesji.
+Włącz **External ACP agent** w Builderze z zarejestrowanym ID. Aplikacja desktopowa
+wymaga metody uwierzytelnienia ACP danego szablonu, zanim sesja się zacznie, także
+gdy powiązanie używa ustawień programu. Odrzucone lub nieobsługiwane logowanie
+kończy się błędem bez próby innego konta ani trybu rozliczeń.
 
-Logowanie na rzeczywistym koncie, uprawnienia, limity, cofnięcie dostępu i wznowienie
-po restarcie wymagają jeszcze testu odbiorowego. [Oficjalny przewodnik ACP](https://antigravity.google/docs/ide/extensions/acp)
-opisuje metody logowania i ograniczenia klientów. Klucz API należy do osobnego
-profilu Gemini API albo jawnie skonfigurowanej własnej rejestracji.
+Poproś agenta o użycie `inspect_acp_agent`, aby odczytać modele i poziomy
+rozumowania bieżącej sesji. Katalog nie wysyła promptu i nie jest współdzielony
+między kontami. Brak listy wyboru to co innego niż pusta lista. Ustaw **External
+model ID** na dokładny zwrócony identyfikator, aby wybrać model; puste pole
+zachowuje ustawienie CLI. Nieobsługiwane ustawienie modelu kończy się jawnym błędem.
+
+To uruchamia delegowane zadania z natywnymi narzędziami Antigravity. Jest to
+oddzielne od profili modeli Gemini API i domyślnie nie przekazuje narzędzi
+platformy AgenticOS. Użycie nie jest wyceniane w AgenticOS. Google ogranicza część
+modeli firm trzecich do wskazanych klientów; AgenticOS przedstawia się jako
+AgenticOS i nie obiecuje dostępu poza katalogiem, który sam ogłasza.
+
+### Antigravity jako środowisko rozmowy { #antigravity-runtime }
+
+Antigravity może też samo odpowiadać w rozmowie zamiast profilu modelu agenta,
+na [tych samych zasadach](#codex-conversation) co Codex i Claude Agent. Wybierz
+**Ten komputer** z **Pełnym dostępem**, a potem **Środowisko prowadzące rozmowę → Antigravity ·
+ten komputer**. Przy kilku rejestracjach Antigravity wybierz właściwą. Aplikacja
+desktopowa odczytuje modele tej rejestracji jej własnym logowaniem, bez tury modelu,
+i pokazuje je w polu **Model Antigravity**. **Domyślny dla konta** zachowuje wybór CLI.
+Nieudany odczyt pokazuje odmowę CLI i przycisk **Odczytaj modele ponownie**. Model na liście
+nie dowodzi uprawnień ani pozostałego limitu.
+
+Operator musi ustawić `ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED=true`; domyślnie
+przełącznik jest wyłączony. Jego włączenie nie oznacza, że warunki Google pozwalają
+na takie użycie logowania konsumenckiego. Antigravity nie ma udokumentowanego
+trybu tylko do odczytu, więc środowisko zawsze działa z własnym dostępem do narzędzi,
+a narzędzia platformy AgenticOS zachowują politykę zatwierdzania agenta. Serwer
+odrzuca rejestrację, której aplikacja desktopowa nie zgłasza jako jednego z dwóch
+szablonów Antigravity, zanim wyśle jakikolwiek prompt. Zmiana rejestracji lub
+modelu rozpoczyna nową sesję natywną.
+
+Logowanie na prawdziwym koncie, uprawnienia, limity, odwołanie dostępu i wznowienie
+po restarcie nadal wymagają testów akceptacyjnych. Obsługiwane metody
+uwierzytelnienia i ograniczenia klientów opisuje [oficjalny przewodnik ACP](https://antigravity.google/docs/ide/extensions/acp).
 
 ## OpenCode i Go przez ACP { #opencode-acp }
 

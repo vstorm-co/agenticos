@@ -760,16 +760,29 @@ Actions needing approval show their complete arguments in the live chat. The app
 
 ## Antigravity through ACP { #antigravity-acp }
 
-Install Google's Antigravity CLI and run `agy acp --login` in a terminal. Under
-**External ACP agents**, choose the **Antigravity** setup template and enter the
-absolute path reported by `which agy`. Native registration permits the `acp`
-argument and requires Google personal sign-in. The child process drops inherited
-Gemini API keys and API/Vertex authentication selectors; no token files are copied.
+Install Google's Antigravity CLI. Under **External ACP agents**, choose one of two
+setup templates and enter the absolute path reported by `which agy`. Both permit
+only the `acp` argument, and neither copies token files.
 
-Enable **External ACP agent** in the Builder with the registered ID. The Desktop
-registration requires ACP `oauth-personal` authentication before a session starts,
-even when the binding uses the program-setting mode. Refused or unsupported
-personal login fails without trying another account or API billing mode.
+| Template | Login | Billing |
+| --- | --- | --- |
+| **Antigravity** | Google personal sign-in (`oauth-personal`). Run `agy acp --login` first. Inherited Gemini API keys and API/Vertex selectors are removed. | Your Google AI plan |
+| **Antigravity · Gemini API key** | `gemini-api-key`, using only the `GEMINI_API_KEY` that Desktop inherited. A missing key refuses the launch; the saved Google sign-in is never used instead. AgenticOS stores no key. | Gemini API pricing and terms |
+
+Google's terms limit the first template. A Google maintainer [stated on the CLI's
+issue tracker](https://github.com/google-antigravity/antigravity-cli/issues/1493)
+that consumer sign-in may drive `agy acp` only in a session a person drives directly,
+not as the backend of a third-party agent harness, under section 6 of the
+[Antigravity Additional Terms](https://antigravity.google/terms). Such traffic is
+subject to abuse enforcement and account suspension. Whether an agent platform that
+wraps each typed turn with instructions, history and tools counts was asked there
+and has not been answered. AgenticOS does not present the personal template as
+permitted; prefer the Gemini API key template for agents.
+
+Enable **External ACP agent** in the Builder with the registered ID. Desktop
+requires the template's ACP authentication method before a session starts, even
+when the binding uses the program-setting mode. A refused or unsupported login
+fails without trying another account or billing mode.
 
 Ask the agent to use `inspect_acp_agent` to read the current session's model and
 thinking choices. The catalog sends no inference prompt and is not cached across
@@ -778,15 +791,34 @@ to an exact returned ID to choose a runtime model; leaving it empty keeps the CL
 setting. An unsupported model setting fails explicitly.
 
 This runs delegated tasks using Antigravity's native tools. It is separate from
-Gemini API model profiles and does not forward AgenticOS platform tools by default or
-replace the main conversation runtime. Subscription spend is unpriced. Google
-restricts some third-party models to named clients; AgenticOS identifies itself
-as AgenticOS and promises no access beyond its own advertised catalog.
+Gemini API model profiles and does not forward AgenticOS platform tools by default.
+Usage is unpriced in AgenticOS. Google restricts some third-party models to named
+clients; AgenticOS identifies itself as AgenticOS and promises no access beyond
+its own advertised catalog.
 
-Real-account login, entitlement, quota, revocation and resume-after-restart still
+### Antigravity as the conversation runtime { #antigravity-runtime }
+
+Antigravity can also answer the conversation itself, instead of the agent's model
+profile, under the [same contract](#codex-conversation) that
+Codex and Claude Agent use. Choose **This computer** with full access, then
+**Conversation runtime → Antigravity · this computer**. With more than one
+Antigravity registration, pick the registration. Desktop reads that registration's
+models with its own login and no model turn, and lists them under **Antigravity
+model**. **Account default** keeps the CLI's selection. A failed read shows the
+CLI's refusal and **Read models again**. A listed model is not proof of
+entitlement or remaining quota.
+
+The operator must set `ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED=true`; it is off by
+default. Enabling it does not establish that Google's terms allow consumer sign-in
+for this use. Antigravity has no documented read-only mode, so the runtime always
+runs with its own tool access, and AgenticOS platform tools keep the agent's
+approval policy. The server refuses a registration that Desktop does not report as
+one of the two Antigravity templates before any prompt is sent. Changing the
+registration or model starts a new native session.
+
+Real-account login, entitlement, quota, revocation and resume after restart still
 require acceptance testing. See the [official ACP guide](https://antigravity.google/docs/ide/extensions/acp)
-for supported authentication methods and client restrictions. API-key use belongs
-to a separate Gemini API profile or an explicitly configured custom registration.
+for supported authentication methods and client restrictions.
 
 ## OpenCode and Go through ACP { #opencode-acp }
 

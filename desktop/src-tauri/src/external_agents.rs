@@ -15,6 +15,7 @@ pub enum Provider {
     Custom,
     Hermes,
     Antigravity,
+    AntigravityApiKey,
     Cursor,
     Cline,
     ClineApiKey,
@@ -89,7 +90,12 @@ fn checked(input: RegistrationInput) -> Result<Registration, String> {
     }
     if matches!(
         input.provider,
-        Provider::Antigravity | Provider::Cursor | Provider::OpenCode | Provider::OpenCodeGo | Provider::Kimi
+        Provider::Antigravity
+            | Provider::AntigravityApiKey
+            | Provider::Cursor
+            | Provider::OpenCode
+            | Provider::OpenCodeGo
+            | Provider::Kimi
     ) && input.args != ["acp"]
     {
         return Err(
@@ -180,7 +186,8 @@ pub async fn external_save_agent(app: AppHandle, registration: RegistrationInput
         Provider::Cline => "Cline account login is required. Inherited API keys are removed and provider selection is fixed to Cline. Credit, model availability and any free offerings depend on your Cline account, not on an assumed subscription.",
         Provider::ClineApiKey => "Only the CLINE_API_KEY inherited by Desktop is used, with the provider fixed to Cline. A missing key refuses launch without using saved account credentials. No key is stored by AgenticOS. Cline account/credit terms determine charges.",
         Provider::Cursor => "Cursor uses its own CLI account login; inherited API keys and auth-token overrides are removed. Account, model and on-demand settings determine charges. Sign in with agent login first. API-key registration is not supported by this template.",
-        Provider::Antigravity => "Google personal OAuth is required; inherited Gemini API key variables are removed.",
+        Provider::Antigravity => "Google personal OAuth is required; inherited Gemini API key variables are removed. Google's Additional Terms (section 6) do not permit consumer sign-in as the backend of a third-party agent harness and may suspend such accounts; use the Gemini API key template where that applies.",
+        Provider::AntigravityApiKey => "Only the GEMINI_API_KEY inherited by Desktop is used, with the gemini-api-key login. A missing key refuses launch without using the saved Google sign-in. No key is stored by AgenticOS. Gemini API pricing and terms determine charges, not a Google AI subscription.",
         Provider::OpenCode => "OpenCode uses its own configured providers and credentials. Its model choices may include free models, Go and paid APIs.",
         Provider::OpenCodeGo => "Only an opencode-go primary model may receive a prompt. Connect Go under opencode-go in OpenCode itself; no key is copied by AgenticOS. Go Extra Usage and OpenCode auxiliary-model settings can incur additional charges. Coding tasks only.",
         Provider::Hermes => "Select the Python executable in the documented Hermes environment, not the hermes command. Desktop starts a source-verified foreground ACP host, never the shared gateway. Each private conversation has a separate Hermes home; the native setup dialog identifies that home. Complete provider setup and Nous Portal login there. No existing home, memory, skills or token files are copied. Credentials, configured APIs, native tools and charges remain Hermes-owned. Changing the registration clears continuation and selects a fresh home. Usage is unpriced.",
@@ -424,6 +431,21 @@ mod tests {
                 .is_err());
             }
         }
+    }
+
+    #[test]
+    fn antigravity_key_registration_uses_the_same_fixed_launch() {
+        assert!(checked(RegistrationInput {
+            provider: Provider::AntigravityApiKey,
+            ..input()
+        })
+        .is_ok());
+        assert!(checked(RegistrationInput {
+            provider: Provider::AntigravityApiKey,
+            args: vec!["acp".into(), "--login".into()],
+            ..input()
+        })
+        .is_err());
     }
 
     #[test]

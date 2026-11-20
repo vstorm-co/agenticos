@@ -88,6 +88,7 @@ export function ExternalAgentSettings() {
               const selected = event.target.value;
               if (
                 selected !== "antigravity" &&
+                selected !== "antigravity_api_key" &&
                 selected !== "cursor" &&
                 selected !== "cline" &&
                 selected !== "cline_api_key" &&
@@ -114,6 +115,7 @@ export function ExternalAgentSettings() {
               // i18n-exempt: product names
               const names = {
                 antigravity: "Antigravity",
+                antigravity_api_key: t("antigravityApi"),
                 cursor: "Cursor",
                 cline: "Cline",
                 cline_api_key: t("clineApi"),
@@ -159,6 +161,7 @@ export function ExternalAgentSettings() {
             <option value="custom">{t("custom")}</option>
             {/* i18n-exempt: product name */}
             <option value="antigravity">Antigravity</option>
+            <option value="antigravity_api_key">{t("antigravityApi")}</option>
             {/* i18n-exempt: product names */}
             <option value="qwen_subscription">{t("qwenSubscription")}</option>
             {/* i18n-exempt: product name */}
@@ -228,6 +231,9 @@ export function ExternalAgentSettings() {
         )}
         {provider === "antigravity" && (
           <p className="text-muted-foreground text-xs">{t("antigravityHelp")}</p>
+        )}
+        {provider === "antigravity_api_key" && (
+          <p className="text-muted-foreground text-xs">{t("antigravityKeyHelp")}</p>
         )}
         <div>
           <Label htmlFor="external-agent-id">{t("id")}</Label>

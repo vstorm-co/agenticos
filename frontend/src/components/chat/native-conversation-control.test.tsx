@@ -1,7 +1,41 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { LocalTarget } from "@/lib/desktop/commands";
+import type { ExternalAgent, LocalTarget } from "@/lib/desktop/commands";
 import { NativeConversationControl } from "./native-conversation-control";
+
+const options = vi.hoisted(() => ({
+  current: {} as Record<string, unknown>,
+  requested: [] as (string | null)[],
+}));
+vi.mock("@/hooks/use-desktop", () => ({
+  useExternalAgentOptions: (id: string | null) => {
+    options.requested.push(id);
+    return options.current;
+  },
+}));
+
+const agy = (id: string, name: string): ExternalAgent => ({
+  provider: "antigravity",
+  id,
+  name,
+  program: "/usr/local/bin/agy",
+  args: ["acp"],
+  revision: "r1",
+});
+const signedIn = {
+  isSuccess: true,
+  isPending: false,
+  isError: false,
+  data: {
+    current_model: "gemini-3-pro",
+    current_effort: null,
+    models: [
+      { value: "gemini-3-pro", name: "Gemini 3 Pro", efforts: [] },
+      { value: "gemini-3-flash", name: "Gemini 3 Flash", efforts: [] },
+    ],
+  },
+  refetch: vi.fn(),
+};
 
 const base: LocalTarget = { folder: "/work", mode: "full_access" };
 const runtime: NonNullable<LocalTarget["conversation_runtime"]> = {
@@ -130,5 +164,169 @@ describe("native primary conversation choice", () => {
       conversation_runtime: { model_id: "previous-id" },
     });
     expect(changed.mock.lastCall?.[0].conversation_runtime?.session_epoch).not.toBe("original");
+  });
+
+  it("is unavailable until the operator enables it and Desktop has a registration", () => {
+    const { rerender } = render(
+      <NativeConversationControl
+        claudeEnabled
+        codexEnabled
+        target={base}
+        antigravityRegistrations={[agy("agy", "Antigravity")]}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("option", { name: "Antigravity · this computer" })).toBeDisabled();
+    rerender(
+      <NativeConversationControl
+        claudeEnabled
+        codexEnabled
+        antigravityEnabled
+        target={base}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("option", { name: "Antigravity · this computer" })).toBeDisabled();
+    expect(screen.getByText(/Register the Antigravity CLI/)).toBeVisible();
+  });
+
+  it("selects Antigravity on its first registration with its own tool access", () => {
+    const changed = vi.fn<(target: LocalTarget) => void>();
+    render(
+      <NativeConversationControl
+        claudeEnabled
+        codexEnabled
+        antigravityEnabled
+        antigravityRegistrations={[agy("agy", "Antigravity"), agy("agy-work", "Work account")]}
+        target={{ ...base, model_service: "local-model" }}
+        onChange={changed}
+      />,
+    );
+    fireEvent.change(screen.getByRole("combobox", { name: "Conversation runtime" }), {
+      target: { value: "antigravity" },
+    });
+    expect(changed.mock.lastCall?.[0]).toMatchObject({
+      model_service: null,
+      conversation_runtime: { harness: "antigravity", access: "edit", registration_id: "agy" },
+    });
+  });
+
+  it("offers the signed-in account's models and a new session for every choice", () => {
+    options.current = signedIn;
+    options.requested.length = 0;
+    const changed = vi.fn<(target: LocalTarget) => void>();
+    const chosen: LocalTarget = {
+      ...base,
+      conversation_runtime: {
+        harness: "antigravity",
+        session_epoch: "original",
+        access: "edit",
+        registration_id: "agy",
+      },
+    };
+    render(
+      <NativeConversationControl
+        claudeEnabled
+        codexEnabled
+        antigravityEnabled
+        antigravityRegistrations={[agy("agy", "Antigravity"), agy("agy-work", "Work account")]}
+        target={chosen}
+        onChange={changed}
+      />,
+    );
+    expect(options.requested).toContain("agy");
+    expect(screen.queryByRole("combobox", { name: "Runtime tool access" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Native model ID (optional)" })).toBeNull();
+    expect(screen.getByRole("option", { name: "Account default (gemini-3-pro)" })).toBeVisible();
+    fireEvent.change(screen.getByRole("combobox", { name: "Antigravity model" }), {
+      target: { value: "gemini-3-flash" },
+    });
+    const picked = changed.mock.lastCall?.[0].conversation_runtime;
+    expect(picked).toMatchObject({ model_id: "gemini-3-flash", registration_id: "agy" });
+    expect(picked?.session_epoch).not.toBe("original");
+    fireEvent.change(screen.getByRole("combobox", { name: "Antigravity registration" }), {
+      target: { value: "agy-work" },
+    });
+    expect(changed.mock.lastCall?.[0].conversation_runtime).toMatchObject({
+      registration_id: "agy-work",
+      model_id: null,
+    });
+  });
+
+  it("reports an unreadable account catalog and lets the person retry", () => {
+    const refetch = vi.fn();
+    options.current = {
+      isSuccess: false,
+      isPending: false,
+      isError: true,
+      error: new Error("This Antigravity CLI does not offer Google personal login."),
+      refetch,
+    };
+    render(
+      <NativeConversationControl
+        claudeEnabled
+        codexEnabled
+        antigravityEnabled
+        antigravityRegistrations={[agy("agy", "Antigravity")]}
+        target={{
+          ...base,
+          conversation_runtime: {
+            harness: "antigravity",
+            session_epoch: "original",
+            access: "edit",
+            registration_id: "agy",
+          },
+        }}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(/Google personal login/);
+    expect(screen.getByRole("combobox", { name: "Antigravity model" })).toBeDisabled();
+    expect(screen.queryByRole("combobox", { name: "Antigravity registration" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Read models again" }));
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it("explains a pending read and a failure without a message", () => {
+    options.current = { isSuccess: false, isPending: true, isError: false, refetch: vi.fn() };
+    const target: LocalTarget = {
+      ...base,
+      conversation_runtime: {
+        harness: "antigravity",
+        session_epoch: "original",
+        access: "edit",
+        registration_id: "agy",
+      },
+    };
+    const { rerender } = render(
+      <NativeConversationControl
+        claudeEnabled
+        codexEnabled
+        antigravityEnabled
+        antigravityRegistrations={[agy("agy", "Antigravity")]}
+        target={target}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Reading the models/)).toBeVisible();
+    expect(screen.getByRole("option", { name: "Account default" })).toBeInTheDocument();
+    options.current = {
+      isSuccess: false,
+      isPending: false,
+      isError: true,
+      error: "x",
+      refetch: vi.fn(),
+    };
+    rerender(
+      <NativeConversationControl
+        claudeEnabled
+        codexEnabled
+        antigravityEnabled
+        antigravityRegistrations={[agy("agy", "Antigravity")]}
+        target={target}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(/Could not read this account's models/);
   });
 });

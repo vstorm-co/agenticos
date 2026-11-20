@@ -58,7 +58,7 @@ export interface ProviderInfo {
 }
 
 export interface ProviderCatalog {
-  native_runtimes?: { codex: boolean; claude_code: boolean };
+  native_runtimes?: { codex: boolean; claude_code: boolean; antigravity: boolean };
   items: ProviderInfo[];
   total: number;
 }

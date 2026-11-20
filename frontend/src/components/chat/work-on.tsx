@@ -11,6 +11,7 @@ import { useTranslations } from "next-intl";
 import {
   useDeviceLink,
   useDeviceStatus,
+  useExternalAgents,
   useLocalFolders,
   useLocalServices,
 } from "@/hooks/use-desktop";
@@ -167,6 +168,10 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
   const { state, pick, revoke } = useLocalFolders();
   const services = useLocalServices().state.data ?? [];
   const nativeRuntimes = useProviderCatalog().data?.native_runtimes;
+  const antigravityRegistrations = (useExternalAgents().state.data ?? []).filter(
+    (registration) =>
+      registration.provider === "antigravity" || registration.provider === "antigravity_api_key",
+  );
   const conversationId = useConversationStore((store) => store.currentConversationId);
   const target = useWorkOnStore((store) => store.targetFor(conversationId));
   const setTarget = useWorkOnStore((store) => store.set);
@@ -442,6 +447,8 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
               <NativeConversationControl
                 codexEnabled={nativeRuntimes?.codex === true}
                 claudeEnabled={nativeRuntimes?.claude_code === true}
+                antigravityEnabled={nativeRuntimes?.antigravity === true}
+                antigravityRegistrations={antigravityRegistrations}
                 target={target}
                 onChange={(next) => setTarget(conversationId, next)}
               />

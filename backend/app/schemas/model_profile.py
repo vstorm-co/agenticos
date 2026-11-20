@@ -76,6 +76,7 @@ class NativeRuntimeAvailability(BaseSchema):
 
     codex: bool = False
     claude_code: bool = False
+    antigravity: bool = False
 
 
 class ProviderCatalog(BaseSchema):

@@ -80,6 +80,28 @@ required; account and legal acceptance remain explicit PR follow-up conditions.
 
 `CLAUDE_NATIVE_CONVERSATION_ENABLED` also defaults to false and is enforced independently. The SDK documentation requires prior approval to offer claude.ai login or consumer rate limits in a third-party product. Verify API/cloud credential eligibility or obtain that approval before enabling; never disable authentication methods inside the vendor binary. The feature is named “Claude Agent” under the SDK branding rules.
 
+## Antigravity runtime decision
+
+Antigravity reuses the same model and receipt contract through a Desktop ACP
+registration rather than a managed builtin harness. The target names the
+registration; the server admits only a session whose Desktop reports one of the two
+Antigravity login methods (`oauth-personal` or `gemini-api-key`), so an arbitrary
+custom registration cannot be relabelled as Antigravity. The registration ID is part
+of the native scope. Its CLI documents no read-only mode, so only edit access is
+offered rather than an unenforced read-only promise. Desktop reads the account's
+model catalog with the registration's own login, without a model turn.
+
+Google's maintainer stated in [antigravity-cli#1493](https://github.com/google-antigravity/antigravity-cli/issues/1493)
+that consumer `oauth-personal` sign-in is limited to sessions a person drives
+directly and excludes use as the backend of a third-party agent harness under
+section 6 of the Additional Terms, with suspension as the stated enforcement.
+Whether a platform wrapping each typed turn counts was asked and is unanswered.
+`ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED` therefore defaults to false, the console
+and documentation state the restriction, and the separate Gemini API key template
+(`gemini-api-key`, Desktop-inherited `GEMINI_API_KEY`, no sign-in fallback) is the
+recommended mode for agents. The switch is an operator decision, not evidence of
+Google's permission.
+
 ## Hermes ownership decision
 
 The current public `hermes acp` entry point constructs a shared-gateway viewer. Killing that viewer cannot establish that its admitted work stopped. Instead, the installed Python environment hosts the existing `HermesACPAgent` with an explicit `SessionManager`. The constructor retains this foreground branch at source revision `91cb42b51bddc6841c4e50183c41c96d59e48516`. We pin the server/session/entry source fingerprints, refuse incompatible environments before inference, and reuse ACP streaming, model discovery, permissions, platform tools and durable session IDs. No shared gateway is attached, started or stopped.
