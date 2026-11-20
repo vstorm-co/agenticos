@@ -1,5 +1,5 @@
 ---
-source_sha: "ecef2a482381"
+source_sha: "31ae9956e201"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -409,6 +409,11 @@ Standard-Provider verwenden die Modell- und Provider-Ableitung von Pydantic AI. 
 | Alibaba Coding Plan | `alibaba_coding_plan` | API-Key | ✓ |
 | OpenCode Go | `opencode_go` | API-Key | ✓ |
 | Ollama Cloud | `ollama_cloud` | API-Key | ✓ |
+| Nous Portal | `nous_portal` | API-Key | ✓ |
+| Inception | `inception` | API-Key | ✓ |
+| Cline | `cline` | API-Key | ✓ |
+| Chutes | `chutes` | API-Key | ✓ |
+| Synthetic | `synthetic` | API-Key | ✓ |
 | CLIProxyAPI (subscription gateway) | `cliproxyapi` | API-Key | ✓ |
 | Moonshot AI | `moonshotai` | API-Key | |
 | Nebius AI Studio | `nebius` | API-Key | |
@@ -436,6 +441,16 @@ Für einen **Z.AI GLM Coding Plan** wähle **Z.AI** und setze **Endpoint** ausdr
 | Ollama Cloud | `https://ollama.com/v1` | Cloud-Modelle deines Ollama-Kontos |
 
 Ein Planschlüssel ist nicht mit dem nutzungsabhängigen API-Schlüssel des Anbieters austauschbar. Manche Anbieter beschränken Planschlüssel auf Coding-Tools; die Nutzung über eine Agentenplattform ist deine Entscheidung und kann den Plan einschränken oder sperren. AgenticOS-Budgets behandeln diese Nutzung als unbepreiste Abo-Nutzung.
+
+**Weitere OpenAI-kompatible Konten.** Nous Portal, Inception, Cline, Chutes und Synthetic nehmen den Schlüssel aus der Konsole des jeweiligen Dienstes. Ein leerer Endpoint verwendet die Standardadresse unten, und die Modellliste stammt aus dem Katalog des Schlüssels. Abos von Nous Portal, Chutes und Synthetic gelten als unbepreist; Cline-Guthaben und Inception-Nutzung werden nur bepreist, wo AgenticOS den Modellpreis kennt.
+
+| Provider | Standard-Endpunkt |
+|---|---|
+| Nous Portal | `https://inference-api.nousresearch.com/v1` |
+| Inception | `https://api.inceptionlabs.ai/v1` |
+| Cline | `https://api.cline.bot/api/v1` |
+| Chutes | `https://llm.chutes.ai/v1` |
+| Synthetic | `https://api.synthetic.new/openai/v1` |
 
 **Abo-Gateway (CLIProxyAPI).** Konten, für die der Anbieter keinen Planschlüssel ausgibt (Antigravity, Grok Build, Devin, Muse Code, Kimi-Code-Anmeldung und weitere), lassen sich über ein [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)-Gateway nutzen, das du oder dein Betreiber betreibt. Melde die Konten mit den eigenen Login-Befehlen des Gateways an, lege unter `access.api-keys` einen Client-Schlüssel an und erstelle dann ein Profil **CLIProxyAPI (subscription gateway)** mit dessen Endpoint (zum Beispiel `http://cliproxyapi:8317/v1` für einen Gateway-Container im Netz des Deployments) und diesem Client-Schlüssel. Jedes Konto im Gateway steht allen offen, die das Profil nutzen dürfen; betreibe für ein persönliches Konto daher ein persönliches Gateway. Trage den Host des Gateways in `OUTBOUND_PRIVATE_ALLOWLIST` ein; Loopback-Adressen sind vom Server aus nie erreichbar. Anbieter können so genutzte Konten einschränken oder sperren; dieses Risiko trägt der Kontoinhaber.
 
@@ -624,13 +639,14 @@ und bei sieben Providern aus keiner von beiden, was die Antwort laut ausspricht.
 
 ### Live { #live }
 
-Fünfundzwanzig Provider veröffentlichen einen Listen-Endpunkt, und das ist die einzige
+Dreißig Provider veröffentlichen einen Listen-Endpunkt, und das ist die einzige
 Quelle, die von einem heute Morgen veröffentlichten Modell weiß:
 
 `anthropic`, `openai`, `google`, `openrouter`, `groq`, `mistral`, `together`,
 `cohere`, `deepseek`, `xai`, `sambanova`, `vercel`, `ovhcloud`, `huggingface`,
 `cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`,
-`kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`, `cliproxyapi`.
+`kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`, `cliproxyapi`, `nous_portal`,
+`inception`, `cline`, `chutes`, `synthetic`.
 
 Die Antwortformen sind uneinheitlich — das Array liegt bei `data`, bei `models`
 oder in der Dokumentwurzel; die Id ist `id`, `name` oder `model`; Gemini stellt

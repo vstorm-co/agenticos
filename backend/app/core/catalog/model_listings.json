@@ -213,5 +213,40 @@
     "id_field": "id",
     "auth_header": "Authorization",
     "auth_template": "Bearer {key}"
+  },
+  "nous_portal": {
+    "url": "https://inference-api.nousresearch.com/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "inception": {
+    "url": "https://api.inceptionlabs.ai/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "cline": {
+    "url": "https://api.cline.bot/api/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "chutes": {
+    "url": "https://llm.chutes.ai/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "synthetic": {
+    "url": "https://api.synthetic.new/openai/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
   }
 }

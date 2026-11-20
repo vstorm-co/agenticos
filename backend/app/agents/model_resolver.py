@@ -272,6 +272,11 @@ COMPATIBLE_ENDPOINTS: dict[str, str] = {
     "alibaba_coding_plan": "https://coding-intl.dashscope.aliyuncs.com/v1",
     "opencode_go": "https://opencode.ai/inference/go/openai/v1",
     "ollama_cloud": "https://ollama.com/v1",
+    "nous_portal": "https://inference-api.nousresearch.com/v1",
+    "inception": "https://api.inceptionlabs.ai/v1",
+    "cline": "https://api.cline.bot/api/v1",
+    "chutes": "https://llm.chutes.ai/v1",
+    "synthetic": "https://api.synthetic.new/openai/v1",
     # Required in the profile. Loopback is never reachable from the server, so the
     # example is a gateway service on the deployment's network, allowlisted there.
     "cliproxyapi": "http://cliproxyapi:8317/v1",
@@ -341,6 +346,13 @@ PROVIDERS: dict[str, ProviderSpec] = {
         _api_key(
             "ollama_cloud", "Ollama Cloud", base_url_param="base_url", model_prefix="openai-chat"
         ),
+        _api_key(
+            "nous_portal", "Nous Portal", base_url_param="base_url", model_prefix="openai-chat"
+        ),
+        _api_key("inception", "Inception", base_url_param="base_url", model_prefix="openai-chat"),
+        _api_key("cline", "Cline", base_url_param="base_url", model_prefix="openai-chat"),
+        _api_key("chutes", "Chutes", base_url_param="base_url", model_prefix="openai-chat"),
+        _api_key("synthetic", "Synthetic", base_url_param="base_url", model_prefix="openai-chat"),
         # A CLIProxyAPI gateway the operator or person runs: it holds account
         # sign-ins (Antigravity, Grok Build, Kimi, Devin, Muse and others) and
         # serves them as one OpenAI-compatible endpoint behind its client key.

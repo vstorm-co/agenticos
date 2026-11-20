@@ -179,6 +179,9 @@ def price_request(
         "opencode_go",
         "ollama_cloud",
         "cliproxyapi",
+        "nous_portal",
+        "chutes",
+        "synthetic",
     }:
         # Subscription allowances have no verified per-token USD contract.
         return None

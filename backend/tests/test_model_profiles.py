@@ -286,6 +286,11 @@ class TestProviderCatalog:
             ("opencode_go", "https://opencode.ai/inference/go/openai/v1/"),
             ("ollama_cloud", "https://ollama.com/v1/"),
             ("cliproxyapi", "http://cliproxyapi:8317/v1/"),
+            ("nous_portal", "https://inference-api.nousresearch.com/v1/"),
+            ("inception", "https://api.inceptionlabs.ai/v1/"),
+            ("cline", "https://api.cline.bot/api/v1/"),
+            ("chutes", "https://llm.chutes.ai/v1/"),
+            ("synthetic", "https://api.synthetic.new/openai/v1/"),
         ],
     )
     def test_subscription_plan_keys_reach_their_plans_endpoint_under_their_own_identity(

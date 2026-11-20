@@ -420,6 +420,11 @@ CUSTOM_LISTINGS: dict[str, bool] = {
     "alibaba_coding_plan": True,
     "opencode_go": True,
     "ollama_cloud": True,
+    "nous_portal": True,
+    "inception": True,
+    "cline": True,
+    "chutes": True,
+    "synthetic": True,
     "cliproxyapi": True,
 }
 """Providers whose model list can be read at an endpoint the caller names, and
