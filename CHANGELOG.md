@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Answer on **Matrix**: register a bot account on your own homeserver with its access token and the homeserver's URL, and invite it to a room or a direct chat. Answers stream into a thread on the question as edits, approvals and questions are numbered replies, and files, the thread's earlier messages and the room's members reach the agent. Unencrypted rooms only for now; end-to-end encryption follows (#2081).
+- Answer on **Matrix**: register a bot account on your own homeserver with its access token and the homeserver's URL, and invite it to a room or a direct chat. Answers stream into a thread on the question as edits, approvals and questions are numbered replies, and files, the thread's earlier messages and the room's members reach the agent. Limited sync batches recover in bounded pages from the durable cursor, including after a restart. Unencrypted rooms only for now; end-to-end encryption follows (#2081).
 
 ### Upgrading
 

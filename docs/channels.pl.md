@@ -1,5 +1,5 @@
 ---
-source_sha: "78e6b079e715"
+source_sha: "6481dd32cb29"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1768,6 +1768,11 @@ publicznego adresu dla Matrixa**, a bot Matrixa nie ma trybu webhooka. Miejsce,
 w którym bot przestał czytać, jest przechowywane w Redisie wdrożenia, więc po
 restarcie bot wznawia od niego. Przy pierwszym starcie konta bot pomija historię
 pokoju, zamiast na nią odpowiadać.
+
+Luki w ograniczonym batchu `/sync` są odtwarzane chronologicznie stronami po
+50 wiadomości od ostatniego zapisanego kursora, także po restarcie. Każda strona
+trafia do kolejki przed odczytem następnej; kursor zmienia się dopiero po
+pomyślnym przyjęciu całego batcha.
 
 !!! warning "Na razie tylko pokoje nieszyfrowane"
 

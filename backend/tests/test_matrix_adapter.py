@@ -180,33 +180,30 @@ class TestReading:
 
 
 class TestSync:
-    async def test_failed_admission_keeps_the_last_seen_boundary_for_gap_recovery(
+    async def test_failed_admission_does_not_advance_the_durable_sync_cursor(
         self, adapter: MatrixAdapter, server: _Homeserver
     ) -> None:
-        key = f"{BOT}:{DM}"
-        adapter._last_seen[key] = 100
         server.answer(
             "GET",
             _room_path(DM, "joined_members"),
             httpx.Response(200, json={"joined": {OWN: {}, USER: {}}}),
         )
+        batch = {"next_batch": "s9", "rooms": {"join": {DM: {"timeline": {"events": [_event()]}}}}}
+        redis = AsyncMock()
+        redis.get.return_value = "s8"
         with (
+            patch.object(matrix, "_redis", redis),
+            patch.object(adapter, "_account", AsyncMock(return_value=adapter._accounts[BOT])),
+            patch.object(adapter, "_sync", AsyncMock(return_value=batch)),
+            patch.object(matrix.connection_state, "record_up", AsyncMock()),
             patch(
                 "app.services.channels.ingress.admit_message",
                 AsyncMock(side_effect=RuntimeError("unavailable")),
             ),
-            pytest.raises(RuntimeError, match="unavailable"),
+            pytest.raises(ExceptionGroup),
         ):
-            await adapter._on_room(
-                BOT,
-                "tok",
-                BASE,
-                adapter._accounts[BOT],
-                DM,
-                {"timeline": {"events": [_event()]}},
-                backlog=False,
-            )
-        assert adapter._last_seen[key] == 100
+            await adapter._run_stream(BOT, "tok")
+        redis.set.assert_not_awaited()
 
     async def test_a_room_encrypted_after_joining_admits_no_plaintext(
         self, adapter: MatrixAdapter, server: _Homeserver
@@ -415,7 +412,6 @@ class TestSync:
         Only those newer than the last message read: an older one was answered
         before the gap.
         """
-        adapter._last_seen[f"{BOT}:{ROOM}"] = 1_000
         server.answer(
             "GET",
             _room_path(ROOM, "messages"),
@@ -424,7 +420,6 @@ class TestSync:
                 json={
                     "chunk": [
                         {**_event("in the gap"), "event_id": "$gap", "origin_server_ts": 2_000},
-                        {**_event("already read"), "event_id": "$old", "origin_server_ts": 900},
                     ]
                 },
             ),
@@ -456,15 +451,18 @@ class TestSync:
             admitted.append(incoming)
 
         with patch("app.services.channels.ingress.admit_message", admit):
-            await adapter._on_sync(BOT, "tok", BASE, adapter._accounts[BOT], batch, backlog=False)
+            await adapter._on_sync(
+                BOT, "tok", BASE, adapter._accounts[BOT], batch, backlog=False, since="s0"
+            )
         assert [item.message_id for item in admitted] == ["$gap", "$new"]
-        assert adapter._last_seen[f"{BOT}:{ROOM}"] == 3_000
 
     async def test_a_gap_after_a_restart_is_logged_not_guessed_at(
         self, adapter: MatrixAdapter, server: _Homeserver, caplog: pytest.LogCaptureFixture
     ):
         timeline = {"limited": True, "prev_batch": "p1", "events": []}
-        assert await adapter._gap(BOT, "tok", BASE, ROOM, timeline) == []
+        assert [
+            event async for event in adapter._gap(BOT, "tok", BASE, ROOM, timeline, since=None)
+        ] == []
         assert not [call for call in server.calls if "/messages" in call[1]]
         assert "matrix_timeline_gap_skipped" in caplog.text
 
@@ -1098,11 +1096,10 @@ class TestFailureBoundaries:
         assert await adapter._account(BASE, "tok") is first
         key = f"{BOT}:{ROOM}"
         adapter._direct.put(key, True)
-        adapter._last_seen[key] = 10
         await adapter._on_sync(
             BOT, "tok", BASE, first, {"rooms": {"leave": {ROOM: {}}}}, backlog=False
         )
-        assert adapter._direct.get(key) is None and key not in adapter._last_seen
+        assert adapter._direct.get(key) is None
 
     async def test_sync_token_rejection_stops_instead_of_retrying_forever(
         self, adapter: MatrixAdapter, server: _Homeserver
@@ -1138,15 +1135,40 @@ class TestFailureBoundaries:
             BOT, "tok", BASE, adapter._accounts[BOT], ROOM, event
         )
 
-    async def test_a_gap_past_one_page_is_reported(
-        self, adapter: MatrixAdapter, server: _Homeserver, caplog: pytest.LogCaptureFixture
+    async def test_gap_recovery_paginates_across_empty_pages_in_forward_order(
+        self, adapter: MatrixAdapter, server: _Homeserver
     ) -> None:
-        adapter._last_seen[f"{BOT}:{ROOM}"] = 1
         server.answer(
-            "GET", _room_path(ROOM, "messages"), httpx.Response(200, json={"chunk": [_event()]})
+            "GET",
+            _room_path(ROOM, "messages"),
+            httpx.Response(200, json={"chunk": [_event("first")], "end": "p1"}),
+            httpx.Response(200, json={"chunk": [], "end": "p2"}),
+            httpx.Response(200, json={"chunk": [_event("last")], "end": "stop"}),
         )
-        assert len(await adapter._gap(BOT, "tok", BASE, ROOM, {"prev_batch": "before"})) == 1
-        assert "matrix_timeline_gap_exceeds_page" in caplog.text
+        events = [
+            event
+            async for event in adapter._gap(
+                BOT, "tok", BASE, ROOM, {"prev_batch": "stop"}, since="durable"
+            )
+        ]
+        assert [event["content"]["body"] for event in events] == ["first", "last"]
+        assert len(server.calls) == 3
+
+    async def test_gap_with_nonadvancing_continuation_is_not_acknowledged(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        server.answer(
+            "GET",
+            _room_path(ROOM, "messages"),
+            httpx.Response(200, json={"chunk": [], "end": "same"}),
+        )
+        with pytest.raises(RuntimeError, match="did not advance"):
+            [
+                event
+                async for event in adapter._gap(
+                    BOT, "tok", BASE, ROOM, {"prev_batch": "stop"}, since="same"
+                )
+            ]
 
     async def test_empty_or_nonhuman_room_events_do_not_reach_admission(
         self, adapter: MatrixAdapter, server: _Homeserver

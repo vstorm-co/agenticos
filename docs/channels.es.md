@@ -1,5 +1,5 @@
 ---
-source_sha: "78e6b079e715"
+source_sha: "6481dd32cb29"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1807,6 +1807,11 @@ pública para Matrix**, y un bot de Matrix no tiene modo webhook. El punto en el
 que el bot dejó de leer se guarda en el Redis del despliegue, así que un
 reinicio continúa desde ahí. El primer arranque de una cuenta se salta el
 historial de la sala en vez de responderlo.
+
+Las lagunas de un lote limitado de `/sync` se recuperan en orden cronológico
+en páginas de 50 mensajes desde el último cursor guardado, incluso tras un
+reinicio. Cada página se admite antes de leer la siguiente; el cursor avanza
+solo cuando se ha admitido todo el lote correctamente.
 
 !!! warning "Solo salas sin cifrar, por ahora"
 

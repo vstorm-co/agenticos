@@ -1722,6 +1722,10 @@ and a Matrix bot has no webhook mode. Where the bot stopped reading is kept in
 the deployment's Redis, so a restart resumes there. The first start of an account
 skips the room history rather than answering it.
 
+A limited `/sync` batch is recovered in chronological pages of 50 from the last
+saved sync cursor, including after a restart. Each page is admitted before the
+next is read; the cursor advances only after the whole batch succeeds.
+
 !!! warning "Unencrypted rooms only, for now"
 
     The bot reads rooms without end-to-end encryption. It declines an

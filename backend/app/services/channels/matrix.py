@@ -38,6 +38,7 @@ import contextlib
 import hashlib
 import logging
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -186,9 +187,6 @@ class MatrixAdapter(ChannelAdapter):
         # The homeserver and token of the reply a chat is waiting for, so the
         # typing notice that follows it needs neither from the row.
         self._composing: Recent[tuple[str, str]] = Recent(_CACHE_SIZE)
-        # The newest message read per room, so a gap a sync leaves can be filled
-        # without answering anything from before it.
-        self._last_seen: dict[str, int] = {}
         self._names: Recent[str] = Recent(_CACHE_SIZE)
         self._whoami: Recent[_Account] = Recent(_CACHE_SIZE)
         self._direct: Recent[bool] = Recent(_CACHE_SIZE)
@@ -821,7 +819,7 @@ class MatrixAdapter(ChannelAdapter):
             while True:
                 batch = await self._sync(base_url, bot_token, since)
                 await self._on_sync(
-                    bot_id, bot_token, base_url, account, batch, backlog=since is None
+                    bot_id, bot_token, base_url, account, batch, backlog=since is None, since=since
                 )
                 since = str(batch["next_batch"])
                 await self._store_since(bot_id, account.user_id, since)
@@ -865,6 +863,7 @@ class MatrixAdapter(ChannelAdapter):
         batch: dict[str, Any],
         *,
         backlog: bool,
+        since: str | None = None,
     ) -> None:
         """Handle one sync batch: invitations, departures, then each room's new messages.
 
@@ -878,12 +877,18 @@ class MatrixAdapter(ChannelAdapter):
             await self._on_invite(bot_id, token, base_url, account, room_id, invited)
         for room_id in rooms.get("leave") or {}:
             self._direct.pop(f"{bot_id}:{room_id}")
-            self._last_seen.pop(f"{bot_id}:{room_id}", None)
         async with asyncio.TaskGroup() as rooms_at_once:
             for room_id, joined in (rooms.get("join") or {}).items():
                 rooms_at_once.create_task(
                     self._on_room(
-                        bot_id, token, base_url, account, room_id, joined, backlog=backlog
+                        bot_id,
+                        token,
+                        base_url,
+                        account,
+                        room_id,
+                        joined,
+                        backlog=backlog,
+                        since=since,
                     )
                 )
 
@@ -897,6 +902,7 @@ class MatrixAdapter(ChannelAdapter):
         joined: dict[str, Any],
         *,
         backlog: bool,
+        since: str | None = None,
     ) -> None:
         """One room's part of a sync batch, its messages in the order they were sent."""
         from app.services.channels.ingress import admit_message
@@ -913,15 +919,13 @@ class MatrixAdapter(ChannelAdapter):
             # Somebody joined or left, or a gap may hide that they did: a room of
             # two may no longer be one.
             self._direct.pop(key)
-        newest = max((int(event.get("origin_server_ts") or 0) for event in events), default=0)
         if backlog:
-            self._last_seen[key] = newest
             return
         if await self._encrypted(base_url, token, room_id):
             return
-        if timeline.get("limited"):
-            events = [*await self._gap(bot_id, token, base_url, room_id, timeline), *events]
-        for event in events:
+        async for event in self._room_events(
+            bot_id, token, base_url, room_id, timeline, since=since
+        ):
             if event.get("type") != "m.room.message" or event.get("sender") == account.user_id:
                 continue
             direct = await self._is_direct(bot_id, token, base_url, room_id)
@@ -938,45 +942,67 @@ class MatrixAdapter(ChannelAdapter):
             )
             if incoming is not None:
                 await admit_message(incoming)
-        if newest:
-            self._last_seen[key] = max(newest, self._last_seen.get(key, 0))
+
+    async def _room_events(
+        self,
+        bot_id: str,
+        token: str,
+        base_url: str,
+        room_id: str,
+        timeline: dict[str, Any],
+        *,
+        since: str | None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        if timeline.get("limited"):
+            async for event in self._gap(bot_id, token, base_url, room_id, timeline, since=since):
+                yield event
+        for event in timeline.get("events") or []:
+            yield event
 
     async def _gap(
-        self, bot_id: str, token: str, base_url: str, room_id: str, timeline: dict[str, Any]
-    ) -> list[dict[str, Any]]:
-        """The messages a limited sync left out, oldest first, back to the last one read.
+        self,
+        bot_id: str,
+        token: str,
+        base_url: str,
+        room_id: str,
+        timeline: dict[str, Any],
+        *,
+        since: str | None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Read a limited sync's gap forward from the previous durable cursor.
 
-        A busy room returns only its newest events in a sync and says so with
-        `limited`; the rest are read backwards from `prev_batch`, one page, and
-        only those newer than the last message this process read are kept - an
-        older one was answered before the gap or is history. Where nothing was
-        read yet (a restart), the gap is logged rather than guessed at.
+        Both endpoints accept sync tokens. Forward pages preserve admission order
+        while retaining only one page, including after a restart. An empty page
+        may still have a continuation; only a missing end token finishes it.
         """
-        seen = self._last_seen.get(f"{bot_id}:{room_id}")
-        start = timeline.get("prev_batch")
-        if seen is None or not isinstance(start, str):
+        stop = timeline.get("prev_batch")
+        if since is None or not isinstance(stop, str):
             logger.warning("matrix_timeline_gap_skipped", extra={"bot_id": bot_id})
-            return []
-        response = await self._call(
-            "GET",
-            f"{base_url}{CLIENT_API}/rooms/{_segment(room_id)}/messages",
-            token,
-            params={
-                "dir": "b",
-                "from": start,
-                "limit": 50,
-                "filter": '{"types":["m.room.message"]}',
-            },
-        )
-        response.raise_for_status()
-        page = [
-            event
-            for event in response.json().get("chunk") or []
-            if int(event.get("origin_server_ts") or 0) > seen
-        ]
-        if len(page) == len(response.json().get("chunk") or []) and page:
-            logger.warning("matrix_timeline_gap_exceeds_page", extra={"bot_id": bot_id})
-        return list(reversed(page))
+            return
+        position = since
+        while position != stop:
+            response = await self._call(
+                "GET",
+                f"{base_url}{CLIENT_API}/rooms/{_segment(room_id)}/messages",
+                token,
+                params={
+                    "dir": "f",
+                    "from": position,
+                    "to": stop,
+                    "limit": 50,
+                    "filter": '{"types":["m.room.message"]}',
+                },
+            )
+            response.raise_for_status()
+            page = response.json()
+            for event in page.get("chunk") or []:
+                yield event
+            following = page.get("end")
+            if not isinstance(following, str):
+                return
+            if following == position:
+                raise RuntimeError("Matrix history pagination did not advance")
+            position = following
 
     async def _is_direct(self, bot_id: str, token: str, base_url: str, room_id: str) -> bool:
         """Whether a room holds the bot and one other person, and nobody else.

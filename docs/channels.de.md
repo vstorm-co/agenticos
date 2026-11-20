@@ -1,5 +1,5 @@
 ---
-source_sha: "78e6b079e715"
+source_sha: "6481dd32cb29"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1898,6 +1898,11 @@ Matrix keine öffentliche Adresse braucht** und ein Matrix-Bot keinen
 Webhook-Modus hat. Wo der Bot aufgehört hat zu lesen, steht im Redis des
 Deployments, sodass er nach einem Neustart dort weitermacht. Beim ersten Start
 eines Kontos überspringt er den Verlauf des Raums, statt darauf zu antworten.
+
+Eine Lücke in einem begrenzten `/sync`-Batch wird chronologisch in Seiten mit
+50 Nachrichten ab dem zuletzt gespeicherten Cursor nachgelesen, auch nach einem
+Neustart. Jede Seite wird vor dem Lesen der nächsten angenommen; der Cursor
+rückt erst nach erfolgreicher Annahme des gesamten Batches vor.
 
 !!! warning "Vorerst nur unverschlüsselte Räume"
 
