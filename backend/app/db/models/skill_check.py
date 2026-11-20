@@ -101,7 +101,13 @@ class AgentState(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     BETTER = "better"
+    CRITERIA_BETTER = "criteria_better"
+    """No question flipped, and criteria the re-asks confirmed got better while none got worse."""
+
     NO_CHANGE = "no_change"
+    CRITERIA_WORSE = "criteria_worse"
+    """No question broke, and a criterion the re-asks confirmed got worse."""
+
     WITHIN_NOISE = "within_noise"
     """No confirmed change, but flips or wobble the check could not tell from noise."""
     WORSE = "worse"
@@ -341,6 +347,12 @@ class SkillCheckAgent(Base):
     `kind`, `dataset_id` and `eval_run_id`, and how many were `compared`, `fixed`,
     `broken`, `unchanged` and left `unknown`. Empty until then, and for a check judged
     before these were kept."""
+    criteria: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    """Each criterion over the stages' held-out questions taken together: its `scorer`
+    and `name`, how many `graded`, passed `before` and `after`, and the flips the
+    re-asks confirmed, `fixed` and `broken`. Empty until judged."""
 
     __table_args__ = (
         ForeignKeyConstraint(

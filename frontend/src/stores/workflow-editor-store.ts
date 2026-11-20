@@ -15,6 +15,12 @@ import { carryPortRenameToMerges } from "@/components/workflows/property-panel/m
 import { carryMergeKeyRename, mergeKeyRename } from "@/lib/workflows/merge-key-rename";
 import { carryPortRename, portRename } from "@/lib/workflows/port-rename";
 import type { StepData } from "@/lib/workflows/step-data";
+import {
+  withRebound,
+  type BindingAt,
+  type TableDrift,
+  type TableRefSite,
+} from "@/lib/workflows/table-drift";
 import { TRIGGER_IDS } from "@/lib/workflows/triggers";
 import {
   outputRefs,
@@ -25,6 +31,7 @@ import {
   type NodePolicy,
   type NodePosition,
   type ScopeBoundary,
+  type TableIORef,
   type Uuid,
   type WorkflowEdge,
   type WorkflowGraph,
@@ -191,6 +198,18 @@ export interface WorkflowEditorState {
    * was tried, so a step just added is not covered in red before anything is set.
    */
   problemsRevealed: boolean;
+  /**
+   * Table references whose table's schema moved on in a way the editor would not
+   * settle unasked - a column they read was removed or retyped. Each is a
+   * problem on its step until the author updates it.
+   */
+  tableDrift: TableDrift[];
+  /**
+   * Bumped when the server refused a run or a publish over a table: the editor's
+   * copy of the tables is older than the server's, and `useWorkflowTableDrift`
+   * reads them again.
+   */
+  tablesStale: number;
   /** The step picker or the shortcut sheet, when one is open. */
   overlay: CanvasOverlay;
   /** The connection a step picked next goes into the middle of, when one was asked. */
@@ -283,6 +302,14 @@ export interface WorkflowEditorState {
   resizeNode: (nodeId: Uuid, size: { width: number; height: number } | null) => void;
   /** A run or a publish was tried: say every problem from now on. */
   revealProblems: () => void;
+  /** Which table references still need the author, as `useTableDrift` worked out. */
+  setTableDrift: (drift: TableDrift[]) => void;
+  /** Remove bindings to columns a table no longer has, as one edit. */
+  dropBindings: (bindings: BindingAt[]) => void;
+  /** Ask for the tables to be read again - a refusal said they changed. */
+  refreshTables: () => void;
+  /** Move table references onto their tables' current schemas, as one edit. */
+  rebindTables: (updates: { site: TableRefSite; ref: TableIORef }[]) => void;
   /** Follow a test run's steps into `stepData`; `testing` names the step a step test is for. */
   watchRun: (runId: string, testing?: Uuid) => void;
   /** Fold what a watched run's steps did into `stepData`. */
@@ -377,6 +404,8 @@ const CLEARED = {
   editingNodeId: null,
   editingIteration: [] as number[],
   problemsRevealed: false,
+  tableDrift: [] as TableDrift[],
+  tablesStale: 0,
   overlay: null as CanvasOverlay,
   splitEdgeId: null as Uuid | null,
   stepData: {} as Record<Uuid, StepData>,
@@ -836,6 +865,33 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
     },
 
     revealProblems: () => set({ problemsRevealed: true }),
+    setTableDrift: (tableDrift) => set({ tableDrift }),
+    dropBindings: (dropped) => {
+      const { graph } = get();
+      if (graph === null || dropped.length === 0) return;
+      const gone = new Set(dropped.map(({ nodeId, field }) => `${nodeId}\u0000${field}`));
+      commit({
+        ...graph,
+        bindings: graph.bindings.filter(
+          (binding) => !gone.has(`${binding.target_node_id}\u0000${binding.target_field}`),
+        ),
+      });
+    },
+    refreshTables: () => set((state) => ({ tablesStale: state.tablesStale + 1 })),
+    rebindTables: (updates) => {
+      const { graph } = get();
+      if (graph === null || updates.length === 0) return;
+      const applicable = updates.filter(
+        ({ site }) =>
+          !get().tableDrift.some(
+            (entry) =>
+              entry.requiresReview &&
+              entry.site.nodeId === site.nodeId &&
+              entry.site.binding === site.binding,
+          ),
+      );
+      if (applicable.length > 0) commit(withRebound(graph, applicable));
+    },
 
     watchRun: (runId, testing) =>
       set({

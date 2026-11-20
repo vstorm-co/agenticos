@@ -4,10 +4,12 @@ import { ActionSelection } from "./action-selection";
 import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { SourceConsentsPanel } from "@/components/triggers/source-consents-panel";
+import Link from "next/link";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRoutineActions } from "@/hooks/use-routine-actions";
 import { useRoutineSources } from "@/hooks/use-routine-sources";
+import { useOrgStore } from "@/stores";
 import {
   Button,
   Dialog,
@@ -39,6 +41,7 @@ export function ActionConsentsDialog({
 }) {
   const t = useTranslations("triggers.actionConsents");
   const setup = useTranslations("triggers");
+  const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const sources = useRoutineSources(trigger.agent_id, trigger.id);
   const sourcesData = sources.data;
   const [saving, setSaving] = useState(false);
@@ -100,7 +103,26 @@ export function ActionConsentsDialog({
             data && (
               <div className="space-y-4">
                 {!data.can_waive && (
-                  <p className="text-muted-foreground text-sm">{t("notAllowed")}</p>
+                  // Which half refused, so a greyed-out list does not read as broken.
+                  <div role="note" className="bg-muted/50 space-y-1 rounded-lg border p-3 text-sm">
+                    <p>
+                      {t(
+                        data.waive_blocked_reason === "permission"
+                          ? "notAllowedPermission"
+                          : "notAllowedOrganization",
+                      )}
+                    </p>
+                    {/* The organization half is refused only to a caller who may decide
+                        approvals, which is who can change the setting. */}
+                    {data.waive_blocked_reason === "organization" && activeOrgId && (
+                      <Link
+                        href={`/orgs/${activeOrgId}/members?tab=governance`}
+                        className="text-foreground underline underline-offset-4"
+                      >
+                        {t("openApprovalSettings")}
+                      </Link>
+                    )}
+                  </div>
                 )}
                 {!!data.unavailable_sources?.length && (
                   <p className="text-muted-foreground text-sm">

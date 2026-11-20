@@ -173,7 +173,8 @@
     "comparing": "Vergleicht",
     "configurationSchema": "Konfigurationsschema",
     "advancedSettings": "Erweiterte Einstellungen",
-    "connectedOnly": "Nur verbundene",
+    "connectedOnly": "Verbindungen der Organisation",
+    "boundToAgentOnly": "Mit diesem Agent verbunden",
     "connectionNoLongerAllows": "Diese Verbindung erlaubt <code>{runtime}</code> nicht mehr. Wählen Sie eine, die sie erlaubt, sonst scheitert der Agent an seinem ersten Tool-Aufruf.",
     "connectionSDefault": "Der Standard der Verbindung",
     "connectionSDefaultIs": "Der Standard der Verbindung - {alias}",
@@ -8184,6 +8185,8 @@
       "exposureManualDescription": "Eine Person startet ihn mit Run im Editor oder mit Start a run auf seiner Run-Seite.",
       "runDraft": "Draft testen",
       "runHint": "Führt den Draft aus, nicht die veröffentlichte Version (Strg oder Cmd + Enter)",
+      "runPinnedCount": "{count, plural, one {# Schritt angeheftet} other {# Schritte angeheftet}}",
+      "runPinnedHint": "Diese Schritte laufen im Test nicht, sondern geben ihre angehefteten Testdaten weiter. {steps}",
       "runNeedsSteps": "Zuerst einen Schritt hinzufügen",
       "runBlockedByProblems": "{count, plural, one {Zuerst # Problem beheben} other {Zuerst # Probleme beheben}}",
       "liveRunTitle": "Test-Run",
@@ -10281,7 +10284,9 @@
       "title": "Aktionsfreigaben",
       "description": "Routinenaktionen benötigen standardmäßig eine Bestätigung. Erlaube nur ausgewählte Aktionen ohne Rückfrage. Die Freigabe gilt für diese veröffentlichte Version und Routinenkonfiguration; vom Agenten verlangte Bestätigungen bleiben bestehen. Jede MCP-Aktion gilt nur für das benannte Konto.",
       "retry": "Erneut versuchen",
-      "notAllowed": "Deine Bestätigungsrechte und die Einstellung der Organisation müssen Ausnahmen erlauben. Du kannst weiterhin alle Freigaben widerrufen.",
+      "notAllowedPermission": "Du hast keine Berechtigung, über Genehmigungen zu entscheiden, und kannst dieser Routine daher keine dauerhafte Freigabe geben. Wende dich an eine Organisationsadministration. Alle widerrufen kannst du weiterhin.",
+      "notAllowedOrganization": "Deine Organisation hat dauerhafte Freigaben deaktiviert, daher kann diese Routine Genehmigungen nicht überspringen. Sie lassen sich unter Budget und Genehmigungen aktivieren. Alle widerrufen kannst du weiterhin.",
+      "openApprovalSettings": "Genehmigungseinstellungen öffnen",
       "empty": "Diese Version hat hier keine freigebbaren Aktionen.",
       "revokeAll": "Alle widerrufen",
       "save": "Freigaben speichern",
@@ -10837,7 +10842,9 @@
           "changes": "Die Änderungen für {agent} sind bereit zur Prüfung; drücken Sie dann Nächster Schritt, um sie zu testen.",
           "blocked": "Die Verbesserung von {agent} hat Änderungen, aber es sind zu wenige Testfragen übrig, um sie zu prüfen: {needed, plural, one {# weitere ist} other {# weitere sind}} nötig, und die Fragen dieser Sitzung stehen fest. Beenden Sie sie, fügen Sie Fragen hinzu und starten Sie eine neue."
         },
-        "attemptFinished": "Die Verbesserung von {agent} hat einen Versuch abgeschlossen."
+        "attemptFinished": "Die Verbesserung von {agent} hat einen Versuch abgeschlossen.",
+        "criteria": "{better, select, none {} other {Besser bei {better}. }}{worse, select, none {} other {Schlechter bei {worse}. }}Keine ganze Frage ist umgeschlagen.",
+        "criterion": "{name} {before}/{graded} → {after}/{graded}"
       },
       "test": {
         "completed": "Ihr Test ist abgeschlossen.",
@@ -10950,10 +10957,10 @@
   "workflows": {
     "autosaveConflict": "Entwurf wurde anderswo geändert",
     "autosaveError": "Speichern fehlgeschlagen - wird wiederholt",
-    "conflictTitle": "Dieser Entwurf wurde anderswo geändert",
-    "conflictBody": "Jemand hat diesen Workflow bearbeitet, seit Sie ihn geöffnet haben. Überschreiben behält Ihre Änderungen; Neu laden ersetzt sie durch den zuletzt gespeicherten Entwurf.",
-    "conflictOverwrite": "Überschreiben",
-    "conflictReload": "Neu laden",
+    "conflictTitle": "Jemand anderes hat diesen Workflow ebenfalls bearbeitet",
+    "conflictBody": "Während Ihrer Bearbeitung wurden Änderungen gespeichert. Behalten Sie Ihre Änderungen oder laden Sie die andere Version und verwerfen Sie Ihre ungespeicherten Änderungen.",
+    "conflictOverwrite": "Meine Änderungen behalten",
+    "conflictReload": "Andere Version laden",
     "publish": "Veröffentlichen",
     "publishDescription": "Den aktuellen Entwurf als unveränderliche Version einfrieren, die ausgeführt wird.",
     "publishNoteLabel": "Versionshinweis",
@@ -11070,8 +11077,9 @@
     "pickerColumnsLabel": "Spalten",
     "pickerColumnsLoading": "Spalten werden geladen…",
     "pickerColumnsAll": "Alle Spalten",
-    "pickerSchemaChanged": "Das Schema dieser Tabelle hat sich seit dem Binden geändert.",
-    "pickerRebind": "An das aktuelle Schema neu binden",
+    "pickerSchemaChanged": "Das Schema dieser Tabelle hat sich seit dem Binden geändert. Beim Aktualisieren bleiben die gewählten Spalten erhalten.",
+    "pickerRebind": "Auf das aktuelle Schema aktualisieren",
+    "pickerRebindDropped": "{count, plural, one {# gewählte Spalte existiert nicht mehr und wird entfernt.} other {# gewählte Spalten existieren nicht mehr und werden entfernt.}}",
     "pickerSecretLabel": "Secret",
     "pickerSecretPlaceholder": "Ein Secret wählen",
     "pickerSecretsEmpty": "Noch keine Secrets gespeichert.",
@@ -11321,6 +11329,8 @@
     "toolbarAddStep": "Schritt hinzufügen",
     "toolbarReady": "Keine Probleme",
     "toolbarProblemsHint": "Wähle eins, um den Schritt zu öffnen, um den es geht.",
+    "toolbarTablesChanged": "{count, plural, one {# Schritt liest eine Tabelle, deren Spalten sich geändert haben.} other {# Schritte lesen Tabellen, deren Spalten sich geändert haben.}} Beim Aktualisieren bleiben alle gewählten Spalten erhalten, die noch existieren.",
+    "toolbarRebindTables": "Auf das aktuelle Schema aktualisieren",
     "nodeEditorDelete": "Schritt löschen",
     "nodeEditorDone": "Fertig",
     "menuOpenSettings": "Einstellungen öffnen",
@@ -11792,7 +11802,9 @@
       "budget": "Höchstkosten pro Entwurf (USD)"
     },
     "stepEditorView": "Schrittansicht",
-    "stepEditorSettings": "Schritteinstellungen"
+    "stepEditorSettings": "Schritteinstellungen",
+    "problemTableSchemaChanged": "Diese Tabelle hat sich seit dem Einrichten des Schritts geändert: Eine Spalte, die er liest, wurde entfernt oder hat ihren Typ geändert. Aktualisiere sie auf das aktuelle Schema und prüfe, was diesen Schritt liest.",
+    "problemTableDependenciesChanged": "Entferne oder ersetze geänderte Filter, Sortierungen und Wertebindungen in diesem Schritt, bevor du sein Tabellenschema aktualisierst."
   },
   "artifacts": {
     "title": "Apps",
@@ -16289,14 +16301,18 @@
     "round": "Versuch {number} von {max}",
     "attempt": {
       "better": "Besser",
+      "criteria_better": "Besser bei Kriterien",
       "regression": "Gemischt",
       "worse": "Schlechter",
+      "criteria_worse": "Schlechter bei Kriterien",
       "no_change": "Keine Änderung",
       "inconclusive": "Nicht eindeutig",
       "unmeasured": "Nicht gemessen",
       "none": "Keine Änderungen",
       "working": "Läuft",
       "delta": "{heldOut, select, unknown {+{fixed} behoben · {broken} verschlechtert} other {+{fixed} behoben · {broken} verschlechtert von {heldOut} zurückgelegten}}",
+      "criteriaBetter": "{count, plural, one {# Kriterium besser} other {# Kriterien besser}}",
+      "criteriaWorse": "{count, plural, one {# Kriterium schlechter} other {# Kriterien schlechter}}",
       "best": "Bester Versuch",
       "chosen": "Gewählter Versuch",
       "cost": "Schreiben + Test: {cost}"
@@ -16343,7 +16359,8 @@
       "tryAgain": "Erneut versuchen",
       "end": "Ohne Änderungen beenden",
       "newSession": "Neue Sitzung starten",
-      "newSessionHint": "Eine neue Sitzung hat mehr Material, wenn Sie Testfragen dort ergänzen, wo {agent} schlecht antwortet."
+      "newSessionHint": "Eine neue Sitzung hat mehr Material, wenn Sie Testfragen dort ergänzen, wo {agent} schlecht antwortet.",
+      "criteriaBetter": "Versuch {number} verbesserte einige Bewertungskriterien für {agent}, ohne das Ergebnis einer ganzen Frage zu ändern."
     },
     "keep": {
       "title": "Welcher Versuch bleiben soll",
@@ -16351,7 +16368,28 @@
       "keep": "Versuch {number} behalten",
       "keepAnyway": "Versuch {number} trotzdem behalten",
       "broke": "Versuch {number} hat {broken, plural, one {# Frage} other {# Fragen}} verschlechtert. Wird er übernommen, antwortet {agent} darauf schlechter.",
-      "notBetter": "Versuch {number} hat {agent} nicht verbessert. Wird er übernommen, ändert sich {agent} ohne gemessenen Gewinn."
+      "notBetter": "Versuch {number} hat {agent} nicht verbessert. Wird er übernommen, ändert sich {agent} ohne gemessenen Gewinn.",
+      "criteriaWorse": "Versuch {number} hat {agent} bei {count, plural, one {# Kriterium} other {# Kriterien}} verschlechtert, ohne eine Frage zu verschlechtern. Wird er übernommen, bleibt dieser Verlust."
+    },
+    "criteria": {
+      "item": "{name} {before}/{graded} → {after}/{graded}",
+      "failingSkill": "{name} (Skill „{skill}“)",
+      "more": "{count, plural, one {# weiteres} other {# weitere}}",
+      "better": "Versuch {number} hat {agent} bei {count, plural, one {# Kriterium} other {# Kriterien}} verbessert: {list}.",
+      "stillFailing": "Noch besteht keine weitere Frage, weil andere Kriterien weiter nicht erfüllt sind: {list}.",
+      "worse": "Versuch {number} hat {agent} bei {count, plural, one {# Kriterium} other {# Kriterien}} verschlechtert, ohne eine Frage zu verschlechtern: {list}.",
+      "worseBeside": "Versuch {number} hat {agent} außerdem bei {count, plural, one {# Kriterium} other {# Kriterien}} verschlechtert: {list}.",
+      "title": "Kriterien, nach denen die Antworten bewertet werden",
+      "criterion": "Kriterium",
+      "before": "Vorher",
+      "after": "Nachher",
+      "moved": "Bestätigte Änderung",
+      "passed": "{passed} von {graded}",
+      "movedFixed": "+{count} behoben",
+      "movedBroken": "{count} verschlechtert",
+      "movedBoth": "+{fixed} behoben · {broken} verschlechtert",
+      "movedNone": "Keine",
+      "skill": "Dem Skill „{skill}“ zugeordnet"
     },
     "noise": {
       "headlineSpread": "Der Test kann eine bessere Version nicht von einer schlechteren unterscheiden: Die heutige Version von {agent} erreichte auf den gemeinsamen Fragen ihrer Versuche {low} und {high}.",
@@ -16387,7 +16425,9 @@
     },
     "verdict": {
       "better": "Besser: behebt {fixed}, verschlechtert nichts",
+      "criteria_better": "Besser bei Kriterien, noch keine Frage umgeschlagen",
       "regression": "Gemischt: behebt {fixed}, verschlechtert {broken}",
+      "criteria_worse": "Schlechter bei Kriterien, keine Frage verschlechtert",
       "no_change": "Keine reproduzierbare Änderung",
       "inconclusive": "Kein verlässlich messbares Ergebnis"
     },
@@ -16422,7 +16462,8 @@
       "superseded": "Neuere Vorschläge haben diese Sitzung ersetzt.",
       "knowledge_only": "In der Wissensdatenbank fehlen einige Themen. Entwerfen Sie die, die Sie brauchen, prüfen Sie jeden Entwurf und fügen Sie ihn hinzu.",
       "draft": "Das Entwerfen fehlenden Wissens ist fehlgeschlagen.",
-      "expired": "Niemand hat diese Sitzung 7 Tage lang weitergeführt, daher wurde sie geschlossen. Starten Sie eine neue, um es erneut zu versuchen."
+      "expired": "Niemand hat diese Sitzung 7 Tage lang weitergeführt, daher wurde sie geschlossen. Starten Sie eine neue, um es erneut zu versuchen.",
+      "criteria_worse": "Die Änderungen haben ein Kriterium verschlechtert, nach dem die Antworten bewertet werden, aber keine Frage."
     },
     "before": "Vorher",
     "after": "Nachher",
@@ -16542,7 +16583,7 @@
     "acceptAgent": "Im Agent: {version, plural, =0 {die neue Version} other {Version #}} behebt {fixed, plural, one {# Frage} other {# Fragen}}, verschlechtert {broken}{costKnown, select, yes {, kostet {cost} pro Antwort} other {}}. Getestet mit {total, plural, one {# Frage} other {# Fragen}}, davon {heldOut} nicht zum Schreiben der Änderungen verwendet.",
     "guardedSwitch": "{environment} wechselt zu Version {version}, sobald die automatische Prüfung bestanden ist, meist innerhalb weniger Minuten.",
     "noChangesFound": "Wir haben keine Änderung gefunden, die zu den aktuellen Anweisungen passt. Das haben wir versucht:",
-    "triedAttempt": "Versuch {number}: {verdict, select, better {die Änderungen haben es verbessert} regression {die Änderungen haben funktionierende Fragen verschlechtert} no_change {keine messbare Änderung} inconclusive {das Ergebnis ließ sich nicht messen} unmeasured {Änderungen vorgeschlagen, noch nicht getestet} other {keine Änderung vorgeschlagen}}{dropped, plural, =0 {} one {; # Änderung passte nicht zu den aktuellen Anweisungen} other {; # Änderungen passten nicht zu den aktuellen Anweisungen}}.",
+    "triedAttempt": "Versuch {number}: {verdict, select, better {die Änderungen haben es verbessert} criteria_better {die Änderungen haben einige Kriterien verbessert, noch keine Frage umgeschlagen} regression {die Änderungen haben funktionierende Fragen verschlechtert} criteria_worse {die Änderungen haben einige Kriterien verschlechtert} no_change {keine messbare Änderung} inconclusive {das Ergebnis ließ sich nicht messen} unmeasured {Änderungen vorgeschlagen, noch nicht getestet} other {keine Änderung vorgeschlagen}}{dropped, plural, =0 {} one {; # Änderung passte nicht zu den aktuellen Anweisungen} other {; # Änderungen passten nicht zu den aktuellen Anweisungen}}.",
     "handledChange": "{before} → {after} von {total} Fragen gut beantwortet.",
     "newlyFixed": "Neu behoben",
     "newlyBroken": "Neu verschlechtert",
@@ -17529,7 +17570,9 @@
         "queued": "Wartet",
         "running": "Wird geprüft",
         "better": "Besser",
+        "criteria_better": "Besser bei Kriterien",
         "no_change": "Unverändert",
+        "criteria_worse": "Schlechter bei Kriterien",
         "within_noise": "Im Rauschen",
         "worse": "Schlechter",
         "unknown": "Unbekannt"

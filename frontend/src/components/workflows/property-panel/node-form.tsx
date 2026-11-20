@@ -348,6 +348,7 @@ function MemberPin({
 
 /** A static config leaf whose value is a pinned resource, edited through a picker. */
 function ResourcePin({
+  nodeId,
   kind,
   schema,
   label,
@@ -357,6 +358,7 @@ function ResourcePin({
   pinsColumns,
   onChange,
 }: {
+  nodeId: Uuid;
   kind: ResourceKind;
   schema: Schema;
   /** The field's own title, for a picker that labels its control; its own label when none. */
@@ -368,6 +370,11 @@ function ResourcePin({
   pinsColumns: boolean;
   onChange: (value: unknown) => void;
 }) {
+  const requiresReview = useWorkflowEditorStore((state) =>
+    state.tableDrift.some(
+      (entry) => entry.nodeId === nodeId && entry.site.binding === null && entry.requiresReview,
+    ),
+  );
   if (kind === "group") {
     return <GroupPicker selected={idList(value)} onChange={onChange} disabled={disabled} />;
   }
@@ -401,6 +408,7 @@ function ResourcePin({
         error={error}
         storedOnly={schema["x-columns"] === "stored"}
         pinsColumns={pinsColumns}
+        requiresReview={requiresReview}
       />
     );
   }
@@ -508,6 +516,7 @@ function ConfigLeaf({
       <div className="space-y-1.5">
         {!labelled && <Label>{label}</Label>}
         <ResourcePin
+          nodeId={ctx.node.id}
           kind={resource}
           schema={schema}
           label={ownTitle(schema, name)}

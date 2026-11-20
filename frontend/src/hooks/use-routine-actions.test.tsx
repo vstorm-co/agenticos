@@ -11,7 +11,12 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 import { useRoutineActions } from "./use-routine-actions";
 
 it("refreshes a rejected review before a person can submit another consent", async () => {
-  const initial: RoutineActionOptions = { can_waive: true, review_token: "old", items: [] };
+  const initial: RoutineActionOptions = {
+    can_waive: true,
+    waive_blocked_reason: null,
+    review_token: "old",
+    items: [],
+  };
   const current = { ...initial, review_token: "new" };
   const stale = new Error("The account changed. Review its actions again.");
   api.get.mockResolvedValueOnce(initial).mockResolvedValue(current);

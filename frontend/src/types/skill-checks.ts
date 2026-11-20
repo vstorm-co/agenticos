@@ -4,11 +4,21 @@
  * Mirrors `backend/app/schemas/skill_check.py`. Money arrives as decimal strings.
  */
 
+import type { VerdictCriterion } from "@/types/improvement";
+
 export type CheckMode = "quick" | "thorough";
 export type CheckStatus = "running" | "done" | "cancelled" | "applied" | "forked" | "discarded";
 export type CheckVerdict = "passed" | "blocked" | "no_better" | "needs_ack";
 export type AgentCheckState =
-  "queued" | "running" | "better" | "no_change" | "within_noise" | "worse" | "unknown";
+  | "queued"
+  | "running"
+  | "better"
+  | "criteria_better"
+  | "no_change"
+  | "criteria_worse"
+  | "within_noise"
+  | "worse"
+  | "unknown";
 export type UnknownReason =
   | "no_questions"
   | "no_access"
@@ -68,6 +78,8 @@ export interface SkillCheckAgent {
   fixed: number;
   broken: number;
   held_out: number;
+  /** Each criterion over the held-out questions, both stages together. */
+  criteria?: VerdictCriterion[];
   fixed_confirmed: number;
   regressions_confirmed: number;
   noisy: boolean;

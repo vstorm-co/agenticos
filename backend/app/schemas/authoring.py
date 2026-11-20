@@ -179,6 +179,24 @@ class FieldChange(BaseModel):
     )
     evidence: list[EvidenceQuote] = Field(default_factory=list)
 
+    @model_validator(mode="after")
+    def _added_capability_by_its_own_path(self) -> FieldChange:
+        """Read `add capabilities/<id>` as adding that capability.
+
+        The prompt lists a bound capability under `capabilities/<id>`, so a model
+        adding one often names it there; the only path an addition can take is
+        `capabilities`, with the id in the binding.
+        """
+        parts = self.path.strip("/").split("/")
+        if self.op != "add" or len(parts) != 2 or parts[0] != "capabilities":
+            return self
+        binding = self.value if isinstance(self.value, dict) else {}
+        if binding.get("id", parts[1]) != parts[1]:
+            return self
+        self.path = "capabilities"
+        self.value = {**binding, "id": parts[1]}
+        return self
+
 
 class CreatedSkillBinding(BaseSchema):
     """The resource created by Accept, retained across Undo to avoid duplicates."""
@@ -206,6 +224,14 @@ class SkillProblem(BaseModel):
     skill: str = Field(description="The skill's name, exactly as listed.")
     problem: str = Field(description="What the skill gets wrong, in terms of the evidence.")
     evidence: list[EvidenceQuote] = Field(default_factory=list)
+    criteria: list[str] = Field(
+        default_factory=list,
+        max_length=10,
+        description=(
+            "The graded criteria this problem makes fail, by the names the grades use; "
+            "empty when no grade names it."
+        ),
+    )
 
 
 class ImprovementProposal(BaseModel):
