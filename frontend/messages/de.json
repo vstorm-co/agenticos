@@ -16442,6 +16442,7 @@
       "cancelled": "Abgebrochen",
       "stale": "Ausgangspunkt geändert",
       "accepted": "Als Entwurf behalten",
+      "skillAccepted": "{outcome, select, applied {Übernommen} applied_pinned {Übernommen} forked {Fork erstellt} caught_up {Mit main abgeglichen} returned_to_main {Nach main verschoben} other {Angenommen}}",
       "published": "Veröffentlicht",
       "rejected": "Verworfen",
       "waiting": "Wartet auf Sie",

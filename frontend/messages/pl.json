@@ -16529,6 +16529,7 @@
       "cancelled": "Anulowano",
       "stale": "Punkt wyjścia się zmienił",
       "accepted": "Zachowano w wersji roboczej",
+      "skillAccepted": "{outcome, select, applied {Zastosowana} applied_pinned {Zastosowana} forked {Utworzono fork} caught_up {Nadrobiono main} returned_to_main {Przeniesiono do main} other {Przyjęta}}",
       "published": "Opublikowano",
       "rejected": "Odrzucono",
       "waiting": "Czeka na Ciebie",

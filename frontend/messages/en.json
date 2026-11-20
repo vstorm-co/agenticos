@@ -16756,6 +16756,7 @@
       "cancelled": "Cancelled",
       "stale": "The starting point changed",
       "accepted": "Kept as draft",
+      "skillAccepted": "{outcome, select, applied {Applied} applied_pinned {Applied} forked {Made a fork} caught_up {Caught up with main} returned_to_main {Moved to main} other {Accepted}}",
       "published": "Published",
       "rejected": "Discarded",
       "waiting": "Waiting for you",
