@@ -46,6 +46,7 @@ from pydantic_ai.models import ModelRequestContext
 from pydantic_ai.usage import RequestUsage, RunUsage, UsageLimits
 
 from app.agents.model_resolver import otari_price_identity
+from app.core.exceptions import BadRequestError
 
 logger = logging.getLogger(__name__)
 
@@ -599,6 +600,26 @@ def guarded_by(guard: BudgetGuard) -> Generator[None]:
         yield
     finally:
         _active_guard.reset(token)
+
+
+def require_ambient_price(provider: str, model_name: str) -> None:
+    """Refuse a price-dependent provider request when a USD ceiling cannot be enforced.
+
+    Called by providers whose new model IDs have no reviewed price snapshot.
+    Uncapped runs keep the existing partial-cost accounting contract.
+    """
+    guard = _active_guard.get()
+    if guard is None or not guard.limits:
+        return
+    if (
+        guard.ledger.has_unpriced_models
+        or price_request(RequestUsage(input_tokens=1, output_tokens=1), model_name, provider)
+        is None
+    ):
+        raise BadRequestError(
+            message="This request cannot enforce the active dollar budget because its price is unknown or earlier usage is unpriced. Choose a priced model and start a new run.",
+            details={"provider": provider, "model": model_name},
+        )
 
 
 async def assert_ambient_budget() -> None:

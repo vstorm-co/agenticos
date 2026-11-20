@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.85.1"
+version = "1.86.2"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -1095,6 +1095,12 @@ include = [
     "app/services/platform_mcp/_api.py",
     "app/services/platform_mcp/_oauth.py",
     "app/services/platform_mcp/_tools.py",
+    "app/services/platform_mcp/_lifecycle.py",
+    "app/services/platform_mcp/_disclosure.py",
+    "app/services/platform_mcp/_details.py",
+    "app/services/platform_mcp/_administration.py",
+    "app/services/solution.py",
+    "app/repositories/solution_installation.py",
     "app/schemas/change_event.py",
     "app/services/change_feed.py",
     "app/api/routes/v1/change_events.py",
@@ -2019,6 +2025,12 @@ include = [
     "app/services/platform_mcp/_api.py",
     "app/services/platform_mcp/_oauth.py",
     "app/services/platform_mcp/_tools.py",
+    "app/services/platform_mcp/_lifecycle.py",
+    "app/services/platform_mcp/_disclosure.py",
+    "app/services/platform_mcp/_details.py",
+    "app/services/platform_mcp/_administration.py",
+    "app/services/solution.py",
+    "app/repositories/solution_installation.py",
     "app/schemas/change_event.py",
     "app/services/change_feed.py",
     "app/api/routes/v1/change_events.py",

@@ -216,7 +216,7 @@ Where each issuer lives, and what to register:
 
 | Provider | Issuer | Register the redirect URI as |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | A **Web** platform redirect URI on the app registration. Grant `openid`, `email`, `profile` under API permissions |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | A **Web** platform redirect URI on the app registration. Grant `openid`, `email`, `profile` under API permissions. Under **Token configuration**, add the optional claims `email` and `xms_edov` to the **ID** token |
 | **Okta** | `https://<org>.okta.com` (or a custom authorization server's `/oauth2/<id>`) | A sign-in redirect URI on a **Web** application |
 | **Keycloak** | `https://<host>/realms/<realm>` | A valid redirect URI on a confidential client with standard flow enabled |
 
@@ -231,6 +231,13 @@ Two things the platform requires of whatever provider it is pointed at:
     unconfirmed address means anybody at that provider can claim anybody's work
     address, and the domain allow-list below is built on an address meaning
     something.
+  On Entra the claim has to be on the **ID token**: its UserInfo endpoint
+  returns only `sub`, `name`, `family_name`, `given_name`, `picture` and
+  `email`. `OIDC_VERIFIED_CLAIM` has to name a claim whose *value* is true for a
+  confirmed address; naming one every token carries, such as `sub`, confirms
+  nothing and is not accepted. A refused sign-in logs
+  `oauth_callback_claims_rejected` with the failed condition (`reason`) and the
+  names, never the values, of the claims received.
 - **A stable `sub`.** The account is keyed on it, not on the address, so a
   person who changes their name or whose domain is bought keeps their history -
   and the next holder of a freed address does not inherit it. It is stored

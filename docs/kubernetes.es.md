@@ -1,5 +1,5 @@
 ---
-source_sha: "40e46eb28642"
+source_sha: "51712be94fdc"
 ---
 
 # Desplegar en Kubernetes { #deploy-on-kubernetes }
@@ -216,11 +216,12 @@ oc -n agenticos get pods -o 'custom-columns=NAME:.metadata.name,SCC:.metadata.an
 
 Verifica que la SCC admitida sea la política restrictiva prevista. No soluciones
 permisos concediendo `anyuid`, SCC privilegiadas o escritura en el sistema raíz.
-El frontend monta volúmenes `emptyDir` escribibles en `/tmp` y `/app/.next/cache`;
-los montajes del backend están en `templates/_helpers.tpl`. Un error `router-cache`
-necesita la **ruta absoluta exacta**, tag/digest de imagen, versión de OpenShift,
-SCC admitida y log sin datos sensibles. El chart no cubre cachés fuera de estos
-montajes. No montes sobre todo `/app/.next`, porque ocultaría la aplicación compilada.
+El frontend monta volúmenes `emptyDir` escribibles en `/tmp`, `/app/.next/cache` y
+`/app/.next/server/route-cache`, donde Next.js copia cada página prerenderizada la
+primera vez que la sirve (chart `0.1.2`; un chart anterior falla esa escritura con
+la raíz de solo lectura). Los montajes del backend están en `templates/_helpers.tpl`.
+No montes sobre todo `/app/.next` ni `/app/.next/server`, porque ocultaría la
+aplicación compilada.
 
 Con `ingress.enabled: false`, proporciona dos Routes HTTPS hacia los Services de
 API y frontend, ambas con el puerto llamado `http`. Configura `public.siteUrl`,
@@ -464,8 +465,8 @@ Keycloak 26.8.2 superó discovery, PKCE, validación de token firmado, intercamb
 código de consola de un solo uso, acceso a organización y revocación de refresh
 tras logout mediante Routes TLS. Se rechazaron email sin verificar, dominio no
 permitido y registro sin invitación. Es evidencia de OIDC genérico, no de Microsoft
-Entra ni Azure. Las pruebas de renderizado en servidor no reproducen la ruta
-`router-cache` reportada ni sustituyen la navegación interactiva por todas las pantallas.
+Entra ni Azure. Las pruebas de renderizado en servidor no sustituyen la navegación interactiva
+por todas las pantallas.
 
 La ejecución base necesitó **6 CPU, 13 GiB de RAM de VM y disco virtual de 45 GB**.
 Con el mínimo CRC de 10.5 GB, los pods de migración de estos fixtures no pudieron

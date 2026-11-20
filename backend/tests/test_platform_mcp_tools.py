@@ -13,6 +13,7 @@ from fastmcp.exceptions import ValidationError as MCPValidationError
 from fastmcp.server.auth import AccessToken
 from pydantic import JsonValue
 
+from app.schemas.agent import PlatformToolGroup
 from app.services.platform_mcp import _unreachable, platform_tool_catalog
 from app.services.platform_mcp._api import PlatformApi
 from app.services.platform_mcp._oauth import PlatformOAuthProvider
@@ -31,6 +32,7 @@ RUN = uuid.UUID("00000000-0000-4000-8000-0000000000c1")
 @pytest.fixture
 def api() -> MagicMock:
     stub = MagicMock()
+    stub.credential_id.return_value = "unit-caller"
     stub.request = AsyncMock(return_value={"organization_id": ORG, "items": [], "total": 0})
     return stub
 
@@ -248,7 +250,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         ("PATCH", f"/agents/{AGENT}/triggers/{RUN}", {"json": {"notification_channels": None}}),
     ),
     ("whoami", {}, ("GET", "/me/permissions", {})),
-    ("list_projects", {}, ("GET", "/projects", {"params": {"limit": 50, "skip": 0}})),
+    ("list_projects", {}, ("GET", "/projects", {"params": {"limit": 10, "skip": 0}})),
     (
         "list_projects",
         {"q": "wiki", "limit": 10, "skip": 20},
@@ -294,7 +296,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
             },
         ),
     ),
-    ("list_agents", {}, ("GET", "/agents", {"params": {"limit": 50, "skip": 0}})),
+    ("list_agents", {}, ("GET", "/agents", {"params": {"limit": 10, "skip": 0}})),
     ("get_agent", {"agent_id": str(AGENT)}, ("GET", f"/agents/{AGENT}", {})),
     (
         "create_agent_draft",
@@ -348,9 +350,9 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
     (
         "list_runs",
         {"agent_id": str(AGENT)},
-        ("GET", "/runs", {"params": {"limit": 20, "skip": 0, "agent_id": str(AGENT)}}),
+        ("GET", "/runs", {"params": {"limit": 10, "skip": 0, "agent_id": str(AGENT)}}),
     ),
-    ("list_runs", {}, ("GET", "/runs", {"params": {"limit": 20, "skip": 0}})),
+    ("list_runs", {}, ("GET", "/runs", {"params": {"limit": 10, "skip": 0}})),
     ("get_run", {"run_id": str(RUN)}, ("GET", f"/runs/{RUN}", {})),
     ("get_spend", {}, ("GET", "/spend", {"params": {"days": 30}})),
     ("list_knowledge_bases", {}, ("GET", "/kb", {})),
@@ -412,7 +414,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
     (
         "list_skills",
         {"skip": 50},
-        ("GET", "/skills", {"params": {"limit": 20, "skip": 50}}),
+        ("GET", "/skills", {"params": {"limit": 10, "skip": 50}}),
     ),
     ("list_capabilities", {}, ("GET", "/agents/capabilities", {})),
     (
@@ -499,7 +501,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         ("POST", f"/agents/{AGENT}/publish", {"json": {}}),
     ),
     ("list_models", {}, ("GET", "/providers/model-profiles", {})),
-    ("list_routines", {}, ("GET", "/triggers", {"params": {"limit": 50}})),
+    ("list_routines", {}, ("GET", "/triggers", {"params": {"limit": 10, "skip": 0}})),
     ("list_routines", {"agent_id": str(AGENT)}, ("GET", f"/agents/{AGENT}/triggers", {})),
     (
         "create_routine",
@@ -623,7 +625,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
         (
             "GET",
             "/conversations",
-            {"params": {"limit": 5, "search": "Geopolityka", "for_model": True}},
+            {"params": {"limit": 5, "skip": 0, "search": "Geopolityka", "for_model": True}},
         ),
     ),
     (
@@ -728,7 +730,7 @@ CALLS.extend(
         (
             "list_virtual_table_views",
             {"table_id": str(KB)},
-            ("GET", f"/tables/{KB}/views", {"params": {"limit": 50, "skip": 0}}),
+            ("GET", f"/tables/{KB}/views", {"params": {"limit": 10, "skip": 0}}),
         ),
     ]
 )
@@ -800,7 +802,7 @@ CALLS.extend(
         (
             "list_context_files",
             {"q": "glossary"},
-            ("GET", "/context", {"params": {"q": "glossary", "skip": 0, "limit": 50}}),
+            ("GET", "/context", {"params": {"q": "glossary", "skip": 0, "limit": 10}}),
         ),
         ("get_context_file", {"context_id": str(KB)}, ("GET", f"/context/{KB}", {})),
         (
@@ -838,6 +840,10 @@ async def test_each_tool_is_one_public_api_call(
 ) -> None:
     if tool in ("list_projects", "list_conversations"):
         api.request.return_value = {"items": [], "total": 0}
+    if tool == "get_context_file":
+        api.request.return_value = {"id": str(KB), "content": "body"}
+    if tool == "list_embedding_models":
+        api.request.return_value = {"providers": []}
     await server.call_tool(tool, arguments)
 
     method, path, kwargs = call
@@ -1093,12 +1099,12 @@ class TestConnectionDiscovery:
             "items": [self.connection([{"name": "huge", "description": "x" * 100000}])],
             "total": 1,
         }
-        with pytest.raises(ToolError, match="exceed 64 KiB"):
-            await server.call_tool("list_my_connections", {"include_tools": True})
-        with pytest.raises(ToolError, match="exceed 64 KiB"):
-            await server.call_tool(
-                "get_mcp_connection_tool", {"connection_id": str(KB), "tool_name": "huge"}
-            )
+        listing = await server.call_tool("list_my_connections", {"include_tools": True})
+        assert listing.structured_content["read_tool"] == "read_platform_details"
+        contract = await server.call_tool(
+            "get_mcp_connection_tool", {"connection_id": str(KB), "tool_name": "huge"}
+        )
+        assert contract.structured_content["read_tool"] == "read_platform_details"
 
     @pytest.mark.parametrize(
         "tool,args",
@@ -1206,7 +1212,7 @@ class TestFocusedCatalogs:
             "GET",
             "/runs",
             params={
-                "limit": 20,
+                "limit": 10,
                 "skip": 0,
                 "agent_id": str(AGENT),
                 "status": "failed,budget_exceeded",
@@ -1344,13 +1350,37 @@ class TestRemovingARoutine:
         assert await tool.function(agent_id=AGENT, routine_id=RUN) == refused
 
 
+class TestHowTheBuilderGroupsTheTools:
+    def test_each_table_write_is_grouped_with_the_tables(self) -> None:
+        tools = {tool.name: tool for tool in platform_tool_catalog()}
+
+        for name in (
+            "add_virtual_table_record",
+            "update_virtual_table_record",
+            "upsert_virtual_table_record",
+            "delete_virtual_table_record",
+            "query_virtual_table",
+        ):
+            assert tools[name].group is PlatformToolGroup.TABLES
+        assert tools["run_workflow"].group is PlatformToolGroup.WORKFLOWS
+        assert tools["publish_agent"].group is PlatformToolGroup.AGENTS
+        assert tools["search_knowledge"].group is PlatformToolGroup.KNOWLEDGE
+
+    def test_every_group_holds_a_tool(self) -> None:
+        """A group with nothing in it would be an empty heading in the Builder."""
+        assert {tool.group for tool in platform_tool_catalog()} == set(PlatformToolGroup)
+
+
 class TestWhatNeverWaitsForApproval:
     @pytest.mark.security
     def test_only_console_language_bypasses_write_approval(self) -> None:
         """Persistent automation requires the configured write confirmation."""
         tools = {tool.name: tool for tool in platform_tool_catalog()}
 
-        assert {name for name, tool in tools.items() if tool.ungated} == {"set_my_language"}
+        assert {name for name, tool in tools.items() if tool.ungated} == {
+            "set_my_language",
+            "set_my_preferences",
+        }
         for name in ("create_routine", "update_routine", "create_watch", "update_watch"):
             assert tools[name].writes and not tools[name].ungated
         assert tools["set_my_language"].writes
@@ -1396,6 +1426,15 @@ class TestWhatNeverWaitsForApproval:
         from app.services.platform_mcp._tools import UNGATED
 
         assert PLATFORM_UNGATED_TOOLS == UNGATED
+
+    def test_the_agent_layer_names_the_same_tools_that_always_ask(self) -> None:
+        from app.agents.mcp import PLATFORM_ALWAYS_ASK_TOOLS
+        from app.services.platform_mcp._tools import ALWAYS_ASKS
+
+        assert PLATFORM_ALWAYS_ASK_TOOLS == ALWAYS_ASKS
+        catalog = {tool.name: tool for tool in platform_tool_catalog()}
+        assert all(catalog[name].writes and catalog[name].always_asks for name in ALWAYS_ASKS)
+        assert not catalog["add_virtual_table_record"].always_asks
 
 
 def _token() -> AccessToken:
@@ -1474,6 +1513,9 @@ class TestTheInProcessCall:
         assert answer is None
 
     async def test_an_unauthenticated_call_never_reaches_the_api(self) -> None:
+        assert (
+            _api(lambda request: httpx.Response(200, json={}), token=None).credential_id() is None
+        )
         with pytest.raises(ToolError, match="authenticated"):
             await _api(lambda request: httpx.Response(200, json={}), token=None).request(
                 "GET", "/agents"
@@ -1512,6 +1554,7 @@ class TestChainedCalls:
         there is the answer, not a key to index."""
         refusal = {"refused": "401 AUTHENTICATION_ERROR: gone"}
         api = MagicMock()
+        api.credential_id.return_value = "unit-caller"
         api.request = AsyncMock(return_value=refusal)
         tools = {tool.name: tool for tool in platform_tools(api)}
 
@@ -1948,7 +1991,9 @@ async def test_mcp_can_find_and_settle_the_callers_working_case(api):
     tools = {tool.name: tool.function for tool in platform_tools(api)}
     await tools["list_inbox_cases"](conversation_id=RUN)
     api.request.assert_awaited_with(
-        "GET", "/outcomes", params={"include_source": "true", "conversation_id": str(RUN)}
+        "GET",
+        "/outcomes",
+        params={"include_source": "true", "conversation_id": str(RUN), "limit": 10, "skip": 0},
     )
     await tools["settle_inbox_case"](outcome_id=RUN, action="resolve")
     api.request.assert_awaited_with(
@@ -1990,7 +2035,7 @@ async def test_task_receipts_and_unfiltered_context_use_the_current_api(server, 
     await server.call_tool("get_task", {"task_id": str(RUN)})
     assert api.request.await_args.args == ("GET", f"/tasks/{RUN}")
     await server.call_tool("list_context_files", {})
-    assert api.request.await_args.kwargs == {"params": {"limit": 50, "skip": 0}}
+    assert api.request.await_args.kwargs == {"params": {"limit": 10, "skip": 0}}
     await server.call_tool(
         "create_routine", {"agent_id": str(AGENT), "prompt": "Check", "answer_to": "primary"}
     )
@@ -2028,11 +2073,13 @@ async def test_proactivity_settings_need_an_organization(api: MagicMock):
 async def test_a_conversation_listing_carries_only_ids_titles_and_dates(api: MagicMock):
     api.request.return_value = {
         "total": 1,
+        "next_skip": None,
         "items": [{"id": "c1", "title": "Plan", "created_at": "t", "updated_at": "u", "x": 1}],
     }
     tools = {tool.name: tool.function for tool in platform_tools(api)}
     assert await tools["list_conversations"]() == {
         "total": 1,
+        "next_skip": None,
         "items": [{"id": "c1", "title": "Plan", "created_at": "t", "updated_at": "u"}],
     }
 
@@ -2318,3 +2365,16 @@ class TestAppPublicLink:
         with pytest.raises(ToolError, match="Explicit confirmation"):
             await tool.function(artifact_id=AGENT, confirm_public=False)
         api.request.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_mcp_console_preferences_are_self_only_and_do_not_clear_omitted_fields():
+    api = MagicMock()
+    api.request = AsyncMock(return_value={"theme": "dark", "look": "glass", "locale": "pl"})
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    assert (await tools["get_my_preferences"]())["look"] == "glass"
+    api.request.assert_awaited_with("GET", "/users/me/preferences")
+    await tools["set_my_preferences"](theme="dark", look="glass")
+    api.request.assert_awaited_with(
+        "PATCH", "/users/me/preferences", json={"theme": "dark", "look": "glass"}
+    )

@@ -38,7 +38,7 @@ x-logging: &logging
 services:
   frontend:
     logging: *logging
-    image: ghcr.io/vstorm-co/agenticos-frontend:${AGENTICOS_VERSION:-latest}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-frontend:${AGENTICOS_VERSION:-latest}
     environment:
       - NODE_ENV=production
       - BACKEND_URL=http://app:8000

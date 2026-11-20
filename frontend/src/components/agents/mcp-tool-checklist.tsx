@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, ShieldCheck, ShieldOff } from "lucide-react";
+import { PencilLine, Search, ShieldCheck, ShieldOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -13,6 +13,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from "@/components/ui";
 import type { McpToolInfo } from "@/lib/mcp-connections-api";
 import type { McpApproval, McpToolApproval } from "@/types/agents";
@@ -53,16 +57,65 @@ export function asksFirst(
 }
 
 /** What a group's select says: one answer for all of its tools, or each their own. */
-type GroupApproval = "ask" | "run" | "mixed";
+export type GroupApproval = "ask" | "run" | "mixed";
+
+/**
+ * The tools an agent may call after ticking or unticking, always as a list:
+ * ticking the last one back gives today's tools, and taking those the server
+ * adds later is `NewToolsSwitch`'s decision alone. A tick never meets null, since
+ * null has every tool ticked and the first click unticks one.
+ */
+export function chosenTools(tools: { name: string }[], chosen: Set<string>): string[] {
+  return tools.map((tool) => tool.name).filter((name) => chosen.has(name));
+}
+
+/**
+ * Whether a tool the server adds later reaches this agent on its own - `allowed`
+ * null - or the agent keeps the tools listed. On only with every tool chosen: a
+ * spec cannot say "these, and whatever comes", so turning it on with a tool
+ * unticked would quietly give that tool back.
+ */
+export function NewToolsSwitch({
+  tools,
+  allowed,
+  onChange,
+  disabled,
+}: {
+  tools: { name: string }[];
+  allowed: string[] | null;
+  onChange: (next: string[] | null) => void;
+  disabled?: boolean;
+}) {
+  const t = useTranslations("agents");
+  // With no tools read yet, switching it off would keep none.
+  if (tools.length === 0) return null;
+  const narrowed = allowed !== null && !tools.every((tool) => allowed.includes(tool.name));
+  const state = allowed === null ? "on" : narrowed ? "narrowed" : "off";
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0 space-y-0.5">
+        <p className="text-[13px] font-medium">{t("toolsAddNew")}</p>
+        <p className="text-muted-foreground text-xs">{t("toolsAddNewHint", { state })}</p>
+      </div>
+      <Switch
+        checked={allowed === null}
+        disabled={disabled || narrowed}
+        onCheckedChange={(on) => onChange(on ? null : tools.map((tool) => tool.name))}
+        aria-label={t("toolsAddNew")}
+        className="shrink-0"
+      />
+    </div>
+  );
+}
 
 /**
  * Which of a server's tools the agent may call, and which wait for a person -
  * the reads and the changes as two groups, each with its own approval, and
  * every tool with its own beside it.
  *
- * `allowed` null is every tool, which is what a fresh binding means; unticking
- * one narrows to the rest, and ticking the last one back returns to null, so a
- * server that gains a tool later offers it to an agent nobody narrowed.
+ * `allowed` null is every tool, those the server adds later included, which is
+ * what a fresh binding means; unticking one narrows to the rest, and ticking it
+ * back gives today's tools only. `NewToolsSwitch` says which of the two it is.
  *
  * The group selects say the binding's one setting per group, `none` until
  * somebody sets it; `writes` lets reads run and asks before changes. Asking
@@ -105,19 +158,13 @@ export function McpToolChecklist({
     needle === "" ||
     tool.name.toLowerCase().includes(needle) ||
     tool.description.toLowerCase().includes(needle);
-  const commit = (next: Set<string>) =>
-    onChange(
-      next.size === tools.length
-        ? null
-        : tools.map((tool) => tool.name).filter((name) => next.has(name)),
-    );
   const toggle = (names: string[], on: boolean) => {
     const next = new Set(chosen);
     for (const name of names) {
       if (on) next.add(name);
       else next.delete(name);
     }
-    commit(next);
+    onChange(chosenTools(tools, next));
   };
 
   const reads = tools.filter((tool) => tool.read_only === true);
@@ -148,6 +195,7 @@ export function McpToolChecklist({
 
   return (
     <div className="space-y-4">
+      <NewToolsSwitch tools={tools} allowed={allowed} onChange={onChange} disabled={disabled} />
       {tools.length > SEARCHABLE && (
         <div className="relative">
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2" />
@@ -198,7 +246,15 @@ export function McpToolChecklist({
   );
 }
 
-function ToolGroup({
+/**
+ * One group of a server's tools: a tick for all of them, one approval for all of
+ * them, and each tool on its own row.
+ *
+ * `changes` marks a tool that changes something, for a group that mixes reads
+ * and changes; `fixed` names why a tool's approval cannot be changed, for a tool
+ * that never asks whatever the binding says.
+ */
+export function ToolGroup({
   label,
   tools,
   shown,
@@ -209,6 +265,8 @@ function ToolGroup({
   onToolAsk,
   onToggle,
   prefix,
+  changes,
+  fixed,
   disabled,
 }: {
   label: string;
@@ -221,6 +279,8 @@ function ToolGroup({
   onToolAsk: (tool: McpToolInfo, ask: boolean) => void;
   onToggle: (names: string[], on: boolean) => void;
   prefix: string | null;
+  changes?: (tool: McpToolInfo) => boolean;
+  fixed?: (tool: McpToolInfo) => string | null;
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
@@ -276,6 +336,8 @@ function ToolGroup({
             onToggle={(on) => onToggle([tool.name], on)}
             onAsk={(ask) => onToolAsk(tool, ask)}
             prefix={prefix}
+            changes={changes?.(tool) ?? false}
+            fixed={fixed?.(tool) ?? null}
             disabled={disabled}
           />
         ))}
@@ -292,6 +354,8 @@ function ToolRow({
   onToggle,
   onAsk,
   prefix,
+  changes,
+  fixed,
   disabled,
 }: {
   tool: McpToolInfo;
@@ -300,6 +364,8 @@ function ToolRow({
   onToggle: (on: boolean) => void;
   onAsk: (ask: boolean) => void;
   prefix: string | null;
+  changes: boolean;
+  fixed: string | null;
   disabled?: boolean;
 }) {
   const t = useTranslations("agents");
@@ -319,12 +385,26 @@ function ToolRow({
           {readableToolName(tool.name, prefix)}
         </span>
       </label>
+      {changes && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              role="img"
+              aria-label={t("toolChangesSomething")}
+              className="text-muted-foreground grid size-6 shrink-0 place-items-center"
+            >
+              <PencilLine className="size-3.5" aria-hidden />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{t("toolChangesSomething")}</TooltipContent>
+        </Tooltip>
+      )}
       {/* Beside the label rather than in it, so pressing it is never a tick. */}
       <IconButton
         aria-label={t("approvalForTool", { tool: tool.name })}
         aria-pressed={asks}
-        title={asks ? t("approvalAskFirst") : t("approvalRunFreely")}
-        disabled={disabled}
+        title={fixed ?? (asks ? t("approvalAskFirst") : t("approvalRunFreely"))}
+        disabled={disabled || fixed !== null}
         onClick={() => onAsk(!asks)}
         className={asks ? "text-foreground" : "text-muted-foreground/60"}
       >
