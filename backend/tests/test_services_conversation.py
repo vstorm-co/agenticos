@@ -54,6 +54,7 @@ def room_participant_conversations(monkeypatch):
     return mocked
 
 
+@pytest.fixture(autouse=True)
 def private_history_has_no_edit_share(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(conversation_share_repo, "has_edit_share", AsyncMock(return_value=False))
     monkeypatch.setattr(
