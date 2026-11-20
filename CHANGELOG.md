@@ -25,6 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Stop old API and worker processes before applying the Matrix migration, then start the new API and workers together. Account uniqueness now includes the homeserver URL; older binaries cannot create new identities against this schema. Rolling back to older binaries also requires a schema downgrade, which refuses while homeserver-bound accounts or identifiers exceeding the legacy limits remain.
+
 - Apply `0345_matrix_channel.py`, which enables Matrix exposures and widens channel identifiers to fit native Matrix IDs. Matrix account links are bound to the configured homeserver URL; each other server needs a separate `/link`. Unscoped preview links must be linked again. Downgrade refuses homeserver-bound accounts and identifiers exceeding the legacy limits instead of truncating conversation history. Give a Matrix bot account a rate-limit exemption on its homeserver so streamed answers are not throttled; [Channels → Matrix](docs/channels.md#matrix) has the Synapse call.
 
 ## [1.86.2] - 2026-11-20
