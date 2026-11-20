@@ -1,6 +1,7 @@
 """Manage explicit people and agent rosters for conversations."""
 
 from collections.abc import Sequence
+from typing import Literal, cast
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -589,7 +590,7 @@ class RoomParticipantService:
             ]
         return RoomParticipantsRead(
             conversation_id=conversation.id,
-            visibility=conversation.room_visibility,
+            visibility=cast(Literal["private", "public"] | None, conversation.room_visibility),
             can_post=can_post,
             can_manage=can_manage,
             items=items,

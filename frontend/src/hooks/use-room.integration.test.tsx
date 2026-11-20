@@ -8,13 +8,12 @@ import { ApiError } from "@/lib/api-error";
 import { announceRoomChange, onRoomChange } from "@/lib/room-events";
 import { qk } from "@/lib/query-keys";
 import { useAuthStore, useChatStore, useConversationStore, useOrgStore } from "@/stores";
-import type { RoomMessageResult } from "@/types/room";
+import type { RoomMessageResult, RoomParticipantRead, RoomThreadPage } from "@/types/room";
 import { useCreateTeamRoom, useRoomActions, useRoomRequests, useRoomSync } from "./use-room";
 import { useRoomDraft } from "./use-room-draft";
 import { useRoomThread } from "./use-room-thread";
 import { getRoomThread } from "@/lib/room-api";
 import { resetTenantState } from "@/stores/session-reset";
-import type { RoomThreadPage } from "@/types/room";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn() },
@@ -30,6 +29,18 @@ const user = (id = "me") => ({
   is_active: true,
   created_at: "2026-11-13T00:00:00Z",
 });
+function roomAgent(id: string, name: string): RoomParticipantRead {
+  return {
+    kind: "agent",
+    id,
+    name,
+    avatar_url: null,
+    is_member: true,
+    can_add: false,
+    can_mention: true,
+    auto_reply: false,
+  };
+}
 const saved: RoomMessageResult = {
   message: {
     id: "saved-message",
@@ -75,6 +86,7 @@ describe("posting to a room", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/conversations/room-a/room-messages", {
       client_message_id: expect.any(String),
       content: "Hello",
+      mentions: [],
       reply_to_message_id: "parent",
     });
     expect(result.current.content).toBe("");
@@ -85,15 +97,16 @@ describe("posting to a room", () => {
     useChatStore.setState({ replyTo: { messageId: "parent", role: "user", excerpt: "Earlier" } });
     vi.mocked(apiClient.post).mockRejectedValueOnce(new TypeError("Network lost"));
     const { result } = renderHook(() => useRoomDraft("room-a"), { wrapper });
+    const writer = roomAgent("agent-a", "Writer");
     act(() => {
-      result.current.setContent("Please check");
-      result.current.setAgentId("agent-a");
+      result.current.setContent("Please check @Wri");
+      result.current.pickMention({ start: 13, query: "Wri" }, writer);
     });
     await act(async () => result.current.submit());
     const first = vi.mocked(apiClient.post).mock.calls[0]![1];
     expect(result.current.retrying).toBe(true);
     expect(result.current.locked).toBe(true);
-    expect(result.current.content).toBe("Please check");
+    expect(result.current.content).toBe("Please check @Writer ");
     act(() =>
       useChatStore.setState({
         replyTo: { messageId: "another", role: "user", excerpt: "A new reply" },
@@ -102,12 +115,12 @@ describe("posting to a room", () => {
     await act(async () => result.current.submit());
     expect(vi.mocked(apiClient.post).mock.calls[1]![1]).toEqual(first);
     expect(first).toMatchObject({
-      content: "Please check",
-      agent_id: "agent-a",
+      content: "Please check @Writer",
+      mentions: [{ kind: "agent", id: "agent-a" }],
       reply_to_message_id: "parent",
     });
     expect(result.current.content).toBe("");
-    expect(result.current.agentId).toBeNull();
+    expect(result.current.roomMentions).toEqual([]);
     expect(useChatStore.getState().replyTo?.messageId).toBe("another");
   });
 
@@ -474,9 +487,10 @@ describe("room thread drafts", () => {
   it("posts an explicit thread root independently of the quoted message and main draft", async () => {
     useChatStore.setState({ replyTo: { messageId: "main-quote", role: "user", excerpt: "Main" } });
     const { result } = renderHook(() => useRoomDraft("room-a", "root-a"), { wrapper });
+    const writer = roomAgent("writer", "Writer");
     act(() => {
-      result.current.setContent("Thread answer");
-      result.current.setAgentId("writer");
+      result.current.setContent("Thread answer @Wri");
+      result.current.pickMention({ start: 14, query: "Wri" }, writer);
       result.current.setReply({
         messageId: "reply-in-a",
         role: "assistant",
@@ -487,8 +501,8 @@ describe("room thread drafts", () => {
     await act(async () => result.current.submit());
     expect(apiClient.post).toHaveBeenCalledWith("/conversations/room-a/room-messages", {
       client_message_id: expect.any(String),
-      content: "Thread answer",
-      agent_id: "writer",
+      content: "Thread answer @Writer",
+      mentions: [{ kind: "agent", id: "writer" }],
       thread_root_message_id: "root-a",
       reply_to_message_id: "reply-in-a",
       reply_to_excerpt: "Earlier answer",
@@ -502,11 +516,12 @@ describe("room thread drafts", () => {
       wrapper,
       initialProps: { root: null as string | null },
     });
+    const writer = roomAgent("writer", "Writer");
     act(() => hook.result.current.setContent("Main draft"));
     hook.rerender({ root: "root-a" });
     act(() => {
-      hook.result.current.setContent("Only in A");
-      hook.result.current.setAgentId("writer");
+      hook.result.current.setContent("Only in A @Wri");
+      hook.result.current.pickMention({ start: 10, query: "Wri" }, writer);
       hook.result.current.setReply({ messageId: "root-a", role: "user", excerpt: "Root A" });
     });
     vi.mocked(apiClient.post).mockRejectedValueOnce(new TypeError("Lost acknowledgement"));
@@ -519,11 +534,12 @@ describe("room thread drafts", () => {
     await act(async () => hook.result.current.submit());
     expect(vi.mocked(apiClient.post).mock.calls[1]![1]).toMatchObject({
       content: "Only in B",
+      mentions: [],
       thread_root_message_id: "root-b",
     });
     hook.rerender({ root: "root-a" });
     expect(hook.result.current.retrying).toBe(true);
-    expect(hook.result.current.content).toBe("Only in A");
+    expect(hook.result.current.content).toBe("Only in A @Writer ");
     await act(async () => hook.result.current.submit());
     expect(vi.mocked(apiClient.post).mock.calls[2]![1]).toEqual(frozen);
     hook.rerender({ root: null });

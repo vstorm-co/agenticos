@@ -7,7 +7,7 @@ import { announceRoomChange } from "@/lib/room-events";
 import { useAuthStore, useChatStore, useOrgStore } from "@/stores";
 import { EMPTY_ROOM_DRAFT } from "@/stores/chat-store";
 import { insertRoomMention, reconcileRoomMentionEdit, roomMentionRefs } from "@/lib/room-mentions";
-import type { RoomMentionQuery } from "@/lib/room-mentions";
+import type { RoomMentionEditHint, RoomMentionQuery } from "@/lib/room-mentions";
 import { useRoomActions } from "./use-room";
 import type { MessageReply } from "@/types/chat";
 import type { RoomParticipantRead, RoomPendingUpload } from "@/types/room";
@@ -200,11 +200,16 @@ export function useRoomDraft(
           ? value
           : { ...value, attachments: value.attachments.filter((file) => file.id !== fileId) },
       ),
-    setContent: (content: string) =>
+    setContent: (content: string, editHint?: RoomMentionEditHint) =>
       change((value) => ({
         ...value,
         content,
-        roomMentions: reconcileRoomMentionEdit(value.content, content, value.roomMentions),
+        roomMentions: reconcileRoomMentionEdit(
+          value.content,
+          content,
+          value.roomMentions,
+          editHint,
+        ),
       })),
     pickMention: (query: RoomMentionQuery, participant: RoomParticipantRead) => {
       let caret = query.start;

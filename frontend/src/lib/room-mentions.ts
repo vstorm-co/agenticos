@@ -6,6 +6,15 @@ export interface RoomMentionQuery {
   query: string;
 }
 
+/** Post-edit selection plus the textarea selection immediately before input. */
+export interface RoomMentionEditHint {
+  caret: number;
+  selectionEnd: number;
+  previousSelectionStart?: number;
+  previousSelectionEnd?: number;
+  inputType?: string;
+}
+
 /** A room-only @ query. This intentionally has no dependency on resource mentions. */
 export function roomMentionAt(
   text: string,
@@ -42,39 +51,181 @@ export function matchingRoomMentionables(
     });
 }
 
-/** Move exact token offsets across one edit; an edit touching a token unpicks only it. */
-export function reconcileRoomMentionEdit(
+interface RoomMentionEditRange {
+  start: number;
+  previousEnd: number;
+  nextEnd: number;
+}
+
+function validOffset(value: number, length: number): boolean {
+  return Number.isInteger(value) && value >= 0 && value <= length;
+}
+
+/**
+ * Resolve an edit from the pre-input selection when the changed text proves it.
+ * Checking both unchanged sides handles replacements whose inserted length differs
+ * from the selected text, including paste and composition commits.
+ */
+function rangeFromPreviousSelection(
   previous: string,
   next: string,
-  mentions: readonly RoomDraftMention[],
-): RoomDraftMention[] {
-  if (previous === next || mentions.length === 0) return [...mentions];
-  let start = 0;
-  while (start < previous.length && start < next.length && previous[start] === next[start]) start++;
-  let previousEnd = previous.length;
-  let nextEnd = next.length;
-  while (
-    previousEnd > start &&
-    nextEnd > start &&
-    previous[previousEnd - 1] === next[nextEnd - 1]
-  ) {
-    previousEnd--;
-    nextEnd--;
+  hint: RoomMentionEditHint,
+): RoomMentionEditRange | null {
+  const selectionStart = hint.previousSelectionStart;
+  const selectionEnd = hint.previousSelectionEnd;
+  if (
+    selectionStart === undefined ||
+    selectionEnd === undefined ||
+    !validOffset(selectionStart, previous.length) ||
+    !validOffset(selectionEnd, previous.length) ||
+    selectionEnd < selectionStart
+  )
+    return null;
+
+  let start = selectionStart;
+  let previousEnd = selectionEnd;
+  if (start === previousEnd) {
+    const inputType = hint.inputType?.toLowerCase() ?? "";
+    if (inputType.endsWith("backward")) {
+      start = hint.caret;
+    } else if (inputType.endsWith("forward")) {
+      previousEnd += previous.length - next.length;
+    } else if (inputType.startsWith("delete")) {
+      return null;
+    }
   }
-  const delta = nextEnd - previousEnd;
+  const nextEnd = next.length - (previous.length - previousEnd);
+  if (
+    !validOffset(start, previous.length) ||
+    !validOffset(previousEnd, previous.length) ||
+    previousEnd < start ||
+    !validOffset(nextEnd, next.length) ||
+    hint.caret !== nextEnd ||
+    hint.selectionEnd !== nextEnd ||
+    previous.slice(0, start) !== next.slice(0, start) ||
+    previous.slice(previousEnd) !== next.slice(nextEnd)
+  )
+    return null;
+  return { start, previousEnd, nextEnd };
+}
+
+/**
+ * Use the post-edit caret as a suffix boundary when the unchanged suffix proves
+ * where a contiguous edit ended. Restricting the prefix search to that boundary
+ * disambiguates repeated visible tokens without assuming the inserted text length.
+ */
+function rangeFromCaret(
+  previous: string,
+  next: string,
+  hint: RoomMentionEditHint,
+): RoomMentionEditRange | null {
+  if (!validOffset(hint.caret, next.length) || hint.selectionEnd !== hint.caret) return null;
+  const previousEnd = hint.caret + previous.length - next.length;
+  if (
+    !validOffset(previousEnd, previous.length) ||
+    previous.slice(previousEnd) !== next.slice(hint.caret)
+  )
+    return null;
+  const prefixLimit = Math.min(hint.caret, previousEnd);
+  let start = 0;
+  while (start < prefixLimit && previous[start] === next[start]) start++;
+  return { start, previousEnd, nextEnd: hint.caret };
+}
+
+function mapMentionRange(
+  next: string,
+  mentions: readonly RoomDraftMention[],
+  range: RoomMentionEditRange,
+): RoomDraftMention[] {
+  const delta = range.nextEnd - range.previousEnd;
   return mentions.flatMap((mention) => {
     let token = mention;
-    if (start === previousEnd) {
-      if (start <= mention.start)
-        token = { ...mention, start: mention.start + delta, end: mention.end + delta };
-      else if (start < mention.end) return [];
-    } else if (previousEnd <= mention.start) {
+    if (mention.end <= range.start) {
+      // The token is before the edit.
+    } else if (mention.start >= range.previousEnd) {
       token = { ...mention, start: mention.start + delta, end: mention.end + delta };
-    } else if (start < mention.end && previousEnd > mention.start) {
+    } else {
       return [];
     }
     return next.slice(token.start, token.end) === `@${token.name}` ? [token] : [];
   });
+}
+
+/**
+ * When text alone admits several minimal edit ranges, retain only identities whose
+ * offsets survive every possible alignment. This conservative fallback never moves
+ * one duplicate name's identity onto another identical visible token.
+ */
+function mapUnambiguousTextDiff(
+  previous: string,
+  next: string,
+  mentions: readonly RoomDraftMention[],
+): RoomDraftMention[] {
+  const delta = next.length - previous.length;
+  let prefix = 0;
+  while (prefix < previous.length && prefix < next.length && previous[prefix] === next[prefix])
+    prefix++;
+  let suffix = 0;
+  while (
+    suffix < previous.length &&
+    suffix < next.length &&
+    previous[previous.length - suffix - 1] === next[next.length - suffix - 1]
+  )
+    suffix++;
+
+  const previousSuffixStart = previous.length - suffix;
+  const width = Math.max(0, previousSuffixStart - prefix, -delta);
+  const minStart = Math.max(0, previousSuffixStart - width);
+  const maxStart = Math.min(prefix, previous.length - width, next.length - width - delta);
+  if (minStart > maxStart) return [];
+
+  return mentions.flatMap((mention) => {
+    let token = mention;
+    if (mention.end <= minStart) {
+      // Its position is unchanged for every minimal alignment.
+    } else if (mention.start >= maxStart + width) {
+      token = { ...mention, start: mention.start + delta, end: mention.end + delta };
+    } else {
+      return [];
+    }
+    return next.slice(token.start, token.end) === `@${token.name}` ? [token] : [];
+  });
+}
+
+/** Move exact token offsets across one edit; ambiguous identities are dropped safely. */
+export function reconcileRoomMentionEdit(
+  previous: string,
+  next: string,
+  mentions: readonly RoomDraftMention[],
+  hint?: RoomMentionEditHint,
+): RoomDraftMention[] {
+  if (mentions.length === 0) return [];
+  if (previous === next) {
+    const selectionStart = hint?.previousSelectionStart;
+    const selectionEnd = hint?.previousSelectionEnd;
+    if (selectionStart === selectionEnd) return [...mentions];
+    if (
+      hint !== undefined &&
+      selectionStart !== undefined &&
+      selectionEnd !== undefined &&
+      validOffset(selectionStart, previous.length) &&
+      validOffset(selectionEnd, previous.length) &&
+      selectionEnd >= selectionStart
+    ) {
+      const range = rangeFromPreviousSelection(previous, next, hint);
+      if (range !== null) return mapMentionRange(next, mentions, range);
+      return mentions.filter(
+        (mention) => mention.end <= selectionStart || mention.start >= selectionEnd,
+      );
+    }
+    return [...mentions];
+  }
+  if (hint !== undefined) {
+    const range =
+      rangeFromPreviousSelection(previous, next, hint) ?? rangeFromCaret(previous, next, hint);
+    if (range !== null) return mapMentionRange(next, mentions, range);
+  }
+  return mapUnambiguousTextDiff(previous, next, mentions);
 }
 
 /** Replace the active `@query` with one identity-bound token and preserve other offsets. */

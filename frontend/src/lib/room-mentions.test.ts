@@ -58,18 +58,78 @@ describe("room mention identities", () => {
     ).toEqual(["user-1", "agent-1"]);
   });
 
-  it("deleting one duplicate token removes only its identity", () => {
+  it.each([
+    ["first", 4, 10, 4, "agent", "agent-1"],
+    ["second", 10, 16, 10, "user", "user-1"],
+  ] as const)(
+    "deleting the %s duplicate token removes only its identity",
+    (_position, start, end, caret, remainingKind, remainingId) => {
+      const mentions = [
+        { kind: "user" as const, id: "user-1", name: "Alex", start: 4, end: 9 },
+        { kind: "agent" as const, id: "agent-1", name: "Alex", start: 10, end: 15 },
+      ];
+      const previous = "Ask @Alex @Alex ";
+      const next = previous.slice(0, start) + previous.slice(end);
+      const reconciled = reconcileRoomMentionEdit(previous, next, mentions, {
+        caret,
+        selectionEnd: caret,
+        previousSelectionStart: start,
+        previousSelectionEnd: end,
+        inputType: "deleteByCut",
+      });
+      const reconciledFromCaret = reconcileRoomMentionEdit(previous, next, mentions, {
+        caret,
+        selectionEnd: caret,
+      });
+
+      expect(next).toBe("Ask @Alex ");
+      expect(reconciled).toEqual([
+        { kind: remainingKind, id: remainingId, name: "Alex", start: 4, end: 9 },
+      ]);
+      expect(reconciledFromCaret).toEqual(reconciled);
+      expect(roomMentionRefs(reconciled)).toEqual([{ kind: remainingKind, id: remainingId }]);
+    },
+  );
+
+  it("drops duplicate identities when a text-only edit cannot identify which token survived", () => {
     const mentions = [
       { kind: "user" as const, id: "user-1", name: "Alex", start: 4, end: 9 },
       { kind: "agent" as const, id: "agent-1", name: "Alex", start: 10, end: 15 },
     ];
     const previous = "Ask @Alex @Alex ";
     const next = previous.slice(0, 4) + previous.slice(10);
-    const reconciled = reconcileRoomMentionEdit(previous, next, mentions);
 
-    expect(next).toBe("Ask @Alex ");
-    expect(reconciled).toEqual([{ kind: "agent", id: "agent-1", name: "Alex", start: 4, end: 9 }]);
-    expect(roomMentionRefs(reconciled)).toEqual([{ kind: "agent", id: "agent-1" }]);
+    expect(reconcileRoomMentionEdit(previous, next, mentions)).toEqual([]);
+  });
+
+  it("does not retain a selected identity when pasted text replaces its token with the same text", () => {
+    const previous = "Ask @Alex";
+    const mention = { kind: "user" as const, id: "user-1", name: "Alex", start: 4, end: 9 };
+
+    expect(
+      reconcileRoomMentionEdit(previous, previous, [mention], {
+        caret: 9,
+        selectionEnd: 9,
+        previousSelectionStart: 4,
+        previousSelectionEnd: 9,
+        inputType: "insertFromPaste",
+      }),
+    ).toEqual([]);
+  });
+
+  it("drops an overlapping identity when same-text replacement metadata cannot be validated", () => {
+    const previous = "Ask @Alex";
+    const mention = { kind: "user" as const, id: "user-1", name: "Alex", start: 4, end: 9 };
+
+    expect(
+      reconcileRoomMentionEdit(previous, previous, [mention], {
+        caret: 8,
+        selectionEnd: 8,
+        previousSelectionStart: 4,
+        previousSelectionEnd: 9,
+        inputType: "insertFromPaste",
+      }),
+    ).toEqual([]);
   });
 
   it("keeps a mention identity when pasted text is inserted before its token", () => {
