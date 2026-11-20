@@ -124,7 +124,8 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         ):
             self.assertEqual(await runner.run_agenticos(args, [scenario]), 0)
             execute.assert_not_awaited()
-            self.assertEqual(json.loads(plan.getvalue())["agent_version"], str(version_id))
+            self.assertIn(f"Published version {version_id}", plan.getvalue())
+            self.assertIn("preflight, no model calls", plan.getvalue())
 
             review.return_value = SimpleNamespace(changes=[SimpleNamespace(version="published")])
             with self.assertRaisesRegex(SystemExit, "published AgenticOS differs from the code"):
@@ -135,6 +136,10 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             args.max_usd = Decimal("0.10")
             with patch.object(runner, "print", create=True) as emit:
                 self.assertEqual(await runner.run_agenticos(args, [scenario, scenario]), 1)
+            emit.assert_called_once()
+            self.assertIn("[1/2] natural-hello · running", plan.getvalue())
+            self.assertIn("1/2 completed", plan.getvalue())
+            self.assertIn("costs incomplete", plan.getvalue())
             execute.assert_awaited_once()
             call = execute.await_args
             assert call is not None
@@ -145,6 +150,6 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(call.kwargs["model_profile_id"], profile_id)
             self.assertEqual(call.kwargs["run_limit_usd"], Decimal("0.10"))
             self.assertIsInstance(call.kwargs["isolation"], runner.RunIsolation)
-            row = runner.Evidence.model_validate_json(emit.call_args_list[1].args[0])
+            row = runner.Evidence.model_validate_json(emit.call_args.args[0])
             self.assertEqual(row.attempt, run_id)
             self.assertTrue(row.cost_is_partial)

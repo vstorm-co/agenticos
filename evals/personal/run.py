@@ -7,7 +7,8 @@ import json
 import os
 import re
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -207,6 +208,70 @@ class Evidence(BaseModel):
     agent_version: UUID | None = None
 
 
+def console(message: str) -> None:
+    sys.stderr.write(f"{message}\n")
+    sys.stderr.flush()
+
+
+class Progress:
+    """Line-based progress works even when Docker runs without a TTY."""
+
+    def __init__(self, label: str, total: int) -> None:
+        self.label = label
+        self.total = total
+        self.started = perf_counter()
+        self.passed = 0
+        self.failed = 0
+        self.cost = Decimal(0)
+        self.incomplete_costs = 0
+
+    @contextmanager
+    def case(self, case_id: str) -> Iterator[None]:
+        label = f"[{self.passed + self.failed + 1}/{self.total}] {case_id}"
+        console(f"{label} · running")
+        started = perf_counter()
+        loop = asyncio.get_running_loop()
+
+        def heartbeat() -> None:
+            nonlocal timer
+            console(f"{label} · still running ({perf_counter() - started:.0f}s)")
+            timer = loop.call_later(15, heartbeat)
+
+        timer = loop.call_later(15, heartbeat)
+        try:
+            yield
+        finally:
+            timer.cancel()
+
+    def result(
+        self,
+        *,
+        passed: bool,
+        latency_ms: int,
+        cost: Decimal | None,
+        partial: bool = False,
+        detail: str = "",
+    ) -> None:
+        self.passed += passed
+        self.failed += not passed
+        self.cost += cost or Decimal(0)
+        self.incomplete_costs += partial or cost is None
+        status = "PASS" if passed else "FAIL"
+        price = f"${cost:.5f}" if cost is not None else "cost unknown"
+        if partial and cost is not None:
+            price += " (partial)"
+        suffix = f" · {detail}" if detail else ""
+        console(f"  {status} · {latency_ms / 1000:.1f}s · {price}{suffix}")
+
+    def summary(self) -> None:
+        unknown = f" · {self.incomplete_costs} costs incomplete" if self.incomplete_costs else ""
+        console(
+            f"{self.label} · {self.passed + self.failed}/{self.total} completed · "
+            f"{self.passed} passed · {self.failed} failed · ${self.cost:.5f} known spend"
+            f"{unknown} · {perf_counter() - self.started:.1f}s"
+        )
+
+
 def response_cost(messages: Iterable[object]) -> Decimal | None:
     responses = [msg for msg in messages if isinstance(msg, ModelResponse)]
     costs = [(msg.provider_details or {}).get("cost") for msg in responses]
@@ -247,7 +312,8 @@ async def judge_report(model: str, path: Path, limit: int) -> int:
         ),
         output_type=JudgeVerdict,
     )
-    failed = False
+    console(f"Judge · {model} · up to {limit} eligible cases")
+    progress = Progress("Judge (up to limit)", limit)
     graded = 0
     with path.open() as file:
         for line in file:
@@ -258,23 +324,24 @@ async def judge_report(model: str, path: Path, limit: int) -> int:
             if scenario is None:
                 continue
             started = perf_counter()
-            result = await judge.run(
-                json.dumps(
-                    {
-                        "conversation": [
-                            turn.model_dump(mode="json") for turn in all_turns(scenario.case)
-                        ],
-                        "criteria": scenario.case.reference_answer,
-                        "output": evidence.output,
-                        "calls": evidence.calls,
-                    },
-                    ensure_ascii=False,
-                ),
-                usage_limits=UsageLimits(request_limit=2, output_tokens_limit=750),
-            )
-            failed |= not result.output.passed
+            with progress.case(evidence.case):
+                result = await judge.run(
+                    json.dumps(
+                        {
+                            "conversation": [
+                                turn.model_dump(mode="json") for turn in all_turns(scenario.case)
+                            ],
+                            "criteria": scenario.case.reference_answer,
+                            "output": evidence.output,
+                            "calls": evidence.calls,
+                        },
+                        ensure_ascii=False,
+                    ),
+                    usage_limits=UsageLimits(request_limit=2, output_tokens_limit=750),
+                )
             graded += 1
             cost = response_cost(result.new_messages())
+            latency_ms = round((perf_counter() - started) * 1000)
             print(
                 json.dumps(
                     {
@@ -283,7 +350,7 @@ async def judge_report(model: str, path: Path, limit: int) -> int:
                         "attempt": str(evidence.attempt) if evidence.attempt else None,
                         "judge": model,
                         "verdict": result.output.model_dump(),
-                        "latency_ms": round((perf_counter() - started) * 1000),
+                        "latency_ms": latency_ms,
                         "cost_usd": str(cost) if cost is not None else None,
                         "input_tokens": result.usage.input_tokens,
                         "output_tokens": result.usage.output_tokens,
@@ -291,9 +358,11 @@ async def judge_report(model: str, path: Path, limit: int) -> int:
                 ),
                 flush=True,
             )
+            progress.result(passed=result.output.passed, latency_ms=latency_ms, cost=cost)
             if graded >= limit:
                 break
-    return int(failed or not graded)
+    progress.summary()
+    return int(bool(progress.failed or not graded))
 
 
 def all_turns(case: DatasetCaseContent) -> list[CaseMessage]:
@@ -417,41 +486,44 @@ def briefing_errors(scenario: Scenario, found: nightly.NightlyReading) -> list[s
     return errors
 
 
-async def run_background(model: str, scenarios: Iterable[Scenario]) -> int:
+async def run_background(model: str, scenarios: list[Scenario]) -> int:
+    label = scenarios[0].suite if scenarios else "Background replay"
+    console(f"{label} · {model} · {len(scenarios)} cases")
+    progress = Progress(label, len(scenarios))
     memory = Agent(model, instructions=extraction._INSTRUCTIONS, output_type=extraction._Extraction)
     briefing = Agent(model, instructions=nightly._INSTRUCTIONS, output_type=nightly.NightlyReading)
     limit = UsageLimits(request_limit=2, output_tokens_limit=2_000)
-    failed = 0
     for item in scenarios:
         started = perf_counter()
-        if item.suite == "memory":
-            result = await memory.run(
-                json.dumps(memory_input(item), ensure_ascii=False), usage_limits=limit
-            )
-            errors = memory_errors(item, result.output)
-        else:
-            result = await briefing.run(
-                json.dumps(briefing_input(item), ensure_ascii=False), usage_limits=limit
-            )
-            errors = briefing_errors(item, result.output)
-        failed += bool(errors)
+        with progress.case(item.id):
+            if item.suite == "memory":
+                result = await memory.run(
+                    json.dumps(memory_input(item), ensure_ascii=False), usage_limits=limit
+                )
+                errors = memory_errors(item, result.output)
+            else:
+                result = await briefing.run(
+                    json.dumps(briefing_input(item), ensure_ascii=False), usage_limits=limit
+                )
+                errors = briefing_errors(item, result.output)
         usage = result.usage
         cost = response_cost(result.new_messages())
-        print(
-            Evidence(
-                case=item.id,
-                model=model,
-                errors=errors,
-                output=result.output.model_dump(mode="json"),
-                input_tokens=usage.input_tokens,
-                output_tokens=usage.output_tokens,
-                latency_ms=round((perf_counter() - started) * 1000),
-                cost_usd=cost,
-                cost_is_partial=cost is None,
-            ).model_dump_json(),
-            flush=True,
+        latency_ms = round((perf_counter() - started) * 1000)
+        evidence = Evidence(
+            case=item.id,
+            model=model,
+            errors=errors,
+            output=result.output.model_dump(mode="json"),
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            latency_ms=latency_ms,
+            cost_usd=cost,
+            cost_is_partial=cost is None,
         )
-    return int(failed > 0)
+        print(evidence.model_dump_json(), flush=True)
+        progress.result(passed=not errors, latency_ms=latency_ms, cost=cost)
+    progress.summary()
+    return int(bool(progress.failed))
 
 
 async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> int:
@@ -482,79 +554,79 @@ async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> 
         if profile is None:
             raise SystemExit("The selected model profile is unavailable in the eval organization.")
         model = f"{profile.provider}:{profile.model}"
-    print(
-        json.dumps(
-            {
-                "model": model,
-                "agent_version": str(version_id),
-                "cases": [item.id for item in scenarios],
-                "max_usd": str(args.max_usd) if args.max_usd is not None else None,
-            }
-        ),
-        file=sys.stderr,
-    )
+    mode = "preflight, no model calls" if args.max_usd is None else f"${args.max_usd} budget"
+    console(f"AgenticOS · {model} · {len(scenarios)} cases · {mode}")
+    console(f"Published version {version_id}")
     if args.max_usd is None:
+        if len(scenarios) < 50:
+            console("Selected cases: " + ", ".join(item.id for item in scenarios))
         return 0
 
-    spent = Decimal(0)
-    failed = False
+    progress = Progress("AgenticOS", len(scenarios))
     for item in scenarios:
-        remaining = args.max_usd - spent
+        remaining = args.max_usd - progress.cost
         if remaining <= 0:
-            print("Stopped before the next case: eval budget exhausted.", file=sys.stderr)
-            return 1
+            console("Stopped before the next case: eval budget exhausted.")
+            break
         calls: list[RecordedToolCall] = []
         history = build_message_history(
             [HistoryMessage(role=turn.role, content=turn.content) for turn in item.case.history]
         )
         started = perf_counter()
-        async with get_db_context() as db:
-            answer, run = await AgentRunnerService(db).execute(
-                ctx,
-                agent_id,
-                item.case.input,
-                surface=RunSurface.EVAL,
-                version_id=version_id,
-                model_profile_id=profile_id,
-                message_history=history,
-                isolation=RunIsolation(),
-                tool_calls=calls,
-                run_limit_usd=remaining,
-                reports_failure=True,
-            )
-            intercepted = await intercepted_tool_call_repo.list_for_run(
-                db, run_id=run.id, organization_id=org
-            )
-            trace = [EvalCallRead.model_validate(row) for row in trajectory(calls, intercepted)]
-            status = run.status
-            errors = (
-                trace_errors(item, answer=answer, calls=trace)
-                if status == RunStatus.COMPLETED.value
-                else [f"run {status}"]
-            )
-            evidence = Evidence(
-                case=item.id,
-                model=model,
-                agent_version=version_id,
-                attempt=run.id,
-                errors=errors,
-                output=answer if status == RunStatus.COMPLETED.value else "",
-                calls=[call.model_dump(mode="json") for call in trace],
-                input_tokens=run.input_tokens,
-                output_tokens=run.output_tokens,
-                latency_ms=round((perf_counter() - started) * 1000),
-                cost_usd=run.cost_usd,
-                cost_is_partial=run.cost_is_partial,
-            )
+        with progress.case(item.id):
+            async with get_db_context() as db:
+                answer, run = await AgentRunnerService(db).execute(
+                    ctx,
+                    agent_id,
+                    item.case.input,
+                    surface=RunSurface.EVAL,
+                    version_id=version_id,
+                    model_profile_id=profile_id,
+                    message_history=history,
+                    isolation=RunIsolation(),
+                    tool_calls=calls,
+                    run_limit_usd=remaining,
+                    reports_failure=True,
+                )
+                intercepted = await intercepted_tool_call_repo.list_for_run(
+                    db, run_id=run.id, organization_id=org
+                )
+                trace = [EvalCallRead.model_validate(row) for row in trajectory(calls, intercepted)]
+                status = run.status
+                errors = (
+                    trace_errors(item, answer=answer, calls=trace)
+                    if status == RunStatus.COMPLETED.value
+                    else [f"run {status}"]
+                )
+                latency_ms = round((perf_counter() - started) * 1000)
+                evidence = Evidence(
+                    case=item.id,
+                    model=model,
+                    agent_version=version_id,
+                    attempt=run.id,
+                    errors=errors,
+                    output=answer if status == RunStatus.COMPLETED.value else "",
+                    calls=[call.model_dump(mode="json") for call in trace],
+                    input_tokens=run.input_tokens,
+                    output_tokens=run.output_tokens,
+                    latency_ms=latency_ms,
+                    cost_usd=run.cost_usd,
+                    cost_is_partial=run.cost_is_partial,
+                )
         print(evidence.model_dump_json(), flush=True)
-        spent += evidence.cost_usd or Decimal(0)
-        failed |= bool(errors)
+        progress.result(
+            passed=not errors,
+            latency_ms=latency_ms,
+            cost=evidence.cost_usd,
+            partial=evidence.cost_is_partial,
+            detail=", ".join(errors) if errors else f"{len(trace)} tool calls",
+        )
         if status == RunStatus.BUDGET_EXCEEDED.value or evidence.cost_is_partial:
-            print(
-                "Stopped: the run budget was exceeded or the cost is incomplete.", file=sys.stderr
-            )
+            console("Stopped: the run budget was exceeded or the cost is incomplete.")
+            progress.summary()
             return 1
-    return int(failed)
+    progress.summary()
+    return int(bool(progress.failed or progress.passed < len(scenarios)))
 
 
 def live_turn(
@@ -703,6 +775,7 @@ def run_live(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
+    os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", choices=SUITES)
     parser.add_argument(

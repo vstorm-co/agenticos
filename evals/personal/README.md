@@ -12,7 +12,9 @@ The background suites exercise their production instructions and output schemas 
 
 ## Validate without spending
 
-From the repository root:
+Run commands from the checkout containing this README. If you use several worktrees, switch to the one with `evals/personal/stack.sh` and its own `evals/personal/.env`. Check the current checkout with `git rev-parse --show-toplevel`.
+
+From that repository root:
 
 ```sh
 make eval-personal
@@ -33,13 +35,13 @@ evals/personal/stack.sh build app
 evals/personal/stack.sh up -d app worker sandboxd artifact-render
 evals/personal/stack.sh exec -T app sh -c '
   BOOTSTRAP_API_KEY="$OPENROUTER_API_KEY" exec agenticos cmd bootstrap \
-    --org "AgenticOS Local Eval" --provider openrouter --model deepseek/deepseek-v4-flash-0731
+    --org "AgenticOS Local Eval DeepSeek Baseline" --provider openrouter --model "$AGENTICOS_EVAL_MODEL"
 '
 ```
 
 Bootstrap installs AgenticOS and its dependencies through the production shipped-template path. It preserves an existing installation, including the previous model. For a clean comparison, use a fresh eval database or explicitly configure an eval model profile and pass its ID with `--model-profile`. Rebuild the Docker image after changing backend code or bundled resources. The preflight refuses a published starter whose managed configuration differs from the image. Start clean to get the current bundled Skill and Context contents as well.
 
-Use the bootstrap organization and user IDs as `ORG_ID` and `USER_ID`. If you use the default bootstrap email and the organization above, read both IDs from the eval database:
+Read the organization and user IDs from the eval database. Copy the two values, separated by `|`, into `AGENTICOS_EVAL_ORG_ID` and `AGENTICOS_EVAL_USER_ID` in `evals/personal/.env`:
 
 ```sh
 evals/personal/stack.sh exec -T db sh -c '
@@ -47,18 +49,35 @@ evals/personal/stack.sh exec -T db sh -c '
 ' -- "SELECT o.id, u.id FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
 JOIN users u ON u.id = m.user_id
-WHERE o.slug = 'agenticos-local-eval' AND u.email = 'admin@example.com'"
+WHERE o.slug = 'agenticos-local-eval-deepseek-baseline' AND u.email = 'admin@example.com'"
 ```
 
-This preflight confirms the source, candidate model and selected case IDs without calling a model:
+This preflight prints the selected model, published version and three case IDs without calling a model:
 
 ```sh
-evals/personal/stack.sh run --rm --no-deps -T app /app/.venv/bin/python /personal-eval/run.py \
-  --suite agenticos --organization-id "$ORG_ID" --user-id "$USER_ID" \
-  --limit 3 --case natural-hello --case inbox-direct --case sandbox-file
+evals/personal/stack.sh run --rm --no-deps -T app sh -c '
+  exec /app/.venv/bin/python /personal-eval/run.py --suite agenticos \
+    --organization-id "$AGENTICOS_EVAL_ORG_ID" --user-id "$AGENTICOS_EVAL_USER_ID" \
+    --limit 3 --case natural-hello --case inbox-direct --case sandbox-file
+'
 ```
 
-Add `--max-usd 0.25` for the three-case trace run, or use `--limit 50 --max-usd 1` and omit the case selectors to run all 50. Redirect stdout to an appropriately named JSONL under [results/](results/). The runner passes the remaining budget into the production budget guard and stops after an incomplete cost. The platform uses its bundled price catalog when there is no verified provider cost. A provider key spend limit also covers pricing uncertainty and work outside this guard.
+### Run all 50 AgenticOS cases
+
+```sh
+mkdir -p evals/personal/results
+report="evals/personal/results/$(date +%F-%H%M%S)-deepseek-v4-flash-0731-agenticos.jsonl"
+
+evals/personal/stack.sh run --rm --no-deps -T app sh -c '
+  exec /app/.venv/bin/python /personal-eval/run.py --suite agenticos \
+    --organization-id "$AGENTICOS_EVAL_ORG_ID" --user-id "$AGENTICOS_EVAL_USER_ID" \
+    --limit 50 --max-usd 1
+' > "$report"
+```
+
+The terminal shows the current case, a heartbeat after each 15 seconds of waiting, the outcome, elapsed time and cost. The report receives one JSON line per completed case. An exit code of 1 means a failed check or an incomplete run. Check the summary for how many cases finished.
+
+Use `--max-usd 0.25` with the preflight selection for a paid three-case smoke run. The runner passes the remaining budget into the production budget guard and stops when cost is incomplete. The platform uses its bundled price catalog when there is no verified provider cost. A provider key spend limit also covers pricing uncertainty and work outside this guard.
 
 The trace runner gives the production service the authored history and scores its recorded tools, argument subsets and forbidden attempts before any judge call. The production isolation guard holds side-effecting actions. Use live probes to verify effects. Seed synthetic Inbox items, task state and connections for positive-path cases that need them.
 
@@ -79,7 +98,7 @@ Use repeated `--case` with `--limit 3` for a smoke run. These modes and the judg
 
 ## Live probes
 
-Live probes use the published starter on the isolated stack. Set `AGENTICOS_EVAL_TOKEN` to a test account's access token and `AGENT_ID` to the published starter ID. Run from `backend/`:
+Live probes use the published starter on the isolated stack. Set `AGENTICOS_EVAL_TOKEN` to a test account's access token, `AGENT_ID` to the published starter ID and `ORG_ID` to the organization ID saved in `.env`. Run from `backend/`:
 
 ```sh
 uv run python ../evals/personal/run.py --api-url http://127.0.0.1:18080 \
@@ -94,11 +113,13 @@ These verify actual Sandbox, chart, visual and private App outputs and write, co
 
 ## Optional judge
 
-From `backend/`, after inspecting the deterministic report:
+From the repository root, after inspecting the deterministic report, keep the `report` variable from the AgenticOS command or set it to that report's path relative to the root.
 
 ```sh
-uv run --env-file ../evals/personal/.env python ../evals/personal/run.py \
-  --judge-model openrouter:z-ai/glm-5.3 --judge-report "$REPORT_PATH" --limit 10
+uv run --directory backend --env-file ../evals/personal/.env sh -c '
+  exec python ../evals/personal/run.py --judge-model "$AGENTICOS_EVAL_JUDGE_MODEL" \
+    --judge-report "$1" --limit 50
+' sh "../$report" > "${report%.jsonl}-judge.jsonl"
 ```
 
 The judge grades only rows that passed deterministic checks. Keep its model fixed across candidate comparisons and log its cost separately. Compare tool accuracy, judged correctness, cost per passing case, p50/p95 latency and incomplete-cost rows. The [design and cost assumptions](DESIGN.md) specify the initial model and expected spend.
