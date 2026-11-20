@@ -1,5 +1,5 @@
 ---
-source_sha: "321cae7a1b30"
+source_sha: "34f407ae78ff"
 ---
 
 # Konfiguration { #configuration }
@@ -225,7 +225,7 @@ Wo welcher Issuer liegt, und was zu registrieren ist:
 
 | Anbieter | Issuer | Redirect-URI registrieren als |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect-URI der Plattform **Web** in der App-Registrierung. `openid`, `email`, `profile` unter API-Berechtigungen erteilen |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect-URI der Plattform **Web** in der App-Registrierung. `openid`, `email`, `profile` unter API-Berechtigungen erteilen. Unter **Token configuration** die optionalen Claims `email` und `xms_edov` zum **ID**-Token hinzufügen |
 | **Okta** | `https://<org>.okta.com` (oder `/oauth2/<id>` eines eigenen Authorization Servers) | Sign-in-Redirect-URI einer **Web**-Anwendung |
 | **Keycloak** | `https://<host>/realms/<realm>` | Valid Redirect URI eines vertraulichen Clients mit aktiviertem Standard Flow |
 
@@ -241,6 +241,13 @@ Zwei Dinge verlangt die Plattform von jedem Anbieter, auf den sie gerichtet wird
   unbestätigte Adresse heißt, dass bei diesem Anbieter jeder die Arbeitsadresse
   eines anderen beanspruchen kann — und die Domain-Erlaubnisliste unten steht
   darauf, dass eine Adresse etwas bedeutet.
+  Bei Entra muss der Claim im **ID-Token** stehen: sein UserInfo-Endpunkt
+  liefert nur `sub`, `name`, `family_name`, `given_name`, `picture` und
+  `email`. `OIDC_VERIFIED_CLAIM` muss einen Claim benennen, dessen *Wert* für eine
+  bestätigte Adresse wahr ist; einer, den jedes Token trägt, etwa `sub`, bestätigt
+  nichts und wird nicht akzeptiert. Eine abgewiesene Anmeldung protokolliert
+  `oauth_callback_claims_rejected` mit der gescheiterten Bedingung (`reason`) und
+  den Namen, nie den Werten, der erhaltenen Claims.
 - **Ein stabiles `sub`.** Das Konto hängt daran und nicht an der Adresse, sodass
   jemand, der heiratet oder dessen Domain gekauft wird, die eigene Historie
   behält — und der nächste Inhaber einer frei gewordenen Adresse sie nicht erbt.

@@ -204,11 +204,11 @@ oc -n agenticos get pods -o 'custom-columns=NAME:.metadata.name,SCC:.metadata.an
 
 Verify the admitted SCC is the intended restricted policy. Do not solve permission
 failures by granting `anyuid`, privileged SCCs or a writable root filesystem.
-The frontend mounts writable `emptyDir` volumes at `/tmp` and `/app/.next/cache`;
-backend writable mounts are declared in `templates/_helpers.tpl`. A reported
-`router-cache` error needs the **exact absolute path**, image tag/digest, OpenShift
-version, admitted SCC and redacted log. A cache outside these mounts is not covered
-by the existing chart. Do not mount over all of `/app/.next`, which hides the built app.
+The frontend mounts writable `emptyDir` volumes at `/tmp`, `/app/.next/cache` and
+`/app/.next/server/route-cache`, where Next.js copies each prerendered page the
+first time it serves it (chart `0.1.2`; an older chart fails that write on a
+read-only root). Backend writable mounts are declared in `templates/_helpers.tpl`.
+Do not mount over all of `/app/.next` or `/app/.next/server`, which hides the built app.
 
 With `ingress.enabled: false`, provide two HTTPS Routes to the chart's API and
 frontend Services, both using the named port `http`. Set `public.siteUrl`,
@@ -442,8 +442,8 @@ Keycloak 26.8.2 completed discovery, PKCE, signed-token validation, one-use cons
 code exchange, organization access and logout/refresh revocation through the TLS
 Routes. Unverified email, disallowed domain and invite-only registration were
 refused. This is generic OIDC evidence, not a Microsoft Entra or Azure validation.
-Server-rendered page checks do not reproduce the reported `router-cache` path or
-replace interactive navigation through every screen.
+Server-rendered page checks do not replace interactive navigation through every
+screen.
 
 The base run needed **6 CPUs, 13 GiB of VM memory and a 45 GB virtual disk**.
 CRC's 10.5 GB minimum left migration pods unschedulable with these fixtures.
