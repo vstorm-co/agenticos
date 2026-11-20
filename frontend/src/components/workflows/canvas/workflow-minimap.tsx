@@ -130,7 +130,7 @@ export function WorkflowMinimap() {
         maskStrokeWidth={1}
         offsetScale={12}
         style={{ width: 160, height: 100 }}
-        className="!bg-background !mb-14 !overflow-hidden !rounded-xl !border shadow-sm"
+        className="!bg-card !mb-14 !overflow-hidden !rounded-xl !border shadow-sm"
       />
     </Wires.Provider>
   );

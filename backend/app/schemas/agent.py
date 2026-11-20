@@ -1,12 +1,14 @@
 """Schemas for the agent registry and the tool catalog."""
 
+import hashlib
+import json
 import unicodedata
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, computed_field, field_validator
 
 from app.agents.ask_user import QuestionItem
 from app.agents.capabilities import CapabilityToolInfo
@@ -335,6 +337,7 @@ class AgentRead(BaseSchema):
             "before its first run. Filled by the listing."
         ),
     )
+    personal_model_key: bool = False
     published_model: PublishedModel | None = Field(
         default=None,
         description=(
@@ -366,6 +369,16 @@ class AgentRead(BaseSchema):
     updated_at: datetime | None = None
 
 
+def agent_draft_revision(spec: AgentSpec) -> str:
+    """An opaque content revision, including changes made outside the Builder.
+
+    Normalize stored specs through AgentSpec before hashing, so omitted defaults
+    and JSON object ordering do not create conflicts on an unchanged draft.
+    """
+    content = json.dumps(spec.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(content.encode()).hexdigest()
+
+
 class AgentDetail(AgentRead):
     """An agent plus its draft, with the listing's same resource access hints.
 
@@ -373,6 +386,12 @@ class AgentDetail(AgentRead):
     """
 
     draft_spec: AgentSpec
+
+    @computed_field
+    @property
+    def draft_revision(self) -> str:
+        """Opaque revision to send as expected_revision when saving this draft."""
+        return agent_draft_revision(self.draft_spec)
 
 
 class AgentCeiling(BaseSchema):
@@ -458,8 +477,18 @@ class AgentCreate(AudienceChoice):
         return normalize_labels_strict(v)
 
 
+class AgentDraftRevision(BaseSchema):
+    """The current draft token, available to callers authorized to edit it."""
+
+    draft_revision: str
+
+
 class AgentDraftUpdate(BaseSchema):
     spec: AgentSpec
+    expected_revision: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="draft_revision from the draft this edit is based on; stale edits return 409",
+    )
 
 
 class AgentAvatarColorRequest(BaseSchema):
@@ -681,6 +710,7 @@ class AgentSpecImport(BaseSchema):
     """Import a spec written by hand or exported from another deployment."""
 
     yaml: str = Field(min_length=1)
+    expected_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class CapabilityToolContract(BaseSchema):

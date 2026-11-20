@@ -355,6 +355,9 @@ async def test_replayed_skill_loads_cannot_bypass_the_current_gate(mode: str) ->
     assert any(part is restored for message in ctx.messages for part in message.parts) is (
         not gated
     )
-    assert any(part is approved for message in ctx.messages for part in message.parts)
+    # An approval from an earlier turn is evidence, not consent for this turn.
+    assert any(part is approved for message in ctx.messages for part in message.parts) is (
+        not gated
+    )
     assert request.parts == [prompt, restored, approved]
     assert response in ctx.messages

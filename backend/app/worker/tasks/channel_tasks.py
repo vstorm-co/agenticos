@@ -9,17 +9,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.db.session import get_db_context
-from app.services.channels.base import IncomingMessage
+from app.services import generated_media
+from app.services.channels.base import IncomingMessage, OutgoingAttachment
 from app.services.channels.continuation import ChatDelivery, deliver_in_chat
 from app.services.channels.discord_roles import sweep_discord_roles
 from app.services.channels.handback import ChatNotice, ensure_channel_adapters, send_notice
 from app.services.transcript import RecordedToolCall
-from app.worker.jobs import ChannelDelivery, ChannelHandback, EmailDelivery
+from app.worker.jobs import ChannelDelivery, ChannelHandback, ChannelMessage, EmailDelivery
 
 logger = logging.getLogger(__name__)
 
 
-async def deliver_handback(job: ChannelHandback) -> None:
+async def deliver_handback(job: ChannelHandback) -> bool:
     ensure_channel_adapters()
     destination = ChannelDestination(
         bot_id=job.bot_id,
@@ -30,7 +31,7 @@ async def deliver_handback(job: ChannelHandback) -> None:
     if job.notice:
         await send_notice(ChatNotice(job.organization_id, job.run_id, destination, job.output))
     else:
-        await deliver_in_chat(
+        return await deliver_in_chat(
             organization_id=job.organization_id,
             run_id=job.run_id,
             destination=destination,
@@ -48,8 +49,22 @@ async def deliver_handback(job: ChannelHandback) -> None:
                     for call in job.tool_calls
                 ),
                 generated_files=job.generated_files,
+                outbound=tuple(
+                    [
+                        OutgoingAttachment(
+                            filename=file.filename,
+                            mime_type=file.mime_type,
+                            content=await generated_media.load_generated_media(
+                                job.organization_id, file.stored_leaf
+                            ),
+                        )
+                        for file in job.attachments
+                    ]
+                ),
             ),
         )
+
+    return True
 
 
 async def sync_discord_roles() -> dict[str, int]:
@@ -166,3 +181,56 @@ async def _route_inbound(incoming: IncomingMessage, db: AsyncSession) -> None:
             await ChannelMessageRouter().route(said, db)
     else:
         await ChannelPrompts(db).press(press)
+
+
+async def process_channel_message(job: ChannelMessage) -> None:
+    from app.core.exceptions import BadRequestError
+    from app.repositories import channel_bot_repo
+    from app.services.channels.ingress import restore
+    from app.services.channels.steering import queued_turn
+
+    ensure_channel_adapters()
+    async with get_db_context() as db:
+        bot = await channel_bot_repo.get_for_inbound(db, job.bot_id)
+        if bot is None or not bot.is_active or bot.organization_id != job.organization_id:
+            return
+        if (
+            bot.platform != job.platform
+            or bot.authorization_generation != job.authorization_generation
+        ):
+            raise BadRequestError(
+                message="The channel connection changed after this message was received. Send a new message."
+            )
+        incoming = restore(job)
+        with queued_turn(job.receipt_id):
+            if incoming.platform == "discord" and incoming.discord_interaction is not None:
+                from app.services.channels import get_adapter
+                from app.services.channels.discord import DiscordAdapter
+
+                adapter = get_adapter("discord")
+                if not isinstance(adapter, DiscordAdapter):
+                    raise RuntimeError("Discord interaction requires the Discord adapter")
+                with adapter.restored_interaction(incoming):
+                    await _route_inbound(incoming, db)
+            else:
+                await _route_inbound(incoming, db)
+
+
+async def deliver_initial_reply(job: ChannelHandback) -> None:
+    from app.core.exceptions import BadRequestError
+    from app.repositories import background_job as job_repo
+
+    async with get_db_context() as db:
+        record = await job_repo.get_channel_reply(db, reply_id=job.initial_reply_id)
+        if record is None:
+            return
+        job_id = record.id
+        claimed = await job_repo.claim_channel_reply(db, job_id=job_id, running=True)
+    if not claimed:
+        raise BadRequestError(
+            message="The original answer submission has an unknown outcome. Check the channel before sending it again."
+        )
+    if not await deliver_handback(job):
+        raise BadRequestError(
+            message="The final answer delivery was not confirmed; do not repeat the agent's actions"
+        )

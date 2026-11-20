@@ -25,7 +25,7 @@ import { ContextMenu, ContextMenuTrigger } from "@/components/ui";
 import { readNodeDragData } from "@/components/workflows/palette";
 import { fittingMergeConfigs } from "@/components/workflows/property-panel/merge-config";
 import { problemText } from "@/components/workflows/property-panel/problems";
-import { validateGraph } from "@/components/workflows/validation";
+import { graphWarnings, validateGraph, withTableDrift } from "@/components/workflows/validation";
 import { useNarrowScreen } from "@/hooks/use-narrow-screen";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
@@ -111,6 +111,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
   const fitOptions = useMemo(() => fitViewOptions(readOnly, narrow), [readOnly, narrow]);
 
   const graph = useWorkflowEditorStore((state) => state.graph);
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
   const scopePath = useWorkflowEditorStore((state) => state.scopePath);
   const applyNodeChanges = useWorkflowEditorStore((state) => state.applyNodeChanges);
   const applyEdgeChanges = useWorkflowEditorStore((state) => state.applyEdgeChanges);
@@ -302,7 +303,19 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
       portId: string,
       definition: NodeDefinition,
       config?: Record<string, unknown>,
-    ) => insert(definition, { from: { nodeId, portId }, config }),
+      beforeEdgeId?: string,
+    ) => {
+      const between = useWorkflowEditorStore
+        .getState()
+        .graph?.edges.find((edge) => edge.id === beforeEdgeId);
+      // `from` stays: a step the connection cannot pass through is added after the port
+      // as a branch, and the connection is left as it was.
+      insert(definition, {
+        from: { nodeId, portId },
+        config,
+        ...(between ? { between, keepOnward: true } : {}),
+      });
+    },
     [insert],
   );
   // Worked out once for the whole graph, not per card: each rule reads the graph
@@ -311,8 +324,12 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     () =>
       readOnly || graph === null
         ? []
-        : validateGraph(graph, { items: catalog, total: catalog.length }, t),
-    [readOnly, graph, catalog, t],
+        : withTableDrift(
+            validateGraph(graph, { items: catalog, total: catalog.length }, t),
+            tableDrift,
+            t,
+          ),
+    [readOnly, graph, catalog, t, tableDrift],
   );
   const problemTexts = useMemo(() => {
     const texts = new Map<string, string[]>();
@@ -330,6 +347,15 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
     }
     return texts;
   }, [problems, graph, catalog, t]);
+  const warningTexts = useMemo(() => {
+    const texts = new Map<string, string[]>();
+    if (readOnly || graph === null) return texts;
+    for (const warning of graphWarnings(graph, { items: catalog, total: catalog.length }, t)) {
+      const nodeId = warning.nodeId!;
+      texts.set(nodeId, [...(texts.get(nodeId) ?? []), warning.message]);
+    }
+    return texts;
+  }, [readOnly, graph, catalog, t]);
   const editNode = useWorkflowEditorStore((state) => state.editNode);
   const openNode = (_event: React.MouseEvent, node: { id: string; type?: string }) => {
     if (node.type !== "note") editNode(node.id);
@@ -407,8 +433,18 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
       catalog,
       insertAfter,
       problemTexts,
+      warningTexts,
     }),
-    [readOnly, connectSource, beginConnect, completeConnect, catalog, insertAfter, problemTexts],
+    [
+      readOnly,
+      connectSource,
+      beginConnect,
+      completeConnect,
+      catalog,
+      insertAfter,
+      problemTexts,
+      warningTexts,
+    ],
   );
 
   return (
@@ -506,7 +542,7 @@ export function WorkflowGraphView({ catalog, readOnly }: WorkflowGraphViewProps)
               proOptions={{ hideAttribution: true }}
               aria-label={t("canvasGraphLabel")}
             >
-              <Background gap={20} size={1.5} />
+              <Background gap={28} size={1} />
               {/* Bottom-left, in a row with the minimap above it: the bottom-right
                   corner is the assistant's launcher on every dashboard page. */}
               <Controls showInteractive={false} position="bottom-left" orientation="horizontal" />

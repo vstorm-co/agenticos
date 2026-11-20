@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ChevronDown, Lock, Plug, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { PersonalModelKeys } from "@/components/vault/personal-model-keys";
 import { VaultTable } from "@/components/vault/vault-table";
 import {
   Button,
@@ -159,6 +160,7 @@ function VaultContent() {
           ) : undefined
         }
       />
+      <PersonalModelKeys />
       <div data-tour="vault-keys" className="bg-card overflow-hidden rounded-xl border">
         {errors.map((error, index) => (
           <ErrorState key={index} description={getErrorMessage(error, tErrors)} className="m-5" />

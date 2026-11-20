@@ -1,0 +1,40 @@
+.artwork {
+  color: color-mix(in oklab, var(--color-foreground) 48%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :global(:root:not([data-motion="reduce"])) .animated {
+    .landscape {
+      animation: landscape-arrive 1400ms ease-out both;
+    }
+
+    .document {
+      animation: card-settle 3800ms ease-in-out both;
+    }
+
+    .chart {
+      animation: card-settle 3800ms 160ms ease-in-out both;
+    }
+  }
+}
+
+@keyframes landscape-arrive {
+  from {
+    opacity: 0.45;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes card-settle {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  45% {
+    transform: translateY(-6px);
+  }
+}

@@ -17,6 +17,8 @@ import {
   saveMobilePushPreferences,
   setPushFocus,
 } from "@/lib/mobile/notifications";
+import { Label } from "@/components/ui/label";
+
 function usePreferences() {
   const user = useAuthStore((s) => s.user?.id);
   const org = useTenantId();
@@ -38,9 +40,9 @@ export function MobileNotificationPreferences() {
     <SectionCard title={t("privacyTitle")} description={t("privacyHint")}>
       {query.data ? (
         <div className="flex items-center justify-between gap-3">
-          <label htmlFor="phone-previews" className="text-sm">
+          <Label htmlFor="phone-previews" className="text-sm">
             {t("hidePreviews")}
-          </label>
+          </Label>
           <Switch
             id="phone-previews"
             checked={query.data.hide_previews}

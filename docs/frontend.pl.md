@@ -1,5 +1,5 @@
 ---
-source_sha: "8ca784f8a0b0"
+source_sha: "8893d5c7fe0b"
 ---
 
 # Kod konsoli { #the-consoles-code }
@@ -31,6 +31,8 @@ Używaj `PageHeader` do zwartych tytułów i akcji. Katalogi kart korzystają z
 `ListCard layout="grid"`, bez dodatkowego panelu; tabele zachowują panel.
 Przyciski używają neutralnych tokenów `action`, niezależnych od `primary`
 dla zaznaczonych kontrolek i odznak. Fokus i krawędzie pól pozostają widoczne.
+
+Kontrolki formularzy pochodzą z `components/ui`: `Input`, `Textarea`, `SelectTrigger`, `NativeSelect`, `Button`, `Checkbox` i `Switch`. Własne przyciski combobox korzystają z `control-styles.ts`. Wypełnienie pól, miękkie krawędzie 2px, fokus klawiatury oraz stany błędu i niedostępności wynikają z aktywnego stylu; arkusz strony nie powinien nadpisywać wszystkich zagnieżdżonych inputów. Standardowe pola i przyciski mają na desktopie 40px wysokości, z jawnymi wariantami zwartymi i dużymi oraz polami dotykowymi 44px. Logowanie i rejestracja respektują wybrany motyw i styl. Galeria komponentów w trybie developerskim pozwala porównać pięć stylów w jasnym i ciemnym motywie.
 
 Osoby i organizacje korzystają z `EntityAvatar`: zdjęcia są kadrowane do koła,
 a zastępują je inicjały na stałym kolorze. Agenci zachowują generowane twarze.

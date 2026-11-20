@@ -496,6 +496,12 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     opensOnSight: true,
   },
 
+  select_project_workspace: {
+    kind: "tool",
+    render: "generic",
+    captionKey: "selectingWorkspace",
+    displayNameKey: "selectedWorkspace",
+  },
   // sandbox - the workspace toolset, whose steps name the file they are about
   ls: { kind: "list", render: "workspace", verbs: { now: "listing", done: "listed" } },
   read_file: { kind: "read", render: "workspace", verbs: { now: "reading", done: "read" } },

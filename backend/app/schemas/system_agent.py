@@ -28,6 +28,8 @@ class SystemAgentRead(BaseSchema):
 
     role: SystemRole
     enabled: bool
+    """Enabled with a selected model; legacy model-less profiles are reported off."""
+
     model_profile_id: UUID | None = None
     model_label: str | None = None
     monthly_budget_usd: Decimal | None = None

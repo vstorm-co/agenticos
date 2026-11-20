@@ -26,6 +26,9 @@ class ReachedAgent(BaseSchema):
 
     id: UUID
     name: str
+    slug: str | None = None
+    has_avatar: bool = False
+    avatar_color: int | None = None
     environments: list[str] = Field(description="Where the change goes live for it, by name")
     runs_now: list[str] = Field(
         default_factory=list,
@@ -55,8 +58,8 @@ class ProposalDecision(BaseSchema):
     check_id: UUID | None = Field(
         default=None,
         description=(
-            "For applying a change to a skill: the check of this change on the agents of its "
-            "line. A skill change is applied only after one. Here only a check that passed "
-            "applies; one with agents to acknowledge or pin is decided through its own route"
+            "Optional check of this skill change on its agents. When supplied, only a "
+            "passed check applies here; one with agents to acknowledge or pin is decided "
+            "through its own route. Omit to apply without an evaluation"
         ),
     )

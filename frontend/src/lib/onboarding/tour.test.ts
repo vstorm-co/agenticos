@@ -82,6 +82,7 @@ const BUILDER_STEPS = [
   "agent-instructions",
   "agent-starters",
   "agent-model",
+  "agent-model-credentials",
   "agent-voice",
   "agent-identity",
   "agent-toolbox",
@@ -589,7 +590,9 @@ describe("stepsForPage", () => {
       "members",
     ]) {
       expect(steps.find((step) => step.id === `org-${section}`)?.activate).toBe(
-        `org-tab-${section === "voice" ? "profile" : section}`,
+        section === "profile"
+          ? undefined
+          : `org-tab-${section === "voice" || section === "proactivity" ? "assistant" : section}`,
       );
     }
   });

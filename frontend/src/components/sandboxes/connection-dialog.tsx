@@ -337,8 +337,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
               />
             </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="connection-kind">{t("kind")}</Label>
+            <FormField label={t("kind")} htmlFor="connection-kind">
               <Select
                 value={form.kind}
                 onValueChange={(kind) =>
@@ -384,7 +383,7 @@ export function ConnectionDialog({ editing, onOpenChange, onSubmit }: Connection
                   </SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </FormField>
           </div>
 
           {["docker", "opensandbox"].includes(form.kind) && (

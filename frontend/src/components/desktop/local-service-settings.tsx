@@ -1,5 +1,6 @@
 "use client";
 
+import { NativeSelect } from "@/components/ui/native-select";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { SectionCard } from "@/components/settings/settings-section";
@@ -62,9 +63,9 @@ export function LocalServiceSettings() {
       >
         <div>
           <Label htmlFor="local-service-kind">{t("kind")}</Label>
-          <select
+          <NativeSelect
             id="local-service-kind"
-            className="border-input bg-background mt-1 h-10 w-full rounded-md border px-3 text-sm"
+            className="mt-1"
             value={kind}
             onChange={(event) => {
               const next = event.target.value;
@@ -76,7 +77,7 @@ export function LocalServiceSettings() {
           >
             <option value="model">{t("modelKind")}</option>
             <option value="mcp">{t("mcpKind")}</option>
-          </select>
+          </NativeSelect>
         </div>
         <div>
           <Label htmlFor="local-service-name">{t("name")}</Label>

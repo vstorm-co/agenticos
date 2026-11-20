@@ -290,6 +290,8 @@ async def list_realtime_models() -> Any:
                         supports_thinking=model.supports_thinking,
                         input_sample_rate=model.input_sample_rate,
                         output_sample_rate=model.output_sample_rate,
+                        unreported_token_usage=model.unreported_token_usage,
+                        default_language=model.default_language,
                     )
                     for model in entry.models
                 ],

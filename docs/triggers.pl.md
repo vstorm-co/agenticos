@@ -1,5 +1,5 @@
 ---
-source_sha: "4cdebab6f99e"
+source_sha: "6aaedf36ba33"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -170,16 +170,15 @@ flowchart TD
   | `zendesk` | `X-Zendesk-Webhook-Signature` | `X-Zendesk-Webhook-Signature-Timestamp` i body, base64                                     |
 
   GitHub, HubSpot, Zendesk i Linear podpisują swoje dostarczenia same, więc dajesz
-  providerowi sekret - albo, przy HubSpocie, Zendesku i Linear, bierzesz ten, który on
-  wydał - a on robi podpisywanie. Źródło API domyślnie używa schematu GitHuba pod
+  providerowi sekret albo używasz tego, który wydał, a on robi podpisywanie. Źródło API domyślnie używa schematu GitHuba pod
   `X-Signature-256`, który to, co skierujesz na ten URL, musi ustawić samo.
   Źródło **odpytywane** nic nie podpisuje i nie trzyma sekretu: nie było
   adresowane, tylko odczytane, a autoryzacją odczytu jest własna zgoda OAuth tego
   konta.
 
-Ogólny `webhook` domyślnie używa powyższego podpisu. Tworząc lub zmieniając trigger przez API, ustaw `event_config` na `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` dla Shopify albo użyj `X-Hookdeck-Signature` dla domyślnego podpisu Hookdeck. `hmac-sha256-hex` przyjmuje skrót szesnastkowy bez prefiksu. Oba podpisują dokładne surowe body i wymagają sekretu dostawcy jako `event_secret`; wielkość liter w nazwie nagłówka nie ma znaczenia.
+Ogólny `webhook` domyślnie używa powyższego podpisu. W konsoli wybierz schemat podpisu i nagłówek podczas tworzenia lub edycji triggera API. Przez API ustaw `event_config` na `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` dla Shopify albo użyj `X-Hookdeck-Signature` dla domyślnego podpisu Hookdeck. `hmac-sha256-hex` przyjmuje skrót szesnastkowy bez prefiksu. Oba podpisują dokładne surowe body i wymagają sekretu dostawcy jako `event_secret`; wielkość liter w nazwie nagłówka nie ma znaczenia.
 
-Te tryby nie uwierzytelniają czasu, więc przechwycone żądanie można ponowić. Ogólny nagłówek ID dostarczenia nie jest podpisany i można go zmienić. Filtruj u dostawcy i użyj dedykowanej integracji, gdy jego kontrakt wymaga kontroli czasu, innej odpowiedzi sukcesu lub innego schematu podpisu. Te opcje nie implementują kontraktu webhooków Linear. Konsola tworzy obecnie domyślny schemat; alternatywy konfiguruje się przez API.
+Te tryby nie uwierzytelniają czasu, więc przechwycone żądanie można ponowić. Ogólny nagłówek ID dostarczenia nie jest podpisany i można go zmienić. Filtruj u dostawcy i użyj dedykowanej integracji, gdy jego kontrakt wymaga kontroli czasu, innej odpowiedzi sukcesu lub innego schematu podpisu. Te opcje nie implementują kontraktu webhooków Linear.
 
 Shopify i Hookdeck zwykle nie wysyłają `X-Delivery-ID`, więc ponowienia mogą ponownie uruchomić trigger. Ten trigger nie sprawdza ich identyfikatorów dostarczenia. Podpis body nie wiąże docelowego URL ani nagłówków dostawcy: używaj osobnego sekretu dla każdej granicy zaufania i nie autoryzuj dostarczeń na podstawie niepodpisanych nagłówków sklepu lub tematu. Sekret aplikacji Shopify może być współdzielony przez sklepy; nie używaj tego trybu, gdy podpis ma dowodzić, z którego sklepu lub subskrypcji pochodzi zdarzenie.
 
@@ -424,10 +423,17 @@ adresu. DMARC nie uwierzytelnia nazwy wyświetlanej osoby.
 
 ## Linear { #linear }
 
-1. Otwórz ustawienia webhooka w Linear i skopiuj sekret podpisujący.
-2. W AgenticOS utwórz trigger zdarzeniowy ze źródłem **Linear**. Wklej sekret
-   Linear i zakończ konfigurację.
-3. Skopiuj URL triggera do Linear, wybierz wysyłane zdarzenia i zapisz webhook.
+1. Wygeneruj silny sekret podpisujący i zachowaj go w tajemnicy. W AgenticOS utwórz
+   trigger zdarzeniowy ze źródłem **Linear** i podaj ten sekret. Skopiuj URL webhooka.
+2. Użyj mutacji `webhookCreate` w API GraphQL Linear z tym URL-em i tym samym
+   `secret`. Podaj co najmniej jeden wpis `resourceTypes` oraz `teamId` albo
+   `allPublicTeams: true`. Pola opisuje [schemat webhooka Linear](https://github.com/linear/linear/blob/master/packages/sdk/src/schema.graphql).
+
+Możesz też utworzyć wyłączony webhook Linear z tymczasowym publicznym adresem HTTPS,
+skopiować jego wygenerowany sekret do nowego triggera Linear w AgenticOS, a następnie
+użyć `webhookUpdate` w Linear, aby ustawić URL triggera i włączyć dostarczanie. Nie
+używaj tymczasowego endpointu, którego nie kontrolujesz. Tych sposobów konfiguracji
+nie przetestowano na rzeczywistych dostarczeniach Linear.
 
 API obsługuje też opcjonalne filtry `event_types` i `actions` w `event_config`.
 
@@ -844,7 +850,7 @@ przekaźnika - nie widzą twojej maszyny. Dwa sposoby, żeby to obejść:
   sekret jest poświadczeniem. Wymiana sekretu Linear wymaga nowego triggera.
 - Podpis to `HMAC-SHA256` po **dokładnych surowych bajtach**, w schemacie
   każdego providera, i to on czyni dostarczenie autentycznym, a nie tylko
-  poprawnie zaadresowanym. Sekrety HubSpota, Zendeska i Linear wydaje provider.
+  poprawnie zaadresowanym. Użyj tego samego sekretu podpisującego u providera i w AgenticOS.
 - Odpowiedź sukcesu (`202`, dla Linear `200`) znaczy **przyjęte**, a nie zakończone. Przeczytaj run w Aktywność.
 - **Skrzynki, pliki i kalendarze są odpytywane**, więc nie mają URL-a ani sekretu
   w ogóle - podłącz konto i to cała konfiguracja.

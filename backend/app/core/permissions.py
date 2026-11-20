@@ -134,6 +134,8 @@ class Perm(StrEnum):
     API_KEYS_MANAGE = "api_keys:manage"
     PERSONAL_CONSENT = "personal:consent"
     """Let an explicitly authorized key or client consent to the issuer's personal sources."""
+    MCP_PERSONAL_USE = "mcp:personal:use"
+    """Delegate the issuer's own MCP connections to external agent runs."""
 
 
 RESOURCE_PERMS: frozenset[Perm] = frozenset(
@@ -360,6 +362,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
         Perm.PERSONAL_CONSENT: Scope.ALL,
+        Perm.MCP_PERSONAL_USE: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
     },
     # Operator keeps the running system healthy: approves, watches, reruns -
@@ -389,6 +392,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
         Perm.PERSONAL_CONSENT: Scope.ALL,
+        Perm.MCP_PERSONAL_USE: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
     },
     # Member is the everyday user: builds their own agents, sees nobody else's
@@ -423,6 +427,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
         Perm.PERSONAL_CONSENT: Scope.ALL,
+        Perm.MCP_PERSONAL_USE: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
     },
     OrgRoleName.VIEWER: {
@@ -593,6 +598,9 @@ class AuthContext:
     routine_source_policy_id: UUID | None = None
     """Exact reviewed source ceiling admitted by the trigger worker."""
 
+    routine_dispatch_id: UUID | None = None
+    """Trusted trigger fire identity, recorded as immutable run provenance."""
+
     routine_activation_id: UUID | None = None
     """A durable device activation, set only by its trigger worker before run admission."""
 
@@ -642,6 +650,26 @@ class AuthContext:
             not self.key_internal
             and self.key_scopes is not None
             and self.has(Perm.PERSONAL_CONSENT)
+        )
+
+    @property
+    def may_delegate_personal_mcp(self) -> bool:
+        """An external credential explicitly delegated its issuer's MCP accounts.
+
+        This opens no other personal state and is never inherited by a platform
+        run credential, publisher fallback, routine or private-chat hint.
+        """
+        return (
+            self.user_id is not None
+            and self.api_key_id is not None
+            and self.key_scopes is not None
+            and not self.key_internal
+            and not self.subject_is_publisher_fallback
+            and self.fired_as_creator is None
+            and self.routine_id is None
+            and self.source_conversation_id is None
+            and self.has(Perm.MCP_PERSONAL_USE)
+            and self.key_allows(Perm.AGENTS_RUN)
         )
 
     @property

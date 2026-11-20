@@ -160,12 +160,6 @@
   margin-bottom: 8px;
 }
 .personalChoice select {
-  display: block;
-  max-width: 100%;
-  background: var(--color-card);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 10px;
   margin-bottom: 12px;
 }
 .teamStage {

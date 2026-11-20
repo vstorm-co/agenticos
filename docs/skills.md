@@ -195,10 +195,13 @@ So a write becomes a **proposal**, and it appears above the list on the Skills p
 for anyone who may edit that skill. A proposal for a new skill appears for anyone
 holding `skills:edit`. Nobody else can list or open it:
 
-- **Check on agents** runs the change on every agent of the line it was written
-  for, and applying it - the next version of that line, which those agents read
-  on their next run - happens from the check's result. See
-  [Checking a change on every agent](#checking-a-change-on-every-agent).
+- **Review** opens the proposed instructions, their comparison with the current skill,
+  and the reference files. **Apply update** saves the next version immediately.
+  Agents following that line use it on their next run. Evaluation is optional;
+  missing test questions do not block applying a proposal.
+- **Test before applying (optional)** runs the change on the agents of its line.
+  The result shows regressions and any agents that could not be checked before
+  the final decision. See [Checking a change on every agent](#checking-a-change-on-every-agent).
 - **Discard** keeps the record. An agent proposing the same edit repeatedly is
   telling somebody something about the skill, and a deleted row makes that
   invisible.
@@ -273,10 +276,12 @@ Agents pinned to an older version and the agents of other forks are not run - th
 change does not reach them. Each agent's published version answers its questions
 twice, with the skill as it is and with the change, and nothing else differs.
 
-A change an agent's workspace wrote, one the assistant proposed and a
-[library update](#getting-skills-into-an-organization) of a skill agents follow go live only through
-this check. A person editing the skill by hand saves a new version at once, and
-that edit is not checked.
+Workspace proposals, assistant proposals and
+[library updates](#getting-skills-into-an-organization) can be reviewed and applied
+without this optional check. Applying still verifies edit access, the proposal's
+revision and the skill version it was based on. When you choose to evaluate a
+change, the check's result and its acknowledgement or pinning requirements govern
+applying through that check.
 
 ### What it asks { #what-a-check-asks }
 
@@ -328,6 +333,12 @@ the dataset to add other questions to.
 - At least one agent must get **better**.
 - A difference the check could not confirm is **within noise**: a warning, not a
   block.
+- An agent no whole question moved for, but with a criterion its re-asks
+  confirmed better and none worse, is **better on criteria**; one with a
+  criterion confirmed worse is **worse on criteria**. Neither moves the rule
+  above, which is about whole questions: they count with the better and the
+  worse agents in the bar, and the agent's details list each criterion with its
+  passes before and after.
 - An agent that could not be checked - no questions, questions nothing can grade
   or all taken from the change's own conversations, no access, no budget left, no
   published version, a run that failed, a check that was stopped - is
@@ -844,8 +855,8 @@ budget left, no published version, or a run that could not grade every answer.
 Agents you cannot see are counted.
 
 The result opens with a bar that counts the agents that came out better, with no
-change, worse, or not known. Under it is a row for each agent: better, no change,
-within noise, worse or unknown, with the agents to look at first on top. Each row
+change, worse, or not known. Under it is a row for each agent: better, better on
+criteria, no change, within noise, worse on criteria, worse or unknown, with the agents to look at first on top. Each row
 has a small bar of the questions it fixed against the ones it broke.
 
 A whole row opens to its details, by a click anywhere on it or by Enter or Space:

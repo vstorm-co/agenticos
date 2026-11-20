@@ -16,6 +16,7 @@ from sqlalchemy import (
     case,
     func,
     literal,
+    literal_column,
     null,
     or_,
     select,
@@ -85,6 +86,7 @@ async def create_run(
     modality: str = "text",
     is_test: bool = False,
     test_spec: dict[str, Any] | None = None,
+    text_to_speech_defaults: dict[str, str | bool | None] | None = None,
     key_scopes: list[str] | None = None,
     improvement_run_id: UUID | None = None,
     skill_uses_recorded: bool | None = None,
@@ -109,6 +111,7 @@ async def create_run(
         agent_version_id=agent_version_id,
         is_test=is_test,
         test_spec=test_spec,
+        text_to_speech_defaults=text_to_speech_defaults,
         user_id=user_id,
         initiated_by_publisher_fallback=initiated_by_publisher_fallback,
         conversation_id=conversation_id,
@@ -134,6 +137,14 @@ async def create_run(
     await db.flush()
     await db.refresh(run)
     return run
+
+
+async def set_text_to_speech_defaults(
+    db: AsyncSession, *, run: AgentRun, defaults: dict[str, str | bool | None]
+) -> None:
+    """Pin the shared speech destination before an inheriting delegate can use it."""
+    run.text_to_speech_defaults = defaults
+    await db.flush()
 
 
 # Count the uncompressed JSONB representation, including every delegate, even
@@ -2767,12 +2778,15 @@ class ApprovalFilters:
             publisher's user id, but the publisher did not trigger it.
         created_from: Inclusive lower bound on when the call was parked.
         created_to: Inclusive upper bound.
+        outside_live_calls: Leave out the calls parked by a run a voice call is
+            still on: the call decides those, and the console may not.
     """
 
     statuses: Sequence[str] | None = None
     triggered_by_user_id: UUID | None = None
     created_from: datetime | None = None
     created_to: datetime | None = None
+    outside_live_calls: bool = False
 
 
 async def list_approvals(
@@ -2826,6 +2840,12 @@ async def list_approvals(
         clauses.append(ToolApproval.created_at >= narrowing.created_from)
     if narrowing.created_to is not None:
         clauses.append(ToolApproval.created_at <= narrowing.created_to)
+    if narrowing.outside_live_calls:
+        clauses.append(
+            ~select(VoiceCall.id)
+            .where(VoiceCall.run_id == ToolApproval.run_id, VoiceCall.ended_at.is_(None))
+            .exists()
+        )
 
     ordering = ToolApproval.created_at.asc() if oldest_first else ToolApproval.created_at.desc()
     rows = await db.execute(
@@ -3349,6 +3369,61 @@ async def list_tool_consents(
         .order_by(ToolApproval.decided_at.desc())
     )
     return [(row[0], row[1]) for row in rows]
+
+
+async def latest_for_channel_sender(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    conversation_id: UUID | None,
+    identity_id: UUID,
+    prefer_running: bool = False,
+) -> AgentRun | None:
+    if conversation_id is None:
+        return None
+    result = await db.execute(
+        select(AgentRun)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.conversation_id == conversation_id,
+            AgentRun.channel_identity_id == identity_id,
+            AgentRun.parent_run_id.is_(None),
+        )
+        .order_by(
+            (AgentRun.status == RunStatus.RUNNING.value).desc()
+            if prefer_running
+            else AgentRun.created_at.desc(),
+            AgentRun.created_at.desc(),
+            AgentRun.id,
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def request_channel_stop(db: AsyncSession, *, run: AgentRun) -> None:
+    run.channel_stop_requested_at = datetime.now(UTC)
+    await db.flush()
+    await db.refresh(run)
+
+
+async def run_id_for_routine_activation(
+    db: AsyncSession, *, organization_id: UUID, trigger_id: UUID, activation_id: UUID
+) -> UUID | None:
+    """One fire's root run, without a history page or count."""
+    # A literal JSON key lets prepared plans match the expression index.
+    activation = literal_column("agent_runs.routine_policy ->> 'activation_id'", type_=Text())
+    return await db.scalar(
+        select(AgentRun.id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.routine_origin_id == trigger_id,
+            AgentRun.routine_kind == "trigger",
+            AgentRun.parent_run_id.is_(None),
+            activation == str(activation_id),
+        )
+        .limit(1)
+    )
 
 
 @dataclass(frozen=True)

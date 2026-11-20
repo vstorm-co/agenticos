@@ -155,6 +155,7 @@ class TestReadingSessions:
             "change": 3,
             "held_out": 6,
             "details": {"pass_rate_before": 0.5, "pass_rate_after": 0.8},
+            "criteria": [],
             "cost_usd": "0.02",
             "chosen": True,
             "best": True,
@@ -1920,3 +1921,24 @@ async def test_named_agent_lookup_reads_beyond_the_first_page_without_missing_am
         assert listing["agent_id"] == str(AGENT)
     assert api.request.await_args_list[0].kwargs == {"params": {"limit": 100}}
     assert api.request.await_args_list[1].kwargs == {"params": {"limit": 100, "skip": 100}}
+
+
+def test_exported_criteria_keep_scorer_identity_for_equal_names():
+    from app.services.platform_mcp._tools import _attempt
+
+    detail = {"name": "Validity", "before": 1, "after": 2, "graded": 3, "fixed": 1, "broken": 0}
+    result = _attempt(
+        {
+            "id": "attempt-1",
+            "number": 1,
+            "verdict": "criteria_better",
+            "verdict_detail": {
+                "criteria": [{**detail, "scorer": "check"}, {**detail, "scorer": "judge"}]
+            },
+        },
+        1,
+    )
+    assert [(item["scorer"], item["name"]) for item in result["criteria"]] == [
+        ("check", "Validity"),
+        ("judge", "Validity"),
+    ]

@@ -66,7 +66,9 @@ vi.mock("./today-check", () => ({
   TodayCheck: ({ datasetId }: { datasetId: string }) => <p>Today on {datasetId}</p>,
 }));
 vi.mock("./session-inputs", () => ({
-  StartSignals: () => null,
+  StartSignals: ({ datasetId }: { datasetId: string }) => (
+    <p>Signals for {datasetId || "no dataset"}</p>
+  ),
   StartQuestionSet: ({ datasetId, heldOut }: { datasetId: string; heldOut?: number }) => (
     <>
       <p>Question set {datasetId}</p>
@@ -109,7 +111,7 @@ it("prices the agent's own test set at once, so Start improving is the one decis
   expect(state.datasetQueries).toContainEqual({ agent: "a1", sort: "updated", limit: 5 });
   expect(
     await screen.findByText(
-      /^Up to \$0\.12 \(estimate\) to sort the 5 answers with feedback\. Each attempt after that takes about 1 minute and costs roughly \$0\.04/,
+      /^Up to \$0\.12 \(estimate\) to sort 5 selected source examples\. Each attempt after that takes about 1 minute and costs roughly \$0\.04/,
     ),
   ).toBeInTheDocument();
   expect(state.estimate).toHaveBeenCalledWith({ dataset_id: "own", max_iterations: 3 });
@@ -130,7 +132,7 @@ it("prices only reading what went wrong, and offers a limit for every attempt af
   render(<StartSession agentId="a1" onClose={vi.fn()} />);
   expect(
     await screen.findByText(
-      /^Up to \$0\.00 \(estimate\) to sort the 5 answers with feedback\. .* costs roughly \$0\.0333, priced again .* the limit of \$0\.10 caps the whole session\./,
+      /^Up to \$0\.00 \(estimate\) to sort 5 selected source examples\. .* costs roughly \$0\.0333, priced again .* the limit of \$0\.10 caps the whole session\./,
     ),
   ).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Start improving" }));
@@ -429,4 +431,13 @@ it("shows draft validation problems and a direct way back to the builder", async
   expect(builder).toHaveAttribute("href", "/agents/a1?tab=build");
   await userEvent.click(builder);
   expect(onClose).toHaveBeenCalled();
+});
+
+it("does not show evidence for an unresolved test-set selection", async () => {
+  state.testSetLoading = true;
+  const view = render(<StartSession agentId="a1" onClose={vi.fn()} />);
+  expect(screen.queryByText(/^Signals for/)).not.toBeInTheDocument();
+  state.testSetLoading = false;
+  view.rerender(<StartSession agentId="a1" onClose={vi.fn()} />);
+  expect(await screen.findByText("Signals for own")).toBeInTheDocument();
 });

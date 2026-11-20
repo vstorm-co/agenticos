@@ -1024,7 +1024,7 @@ class AuthoringService:
             if candidate.spec_hash != wanted:
                 continue
             summary = (
-                (await evals.compare(ctx, run.id)).candidate_summary
+                (await evals.compare(ctx, run.id, include_criteria=False)).candidate_summary
                 if run.proposal_check is not None and run.proposal_check.measurement is not None
                 else candidate.summary
             )

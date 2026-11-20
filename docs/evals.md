@@ -25,6 +25,9 @@ where the run broke cases, green where it fixed them, amber where it did both,
 and hollow for a draft; hovering it says what ran, against what and when, and
 clicking it opens the run.
 
+Fewer than three measured runs are no trend yet: the chart's place lists them, each
+with its pass rate and a link to it, and says how many runs there are so far.
+
 The axis uses times when the history fits within one day, including a past day. Across days it shows dates for older runs and times for today, printing each repeated label once. The tooltip keeps the full start date and time. Past 10 runs a switch above the chart shows
 the last 10, the last 30 or every run; it opens on the last 10, and the choice
 stays in the page's address, so Back and a link keep it.
@@ -178,6 +181,8 @@ Each case has a fixed train or holdout assignment, preserved across dataset vers
 Copies of training questions or source evidence are excluded using normalized input and source run identity, including hand-entered and generated cases. Below the minimum, a session stops with `no_data`, or refuses the step that would test too few, and says how many questions to add. The run labels both parts and excluded copies. Ordinary suites and promotion gates still count every case.
 
 An improvement session pins its dataset version and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats and new dataset cases cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
+
+A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
 
 A human decision and **Undo** invalidate dependent run comparisons and recompute the stored suite results in the same transaction. The run, suite, environment guard and promotion dialog show the corrected verdict and who reviewed it. Audit entries record previous and new statuses and counts; a changed suite verdict sends a new notification. Reviewer names are resolved from current organization membership rather than copied into retained results.
 
@@ -335,6 +340,18 @@ A judge criterion can apply to every case or only cases carrying any of its sele
 
 ## Comparing with a baseline { #comparing-with-a-baseline }
 
+`criterion_change` is the net number of confirmed criterion fixes, divided by every paired criterion grade. It is computed before limiting the response detail. When whole questions do not change and several attempts improve criteria alone, Improve prefers the larger normalized criterion change; exact ties retain the earlier attempt. Invalid comparisons do not aggregate or return criterion movement. Incomparable baselines do not trigger paid confirmation reruns.
+
+Criterion names, per-criterion grades and skill attributions require `runs:view`, access to the session's pinned dataset and access to every named skill. Skill-check details require all contributing datasets. Hidden or missing sources hide these details without changing stored results. Result notifications check the recipient's current access before including criterion details. Stored criterion-bearing notifications recheck those sources whenever the inbox is read and before delayed delivery; missing provenance or revoked access hides the notification.
+
+Stored skill sources use stable IDs: renaming a skill preserves its identity, while deleting it and reusing its name never restores access to old evidence. Session criterion details with a named skill but no original skill ID are hidden as well. The optional displayed skill name never grants access: the original ID is still checked when its label is absent.
+
+Interactive comparison reads allow up to 30 requests per person and 60 per organization per minute, with one comparison executing per organization at a time. Console and API requests share these limits. Excess or overlapping requests return HTTP 429 with `Retry-After`; clients should wait before retrying. Shared Redis coordinates workers, with a local per-worker floor during an outage. Manual verdict updates for eval-backed scores use the same budget and claim, after dataset authorization and before changing the score or cached results.
+
+Readers need `runs:view` before claiming concurrency or spending quota. Active comparisons renew their claims; the 120-second expiry recovers crashed holders. A failed Redis renewal logs the failure and retains the per-worker floor.
+
+Busy refusals do not consume the per-minute read quotas. The console pauses polling until `Retry-After` expires.
+
 A comparison matches the two sides case by case on the case's stable id, and
 reports each case as a **regression** (passed, now fails), **fixed** (failed,
 now passes), unchanged, or incomplete. Cases only one side answered are counted
@@ -392,6 +409,25 @@ earlier time - the same spec on the same model, run the same way, as a suite
 checking one version every day compares with: its reruns would only be the
 candidate's again, so it is not rerun, and the candidate's reruns alone
 confirm the drift.
+
+A case passes only when every criterion it is graded on passes - each check,
+judge criterion, expected tool call and reference grade - so a change that
+fixes one of a case's several failing criteria flips no case. A case where
+any criterion graded on both sides flipped is rerun as well, and the
+comparison's `criteria` lists, per criterion, how many cases both sides
+graded on it, how many each side passed on its first answer, and the
+fixes and breaks confirmed the same way as a case's: every rerun on both
+sides repeats them.
+
+The comparison lists at most 200 criteria: past that, every criterion
+that moved comes first, then the ones failing most often.
+
+The verdict below stays about whole cases; an
+[Improve session](authoring.md#the-improve-wizard) and a
+[skill check](skills.md#the-rule) read the criteria when no case flipped.
+Asking those cases again costs more than a check that reruns flipped cases
+alone, and stays within its price ceiling, which already assumes every case
+is asked again.
 
 A run compared with a baseline needs at least one rerun; a run with
 none may skip them. A run compared with an earlier run it never asked again -

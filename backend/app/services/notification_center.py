@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,9 +39,11 @@ from app.repositories import notification as notification_repo
 from app.repositories import notification_route as route_repo
 from app.repositories import project as project_repo
 from app.repositories import workflow as workflow_repo
+from app.schemas.notification import CriterionSources
 from app.services import rate_limit
 from app.services.access import ARTIFACT, PROJECT, WORKFLOW, resolve_access
 from app.services.collection_access import readable_kb
+from app.services.criterion_access import criterion_source_access, readable_criterion_skill_ids
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
 from app.services.outcome import OutcomeService
 from app.services.push import PushService
@@ -415,6 +418,7 @@ class _GateCache:
     workflow_visible_by_id: dict[uuid.UUID, bool]
     project_visible_by_id: dict[uuid.UUID, bool] = field(default_factory=dict)
     conversation_visible_by_id: dict[uuid.UUID, bool] = field(default_factory=dict)
+    criterion_visible_by_id: dict[uuid.UUID, bool] = field(default_factory=dict)
 
 
 class NotificationCenterService:
@@ -568,7 +572,11 @@ class NotificationCenterService:
             occurrence_id=occurrence_id,
             summary=_COALESCED_SUMMARY[event_type],
             context_url=context_url,
-            render_context=render_context,
+            render_context={
+                **(render_context or {}),
+                "wording": "coalesced",
+                "coalesced": event_type.value,
+            },
             organization_id=organization_id,
             announcement_id=None,
             mandatory=True,
@@ -1267,12 +1275,19 @@ class NotificationCenterService:
         workflow_ids: set[uuid.UUID] = set()
         project_ids: set[uuid.UUID] = set()
         conversation_ids: set[uuid.UUID] = set()
+        criterion_sources: dict[uuid.UUID, CriterionSources] = {}
         for notification in notifications:
             context = notification.render_context or {}
             if "project_id" in context:
                 with contextlib.suppress(ValueError):
                     project_ids.add(uuid.UUID(str(context["project_id"])))
             gate = content_gate_for(NotificationEventType(notification.event_type))
+            if gate is ContentGate.IMPROVEMENT_CRITERIA and context.get("criteria"):
+                # Missing or malformed provenance cannot authorize stored grade text.
+                with contextlib.suppress(ValidationError):
+                    criterion_sources[notification.id] = CriterionSources.model_validate(
+                        context.get("criterion_sources")
+                    )
             if (
                 gate is ContentGate.SHARED_CONVERSATION
                 and context.get("resource_kind") == "conversation"
@@ -1337,6 +1352,23 @@ class NotificationCenterService:
                 self.db, sorted(project_ids), organization_id=ctx.organization_id
             )
         }
+        datasets, _ = await criterion_source_access(
+            self.db,
+            ctx,
+            dataset_ids={source.dataset_id for source in criterion_sources.values()},
+            skill_ids=set(),
+        )
+        skills = (
+            (
+                await readable_criterion_skill_ids(
+                    self.db,
+                    ctx,
+                    {id_ for source in criterion_sources.values() for id_ in source.skill_ids},
+                )
+            )
+            if datasets
+            else set()
+        )
         return _GateCache(
             kb_by_id=kb_by_id,
             kb_access_by_id=kb_access_by_id,
@@ -1345,6 +1377,10 @@ class NotificationCenterService:
             workflow_visible_by_id=workflow_visible_by_id,
             project_visible_by_id=project_visible_by_id,
             conversation_visible_by_id=await self._conversation_visibility(ctx, conversation_ids),
+            criterion_visible_by_id={
+                notification_id: source.dataset_id in datasets and set(source.skill_ids) <= skills
+                for notification_id, source in criterion_sources.items()
+            },
         )
 
     async def _conversation_visibility(
@@ -1402,6 +1438,11 @@ class NotificationCenterService:
             return _Gate(visible=cache.conversation_visible_by_id.get(conversation_id, False))
         if gate is ContentGate.NONE:
             return _Gate(visible=True)
+        if gate is ContentGate.IMPROVEMENT_CRITERIA:
+            return _Gate(
+                visible=not context.get("criteria")
+                or cache.criterion_visible_by_id.get(notification.id, False)
+            )
         if gate is ContentGate.DEGRADE:
             if ctx.has(Perm.APPROVALS_DECIDE):
                 return _Gate(visible=True)

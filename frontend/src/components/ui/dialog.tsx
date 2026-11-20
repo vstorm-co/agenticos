@@ -20,7 +20,7 @@ const DialogOverlay = React.forwardRef<
     className={cn(
       // A veil rather than a blackout: the page stays legible enough to say where
       // the dialog came from without blurring an entire scrolling viewport.
-      "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50 duration-150",
+      "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/40 duration-150",
       className,
     )}
     {...props}
@@ -77,9 +77,8 @@ const DialogContent = React.forwardRef<
           }}
           className={cn(
             // Dialogs use the form surface; popover gray is reserved for short-lived menus.
-            // Rises a few pixels as it scales in, and settles with a spring - the
-            // motion of something placed in front of the page, not faded onto it.
-            "bg-card text-card-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98 data-[state=open]:slide-in-from-bottom-1 border-foreground/6 fixed top-[var(--dialog-center)] left-[50%] z-50 grid max-h-[var(--dialog-available-height)] w-[calc(100%-1.5rem)] max-w-lg min-w-0 translate-x-[-50%] translate-y-[-50%] grid-cols-1 gap-3 overflow-y-auto overscroll-contain rounded-2xl border p-5 shadow-[0_32px_80px_-24px_oklch(0%_0_0/0.45),0_2px_8px_oklch(0%_0_0/0.08)] duration-300 data-[state=closed]:duration-150 data-[state=open]:ease-[var(--ease-out)] sm:gap-5 sm:p-6",
+            // A short entrance keeps small forms responsive without moving their fields far.
+            "bg-card text-card-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-98 data-[state=open]:zoom-in-98 data-[state=open]:slide-in-from-bottom-1 border-border fixed top-[var(--dialog-center)] left-[50%] z-50 grid max-h-[var(--dialog-available-height)] w-[calc(100%-1.5rem)] max-w-lg min-w-0 translate-x-[-50%] translate-y-[-50%] grid-cols-1 gap-3 overflow-y-auto overscroll-contain rounded-2xl border p-5 shadow-[0_20px_60px_-20px_oklch(0%_0_0/0.30),0_2px_8px_oklch(0%_0_0/0.08)] duration-200 data-[state=closed]:duration-120 data-[state=open]:ease-[var(--ease-out)] sm:gap-5 sm:p-6",
             className,
           )}
           {...props}
@@ -87,7 +86,7 @@ const DialogContent = React.forwardRef<
           {children}
           <DialogPrimitive.Close
             disabled={!dismissible}
-            className="text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:ring-ring touch:min-h-11 touch:min-w-11 absolute top-2 right-2 flex size-11 touch-manipulation items-center justify-center rounded-md transition-colors duration-150 focus:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 sm:size-9"
+            className="text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:ring-ring pressable-icon touch:min-h-11 touch:min-w-11 absolute top-2 right-2 flex size-11 touch-manipulation items-center justify-center rounded-lg transition-colors duration-150 focus:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 sm:size-9"
           >
             <X className="h-4 w-4" />
             <span className="sr-only">{t("close")}</span>
@@ -117,7 +116,7 @@ function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
   return (
     <div
       className={cn(
-        "mt-2 flex min-w-0 shrink-0 flex-row flex-wrap items-center justify-end gap-2 pt-3 sm:pt-4 max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:max-w-full max-sm:[&>button]:whitespace-normal",
+        "border-border mt-2 flex min-w-0 shrink-0 flex-row flex-wrap items-center justify-end gap-2 border-t pt-3 sm:pt-4 max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:max-w-full max-sm:[&>button]:whitespace-normal",
         className,
       )}
       {...props}
@@ -146,7 +145,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-muted-foreground text-[13px] leading-relaxed", className)}
+    className={cn("text-muted-foreground text-sm leading-relaxed", className)}
     {...props}
   />
 ));

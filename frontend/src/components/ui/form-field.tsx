@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { ContextHelp } from "./context-help";
 import { Label } from "./label";
 
 interface InjectableProps {
@@ -17,6 +18,8 @@ export interface FormFieldProps {
   htmlFor: string;
   /** Helper text shown below the control when there's no error. */
   description?: React.ReactNode;
+  /** Optional explanation behind a help button; requirements stay in description. */
+  help?: React.ReactNode;
   /** Error message - when set, the control is marked invalid + described by it. */
   error?: string | null;
   required?: boolean;
@@ -37,6 +40,7 @@ export function FormField({
   label,
   htmlFor,
   description,
+  help,
   error,
   required,
   className,
@@ -45,7 +49,9 @@ export function FormField({
 }: FormFieldProps) {
   const descId = `${htmlFor}-desc`;
   const errId = `${htmlFor}-err`;
-  const describedBy = [error ? errId : description ? descId : null].filter(Boolean).join(" ");
+  const describedBy = [error ? errId : description || help ? descId : null]
+    .filter(Boolean)
+    .join(" ");
 
   const controlId = React.isValidElement<InjectableProps>(children)
     ? (children.props.id ?? htmlFor)
@@ -69,18 +75,28 @@ export function FormField({
         className,
       )}
     >
-      {label && (
-        <Label
-          htmlFor={controlId}
-          className={layout === "switch" ? "col-start-1 row-start-1" : "block"}
-        >
-          {label}
-          {required && (
-            <span className="text-destructive ml-0.5" aria-hidden="true">
-              *
-            </span>
+      {(label || help) && (
+        <div
+          className={cn(
+            "touch:min-h-11 flex min-h-6 items-center gap-1",
+            layout === "switch" && "col-start-1 row-start-1",
           )}
-        </Label>
+        >
+          {label && (
+            <Label
+              htmlFor={controlId}
+              className={layout === "switch" ? "col-start-1 row-start-1" : "block"}
+            >
+              {label}
+              {required && (
+                <span className="text-destructive ml-0.5" aria-hidden="true">
+                  *
+                </span>
+              )}
+            </Label>
+          )}
+          {help && <ContextHelp>{help}</ContextHelp>}
+        </div>
       )}
       {layout === "switch" ? (
         <div className="col-start-2 row-span-2 row-start-1 self-center">{control}</div>
@@ -96,6 +112,11 @@ export function FormField({
           )}
         >
           {description}
+        </p>
+      )}
+      {help && !description && !error && (
+        <p id={descId} className="sr-only">
+          {help}
         </p>
       )}
       {error && (

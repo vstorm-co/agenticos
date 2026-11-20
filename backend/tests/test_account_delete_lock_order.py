@@ -100,6 +100,7 @@ class _Account:
         db = MagicMock()
         db.begin_nested = lambda: _Savepoint(self.order)
         self.service = UserService(db)
+        self.history_lock = AsyncMock()
 
     def _step(self, name: str, result: object = None) -> AsyncMock:
         """A lock on a name or an organization, recorded with what it locks."""
@@ -135,6 +136,7 @@ class _Account:
             patch("app.services.user.organization_repo") as organizations,
             patch("app.services.user.member_repo") as members,
             patch("app.services.user.user_repo") as users,
+            patch("app.services.user.conversation_repo.lock_authored_histories", self.history_lock),
             patch("app.services.user.try_hold_subject", new=AsyncMock(return_value=True)),
             patch(
                 "app.repositories.telephony.user_has_unfinished_calls",
@@ -389,3 +391,13 @@ async def test_busy_personal_data_scope_refuses_before_account_teardown() -> Non
     ):
         await service._lock_account(uuid.uuid4())
     listing.assert_not_awaited()
+
+
+async def test_a_busy_authored_history_releases_the_user_lock_before_retrying() -> None:
+    account = _Account()
+    account.history_lock.side_effect = [_db_error(_BUSY), None]
+    locked = await account.lock()
+    assert locked.user is account.user
+    assert account.history_lock.await_count == 2
+    assert account.user_steps() == [("user", "nowait"), ("user", "wait"), ("user", "nowait")]
+    assert ("rollback", None) in account.order

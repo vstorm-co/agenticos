@@ -52,6 +52,16 @@ function row() {
 }
 
 describe("a run history row", () => {
+  it("keeps essential columns while allowing metadata to be revealed", () => {
+    const view = render(<RunTable runs={[run()]} detailColumns={["surface"]} />);
+    expect(screen.queryByRole("columnheader", { name: "Model" })).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Tokens" })).toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Cost" })).toBeVisible();
+    view.rerender(<RunTable runs={[run()]} detailColumns={["surface", "model", "tokens"]} />);
+    expect(screen.getByRole("columnheader", { name: "Model" })).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "Tokens" })).toBeVisible();
+  });
+
   it("names the small channel decision model separately from the full agent", () => {
     render(<RunTable runs={[run({ system_role: "channel_decision" })]} />);
     expect(screen.getByText("Channel participation decision (system)")).toBeInTheDocument();

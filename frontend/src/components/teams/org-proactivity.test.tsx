@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OrgProactivity } from "./org-proactivity";
+vi.mock("@/hooks/use-system-agents", () => ({ useSystemAgents: () => ({ roles: [] }) }));
 import type { ModelProfile } from "@/types/providers";
 import type { Organization } from "@/types";
 import { Perm, type Permission } from "@/types/permissions";
@@ -187,7 +188,7 @@ describe("OrgProactivity", () => {
     state.held = [Perm.orgSettings];
     render(<OrgProactivity org={org()} />);
 
-    expect(screen.queryByRole("switch", { name: "Nightly suggestions" })).toBeNull();
+    expect(screen.queryByRole("switch", { name: "Daily briefing & suggestions" })).toBeNull();
     expect(
       screen.getByRole("switch", { name: "Welcome message in chat apps" }),
     ).toBeInTheDocument();
@@ -224,14 +225,13 @@ describe("OrgProactivity", () => {
 
   it("starts off, and is not turned on without a model to run on", async () => {
     render(<OrgProactivity org={org()} />);
-    const nightly = screen.getByRole("switch", { name: "Nightly suggestions" });
+    const nightly = screen.getByRole("switch", { name: "Daily briefing & suggestions" });
     expect(nightly).not.toBeChecked();
-    expect(screen.queryByRole("group", { name: "Model" })).toBeNull();
+    expect(screen.getByRole("group", { name: "Model" })).toBeVisible();
 
+    expect(nightly).toBeDisabled();
     await userEvent.click(nightly);
-    await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
-
-    expect(screen.getByText("Choose the model it runs on before turning it on.")).toBeVisible();
+    expect(nightly).not.toBeChecked();
     expect(state.setProactivity).not.toHaveBeenCalled();
   });
 
@@ -427,10 +427,10 @@ describe("OrgProactivity", () => {
 
   it("resets local edits when another organization has identical saved settings", async () => {
     const { rerender } = render(<OrgProactivity org={org()} />);
-    await userEvent.click(screen.getByRole("switch", { name: "Nightly suggestions" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Daily briefing & suggestions" }));
     state.tenantId = "o2";
     rerender(<OrgProactivity org={org({ id: "o2" })} />);
-    expect(screen.getByRole("switch", { name: "Nightly suggestions" })).not.toBeChecked();
+    expect(screen.getByRole("switch", { name: "Daily briefing & suggestions" })).not.toBeChecked();
   });
 
   it("saves the whole schedule: model, limit, days, when and the hour", async () => {
@@ -453,7 +453,24 @@ describe("OrgProactivity", () => {
       proactive_watches_enabled: false,
       proactive_watch_min_minutes: 60,
     });
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Nightly suggestions saved"));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Background settings saved"));
+  });
+
+  it("normalizes legacy enabled suggestions without a model before saving", async () => {
+    render(<OrgProactivity org={org({ ...ON, proactive_model_profile_id: null })} />);
+    expect(screen.getByRole("switch", { name: "Daily briefing & suggestions" })).not.toBeChecked();
+    expect(screen.getByRole("switch", { name: "Daily briefing & suggestions" })).toBeDisabled();
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Allow read-only monitoring routines" }),
+    );
+    await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
+    expect(state.setProactivity).toHaveBeenCalledWith(
+      "o1",
+      expect.objectContaining({
+        proactive_enabled: false,
+        proactive_model_profile_id: null,
+      }),
+    );
   });
 
   it("enables monitoring without a conversation-suggestions model", async () => {
@@ -462,7 +479,7 @@ describe("OrgProactivity", () => {
       screen.getByRole("switch", { name: "Allow read-only monitoring routines" }),
     );
     // Monitoring uses its own agent; the shared budget and digest timing remain editable.
-    expect(screen.queryByRole("radiogroup", { name: "Model" })).toBeNull();
+    expect(screen.getByRole("radiogroup", { name: "Model" })).toBeVisible();
     expect(screen.getByRole("group", { name: "Days" })).toBeVisible();
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
 
@@ -493,7 +510,7 @@ describe("OrgProactivity", () => {
         proactive_watch_min_minutes: 180,
       }),
     );
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Nightly suggestions saved"));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Background settings saved"));
   });
 
   it("shows the floor already saved", () => {
@@ -513,8 +530,8 @@ describe("OrgProactivity", () => {
 
   it("is turned on with a model from the organization's, before work, at seven", async () => {
     render(<OrgProactivity org={org()} />);
-    await userEvent.click(screen.getByRole("switch", { name: "Nightly suggestions" }));
     await userEvent.click(screen.getByRole("radio", { name: "Haiku" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Daily briefing & suggestions" }));
     await userEvent.click(screen.getByRole("combobox", { name: "When" }));
     await userEvent.click(
       await screen.findByRole("option", { name: "An hour before their working hours" }),
@@ -554,17 +571,17 @@ describe("OrgProactivity", () => {
     expect(screen.getByText("Enter an amount in dollars, 0 or more.")).toBeVisible();
 
     await userEvent.type(screen.getByLabelText("Limit per person (USD a month)"), "1");
-    await userEvent.click(screen.getByRole("switch", { name: "Nightly suggestions" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Daily briefing & suggestions" }));
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Nightly suggestions are off"));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Background features are off"));
   });
 
   it("puts the server's refusal under the field it names", async () => {
     refusal.value = { fields: { proactive_model_profile_id: "Not one of yours" }, toast: null };
     state.setProactivity.mockRejectedValue(new Error("400"));
     render(<OrgProactivity org={org({ ...ON, proactive_hour: 6 })} />);
-    await userEvent.click(screen.getByRole("switch", { name: "Nightly suggestions" }));
-    await userEvent.click(screen.getByRole("switch", { name: "Nightly suggestions" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Daily briefing & suggestions" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Daily briefing & suggestions" }));
     await userEvent.clear(screen.getByLabelText("Limit per person (USD a month)"));
     await userEvent.type(screen.getByLabelText("Limit per person (USD a month)"), "3");
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
@@ -621,4 +638,21 @@ describe("OrgProactivity", () => {
     expect(await screen.findByText("Too long")).toBeVisible();
     expect(toastError).not.toHaveBeenCalled();
   });
+});
+
+it("shows individual feature switches without a parent group and expands their settings", async () => {
+  const { rerender } = render(<OrgProactivity org={org(ON)} collapsible />);
+  const briefing = screen.getByRole("button", { name: "Daily briefing & suggestions" });
+  expect(briefing).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByRole("switch", { name: "Daily briefing & suggestions" })).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Assistant suggestions and monitoring" }),
+  ).not.toBeInTheDocument();
+  await userEvent.click(briefing);
+  expect(briefing).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByLabelText("Limit per person (USD a month)")).toBeVisible();
+  await userEvent.click(briefing);
+  expect(briefing).toHaveAttribute("aria-expanded", "false");
+  rerender(<OrgProactivity org={org(ON)} collapsible defaultOpen />);
+  expect(briefing).toHaveAttribute("aria-expanded", "true");
 });

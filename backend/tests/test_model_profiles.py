@@ -138,6 +138,7 @@ def _credential(ctx, provider="openai", secret=None, is_active=True, base_url=No
     value = secret if secret is not None else ApiKeySecret(api_key="sk-test-abcd1234")
     credential = MagicMock()
     credential.id = uuid.uuid4()
+    credential.authorization_generation = uuid.uuid4()
     credential.organization_id = ctx.organization_id
     credential.provider = provider
     credential.label = f"{provider} key"
@@ -1551,15 +1552,14 @@ class TestProviderLookup:
 
 def _vault_secret(ctx, purpose="openai", value=None):
     """A row of the vault, sealed the way the service will try to unseal it."""
-    sealed = seal_secret(
-        value or ApiKeySecret(api_key="sk-vault-abcd1234"),
-        scope=VaultScope.organization(ctx.organization_id),
-    )
+    value = value or ApiKeySecret(api_key="sk-vault-abcd1234")
+    sealed = seal_secret(value, scope=VaultScope.organization(ctx.organization_id))
     secret = MagicMock()
     secret.id = uuid.uuid4()
+    secret.authorization_generation = uuid.uuid4()
     secret.organization_id = ctx.organization_id
     secret.purpose = purpose
-    secret.kind = SecretKind.API_KEY.value
+    secret.kind = value.kind.value
     secret.sealed_secret = sealed.ciphertext
     secret.hint = sealed.hint
     secret.key_version = sealed.key_version
@@ -2582,3 +2582,131 @@ def test_decision_only_and_google_gateway_defaults_name_their_supported_api():
     assert PROVIDERS["system-one"].default_api("http://localhost:1234") == "decisions"
     assert PROVIDERS["google"].default_api("http://localhost:1234") == "chat"
     assert PROVIDERS["openrouter"].default_api(None) == "chat"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("provider", ["openai", "azure", "bedrock", "google_cloud"])
+async def test_resolved_credentials_pin_identity_generation_and_actual_cloud_routing(
+    provider: str, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.delenv("GOOGLE_CLOUD_LOCATION", raising=False)
+    ctx = _ctx()
+    value = secret_for(get_provider(provider))
+    row = _vault_secret(ctx, purpose=provider, value=value)
+    profile = _profile(ctx, row, provider=provider)
+    expected = {
+        "openai": {},
+        "azure": {"azure_endpoint": "https://demo.openai.azure.com", "api_version": "2024-10-21"},
+        "bedrock": {"region_name": "us-east-1"},
+        "google_cloud": {"project": "demo-project", "location": "us-central1"},
+    }[provider]
+    with patch(
+        "app.services.model_profile.organization_secret_repo.get", AsyncMock(return_value=row)
+    ):
+        before = await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
+        assert before.credential_id == row.id
+        assert before.authorization_generation == row.authorization_generation
+        assert before.routing == expected
+        generation = uuid.uuid4()
+        row.authorization_generation = generation
+        after = await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
+    assert after.credential_id == before.credential_id
+    assert after.authorization_generation == generation != before.authorization_generation
+    assert after.routing == before.routing
+    # Routing metadata must never carry the credential itself.
+    assert not set(after.routing).intersection(
+        {
+            "api_key",
+            "aws_access_key_id",
+            "aws_secret_access_key",
+            "private_key",
+            "service_account_json",
+        }
+    )
+
+
+@pytest.mark.anyio
+async def test_fallback_resolution_keeps_its_own_vault_identity_and_generation():
+    ctx = _ctx()
+    primary_key = _vault_secret(ctx)
+    fallback_key = _vault_secret(ctx)
+    fallback = _profile(ctx, fallback_key, model="gpt-4o-mini")
+    primary = _profile(ctx, primary_key, fallbacks=[fallback.id])
+    secrets = {primary_key.id: primary_key, fallback_key.id: fallback_key}
+    with (
+        patch(
+            "app.services.model_profile.credential_repo.get_profile",
+            AsyncMock(return_value=primary),
+        ),
+        patch(
+            "app.services.model_profile.credential_repo.get_profiles_by_ids",
+            AsyncMock(return_value={fallback.id: fallback}),
+        ),
+        patch(
+            "app.services.model_profile.organization_secret_repo.get",
+            AsyncMock(side_effect=lambda db, secret_id, **kwargs: secrets[secret_id]),
+        ),
+    ):
+        resolved = await ModelProfileService(_db()).resolve(ctx, profile_id=primary.id)
+    assert resolved.credential.credential_id == primary_key.id
+    [(credential, model)] = resolved.fallbacks
+    assert model == fallback.model
+    assert credential.credential_id == fallback_key.id != resolved.credential.credential_id
+    assert credential.authorization_generation == fallback_key.authorization_generation
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("provider", ["azure", "bedrock", "google_cloud"])
+async def test_cloud_routing_changes_under_the_same_vault_identity_are_resolved(provider: str):
+    ctx = _ctx()
+    value = secret_for(get_provider(provider))
+    row = _vault_secret(ctx, purpose=provider, value=value)
+    profile = _profile(ctx, row, provider=provider)
+    if isinstance(value, AzureOpenAISecret):
+        changed = value.model_copy(update={"azure_endpoint": "https://other.openai.azure.com"})
+        field, destination = "azure_endpoint", "https://other.openai.azure.com"
+    elif isinstance(value, AwsCredentialsSecret):
+        changed = value.model_copy(update={"region_name": "eu-west-1"})
+        field, destination = "region_name", "eu-west-1"
+    else:
+        assert isinstance(value, GcpServiceAccountSecret)
+        changed = value.model_copy(update={"location": "europe-west4"})
+        field, destination = "location", "europe-west4"
+    with patch(
+        "app.services.model_profile.organization_secret_repo.get", AsyncMock(return_value=row)
+    ):
+        before = await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
+        row.sealed_secret = seal_secret(
+            changed, scope=VaultScope.organization(ctx.organization_id)
+        ).ciphertext
+        after = await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
+    assert before.credential_id == after.credential_id
+    assert before.base_url == after.base_url
+    assert after.routing[field] == destination != before.routing[field]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("stored", "environment", "expected"),
+    [
+        (None, None, "us-central1"),
+        (None, "europe-west4", "europe-west4"),
+        ("europe-west1", "europe-west4", "europe-west1"),
+    ],
+)
+async def test_vertex_routing_records_effective_sdk_location(
+    stored: str | None, environment: str | None, expected: str, monkeypatch: pytest.MonkeyPatch
+):
+    if environment is None:
+        monkeypatch.delenv("GOOGLE_CLOUD_LOCATION", raising=False)
+    else:
+        monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", environment)
+    ctx = _ctx()
+    value = GcpServiceAccountSecret(service_account_json=service_account_json(), location=stored)
+    row = _vault_secret(ctx, purpose="google_cloud", value=value)
+    profile = _profile(ctx, row, provider="google_cloud")
+    with patch(
+        "app.services.model_profile.organization_secret_repo.get", AsyncMock(return_value=row)
+    ):
+        resolved = await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
+    assert resolved.routing == {"project": "demo-project", "location": expected}

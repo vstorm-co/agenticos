@@ -42,20 +42,23 @@ control - a channel bot's `rate_limit_rpm` - can keep a per-process floor under
 the caller for as long as the outage lasts rather than none at all.
 """
 
+import asyncio
 import hashlib
 import logging
 import secrets
 import time
 from collections.abc import AsyncGenerator, Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from uuid import UUID
 
+from redis.exceptions import RedisError
 from starlette.requests import HTTPConnection
 
 from app.clients.redis import RedisClient
 from app.core.config import settings
 from app.core.exceptions import RateLimitError
+from app.core.permissions import AuthContext
 
 logger = logging.getLogger(__name__)
 
@@ -403,23 +406,42 @@ async def _release(redis: RedisClient, key: str, token: str) -> None:
         logger.warning("in_flight_limit_release_failed", exc_info=True)
 
 
+async def _renew_claim(redis: RedisClient, key: str, token: str, ttl_seconds: int) -> None:
+    """Renew an active claim; Redis outages retain the documented per-process floor."""
+    while True:
+        await asyncio.sleep(ttl_seconds / 3)
+        try:
+            held = await redis.expire_if_equals(key, token, ttl_seconds)
+        except RedisError, OSError, TimeoutError:
+            logger.warning("in_flight_limit_renewal_unavailable", exc_info=True)
+            continue
+        if not held:
+            logger.warning("in_flight_limit_claim_lost", extra={"key": key})
+            return
+
+
 @asynccontextmanager
 async def one_in_flight(
-    surface: str, caller: str, *, ttl_seconds: int, message: str
+    surface: str, caller: str, *, ttl_seconds: int, message: str, renew: bool = False
 ) -> AsyncGenerator[None]:
     """Hold the one claim `caller` has on `surface` for the body, or refuse at once.
 
     The claim is a Redis key taken with `SET NX EX`, holding a token of this call's
-    own, and released by deleting it only while it still holds that token. A body
-    that outlives `ttl_seconds` loses its claim to the next caller, and its release
-    then leaves that caller's claim alone. While Redis is down or unconfigured the
-    claim is held in this process instead, which bounds a caller per worker only,
-    not across workers.
+    own, and released by deleting it only while it still holds that token. With
+    `renew=True` the holder extends it every third of the TTL until the body exits;
+    the TTL then recovers crashed holders. Otherwise a body outliving the TTL may
+    lose its claim, and its release leaves a successor's claim alone. While Redis is
+    down or a renewal fails, the logged fallback bounds the caller per process. The
+    fallback cannot enforce a limit across workers.
 
     Raises:
         RateLimitError: `caller` already holds the claim; `message` says so.
     """
+    if ttl_seconds <= 0:
+        raise ValueError("An in-flight claim needs a positive TTL")
     key = f"inflight:{surface}:{_bounded(caller)}"
+    if renew and key in _held_here:
+        raise RateLimitError(message=message, details={"retry_after_seconds": 1})
     token = secrets.token_urlsafe(16)
     redis = _redis
     claimed = None if redis is None else await _claim(redis, key, token, ttl_seconds)
@@ -431,13 +453,57 @@ async def one_in_flight(
             _held_here.add(key)
     if not claimed:
         raise RateLimitError(message=message, details={"retry_after_seconds": 1})
+    local_claim = redis is None or renew
+    if local_claim:
+        _held_here.add(key)
+    renewer = (
+        asyncio.create_task(_renew_claim(redis, key, token, ttl_seconds))
+        if renew and redis is not None
+        else None
+    )
     try:
         yield
     finally:
-        if redis is None:
-            _held_here.discard(key)
-        else:
-            await _release(redis, key, token)
+        try:
+            if renewer is not None:
+                renewer.cancel()
+                with suppress(asyncio.CancelledError):
+                    await renewer
+        finally:
+            if local_claim:
+                _held_here.discard(key)
+            if redis is not None:
+                await _release(redis, key, token)
+
+
+@asynccontextmanager
+async def eval_computation(ctx: AuthContext) -> AsyncGenerator[None]:
+    """Shared admission for comparisons and eval-backed verdict writes.
+
+    The caller checks the operation's own permissions first: comparison readers
+    need runs:view, while a dataset editor may hold only an explicit edit grant.
+    """
+    async with one_in_flight(
+        "eval_comparison",
+        f"org:{ctx.organization_id}",
+        ttl_seconds=120,
+        renew=True,
+        message="A comparison is already running for this organization. Wait and try again.",
+    ):
+        # A busy refusal must not spend the shared work budget.
+        for caller, attempts in (
+            (f"org:{ctx.organization_id}:user:{ctx.subject_id}", 30),
+            (f"org:{ctx.organization_id}", 60),
+        ):
+            decision = await consume_with_local_floor(
+                surface="eval_comparison", caller=caller, limit=Limit(attempts=attempts)
+            )
+            if not decision.allowed:
+                raise RateLimitError(
+                    message="Too many comparisons and eval verdict updates. Wait and try again.",
+                    details={"retry_after_seconds": decision.retry_after_seconds},
+                )
+        yield
 
 
 def dictation_limit() -> Limit:

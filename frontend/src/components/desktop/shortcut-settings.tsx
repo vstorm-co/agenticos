@@ -1,5 +1,6 @@
 "use client";
 
+import { Input } from "@/components/ui/input";
 import { useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 
@@ -43,7 +44,7 @@ function ShortcutRow({ binding, mac }: { binding: ShortcutBinding; mac: boolean 
     <DesktopSetting id={id} label={t(`${binding.action}.label`)} hint={t(`${binding.action}.hint`)}>
       <div className="flex flex-col items-end gap-1.5">
         <div className="flex items-center gap-2">
-          <input
+          <Input
             aria-labelledby={id}
             readOnly
             value={describeAccelerator(shown, mac)}
@@ -51,7 +52,7 @@ function ShortcutRow({ binding, mac }: { binding: ShortcutBinding; mac: boolean 
             onFocus={() => setRecording(true)}
             onBlur={() => setRecording(false)}
             onKeyDown={onKeyDown}
-            className="border-input bg-background focus-visible:ring-ring h-8 w-36 cursor-pointer rounded-md border px-2.5 text-center font-mono text-base outline-none focus-visible:ring-2 md:text-sm"
+            className="h-8 w-36 cursor-pointer px-2.5 text-center font-mono"
           />
           <Button
             size="sm"

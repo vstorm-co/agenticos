@@ -158,7 +158,7 @@ test("phone event wizard preserves back navigation and a refused draft before cr
     await page.getByRole("button", { name: "New routine", exact: true }).click();
     await page.getByRole("menuitem", { name: "Run when an event arrives", exact: true }).click();
     await page
-      .getByRole("group", { name: "API trigger", exact: true })
+      .getByRole("group", { name: "Webhook or API trigger", exact: true })
       .getByRole("button", { name: "Create trigger", exact: true })
       .click();
     const dialog = page.getByRole("dialog").last();
@@ -202,12 +202,28 @@ test("phone event wizard preserves back navigation and a refused draft before cr
     );
     await dialog.getByRole("button", { name: "Create", exact: true }).click();
     id = await createdId(await accepted);
+    const review = page.getByRole("dialog", { name: "Review routine access", exact: true });
+    await expect(review).toBeVisible();
+    const paused = await nowMatching(page.request, path, (entry) => entry.id === id, name);
+    expect(paused.is_active).toBe(false);
+    await submitDialog(page, {
+      dialog: review,
+      submit: review.getByRole("button", { name: "Enable routine", exact: true }),
+      path: `${path}/${id}`,
+      method: "PATCH",
+    });
     const summary = page.getByRole("dialog", { name: "One more step", exact: true });
     await expect(summary).toBeVisible();
     await expect(summary.getByLabel("Webhook URL", { exact: true })).toHaveValue(
       /webhooks\/triggers\//,
     );
-    const stored = await nowMatching(page.request, path, (entry) => entry.id === id, name);
+    const stored = await nowMatching(
+      page.request,
+      path,
+      (entry) => entry.id === id && entry.is_active === true,
+      name,
+    );
+    expect(stored.is_active).toBe(true);
     expect(stored.last_run_id).toBeNull();
     expect(JSON.stringify(stored)).not.toContain("ui-audit-demo-signing-key-only");
     await summary.getByRole("button", { name: "Done", exact: true }).click();

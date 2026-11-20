@@ -237,9 +237,17 @@ describe("run history controls", () => {
   it("the Tokens header asks for the heaviest of the whole set", async () => {
     renderTab();
 
+    await userEvent.click(screen.getByRole("button", { name: "Columns" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Tokens" }));
+    await userEvent.keyboard("{Escape}");
     await userEvent.click(screen.getByText("Tokens").closest("button")!);
 
     expect(lastOptions()).toMatchObject({ orderBy: "tokens", descending: true });
+    await userEvent.click(screen.getByRole("button", { name: "Columns" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Tokens" }));
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("columnheader", { name: /Tokens/ })).toBeNull();
+    expect(lastOptions()).toMatchObject({ orderBy: "started_at", descending: true });
   });
 
   it("narrows to one status the server filters by", async () => {
@@ -388,6 +396,10 @@ describe("run history controls", () => {
     const onFocusRun = vi.fn();
     renderTab({ onFocusRun });
 
+    expect(screen.queryByText("gpt-5")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Columns" }));
+    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Model" }));
+    await userEvent.keyboard("{Escape}");
     await userEvent.click(screen.getByText("gpt-5"));
 
     expect(onFocusRun).toHaveBeenCalledWith("run-1");

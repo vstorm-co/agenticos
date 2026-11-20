@@ -116,7 +116,7 @@ export {
 } from "./use-model-providers";
 export { useDeploymentSettings } from "./use-deployment-settings";
 export { useBrandingNotice } from "./use-branding-notice";
-export { useTables, useTable, useAllTables } from "./use-tables";
+export { useTables, useTable, useAllTables, useTableRecord } from "./use-tables";
 export { useTableRecords } from "./use-table-records";
 export { useTableRecordCount, useTableRecordPages } from "./use-table-record-pages";
 export { useTableViews, useTableDefaultView } from "./use-table-views";
@@ -145,6 +145,7 @@ export {
   useRunTranscript,
   useSpend,
 } from "./use-runs";
+export { useStopParkedRun } from "./use-stop-parked-run";
 export {
   useAgentAttention,
   usePeopleUsage,
@@ -192,6 +193,7 @@ export {
 } from "./use-workflows";
 export { useWorkflowActions } from "./use-workflow-actions";
 export { useWorkflowTables, useWorkflowTable } from "./use-workflow-tables";
+export { useWorkflowTableDrift } from "./use-workflow-table-drift";
 export { useCausingRun, useRunHistory, useWorkflowRun, useWorkflowRuns } from "./use-workflow-runs";
 export { useWorkflowChatRun, useWorkflowRunQuestions } from "./use-workflow-questions";
 export { useWorkflowApprovalHistory, useWorkflowApprovals } from "./use-workflow-approvals";
@@ -238,6 +240,8 @@ export { useWikiGraph } from "./use-wiki-graph";
 export { useDurableTasks } from "./use-durable-tasks";
 
 export { useCodingAccounts } from "./use-coding-accounts";
+
+export { usePersonalModelKeys } from "./use-personal-model-keys";
 export { useBrowserCredentialContinuation } from "./use-browser-credential-continuation";
 export {
   useAssistantPageContext,

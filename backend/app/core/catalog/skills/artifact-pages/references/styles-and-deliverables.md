@@ -22,6 +22,16 @@ These are starting points, not a required uniform. Define semantic tokens for ba
 
 Use available system fonts or the runtime's local assets. A font name in CSS does not install that font. Keep a readable fallback and do not request remote fonts/CDNs. Light and dark versions need actual checking, not an automatic invert filter. Do not impose a new visual identity on the AgenticOS console itself.
 
+## Build a presentation as a sequence of compositions
+
+Before writing HTML, map each claim to a visual: opening image or original illustration; one large number with its denominator; a comparison chart; a process or sequence; a decision with owner and next action. Use the compositions the evidence needs, rather than repeating a title and three bullets. The slide-deck template demonstrates all five with original illustrative content. Adapt the subject, not just its colors.
+
+Keep a shared grid, headline family and folio across the deck. Vary the occupied space: a split cover, a large metric against a short interpretation, an evidence panel, a horizontal sequence and a closing statement. Use an admitted photograph or generated image for a subject that needs imagery; use original SVG for precise diagrams. A missing image is a composition problem to solve, not a reason to leave half the cover blank.
+
+Aim for a headline readable at presentation distance, one sentence of interpretation and one main figure. Put source details and methodological caveats in a short caption or appendix. A slide's title states the takeaway; the chart makes it assessable. Do not decorate with invented growth percentages, miniature dashboard cards or unreadable UI screenshots.
+
+Fit desktop slides and their navigation within the available viewport; use container-relative type for nested slide layouts. On phones, stack the reading order at a legible size. Verify every slide, overview, keyboard navigation and the actual exported page sequence; never crop overflowing content to make a slide look finished.
+
 ## Formats are different contracts
 
 - An interactive App is self-contained HTML published under a stable App name. Inline content, admitted libraries and supported bindings/actions are its execution contract.

@@ -5,6 +5,7 @@ profile ids; everything below deals in ciphertext.
 """
 
 import logging
+import os
 from collections.abc import Mapping
 from dataclasses import replace
 from urllib.parse import urlparse
@@ -43,9 +44,13 @@ from app.core.exceptions import (
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import (
+    AwsCredentialsSecret,
+    AzureOpenAISecret,
+    GcpServiceAccountSecret,
     NoSecret,
     OpenAICodexSecret,
     SecretKind,
+    SecretValue,
     unseal_secret,
 )
 from app.core.vault import VaultScope
@@ -81,6 +86,20 @@ _ALLOWED_ENDPOINT_SCHEMES = frozenset({"http", "https"})
 # `create_profile` validated, and fails loudly on a value it never wrote.
 _stored_api = TypeAdapter[ModelApi | None](ModelApi | None).validate_python
 _stored_region = TypeAdapter[ModelRegion | None](ModelRegion | None).validate_python
+
+
+def _credential_routing(secret: SecretValue) -> Mapping[str, str | None]:
+    """The provider's routing fields, excluding tokens and authentication material."""
+    if isinstance(secret, AzureOpenAISecret):
+        return {"azure_endpoint": secret.azure_endpoint, "api_version": secret.api_version}
+    if isinstance(secret, AwsCredentialsSecret):
+        return {"region_name": secret.region_name}
+    if isinstance(secret, GcpServiceAccountSecret):
+        return {
+            "project": secret.project,
+            "location": secret.location or os.getenv("GOOGLE_CLOUD_LOCATION") or "us-central1",
+        }
+    return {}
 
 
 def _validate_model_id(provider: str, model: str) -> None:
@@ -900,6 +919,9 @@ class ModelProfileService:
         return ResolvedCredential(
             provider=profile.provider,
             secret=value,
+            credential_id=secret.id,
+            authorization_generation=secret.authorization_generation,
+            routing=_credential_routing(value),
             personal_owner_user_id=personal_owner,
             # A ChatGPT sign-in rotates as it is used, so the provider is handed
             # the secret's place in the vault rather than only what it holds now.

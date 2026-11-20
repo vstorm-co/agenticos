@@ -1,8 +1,10 @@
+import type { ReactNode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InboxPage } from "./inbox-page";
+import type { ToolApproval } from "@/types/runs";
 import type { Suggestion } from "@/lib/suggestions-api";
 
 /**
@@ -39,6 +41,27 @@ vi.mock("@/hooks/use-suggestions", () => ({
     refetch: state.refetch,
   }),
 }));
+const pending = vi.hoisted(() => ({
+  tools: [] as Pick<
+    ToolApproval,
+    | "id"
+    | "tool_id"
+    | "agent_name"
+    | "tool_args"
+    | "capability_tool_id"
+    | "context"
+    | "content_hidden"
+  >[],
+  steps: [] as { id: string; title: string; workflow_name: string }[],
+  count: 0,
+  isLoading: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
+}));
+vi.mock("@/hooks/use-pending-approvals", () => ({ usePendingApprovals: () => pending }));
+vi.mock("@/components/assistant/your-suggestions", () => ({
+  YourSuggestions: () => <section aria-label="Personal suggestion preferences" />,
+}));
 vi.mock("./suggestion-rows", () => ({
   SuggestionRows: ({ items }: { items: Suggestion[] }) => {
     state.shown = items;
@@ -52,7 +75,12 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/inbox",
 }));
 vi.mock("@/components/dashboard/page-header", () => ({
-  PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
+  PageHeader: ({ title, actions }: { title: string; actions?: ReactNode }) => (
+    <header>
+      <h1>{title}</h1>
+      {actions}
+    </header>
+  ),
 }));
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 
@@ -70,6 +98,12 @@ function item(id: string, overrides: Partial<Suggestion> = {}): Suggestion {
 }
 
 beforeEach(() => {
+  pending.tools = [];
+  pending.steps = [];
+  pending.count = 0;
+  pending.isLoading = false;
+  pending.error = null;
+  pending.refetch.mockReset();
   state.open = [];
   state.loading = false;
   state.error = null;
@@ -214,4 +248,131 @@ it("changes the desktop filters without opening a duplicate select", async () =>
   expect(screen.getByRole("button", { name: "Urgent" })).toHaveAttribute("aria-pressed", "true");
   await userEvent.click(screen.getByRole("button", { name: "All" }));
   expect(screen.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
+});
+
+describe("approvals waiting on the reader", () => {
+  beforeEach(() => {
+    pending.steps = [{ id: "s1", title: "Send the refund?", workflow_name: "Refunds" }];
+    pending.tools = [
+      {
+        id: "t1",
+        tool_id: "send_email",
+        agent_name: "Support",
+        tool_args: { subject: "Confirm the delivery date" },
+      },
+      { id: "t2", tool_id: "create_lead", agent_name: null, tool_args: {} },
+    ];
+    pending.count = 2;
+  });
+
+  it("leads the inbox, counted with everything else, and leads to the approvals queue", () => {
+    render(<InboxPage />);
+
+    const section = screen.getByRole("region", { name: "Approval requests" });
+    expect(section).toHaveTextContent("Send the refund?");
+    expect(section).toHaveTextContent("Workflow Refunds");
+    expect(section).toHaveTextContent("Confirm the delivery date");
+    expect(section).toHaveTextContent("Send email");
+    expect(section).not.toHaveTextContent("send_email");
+    expect(section).toHaveTextContent("Create lead");
+    expect(section.closest("[data-list-layout]")).not.toHaveClass("flex-1");
+    expect(section).toHaveTextContent("Agent Support");
+    // A call whose agent the queue could not name still says where it came from.
+    expect(section).toHaveTextContent("An agent");
+    expect(screen.getByRole("link", { name: "Open approvals" })).toHaveAttribute(
+      "href",
+      "/runs?tab=approvals",
+    );
+    expect(screen.getByText("2 waiting")).toBeInTheDocument();
+    // Something waits, so the inbox does not say nothing does.
+    expect(screen.queryByText("Nothing waits here")).toBeNull();
+  });
+
+  it("uses the stable action context and does not preview hidden arguments", () => {
+    pending.tools = [
+      {
+        id: "t1",
+        tool_id: "renamed_write",
+        capability_tool_id: "create_record",
+        context: { table: "Delivery exceptions" },
+        tool_args: { title: "Express shipping" },
+      },
+      {
+        id: "t2",
+        tool_id: "share_memory",
+        tool_args: { text: "Private run content" },
+        content_hidden: true,
+      },
+    ];
+    render(<InboxPage />);
+    const section = screen.getByRole("region", { name: "Approval requests" });
+    expect(section).toHaveTextContent("Delivery exceptions");
+    expect(section).not.toHaveTextContent("Private run content");
+  });
+
+  it("keeps the preview bounded and leaves every request reachable in the queue", () => {
+    pending.steps = Array.from({ length: 7 }, (_, index) => ({
+      id: `s${index}`,
+      title: `Decision ${index}`,
+      workflow_name: "Deliveries",
+    }));
+    pending.tools = [];
+    pending.count = 7;
+    render(<InboxPage />);
+    const section = screen.getByRole("region", { name: "Approval requests" });
+    expect(section.querySelectorAll("li")).toHaveLength(5);
+    expect(screen.queryByText("Decision 5")).toBeNull();
+    expect(screen.getByRole("link", { name: "Open approvals" })).toHaveAttribute(
+      "href",
+      "/runs?tab=approvals",
+    );
+    expect(screen.getByText("7 waiting")).toBeInTheDocument();
+  });
+
+  it("stays among the urgent items and out of routine results", () => {
+    state.filter = "urgent";
+    const { unmount } = render(<InboxPage />);
+    expect(screen.getByRole("region", { name: "Approval requests" })).toBeInTheDocument();
+    unmount();
+
+    state.filter = "watches";
+    render(<InboxPage />);
+    expect(screen.queryByRole("region", { name: "Approval requests" })).toBeNull();
+    expect(screen.getByText("Nothing waits here")).toBeInTheDocument();
+  });
+
+  it("claims no count and no empty inbox while the approvals are still read", () => {
+    pending.isLoading = true;
+    render(<InboxPage />);
+    expect(screen.queryByText("Nothing waits here")).toBeNull();
+    expect(screen.queryByText(/waiting/)).toBeNull();
+    expect(screen.queryByRole("region", { name: "Approval requests" })).toBeNull();
+  });
+
+  it("offers a retry of both reads when the approvals could not be read", async () => {
+    pending.error = new Error("offline");
+    render(<InboxPage />);
+    expect(screen.queryByText("Nothing waits here")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Approval requests" })).toBeNull();
+    expect(screen.getByText("—")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(pending.refetch).toHaveBeenCalledOnce();
+    expect(state.refetch).toHaveBeenCalledOnce();
+  });
+
+  it("shows nothing of the kind to a reader nothing waits on", () => {
+    pending.steps = [];
+    pending.tools = [];
+    pending.count = 0;
+    render(<InboxPage />);
+    expect(screen.queryByRole("region", { name: "Approval requests" })).toBeNull();
+    expect(screen.getByText("Nothing waits here")).toBeInTheDocument();
+  });
+});
+
+it("opens personal delivery preferences from Inbox without a second history view", async () => {
+  render(<InboxPage />);
+  await userEvent.click(screen.getByRole("button", { name: "Inbox preferences" }));
+  expect(screen.getByRole("dialog", { name: "Inbox preferences" })).toBeVisible();
+  expect(screen.getByRole("region", { name: "Personal suggestion preferences" })).toBeVisible();
 });

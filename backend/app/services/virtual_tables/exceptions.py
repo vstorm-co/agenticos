@@ -56,8 +56,8 @@ class InvalidSchemaError(ValidationError):
     message = "The schema change is not valid"
     code = "INVALID_SCHEMA"
 
-    def __init__(self, field: str, message: str) -> None:
-        super().__init__(message=message, details=field_details(field, message))
+    def __init__(self, field: str, message: str, **context: object) -> None:
+        super().__init__(message=message, details=field_details(field, message, **context))
 
 
 class InvalidRowPolicyError(AppException):
@@ -146,6 +146,19 @@ class IdempotencyKeyReuseError(ValidationError):
 
     def __init__(self, *, operation: str) -> None:
         super().__init__(details={"operation": operation})
+
+
+class IdempotencyResultPurgedError(AppException):
+    """A legacy receipt's result was erased; its key still prevents a repeated write (409)."""
+
+    code = "IDEMPOTENCY_RESULT_PURGED"
+    status_code = 409
+
+    def __init__(self, *, operation: str) -> None:
+        super().__init__(
+            message="The previous result was erased during an upgrade. Check the table before starting a new write.",
+            details={"operation": operation},
+        )
 
 
 Quota = Literal["tables", "records", "record_bytes", "storage_bytes"]

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Check, ChevronDown, GitPullRequest, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Check, ArrowRight, BookOpen, GitPullRequest, Users, X } from "lucide-react";
 
 import {
   Badge,
@@ -11,14 +11,39 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  Skeleton,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
 } from "@/components/ui";
 import { EvidenceList, RationaleText } from "@/components/authoring/evidence-list";
-import { GoesLive } from "@/components/authoring/goes-live";
 import { useSkillChanges } from "@/hooks";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/types/permissions";
 import { ROUTES } from "@/lib/constants";
 import type { SkillChangeRecord } from "@/lib/skill-changes-api";
+import { DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
+import {
+  useSkillProposalBaseline,
+  useSkillProposalFile,
+} from "@/hooks/use-skill-proposal-baseline";
+import { FileTree } from "./skill-files";
+import { buildTree } from "@/lib/file-tree";
+import { UsedBy } from "@/components/agents/used-by";
+import { DiffView } from "@/components/authoring/diff-view";
+import { MarkdownContent } from "@/components/chat/markdown-content";
 import { SkillCheckDialog } from "./skill-check-dialog";
 import { BrowserProcedureSummary } from "./browser-procedure-summary";
 import { useTranslations } from "next-intl";
@@ -60,20 +85,20 @@ export function ProposedChanges({ canEdit }: ProposedChangesProps) {
         <div className="space-y-1">
           <CardTitle className="flex items-center gap-2 text-sm">
             <GitPullRequest className="h-4 w-4" aria-hidden />
-            {t("changesAgentProposed")}
+            {t("reviewUpdates.title")}
           </CardTitle>
           <CardDescription className="text-xs">
-            {t("changesWaitingDetail", { count: changes.length })}
+            {t("reviewUpdates.summary", { count: changes.length })}
           </CardDescription>
         </div>
       </CardHeader>
-      <CardContent className="divide-border divide-y p-0">
+      <CardContent className="divide-border @container divide-y p-0">
         {changes.map((change) => (
           <ChangeRow
             key={change.id}
             change={change}
             disabled={isDeciding}
-            onApply={() => void apply(change)}
+            onApply={() => apply(change)}
             onDiscard={() => void discard(change)}
           />
         ))}
@@ -85,7 +110,7 @@ export function ProposedChanges({ canEdit }: ProposedChangesProps) {
 interface ChangeRowProps {
   change: SkillChangeRecord;
   disabled: boolean;
-  onApply: () => void;
+  onApply: () => Promise<void>;
   onDiscard: () => void;
 }
 
@@ -100,12 +125,44 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
   const [open, setOpen] = useState(false);
   const [checking, setChecking] = useState(false);
   const resources = Object.keys(change.resources);
-  // A change to a skill agents already use goes live only through a check on them.
+  const current = useSkillProposalBaseline(open ? change.skill_id : null, change.fork_id);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const oldFile = current.data?.resources.find((file) => file.name === selectedFile);
+  const originalFile = useSkillProposalFile(
+    open ? change.skill_id : null,
+    current.data?.id ?? null,
+    oldFile?.name ?? null,
+  );
+  const fileNames = useMemo(
+    () =>
+      [
+        ...new Set([
+          ...Object.keys(change.resources),
+          ...(current.data?.resources.map((file) => file.name) ?? []),
+        ]),
+      ].sort(),
+    [change.resources, current.data],
+  );
+  const files = useMemo(
+    () => buildTree(fileNames.map((name) => ({ id: name, name, size_bytes: 0 }))),
+    [fileNames],
+  );
+  const after =
+    selectedFile === null
+      ? change.content
+      : (change.resources[selectedFile] ??
+        (change.source === "library" ? "" : (originalFile.data?.content ?? "")));
+  const before =
+    selectedFile === null ? (current.data?.content ?? "") : (originalFile.data?.content ?? "");
+  const comparing = selectedFile === null ? current : originalFile;
   const skillId = change.skill_id;
+  // A taught browser procedure editing a skill agents already use is applied only
+  // through the agent check, never straight from the review.
+  const teachingEdit = change.source === "browser_teaching" && skillId !== null;
 
   return (
-    <div className="space-y-3 px-5 py-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="grid gap-3 px-5 py-4 @3xl:grid-cols-[minmax(0,1fr)_auto] @3xl:items-center">
+      <div className="min-w-0 space-y-2">
         <div className="min-w-0 space-y-1">
           <div className="flex items-center gap-2">
             <span className="font-mono text-sm">{change.name}</span>
@@ -118,14 +175,24 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
               <Badge variant="outline">{t("fromBrowserDemonstration")}</Badge>
             )}
           </div>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
             {change.description || t("noDescriptionWorthAdding")}
           </p>
-          <GoesLive
-            reaches={change.reaches}
-            hidden={change.reaches_hidden}
-            afterCheck={change.skill_id !== null}
-          />
+          <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            <span className="inline-flex items-center gap-1.5">
+              <Users className="size-3.5" aria-hidden />
+              {t("reviewUpdates.agents", { count: change.reaches.length + change.reaches_hidden })}
+            </span>
+            {resources.length > 0 && (
+              <span>{t("reviewUpdates.files", { count: resources.length })}</span>
+            )}
+            {change.source === "library" && (
+              <span className="inline-flex items-center gap-1.5">
+                <BookOpen className="size-3.5" aria-hidden />
+                {t("reviewUpdates.library")}
+              </span>
+            )}
+          </div>
           {change.conversation_id !== null && (
             <a
               className="text-muted-foreground text-xs underline"
@@ -135,95 +202,220 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             </a>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setOpen(!open)}
-            aria-expanded={open}
-            aria-label={t("showWhatChangedIn", { name: change.name })}
-          >
-            <ChevronDown className="h-4 w-4" aria-hidden />
-            {open ? t("hide") : t("review")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={disabled}
-            onClick={onDiscard}
-            aria-label={t("discardChangeTo", { name: change.name })}
-          >
-            <X className="h-4 w-4" aria-hidden />
-            {t("discard")}
-          </Button>
-          {skillId === null ? (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={disabled}
-              onClick={onApply}
-              aria-label={t("applyChangeTo", { name: change.name })}
-            >
-              <Check className="h-4 w-4" aria-hidden />
-              {t("apply")}
-            </Button>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={disabled}
-                onClick={() => setChecking(true)}
-                aria-label={t("checkChangeTo", { name: change.name })}
-              >
-                <Check className="h-4 w-4" aria-hidden />
-                {t("checkOnAgents")}
-              </Button>
-              {checking && (
-                <SkillCheckDialog
-                  skillId={skillId}
-                  change={{ proposalId: change.id }}
-                  forkId={change.fork_id}
-                  onOpenChange={setChecking}
-                />
-              )}
-            </>
-          )}
-        </div>
+      </div>
+      <div className="flex shrink-0 flex-wrap items-center gap-1 @3xl:justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          aria-label={t("showWhatChangedIn", { name: change.name })}
+        >
+          <ArrowRight className="h-4 w-4" aria-hidden />
+          {t("review")}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          onClick={onDiscard}
+          aria-label={t("discardChangeTo", { name: change.name })}
+        >
+          <X className="h-4 w-4" aria-hidden />
+          {t("discard")}
+        </Button>
+        {skillId !== null && checking && (
+          <SkillCheckDialog
+            skillId={skillId}
+            change={{ proposalId: change.id }}
+            forkId={change.fork_id}
+            onOpenChange={setChecking}
+          />
+        )}
       </div>
 
       {open && (
-        <div className="space-y-3">
-          {change.source === "browser_teaching" && change.browser_procedure && (
-            <BrowserProcedureSummary procedure={change.browser_procedure} />
-          )}
-          {change.rationale && (
-            <RationaleText text={change.rationale} evidence={change.evidence ?? []} />
-          )}
-          {change.expected_effect && (
-            <p className="text-sm">
-              <span className="font-medium">{t("expectedEffect")}</span> {change.expected_effect}
-            </p>
-          )}
-          {change.authoring_request_id != null && (
-            <EvidenceList items={change.evidence ?? []} dropped={change.evidence_dropped ?? 0} />
-          )}
-          <pre className="bg-muted max-h-80 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
-            {change.content}
-          </pre>
-          {resources.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium">{t("files2")}</p>
-              <ul className="text-muted-foreground space-y-0.5 text-xs">
-                {resources.map((name) => (
-                  <li key={name} className="font-mono">
-                    {name}
-                  </li>
-                ))}
-              </ul>
+        <Dialog open onOpenChange={setOpen}>
+          <DialogContent className={`${DIALOG_CANVAS} ${DIALOG_FILL}`}>
+            <DialogHeader>
+              <DialogTitle>{change.name}</DialogTitle>
+              <DialogDescription className="line-clamp-2 md:line-clamp-none">
+                {change.description || t("noDescriptionWorthAdding")}
+              </DialogDescription>
+            </DialogHeader>
+            {change.source === "browser_teaching" && change.browser_procedure && (
+              <BrowserProcedureSummary procedure={change.browser_procedure} />
+            )}
+            <div className="bg-muted/30 rounded-lg border px-3 py-2 text-xs">
+              {!(change.reaches.length === 0 && change.reaches_hidden > 0) && (
+                <UsedBy
+                  agents={change.reaches.map((agent) => ({
+                    ...agent,
+                    slug: agent.slug ?? undefined,
+                  }))}
+                  className="text-foreground gap-2"
+                />
+              )}
+              {change.reaches_hidden > 0 && (
+                <p className="text-muted-foreground mt-1">
+                  {t("reviewUpdates.hiddenAgents", { count: change.reaches_hidden })}
+                </p>
+              )}
+              {(change.rationale || change.expected_effect || change.authoring_request_id) && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer">{t("reviewUpdates.impact")}</summary>
+                  {change.rationale && (
+                    <RationaleText text={change.rationale} evidence={change.evidence ?? []} />
+                  )}
+                  {change.expected_effect && <p className="mt-2">{change.expected_effect}</p>}
+                  {change.authoring_request_id != null && (
+                    <EvidenceList
+                      items={change.evidence ?? []}
+                      dropped={change.evidence_dropped ?? 0}
+                    />
+                  )}
+                </details>
+              )}
             </div>
-          )}
-        </div>
+            <div className="flex min-h-0 flex-1 flex-col gap-3 md:grid md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:grid-rows-1">
+              <div className="shrink-0 md:hidden">
+                <Select
+                  value={selectedFile === null ? "instructions" : `file:${selectedFile}`}
+                  onValueChange={(value) =>
+                    setSelectedFile(value === "instructions" ? null : value.slice(5))
+                  }
+                >
+                  <SelectTrigger aria-label={t("fileTree")} className="w-full min-w-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="instructions">{t("reviewUpdates.instructions")}</SelectItem>
+                    {fileNames.map((name) => (
+                      <SelectItem key={name} value={`file:${name}`}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <nav
+                className="hidden overflow-auto rounded-lg border p-2 md:block"
+                aria-label={t("fileTree")}
+              >
+                <Button
+                  className="mb-1 w-full justify-start"
+                  variant={selectedFile === null ? "secondary" : "ghost"}
+                  onClick={() => setSelectedFile(null)}
+                >
+                  <BookOpen className="size-4" aria-hidden />
+                  {t("reviewUpdates.instructions")}
+                </Button>
+                <FileTree nodes={files} openId={selectedFile} onOpen={setSelectedFile} />
+              </nav>
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border">
+                <div className="bg-muted/30 truncate border-b px-3 py-2 text-xs font-medium md:px-4 md:py-3 md:text-sm">
+                  {selectedFile ?? t("reviewUpdates.instructions")}
+                </div>
+                <Tabs defaultValue="changes" className="flex min-h-0 flex-1 flex-col p-3">
+                  <TabsList className="shrink-0">
+                    <TabsTrigger value="changes" aria-label={t("reviewUpdates.compare")}>
+                      <span className="max-sm:hidden">{t("reviewUpdates.compare")}</span>
+                      <span className="sm:hidden">{t("reviewUpdates.compareShort")}</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="preview">{t("reviewUpdates.preview")}</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="changes" className="min-h-0 flex-1 overflow-auto">
+                    {comparing.error ? (
+                      <p role="alert" className="text-destructive text-sm">
+                        {t("reviewUpdates.compareFailed")}
+                      </p>
+                    ) : current.isLoading || comparing.isLoading ? (
+                      <Skeleton className="h-40 w-full" />
+                    ) : (
+                      <>
+                        {selectedFile === null &&
+                          current.data?.description !== change.description && (
+                            <div className="mb-3">
+                              <DiffView
+                                before={current.data?.description ?? ""}
+                                after={change.description}
+                                fill
+                                modes={false}
+                              />
+                            </div>
+                          )}
+                        <DiffView
+                          key={selectedFile ?? "instructions"}
+                          before={before}
+                          after={after}
+                          fill
+                          modes={false}
+                        />
+                      </>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="preview" className="min-h-0 flex-1 overflow-auto px-1">
+                    {originalFile.isLoading &&
+                    selectedFile !== null &&
+                    !(selectedFile in change.resources) ? (
+                      <Skeleton className="h-40 w-full" />
+                    ) : selectedFile === null || /\.mdx?$/i.test(selectedFile) ? (
+                      <MarkdownContent content={after} inertImages highlightVariables />
+                    ) : (
+                      <pre className="font-mono text-xs break-words whitespace-pre-wrap">
+                        {after}
+                      </pre>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </div>
+            <DialogFooter className="border-t pt-4 max-sm:flex-row max-sm:items-center">
+              {skillId !== null && (
+                <Button
+                  variant="outline"
+                  className="max-sm:min-w-0 max-sm:flex-1 max-sm:px-2 max-sm:text-xs"
+                  aria-label={
+                    teachingEdit
+                      ? t("checkChangeTo", { name: change.name })
+                      : t("reviewUpdates.testOptional")
+                  }
+                  disabled={disabled}
+                  onClick={() => {
+                    setOpen(false);
+                    setChecking(true);
+                  }}
+                >
+                  {teachingEdit ? (
+                    t("checkOnAgents")
+                  ) : (
+                    <>
+                      <span className="max-sm:hidden">{t("reviewUpdates.testOptional")}</span>
+                      <span className="sm:hidden">{t("reviewUpdates.testOptionalShort")}</span>
+                    </>
+                  )}
+                </Button>
+              )}
+              {!teachingEdit && (
+                <Button
+                  className="max-sm:min-w-0 max-sm:flex-1 max-sm:px-2 max-sm:text-xs"
+                  disabled={disabled}
+                  onClick={async () => {
+                    try {
+                      await onApply();
+                      setOpen(false);
+                    } catch {
+                      // The mutation reports the refusal; keep the review available.
+                    }
+                  }}
+                >
+                  <Check className="size-4" aria-hidden />
+                  {t("reviewUpdates.apply")}
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

@@ -95,7 +95,6 @@ export function ForgotPasswordForm() {
             required
             disabled={isLoading}
             autoComplete="email"
-            className="h-11 rounded-lg text-base md:text-[15px]"
           />
         </div>
 
@@ -108,7 +107,7 @@ export function ForgotPasswordForm() {
           </p>
         )}
 
-        <Button type="submit" disabled={isLoading} className="h-11 w-full text-[15px]">
+        <Button type="submit" disabled={isLoading} size="lg" className="w-full">
           {isLoading ? (
             t("sending")
           ) : (

@@ -42,6 +42,8 @@ export interface RoutineActionOptions {
   max_actions?: number;
   review_changes?: ("version" | "intent" | "instructions" | "actions")[];
   can_waive: boolean;
+  /** Why `can_waive` is false: the caller's permission, or the organization's setting. */
+  waive_blocked_reason: "permission" | "organization" | null;
   review_token: string;
   items: RoutineActionOption[];
   unavailable_sources?: string[];

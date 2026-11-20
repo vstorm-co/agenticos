@@ -951,6 +951,10 @@ class ArtifactThumbnailRead(BaseSchema):
     version_id: UUID
     state: Literal["ready", "unavailable"]
     image: str | None
+    retryable: bool = Field(
+        default=False,
+        description="A temporary renderer failure may be retried with a bounded delay",
+    )
 
 
 class ArtifactView(BaseSchema):

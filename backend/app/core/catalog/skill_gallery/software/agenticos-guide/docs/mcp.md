@@ -262,9 +262,11 @@ The spec keeps these in the binding's `tool_approval`, keyed by the tool's name 
 the server. A group whose tools differ reads **Per tool**, and choosing for the
 group sets all of its tools again. A tool the server adds later follows its group.
 
-Two places go by the server's hint instead. In a chat app, a tool the server does
-not mark read-only asks first even when set to run freely, and a watch never
-reads a tool its binding asks before, because nobody is there to answer.
+Channel runs follow the binding and per-tool approval settings for every admitted
+sender, whether or not their chat identity is linked. The channel adds no extra
+approval gate. Personal accounts still require the sender's linked identity and
+authorized connection; platform connections keep their minimum `writes` policy.
+A watch never reads a tool its binding asks before, because nobody is there to answer.
 
 ### Whose account a binding speaks through
 
@@ -291,7 +293,7 @@ channel.
 
 !!! info "Where nobody is talking, the tools are absent — and the agent says so"
 
-    An API key, the embedded widget, a schedule, a trigger and a channel sender
+    An API key without [explicit personal MCP delegation](api.md#explicit-personal-mcp-delegation), the embedded widget, a schedule, a trigger and a channel sender
     who has not linked their chat account have no account to speak through. The
     run proceeds without that server, every other binding intact, and one line
     is added to its instructions saying which service is missing and why — so
@@ -570,6 +572,8 @@ refused characters replaced, the end cut and eight hex digits of a hash added, s
 two long names stay two tools. The server is still called by its real name.
 
 !!! warning "An unreachable server is skipped with a warning, not raised"
+
+    Initialization is retried once before any tool executes. This guard covers freshly probed servers, cached connections and the built-in platform MCP. A discovery failure leaves the remaining tools available. A transport failure during a tool request is reported to the model as a failed request with an unknown outcome; writes are never automatically replayed. Local platform initialization has a 15-second deadline for authentication and cold setup, while remote connections retain their 3-second deadline.
 
     Pydantic AI enters every toolset when a run starts, so a dead server would
     otherwise abort the whole turn: one expired token on one connection would take

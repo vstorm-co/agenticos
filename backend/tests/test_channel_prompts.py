@@ -1027,7 +1027,7 @@ async def test_a_completed_channel_continuation_defers_buttons_after_posting_its
 ):
     import app.services.channels.prompts as module
 
-    segment = SimpleNamespace(
+    segment = RunSegment(
         output="Sent.",
         channel_destination=None,
         tool_calls=[],
@@ -1147,7 +1147,7 @@ class TestDelivering:
 
 @pytest.mark.security
 @pytest.mark.parametrize(
-    "case", ["only", "text", "partial", "wrong_message", "legacy", "preview", "file"]
+    "case", ["only", "text", "partial", "wrong_message", "legacy", "preview", "file", "receipt"]
 )
 async def test_a_resumed_reaction_keeps_the_text_reply_instead_of_deleting_progress(
     monkeypatch, case
@@ -1186,7 +1186,11 @@ async def test_a_resumed_reaction_keeps_the_text_reply_instead_of_deleting_progr
         ),
         generated_files=frozenset({"report.pdf"}) if case == "file" else frozenset(),
     )
-    adapter = MagicMock(send_message=AsyncMock())
+    adapter = MagicMock(
+        send_message=AsyncMock(return_value="native-answer" if case == "receipt" else None)
+    )
+    bind = AsyncMock()
+    monkeypatch.setattr(module.conversation_repo, "bind_channel_source", bind)
     monkeypatch.setattr(module, "get_adapter", lambda platform: adapter)
     monkeypatch.setattr(module, "unseal_bot_token", lambda row: "private-token")
     monkeypatch.setattr(module, "drawn_picture", AsyncMock(return_value=None))
@@ -1195,5 +1199,13 @@ async def test_a_resumed_reaction_keeps_the_text_reply_instead_of_deleting_progr
         "with_preview_links",
         AsyncMock(return_value="Preview link" if case == "preview" else ""),
     )
-    await ChannelPrompts(AsyncMock())._send_segment(bot, "slack", "C1:1.0", segment)
+    db = AsyncMock()
+    await ChannelPrompts(db)._send_segment(bot, "slack", "C1:1.0", segment)
+    assert adapter.send_message.await_args.args[1].reply_to_message_id == (
+        None if case == "legacy" else "original"
+    )
     assert adapter.send_message.await_count == 1
+    if case == "receipt":
+        bind.assert_awaited_once_with(db, run_id=RUN, role="assistant", source_id="native-answer")
+    else:
+        bind.assert_not_awaited()

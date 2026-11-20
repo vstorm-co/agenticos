@@ -43,6 +43,7 @@ no spec can redirect it.
 """
 
 import hashlib
+import json
 import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
@@ -67,6 +68,7 @@ from app.db.models.case_generation import CaseGeneration, GenerationStatus
 from app.db.models.context import ContextFile
 from app.db.models.eval_run import EvalRun, EvalRunPurpose, EvalRunStatus
 from app.db.models.eval_suite import EvalSuite, EvalSuiteResult, EvalSuiteResultStatus
+from app.db.models.improvement import CriterionDetail
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.notification import NotificationChannel, NotificationEventType
 from app.db.models.promotion_gate import PromotionOverride
@@ -91,6 +93,7 @@ from app.repositories import watch as watch_repo
 from app.schemas.change_event import ChangeEvent
 from app.schemas.eval_suite import EvalSuiteSummary, ThresholdReason
 from app.schemas.improvement import NextStepBlocked
+from app.schemas.notification import CriterionSources, MovedCriterion
 from app.services.notification_center import NotificationCenterService, absolute_context_url
 from app.services.outcome import OutcomeService, routine_failure_cause
 from app.services.spend import month_start, organization_spend_since
@@ -181,6 +184,56 @@ def _security_event_summary(entry: AppAdminAuditLog) -> str:
         entry.action, f"A privileged action was recorded: {entry.action}"
     )
 
+
+RoutineDetail = Literal[
+    "run_failed",
+    "run_budget",
+    "run_guardrail",
+    "trigger_auto_stopped",
+    "computer_start_failed",
+    "review_sources",
+    "desktop_review",
+    "computer_waiting",
+    "source_changed",
+    "agent_misconfigured",
+    "chat_unavailable",
+    "needs_agent",
+    "access_revoked",
+    "source_unavailable",
+    "not_completed",
+    "budget_paused",
+    "delivery_unavailable",
+    "watch_auto_stopped",
+]
+"""What a routine needing attention is told to do; the console words each in its language."""
+
+_ROUTINE_DETAIL: dict[RoutineDetail, str] = {
+    "run_failed": "The run did not finish successfully. Review Activity before retrying.",
+    "run_budget": "The run stopped on a spending limit. Review its budget and Activity.",
+    "run_guardrail": "A guardrail stopped the run. Review Activity and its policy.",
+    "trigger_auto_stopped": "Paused automatically after {failures} unsuccessful executions. "
+    "Review Activity and resume when ready.",
+    "computer_start_failed": "Three attempts to start on its computer failed before model "
+    "admission. Review the failure before resuming.",
+    "review_sources": "Review this routine's sources in its settings before running it again.",
+    "desktop_review": "Review its device, folder and operations in the desktop app, then "
+    "resume it.",
+    "computer_waiting": "Waiting for its approved computer. Reconnect it or review this "
+    "routine's folder permission in the desktop app.",
+    "source_changed": "A reviewed source is unavailable or changed. Inspect its connection "
+    "and the routine's sources.",
+    "agent_misconfigured": "The agent cannot run with its current configuration. Review its "
+    "published version and routine settings.",
+    "chat_unavailable": "Its answer is in Activity, but its chosen chat is unavailable.",
+    "needs_agent": "Select its agent and approve its sources.",
+    "access_revoked": "Review its account connection and current access.",
+    "source_unavailable": "Its source cannot currently be read.",
+    "not_completed": "Its check did not complete successfully; review Activity.",
+    "budget_paused": "Its check reached a run limit; review Activity and its budget.",
+    "delivery_unavailable": "Its source chat is unavailable. Review its delivery destination.",
+    "watch_auto_stopped": "Paused automatically after {failures} unsuccessful checks. Review "
+    "Activity and resume when ready.",
+}
 
 ReportPeriod = Literal["weekly", "monthly"]
 
@@ -570,6 +623,7 @@ class NotificationService:
             summary=f"{agent.name} finished a run.",
             context_url=run_path,
             render_context={
+                "wording": "run_completed",
                 "agent_name": agent.name,
                 **agent_face(agent),
                 "app_name": settings.PROJECT_NAME,
@@ -619,6 +673,7 @@ class NotificationService:
             summary=f"{name}: {excerpt}" if excerpt else f"{name} finished.",
             context_url=path,
             render_context={
+                "wording": "routine_finished",
                 "agent_name": agent.name,
                 "routine_name": name,
                 **_outcome_links(run),
@@ -679,6 +734,8 @@ class NotificationService:
             ),
             context_url=path,
             render_context={
+                "wording": "routine_budget_paused",
+                **({"routine_name": name} if name else {}),
                 "routine_budget_paused": True,
                 "routine_origin_id": str(routine_id),
                 "routine_kind": routine_kind,
@@ -699,9 +756,10 @@ class NotificationService:
         routine_id: UUID,
         routine_kind: Literal["trigger", "watch"],
         reason: Literal["run", "check", "delivery"],
-        name: str,
-        detail: str,
+        name: str | None,
+        detail: RoutineDetail,
         observed_at: datetime,
+        failures: int = 0,
         run: AgentRun | None = None,
         conversation_id: UUID | None = None,
         budget: bool = False,
@@ -710,7 +768,9 @@ class NotificationService:
     ) -> None:
         """Keep continuing failures quiet while their single case remains actionable.
 
-        `detail` is platform-authored copy, never a provider exception or prompt.
+        `detail` names one of the platform's own sentences, never a provider exception or
+        prompt; an automatic stop counts the `failures` that caused it. A routine with
+        no name is called "Your routine".
         """
         if owner_user_id is None:
             return
@@ -719,7 +779,8 @@ class NotificationService:
         )
         if not recipients:
             return
-        summary = f"{name} needs attention: {detail}"
+        said = _ROUTINE_DETAIL[detail].format(failures=failures)
+        summary = f"{name or 'Your routine'} needs attention: {said}"
         cause = routine_failure_cause(routine_kind, routine_id, reason)
         occurrence = await OutcomeService(self.db).routine_failure_occurrence(
             organization_id=organization_id,
@@ -742,6 +803,10 @@ class NotificationService:
             summary=summary,
             context_url=path,
             render_context={
+                "wording": "routine_blocked",
+                "routine_detail": detail,
+                **({"routine_name": name} if name else {}),
+                **({"failures": failures} if failures else {}),
                 "cause": cause,
                 "routine_origin_id": str(routine_id),
                 "routine_kind": routine_kind,
@@ -776,13 +841,13 @@ class NotificationService:
         observed_at: datetime | None = None,
         external_delivery: bool = True,
     ) -> None:
-        details = {
-            WatchAttemptStatus.NEEDS_AGENT: "Select its agent and approve its sources.",
-            WatchAttemptStatus.ACCESS_REVOKED: "Review its account connection and current access.",
-            WatchAttemptStatus.SOURCE_UNAVAILABLE: "Its source cannot currently be read.",
-            WatchAttemptStatus.NOT_COMPLETED: "Its check did not complete successfully; review Activity.",
-            WatchAttemptStatus.BUDGET_PAUSED: "Its check reached a run limit; review Activity and its budget.",
-            WatchAttemptStatus.DELIVERY_UNAVAILABLE: "Its source chat is unavailable. Review its delivery destination.",
+        details: dict[WatchAttemptStatus, RoutineDetail] = {
+            WatchAttemptStatus.NEEDS_AGENT: "needs_agent",
+            WatchAttemptStatus.ACCESS_REVOKED: "access_revoked",
+            WatchAttemptStatus.SOURCE_UNAVAILABLE: "source_unavailable",
+            WatchAttemptStatus.NOT_COMPLETED: "not_completed",
+            WatchAttemptStatus.BUDGET_PAUSED: "budget_paused",
+            WatchAttemptStatus.DELIVERY_UNAVAILABLE: "delivery_unavailable",
         }
         if watch.ends_at is not None and watch.ends_at <= datetime.now(UTC):
             await OutcomeService(self.db).resolve_routine_attention(
@@ -799,7 +864,7 @@ class NotificationService:
         if (not watch.is_active and stopped is None) or detail is None:
             return
         if stopped is not None:
-            detail = f"Paused automatically after {watch.consecutive_failures} unsuccessful checks. Review Activity and resume when ready."
+            detail = "watch_auto_stopped"
         clock = (
             stopped
             or observed_at
@@ -816,6 +881,7 @@ class NotificationService:
             reason="delivery" if status is WatchAttemptStatus.DELIVERY_UNAVAILABLE else "check",
             name=watch.title,
             detail=detail,
+            failures=watch.consecutive_failures if stopped is not None else 0,
             observed_at=clock,
             budget=status is WatchAttemptStatus.BUDGET_PAUSED,
             external_delivery=external_delivery,
@@ -929,21 +995,22 @@ class NotificationService:
                 recovered_at=run.ended_at or run.started_at,
             )
             return
-        detail = "The run did not finish successfully. Review Activity before retrying."
+        detail: RoutineDetail = "run_failed"
         if run.status == RunStatus.BUDGET_EXCEEDED.value:
-            detail = "The run stopped on a spending limit. Review its budget and Activity."
+            detail = "run_budget"
         elif run.status == RunStatus.GUARDRAIL_BLOCKED.value:
-            detail = "A guardrail stopped the run. Review Activity and its policy."
+            detail = "run_guardrail"
         if trigger.auto_stopped_at is not None:
-            detail = f"Paused automatically after {trigger.consecutive_failures} unsuccessful executions. Review Activity and resume when ready."
+            detail = "trigger_auto_stopped"
         await self.routine_blocked(
             organization_id=run.organization_id,
             owner_user_id=trigger.created_by_user_id,
             routine_id=trigger.id,
             routine_kind="trigger",
             reason="run",
-            name=trigger.name or "Your routine",
+            name=trigger.name,
             detail=detail,
+            failures=trigger.consecutive_failures if trigger.auto_stopped_at is not None else 0,
             observed_at=clock,
             budget=run.status == RunStatus.BUDGET_EXCEEDED.value,
             external_delivery=trigger.created_by_user_id not in budget_recipients,
@@ -983,6 +1050,7 @@ class NotificationService:
             summary=f"{requester_name} asked for {capability_name} in {agent.name}: {reason}",
             context_url=path,
             render_context={
+                "wording": "capability_requested",
                 "agent_name": agent.name,
                 **agent_face(agent),
                 "capability_name": capability_name,
@@ -1022,6 +1090,7 @@ class NotificationService:
             ),
             context_url=path,
             render_context={
+                "wording": "suggestions_ready",
                 "count": count,
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(path),
@@ -1110,6 +1179,7 @@ class NotificationService:
                 else f"Your watches found {count} new things."
             ),
             context_url=self._link("/inbox", organization_id),
+            render_context={"wording": "briefing", "count": count},
             organization_id=organization_id,
             use_savepoint=True,
         )
@@ -1146,6 +1216,8 @@ class NotificationService:
             summary=summary,
             context_url=run_path,
             render_context={
+                "wording": "run_failed",
+                **({"error": error} if error else {}),
                 "agent_name": agent.name,
                 **agent_face(agent),
                 **_outcome_links(run),
@@ -1195,6 +1267,11 @@ class NotificationService:
             ),
             context_url=chat_path,
             render_context={
+                **(
+                    {"wording": "answer_failed", "error": error}
+                    if error
+                    else {"wording": "answered_while_away"}
+                ),
                 "agent_name": agent.name,
                 **agent_face(agent),
                 "app_name": settings.PROJECT_NAME,
@@ -1242,6 +1319,8 @@ class NotificationService:
             summary=f"'{doc.filename}' failed to ingest: {error_message}",
             context_url=doc_path,
             render_context={
+                "wording": "ingestion_failed",
+                "error_message": error_message,
                 "filename": doc.filename,
                 "collection_name": doc.collection_name,
                 "collection_id": str(doc.knowledge_base_id) if doc.knowledge_base_id else "",
@@ -1291,6 +1370,12 @@ class NotificationService:
             ),
             context_url=collection_path,
             render_context={
+                "wording": "sync_completed",
+                "ingested": ingested,
+                "updated": updated,
+                "skipped": skipped,
+                "removed": removed,
+                "failed": failed,
                 "collection_name": collection_name,
                 "collection_id": str(collection_id) if collection_id else "",
                 "app_name": settings.PROJECT_NAME,
@@ -1329,6 +1414,8 @@ class NotificationService:
             summary=f"Sync of {subject} failed: {error}",
             context_url=collection_path,
             render_context={
+                "wording": "sync_failed",
+                "error": error,
                 "collection_name": collection_name,
                 "collection_id": str(collection_id) if collection_id else "",
                 "app_name": settings.PROJECT_NAME,
@@ -1365,6 +1452,7 @@ class NotificationService:
             summary=f"'{title}' has a new version (v{version_number}).",
             context_url=page_path,
             render_context={
+                "wording": "artifact_version_published",
                 "artifact_id": str(artifact_id),
                 "artifact_title": title,
                 "version": version_number,
@@ -1401,6 +1489,7 @@ class NotificationService:
             summary=f"'{name}' was shared with {group_name}.",
             context_url=self._link(path, organization_id),
             render_context={
+                "wording": "resource_shared",
                 "resource_kind": resource_kind,
                 "resource_id": str(resource_id),
                 "resource_name": name,
@@ -1434,6 +1523,8 @@ class NotificationService:
             summary=f"{sharer} shared '{shown}' with you.",
             context_url=self._link(f"/chat?id={conversation_id}", organization_id),
             render_context={
+                "wording": "conversation_shared",
+                **({"conversation_title": title} if title else {}),
                 "resource_kind": "conversation",
                 "resource_id": str(conversation_id),
                 "resource_name": shown,
@@ -1464,7 +1555,7 @@ class NotificationService:
                 "run without its tools until it is back."
             ),
             context_url=self._link("/mcp-servers", organization_id),
-            render_context={"server_name": connection.name},
+            render_context={"wording": "mcp_server_down", "server_name": connection.name},
             organization_id=organization_id,
             use_savepoint=True,
         )
@@ -1483,7 +1574,7 @@ class NotificationService:
             occurrence_id=f"{connection.id}:{since.isoformat()}",
             summary=f"The MCP server {connection.name} is answering again.",
             context_url=self._link("/mcp-servers", organization_id),
-            render_context={"server_name": connection.name},
+            render_context={"wording": "mcp_server_recovered", "server_name": connection.name},
             organization_id=organization_id,
             use_savepoint=True,
         )
@@ -1594,16 +1685,26 @@ class NotificationService:
         reason: str | None,
         end: str,
         next_step_blocked: NextStepBlocked | None = None,
+        verdict: str | None = None,
+        criteria: Sequence[CriterionDetail] = (),
+        criterion_sources: CriterionSources | None = None,
     ) -> None:
         """One end of a session - each end once, however often it is reported.
 
         A session ends more than once: stopped on its budget, continued, then
         ready. `end` names which end this is, so the next one is not taken for a
-        repeat of the last. No evidence text is put in the notification.
+        repeat of the last. No question or answer text is put in the notification.
+        `criteria` must be filtered for the recipient's current access by the caller.
         `next_step_blocked` says why a stop's next step cannot be taken.
+        `verdict` and `criteria` are the kept attempt's once one is offered or
+        decided, the latest attempt's before: the criteria it moved are named
+        when no whole question decided it.
         """
         if user_id is None:
             return
+        moved = moved_criteria(verdict, criteria)
+        if moved and criterion_sources is None:
+            raise ValueError("Criterion notification evidence requires its source provenance")
         recipients = await member_repo.list_member_ids_for(
             self.db, organization_id=agent.organization_id, user_ids=[user_id]
         )
@@ -1612,13 +1713,21 @@ class NotificationService:
             recipients=list(recipients),
             event_type=NotificationEventType.IMPROVEMENT_FINISHED,
             occurrence_id=f"{run_id}:{end}",
-            summary=_improvement_summary(agent.name, status, reason, blocked=next_step_blocked),
+            summary=_improvement_summary(
+                agent.name, status, reason, blocked=next_step_blocked, criteria=moved
+            ),
             context_url=path,
             render_context={
                 "agent_name": agent.name,
                 **agent_face(agent),
                 "status": status,
                 "reason": reason,
+                "criteria": moved,
+                **(
+                    {"criterion_sources": criterion_sources.model_dump(mode="json")}
+                    if moved and criterion_sources is not None
+                    else {}
+                ),
                 "next_step_blocked": None
                 if next_step_blocked is None
                 else next_step_blocked.model_dump(),
@@ -1652,6 +1761,8 @@ class NotificationService:
             summary=f"{suite.name} on {agent.name}: {review.previous_verdict} → {result.status} after review. Promotion requires a person.",
             context_url=path,
             render_context={
+                "wording": "eval_suite_reevaluated",
+                "previous_verdict": review.previous_verdict,
                 "agent_name": agent.name,
                 **agent_face(agent),
                 "suite_name": suite.name,
@@ -1694,6 +1805,7 @@ class NotificationService:
             summary=_suite_summary(suite, result, agent=agent, summary=summary),
             context_url=self._link(path, suite.organization_id),
             render_context={
+                **_suite_wording(result, summary),
                 "agent_name": agent.name,
                 **agent_face(agent),
                 "suite_name": suite.name,
@@ -1739,6 +1851,8 @@ class NotificationService:
             ),
             context_url=self._link(path, override.organization_id),
             render_context={
+                "wording": "promotion_overridden",
+                "suite_names": ", ".join(overridden),
                 "agent_name": agent.name,
                 **agent_face(agent),
                 "environment_name": override.environment_name,
@@ -1792,6 +1906,7 @@ class NotificationService:
             ),
             context_url=self._link(path, agent.organization_id),
             render_context={
+                "wording": "shared_change_applied",
                 "agent_name": agent.name,
                 **agent_face(agent),
                 "kind": kind,
@@ -1905,6 +2020,7 @@ class NotificationService:
             summary=_security_event_summary(entry),
             context_url=link_path,
             render_context={
+                "wording": "security_event",
                 "action": entry.action,
                 "app_name": settings.PROJECT_NAME,
                 "url": absolute_context_url(link_path),
@@ -1946,6 +2062,7 @@ class NotificationService:
             ),
             context_url=link_path,
             render_context={
+                "wording": "background_task_paused",
                 "kind": kind,
                 "organization_name": organization_name,
                 "reason": reason,
@@ -1985,6 +2102,7 @@ class NotificationService:
             summary="The deployment's settings were updated.",
             context_url=link_path,
             render_context={
+                "wording": "configuration_changed",
                 "action": entry.action,
                 "app_name": settings.PROJECT_NAME,
                 "url": absolute_context_url(link_path),
@@ -2046,6 +2164,7 @@ class NotificationService:
         report_period = f"{since.date().isoformat()}..{last_day.isoformat()}"
         dashboard_path = self._link(f"/dashboard?view=org&period={report_period}", organization_id)
         render_context = {
+            "wording": "usage_report",
             "period": "week" if period == "weekly" else "month",
             "org_name": organization_name,
             "total": f"{total:.2f}",
@@ -2127,6 +2246,8 @@ class NotificationService:
         organization_name = organization.name if organization else "your organization"
         dashboard_path = self._link(f"/agents/{agent.id}", agent.organization_id)
         render_context = {
+            "wording": "agent_usage_report",
+            "agent_name": agent.name,
             "period": "week" if period == "weekly" else "month",
             "org_name": organization_name,
             "total": f"{sum((row[2] for row in mine), Decimal(0)):.2f}",
@@ -2175,19 +2296,26 @@ class NotificationService:
             "page_url": absolute_context_url(path),
             # Lets the old owner read this row after the switch took their access.
             "previous_owner_id": str(previous_owner_id) if previous_owner_id else None,
+            "by_name": by_name,
+            "title": title,
         }
-        told: list[tuple[UUID, str]] = [
+        told: list[tuple[UUID, str, dict[str, str]]] = [
             (
                 new_owner_id,
                 f"{by_name} made you the owner of {title}. Its data stays hidden from "
                 "others until you confirm it.",
+                {"wording": "artifact_owner_given"},
             )
         ]
         if previous_owner_id is not None:
             told.append(
-                (previous_owner_id, f"{by_name} made {new_owner_name} the owner of {title}.")
+                (
+                    previous_owner_id,
+                    f"{by_name} made {new_owner_name} the owner of {title}.",
+                    {"wording": "artifact_owner_taken", "new_owner_name": new_owner_name},
+                )
             )
-        for user_id, summary in told:
+        for user_id, summary, wording in told:
             if user_id == by_user_id:
                 continue
             await self._center.write(
@@ -2196,7 +2324,7 @@ class NotificationService:
                 occurrence_id=occurrence,
                 summary=summary,
                 context_url=path,
-                render_context=render_context,
+                render_context={**render_context, **wording},
                 organization_id=artifact.organization_id,
             )
 
@@ -2288,6 +2416,11 @@ class NotificationService:
             ),
             context_url=path,
             render_context={
+                "wording": "workflow_log_alert",
+                "rule_name": rule.name,
+                "count": count,
+                "workflow_name": workflow.name,
+                "window_minutes": minutes,
                 "workflow_id": str(workflow.id),
                 "rule_id": str(rule.id),
                 "app_name": settings.PROJECT_NAME,
@@ -2483,17 +2616,50 @@ def _suite_summary(
     else:
         said = "below its threshold"
     line = f"{suite.name} {'failed' if failed else 'could not decide'} on {on}: {said}."
-    cases = [
-        case.input
-        for case in (summary.failing_cases if summary else [])
-        if failed or case.kind in ("ungraded", "incomplete")
-    ]
+    cases = _listed_cases(result, summary)
     if cases:
         named = ", ".join(f"'{text}'" for text in cases[:_SHOWN_CASES])
         more = len(cases) - _SHOWN_CASES
         label = "Failing" if failed else "Undecided"
         line += f" {label}: {named}" + (f" and {more} more." if more > 0 else ".")
     return line
+
+
+def _listed_cases(result: EvalSuiteResult, summary: EvalSuiteSummary | None) -> list[str]:
+    """The cases a failed suite's line names - an undecided one names only those it could not grade."""
+    failed = result.status == EvalSuiteResultStatus.FAILED.value
+    return [
+        case.input
+        for case in (summary.failing_cases if summary else [])
+        if failed or case.kind in ("ungraded", "incomplete")
+    ]
+
+
+def _suite_wording(
+    result: EvalSuiteResult, summary: EvalSuiteSummary | None
+) -> dict[str, str | int]:
+    """The values a failed or undecided suite's line is worded from in the reader's language.
+
+    Only a line built from threshold reasons: a pass with a note, a suite that did not
+    run and a failure explained by a message carry English of their own, and keep it.
+    """
+    if result.status not in (
+        EvalSuiteResultStatus.FAILED.value,
+        EvalSuiteResultStatus.INCONCLUSIVE.value,
+    ):
+        return {}
+    reasons = summary.reasons if summary else []
+    if not reasons and summary and summary.message:
+        return {}
+    cases = _listed_cases(result, summary)
+    shown = ", ".join(f"'{text}'" for text in cases[:_SHOWN_CASES])
+    return {
+        "wording": "eval_suite_failed",
+        "reasons": json.dumps([reason.model_dump(mode="json") for reason in reasons]),
+        **({"version": result.version_number} if result.version_number else {}),
+        **({"cases": shown} if cases else {}),
+        **({"more_cases": len(cases) - _SHOWN_CASES} if len(cases) > _SHOWN_CASES else {}),
+    }
 
 
 def _reason_text(reason: ThresholdReason) -> str:
@@ -2556,9 +2722,66 @@ _STOP_SENTENCE = {
     "knowledge_only": "topics are missing from the knowledge base - draft the ones you want.",
     "draft": "drafting the knowledge documents failed.",
     "expired": "nobody took the next step for seven days.",
+    "criteria_worse": "a criterion the answers are graded on got worse, though no question broke.",
 }
 # An attempt that did not do better ends where a person decides whether to try again.
-_RESULT_REASONS = frozenset({"no_change", "regression", "inconclusive"})
+_RESULT_REASONS = frozenset({"no_change", "regression", "inconclusive", "criteria_worse"})
+_CRITERIA_VERDICTS = frozenset({"criteria_better", "criteria_worse"})
+NOTIFIED_CRITERIA = 3
+"""Criteria a notification names; the result page shows every one."""
+
+
+def moved_criteria(
+    verdict: str | None, criteria: Sequence[CriterionDetail]
+) -> list[MovedCriterion]:
+    """The criteria an attempt judged on criteria moved, worse first, with their counts.
+
+    Empty for any other verdict: a question that flipped says more than a criterion.
+    """
+    if verdict not in _CRITERIA_VERDICTS:
+        return []
+    moved: list[MovedCriterion] = [
+        {
+            "scorer": item["scorer"],
+            "name": item["name"],
+            "graded": item["graded"],
+            "before": item["before"],
+            "after": item["after"],
+            "direction": "worse" if item["broken"] else "better",
+        }
+        for item in criteria
+        if item["broken"] or (item["fixed"] and item["after"] >= item["before"])
+    ]
+    moved.sort(key=lambda item: item["direction"] != "worse")
+    for item in moved:
+        if sum(other["name"] == item["name"] for other in criteria) > 1:
+            item["display_name"] = f"{item['name']} [{item['scorer']}]"
+    return moved[:NOTIFIED_CRITERIA]
+
+
+def _criteria_sentence(criteria: Sequence[MovedCriterion]) -> str:
+    better = [item for item in criteria if item["direction"] == "better"]
+    worse = [item for item in criteria if item["direction"] == "worse"]
+
+    def label(item: MovedCriterion) -> str:
+        if (display_name := item.get("display_name")) is not None:
+            return display_name
+        scorer = item.get("scorer")
+        duplicate = sum(other["name"] == item["name"] for other in criteria) > 1
+        return f"{item['name']} [{scorer}]" if scorer and duplicate else item["name"]
+
+    def listed(items: Sequence[MovedCriterion]) -> str:
+        return ", ".join(
+            f"{label(item)} {item['before']}/{item['graded']} → {item['after']}/{item['graded']}"
+            for item in items
+        )
+
+    parts = []
+    if better:
+        parts.append(f"better on {listed(better)}")
+    if worse:
+        parts.append(f"worse on {listed(worse)}")
+    return f" The selected attempt is {' and '.join(parts)}; no whole question flipped."
 
 
 _CHECK_SUMMARY = {
@@ -2583,9 +2806,21 @@ _WAITING_SUMMARY = {
 
 
 def _improvement_summary(
-    agent_name: str, status: str, reason: str | None, *, blocked: NextStepBlocked | None = None
+    agent_name: str,
+    status: str,
+    reason: str | None,
+    *,
+    blocked: NextStepBlocked | None = None,
+    criteria: Sequence[MovedCriterion] = (),
 ) -> str:
     """The bell's English line for a finished session; it names no internal status."""
+    line = _improvement_line(agent_name, status, reason, blocked=blocked)
+    return line + _criteria_sentence(criteria) if criteria else line
+
+
+def _improvement_line(
+    agent_name: str, status: str, reason: str | None, *, blocked: NextStepBlocked | None
+) -> str:
     if blocked is not None:
         return (
             f"Your improvement of {agent_name} has changes, but too few test questions are "

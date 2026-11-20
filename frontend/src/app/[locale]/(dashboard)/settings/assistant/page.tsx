@@ -1,12 +1,7 @@
-"use client";
+import { redirect } from "next/navigation";
+import { ROUTES } from "@/lib/constants";
 
-import { AssistantSettings } from "@/components/assistant/assistant-settings";
-
-/**
- * The AI Architect (#2063). Under `/settings/` because half of it is yours - the
- * tips it shows you - and the other half, its name and model, is shown only to
- * somebody who may change the organization's settings.
- */
+/** Preserve old personal-preferences links after consolidating settings. */
 export default function AssistantSettingsPage() {
-  return <AssistantSettings />;
+  redirect(ROUTES.SETTINGS_ACCOUNT);
 }

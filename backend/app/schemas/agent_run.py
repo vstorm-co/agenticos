@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import AliasPath, Field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.conversation import MessageRead
@@ -75,6 +75,11 @@ class AgentRunRead(BaseSchema):
     """One execution, as run history lists it."""
 
     id: UUID
+    routine_activation_id: UUID | None = Field(
+        default=None,
+        validation_alias=AliasPath("routine_policy", "activation_id"),
+        description="Specific trigger fire that created this run; null for legacy and non-trigger runs.",
+    )
     agent_id: UUID
     agent_version_id: UUID | None = None
     user_id: UUID | None = None

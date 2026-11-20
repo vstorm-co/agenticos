@@ -61,28 +61,22 @@ describe("SidebarShell", () => {
     const switcher = screen.getByRole("button", { name: "the organization switcher" });
     for (const following of [
       screen.getByRole("link", { name: "New chat" }),
-      screen.getByRole("button", { name: "the search row" }),
       screen.getByRole("navigation"),
     ]) {
       expect(follows(switcher, following)).toBe(true);
     }
   });
 
-  it("keeps labelled search above the destinations", () => {
+  it("leaves search to the sidebar header", () => {
     renderShell();
-    expect(
-      follows(
-        screen.getByRole("button", { name: "the search row" }),
-        screen.getByRole("navigation"),
-      ),
-    ).toBe(true);
+    expect(screen.queryByRole("button", { name: "the search row" })).toBeNull();
   });
 
   it("puts the account last", () => {
     renderShell();
 
     const account = screen.getByRole("button", { name: "the account menu" });
-    for (const before of ["the search row", "the bell"]) {
+    for (const before of ["the bell"]) {
       expect(follows(screen.getByRole("button", { name: before }), account)).toBe(true);
     }
   });
@@ -95,7 +89,6 @@ describe("SidebarShell", () => {
     const scroller = screen.getByRole("navigation").parentElement;
     expect(scroller).toHaveClass("overflow-y-auto");
     expect(scroller).not.toContainElement(screen.getByRole("button", { name: "the account menu" }));
-    expect(scroller).not.toContainElement(screen.getByRole("button", { name: "the search row" }));
     expect(scroller).not.toContainElement(
       screen.getByRole("button", { name: "the organization switcher" }),
     );
@@ -107,17 +100,17 @@ describe("SidebarShell", () => {
     renderShell();
 
     const nav = screen.getByRole("navigation");
-    for (const outside of ["the search row", "the bell"]) {
+    for (const outside of ["the bell"]) {
       expect(nav).not.toContainElement(screen.getByRole("button", { name: outside }));
     }
   });
 
-  it("carries search and the bell at both widths", () => {
+  it("keeps the bell at both widths", () => {
     // They are the footer's only two controls now - the language and the theme
     // are named rows in the account menu, where somebody looks for a setting.
     for (const collapsed of [false, true]) {
       const view = renderShell({ collapsed });
-      expect(screen.getByRole("button", { name: "the search row" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "the search row" })).toBeNull();
       expect(screen.getByRole("button", { name: "the bell" })).toBeInTheDocument();
       expect(
         screen.queryByRole("button", { name: "the language switcher" }),

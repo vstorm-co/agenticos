@@ -10,6 +10,11 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  personalModelKeys: {
+    all: (scope: string) => ["personal-model-keys", scope] as const,
+    agent: (scope: string, agentId: string | null) =>
+      ["personal-model-keys", scope, agentId] as const,
+  },
   browserProcedureTeaching: {
     all: (actor: string | undefined, organization: string | null) =>
       ["browser-procedure-teaching", actor, organization] as const,
@@ -318,6 +323,8 @@ export const qk = {
     // The decisions workflow steps wait on. Under "workflows" so a decision's
     // invalidation of every run refreshes the queue with them.
     approvals: () => ["workflows", "approvals"] as const,
+    // The requests the reader may decide, under the queue's key so a decision refreshes it.
+    approvalsWaitingOnMe: () => ["workflows", "approvals", "waiting-on-me"] as const,
     // The record of what was decided over a window: its own question, so its own key.
     approvalHistory: (from: string, to: string) =>
       ["workflows", "approvals", "history", from, to] as const,
@@ -326,6 +333,7 @@ export const qk = {
     webhookTest: (id: string, token: string) => ["workflows", id, "webhook-test", token] as const,
   },
   channelBots: {
+    diagnostics: (botId: string) => ["channel-bots", "diagnostics", botId] as const,
     list: () => ["channel-bots"] as const,
     // Under the list's prefix, so every bot mutation refreshes the one a dialog
     // has open too - its "inherit" hint reads the bot's agent.
@@ -368,6 +376,10 @@ export const qk = {
     targets: (agentId: string) => ["exposures", agentId, "targets"] as const,
   },
   triggers: {
+    filteredEvent: (agentId: string, triggerId: string) =>
+      ["triggers", agentId, "filtered-event", triggerId] as const,
+    activation: (agentId: string, triggerId: string, activationId: string, jobId: string | null) =>
+      ["triggers", agentId, "activation", triggerId, activationId, jobId] as const,
     attempts: (agentId: string, triggerId: string, page: number) =>
       ["triggers", agentId, "attempts", triggerId, page] as const,
     sources: (agentId: string, triggerId: string) =>
@@ -515,6 +527,8 @@ export const qk = {
     // Keyed on the page, because the queue is server-paged: one key for every
     // page would show page one's rows under page three's pager (#1336).
     approvals: (skip = 0) => ["runs", "approvals", skip] as const,
+    // The calls the console may decide, without those a live voice call is deciding.
+    approvalsWaitingOnMe: () => ["runs", "approvals", "waiting-on-me"] as const,
     // The decided record over a window - a different question from the queue,
     // so a different key: the queue must refresh on a decision, the record on
     // a window change.
@@ -639,6 +653,7 @@ export const qk = {
   },
   // The drawings agents made for the caller (#2171).
   visuals: {
+    preview: (id: string) => ["visuals", "preview", id] as const,
     all: () => ["visuals"] as const,
     recent: (limit: number) => ["visuals", "recent", limit] as const,
   },

@@ -8,10 +8,9 @@ import {
   useDeploymentSettings,
   type DeploymentSettingsPatch,
 } from "@/hooks/use-deployment-settings";
-import { ErrorState } from "@/components/states";
 import type { Organization } from "@/types";
 import { StartSkeleton } from "./start-skeleton";
-import { StartQuestion } from "./start-question";
+import { StartQuestion, StartStepFailed, StartStepPending } from "./start-question";
 import {
   DeploymentAccess,
   DeploymentDestination,
@@ -25,10 +24,13 @@ const QUESTIONS = ["access", "destination", "announcement", "extras"] as const;
 export function StartDeployment({
   org,
   onContinue,
+  onBack,
   active = true,
 }: {
   org: Organization;
   onContinue: () => void;
+  /** Back to the wizard's previous step, from this step's first question. */
+  onBack?: () => void;
   active?: boolean;
 }) {
   const t = useTranslations("start.guided");
@@ -46,14 +48,13 @@ export function StartDeployment({
   }, [active, question, org.id]);
   const [edits, setEdits] = useState<DeploymentSettingsPatch>({});
   const [failed, setFailed] = useState(false);
-  if (isLoading) return <StartSkeleton view="deployment" question={question} fullPage={false} />;
-  if (error || !settings)
+  if (isLoading)
     return (
-      <ErrorState
-        title={t("loadFailed")}
-        cta={{ label: t("retry"), onClick: () => void refetch() }}
-      />
+      <StartStepPending onBack={onBack}>
+        <StartSkeleton view="deployment" question={question} fullPage={false} />
+      </StartStepPending>
     );
+  if (error || !settings) return <StartStepFailed onRetry={() => void refetch()} onBack={onBack} />;
   const changes: DeploymentSettingsPatch = {
     ...(question === "announcement" && !settings.announcement
       ? { announcement: t("announcementPlaceholder") }
@@ -101,7 +102,7 @@ export function StartDeployment({
               const previous = QUESTIONS[index - 1];
               if (previous) setQuestion(previous);
             }
-          : undefined
+          : onBack
       }
       onContinue={() => void submit()}
       onSkip={index < QUESTIONS.length - 1 ? next : undefined}

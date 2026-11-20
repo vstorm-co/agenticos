@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { WorkflowGraphView } from "./workflow-graph-view";
 
 import "@xyflow/react/dist/style.css";
+import styles from "./workflow-canvas.module.css";
 
 interface WorkflowCanvasProps {
   /** The workflow being edited; its `draft_graph` is seeded into the store by the page. */
@@ -36,7 +37,11 @@ export function WorkflowCanvas({ workflow, catalog, readOnly = false }: Workflow
     <div
       ref={ref}
       data-workflow-id={workflow.id}
-      className={cn("relative h-full", expanded && "bg-background fixed inset-0 z-40 h-auto")}
+      className={cn(
+        styles.canvas,
+        "relative h-full",
+        expanded && "bg-background fixed inset-0 z-40 h-auto",
+      )}
     >
       <div
         data-tour="workflow-canvas-fullscreen"

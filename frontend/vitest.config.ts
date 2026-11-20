@@ -59,6 +59,7 @@ export default defineConfig({
         "src/components/agents/**/*.{ts,tsx}",
         "src/components/authoring/**/*.tsx",
         "src/components/improvement/**/*.tsx",
+        "src/components/settings/service-card.tsx",
         "src/components/skill-improvement/**/*.tsx",
         "src/components/triggers/source-consents-panel.tsx",
         "src/components/triggers/action-selection.tsx",
@@ -167,6 +168,8 @@ export default defineConfig({
         "src/components/layout/offline-banner.tsx",
         "src/components/layout/app-update-banner.tsx",
         "src/components/layout/notification-glyph.tsx",
+        // Dates in the reader's own zone rather than the server's.
+        "src/components/layout/browser-time-zone.tsx",
         "src/components/chat/project-chip.tsx",
         "src/components/chat/chat-model-header.tsx",
         "src/components/chat/chat-model-menu.tsx",
@@ -219,6 +222,7 @@ export default defineConfig({
         "src/components/teams/org-proactivity.tsx",
         "src/components/inbox/inbox-page.tsx",
         "src/components/inbox/suggestion-rows.tsx",
+        "src/components/inbox/approvals-waiting.tsx",
         "src/components/chat/turn-extras.tsx",
         "src/components/chat/turn-files.tsx",
         "src/components/chat/turn-shortcuts.tsx",
@@ -373,6 +377,7 @@ export default defineConfig({
         // The organization's Voice card (#1797). The rest of `teams/` predates
         // the gate; this file is new, so it starts inside.
         "src/components/teams/org-voice-settings.tsx",
+        "src/components/teams/org-text-to-speech-settings.tsx",
         // Its voice-call section (#54), new and so inside the gate too.
         "src/components/teams/org-voice-conversations.tsx",
         // The link that lands on the AI assistance switch, new and so inside the gate.

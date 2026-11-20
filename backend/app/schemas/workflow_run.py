@@ -118,6 +118,7 @@ class WorkflowRunFilters(BaseSchema):
 
     statuses: tuple[WorkflowRunStatus, ...] = ()
     mode: WorkflowRunMode | None = None
+    step_test: bool | None = None
     triggered_by: WorkflowRunTrigger | None = None
     created_after: datetime | None = None
     created_before: datetime | None = None
@@ -128,6 +129,16 @@ class WorkflowResumed(BaseSchema):
 
     run_id: UUID
     resumed: int = Field(description="How many Wait steps waiting for a call it woke")
+
+
+class WorkflowTestedStep(BaseSchema):
+    """The one step a step test ran, as the run's own snapshot names it."""
+
+    node_id: UUID
+    label: str | None = Field(default=None, description="The step's name, if it was given one")
+    definition_id: str | None = Field(
+        default=None, description="The step's node type, for naming an unnamed step"
+    )
 
 
 class WorkflowRunRead(BaseSchema, TimestampSchema):
@@ -155,6 +166,10 @@ class WorkflowRunRead(BaseSchema, TimestampSchema):
         description="The run this one retries; its succeeded steps were not run again.",
     )
     depth: int
+    tested_step: WorkflowTestedStep | None = Field(
+        default=None,
+        description="The step a step test ran; null for a whole-draft test and a real run",
+    )
     can_cancel: bool = Field(
         default=False,
         description="Whether the caller may cancel this run and resolve its steps: its "

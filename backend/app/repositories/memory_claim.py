@@ -397,7 +397,7 @@ async def delete_for_scope(db: AsyncSession, *, organization_id: UUID, scope_key
         )
     )
     await db.flush()
-    return (result.rowcount or 0) + copies  # ty: ignore[unresolved-attribute]
+    return (result.rowcount or 0) + copies  # ty: ignore[missing-attribute]
 
 
 async def delete_everywhere_about(db: AsyncSession, *, scope_key: str) -> int:
@@ -414,7 +414,7 @@ async def delete_everywhere_about(db: AsyncSession, *, scope_key: str) -> int:
     )
     removed = await _delete_descendants(db, [str(identifier) for identifier in own])
     own_removed = await db.execute(sa_delete(MemoryClaim).where(MemoryClaim.scope_key == scope_key))
-    removed += own_removed.rowcount or 0  # ty: ignore[unresolved-attribute]
+    removed += own_removed.rowcount or 0  # ty: ignore[missing-attribute]
     await db.execute(sa_delete(MemoryScopeState).where(MemoryScopeState.scope_key == scope_key))
     await db.flush()
     return removed
@@ -448,7 +448,7 @@ async def delete_for_agent(db: AsyncSession, *, organization_id: UUID, agent_id:
         )
     )
     await db.flush()
-    return (result.rowcount or 0) + copies  # ty: ignore[unresolved-attribute]
+    return (result.rowcount or 0) + copies  # ty: ignore[missing-attribute]
 
 
 async def ancestry_scope_keys(

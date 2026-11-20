@@ -23,6 +23,16 @@ _ID = UUID
 MonthlyBudgetUsd = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=6)]
 
 
+class OrganizationTextToSpeech(BaseSchema):
+    """The organization-wide voice and key inherited only by agents opting in."""
+
+    enabled: bool = True
+    provider: str = Field(min_length=1, max_length=32)
+    model: str = Field(min_length=1, max_length=255)
+    voice: str | None = Field(default=None, max_length=255)
+    secret_id: UUID
+
+
 class OrganizationCreate(BaseSchema):
     name: str = Field(min_length=2, max_length=128)
     slug: str | None = Field(default=None, min_length=2, max_length=64)
@@ -171,6 +181,7 @@ class OrganizationUpdate(BaseSchema):
             "Needs 'org:settings' (Owner or Admin), signed in as themselves."
         ),
     )
+    text_to_speech: OrganizationTextToSpeech | None = None
     speech_to_text_provider: str | None = Field(
         default=None,
         max_length=32,
@@ -247,6 +258,7 @@ class OrganizationRead(BaseSchema, TimestampSchema):
             "embeds, where the page's owner has confirmed it"
         ),
     )
+    text_to_speech: OrganizationTextToSpeech | None = None
     speech_to_text_provider: str | None = None
     speech_to_text_model: str | None = None
     speech_to_text_secret_id: UUID | None = Field(
@@ -266,6 +278,8 @@ class OrganizationList(BaseSchema):
 
 
 class OrganizationMemberRead(BaseSchema):
+    last_action_at: datetime | None = None
+    """Latest non-impersonated audited action in this organization; not a visit timestamp."""
     id: _ID
     organization_id: _ID
     user_id: _ID

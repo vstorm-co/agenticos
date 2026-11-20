@@ -1,5 +1,5 @@
 ---
-source_sha: "058b139501b2"
+source_sha: "facf3e422251"
 ---
 
 # Skills { #skills }
@@ -217,11 +217,13 @@ der Liste auf der Seite Skills für jeden, der diesen Skill bearbeiten darf. Ein
 Vorschlag für einen neuen Skill erscheint für jeden, der `skills:edit` hält.
 Niemand sonst kann ihn auflisten oder öffnen:
 
-- **Check on agents** führt die Änderung auf jedem Agent der Linie aus, für die
-  sie geschrieben wurde, und angewendet wird sie - als nächste Version dieser
-  Linie, die deren Agents beim nächsten Run lesen - aus dem Ergebnis dieser
-  Prüfung. Siehe
-  [Eine Änderung auf jedem Agent prüfen](#checking-a-change-on-every-agent).
+- **Review** öffnet die vorgeschlagenen Anweisungen, den Vergleich mit dem aktuellen
+  Skill und die Referenzdateien. **Aktualisierung anwenden** speichert sofort eine
+  neue Version. Agents dieser Linie verwenden sie beim nächsten Run. Tests sind
+  optional; fehlende Testfragen blockieren die Übernahme nicht.
+- **Vor dem Anwenden testen (optional)** prüft die Änderung an den Agents der Linie.
+  Das Ergebnis zeigt Regressionen und nicht geprüfte Agents vor der Entscheidung.
+  Siehe [Eine Änderung auf jedem Agent prüfen](#checking-a-change-on-every-agent).
 - **Discard** behält den Eintrag. Ein Agent, der wiederholt dieselbe Änderung
   vorschlägt, sagt jemandem etwas über den Skill, und eine gelöschte Zeile macht
   das unsichtbar.
@@ -306,12 +308,12 @@ festgesetzt sind, und die Agents anderer Forks werden nicht ausgeführt - die
 ihre Fragen zweimal, mit dem Skill, wie er ist, und mit der Änderung, und sonst
 unterscheidet sich nichts.
 
-Eine Änderung, die der Workspace eines Agents geschrieben hat, eine, die der
-Assistent vorgeschlagen hat, und ein
-[Bibliotheks-Update](#getting-skills-into-an-organization) eines Skills, dem
-Agents folgen, gehen nur über diese Prüfung live. Wer den Skill von Hand
-bearbeitet, speichert sofort eine neue Version, und diese Bearbeitung wird nicht
-geprüft.
+Workspace-Vorschläge, Vorschläge des Assistenten und
+[Bibliotheks-Updates](#getting-skills-into-an-organization) können ohne diese
+optionale Prüfung angewendet werden. Bearbeitungsrechte, Vorschlagsrevision und
+zugrunde liegende Skill-Version werden weiterhin geprüft. Wenn Sie testen,
+gelten für die Übernahme über das Testergebnis dessen Regeln, einschließlich
+Bestätigungen und Versionsbindungen.
 
 ### Was sie fragt { #what-a-check-asks }
 
@@ -367,6 +369,13 @@ andere Fragen hinzuzufügen sind.
 - Mindestens ein Agent muss **besser** werden.
 - Ein Unterschied, den die Prüfung nicht bestätigen konnte, liegt **im
   Rauschen**: eine Warnung, keine Sperre.
+- Ein Agent, bei dem keine ganze Frage gekippt ist, aber erneutes Fragen ein
+  Kriterium als besser und keines als schlechter bestätigt hat, ist **besser bei
+  Kriterien**; einer mit einem als schlechter bestätigten Kriterium ist
+  **schlechter bei Kriterien**. Keines davon ändert die Regel oben, die ganze
+  Fragen betrifft: Im Balken zählen sie zu den besseren und den schlechteren
+  Agents, und die Details des Agents nennen jedes Kriterium mit seinen Treffern
+  vorher und nachher.
 - Ein Agent, der nicht geprüft werden konnte - keine Fragen, Fragen, die nichts
   bewerten kann oder die alle aus den Unterhaltungen der Änderung selbst stammen,
   kein Zugriff, kein Budget mehr, keine veröffentlichte Version, ein
@@ -945,7 +954,8 @@ gezählt.
 
 Das Ergebnis beginnt mit einem Balken, der die Agents zählt, die besser,
 unverändert, schlechter oder unbekannt herauskamen. Darunter steht eine Zeile pro
-Agent: besser, unverändert, im Rauschen, schlechter oder unbekannt, die wichtigsten
+Agent: besser, besser bei Kriterien, unverändert, im Rauschen, schlechter bei
+Kriterien, schlechter oder unbekannt, die wichtigsten
 zuerst. Jede Zeile hat einen kleinen Balken der behobenen gegen die
 verschlechterten Fragen.
 

@@ -306,3 +306,28 @@ async def test_a_fail_open_original_cannot_become_an_edit_candidate() -> None:
         await dedupe.claim_delivery(_message(platform="mattermost", raw={"event": "post_edited"}))
         is False
     )
+
+
+async def test_durable_edit_eligibility_does_not_spend_a_redis_claim(fake_redis):
+    incoming = _message(platform="mattermost")
+    edited = _message(platform="mattermost", raw={"event": "post_edited"})
+    assert not await dedupe.edited_delivery_is_eligible(edited)
+    assert await dedupe.claim_delivery(incoming)
+    await dedupe.remember_unaddressed(incoming)
+    assert await dedupe.edited_delivery_is_eligible(edited)
+    assert await dedupe.edited_delivery_is_eligible(edited)
+    assert not any(key.endswith(":edit") for key in fake_redis.store)
+    fake_redis.store.clear()
+    assert not await dedupe.edited_delivery_is_eligible(edited)
+
+
+@pytest.mark.parametrize("case", ["unconfigured", "unavailable", "missing_id", "not_edit"])
+async def test_durable_edit_eligibility_fails_closed(monkeypatch, case):
+    incoming = _message(platform="mattermost", raw={"event": "post_edited"})
+    if case != "unconfigured":
+        monkeypatch.setattr(dedupe, "_redis", _BrokenRedis())
+    if case == "missing_id":
+        incoming.message_id = None
+    if case == "not_edit":
+        incoming.raw.clear()
+    assert not await dedupe.edited_delivery_is_eligible(incoming)

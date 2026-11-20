@@ -2367,7 +2367,13 @@ async def test_watch_health_notices_reflect_current_observation_and_expiry(
         assert len(written.calls) == 1
         assert written.calls[0]["recipients"] == [owner]
         if change == "auto_stopped":
-            assert "Paused automatically" in written.calls[0]["summary"]
+            assert "Paused automatically after 3 unsuccessful checks" in written.calls[0]["summary"]
+            context = written.calls[0]["render_context"]
+            assert (context["wording"], context["routine_detail"], context["failures"]) == (
+                "routine_blocked",
+                "watch_auto_stopped",
+                3,
+            )
     else:
         assert written.calls == []
     assert closed.await_count == (1 if change == "expired" else 0)
@@ -2543,7 +2549,7 @@ async def test_a_routine_without_a_recipient_does_not_invent_one(written):
         routine_kind="trigger",
         reason="run",
         name="Routine",
-        detail="Unavailable",
+        detail="run_failed",
         observed_at=datetime.now(UTC),
     )
     assert written.calls == []

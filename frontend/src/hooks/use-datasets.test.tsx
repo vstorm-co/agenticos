@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -13,6 +13,7 @@ import {
   useDatasetVersions,
   useDatasetSource,
 } from "./use-datasets";
+import { ApiError } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { saveBlob } from "@/lib/file-access";
@@ -344,4 +345,25 @@ it("checks whether a source answer is private before copying it", async () => {
     expect(result.current.data).toEqual({ private_to_other: true, owner_name: "Ada" }),
   );
   expect(apiClient.get).toHaveBeenCalledWith("/datasets/messages/message-1/source");
+});
+
+it("reports a failed case refetch without losing cached data, and can retry it", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ ...CONTENT, input: "Stored question" });
+  const { result } = renderHook(() => useDatasetCase("d1", "c1"), { wrapper });
+  await waitFor(() => expect(result.current.kase?.input).toBe("Stored question"));
+  const fetchedAt = result.current.fetchedAt;
+  const missing = new ApiError(404, "Case no longer exists");
+  vi.mocked(apiClient.get).mockRejectedValue(missing);
+  await act(async () => {
+    await result.current.refetch();
+  });
+  await waitFor(() => expect(result.current.error).toBe(missing));
+  expect(result.current.fetchedAt).toBe(fetchedAt);
+  expect(result.current.kase?.input).toBe("Stored question");
+  vi.mocked(apiClient.get).mockResolvedValue({ ...CONTENT, input: "Restored question" });
+  await act(async () => {
+    await result.current.refetch();
+  });
+  await waitFor(() => expect(result.current.error).toBeNull());
+  await waitFor(() => expect(result.current.kase?.input).toBe("Restored question"));
 });

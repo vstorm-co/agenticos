@@ -1,4 +1,4 @@
-<!-- source_sha: 8dc02e0ed861 -->
+<!-- source_sha: 5717f0be4e64 -->
 
 <div align="center">
 
@@ -35,6 +35,10 @@
   <a href="https://github.com/vstorm-co/agenticos/releases"><img src="https://img.shields.io/github/v/release/vstorm-co/agenticos?label=release&color=blue" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue" alt="Apache-2.0"></a>
   <a href="https://ai.pydantic.dev"><img src="https://img.shields.io/badge/Powered%20by-Pydantic%20AI-E92063?logo=pydantic&logoColor=white" alt="Gebaut mit Pydantic AI"></a>
+</p>
+
+<p>
+  <a href="https://trendshift.io/repositories/220030?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-220030" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/220030" alt="vstorm-co/agenticos | Trendshift" width="250" height="55"></a>
 </p>
 
 <p>
@@ -423,7 +427,7 @@ Nutze bestehende Unternehmenskonten über **OIDC Single Sign-on** (Entra ID, Okt
 
 ## 🧭 Finde deinen Weg
 
-Du baust darauf auf? Weiter zu [Für Entwickler und Betreiber](#-für-entwickler-und-betreiber).
+Du baust darauf auf? Weiter zu [Für Entwickler und Betreiber](#für-entwickler-und-betreiber).
 
 <details>
 <summary><b>Du entscheidest über die Einführung</b>: welches Problem es löst, was es braucht, wie man anfängt</summary>
@@ -542,7 +546,7 @@ Berechtigungen der Quellsysteme werden nicht automatisch gespiegelt; ein Agent k
 
 Es gibt zwei übliche Varianten. **Selbst gehostet, mit gehosteten Modellen:** AgenticOS, Dokumente, Vektoren und Logs laufen auf deinen Servern, die Modelle kommen von einem Anbieter unter deinem eigenen Vertrag und mit deinen Schlüsseln. **Vollständig lokal:** dieselbe Schicht mit offenen Modellen über Ollama oder vLLM auf deiner Hardware, dazu lokale Parser und Werkzeuge. Eine selbst gehostete Konsole macht nicht jedes Modell, jeden Parser und jedes Werkzeug lokal, also prüfe jedes Ziel, das du konfigurierst. [Modelle konfigurieren](https://vstorm-co.github.io/agenticos/de/models/) · [Sicherheit und Datenflüsse](https://vstorm-co.github.io/agenticos/de/security/)
 
-## 🛠️ Für Entwickler und Betreiber
+## Für Entwickler und Betreiber
 
 AgenticOS ist gebaut mit FastAPI, Pydantic AI, PostgreSQL mit pgvector, Redis und Next.js. Entwickler ergänzen Capabilities, Sync-Konnektoren und Einträge im MCP-Katalog in typisiertem Python; Teams stellen in der Konsole Agenten aus den registrierten Capabilities zusammen.
 
@@ -627,3 +631,13 @@ Mit Sorgfalt gebaut von [**Vstorm**](https://vstorm.co) · [Vstorm on GitHub](ht
 Alle, die AgenticOS mit aufgebaut haben:
 
 <a href="https://github.com/vstorm-co/agenticos/graphs/contributors"><img src="https://contrib.rocks/image?repo=vstorm-co/agenticos" alt="Avatare aller, die zu AgenticOS beigetragen haben"></a>
+
+## Sternverlauf
+
+<a href="https://www.star-history.com/?repos=vstorm-co%2Fagenticos&type=date&legend=bottom-right">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&theme=dark&legend=bottom-right" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&legend=bottom-right" />
+   <img alt="Diagramm des Sternverlaufs" src="https://api.star-history.com/chart?repos=vstorm-co/agenticos&type=date&legend=bottom-right" />
+ </picture>
+</a>

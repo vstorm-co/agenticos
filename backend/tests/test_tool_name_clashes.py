@@ -19,7 +19,13 @@ from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities import FRAMEWORK_TOOL_NAMES
 from app.agents.computer_on_use import RequestComputerOnUse
-from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
+from app.agents.connect_on_use import (
+    ConnectionRequest,
+    ConnectOnUse,
+    PendingService,
+    ServiceAccessStatus,
+    UnavailableServices,
+)
 from app.agents.factory import build_agent
 from app.agents.hand_off import CallWorker
 from app.agents.mcp import TOOL_NAME_LIMIT, LeftOutOnClash, McpServerSpec, _make_toolset
@@ -163,6 +169,16 @@ class TestThePlatformsOwnToolsAreAllListed:
                     request_connection=AsyncMock(return_value=False),
                 ),
                 RequestComputerOnUse(request_access=AsyncMock(return_value=False)),
+                UnavailableServices(
+                    [
+                        ServiceAccessStatus(
+                            service="notion",
+                            name="Notion",
+                            reason="not_connected",
+                            required_steps=("Connect your Notion account.",),
+                        )
+                    ]
+                ),
             ],
         )
         # Tool search defers the server, so its own search is the one tool offered beside it.

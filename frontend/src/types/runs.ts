@@ -51,6 +51,8 @@ export interface RunOrigin {
 }
 
 export interface AgentRun {
+  /** Exact routine fire; absent on legacy runs. */
+  routine_activation_id?: string | null;
   id: string;
   agent_id: string;
   /**

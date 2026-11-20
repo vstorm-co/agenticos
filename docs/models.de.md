@@ -1,5 +1,5 @@
 ---
-source_sha: "19836cc80c7f"
+source_sha: "543b61f10ddd"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -25,6 +25,28 @@ model profile → credential → unsealed secret → provider client → Model
 ```
 
 Nichts davon, welches Modell ein Agent verwendet, steht in `.env`.
+
+## Persönliche Modellschlüssel { #personal-model-keys }
+
+Behalte im Builder unter **Modellzugriff** die Voreinstellung **Organisationsschlüssel verwenden** oder wähle **Jeder Nutzer verbindet seinen eigenen Schlüssel**. Im persönlichen Modus bleiben Modell und Endpunkt des Administrators fest. Unterstützt werden Chat-Anbieter mit API-Schlüssel, ohne Ersatzmodelle oder Modellwechsel pro Gespräch.
+
+Ein angemeldetes Mitglied verbindet seinen Schlüssel über das private Formular über dem Nachrichteneingabefeld oder in den Chat-Einstellungen. Schlüssel gelangen nie in Nachrichten, Prompts oder Agentenanweisungen. Dieselbe Verbindung gilt für Agenten dieser Organisation mit gleichem Anbieter und Endpunkt. Ohne Schlüssel wird der Lauf vor der Modellanfrage blockiert; Authentifizierungsfehler wechseln nie zum Organisationsschlüssel. Ersetze den Schlüssel in den Chat-Einstellungen oder entferne die Verbindung unter **Vault → Deine Modellverbindung**. Das Speichern prüft den Schlüssel nicht beim Anbieter.
+
+Das private Schlüsselformular übermittelt das erwartete Profil, den Anbieter, Endpunkt und das angezeigte Modell. Ändert sich das Ziel vor dem Speichern, lehnt der Server den Schlüssel mit einem Konflikt ab; das Formular lädt das Ziel neu und löscht den eingegebenen Schlüssel vor einem erneuten Versuch.
+
+Der persönliche Modus unterstützt derzeit keine privaten oder Gruppenkanäle, Widgets, öffentlichen Seiten, HTTP-API-Läufe, Zeitpläne, Trigger, Hintergrundthemen, Sprache, Reviewer oder separate Modelle für Fähigkeiten. Pausiere oder entferne aktive Kanäle, öffentliche Freigaben und Routinen vor der Veröffentlichung. Das Erstellen oder erneute Aktivieren einer unvereinbaren Freigabe wird abgelehnt; dieselbe Regel gilt zur Laufzeit. Öffentliche Seiten und Widget-JWTs identifizieren kein angemeldetes Mitglied der Instanz.
+
+Delegation funktioniert im angemeldeten Webchat. Ein persönlicher Subagent muss dasselbe Modellprofil wie der persönliche Hauptagent verwenden. Ein Hauptagent mit Organisationsschlüssel darf keine persönlichen Schlüssel über Delegation nutzen; persönliche Subagenten dürfen kein anderes Modell oder Ziel wählen. Veröffentlichung, Freigabe für Oberflächen, Promotion und Laufzeit prüfen diese Regeln auch für verschachtelte Delegationen und nach einer Fortsetzung.
+
+Subagenten im Organisationsmodus behalten ihre eigenen Zugangsdaten. Inline-Spezialisten übernehmen den Modus ihres Elternagenten; dynamische Spezialisten im persönlichen Modus bleiben bei dessen Modell. Die Regeln für persönlichen MCP-Zugriff bleiben unverändert.
+
+Bei einer fehlenden Subagent-Verbindung nennt die Meldung den Agenten und die Modellverbindung. Öffne dessen Chat-Einstellungen, um deinen Schlüssel zu verbinden; bitte den Eigentümer um Zugriff, falls der Agent nicht sichtbar ist. Der Runner prüft den Delegationsbaum vor Modellanfragen und erneut beim Fortsetzen. Schlüssel für andere Endpunkte, andere Mitglieder oder die freigebende Person ersetzen keine fehlende Verbindung des Aufrufers.
+
+Schlüssel werden im Tresor für ihren Eigentümer verschlüsselt und beim Entfernen der Mitgliedschaft oder des Kontos gelöscht. Ein geänderter Endpunkt benötigt eine neue Verbindung. Die Rotation eines persönlichen Schlüssels ändert weder andere Schlüssel noch das gemeinsame Modellprofil.
+
+Die Identitätsübernahme eines anderen Mitglieds gewährt keinen Zugriff auf dessen persönliche Modellverbindungen: Anfragen zum Lesen, Ändern oder Verwenden des Schlüssels werden vor dem Vault-Zugriff abgelehnt.
+
+Der private Gesprächsverlauf ist an die genehmigten Modellziele einschließlich Fallbacks gebunden; der [Chatverlauf](console.md#chat) beschreibt Verbindungswechsel und die Fortsetzung wartender Läufe.
 
 ## Ein Model Profile { #a-model-profile }
 
@@ -871,3 +893,7 @@ Workflow-Schritte **Entscheidungsmodelle** (Decision models) wählen ein natives
 Die Kanaloption **Automatisch an Gesprächen teilnehmen** (Join conversations automatically) kann ein natives Entscheidungsprofil oder ein gewöhnliches LLM mit strukturierter Ausgabe verwenden. Native Ja/Nein-Entscheidungen liefern die Wahrscheinlichkeit des Mitredens; ein begrenztes Zahlenfeld erhält diesen Wert. Ein LLM liefert eine Nützlichkeitsbewertung von 0 bis 100, keine kalibrierte Wahrscheinlichkeit. Beide Werte werden mit dem Regler **Agent starten ab (%)** (Run the agent from (%)) verglichen; der Grenzwert selbst zählt mit. Der Klassifikator hat keine Tools. Die Teilnahme muss ausdrücklich aktiviert werden und richtet sich nach den konfigurierten Intervallen; der Hauptagent darf organisatorische MCP-Konten nutzen, niemals private Zugangsdaten eines Teilnehmers.
 
 Anbieterquellen: [Pydantic AI](https://pydantic.dev/docs/ai/models/decision/), [OpenAI](https://developers.openai.com/api/docs/guides/decisions), [Google](https://ai.google.dev/gemini-api/docs/decisions-api), [TypeSafe](https://docs.typesafe.ai/models), [OpenRouter](https://github.com/OpenRouterTeam/skills/tree/main/skills/openrouter-decisions).
+
+ElevenLabs Realtime bietet `eleven_realtime_v1_mini` und `eleven_realtime_v1_max` über das PCM-Relay mit 24 kHz, der Standardstimme `brian` und semantischer Sprecherkennung.
+
+Das SDK meldet keine Tokenkosten. Anrufe mit einem Ausgabenbudget werden vor dem Verbindungsaufbau abgelehnt. Ohne Ausgabenbudget gilt weiterhin das Zeitlimit; Audiokosten werden als Untergrenze statt als vollständige Rechnung erfasst. Der Audiotarif beträgt 0,08 USD/Minute beziehungsweise 0,16 USD bei Burst; Tokenkosten kommen hinzu. Der Kontextwert von 16k ist ein konservatives Plattformlimit für den Verlauf, kein veröffentlichtes Kontextfenster des Anbieters. Die Integration wurde offline mit SDK-Modellkonstruktion und kontrollierten Transporten geprüft, nicht mit einem echten Konto. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).

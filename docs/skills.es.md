@@ -1,5 +1,5 @@
 ---
-source_sha: "058b139501b2"
+source_sha: "facf3e422251"
 ---
 
 # Skills { #skills }
@@ -210,10 +210,13 @@ lista en la página Skills para cualquiera que pueda editar esa skill. Una propu
 de una skill nueva aparece para cualquiera que tenga `skills:edit`. Nadie más puede
 verla en la lista ni abrirla:
 
-- **Check on agents** ejecuta el cambio en cada agent de la línea para la que se
-  escribió, y aplicarlo - la siguiente versión de esa línea, que esos agents leen
-  en su siguiente run - se hace desde el resultado de esa comprobación. Ver
-  [Comprobar un cambio en cada agent](#checking-a-change-on-every-agent).
+- **Review** abre las instrucciones propuestas, la comparación con el skill actual
+  y los archivos de referencia. **Apply update** guarda una versión nueva de inmediato.
+  Los agents de esa línea la usan en su siguiente run. Las pruebas son opcionales;
+  la falta de preguntas de prueba no bloquea la actualización.
+- **Test before applying (optional)** prueba el cambio en los agents de esa línea.
+  El resultado muestra regresiones y agents no comprobados antes de la decisión.
+  Ver [Comprobar un cambio en cada agent](#checking-a-change-on-every-agent).
 - **Discard** conserva el registro. Un agent que propone la misma edición una y
   otra vez le está diciendo algo a alguien sobre ese skill, y una fila borrada
   lo vuelve invisible.
@@ -290,11 +293,12 @@ forks no se ejecutan - el cambio no les llega. La versión publicada de cada age
 responde sus preguntas dos veces, con el skill tal como está y con el cambio, y
 nada más cambia.
 
-Un cambio que escribió el workspace de un agent, uno que propuso el asistente y
-una [actualización de la biblioteca](#getting-skills-into-an-organization) de un
-skill que siguen agents solo pasan a producción a través de esta comprobación.
-Quien edita el skill a mano guarda una versión nueva al momento, y esa edición no
-se comprueba.
+Las propuestas del workspace, las del asistente y las
+[actualizaciones de la biblioteca](#getting-skills-into-an-organization) se pueden
+revisar y aplicar sin esta prueba opcional. Se siguen verificando los permisos de
+edición, la revisión de la propuesta y la versión del skill de partida. Si eliges
+probar el cambio, aplicarlo desde el resultado respeta sus reglas, incluidas las
+confirmaciones y las versiones fijadas.
 
 ### Qué pregunta { #what-a-check-asks }
 
@@ -349,6 +353,12 @@ el paso se rechaza antes de empezar, con el dataset al que añadir otras pregunt
 - Al menos un agent tiene que quedar **mejor**.
 - Una diferencia que la comprobación no pudo confirmar está **dentro del
   ruido**: un aviso, no un bloqueo.
+- Un agent para el que no cambió ninguna pregunta entera, pero con un criterio
+  que volver a preguntar confirmó mejor y ninguno peor, está **mejor en
+  criterios**; uno con un criterio confirmado peor está **peor en criterios**.
+  Ninguno cambia la regla de arriba, que trata de preguntas enteras: en la barra
+  cuentan con los agents mejores y peores, y los detalles del agent enumeran cada
+  criterio con sus aciertos antes y después.
 - Un agent que no se pudo comprobar - sin preguntas, con preguntas que nada
   califica o tomadas todas de las conversaciones del propio cambio, sin acceso,
   sin budget, sin versión publicada, con un run fallido, con la comprobación
@@ -889,8 +899,8 @@ que no pudo calificar todas las respuestas. Los agents que no puedes ver se
 cuentan.
 
 El resultado empieza con una barra que cuenta los agents que salieron mejor, sin
-cambios, peor o desconocidos. Debajo hay una fila por agent: mejor, sin cambios,
-dentro del ruido, peor o desconocido, con los que hay que mirar primero arriba. Cada
+cambios, peor o desconocidos. Debajo hay una fila por agent: mejor, mejor en criterios,
+sin cambios, dentro del ruido, peor en criterios, peor o desconocido, con los que hay que mirar primero arriba. Cada
 fila tiene una pequeña barra de las preguntas que arregló frente a las que estropeó.
 
 Una fila entera se abre a sus detalles con un clic en cualquier parte o con Intro

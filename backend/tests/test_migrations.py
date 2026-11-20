@@ -34,13 +34,14 @@ import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from queue import Queue
 from uuid import uuid4
 
 import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, delete, select, text, update
+from sqlalchemy import create_engine, delete, insert, select, text, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -656,6 +657,127 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
                 db.execute(statement)
                 with pytest.raises(IntegrityError, match=constraint):
                     db.commit()
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+    finally:
+        engine.dispose()
+
+
+def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None:
+    """Deleting an account succeeds in either trigger order once its runs were written."""
+    from app.db.models.agent import Agent
+    from app.db.models.agent_run import AgentRun
+    from app.db.models.conversation import Conversation
+
+    constraint = "agent_runs_conversation_id_fkey"
+    for action, revision in (
+        ("upgrade", "head"),
+        ("downgrade", "0331_routine_overlap_attempt"),
+    ):
+        result = _alembic(action, revision)
+        assert result.returncode == 0, result.stderr
+
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with DatabaseSession(engine, expire_on_commit=False) as db:
+            creator = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add_all([creator, owner])
+            db.flush()
+            org_id = uuid4()
+            db.execute(
+                text(
+                    "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) "
+                    "VALUES (:id, 'Erasure', :slug, false, :creator)"
+                ),
+                {"id": org_id, "slug": f"erasure-{org_id}", "creator": creator.id},
+            )
+            agent = Agent(organization_id=org_id, name="Helper", slug=f"helper-{uuid4()}")
+            chat = Conversation(organization_id=org_id, user_id=owner.id, title="Private")
+            db.add_all([agent, chat])
+            db.flush()
+            # A Core insert names only these columns: the model is at head and the
+            # schema here is not.
+            run_id = uuid4()
+            db.execute(
+                insert(AgentRun).values(
+                    id=run_id,
+                    organization_id=org_id,
+                    agent_id=agent.id,
+                    started_at=datetime.now(UTC),
+                    user_id=owner.id,
+                    conversation_id=chat.id,
+                    routine_policy={"approved_sources": []},
+                )
+            )
+            db.commit()
+            owner_id = owner.id
+
+        # Re-creating a constraint gives its RI triggers a newer OID, so its action
+        # fires after the other one. Each statement forces one of the two orders.
+        reorders = (
+            "ALTER TABLE conversations DROP CONSTRAINT conversations_user_id_fkey, "
+            "ADD CONSTRAINT conversations_user_id_fkey FOREIGN KEY (user_id) "
+            "REFERENCES users(id) ON DELETE CASCADE",
+            "ALTER TABLE agent_runs DROP CONSTRAINT agent_runs_user_id_fkey, "
+            "ADD CONSTRAINT agent_runs_user_id_fkey FOREIGN KEY (user_id) "
+            "REFERENCES users(id) ON DELETE SET NULL",
+        )
+
+        def erase(db: DatabaseSession, reorder: str) -> None:
+            db.execute(text(reorder))
+            # The erasure clears policy on the person's runs before deleting the
+            # account, so PostgreSQL rechecks the run's foreign keys on SET NULL.
+            db.execute(update(AgentRun).where(AgentRun.id == run_id).values(routine_policy=None))
+            db.execute(delete(User).where(User.id == owner_id))
+
+        failures = 0
+        for reorder in reorders:
+            with DatabaseSession(engine) as db:
+                try:
+                    erase(db, reorder)
+                except IntegrityError as exc:
+                    assert constraint in str(exc)
+                    failures += 1
+        assert failures == 1, "the old schema must fail in exactly one trigger order"
+
+        for action, revision, deferred in (
+            ("upgrade", "head", True),
+            ("downgrade", "0331_routine_overlap_attempt", False),
+            ("upgrade", "head", True),
+        ):
+            result = _alembic(action, revision)
+            assert result.returncode == 0, result.stderr
+            with engine.connect() as connection:
+                row = connection.execute(
+                    text(
+                        "SELECT condeferrable, condeferred, confdeltype FROM pg_constraint "
+                        "WHERE conname = :name"
+                    ),
+                    {"name": constraint},
+                ).one()
+                assert (row.condeferrable, row.condeferred, row.confdeltype) == (
+                    deferred,
+                    deferred,
+                    "n",
+                )
+
+        for reorder in reorders:
+            with DatabaseSession(engine) as db:
+                erase(db, reorder)
+                db.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+                survivor = db.get(AgentRun, run_id)
+                assert survivor is not None
+                assert survivor.user_id is None
+                assert survivor.conversation_id is None
+                # Roll back so the next order starts from the same rows.
+
+        with DatabaseSession(engine) as db:
+            db.execute(
+                update(AgentRun).where(AgentRun.id == run_id).values(conversation_id=uuid4())
+            )
+            with pytest.raises(IntegrityError, match=constraint):
+                db.commit()
         check = _alembic("check")
         assert check.returncode == 0, check.stderr
     finally:
@@ -1865,6 +1987,93 @@ class TestProactivityMainMerge:
             engine.dispose()
 
 
+class TestSyncSourceKnowledgeBase:
+    """`0334_sync_source_knowledge_base.py`: what the operator is told, both ways.
+
+    The upgrade and the downgrade each stop sources they cannot place, and the log
+    is the only record of which and why (#2551). Each reason has its own remedy,
+    and a tie between two bases has no remedy by name.
+    """
+
+    def test_each_stopped_source_is_logged_with_its_reason(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        before = _alembic("upgrade", "0333_channel_thread_context")
+        assert before.returncode == 0, before.stderr
+        org, tie_a, tie_b, single = uuid4(), uuid4(), uuid4(), uuid4()
+        tied, nowhere, kept = uuid4(), uuid4(), uuid4()
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.begin() as connection:
+                # The backfill updates these rows, so their organization must exist;
+                # replica mode spares it a creator.
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO organizations (id, name, slug, is_personal, "
+                        "created_by_user_id) VALUES (:id, 'Acme', 'acme', false, :id)"
+                    ),
+                    {"id": org},
+                )
+                for kb_id, name in ((tie_a, "tied"), (tie_b, "tied"), (single, "single")):
+                    connection.execute(
+                        text(
+                            "INSERT INTO knowledge_bases (id, name, scope, visibility, "
+                            "collection_name, embedding_model, embedding_dim, is_default, "
+                            "organization_id, created_at) VALUES (:id, :name, 'org', 'org', "
+                            ":name, 'm', 1536, false, :org, '2026-01-01T00:00:00Z')"
+                        ),
+                        {"id": kb_id, "name": name, "org": org},
+                    )
+                for source_id, name in ((tied, "tied"), (nowhere, "nowhere"), (kept, "single")):
+                    connection.execute(
+                        text(
+                            "INSERT INTO sync_sources (id, organization_id, name, "
+                            "connector_type, collection_name, sync_mode, is_active) "
+                            "VALUES (:id, :org, 'Drive', 'gdrive', :name, 'full', true)"
+                        ),
+                        {"id": source_id, "org": org, "name": name},
+                    )
+
+            upgraded = _alembic("upgrade", "0334_sync_source_knowledge_base")
+            assert upgraded.returncode == 0, upgraded.stderr
+            assert str(tied) not in upgraded.stderr
+            with engine.connect() as connection:
+                assert connection.execute(
+                    text("SELECT knowledge_base_id, is_active FROM sync_sources WHERE id = :id"),
+                    {"id": tied},
+                ).one() == (min(tie_a, tie_b), True)
+            assert (
+                f"Sync source {nowhere} (organization {org}) names collection 'nowhere', "
+                "which no knowledge base of its organization or of the deployment holds; "
+                "it was deactivated. Point it at a knowledge base"
+            ) in upgraded.stderr
+            assert str(kept) not in upgraded.stderr
+
+            with engine.begin() as connection:
+                # Its base went without the teardown: the foreign key's SET NULL.
+                connection.execute(
+                    text("UPDATE sync_sources SET knowledge_base_id = NULL WHERE id = :id"),
+                    {"id": kept},
+                )
+            downgraded = _alembic("downgrade", "0333_channel_thread_context")
+            assert downgraded.returncode == 0, downgraded.stderr
+            assert (
+                f"Sync source {kept} (organization {org}) records no knowledge base; "
+                "without this revision it would sync collection 'single' by name"
+            ) in downgraded.stderr
+            assert "stops only new syncs" in downgraded.stderr
+            with engine.connect() as connection:
+                assert not connection.execute(
+                    text("SELECT is_active FROM sync_sources WHERE id = :id"), {"id": kept}
+                ).scalar_one()
+
+            restored = _alembic("upgrade", "head")
+            assert restored.returncode == 0, restored.stderr
+        finally:
+            engine.dispose()
+
+
 class TestConnectedAccountMigration:
     def test_upgrade_and_downgrade_preserve_mcp_rows(self) -> None:
         before = _alembic("upgrade", "head")
@@ -1987,7 +2196,7 @@ def test_published_thread_chain_preserves_saved_profiles_and_matches_models(prev
         assert upgraded.returncode == 0, upgraded.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0345_credential_continuations"
+                "0346_merge_t3_v1850"
             ]
             row = connection.execute(
                 text(
@@ -2067,7 +2276,7 @@ class TestRoomThreadMigration:
         continuation = script.get_revision("0345_credential_continuations")
         assert continuation is not None
         assert continuation.down_revision == "0344_browser_procedure_teaching"
-        assert script.get_heads() == ["0345_credential_continuations"]
+        assert script.get_heads() == ["0346_merge_t3_v1850"]
 
     def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
         reset = _alembic("downgrade", "base")
@@ -2095,7 +2304,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0345_credential_continuations"]
+                ).all() == ["0346_merge_t3_v1850"]
                 rows = connection.execute(
                     text(
                         "SELECT id,reply_to_message_id,thread_root_message_id FROM messages "
@@ -2165,7 +2374,7 @@ class TestRoomThreadMigration:
             with engine.begin() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0345_credential_continuations"]
+                ).all() == ["0346_merge_t3_v1850"]
                 assert (
                     connection.scalar(
                         text("SELECT thread_root_message_id FROM messages WHERE id=:id"),
@@ -2177,10 +2386,11 @@ class TestRoomThreadMigration:
             down = _alembic("downgrade", "0332_merge_t3_pools_v1761")
             assert down.returncode == 0, down.stderr
             with engine.connect() as connection:
-                # Removing empty thread storage preserves its published upstream/pool parent.
-                assert connection.scalars(
-                    text("SELECT version_num FROM alembic_version")
-                ).all() == ["0332_merge_t3_pools_v1761"]
+                # Removing empty thread storage preserves its published upstream/pool parent;
+                # the v1.85.0 branch joined by `0346_merge_t3_v1850` keeps its own head.
+                assert sorted(
+                    connection.scalars(text("SELECT version_num FROM alembic_version")).all()
+                ) == ["0332_merge_t3_pools_v1761", "0342_criterion_verdicts"]
                 assert (
                     connection.scalar(
                         text("SELECT reply_to_message_id FROM messages WHERE id=:id"),
@@ -2193,7 +2403,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0345_credential_continuations"]
+                ).all() == ["0346_merge_t3_v1850"]
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
         finally:
@@ -2396,7 +2606,7 @@ class TestRoomThreadMigration:
         assert resumed.returncode == 0, resumed.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0345_credential_continuations"
+                "0346_merge_t3_v1850"
             ]
             assert connection.execute(
                 text("SELECT content, thread_root_message_id FROM messages WHERE id = :id"),
@@ -2885,5 +3095,414 @@ def test_opensandbox_upgrade_and_guarded_downgrade_preserve_connection_settings(
         assert restored.returncode == 0, restored.stderr
         drift = _alembic("check")
         assert drift.returncode == 0, drift.stderr
+    finally:
+        engine.dispose()
+
+
+def test_routine_overlap_history_round_trip_preserves_runs_and_other_attempts() -> None:
+    from app.db.models.agent import Agent
+    from app.db.models.agent_run import AgentRun
+    from app.db.models.agent_trigger import AgentTrigger, TriggerAttempt
+    from app.db.models.organization import Organization
+
+    upgraded = _alembic("upgrade", "head")
+    assert upgraded.returncode == 0, upgraded.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    owner_id, org_id = uuid4(), uuid4()
+    try:
+        with DatabaseSession(engine) as db:
+            owner = User(id=owner_id, email=f"{owner_id}@example.com", hashed_password="x")
+            db.add(owner)
+            db.flush()
+            org = Organization(
+                id=org_id, name="Overlap", slug=f"overlap-{org_id}", created_by_user_id=owner_id
+            )
+            db.add(org)
+            db.flush()
+            agent = Agent(organization_id=org_id, name="Worker", slug=f"worker-{uuid4()}")
+            db.add(agent)
+            db.flush()
+            trigger = AgentTrigger(
+                organization_id=org_id,
+                agent_id=agent.id,
+                created_by_user_id=owner_id,
+                prompt="Report",
+                interval_seconds=300,
+                next_fire_at=datetime.now(UTC),
+            )
+            db.add(trigger)
+            db.flush()
+            run = AgentRun(
+                organization_id=org_id,
+                agent_id=agent.id,
+                user_id=owner_id,
+                trigger_id=trigger.id,
+                surface="schedule",
+                status="awaiting_approval",
+                cost_usd=Decimal("0.42"),
+            )
+            db.add(run)
+            db.add_all(
+                [
+                    TriggerAttempt(
+                        organization_id=org_id,
+                        trigger_id=trigger.id,
+                        activation_id=uuid4(),
+                        status="blocked",
+                        stage="preparation",
+                        reason=reason,
+                    )
+                    for reason in ("previous_run_active", "agent_unavailable")
+                ]
+            )
+            db.commit()
+            trigger_id, run_id = trigger.id, run.id
+        downgraded = _alembic("downgrade", "0330_linear_trigger")
+        assert downgraded.returncode == 0, downgraded.stderr
+        with engine.connect() as connection:
+            assert connection.execute(
+                text("SELECT reason FROM trigger_attempts WHERE trigger_id=:id"), {"id": trigger_id}
+            ).scalars().all() == ["agent_unavailable"]
+            status, cost = connection.execute(
+                text("SELECT status, cost_usd FROM agent_runs WHERE id=:id"), {"id": run_id}
+            ).one()
+            assert status == "awaiting_approval" and cost == Decimal("0.42")
+        restored = _alembic("upgrade", "head")
+        assert restored.returncode == 0, restored.stderr
+        drift = _alembic("check")
+        assert drift.returncode == 0, drift.stderr
+    finally:
+        with engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM agent_runs WHERE organization_id=:id"), {"id": org_id}
+            )
+            connection.execute(text("DELETE FROM organizations WHERE id=:id"), {"id": org_id})
+            connection.execute(text("DELETE FROM users WHERE id=:id"), {"id": owner_id})
+        engine.dispose()
+
+
+def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
+    """0332_routine_activation_lookup.py adds only a reversible lookup index."""
+    from sqlalchemy import inspect
+
+    from app.db.models.agent import Agent
+    from app.db.models.agent_run import AgentRun
+    from app.db.models.organization import Organization
+
+    result = _alembic("downgrade", "base")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("upgrade", "0331_routine_overlap_attempt")
+    assert result.returncode == 0, result.stderr
+    # The rows below are written through today's models, which also map the T3
+    # branch's columns: bring that branch up without the lookup index.
+    result = _alembic("upgrade", "0345_credential_continuations")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    run_id = uuid4()
+    try:
+        with DatabaseSession(engine) as db:
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add(owner)
+            db.flush()
+            org = Organization(
+                name="Legacy activation", slug=f"activation-{uuid4()}", created_by_user_id=owner.id
+            )
+            db.add(org)
+            db.flush()
+            agent = Agent(
+                name="Legacy", slug=f"legacy-{uuid4()}", organization_id=org.id, draft_spec={}
+            )
+            db.add(agent)
+            db.flush()
+            db.execute(
+                text(
+                    "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
+                    "input_tokens, output_tokens, cost_usd, cost_is_partial, routine_policy) "
+                    "VALUES (:id, :org, :agent, 'schedule', 'completed', 0, 0, 0, false, "
+                    "'{\"acts_as_creator\": true}'::jsonb)"
+                ),
+                {"id": run_id, "org": org.id, "agent": agent.id},
+            )
+            db.commit()
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        assert "ix_agent_runs_routine_activation" in {
+            index["name"] for index in inspect(engine).get_indexes("agent_runs")
+        }
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+        result = _alembic("downgrade", "0331_routine_overlap_attempt")
+        assert result.returncode == 0, result.stderr
+        assert "ix_agent_runs_routine_activation" not in {
+            index["name"] for index in inspect(engine).get_indexes("agent_runs")
+        }
+        with DatabaseSession(engine) as db:
+            # Later revisions may add run columns absent at this downgraded schema.
+            policy = db.scalar(select(AgentRun.routine_policy).where(AgentRun.id == run_id))
+            assert policy == {"acts_as_creator": True}
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()
+
+
+def test_memory_snapshot_upgrade_preserves_legacy_runs_and_downgrades_cleanly() -> None:
+    """0336 records new-run visibility without inventing evidence for existing runs."""
+    from sqlalchemy import inspect
+
+    result = _alembic("downgrade", "base")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("upgrade", "0335_defer_run_conversation_fk")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    old_run, new_run = uuid4(), uuid4()
+    statement = text(
+        "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
+        "input_tokens, output_tokens, cost_usd, cost_is_partial) "
+        "VALUES (:id, :org, :agent, 'chat', 'completed', 0, 0, 0, false)"
+    )
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(statement, {"id": old_run, "org": uuid4(), "agent": uuid4()})
+        result = _alembic("upgrade", "0336_run_memory_snapshot")
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as connection:
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(statement, {"id": new_run, "org": uuid4(), "agent": uuid4()})
+            rows = dict(
+                connection.execute(text("SELECT id, memory_snapshot FROM agent_runs")).all()
+            )
+            assert rows[old_run] is None
+            assert rows[new_run].startswith("boot:")
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+        result = _alembic("downgrade", "0335_defer_run_conversation_fk")
+        assert result.returncode == 0, result.stderr
+        assert "memory_snapshot" not in {
+            column["name"] for column in inspect(engine).get_columns("agent_runs")
+        }
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT count(*) FROM agent_runs")) == 2
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.security
+def test_batch_receipts_keep_their_keys_when_legacy_results_are_erased() -> None:
+    """0340 erases unassociated results without forgetting live keys or their expiry."""
+    from sqlalchemy import inspect
+    from sqlalchemy.exc import IntegrityError
+
+    result = _alembic("downgrade", "base")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("upgrade", "0336_run_memory_snapshot")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    insert = text(
+        "INSERT INTO virtual_table_receipts (id, organization_id, principal_id, operation, "
+        "operation_key, payload_hash, outcome) "
+        "VALUES (:id, :org, :user, :operation, :key, :hash, CAST(:outcome AS jsonb))"
+    )
+    batch, single = uuid4(), uuid4()
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            for receipt_id, operation in ((batch, "record.batch"), (single, "record.create")):
+                connection.execute(
+                    insert,
+                    {
+                        "id": receipt_id,
+                        "org": uuid4(),
+                        "user": uuid4(),
+                        "operation": operation,
+                        "key": str(receipt_id),
+                        "hash": "0" * 64,
+                        "outcome": json.dumps(
+                            {"failed": [{"details": {"external_id": "private@example.com"}}]}
+                        ),
+                    },
+                )
+            before = {
+                row.id: dict(row)
+                for row in connection.execute(
+                    text("SELECT * FROM virtual_table_receipts")
+                ).mappings()
+            }
+        result = _alembic("upgrade", "0340_record_batch_receipt_table")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as connection:
+            kept = {
+                row.id: dict(row)
+                for row in connection.execute(
+                    text("SELECT * FROM virtual_table_receipts")
+                ).mappings()
+            }
+            assert kept == {
+                batch: {**before[batch], "table_id": None, "outcome": {"_purged": True}},
+                single: {**before[single], "table_id": None},
+            }
+        with pytest.raises(IntegrityError, match="batch_names_table"), engine.begin() as connection:
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(
+                insert,
+                {
+                    "id": uuid4(),
+                    "org": uuid4(),
+                    "user": uuid4(),
+                    "operation": "record.batch",
+                    "key": "new",
+                    "hash": "0" * 64,
+                    "outcome": "{}",
+                },
+            )
+        result = _alembic("downgrade", "0336_run_memory_snapshot")
+        assert result.returncode == 0, result.stderr
+        assert "table_id" not in {
+            column["name"] for column in inspect(engine).get_columns("virtual_table_receipts")
+        }
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        check = _alembic("check")
+        assert check.returncode == 0, check.stderr
+    finally:
+        engine.dispose()
+
+
+def test_github_filter_diagnostic_preserves_existing_routine_policy() -> None:
+    """0337_github_filter_diagnostic.py adds a nullable snapshot without widening authors."""
+    from app.db.models.agent import Agent
+    from app.db.models.agent_trigger import AgentTrigger
+    from app.db.models.organization import Organization
+
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", "0336_run_memory_snapshot")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    trigger_id = uuid4()
+    try:
+        with DatabaseSession(engine) as db:
+            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
+            db.add(owner)
+            db.flush()
+            org = Organization(
+                name="Legacy routine", slug=f"routine-{uuid4()}", created_by_user_id=owner.id
+            )
+            db.add(org)
+            db.flush()
+            agent = Agent(
+                organization_id=org.id, name="Triage", slug=f"triage-{uuid4()}", draft_spec={}
+            )
+            db.add(agent)
+            db.flush()
+            db.execute(
+                AgentTrigger.__table__.insert().values(
+                    id=trigger_id,
+                    organization_id=org.id,
+                    agent_id=agent.id,
+                    created_by_user_id=owner.id,
+                    trigger_type="event",
+                    event_source="github",
+                    event_config={"actions": ["opened"]},
+                    event_secret_encrypted="sealed",
+                    secret_key_version=1,
+                    prompt="Triage issues",
+                )
+            )
+            db.commit()
+        for action, revision in [
+            ("upgrade", "head"),
+            ("downgrade", "0336_run_memory_snapshot"),
+            ("upgrade", "head"),
+        ]:
+            result = _alembic(action, revision)
+            assert result.returncode == 0, result.stderr
+            if action == "upgrade":
+                with engine.connect() as connection:
+                    row = connection.execute(
+                        text(
+                            "SELECT event_config, last_filtered_event FROM agent_triggers WHERE id=:id"
+                        ),
+                        {"id": trigger_id},
+                    ).one()
+                    assert row.event_config == {"actions": ["opened"]}
+                    assert row.last_filtered_event is None
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()
+
+
+def test_organization_speech_defaults_preserve_old_agents_and_run_destinations() -> None:
+    """0339 adds only nullable defaults; a parked run may pin its original destination."""
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", "0338_personal_model_keys")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    organization_id, run_id = uuid4(), uuid4()
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("SET LOCAL session_replication_role = replica"))
+            connection.execute(
+                text(
+                    "INSERT INTO organizations (id, name, slug, created_by_user_id, is_personal) VALUES (:id, 'Legacy voice', :slug, :owner, false)"
+                ),
+                {"id": organization_id, "slug": uuid4().hex, "owner": uuid4()},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, input_tokens, output_tokens, cost_usd, cost_is_partial) VALUES (:id, :org, :agent, 'chat', 'completed', 0, 0, 0, false)"
+                ),
+                {"id": run_id, "org": organization_id, "agent": uuid4()},
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT text_to_speech FROM organizations WHERE id=:id"),
+                    {"id": organization_id},
+                ).one()[0]
+                is None
+            )
+            assert (
+                connection.execute(
+                    text("SELECT text_to_speech_defaults FROM agent_runs WHERE id=:id"),
+                    {"id": run_id},
+                ).one()[0]
+                is None
+            )
+            snapshot = {
+                "enabled": True,
+                "provider": "openai",
+                "model": "gpt-4o-mini-tts",
+                "voice": "coral",
+                "secret_id": str(uuid4()),
+            }
+            connection.execute(
+                text(
+                    "UPDATE agent_runs SET text_to_speech_defaults=CAST(:snapshot AS jsonb) WHERE id=:id"
+                ),
+                {"snapshot": json.dumps(snapshot), "id": run_id},
+            )
+            assert (
+                connection.execute(
+                    text("SELECT text_to_speech_defaults FROM agent_runs WHERE id=:id"),
+                    {"id": run_id},
+                ).scalar_one()
+                == snapshot
+            )
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr
+        result = _alembic("downgrade", "0338_personal_model_keys")
+        assert result.returncode == 0, result.stderr
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
     finally:
         engine.dispose()

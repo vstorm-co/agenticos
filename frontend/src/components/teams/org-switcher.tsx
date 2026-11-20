@@ -63,7 +63,7 @@ export function OrganizationMenuItems({ onNavigate }: { onNavigate?: () => void 
           <DropdownMenuItem
             key={org.id}
             onSelect={() => pick(org.id)}
-            className="gap-2"
+            className="min-h-10 gap-2.5 px-2.5"
             aria-current={org.id === activeOrg?.id ? "true" : undefined}
           >
             <EntityAvatar
@@ -72,13 +72,10 @@ export function OrganizationMenuItems({ onNavigate }: { onNavigate?: () => void 
               imageSrc={`/api/orgs/${org.id}/avatar?v=${org.updated_at ?? ""}`}
               hasImage={!!org.avatar_url}
               colorSlot={org.avatar_color}
-              className="h-5 w-5 text-[11px]"
+              className="h-6 w-6 text-xs"
               ariaHidden
             />
             <span className="truncate">{org.name}</span>
-            {org.is_personal && (
-              <span className="text-muted-foreground ml-auto text-xs">{t("personal")}</span>
-            )}
             {org.id === activeOrg?.id && (
               <Check className="text-muted-foreground ml-auto h-3.5 w-3.5 shrink-0" aria-hidden />
             )}
@@ -86,11 +83,14 @@ export function OrganizationMenuItems({ onNavigate }: { onNavigate?: () => void 
         ))}
       </div>
       <DropdownMenuSeparator />
-      <DropdownMenuItem onSelect={() => navigate("/orgs")} className="gap-2">
+      <DropdownMenuItem onSelect={() => navigate("/orgs")} className="min-h-10 gap-2.5 px-2.5">
         <Building2 className="h-4 w-4" aria-hidden />
         {t("manageOrganizations")}
       </DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => navigate("/orgs?create=1")} className="gap-2">
+      <DropdownMenuItem
+        onSelect={() => navigate("/orgs?create=1")}
+        className="min-h-10 gap-2.5 px-2.5"
+      >
         <Plus className="h-4 w-4" aria-hidden />
         {t("newOrganization")}
       </DropdownMenuItem>

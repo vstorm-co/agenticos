@@ -1,5 +1,5 @@
 ---
-source_sha: "1e63060a548e"
+source_sha: "ef5a787328c9"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -506,6 +506,10 @@ Kryterium ocenione więcej niż raz jest błędem, a nie tą oceną, która przy
 ostatnia. Run sędziego w Aktywności mówi, których pól nie dało się odczytać, nigdy
 samą odpowiedź, która może powtarzać przypadek datasetu, którego czytający nie
 widzi.
+
+Sędzia odpowiada w tym kształcie przez ustrukturyzowane wyjście, a nie prozą.
+Odpowiedź, która go łamie, wraca do sędziego do poprawy, najwyżej dwa razy;
+dopiero wtedy przypadek jest bez oceny.
 
 Każda ocena zachowuje model, identyfikator opublikowanego pomocnika, hash kryteriów, wersję zadania i hash instrukcji. Model i instrukcje datasetu można zmieniać; ocen z różnych konfiguracji nie traktuje się jako bezpośrednio porównywalnych.
 

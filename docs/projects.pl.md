@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "2ad663e05982"
+source_sha: "c8a333081821"
 ---
 
 # Projekty { #projects }
@@ -69,6 +69,16 @@ Dwie drogi:
 
 Czat zostaje w projekcie, w którym został rozpoczęty. Chip w istniejącym czacie
 prowadzi z powrotem do projektu.
+
+Agent z włączonym Sandbox może wywołać `select_project_workspace` z ID dostępnego
+projektu, aby korzystać z jego plików i powłoki w bieżącym uruchomieniu, także na
+kanale. Przy odpowiedzi widać wybrane projekty. Brak ID przywraca pierwotny
+workspace. Wznowienie po akceptacji zachowuje wybór, a następna wiadomość zaczyna
+w pierwotnym workspace rozmowy. Wybór nie przenosi historii, nie kopiuje prywatnych
+plików i nie zmienia instrukcji agenta. Każda operacja ponownie sprawdza dostęp.
+Rutyny zachowują ograniczenie do zatwierdzonych źródeł, a izolowane ewaluacje nie
+mogą wybierać aktywnych projektów. Pliki pozostają w projekcie; do ich przekazania
+służy opublikowanie App lub jawne wysłanie pliku.
 
 ## Co agent dostaje w projekcie { #what-an-agent-gets-in-a-project }
 

@@ -13,6 +13,7 @@ from sqlalchemy import (
     ColumnElement,
     Integer,
     Numeric,
+    Select,
     Text,
     and_,
     case,
@@ -40,7 +41,7 @@ from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.channel_identity import ChannelIdentity
-from app.db.models.channel_session import ChannelSession
+from app.db.models.channel_session import ChannelMessageSource, ChannelSession
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_favourite import ConversationFavourite
@@ -48,6 +49,7 @@ from app.db.models.conversation_last_read import ConversationLastRead
 from app.db.models.room_submission import RoomSubmission
 from app.db.models.user import User
 from app.repositories._search import contains_ci
+from app.schemas.conversation import HistoryCheckpointFrontier
 
 # What `MessageFileRead` serializes, plus the key selectin groups rows by. A
 # transcript never needs `parsed_content`, the upload's whole extracted text. It is
@@ -277,6 +279,22 @@ async def get_conversation_by_id(
             Conversation, conversation_id, options=summary_options, populate_existing=True
         )
     return await db.get(Conversation, conversation_id, options=summary_options)
+
+
+async def lock_for_deletion(
+    db: AsyncSession, *, conversation_id: UUID, organization_id: UUID
+) -> Conversation | None:
+    """Lock the authorized tenant's parent before workspace deletion takes child locks.
+
+    Refresh the identity-map row so authorization after the wait sees current ownership.
+    """
+    return await db.scalar(
+        select(Conversation)
+        .where(Conversation.id == conversation_id, Conversation.organization_id == organization_id)
+        .options(defer(Conversation.summary_messages, raiseload=True))
+        .execution_options(populate_existing=True)
+        .with_for_update()
+    )
 
 
 async def get_guardrail_revision(db: AsyncSession, conversation_id: UUID) -> int | None:
@@ -1271,6 +1289,92 @@ async def read_candidates(
     )
 
 
+def _author_history_ids(user_id: UUID) -> Select[UUID]:
+    identities = select(ChannelIdentity.id).where(ChannelIdentity.user_id == user_id)
+    return select(Message.conversation_id).where(
+        Message.role == "user",
+        or_(Message.author_user_id == user_id, Message.channel_identity_id.in_(identities)),
+    )
+
+
+async def lock_authored_histories(db: AsyncSession, *, user_id: UUID) -> None:
+    """Lock owned and authored histories without waiting while deletion holds the user row."""
+    await db.execute(
+        select(Conversation.id)
+        .where(
+            or_(Conversation.user_id == user_id, Conversation.id.in_(_author_history_ids(user_id)))
+        )
+        .order_by(Conversation.id)
+        .with_for_update(nowait=True)
+    )
+
+
+async def invalidate_author_checkpoints(db: AsyncSession, *, user_id: UUID) -> None:
+    """Fence checkpoints before erasure removes the author that made them unsafe to replay.
+
+    Account deletion spans organizations. Own private conversations cascade;
+    other people's and retained project conversations lose only their checkpoint.
+    A run that began before the erasure cannot write it back with its old revision.
+    """
+    await db.execute(
+        sql_update(Conversation)
+        .where(
+            Conversation.id.in_(_author_history_ids(user_id)),
+            Conversation.user_id.is_distinct_from(user_id),
+        )
+        .values(
+            guardrail_revision=Conversation.guardrail_revision + 1,
+            summary_messages=None,
+            summary_ordinal=None,
+        )
+    )
+    await db.flush()
+
+
+async def has_non_owner_author(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    owner_user_id: UUID,
+) -> bool:
+    """Detect another author even after an edit share or identity link is revoked."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    Message.conversation_id == conversation_id,
+                    Message.role == "user",
+                    or_(
+                        Message.author_user_id.is_not(None)
+                        & (Message.author_user_id != owner_user_id),
+                        Message.channel_identity_id.is_not(None)
+                        & ~exists().where(
+                            ChannelIdentity.id == Message.channel_identity_id,
+                            ChannelIdentity.user_id == owner_user_id,
+                        ),
+                    ),
+                )
+            )
+        )
+    )
+
+
+async def has_shared_channel_history(db: AsyncSession, *, conversation_id: UUID) -> bool:
+    """Keep room checkpoints private even after a bot resets its session elsewhere."""
+    room = exists().where(
+        ChannelSession.conversation_id == conversation_id,
+        ChannelSession.chat_type != "private",
+    )
+    multiple_authors = (
+        select(Message.conversation_id)
+        .where(Message.conversation_id == conversation_id, Message.channel_identity_id.is_not(None))
+        .group_by(Message.conversation_id)
+        .having(func.count(distinct(Message.channel_identity_id)) > 1)
+        .exists()
+    )
+    return bool(await db.scalar(select(or_(room, multiple_authors))))
+
+
 async def channel_thread_ids(db: AsyncSession, ids: Collection[UUID]) -> set[UUID]:
     """Which candidate threads still have a channel whose membership can be checked."""
     return set(
@@ -1329,7 +1433,7 @@ async def retained_fork_volume(
     return ForkVolume(int(row[0]), int(row[1]))
 
 
-async def fork_summary_bytes(db: AsyncSession, summary: list[dict[str, JsonValue]]) -> int:
+async def fork_summary_bytes(db: AsyncSession, summary: dict[str, JsonValue]) -> int:
     """Measure exactly what PostgreSQL will store, including expanded JSONB numbers."""
     return (
         await db.execute(select(func.octet_length(cast(literal(summary, type_=JSONB), Text))))
@@ -1385,7 +1489,8 @@ async def fork_conversation(
     source: Conversation,
     through: Message,
     copy_bytes: int,
-    restored_summary: list[dict[str, JsonValue]] | None = None,
+    restored_summary: dict[str, JsonValue] | None = None,
+    copy_summary: bool = True,
 ) -> Conversation:
     """A new conversation holding `source`'s messages up to and including `through`.
 
@@ -1408,8 +1513,9 @@ async def fork_conversation(
     and lose everything older. It is re-anchored on the copy of the last turn
     it covers, since ordinals are new. The service restores externalized media
     before supplying `restored_summary`, so its bytes survive source deletion.
-    A summary that reaches past the fork point
-    covers turns the fork does not have, and is left behind.
+    `copy_summary=False` deliberately omits both checkpoint and frontier for a
+    shared source: the clone then replays its visible transcript. A summary that
+    reaches past the fork point covers turns the fork does not have, and is left behind.
     """
     fork = Conversation(
         user_id=source.user_id,
@@ -1497,7 +1603,12 @@ async def fork_conversation(
             )
         )
     ).one()
-    if summary is not None and summary_ordinal is not None and summary_ordinal <= through.ordinal:
+    if (
+        copy_summary
+        and summary is not None
+        and summary_ordinal is not None
+        and summary_ordinal <= through.ordinal
+    ):
         covered = [original.id for original in originals if original.ordinal <= summary_ordinal]
         fork.summary_messages = restored_summary if restored_summary is not None else summary
         fork.summary_ordinal = (
@@ -1974,7 +2085,12 @@ async def get_fork_point(db: AsyncSession, message_id: UUID) -> Message | None:
         .where(Message.id == message_id)
         .options(
             load_only(
-                Message.id, Message.conversation_id, Message.role, Message.ordinal, raiseload=True
+                Message.id,
+                Message.conversation_id,
+                Message.role,
+                Message.ordinal,
+                Message.run_id,
+                raiseload=True,
             ),
             raiseload("*"),
         )
@@ -2646,24 +2762,25 @@ async def set_summary(
     db: AsyncSession,
     *,
     db_conversation: Conversation,
-    messages: list[dict[str, Any]],
+    messages: dict[str, Any],
     ordinal: int,
     expected_revision: int,
+    expected_frontier: HistoryCheckpointFrontier | None = None,
+    through_message: Message | None = None,
     expected_ordinal: int | None = None,
 ) -> bool:
-    """Record the history a summary reduced this conversation to.
+    """Replace only the checkpoint and transcript frontier this turn actually read.
 
-    One row per conversation rather than a log of them: the newest summary is
-    written over the last, because it was produced *from* it and the older one
-    describes a thread that no longer exists.
+    A concurrent turn cannot replace a checkpoint it did not build on or cover
+    intervening rows it never saw. The turn's own run may persist its prompt
+    after reading history; those rows are already in its model result.
 
     A room request reads a filtered history, not a contiguous transcript prefix.
     Its compaction cannot replace this shared cache or claim to cover later queued
     questions. Check this in the update itself so a concurrent first room message
-    cannot slip between a service-level check and the cache write. Resumed runs
-    take the same path and retain the same fence. An idle maintenance summary can
-    also pass `expected_ordinal`; unlike an active run, it writes no transcript
-    rows of its own, so any later row invalidates its snapshot.
+    cannot slip between a service-level check and the cache write. An idle
+    maintenance summary passes `expected_ordinal` instead of a frontier; it writes
+    no transcript rows of its own, so any later row invalidates its snapshot.
     """
     conditions = [
         Conversation.id == db_conversation.id,
@@ -2676,6 +2793,28 @@ async def set_summary(
                 Message.conversation_id == Conversation.id,
                 Message.ordinal > expected_ordinal,
             )
+        )
+    if expected_frontier is not None:
+        unseen = select(Message.id).where(
+            Message.conversation_id == db_conversation.id,
+            Message.ordinal > expected_frontier.message_ordinal,
+            Message.ordinal <= ordinal,
+            Message.guardrail_refused.is_(False),
+        )
+        if through_message is not None:
+            unseen = unseen.where(
+                Message.run_id.is_distinct_from(through_message.run_id)
+                if through_message.run_id is not None
+                else Message.id != through_message.id
+            )
+        conditions.extend(
+            [
+                Conversation.summary_ordinal.is_not_distinct_from(
+                    expected_frontier.summary_ordinal
+                ),
+                literal(ordinal) >= expected_frontier.message_ordinal,
+                ~exists(unseen),
+            ]
         )
     updated = await db.scalar(
         sql_update(Conversation)
@@ -2821,6 +2960,15 @@ async def count_messages_by_run(db: AsyncSession, run_id: UUID, *, for_model: bo
     return result.scalar() or 0
 
 
+async def _lock_message_order(db: AsyncSession, conversation_id: UUID) -> None:
+    """Serialize ordinal allocation with checkpoint publication in this transaction."""
+    # Locking after INSERT lets an uncommitted older ordinal appear below a
+    # checkpoint already published by another transaction.
+    await db.execute(
+        select(Conversation.id).where(Conversation.id == conversation_id).with_for_update()
+    )
+
+
 async def create_message(
     db: AsyncSession,
     *,
@@ -2851,6 +2999,7 @@ async def create_message(
     attachment_context: str | None = None,
 ) -> Message:
     """Create a new message."""
+    await _lock_message_order(db, conversation_id)
     message = Message(
         conversation_id=conversation_id,
         role=role,
@@ -2922,6 +3071,7 @@ async def save_workflow_message(
     row is inserted. An identical redelivery keeps its ordinal, so a terminal
     answer already compacted into a summary is not replayed a second time.
     """
+    await _lock_message_order(db, conversation_id)
     statement = pg_insert(Message).values(
         id=uuid5(workflow_run_id, "workflow-chat-message"),
         conversation_id=conversation_id,
@@ -2978,6 +3128,7 @@ async def create_voice_turn(
     retried write after a timeout must not leave the turn twice. Like
     :func:`create_message`, a written turn moves the conversation up the list.
     """
+    await _lock_message_order(db, conversation_id)
     statement = (
         pg_insert(Message)
         .values(
@@ -3366,3 +3517,73 @@ async def set_model_content(
         .values(model_content=content)
     )
     await db.flush()
+
+
+async def add_channel_reference(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    source_id: str,
+    content: str,
+    identity_id: UUID | None,
+    posted_at: datetime | None,
+) -> bool:
+    """Import a native post at most once, including after its transcript was compacted."""
+    if not await remember_channel_source(db, conversation_id=conversation_id, source_id=source_id):
+        return False
+    stamp = posted_at.isoformat() if posted_at is not None else "unknown"
+    result = await db.execute(
+        pg_insert(Message)
+        .values(
+            conversation_id=conversation_id,
+            role="user",
+            content=content,
+            channel_identity_id=identity_id,
+            model_content=f"[Thread reference, posted {stamp}]\n{content}",
+        )
+        .returning(Message.id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def bind_channel_source(
+    db: AsyncSession,
+    *,
+    run_id: UUID,
+    role: Literal["user", "assistant"],
+    source_id: str | None,
+) -> None:
+    """Associate the native prompt/reply with the turn already written by the runner."""
+    if source_id is None:
+        return
+    conversation_id = await db.scalar(
+        select(Message.conversation_id)
+        .where(Message.run_id == run_id, Message.role == role)
+        .limit(1)
+    )
+    if conversation_id is not None:
+        await remember_channel_source(db, conversation_id=conversation_id, source_id=source_id)
+
+
+async def remember_channel_source(
+    db: AsyncSession, *, conversation_id: UUID, source_id: str
+) -> bool:
+    result = await db.execute(
+        pg_insert(ChannelMessageSource)
+        .values(conversation_id=conversation_id, post_id=source_id)
+        .on_conflict_do_nothing()
+        .returning(ChannelMessageSource.post_id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def known_channel_posts(
+    db: AsyncSession, *, conversation_id: UUID, source_ids: Sequence[str]
+) -> set[str]:
+    result = await db.execute(
+        select(ChannelMessageSource.post_id).where(
+            ChannelMessageSource.conversation_id == conversation_id,
+            ChannelMessageSource.post_id.in_(source_ids),
+        )
+    )
+    return set(result.scalars())

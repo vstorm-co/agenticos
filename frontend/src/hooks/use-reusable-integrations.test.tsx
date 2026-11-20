@@ -30,6 +30,7 @@ function source(overrides: Partial<SyncSourceRead> = {}): SyncSourceRead {
     name: "Handbook drive",
     connector_type: "gdrive",
     collection_name: null,
+    knowledge_base_id: null,
     config: { folder_id: "abc" },
     secret_id: null,
     organizational_unit: null,

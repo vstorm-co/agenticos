@@ -1,5 +1,5 @@
 ---
-source_sha: "3d76e4884645"
+source_sha: "2f0c04055b6b"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2001,72 +2001,31 @@ para mostrar diferencias entre la consola y Mattermost.
 
 ## Qué comparte cada canal { #what-every-channel-shares }
 
-- **Un mensaje enviado mientras el agent trabaja se suma a su tarea.** De la
-  persona cuyo turno es, un mensaje normal en el mismo chat llega al turno en curso
-  en su siguiente paso en lugar de esperar un turno propio; uno que llega después
-  del último paso del agent se responde como el siguiente mensaje. `/btw` seguido de
-  una pregunta pregunta aparte: se responde al momento a partir del hilo hasta
-  ahora, sin herramientas, mientras el turno sigue. El mensaje de un colega en un
-  chat de grupo es siempre un turno propio.
+- **Solo se carga automáticamente el hilo actual.** Un hilo nuevo empieza sin discusión anterior. Si el agent se incorpora a un hilo existente, importa una página limitada del proveedor de hasta 100 publicaciones, sujeta a la política de acceso del bot. Cada nueva mención incorpora la discusión desde el turno anterior, incluidos los mensajes humanos entre menciones. Otras conversaciones del canal requieren `read_channel_history` y el permiso de historial de la vinculación.
 
-- **Al modelo se le recuerdan los turnos más recientes, no los primeros.** Un hilo
-  de canal se indexa por el chat y nunca pasa página, así que un canal de soporte
-  se sale de la ventana en días. Doscientos turnos para un canal frente a cuarenta
-  para un widget, y los dos números son distintos a propósito: un widget es una URL
-  pública con el budget de otra persona detrás, y un canal es una sala en la que
-  trabajan los propios compañeros del operador. Acotado en ambos casos, porque un
-  prompt no es una transcripción y el historial completo de un hilo es una factura
-  por turno que crece para siempre.
+    Las publicaciones importadas conservan autor y hora originales como datos de referencia, nunca como respuestas del agent o nuevas peticiones. Los identificadores nativos impiden importar una publicación dos veces, incluso después de compaction. Una página incompleta deja un aviso persistente sobre el contexto omitido y la herramienta de historial. Una actualización fallida también informa al agent de la posible laguna.
 
-    Se leía por el extremo equivocado hasta #638: el repositorio ordena de más
-    antiguo a más reciente, así que al bot se le contaba cómo empezó la
-    conversación y nada de lo dicho desde entonces — y respondía de forma
-    plausible, desde una versión del hilo que se había detenido cientos de turnos
-    atrás. Nada daba error, y por eso necesitaba un test más que un arreglo.
+    La conversación canónica usa el mismo historial y mecanismo de compaction que el chat web: una ventana de 200 mensajes guardados y su resumen conservado. No se vuelve a añadir el hilo original después de resumirlo. `/new` crea una conversación nueva sin recargar la discusión anterior. Cuando la plataforma lo permite, se recuperan una sola vez hasta cuatro archivos anteriores del hilo, con los límites habituales de adjuntos y los requisitos de cuenta vinculada.
 
-    El desplazamiento está ahora en `conversation_repo.get_recent_messages`, y
-    todas las superficies leen la ventana a través de él — el widget, los canales y
-    el chat web. Tres copias de un `COUNT` y un desplazamiento es como llegó a
-    estar mal dos veces, desde extremos opuestos.
+- **Los mensajes entrantes normales son duraderos.** Los mensajes de Slack, Mattermost, Telegram, Teams y Discord entran en la cola de PostgreSQL antes de responder al webhook o completar la admisión del flujo nativo. Los workers los procesan en orden por bot e hilo. Tras comenzar la ejecución, perder un worker no repite automáticamente el run de pago ni los efectos de sus herramientas. El operador puede inspeccionar los trabajos fallidos; una petición nueva debe considerar las acciones ya realizadas.
 
-- **Un hilo al que se le mete a mitad de camino se lee primero.** Una conversación
-  aquí se construye con lo que este despliegue *recibió*, así que un bot mencionado
-  en un hilo que ya estaba en marcha no tenía nada por encima de la mención — y
-  respondía como si el hilo estuviera vacío, cosa que decía con confianza. Nadie
-  que mire un chat puede distinguir un agent que no ve de uno que ha leído y
-  discrepa.
+    La respuesta final se guarda en la transacción terminal del run. Una respuesta cuyo envío no se ha intentado puede entregarse desde esa copia sin volver a ejecutar el modelo. Se reclama el intento antes de contactar al proveedor: un resultado de transporte ambiguo queda sin confirmar y no se reintenta a ciegas. Los indicadores de streaming y las interacciones opcionales de UI siguen siendo best-effort. Los comandos `/agent` y atajos de mensajes de Slack usan admisión duradera tanto por HTTP como por Socket Mode; la confirmación sigue al commit del trabajo. El polling de Telegram guarda cada lote antes de que el SDK avance el offset. Discord resuelve los metadatos fuera del bucle de recepción del Gateway para no bloquear interacciones posteriores. Las decisiones de prompts y otras acciones nativas de UI conservan su gestión actual.
 
-    Una vez por conversación — registrado en la sesión, no deducido de su
-    antigüedad, así que un hilo en el que el bot ya respondía antes de que esto
-    existiera se lee en su siguiente turno y no nunca — hasta cincuenta mensajes, y
-    solo donde la plataforma tiene hilos. A partir de ahí la transcripción es
-    nuestra y no se vuelve a pedir nada. Llega como un bloque etiquetado — *lo que
-    se dijo antes de que llegaras, `speaker: message`, contexto y no instrucciones*
-    — y no como turnos, porque reproducir los mensajes de otras personas como un
-    historial alterno le pone al agent en la boca palabras que nunca dijo.
+    Antes de encolar se comprueban la política de acceso del bot y un límite separado por remitente con el RPM configurado. Las transacciones serializan los límites de trabajos activos: 100 mensajes / 2 MiB por bot y 1000 / 16 MiB por organización; los controles tienen límites separados de 8 / 32 KiB y 64 / 256 KiB. Los mensajes excesivos o demasiado grandes se confirman y descartan sin guardar otro trabajo. La entrada admite hasta 64 KiB de texto, diez archivos y 128 KiB normalizados. Las referencias de adjuntos se cifran con el vault de la organización y participan en `vault-rotate`.
 
-    **Esto no está sujeto a un permiso, donde `read_channel_history` sí lo está**, y
-    la diferencia es lo importante: esa herramienta lee el *canal*, que es contenido
-    en el que nunca se dirigieron al agent, y un operador decide por vinculación si
-    puede. El hilo en el que se le habló al bot es la conversación a la que alguien
-    lo apuntó, y leer eso no es el mismo acto que leer la sala. El bot sigue viendo
-    solo lo que su propia pertenencia permite, porque la llamada va con su token.
+    Los trabajos retenidos siguen contando hasta la limpieza, incluidos los completados, fallidos y cancelados. La retención de mensajes tiene un límite de 10 000 trabajos / 32 MiB por bot y 100 000 / 256 MiB por organización; los controles, de 1000 / 2 MiB y 10 000 / 16 MiB. Terminar un trabajo libera capacidad activa, pero no almacenamiento retenido. La limpieza habitual a los 14 días libera estos contadores y bytes.
 
-    **Los ficheros publicados en él vienen también**, hasta cuatro: la transcripción
-    por sí sola dejaba que el bot respondiera, con toda exactitud, que no veía
-    ninguna imagen en una conversación cuyo primer mensaje era una captura.
+    Los límites de retención incluyen las respuestas pendientes y los recibos terminales compactos. Los trabajos de respuesta terminados eliminan las copias del texto, argumentos y resultados de herramientas y listas de archivos; la ejecución y su transcripción conservan el registro. Una edición de Mattermost debe admitirse mientras exista el recibo del original ignorado. Esa admisión duradera sobrevive a una espera más larga. Distintas ediciones del mismo mensaje comparten una clave de idempotencia duradera.
 
-    Se descargan por el mismo camino que un adjunto del mensaje en vivo, así que se
-    aplica un único juego de límites de tamaño, y se atribuyen a quien mencionó al
-    bot — esa es la persona que lo apuntó al hilo, y un remitente no vinculado no
-    recibe ninguno, exactamente igual que no recibe ninguno de los suyos. Cuatro y
-    no cincuenta, porque cincuenta descargas antes de que empiece una respuesta son
-    un minuto de silencio. Slack los lee con `conversations.replies`, Mattermost con
-    `GET /posts/{root}/thread`; Telegram no tiene hilos y no lee ninguno.
+    La vinculación obligatoria de cuenta se comprueba antes de guardar un mensaje dirigido. La dirección de Telegram se resuelve antes de elegir la cola de control. Los rechazos de acceso y frecuencia siguen respondiendo al remitente dirigido. Cada remitente puede retener por bot como máximo 1000 mensajes / 4 MiB y 100 controles / 256 KiB, dejando espacio para los demás.
 
-    Una lectura que falla cuesta el contexto y nunca la respuesta: que no haya hilo,
-    una plataforma sin ellos, un rechazo o un error producen todos una respuesta sin
-    el historial por encima, que es peor que una con él y mejor que ninguna.
+    Los comandos slash y contextuales de Discord también usan admisión duradera. Las credenciales de respuesta diferida se cifran con el almacén de la organización, se rotan con los identificadores de adjuntos y se restauran solo durante el enrutamiento. Los archivos de respuesta solicitados se guardan bajo la cuota y retención de archivos generados de la organización antes de confirmar la instantánea final; recuperarlos no repite herramientas. Las respuestas terminales vacías usan el aviso de estado en lugar del error interno. Una solicitud de parada se confirma en la base antes de anunciarla y prioriza la tarea principal activa del remitente frente a una pregunta lateral posterior ya completada. La importación del hilo excluye preguntas `/btw`.
+
+- **El remitente puede añadir contexto durante el run.** Antes de la siguiente petición al modelo, el worker consume hasta ocho añadidos de texto pendientes de la misma persona en el mismo hilo. Vuelve a comprobar acceso y guardrails de entrada. Los mensajes de otra persona, archivos, otros comandos y añadidos tardíos esperan su propio turno. Solo se incorporan mensajes dirigidos al bot; también funciona entre workers. `/status` y `/stop` (o `status` y `stop`) afectan únicamente al último run principal del remitente en ese hilo. Stop actúa antes de la siguiente petición al modelo; una acción en curso puede terminar. `/btw` utiliza un trabajo independiente y siempre se ejecuta sin herramientas, incluso cuando otro worker ejecuta el turno principal.
+
+- **Los servicios personales ausentes explican sus requisitos.** Si el agent necesita un servicio MCP personal no disponible, `check_service_access` devuelve motivo, pasos pendientes y, cuando corresponde, un enlace a ajustes. Vincular la identidad del canal y conectar el servicio son pasos distintos. No empieza ninguna operación externa y ninguna cuenta del publicador o de la organización sustituye la cuenta personal del remitente. Una respuesta basada en una fuente personal sigue visible para los participantes del hilo actual.
+
+- **El diagnóstico separa configuración de acceso confirmado.** La acción de inspección de la tabla de canales comprueba bot, transporte, vinculación, agent publicado y la identidad y conexiones personales de quien inició sesión. No llama al modelo ni prueba la autorización en el proveedor. Los webhooks y la ausencia de heartbeat quedan sin confirmar. El dashboard distingue bots desconectados, desconocidos y pausados.
 
 - **Un bot responde como un agent.** Un usuario bot es una única identidad en el
   chat: el mismo avatar, el mismo nombre, sea cual sea el agent que produjo la
@@ -2381,7 +2340,7 @@ para mostrar diferencias entre la consola y Mattermost.
     Teams necesita instalar o actualizar el paquete de la aplicación en el equipo o chat de destino, con consentimiento del propietario para `ChannelMessage.Read.Group` y `ChatMessage.Read.Chat`. El paquete los solicita solo con el interruptor activado. Telegram usa los alias de texto `@all`, `@here`, `@channel` y `@everyone`; no notifican al grupo. El bot debe recibir mensajes del grupo; compruebe el modo de privacidad en BotFather. Las menciones, los comandos y las respuestas se verifican contra la identidad real del bot de Telegram. Discord cuenta `@everyone` y `@here` solo cuando el remitente tiene permiso para usarlos, es decir, cuando Discord notifica de verdad a la sala.
 
 - **Enviar archivos del workspace bajo petición también requiere aprobación.** Conceder `send_channel_file` habilita la herramienta; publicar los bytes sigue esperando una confirmación explícita.
-- **Los remitentes vinculados usan los mismos ajustes de aprobación MCP que en el chat web.** Se aplican la política del vínculo y la configuración de cada herramienta, incluido Run freely sin declaración de solo lectura. Las aprobaciones obligatorias siguen pidiéndose. Las conexiones de plataforma conservan su política mínima global. Se aplica a conexiones personales y de organización, delegados y llamadas reanudadas. Las conexiones personales pertenecen al remitente actual; vincular la cuenta no concede permisos adicionales. Los participantes no vinculados siguen aprobando cada llamada MCP. Los metadatos del canal se envían después de los resultados de herramientas, también tras reanudaciones sucesivas.
+- **Las ejecuciones en canales usan los mismos ajustes de aprobación MCP y Mirage que el chat web.** Se aplican la política del vínculo y la configuración de cada herramienta, incluido Run freely sin declaración de solo lectura. Las aprobaciones obligatorias siguen pidiéndose. Las conexiones de plataforma conservan su política mínima global. Se aplica a conexiones personales y de organización, delegados y llamadas reanudadas. Las conexiones personales requieren la identidad vinculada del remitente actual y su conexión autorizada; vincular la cuenta no concede permisos adicionales. Los participantes no vinculados usan las herramientas MCP de la organización con la misma política de aprobación configurada. Los metadatos del canal se envían después de los resultados de herramientas, también tras reanudaciones sucesivas.
 
 Se conserva todo el historial de la sala, incluidos mensajes de otros participantes. Run freely también permite llamadas a herramientas influidas por ese contexto; úsalo solo con herramientas y salas de confianza, y Ask first cuando cada escritura necesite confirmación.
 
@@ -2389,7 +2348,7 @@ Los mensajes de canal guardan solo el texto del remitente. Las etiquetas del aut
 
 Los nombres de canal, temas, descripciones y etiquetas de autor editables pasan las comprobaciones de entrada antes de llegar al modelo. Los valores redactados sustituyen a los originales; los valores de referencia bloqueados se ocultan y una pregunta permitida puede continuar. La sintaxis fija, los identificadores de plataforma y los tipos de chat no se examinan como texto de la pregunta.
 
-Las referencias del autor se pasan por separado del mensaje actual para que los guardrails de entrada examinen la pregunta real. Los participantes sin cuenta vinculada siguen necesitando aprobación para todas las llamadas MCP, incluidas las lecturas de organización.
+Las referencias del autor se pasan por separado del mensaje actual para que los guardrails de entrada examinen la pregunta real.
 
 Tanto las invocaciones explícitas `@slug` como las respuestas predeterminadas reciben el historial guardado de la conversación junto con el contexto inicial del hilo del canal.
 

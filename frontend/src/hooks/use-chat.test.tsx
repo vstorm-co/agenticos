@@ -4628,6 +4628,30 @@ describe("useChat - durable questions resumed on the socket", () => {
     },
   );
 
+  it("settles the original question when the server starts its admitted continuation", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    offer();
+    receive("complete", {});
+    const originalId = useChatStore.getState().messages.at(-1)!.id;
+    act(() => result.current.sendAskUserResponses([{ answer: "Casual", skipped: false }]));
+    receive("background_task_turn", {
+      conversation_id: "c-1",
+      agent_id: "agent",
+      resumed_run_id: "r-1",
+    });
+    const original = useChatStore.getState().messages.find((message) => message.id === originalId);
+    expect(original?.runWaitingFor).toBeUndefined();
+    expect(original?.toolCalls?.[0]?.status).toBe("completed");
+    expect(original?.parts?.find((part) => part.type === "tool")?.toolCall?.status).toBe(
+      "completed",
+    );
+    expect(result.current.isProcessing).toBe(true);
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: "write_file", tool_call_id: "write-1", args: {} });
+    expect(useChatStore.getState().messages.at(-1)?.toolCalls?.[0]?.status).toBe("running");
+  });
+
   it("answers a live delegate question while the parked answer continuation is running", async () => {
     useConversationStore.getState().setCurrentConversationId("c-1");
     const { result } = renderHook(() => useChat(), { wrapper });
@@ -5340,6 +5364,48 @@ describe("useChat - a question its person came back to", () => {
     await waitFor(() => expect(result.current.pendingQuestions).toBeNull());
     expect(refetch).toHaveBeenCalledOnce();
     expect(useChatStore.getState().messages[0]?.wasStopped).not.toBe(true);
+  });
+
+  it("ignores answer admission from an account that just changed", async () => {
+    get.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === "/me/permissions"
+          ? {
+              organization_id: "another-org",
+              user_id: "u-1",
+              role: "member",
+              is_app_admin: false,
+              permissions: [],
+            }
+          : ASKED,
+      ),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    await act(async () => {
+      void result.current.sendAskUserResponses([
+        { answer: "", selected: ["Casual"], skipped: false },
+      ]);
+    });
+    act(() => {
+      useOrgStore.setState({ activeOrgId: "another-org" });
+      receive("background_task_turn", {
+        conversation_id: "c-1",
+        agent_id: "a-1",
+        resumed_run_id: "r-1",
+      });
+    });
+    expect(result.current.pendingQuestions).toBeNull();
+    expect(
+      useChatStore
+        .getState()
+        .messages.some((message) =>
+          message.toolCalls?.some((call) => call.id === "ask-1" && call.status === "completed"),
+        ),
+    ).toBe(false);
+    await act(async () => acknowledgeAnswer());
   });
 
   it("answers on the socket, closes the step and draws the continuation", async () => {

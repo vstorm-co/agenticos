@@ -48,6 +48,7 @@ import type {
   SecretVisibility,
 } from "@/types/secrets";
 import type { StorableSecretKind } from "@/types/secrets";
+import { ContextHelp } from "@/components/ui/context-help";
 import { useTranslations } from "next-intl";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM, DIALOG_FORM } from "@/lib/dialog-sizes";
 
@@ -296,12 +297,17 @@ function AddSecretForm({
           about the form. */}
       <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)} dismissible={!pending}>
         <DialogHeader>
-          <DialogTitle>
-            {browserCredential
-              ? tb(effectiveKind === "browser_login" ? "addLogin" : "addProfile")
-              : t(fixedKind === "smtp_account" ? "addSmtpAccount" : "addSecret")}
-          </DialogTitle>
-          <DialogDescription>
+          <div className="flex items-center gap-1.5">
+            <DialogTitle>
+              {browserCredential
+                ? tb(effectiveKind === "browser_login" ? "addLogin" : "addProfile")
+                : t(fixedKind === "smtp_account" ? "addSmtpAccount" : "addSecret")}
+            </DialogTitle>
+            <ContextHelp>
+              {browserCredential ? tb("personalOnly") : t("encryptedBoundOrganizationAgent")}
+            </ContextHelp>
+          </div>
+          <DialogDescription className="sr-only">
             {browserCredential ? tb("personalOnly") : t("encryptedBoundOrganizationAgent")}
           </DialogDescription>
         </DialogHeader>
@@ -365,9 +371,28 @@ function AddSecretForm({
 
             {fixedKind === undefined && (
               <div className="space-y-2">
-                <Label htmlFor="secret-purpose">
-                  {category === "other" ? t("service") : t("whichOne")}
-                </Label>
+                <div className="flex items-center gap-1">
+                  {" "}
+                  <Label htmlFor="secret-purpose">
+                    {category === "other" ? t("service") : t("whichOne")}
+                  </Label>{" "}
+                  <ContextHelp>
+                    {chosen?.description ?? t("namingServiceWhatLets")}
+                    {chosen?.help_url && (
+                      <>
+                        {" "}
+                        <a
+                          href={chosen.help_url}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="underline underline-offset-4"
+                        >
+                          {t("whereDoIGet2")}
+                        </a>
+                      </>
+                    )}
+                  </ContextHelp>
+                </div>
                 {/* The entry that is in force, fallback included - the raw choice
                   is empty until somebody picks, and a trigger bound to it read as
                   blank while the hint under it already named the first service. */}
@@ -385,22 +410,6 @@ function AddSecretForm({
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-muted-foreground text-xs">
-                  {chosen?.description ?? t("namingServiceWhatLets")}
-                  {chosen?.help_url && (
-                    <>
-                      {" "}
-                      <a
-                        href={chosen.help_url}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="underline underline-offset-4"
-                      >
-                        {t("whereDoIGet2")}
-                      </a>
-                    </>
-                  )}
-                </p>
               </div>
             )}
 
@@ -495,7 +504,7 @@ function AddSecretForm({
                 label={t("noteOptional")}
                 htmlFor="secret-description"
                 error={errors.description}
-                description={t("shownNextPickerWhich")}
+                help={t("shownNextPickerWhich")}
               >
                 <Textarea
                   value={description}

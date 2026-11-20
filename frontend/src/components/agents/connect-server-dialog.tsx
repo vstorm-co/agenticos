@@ -288,6 +288,7 @@ function refreshOnReturn(queryClient: ReturnType<typeof useQueryClient>): void {
   window.addEventListener(
     "focus",
     () => {
+      void queryClient.invalidateQueries({ queryKey: qk.triggers.all() });
       void queryClient.invalidateQueries({ queryKey: qk.mcpConnections.all() });
       void queryClient.invalidateQueries({ queryKey: qk.mcpServers.lists() });
       void queryClient.invalidateQueries({ queryKey: qk.mcpServers.entries() });

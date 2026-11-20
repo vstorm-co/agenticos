@@ -70,6 +70,7 @@ from app.schemas.workflow_run import (
     WorkflowStepDecision,
     WorkflowStepResolve,
     WorkflowStepTest,
+    WorkflowTestedStep,
 )
 from app.services.access import WORKFLOW, resolve_access, visible_resource_ids
 from app.services.workflow_execution import (
@@ -241,10 +242,31 @@ def _read(run: WorkflowRun, *, can_cancel: bool = False) -> WorkflowRunRead:
         causation_run_id=run.causation_run_id,
         retry_of_run_id=run.retry_of_run_id,
         depth=run.depth,
+        tested_step=_tested_step(run),
         started_at=run.started_at,
         ended_at=run.ended_at,
         created_at=run.created_at,
         updated_at=run.updated_at,
+    )
+
+
+def _tested_step(run: WorkflowRun) -> WorkflowTestedStep | None:
+    """The step a step test ran, named from the run's snapshot, which always holds it."""
+    if run.tested_step_node_id is None:
+        return None
+    node_id = str(run.tested_step_node_id)
+    node = next(
+        (
+            node
+            for node in (run.draft_graph_snapshot or {}).get("nodes", [])
+            if node.get("id") == node_id
+        ),
+        {},
+    )
+    return WorkflowTestedStep(
+        node_id=run.tested_step_node_id,
+        label=node.get("label"),
+        definition_id=node.get("definition_id"),
     )
 
 
@@ -423,6 +445,7 @@ class WorkflowExecutionService:
             source_artifact_id=source_artifact_id,
             source_version_number=source_version_number,
             impersonated=impersonated,
+            tested_step_node_id=None if step is None else step.node_id,
         )
         return _read(run)
 
@@ -594,6 +617,7 @@ class WorkflowExecutionService:
         impersonated: bool = False,
         source_artifact_id: UUID | None = None,
         source_version_number: int | None = None,
+        tested_step_node_id: UUID | None = None,
     ) -> tuple[WorkflowRun, UUID]:
         """One admitted run: its row, its references, its entry node and first outbox row.
 
@@ -656,6 +680,7 @@ class WorkflowExecutionService:
             workflow_version_id=workflow_version_id,
             draft_graph_snapshot=draft_snapshot,
             entry_node_id=graph.entry_node_id,
+            tested_step_node_id=tested_step_node_id,
             mode=mode.value,
             triggered_by=triggered_by.value,
             source_artifact_id=source_artifact_id,
@@ -1142,6 +1167,7 @@ class WorkflowExecutionService:
             impersonated=original.impersonated,
             source_artifact_id=original.source_artifact_id,
             source_version_number=original.source_version_number,
+            tested_step_node_id=original.tested_step_node_id,
         )
         return _read(run)
 

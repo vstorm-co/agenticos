@@ -29,7 +29,7 @@ from app.core.exceptions import AuthenticationError, AuthorizationError, BadRequ
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import RunStatus
 from app.repositories import conversation as conversation_repo
-from app.schemas.conversation import ConversationCompactionAvailability
+from app.schemas.conversation import ConversationCompactionAvailability, HistoryProvenance
 from app.services import agent_runner as agent_runner_module
 from app.services import agent_session as agent_session_module
 from app.services.agent_runner import AgentRunnerService, PreparedRun
@@ -522,6 +522,9 @@ def _runner_harness(monkeypatch: pytest.MonkeyPatch, history: ModelHistory, prep
     conversation_service = MagicMock()
     conversation_service.model_history = AsyncMock(return_value=history)
     conversation_service.keep_summary_snapshot = AsyncMock(return_value=True)
+    conversation_service.history_for_provenance = AsyncMock(
+        side_effect=lambda history, _provenance: history
+    )
     ctx = AuthContext(user_id=PERSON, organization_id=ORG, role=OrgRoleName.OWNER)
     published_spec = SimpleNamespace(
         capabilities=[
@@ -556,17 +559,22 @@ async def test_runner_records_summary_only_if_the_bounded_snapshot_cas_holds(
         [ModelRequest(parts=[UserPromptPart(content="remember this")])], revision=4, ordinal=9
     )
     prepared, capability = _prepared_compaction(conversation_id=CONVERSATION, history=history)
+    prepared.history_provenance = HistoryProvenance(agent_id=AGENT, configuration_digest="0" * 64)
     service, conversation_service, db, ctx = _runner_harness(monkeypatch, history, prepared)
 
     result = await service.compact_conversation(ctx, CONVERSATION, AGENT)
 
     assert result is True
     capability.compact_now.assert_awaited_once()
+    conversation_service.history_for_provenance.assert_awaited_once_with(
+        history, prepared.history_provenance
+    )
     conversation_service.keep_summary_snapshot.assert_awaited_once_with(
         CONVERSATION,
         [{"summary": True}],
         expected_revision=4,
         expected_ordinal=9,
+        provenance=prepared.history_provenance,
     )
     assert prepared.model_context_check is not None
     assert service.finish_compaction.await_args.kwargs["status"] is RunStatus.COMPLETED
@@ -659,6 +667,7 @@ async def test_runner_keeps_the_existing_cache_when_snapshot_cas_loses(
         [{"summary": True}],
         expected_revision=4,
         expected_ordinal=9,
+        provenance=None,
     )
 
 

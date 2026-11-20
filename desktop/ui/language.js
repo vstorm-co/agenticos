@@ -41,8 +41,13 @@ export function startLanguage(invoke) {
     while ((node = walker.nextNode())) {
       if (
         node.parentElement?.closest(
-          "script, style, #language, .instance-list, .error, [data-progress-detail]",
+          "script, style, #language, .error, [data-progress-detail]",
         )
+      )
+        continue;
+      if (
+        node.parentElement?.closest(".instance-list") &&
+        !node.parentElement.closest("[data-onboarding-copy]")
       )
         continue;
       const previous = remembered.get(node);

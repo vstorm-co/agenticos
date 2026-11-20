@@ -6,9 +6,9 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import and_, false, func, or_, select, true
+from sqlalchemy import DateTime, and_, cast, false, func, literal, or_, select, true
 from sqlalchemy import update as sql_update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -18,6 +18,7 @@ from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_trigger import AgentTrigger, TriggerAttempt, TriggerOverlap
 from app.db.models.resource_grant import Visibility
 from app.schemas.agent_trigger import (
+    GithubFilteredEvent,
     TriggerAttemptReason,
     TriggerAttemptStage,
     TriggerAttemptStatus,
@@ -36,6 +37,46 @@ _NON_TERMINAL_STATUSES = (
 # worker crash that skipped its `finally` - and the schedule is freed rather than
 # parked for ever.
 FIRE_LEASE = timedelta(hours=1)
+
+
+async def record_filtered_event(
+    db: AsyncSession, *, trigger: AgentTrigger, diagnostic: GithubFilteredEvent
+) -> None:
+    """Sample at most one verified rejection per minute without spending run admission.
+
+    The predicate skips row writes for a burst and rechecks after concurrent
+    updates, so neither stale configuration nor an older event can replace the
+    owner's current diagnostic.
+    """
+    received_at = cast(
+        AgentTrigger.last_filtered_event["received_at"].astext, DateTime(timezone=True)
+    )
+    recorded_at = cast(
+        AgentTrigger.last_filtered_event["recorded_at"].astext, DateTime(timezone=True)
+    )
+    await db.execute(
+        sql_update(AgentTrigger)
+        .where(
+            AgentTrigger.id == trigger.id,
+            AgentTrigger.organization_id == trigger.organization_id,
+            AgentTrigger.is_active.is_(True),
+            AgentTrigger.event_source == trigger.event_source,
+            AgentTrigger.event_config == trigger.event_config,
+            AgentTrigger.approved_sources.is_not_distinct_from(trigger.approved_sources),
+            or_(received_at.is_(None), received_at < diagnostic.received_at),
+            or_(
+                recorded_at.is_(None),
+                recorded_at <= func.clock_timestamp() - timedelta(minutes=1),
+            ),
+        )
+        .values(
+            last_filtered_event=literal(diagnostic.model_dump(mode="json"), type_=JSONB).op("||")(
+                func.jsonb_build_object("recorded_at", func.clock_timestamp())
+            )
+        )
+        .execution_options(synchronize_session=False)
+    )
+    await db.flush()
 
 
 async def get(
@@ -398,7 +439,7 @@ async def renew_fire_marker(
     # `execute` is typed to return `Result`, which has no `rowcount`; a DML
     # statement actually returns `CursorResult`, which does (`resource_grant`
     # documents the same suppression).
-    return result.rowcount == 1  # ty: ignore[unresolved-attribute]
+    return result.rowcount == 1  # ty: ignore[missing-attribute]
 
 
 async def clear_fire_marker(db: AsyncSession, *, trigger_id: UUID, claimed_at: datetime) -> None:

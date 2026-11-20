@@ -1,5 +1,5 @@
 ---
-source_sha: "ebe2636bfc0c"
+source_sha: "05c6c8dd7ace"
 ---
 
 # Workflows { #workflows }
@@ -159,7 +159,10 @@ fügen einen Schritt auf vier Wegen hinzu:
   Schritt oder ans Ende des sichtbaren Ablaufs und wird verbunden, wenn die Ports
   passen. Ein Startschritt kommt stattdessen vor den aktuellen Start und wird zu ihm.
 - **+** neben dem Ausgang eines Schritts öffnet die Auswahl für den Schritt, der nach
-  diesem Ausgang kommt.
+  diesem Ausgang kommt. Führt der Ausgang schon zu einem Schritt, fragt die Auswahl, wohin
+  der neue gehört: **Insert before** setzt ihn in die Verbindung, **Add a parallel
+  branch** behält die Verbindung und lässt den neuen Schritt daneben laufen. Ein Ausgang,
+  der schon zu mehreren Schritten führt, nimmt nur einen weiteren Zweig auf.
 - **Rechtsklick** auf die Zeichenfläche: dieselbe Auswahl öffnet sich dort, wo Sie
   geklickt haben, und der Schritt landet dort. Darunter **Notiz hinzufügen** (Add a note) und, sobald
   etwas kopiert ist, **Einfügen** (Paste).
@@ -306,7 +309,9 @@ Version, ein Run und ein Vergleich zeigen die gespeicherte Größe ohne Anfasser
 ## Einen Knoten konfigurieren { #configuring-a-node }
 
 Was jeder Knoten tut, womit er konfiguriert wird und was seine Fehler bedeuten, steht
-in der [Knotenreferenz](reference/workflow-nodes.md).
+in der [Knotenreferenz](reference/workflow-nodes.md). Die Konsole benennt jeden Schritt, seine
+Ports und Einstellungen in der Sprache der lesenden Person; die Referenz, die API und ein
+exportierter Workflow behalten die englischen Namen.
 
 Ein Klick wählt einen Schritt aus, ein Doppelklick öffnet ihn über der Zeichenfläche. In einer veröffentlichten Version oder **View only** genügt ein Klick. Der Kopf zeigt den Namen und eine aufklappbare Zusammenfassung der fehlenden Einrichtung. Klappen Sie sie auf, um die Angaben zu prüfen; ein Feldname führt direkt zur Eingabe. Nach einem Test- oder Veröffentlichungsversuch öffnen sich die Validierungsdetails automatisch.
 
@@ -465,9 +470,18 @@ hat:
 Jedes Auswahlfeld unterscheidet gleichnamige Zeilen durch Kontext und markiert
 eine Referenz, deren Ziel verschwunden ist. Die Auswahlfelder **Agent** und
 **Secret** bieten zusätzlich einen Link zum Neuanlegen — immer, nicht nur wenn die
-Liste leer ist — während das **Table**-Auswahlfeld keinen hat. Eine Tabelle, deren Schema sich seit dem Binden geändert
-hat, sagt es und bietet **Rebind to the current schema** an, sodass ein veralteter
-Spaltensatz eine sichtbare Aufforderung ist statt eines stillen Bruchs.
+Liste leer ist — während das **Table**-Auswahlfeld keinen hat.
+
+Ändert sich das Schema einer Tabelle, nachdem ein Schritt an sie gebunden wurde,
+verschiebt der Editor den Schritt selbst auf das neue Schema, solange jede Spalte,
+die der Schritt liest, noch mit demselben Typ existiert - eine hinzugefügte Spalte
+oder eine Änderung an einer, die der Schritt nicht liest, verlangt nichts von dir.
+Wurde eine gelesene Spalte entfernt oder hat sie ihren Typ geändert, zeigt der
+Schritt stattdessen ein Problem, und sowohl das **Table**-Feld des Schritts als auch
+die Problemliste der Werkzeugleiste bieten **Update to the current schema** an, das
+jede gewählte Spalte behält, die noch existiert. Prüfe danach, was den Schritt liest.
+
+Auch Filter, Sortierspalten und Wertebindungen werden geprüft. Entferne oder ersetze abhängige Einstellungen mit geänderten Spalten, bevor du das Tabellenschema aktualisierst; die Sammelaktualisierung lässt solche Schritte unverändert. Eine Wertebindung für den ganzen Datensatz erfordert ebenfalls diese manuelle Prüfung.
 
 ### Evals für einen Modellschritt { #evals-for-a-model-step }
 
@@ -802,13 +816,12 @@ nicht tat.
 
 Jedes Speichern wird gegen die Revision geschrieben, die Sie geöffnet haben, sodass
 ein an zwei Stellen zugleich bearbeiteter Draft nicht still überschreiben kann.
-Passiert das, hebt der Editor ein Banner mit dem Titel **This draft changed
-elsewhere**: *Someone edited this workflow since you opened it. Overwrite keeps your
-changes; reload replaces them with the latest saved draft.* Sie wählen:
+Passiert das, hebt der Editor ein Banner mit dem Titel **Someone else also edited this workflow**: *They saved changes while you were editing. Keep your changes, or load
+their version and lose your unsaved edits.* Sie wählen:
 
-- **Overwrite** — behalten Sie Ihre Version und schreiben Sie sie über die
+- **Keep my changes** — behalten Sie Ihre Version und schreiben Sie sie über die
   anderswo gespeicherte.
-- **Reload** — verwerfen Sie Ihre ungespeicherten Änderungen und nehmen Sie den
+- **Load their version** — verwerfen Sie Ihre ungespeicherten Änderungen und nehmen Sie den
   zuletzt gespeicherten Draft.
 
 ## Eine Version veröffentlichen und die Versionshistorie { #publishing-a-version-and-version-history }
@@ -833,6 +846,12 @@ sich der Draft seit der Live-Version nicht geändert, sagt er das zuerst. Hat de
 Graph noch Probleme, wird das Veröffentlichen mit **Fix the problems below before
 publishing** blockiert, sodass eine Version, die nicht validieren würde, nie
 entsteht.
+
+Manches ist einen Blick wert, ohne falsch zu sein, und ein bernsteinfarbenes Zeichen am
+Schritt markiert es: ein Ergebnis von **Ask for approval**, das ins Leere führt, oder ein
+Schritt, der zwischen Ausgängen entscheidet, von denen keiner weiterführt. Der Run endet
+dort einfach. Der Veröffentlichungsdialog listet sie ebenfalls auf, aber sie blockieren
+nie einen Testlauf oder eine Veröffentlichung.
 
 Das Veröffentlichen beendet Ihr Bearbeiten nicht. Der Draft existiert weiter
 unabhängig von jeder veröffentlichten Version, sodass Sie ihn sofort weiter
@@ -1053,8 +1072,11 @@ weiter, den die freigebende Person gedrückt hat, und die entschiedene Zeile nen
 Eine Bearbeitung geht mit jeder gedrückten Schaltfläche mit.
 
 
-In der Liste lautet die Version eines Testlaufs **Draft (test)** und die eines echten
-**Published**, und ein aus der Konsole oder über die HTTP-API gestarteter Lauf
+In der Liste lautet ein Test des ganzen Entwurfs **Draft (test)**, ein [Test eines
+einzelnen Schritts](#a-steps-data-pinning-and-testing-one-step) **Step test** mit dem Namen des Schritts und ein echter Lauf
+**Published**. **Version** zeigt nur Schritttests oder lässt sie weg.
+
+Ein aus der Konsole oder über die HTTP-API gestarteter Lauf
 lautet **Console or API**. **Status**, **Version**, **Started by** und **Started** (die letzte Stunde, der letzte Tag,
 die letzte Woche oder 30 Tage) grenzen die Läufe ein, und die Liste
 antwortet seitenweise; jeder Filter steht in der Adresse, sodass sich eine
@@ -1644,7 +1666,7 @@ Skill- und Kontextgalerien eingebetteter Agenten laden alle Metadatenseiten und 
 - Ein Parameter ist **ein Wert oder Daten aus einem Schritt** — **Data** liest sie aus
   einer erreichbaren, typkompatiblen vorgelagerten Ausgabe oder fügt sie in Text ein.
 - Der Draft **speichert sich selbst**, und eine Bearbeitung von zwei Stellen hebt
-  ein Banner mit **Overwrite** oder **Reload**.
+  ein Banner mit **Keep my changes** oder **Load their version**.
 - **Publish** wird blockiert, solange ein Problem besteht, und validiert erneut auf
   dem Server; frühere Versionen bleiben schreibgeschützt einsehbar, und **Restore to
   draft** macht eine davon wieder zum Draft.

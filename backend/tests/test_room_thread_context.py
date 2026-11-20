@@ -29,7 +29,14 @@ from app.db.models.agent import AgentKind
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.services import live_turn
 from app.services.agent_runner import AgentRunnerService, LiveRunSurface, PreparedRun, RunSegment
-from tests.test_agent_runner import _ctx, _db, _parked_run, _prepared
+from tests.test_agent_runner import (
+    _ctx,
+    _db,
+    _history_provenance,
+    _parked_run,
+    _prepared,
+    _resolved_model,
+)
 from tests.test_agent_session import _sent_events, _session
 
 pytestmark = pytest.mark.anyio
@@ -73,7 +80,7 @@ def build_inputs(service: AgentRunnerService, ctx: AuthContext) -> Iterator[Simp
             "get_runnable_spec",
             AsyncMock(return_value=(agent, spec, agent.current_version_id)),
         ),
-        patch.object(service.models, "resolve", AsyncMock(return_value=MagicMock(label="test"))),
+        patch.object(service.models, "resolve", AsyncMock(return_value=_resolved_model("test"))),
         patch.object(service.skills, "resolve_for_agent", AsyncMock(return_value=[])),
         patch(
             "app.services.agent_runner.agent_run_repo.create_run",
@@ -140,6 +147,7 @@ def conversation_store() -> tuple[SimpleNamespace, dict[str, object]]:
         keep_overhead=setter("overhead"),
         keep_reminder_state=setter("reminder"),
         keep_plan=setter("plan"),
+        history_for_provenance=AsyncMock(side_effect=lambda history, _provenance: history),
     ), stored
 
 
@@ -243,9 +251,14 @@ async def test_subthread_resume_keeps_saved_messages_and_plan_on_original_room_a
         ),
         patch.object(service, "_parked_spec", AsyncMock(return_value=(given.agent, given.spec))),
         patch.object(service, "_run", AsyncMock(side_effect=segment)),
+        # Provenance matching has its own tests; this one is about the saved scope.
+        patch("app.services.agent_runner._require_history_provenance"),
     ):
         given.agent.id = run.agent_id
         given.agent.current_version_id = run.agent_version_id
+        run.paused_state["history_provenance"] = _history_provenance(
+            run.agent_id, given.spec, _resolved_model("test"), ctx.user_id
+        ).model_dump(mode="json")
         result = await service.resume(ctx, run.id)
     assert result.output == "continued"
     assert captured["plan"] == ["Resume my own plan"]

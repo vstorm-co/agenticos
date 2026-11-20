@@ -156,6 +156,11 @@ export interface ColumnDef {
   id: string;
   label: string;
   type: ColumnTypeName;
+  /**
+   * Counts changes to what the column's values mean - its type, a formula, what a
+   * link, lookup or rollup reads, its options. Read-only; absent on older payloads.
+   */
+  revision?: number;
   nullable: boolean;
   default: CellValue;
   options: OptionDef[];
@@ -218,6 +223,14 @@ export interface TableSummary {
   can_edit: boolean;
 }
 
+/** One version of a table's schema, as `GET /tables/{id}/schema-versions` lists it. */
+export interface SchemaVersionRead {
+  version: number;
+  columns: ColumnDef[];
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface RowPolicy {
   rule: "none" | "grants" | "assignee";
   view_column_id?: string | null;
@@ -261,6 +274,9 @@ export interface TableCreate {
   name: string;
   description?: string | null;
   visibility?: TableVisibility;
+  /** Shared with each as it is created, which makes it private (#2072). */
+  group_ids?: string[];
+  user_ids?: string[];
   columns?: ColumnInput[];
 }
 

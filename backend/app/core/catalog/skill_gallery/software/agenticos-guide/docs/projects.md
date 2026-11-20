@@ -68,6 +68,18 @@ Two ways in:
 A chat stays in the project it was started in. The chip on an existing chat
 links back to the project.
 
+An agent with Sandbox can call `select_project_workspace` with an accessible
+project ID to use its files and shell for the current run, from web chat or a
+connected channel. The answer shows the projects selected. Passing no ID restores
+the original workspace. Approval continuations keep the selection; the next
+message starts in the conversation's original workspace.
+
+Selection changes file access only: it does not move chat history, copy private files or replace the
+agent's instructions. Access is checked again for each operation. Scheduled runs
+remain limited to their reviewed sources, and isolated evaluations cannot select
+live projects. Files remain in the project; publish an App or explicitly send a
+file to deliver it outside that workspace.
+
 ## What an agent gets in a project
 
 Whichever agent answers, a run in a project chat works in the **project's

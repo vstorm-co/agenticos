@@ -98,14 +98,12 @@ describe("the Me view's header", () => {
     expect(screen.queryByText(/Nothing is waiting on you/)).toBeNull();
   });
 
-  it("counts answers to review, failing suites and suggestions as waiting too", () => {
+  it("counts personal Inbox proposals without authoring or evaluation queues", () => {
     useUsageStatsMock.mockReturnValue({ usage: { total_runs: 16, pending_approvals: 0 } });
     others.value = { review: 9, suites: 1, suggestions: 1, settled: true };
     mount();
 
     expect(screen.queryByText(/Nothing is waiting on you/)).toBeNull();
-    expect(
-      screen.getByText("9 answers to review, 1 failing suite, and 1 suggestion"),
-    ).toBeVisible();
+    expect(screen.getByText("1 suggestion")).toBeVisible();
   });
 });

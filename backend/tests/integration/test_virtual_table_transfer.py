@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.core.exceptions import ExportTooLargeError, NotFoundError
-from app.db.models.virtual_table import VirtualTableOutbox
+from app.db.models.virtual_table import VirtualTableOutbox, VirtualTableReceipt
 from app.schemas.virtual_table import (
     ColumnDef,
     LinkedRecord,
@@ -205,6 +205,10 @@ async def test_a_batch_sent_again_under_its_key_writes_nothing_more(db):
 
     assert (first_replayed, again_replayed) == (False, True)
     assert again == first
+    receipt = await db.scalar(select(VirtualTableReceipt))
+    assert receipt.table_id == table.id
+    assert receipt.outcome == first.model_dump(mode="json")
+    assert "_table_id" not in again.model_dump(mode="json")
     listed = await service.list_records(ctx, table.id, RecordQuery())
     assert len(listed.items) == 1
     with pytest.raises(IdempotencyKeyReuseError):
@@ -214,6 +218,62 @@ async def test_a_batch_sent_again_under_its_key_writes_nothing_more(db):
             RecordBatchCreate(records=[RecordCreate(values={customer: "Globex"})]),
             operation_key="import-1",
         )
+
+
+async def test_purging_a_table_removes_its_batch_receipts_and_keeps_other_tables(db):
+    """A batch receipt keeps a refused row's external id, which can be personal data,
+    and its outcome does not name the table: the purge finds it by its `table_id`."""
+    from app.db.models.virtual_table import VirtualTableReceipt
+    from app.repositories import virtual_table_repo
+
+    service, ctx, table = await _setup(db)
+    other = await orders_table(service, ctx, name="Kept")
+    customer = cid(table, "Customer")
+    ada = RecordCreate(external_id="ada@example.com", values={customer: "Ada"})
+    await service.create_record(ctx, table.id, ada)
+    result, _ = await service.write_batch(
+        ctx, table.id, RecordBatchCreate(records=[ada]), operation_key="import-1"
+    )
+    assert "ada@example.com" in str(result.failed[0].details)
+    await service.write_batch(
+        ctx,
+        other.id,
+        RecordBatchCreate(records=[RecordCreate(values={cid(other, "Customer"): "Globex"})]),
+        operation_key="import-2",
+    )
+
+    await virtual_table_repo.delete_receipts_for_table(
+        db, organization_id=ctx.organization_id, table_id=table.id
+    )
+
+    left = list(
+        await db.scalars(
+            select(VirtualTableReceipt.table_id).where(
+                VirtualTableReceipt.operation == "record.batch"
+            )
+        )
+    )
+    assert left == [other.id]
+
+
+async def test_a_batch_receipt_that_names_no_table_is_refused(db):
+    from sqlalchemy.exc import IntegrityError
+
+    from app.db.models.virtual_table import VirtualTableReceipt
+
+    _, ctx, _ = await _setup(db)
+    db.add(
+        VirtualTableReceipt(
+            organization_id=ctx.organization_id,
+            principal_id=ctx.subject_id,
+            operation="record.batch",
+            operation_key="unattributed",
+            payload_hash="0" * 64,
+            outcome={},
+        )
+    )
+    with pytest.raises(IntegrityError, match="batch_names_table"):
+        await db.flush()
 
 
 async def test_an_edit_that_waited_until_after_the_import_began_is_not_overwritten(engine):

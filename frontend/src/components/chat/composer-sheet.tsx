@@ -132,7 +132,7 @@ export function ComposerSheet({
     <>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
-          {trigger("hidden h-9 w-9 shrink-0 md:inline-flex")}
+          {trigger("hidden h-9 w-9 shrink-0 data-[state=open]:bg-accent md:inline-flex")}
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"

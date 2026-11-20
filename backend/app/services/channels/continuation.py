@@ -27,6 +27,7 @@ from app.db.session import get_db_context
 from app.repositories import agent_run_repo, channel_bot_repo, channel_prompt_repo
 from app.services.access import decider_context
 from app.services.agent_runner import AgentRunnerService, RunSegment
+from app.services.channels.base import OutgoingAttachment
 from app.services.channels.handback import REFUSED_NOTICE, ChatNotice, chat_destination
 from app.services.channels.handback_jobs import queue_notices, queue_segment
 from app.services.channels.next_steps import incoming_for_run
@@ -44,6 +45,7 @@ class ChatDelivery:
     output: str
     tool_calls: tuple[RecordedToolCall, ...]
     generated_files: frozenset[str]
+    outbound: tuple[OutgoingAttachment, ...] = ()
 
     @classmethod
     def of(cls, segment: RunSegment) -> ChatDelivery:
@@ -51,6 +53,7 @@ class ChatDelivery:
             output=segment.output,
             tool_calls=tuple(segment.tool_calls),
             generated_files=segment.generated_files,
+            outbound=segment.outbound,
         )
 
 
@@ -208,7 +211,7 @@ async def deliver_in_chat(
     run_id: UUID,
     destination: ChannelDestination,
     said: ChatDelivery,
-) -> None:
+) -> bool:
     """Post a continuation somebody ran by hand (Resume, an answer) to its chat.
 
     The run already ran and committed, so a room that definitely no longer admits
@@ -216,7 +219,7 @@ async def deliver_in_chat(
     """
     bot_id = destination.bot_id
     async with chat_lock(str(bot_id), destination.platform_chat_id), get_db_context() as db:
-        await _post_if_admitted(
+        return await _post_if_admitted(
             db,
             organization_id=organization_id,
             run_id=run_id,
@@ -232,20 +235,20 @@ async def _post_if_admitted(
     run_id: UUID,
     destination: ChannelDestination,
     said: ChatDelivery,
-) -> None:
+) -> bool:
     bot_id = destination.bot_id
     bot = await channel_bot_repo.get_for_org(db, bot_id, organization_id=organization_id)
     if bot is None or not bot.is_active:
-        return
+        return False
     run = await agent_run_repo.get_run(db, run_id, organization_id=organization_id)
     if run is None:
-        return
+        return False
     incoming = await incoming_for_run(
         db, run, bot_id=bot_id, platform_chat_id=destination.platform_chat_id
     )
     if incoming is None:
         logger.info("channel_delivery_chat_moved_on run_id=%s bot_id=%s", run_id, bot_id)
-        return
+        return False
     admission = await ChannelMessageRouter().admission(db, run, incoming)
     if admission.verdict == "refused":
         logger.info(
@@ -254,7 +257,7 @@ async def _post_if_admitted(
             bot_id,
             admission.reason,
         )
-        return
+        return False
     if admission.verdict == "unconfirmed":
         logger.warning(
             "channel_delivery_unconfirmed run_id=%s bot_id=%s reason=%s",
@@ -269,8 +272,9 @@ async def _post_if_admitted(
         tool_calls=list(said.tool_calls),
         settled={},
         generated_files=said.generated_files,
+        outbound=said.outbound,
     )
-    await ChannelPrompts(db).deliver(
+    return await ChannelPrompts(db).deliver(
         bot,
         platform=run.surface,
         platform_chat_id=destination.platform_chat_id,

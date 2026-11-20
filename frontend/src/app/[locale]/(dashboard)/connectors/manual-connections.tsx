@@ -83,5 +83,7 @@ export function ManualConnections() {
     );
   }
 
-  return <McpServerList canManageOrganization={can(Perm.connectionsManage)} />;
+  return (
+    <McpServerList canManageOrganization={can(Perm.mcpManage)} retryOrganizationOnMount={false} />
+  );
 }

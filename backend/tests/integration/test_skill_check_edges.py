@@ -1898,3 +1898,46 @@ class TestTwoSessionsOnOneProposal:
             )
             await discarding.commit()
             await applying.rollback()
+
+
+@pytest.mark.security
+async def test_criterion_metadata_in_skill_check_read_and_list_needs_every_dataset(db, monkeypatch):
+    lab = await _lab(db)
+    evals = FakeEvals()
+    evals.install(monkeypatch)
+    service, started = await _finished(
+        db, lab, evals, {lab.a.id: Outcome(fixed=2)}, mode="thorough"
+    )
+    rows = await skill_check_repo.list_agents(
+        db, [started.id], organization_id=lab.ctx.organization_id
+    )
+    row = next(item for item in rows if item.agent_id == lab.a.id)
+    row.criteria = [
+        {
+            "scorer": "judge",
+            "name": "protected rubric",
+            "graded": 5,
+            "before": 0,
+            "after": 5,
+            "fixed": 5,
+            "broken": 0,
+        }
+    ]
+    await db.flush()
+    owner = await service.read(lab.ctx, lab.skill.id, started.id)
+    assert next(item for item in owner.agents if item.agent.id == lab.a.id).criteria
+    with monkeypatch.context() as denied:
+        _deny_datasets(denied)
+        read = await service.read(lab.ctx, lab.skill.id, started.id)
+        listed = await service.list_checks(lab.ctx, lab.skill.id, fork_id=None, skip=0, limit=10)
+        for response in (read, listed.items[0]):
+            assert all(not item.criteria for item in response.agents)
+            assert "protected rubric" not in response.model_dump_json()
+    assert (await service.read(lab.ctx, lab.skill.id, started.id)).agents
+    assert row.criteria[0]["name"] == "protected rubric"
+    assert row.skill_set_run_id is not None and row.dataset_run_id is not None
+    await db.execute(delete(EvalRun).where(EvalRun.id == row.skill_set_run_id))
+    await db.refresh(row)
+    assert row.skill_set_run_id is None and row.stages
+    retained = await service.read(lab.ctx, lab.skill.id, started.id)
+    assert not next(item for item in retained.agents if item.agent.id == lab.a.id).criteria

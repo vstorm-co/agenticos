@@ -11,7 +11,7 @@ import logging
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator
 from contextlib import asynccontextmanager, nullcontext
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -20,6 +20,7 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import SecretStr
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import ModelHTTPError, ModelRequestTimeout, UserError
 from pydantic_ai.messages import (
@@ -32,7 +33,9 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
+from pydantic_ai.models import Model
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RequestUsage
 from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace, WorkspaceRef
@@ -67,6 +70,7 @@ from app.agents.deps import AgentDeps
 from app.agents.isolation import InterceptedCall, RecordedCall, RunIsolation, ToolRecording
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.memory_scope import may_inject_memory, memory_owner_key
+from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -90,6 +94,7 @@ from app.core.exceptions import (
 )
 from app.core.memory_keys import person_owner_key
 from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.core.secret_kinds import ApiKeySecret, NoSecret
 from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
 from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
@@ -113,6 +118,7 @@ from app.services.agent_runner import (
     _answer_only,
     _classify_output,
     _connect_on_use,
+    _history_provenance,
     _RunRendering,
     _skills_with_content_overrides,
     _spend_already_booked,
@@ -127,6 +133,7 @@ from app.services.agent_runner import (
 )
 from app.services.approvals import ApprovalService
 from app.services.channels.handback import STOPPED_NOTICE
+from app.services.conversation import ConversationService
 from app.services.mcp_connection import (
     AccountNote,
     ManagedAppNote,
@@ -141,6 +148,43 @@ from app.services.skill_workspace import SKILLS_ROOT
 from app.services.transcript import RecordedToolCall
 from app.services.workflow_execution import context as workflow_context
 from tests.workspaces import document_workspace
+
+
+@dataclass(frozen=True)
+class _TestModelRequest(ModelRequestSpec):
+    """A resolved model with real destination fields and no provider I/O."""
+
+    transport_model: Model | None = None
+
+    def build(self) -> Model:
+        return self.transport_model if self.transport_model is not None else TestModel()
+
+
+def _resolved_model(
+    label: str = "gpt-4.1",
+    *,
+    provider: str = "openai",
+    model: str = "gpt-4.1",
+    base_url: str | None = None,
+    transport_model: Model | None = None,
+) -> ModelRequestSpec:
+    # Resolution of this fixture stays stable across preparation and resume.
+    return _TestModelRequest(
+        profile_id=uuid.UUID("331a352d-64ce-40c0-978b-26ce7f8ab730"),
+        label=label,
+        provider=provider,
+        model="local-model" if provider == "ollama" else model,
+        params={},
+        credential=ResolvedCredential(
+            provider=provider,
+            secret=NoSecret()
+            if provider == "ollama"
+            else ApiKeySecret(api_key=SecretStr("test-key")),
+            base_url=base_url,
+        ),
+        fallbacks=[],
+        transport_model=transport_model,
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -296,6 +340,7 @@ def _parked_run(**overrides):
         routine_origin_id=None,
         id=uuid.uuid4(),
         agent_id=uuid.uuid4(),
+        user_id=_THE_ASKER,
         agent_version_id=uuid.uuid4(),
         conversation_id=None,
         # No binding by default: most resume tests are about the approval
@@ -397,7 +442,7 @@ class TestPrepare:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ) as resolve,
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -445,13 +490,7 @@ class TestPrepare:
         )
         spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
         override = uuid.uuid4()
-        speech = MagicMock(
-            profile_id=override,
-            label="Voice",
-            provider="openai",
-            model="gpt-4o-mini-tts",
-            credential=MagicMock(base_url=None),
-        )
+        speech = replace(_resolved_model("Voice", model="gpt-4o-mini-tts"), profile_id=override)
 
         with (
             patch.object(
@@ -496,7 +535,7 @@ class TestPrepare:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -529,12 +568,7 @@ class TestPrepare:
             id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
         )
         spec = AgentSpec(name="Support", model_profile_id=uuid.uuid4())
-        custom = MagicMock(
-            label="Local",
-            provider="openai",
-            model="gpt-4o-mini-tts",
-            credential=MagicMock(base_url="http://vllm:8000/v1"),
-        )
+        custom = _resolved_model("Local", model="gpt-4o-mini-tts", base_url="http://vllm:8000/v1")
 
         with (
             patch.object(
@@ -581,7 +615,7 @@ class TestPrepare:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -629,7 +663,7 @@ class TestPrepare:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -704,7 +738,7 @@ class TestPrepare:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch("app.services.agent_runner.knowledge_base_repo.get_by_ids", new=kb_read),
@@ -723,21 +757,43 @@ class TestPrepare:
         ]
 
     @pytest.mark.anyio
-    async def test_the_mcp_servers_the_spec_binds_reach_the_agent_that_is_built(self):
+    @pytest.mark.parametrize("linked", [False, True])
+    @pytest.mark.parametrize("resumed", [False, True])
+    @pytest.mark.parametrize(
+        "surface",
+        [
+            RunSurface.API,
+            RunSurface.WEB,
+            RunSurface.MATTERMOST,
+            RunSurface.SLACK,
+            RunSurface.TEAMS,
+            RunSurface.TELEGRAM,
+            RunSurface.DISCORD,
+        ],
+    )
+    async def test_mcp_policy_reaches_the_agent_without_channel_overrides(
+        self, surface: RunSurface, linked: bool, resumed: bool
+    ) -> None:
         """`mcp_servers` is part of the published contract, so it has to act.
 
         Resolved here, in the one place every surface goes through, and against
         the run's own organization - an agent's reach is a property of the agent,
         not of whichever session happens to run it.
         """
-        ctx = _ctx()
+        ctx = replace(_ctx(), subject_is_publisher_fallback=not linked)
         service = AgentRunnerService(_db())
         agent = MagicMock(
             id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
         )
         refs = [
-            OrgMcpServerRef(connection_id=uuid.uuid4()),
-            OrgMcpServerRef(connection_id=uuid.uuid4()),
+            OrgMcpServerRef(connection_id=uuid.uuid4(), approval="none"),
+            OrgMcpServerRef(
+                connection_id=uuid.uuid4(),
+                approval="writes",
+                tool_approval={"search": "never", "delete": "required"},
+            ),
+            OrgMcpServerRef(connection_id=uuid.uuid4(), approval="all"),
+            PersonalMcpServerRef(account="personal", catalog_key="notion", approval="none"),
         ]
         spec = AgentSpec(name="Support", mcp_servers=refs)
 
@@ -748,7 +804,7 @@ class TestPrepare:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -761,14 +817,41 @@ class TestPrepare:
             ) as toolsets,
             patch("app.services.agent_runner.build_agent") as build,
         ):
-            await service.prepare(ctx, agent.id, extra_toolsets=["surface-toolset"])
+            if resumed:
+                await service._assemble(
+                    ctx,
+                    agent=agent,
+                    spec=spec,
+                    existing_run=_parked_run(
+                        user_id=ctx.user_id,
+                        initiated_by_publisher_fallback=not linked,
+                        surface=surface.value,
+                    ),
+                    surface=surface,
+                    conversation_id=None,
+                    user_name=None,
+                    acts_for_sender=True,
+                    extra_toolsets=["surface-toolset"],
+                    exposure=None,
+                    decided={},
+                    resuming={},
+                    already_spent={},
+                    already_started={},
+                )
+            else:
+                await service.prepare(
+                    ctx,
+                    agent.id,
+                    surface=surface,
+                    acts_for_sender=True,
+                    extra_toolsets=["surface-toolset"],
+                )
 
         assert toolsets.await_args.kwargs == {
             "organization_id": ctx.organization_id,
             "refs": refs,
-            # An API run has no person at the keyboard - the context is the key
-            # holder's - so no personal binding may reach for anybody's account.
-            "sender_user_id": None,
+            "sender_user_id": ctx.user_id if linked else None,
+            "recheck_sources": False,
             # A run naming no environment is production, which swaps nothing.
             "test_connections": {},
             # Nothing in this spec binds the platform's own server.
@@ -782,6 +865,8 @@ class TestPrepare:
         # chat still attaches its own, and dropping either half would leave an
         # agent silently short of tools.
         assert build.call_args.kwargs["extra_toolsets"] == ["surface-toolset", "linear-toolset"]
+
+        assert build.call_args.args[0].mcp_servers == refs
 
     @pytest.mark.anyio
     async def test_a_publisher_fallback_guest_does_not_borrow_the_publishers_mcp(self):
@@ -811,7 +896,7 @@ class TestPrepare:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -840,26 +925,47 @@ class TestPrepare:
 
     @pytest.mark.anyio
     @pytest.mark.security
-    async def test_a_key_run_reaches_none_of_its_issuers_personal_state(self):
+    @pytest.mark.parametrize("delegated", [False, True])
+    @pytest.mark.parametrize("personal_binding", [False, True])
+    async def test_a_key_can_delegate_mcp_without_opening_other_personal_state(
+        self,
+        delegated: bool,
+        personal_binding: bool,
+    ):
         """Codex on #2062: a key acts for its issuer, but whoever holds it is not
         them - so no memory, conversation search, kept sign-in or `user`-scoped
         workspace of theirs."""
-        ctx = replace(_ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset(Perm))
+        scopes = frozenset(Perm) if delegated else frozenset(set(Perm) - {Perm.MCP_PERSONAL_USE})
+        ctx = replace(_ctx(), api_key_id=uuid.uuid4(), key_scopes=scopes)
+        check = AsyncMock()
         service = AgentRunnerService(_db())
         agent = MagicMock(
             id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
         )
 
         with (
+            patch("app.services.agent_runner._personal_mcp_check", return_value=check),
+            patch.object(service, "_add_mirage_terminal", new=AsyncMock()) as terminal,
             patch.object(
                 service.registry,
                 "get_runnable_spec",
                 new=AsyncMock(
-                    return_value=(agent, AgentSpec(name="Script"), agent.current_version_id)
+                    return_value=(
+                        agent,
+                        AgentSpec(
+                            name="Script",
+                            mcp_servers=[
+                                PersonalMcpServerRef(account="personal", catalog_key="notion")
+                            ]
+                            if personal_binding
+                            else [],
+                        ),
+                        agent.current_version_id,
+                    )
                 ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -869,14 +975,23 @@ class TestPrepare:
             patch(
                 "app.services.agent_runner.build_toolsets_for_agent",
                 new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
-            ),
+            ) as toolsets,
             patch("app.services.agent_runner.build_agent") as build,
             patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)) as opened,
         ):
-            await service.prepare(ctx, agent.id)
+            prepared = await service.prepare(ctx, agent.id)
 
         assert build.call_args.kwargs["audience"] == RunAudience(user_id=None)
         assert opened.await_args.kwargs["identity"].user_id is None
+
+        assert toolsets.await_args.kwargs["sender_user_id"] == (ctx.user_id if delegated else None)
+        assert prepared.admitted_as.personal_mcp_key_id == (
+            ctx.api_key_id if delegated and personal_binding else None
+        )
+        assert check.await_count == int(delegated and personal_binding)
+        assert prepared.admitted_as.acts_for_sender is False
+
+        assert terminal.await_args.kwargs["person_id"] is None
 
     @pytest.mark.anyio
     @pytest.mark.parametrize("scope", ["conversation", "agent", "user", "channel"])
@@ -903,7 +1018,7 @@ class TestPrepare:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -962,7 +1077,7 @@ class TestPrepare:
                 ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -1022,7 +1137,7 @@ class TestPrepare:
                 ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -1082,7 +1197,7 @@ class TestPrepare:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -1134,7 +1249,7 @@ class TestPrepare:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -1199,7 +1314,7 @@ class TestPrepare:
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
             patch.object(service, "_parked_spec", new=AsyncMock(return_value=(agent, spec))),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -1267,7 +1382,7 @@ class TestPrepare:
             ) as get_exposure,
             patch.object(service, "_parked_spec", new=AsyncMock(return_value=(agent, spec))),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -1317,7 +1432,7 @@ class TestPrepare:
             ) as get_exposure,
             patch.object(service, "_parked_spec", new=AsyncMock(return_value=(agent, spec))),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -1351,7 +1466,7 @@ class TestPrepare:
                 ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -1765,7 +1880,7 @@ class TestAPlanThatOutlivesTheTurn:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -1812,7 +1927,7 @@ class TestAPlanThatOutlivesTheTurn:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -1866,7 +1981,7 @@ class TestAPlanThatOutlivesTheTurn:
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
             patch.object(service, "_parked_spec", new=AsyncMock(return_value=(agent, spec))),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -1878,6 +1993,9 @@ class TestAPlanThatOutlivesTheTurn:
             patch("app.services.agent_runner.build_agent") as build,
         ):
             conversations.return_value.keep_summary = AsyncMock()
+            conversations.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(conversations.return_value)
+            )
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
@@ -1924,7 +2042,7 @@ class TestAPlanThatOutlivesTheTurn:
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
             patch.object(service, "_parked_spec", new=AsyncMock(return_value=(agent, spec))),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -1936,6 +2054,9 @@ class TestAPlanThatOutlivesTheTurn:
             patch("app.services.agent_runner.build_agent") as build,
         ):
             conversations.return_value.keep_summary = AsyncMock()
+            conversations.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(conversations.return_value)
+            )
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
@@ -2416,7 +2537,7 @@ class TestASandboxIsSetUpOnFirstUse:
                 ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(
                 service.skills,
@@ -2547,6 +2668,10 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             await target.write_text("uploads/0000-report.csv", "month,total")
 
         with (
+            patch(
+                "app.services.agent_runner.member_repo.get_active",
+                new=AsyncMock(return_value=SimpleNamespace(role="member")),
+            ),
             patch.object(
                 service.registry,
                 "get_runnable_spec",
@@ -2559,7 +2684,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
                 ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(
                 service.skills,
@@ -4176,6 +4301,10 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
+            conversations.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(conversations.return_value)
+            )
             await service.execute(_ctx(), uuid.uuid4(), "fix the bug")
 
         kept = conversations.return_value.keep_plan
@@ -4206,6 +4335,10 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
+            conversations.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(conversations.return_value)
+            )
             await service.execute(_ctx(), uuid.uuid4(), "fix the bug")
 
         kept = conversations.return_value.keep_plan.await_args.args[1]
@@ -4237,6 +4370,10 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
+            conversations.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(conversations.return_value)
+            )
             await service.execute(_ctx(), uuid.uuid4(), "fix the bug")
 
         kept = conversations.return_value.keep_plan.await_args.args[1]
@@ -4264,6 +4401,10 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
+            conversations.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(conversations.return_value)
+            )
             await service.execute(_ctx(), uuid.uuid4(), "something else entirely")
 
         conversations.return_value.keep_plan.assert_not_awaited()
@@ -4290,6 +4431,10 @@ class TestParking:
             conversations.return_value.keep_overhead = AsyncMock()
             conversations.return_value.keep_reminder_state = AsyncMock()
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
+            conversations.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(conversations.return_value)
+            )
             await service.execute(_ctx(), uuid.uuid4(), "start the next thing")
 
         kept = conversations.return_value.keep_plan
@@ -4316,6 +4461,10 @@ class TestParking:
 
         with patch("app.services.agent_runner.ConversationService") as conversations:
             conversations.return_value.keep_plan = AsyncMock()
+            conversations.return_value.keep_summary = AsyncMock()
+            conversations.return_value.history_for_provenance = (
+                ConversationService.history_for_provenance.__get__(conversations.return_value)
+            )
             await AgentRunnerService(_db()).keep_plan(prepared, status=RunStatus.CANCELLED)
 
         kept = conversations.return_value.keep_plan.await_args.args
@@ -4510,18 +4659,32 @@ class TestResume:
         return MagicMock(id=uuid.uuid4(), status=status, tool_args=tool_args, note=note)
 
     @pytest.mark.anyio
-    async def test_an_approved_run_continues_from_the_arguments_that_were_approved(self):
+    @pytest.mark.parametrize("project_id", [None, uuid.uuid4()])
+    async def test_an_approved_run_continues_from_the_arguments_that_were_approved(
+        self, project_id
+    ):
         """The whole point: a decision has to actually restart the run."""
         service = AgentRunnerService(_db())
         approval = self._approval(
             status=ApprovalStatus.APPROVED.value, tool_args={"to": "customer@example.com"}
         )
         run = _parked_run(
-            paused_state={"messages": [], "tool_call_ids": {str(approval.id): "call-1"}}
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {str(approval.id): "call-1"},
+                "selected_project_id": None if project_id is None else str(project_id),
+            }
         )
         built = self._built()
 
+        opened_workspace = _sandbox(StateBackend())
         with (
+            patch(
+                "app.services.agent_runner.member_repo.get_active",
+                new=AsyncMock(return_value=SimpleNamespace(role="member")),
+            ),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=opened_workspace)),
+            patch.object(service.workspaces, "close", new=AsyncMock(return_value=None)),
             patch(
                 "app.services.agent_runner.agent_run_repo.claim_parked_run",
                 new=AsyncMock(return_value=run),
@@ -4539,10 +4702,12 @@ class TestResume:
             patch.object(
                 service.registry,
                 "get",
-                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+                new=AsyncMock(
+                    return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")
+                ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         ):
@@ -4551,6 +4716,10 @@ class TestResume:
         assert segment.output == "sent"
         assert finish.call_args.kwargs["status"] == RunStatus.COMPLETED.value
 
+        selector = build.call_args.kwargs["resources"]["project_workspace_selector"]
+        assert selector.project_id == project_id
+        assert selector.ctx.user_id == run.user_id
+        assert built.agent.run.call_args.kwargs["workspace"] is selector.workspace
         deferred = built.agent.run.call_args.kwargs["deferred_tool_results"]
         assert deferred.approvals["call-1"].override_args == {"to": "customer@example.com"}
         channel = build.call_args.kwargs["request_approval"]
@@ -4565,12 +4734,14 @@ class TestResume:
         run_limit_usd: Decimal | None = None,
         orphaned: bool = False,
         surface: RunSurface = RunSurface.API,
-        spec: dict | None = None,
+        spec: dict | AgentSpec | None = None,
         parent_run_id: uuid.UUID | None = None,
         stream_receipt: bool = False,
         conversation_id: uuid.UUID | None = None,
         current_revision: int | None = 0,
         started_at: datetime | None = None,
+        resumer: AuthContext | None = None,
+        run_key_scopes: list[str] | None = None,
     ) -> MagicMock:
         """Resume a parked run and hand back the `build_agent` mock.
 
@@ -4578,6 +4749,9 @@ class TestResume:
         is what the *continuation* was built with, which is decided before any of
         it matters.
         """
+        version = self._version(
+            spec.model_dump(mode="json") if isinstance(spec, AgentSpec) else spec
+        )
         service = AgentRunnerService(_db())
         approval = self._approval(status=ApprovalStatus.REJECTED.value, tool_args={}, note="no")
         # `orphaned` is a run whose member was deleted: `SET NULL` cleared its owner.
@@ -4588,6 +4762,7 @@ class TestResume:
             parent_run_id=parent_run_id,
             conversation_id=conversation_id,
             started_at=started_at or datetime.now(UTC),
+            key_scopes=run_key_scopes,
         )
         run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
         from contextlib import asynccontextmanager
@@ -4628,7 +4803,7 @@ class TestResume:
             ),
             patch(
                 "app.services.agent_runner.agent_repo.get_version",
-                new=AsyncMock(return_value=self._version(spec)),
+                new=AsyncMock(return_value=version),
             ),
             patch("app.services.agent_runner.build_agent", return_value=self._built()) as build,
             patch(
@@ -4641,16 +4816,18 @@ class TestResume:
             patch.object(
                 service.registry,
                 "get",
-                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+                new=AsyncMock(
+                    return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")
+                ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ) as resolve,
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         ):
             self.finished = finished
             self.resolve = resolve
-            resumer = _ctx()
+            resumer = resumer or _ctx()
             # Kept for the tests that ask *whose* account the continuation spoke
             # through: the approver releasing a parked run is not its owner.
             self.resumed_run = run
@@ -5017,6 +5194,103 @@ class TestResume:
         )
 
     @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_mcp_delegation_cannot_be_restored_on_a_different_surface(self) -> None:
+        with pytest.raises(AuthorizationError, match="cannot use delegated personal MCP"):
+            await self._resumed(
+                surface=RunSurface.WEB,
+                paused_state={
+                    "messages": [],
+                    "tool_call_ids": {},
+                    "admitted_as": {"personal_mcp_key_id": str(uuid.uuid4())},
+                },
+            )
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("limited_key", [False, True])
+    @pytest.mark.parametrize("personal_binding", [False, True])
+    async def test_api_mcp_resume_uses_the_original_key_and_owner_not_the_approver(
+        self,
+        limited_key: bool,
+        personal_binding: bool,
+    ):
+        resumer = (
+            replace(
+                _ctx(),
+                api_key_id=uuid.uuid4(),
+                key_scopes=frozenset({Perm.AGENTS_RUN, Perm.APPROVALS_DECIDE}),
+            )
+            if limited_key
+            else None
+        )
+        key_id = uuid.uuid4()
+        check = AsyncMock()
+        with (
+            patch("app.services.agent_runner._personal_mcp_check", return_value=check) as factory,
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ) as toolsets,
+        ):
+            await self._resumed(
+                surface=RunSurface.API,
+                spec=AgentSpec(
+                    name="API",
+                    mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")]
+                    if personal_binding
+                    else [],
+                ),
+                resumer=resumer,
+                run_key_scopes=[Perm.AGENTS_RUN.value, Perm.MCP_PERSONAL_USE.value],
+                paused_state={
+                    "messages": [],
+                    "tool_call_ids": {},
+                    "admitted_as": {"personal_mcp_key_id": str(key_id)},
+                },
+            )
+        assert factory.call_args.args == (key_id,)
+        assert self.resumed_run.user_id != self.resumer.user_id
+        assert factory.call_args.kwargs["user_id"] == self.resumed_run.user_id
+        assert toolsets.await_args.kwargs["sender_user_id"] == self.resumed_run.user_id
+        assert check.await_count == int(personal_binding)
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("personal_binding", [False, True])
+    async def test_revoked_personal_mcp_delegation_stops_resume_before_connecting(
+        self, personal_binding: bool
+    ):
+        from app.core.exceptions import AuthenticationError
+
+        with (
+            patch(
+                "app.services.agent_runner._personal_mcp_check",
+                return_value=AsyncMock(side_effect=AuthenticationError(message="Revoked")),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ) as tools,
+            pytest.raises(AuthenticationError) if personal_binding else nullcontext(),
+        ):
+            await self._resumed(
+                surface=RunSurface.API,
+                spec=AgentSpec(
+                    name="API",
+                    mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="notion")]
+                    if personal_binding
+                    else [],
+                ),
+                paused_state={
+                    "messages": [],
+                    "tool_call_ids": {},
+                    "admitted_as": {"personal_mcp_key_id": str(uuid.uuid4())},
+                },
+            )
+        assert tools.await_count == int(not personal_binding)
+
+    @pytest.mark.anyio
     async def test_the_audience_is_the_runs_own_not_the_approvers(self):
         """Resuming used to re-derive the memory identity off the approver, so an
         admin releasing a member's parked chat injected their own memory and wrote
@@ -5325,10 +5599,12 @@ class TestResume:
             patch.object(
                 service.registry,
                 "get",
-                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+                new=AsyncMock(
+                    return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")
+                ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         ):
@@ -5372,10 +5648,12 @@ class TestResume:
             patch.object(
                 service.registry,
                 "get",
-                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+                new=AsyncMock(
+                    return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")
+                ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch.object(service.transcript, "record", new=AsyncMock()) as record,
@@ -5443,10 +5721,12 @@ class TestResume:
             patch.object(
                 service.registry,
                 "get",
-                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+                new=AsyncMock(
+                    return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")
+                ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         ):
@@ -5484,10 +5764,12 @@ class TestResume:
             patch.object(
                 service.registry,
                 "get",
-                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+                new=AsyncMock(
+                    return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")
+                ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         ):
@@ -5528,10 +5810,12 @@ class TestResume:
             patch.object(
                 service.registry,
                 "get",
-                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+                new=AsyncMock(
+                    return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")
+                ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         ):
@@ -5694,7 +5978,9 @@ class TestResume:
             patch.object(
                 service.registry,
                 "get",
-                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+                new=AsyncMock(
+                    return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")
+                ),
             ),
             pytest.raises(BadRequestError, match="no longer exists"),
         ):
@@ -5716,7 +6002,9 @@ class TestResume:
             patch.object(
                 service.registry,
                 "get",
-                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+                new=AsyncMock(
+                    return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")
+                ),
             ),
             pytest.raises(BadRequestError, match="no longer exists"),
         ):
@@ -5762,10 +6050,12 @@ class TestResume:
             patch.object(
                 service.registry,
                 "get",
-                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+                new=AsyncMock(
+                    return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")
+                ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         ):
@@ -5824,10 +6114,12 @@ class TestResume:
             patch.object(
                 service.registry,
                 "get",
-                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+                new=AsyncMock(
+                    return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")
+                ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             # What a deleted secret looks like from here: the id resolves to
@@ -5892,10 +6184,12 @@ class TestResume:
             patch.object(
                 service.registry,
                 "get",
-                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+                new=AsyncMock(
+                    return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")
+                ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             pytest.raises(RunExecutionError) as raised,
@@ -5941,7 +6235,7 @@ class TestWhoTheRunSaysItIs:
                 ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -5988,7 +6282,7 @@ class TestWhoTheRunSaysItIs:
                 ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -6033,7 +6327,7 @@ class TestWhoTheRunSaysItIs:
                 ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -6064,7 +6358,7 @@ class TestWhoTheRunSaysItIs:
                 ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -6123,7 +6417,7 @@ class TestARunThatArrivedThroughABinding:
                 ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -6164,7 +6458,7 @@ class TestARunThatArrivedThroughABinding:
                 new=AsyncMock(return_value=[]),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -6212,7 +6506,7 @@ class TestARunThatArrivedThroughABinding:
                 new=AsyncMock(return_value=[]),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -6253,7 +6547,7 @@ class TestARunThatArrivedThroughABinding:
             ),
             patch("app.services.agent_runner.agent_environment_repo.list_connections", new=listed),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch.object(
@@ -6499,7 +6793,7 @@ class TestTracingSecret:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch.object(
@@ -6541,7 +6835,7 @@ class TestTheWorkspaceReachesTheAgent:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(
                 service.skills, "resolve_for_agent", new=AsyncMock(return_value=list(skills))
@@ -6702,7 +6996,7 @@ class TestWhatTheChannelLetsTheAgentLookUp:
                 ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -6763,8 +7057,8 @@ class TestTheBrowsersStepModel:
         )
         step_model = MagicMock(name="fast-model")
         resolve = AsyncMock(
-            side_effect=lambda ctx, profile_id=None, decision=False: MagicMock(
-                label="m", build=MagicMock(return_value=step_model)
+            side_effect=lambda ctx, profile_id=None, decision=False: _resolved_model(
+                "m", transport_model=step_model
             )
         )
         with (
@@ -6805,9 +7099,7 @@ class TestTheBrowsersStepModel:
         )
         resolver = AsyncMock(
             side_effect=resolve
-            or (
-                lambda ctx, profile_id=None, decision=False: MagicMock(label="m", build=MagicMock())
-            )
+            or (lambda ctx, profile_id=None, decision=False: _resolved_model("m"))
         )
         with (
             patch.object(
@@ -6878,7 +7170,7 @@ class TestTheBrowsersStepModel:
         def resolve(ctx, profile_id=None, decision=False):
             if profile_id == gone:
                 raise NotFoundError(message="Model profile not found")
-            return MagicMock(label="m", build=MagicMock())
+            return _resolved_model("m")
 
         built, _ = await self._built_call(spec, resolve=resolve)
 
@@ -7216,8 +7508,14 @@ class TestTellingTheAgentWhatItCannotReach:
     is wrong advice to somebody whose chat account is simply not linked.
     """
 
-    _SERVERS = "http://localhost:3000/mcp-servers"
-    _CONNECT = "http://localhost:3000/mcp-servers?connect=notion"
+    _SERVERS = "https://console.test/mcp-servers"
+    _CONNECT = "https://console.test/mcp-servers?connect=notion"
+
+    @pytest.fixture(autouse=True)
+    def _console_origin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "app.services.agent_runner.settings.FRONTEND_URL", "https://console.test"
+        )
 
     @staticmethod
     def _briefed(
@@ -7514,7 +7812,7 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -7571,7 +7869,7 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -7676,7 +7974,7 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
                 new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -7719,7 +8017,7 @@ class TestWhatAPreparedRunSaysThePersonCannotReach:
                 new=AsyncMock(return_value=(agent, AgentSpec(name="Support"), uuid.uuid4())),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -7755,7 +8053,7 @@ class TestAnIsolatedRun:
                 new=AsyncMock(return_value=(agent, AgentSpec(name="Support"), uuid.uuid4())),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -8046,7 +8344,7 @@ class TestThePersonBehindTheRun:
                 ),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch(
@@ -8462,6 +8760,12 @@ class TestParkedQuestions:
         built = self._built()
         version = MagicMock()
         version.spec = {"name": "Clerk"}
+        state = PausedRunState.model_validate(run.paused_state)
+        state.admitted_as = state.admitted_as.model_copy(update={"audience_user_id": run.user_id})
+        state.history_provenance = _history_provenance(
+            run.agent_id, AgentSpec.model_validate(version.spec), _resolved_model(), run.user_id
+        )
+        run.paused_state = state.model_dump(mode="json")
         with (
             patch(
                 "app.services.agent_runner.agent_run_repo.claim_parked_run",
@@ -8478,10 +8782,12 @@ class TestParkedQuestions:
             patch("app.services.agent_runner.build_agent", return_value=built),
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
             patch.object(
-                service.registry, "get", new=AsyncMock(return_value=MagicMock(kind="agent"))
+                service.registry,
+                "get",
+                new=AsyncMock(return_value=MagicMock(id=run.agent_id, kind="agent")),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         ):
@@ -9052,7 +9358,7 @@ class TestPerRunLocalServices:
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), kind="agent")
         spec = AgentSpec(name="Local", model_profile_id=uuid.uuid4())
         run = MagicMock(id=uuid.uuid4())
-        resolved_model = MagicMock(label="Local model", provider="ollama", secret_id=None)
+        resolved_model = _resolved_model("Local model", provider="ollama")
         describe = AsyncMock(
             side_effect=[
                 *(
@@ -9205,7 +9511,7 @@ class TestPerRunLocalServices:
             patch.object(
                 service.models,
                 "resolve",
-                new=AsyncMock(return_value=MagicMock(label="Model", provider="x", secret_id=None)),
+                new=AsyncMock(return_value=_resolved_model("Model")),
             ),
             patch.object(
                 service.models,
@@ -9296,7 +9602,7 @@ class TestPerRunLocalServices:
                 new=AsyncMock(return_value=authority if routine else None),
             ),
             patch.object(
-                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="Model"))
+                service.models, "resolve", new=AsyncMock(return_value=_resolved_model("Model"))
             ),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch.object(service.workspaces, "open", opened),
@@ -9939,11 +10245,16 @@ async def test_a_revoked_routine_is_refused_before_models_or_mcp_connections_are
 @pytest.mark.anyio
 @pytest.mark.security
 @pytest.mark.parametrize("change", ["not_personal", "personal", "unavailable"])
-async def test_routine_origin_and_live_tool_guard_are_attached_during_preparation(change) -> None:
+@pytest.mark.parametrize("has_dispatch", [False, True])
+async def test_routine_origin_and_live_tool_guard_are_attached_during_preparation(
+    change, has_dispatch: bool
+) -> None:
     from app.agents.routine_authority import RoutineGuard
     from app.services.routine_authority import RoutineAuthority
 
-    ctx = replace(_ctx(), routine_id=uuid.uuid4())
+    ctx = replace(
+        _ctx(), routine_id=uuid.uuid4(), routine_dispatch_id=uuid.uuid4() if has_dispatch else None
+    )
     service = AgentRunnerService(_db())
     agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), kind="agent")
     spec = AgentSpec(name="Routine")
@@ -9983,7 +10294,7 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
             new=AsyncMock(return_value=authority),
         ),
         patch.object(
-            service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
         ),
         patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         patch(
@@ -10018,8 +10329,14 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     assert guidance.await_args.kwargs["sender_user_id"] == (
         ctx.user_id if change == "personal" else None
     )
+    assert create.await_args.kwargs["routine_policy"]["activation_id"] == (
+        None if ctx.routine_dispatch_id is None else str(ctx.routine_dispatch_id)
+    )
     assert create.await_args.kwargs["trigger_id"] == ctx.routine_id
     assert create.await_args.kwargs["routine_policy"]["mcp_sources"] == {}
+    assert (
+        create.await_args.kwargs["routine_policy"]["acts_as_creator"] == authority.acts_as_creator
+    )
     guards = [
         item
         for item in build.call_args.kwargs["extra_capabilities"]
@@ -10046,7 +10363,7 @@ async def test_preparation_keeps_private_provenance_and_suppresses_apps_in_rooms
             new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
         ),
         patch.object(
-            service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
         ),
         patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         patch.object(service.registry, "with_assistant_guidance", new=guidance),
@@ -10126,7 +10443,7 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
             new=AsyncMock(return_value=authority),
         ),
         patch.object(
-            service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="chosen-model"))
+            service.models, "resolve", new=AsyncMock(return_value=_resolved_model("chosen-model"))
         ),
         patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         patch.object(service.context, "resolve_for_agent", new=AsyncMock(return_value=[])),
@@ -10478,7 +10795,7 @@ async def test_device_activation_is_admitted_only_after_workspace_readiness(offl
             new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
         ),
         patch.object(
-            service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
         ),
         patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         patch.object(service.workspaces, "open", side_effect=open_workspace),
@@ -10674,6 +10991,8 @@ async def test_required_segment_handback_is_persisted_before_the_terminal_commit
     assert "provider secret" not in seen[0].output
     if ending == "answer":
         assert seen[0].output == "Saved"
+    else:
+        assert seen[0].output == ""
 
 
 @pytest.mark.anyio
@@ -10964,7 +11283,7 @@ async def test_web_container_preparation_exposes_only_the_initiators_personal_ex
             new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
         ),
         patch.object(
-            service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="Model"))
+            service.models, "resolve", new=AsyncMock(return_value=_resolved_model("Model"))
         ),
         patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)),
@@ -11201,6 +11520,7 @@ class TestLiveQuestionContinuation:
 
 @pytest.mark.security
 def test_the_parked_payload_carries_the_history_revision():
+    from app.schemas.conversation import HistoryCheckpointFrontier
     from app.services.agent_runner import _classify_output
 
     result = MagicMock(
@@ -11209,9 +11529,40 @@ def test_the_parked_payload_carries_the_history_revision():
         )
     )
     result.all_messages.return_value = []
-    _, _, _, state = _classify_output(result, parked={"approval-1": "send-1"}, history_revision=7)
+    frontier = HistoryCheckpointFrontier(summary_ordinal=2, message_ordinal=4)
+    _, _, _, state = _classify_output(
+        result, parked={"approval-1": "send-1"}, history_revision=7, history_frontier=frontier
+    )
     assert state is not None
     assert state.model_dump(mode="json")["guardrail_revision"] == 7
+    assert PausedRunState.model_validate_json(state.model_dump_json()).history_frontier == frontier
+    assert (
+        PausedRunState.model_validate({"messages": [], "tool_call_ids": {}}).history_frontier
+        is None
+    )
+
+
+@pytest.mark.parametrize("project_id", [None, uuid.uuid4()])
+def test_project_selection_is_saved_in_server_owned_paused_state(project_id):
+    from app.services.run_project_workspace import RunProjectWorkspace
+
+    prepared = _prepared()
+    original = document_workspace()
+    prepared.project_workspace = RunProjectWorkspace(original, _ctx())
+    prepared.project_workspace.project_id = project_id
+    parked = AgentRunnerService._parked_tree(
+        prepared, PausedRunState(messages=[], tool_call_ids={}), []
+    )
+    assert (
+        PausedRunState.model_validate_json(parked.model_dump_json()).selected_project_id
+        == project_id
+    )
+    assert prepared._workspace() is prepared.project_workspace.workspace
+    assert (
+        PausedRunState.model_validate({"messages": [], "tool_call_ids": {}}).selected_project_id
+        is None
+    )
+    assert RunProjectWorkspace(original, _ctx()).project_id is None
 
 
 def test_both_run_surfaces_persist_code_checkpoints_in_the_common_park_hook() -> None:
@@ -11440,6 +11791,123 @@ def test_native_approval_catalogs_do_not_confuse_ids_reused_by_another_owner(
     }
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize("reason", ["sender", "lease_lost"])
+async def test_channel_stop_finishes_as_cancelled_without_replaying_the_run(reason):
+    from app.agents.steering import ChannelTurnStopped
+
+    db = _db()
+    db.rollback = AsyncMock()
+    service = AgentRunnerService(db)
+    prepared = _prepared()
+    stop = ChannelTurnStopped(reason)
+    prepared.built.agent.run = AsyncMock(side_effect=stop)
+    with (
+        patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+        patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+    ):
+        if reason == "lease_lost":
+            sink = AsyncMock()
+            with pytest.raises(asyncio.CancelledError, match="lease"):
+                await service.execute(_ctx(), uuid.uuid4(), "hello", on_segment=sink)
+            sink.assert_not_awaited()
+        else:
+            await service.execute(_ctx(), uuid.uuid4(), "hello")
+    if reason == "lease_lost":
+        finish.assert_not_awaited()
+        assert db.commit.await_count == 1
+        db.rollback.assert_awaited_once()
+    else:
+        assert finish.await_args.kwargs["status"] == RunStatus.CANCELLED.value
+        assert finish.await_args.kwargs["error"] == str(stop)
+        assert db.commit.await_count == 2
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_personal_model_key_is_required_before_run_creation_or_shared_key_resolution():
+    ctx = _ctx()
+    service = AgentRunnerService(_db())
+    agent = MagicMock(
+        id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+    )
+    spec = AgentSpec(
+        name="Personal", model_profile_id=uuid.uuid4(), model_credential_mode="personal"
+    )
+    with (
+        patch.object(
+            service.registry,
+            "get_runnable_spec",
+            AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+        ),
+        patch.object(service.models, "resolve", AsyncMock()) as organization,
+        patch.object(service.models, "profile_for_organization", AsyncMock()) as profile,
+        patch(
+            "app.services.agent_runner.PersonalModelKeyService.resolve",
+            AsyncMock(side_effect=AuthorizationError(message="Connect your own key")),
+        ) as personal,
+        patch("app.services.agent_runner.agent_run_repo.create_run", AsyncMock()) as create,
+    ):
+        with pytest.raises(AuthorizationError, match="own key"):
+            await service.prepare(ctx, agent.id, surface=RunSurface.WEB)
+        personal.assert_awaited_once_with(ctx, profile.return_value)
+        organization.assert_not_awaited()
+        create.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_resume_refuses_a_changed_resolved_model_endpoint_before_building():
+    ctx = _ctx()
+    service = AgentRunnerService(_db())
+    spec = AgentSpec(name="Clerk")
+    run = _parked_run(
+        organization_id=ctx.organization_id,
+        user_id=ctx.user_id,
+        initiated_by_publisher_fallback=False,
+    )
+    before = _resolved_model(base_url="https://original.example/v1")
+    state = PausedRunState.model_validate(run.paused_state)
+    state.admitted_as = state.admitted_as.model_copy(update={"audience_user_id": ctx.user_id})
+    state.history_provenance = _history_provenance(run.agent_id, spec, before, ctx.user_id)
+    run.paused_state = state.model_dump(mode="json")
+    after = replace(
+        before, credential=replace(before.credential, base_url="https://changed.example/v1")
+    )
+    with (
+        patch(
+            "app.services.agent_registry.organization_assistant_repo.for_agent",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.services.agent_runner.agent_run_repo.claim_parked_run", AsyncMock(return_value=run)
+        ),
+        patch(
+            "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.services.agent_runner.agent_repo.get_version",
+            AsyncMock(return_value=SimpleNamespace(spec=spec.model_dump(mode="json"))),
+        ),
+        patch.object(
+            service.registry,
+            "get",
+            AsyncMock(return_value=MagicMock(id=run.agent_id, system_key=None, kind="agent")),
+        ),
+        patch.object(service.models, "resolve", AsyncMock(return_value=after)),
+        patch("app.services.agent_runner.build_agent") as build,
+        patch.object(service.workspaces, "open", AsyncMock()) as workspace,
+        patch("app.services.agent_runner.agent_run_repo.mark_running", AsyncMock()) as running,
+        pytest.raises(BadRequestError) as refused,
+    ):
+        await service.resume(ctx, run.id)
+    assert refused.value.details == {"code": "HISTORY_DESTINATION_CHANGED"}
+    build.assert_not_called()
+    workspace.assert_not_awaited()
+    running.assert_not_awaited()
+
+
 class TestRoomAndSecretBoundaries:
     pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -11462,6 +11930,8 @@ class TestRoomAndSecretBoundaries:
             "messages": ModelMessagesTypeAdapter.dump_python(messages, mode="json"),
             "tool_call_ids": {},
             "secret_requests": ["secret-1"],
+            # Parked after destination verification existed, as every live run is.
+            "history_provenance": {"agent_id": str(uuid.uuid4()), "configuration_digest": "0" * 64},
         }
 
     def test_absent_and_mixed_legacy_question_references_remain_readable(self, caplog):

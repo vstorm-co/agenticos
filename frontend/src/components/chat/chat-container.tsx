@@ -35,6 +35,7 @@ import { AgentPicker, isChattable } from "./agent-picker";
 import { ChatApprovalSelector } from "./chat-approval-selector";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
+import { PersonalModelConnection } from "./personal-model-connection";
 import { ChatModelHeader } from "./chat-model-header";
 import { ChatCompactionControl, ChatCompactionNotice } from "./chat-compaction-control";
 import { SheetRow } from "./composer-sheet";
@@ -2519,6 +2520,9 @@ function ChatUI({
                       {!readOnly && !onCall && !manualCompacting && (
                         <NextSteps steps={nextSteps} onPick={(step) => sendMessage(step)} />
                       )}
+                      {callAgent?.personal_model_key && (
+                        <PersonalModelConnection key={selectedAgentId} agentId={selectedAgentId} />
+                      )}
                       {manualCompaction && (
                         <ChatCompactionNotice
                           status={manualCompaction.status}
@@ -2533,6 +2537,15 @@ function ChatUI({
                           composerStrip !== null && "rounded-t-none",
                         )}
                       >
+                        {!agentFixed && (
+                          <div className="border-border bg-muted/40 hidden items-center rounded-t-2xl border-b px-3 py-1.5 has-[a]:flex">
+                            <ProjectChip
+                              conversationId={conversationId}
+                              pickerOpen={projectPickerOpen}
+                              onPickerOpenChange={setProjectPickerOpen}
+                            />
+                          </div>
+                        )}
                         <div
                           className={cn("min-w-0 px-3 pt-2 pb-2", !compact && "sm:px-4 sm:pt-3")}
                         >
@@ -2543,7 +2556,7 @@ function ChatUI({
                           )}
                           {/* One row of actions under the text, the same at every
                           level of every limit: attach and who answers on the left;
-                          usage, the model, the microphone and send on the right. A
+                          files, settings, the microphone and send on the right. A
                           limit near its end changes an icon's colour and never
                           costs the row a button. */}
                           <ChatInput
@@ -2708,6 +2721,17 @@ function ChatUI({
                                 />
                                 <fieldset disabled={manualCompacting}>
                                   <ChatControls
+                                    usageSlot={
+                                      <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                                        <span>{t("input.contextUsed")}</span>{" "}
+                                        <UsageMeter
+                                          usage={lastUsage}
+                                          workspace={workspace}
+                                          total={conversationCost}
+                                          contextWindow={contextWindow}
+                                        />
+                                      </div>
+                                    }
                                     onModelProfileChange={onModelProfileChange}
                                     onApprovalModeChange={onApprovalModeChange}
                                     agentModel={agentModel}

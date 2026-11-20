@@ -147,7 +147,11 @@ async def update_artifact(
 
 @router.delete("/{artifact_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def delete_artifact(artifact_id: UUID, service: ArtifactSvc, ctx: Auth) -> None:
-    """Delete it with every version, its grants and its public link."""
+    """Delete it with every version, its grants and its public link.
+
+    Returns 409 with nothing deleted if an active writer keeps its source locks
+    busy beyond the short retry window. The caller may retry the deletion.
+    """
     await service.delete(ctx, artifact_id)
 
 

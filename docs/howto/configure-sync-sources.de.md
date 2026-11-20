@@ -1,5 +1,5 @@
 ---
-source_sha: "da255c277e13"
+source_sha: "0e3f3c6c82f8"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -708,6 +708,10 @@ curl -X PATCH http://localhost:8000/api/v1/rag/sync/sources/{source_id} \
 
 Änderbare Felder: `name`, `config`, `sync_mode`, `schedule_minutes`,
 `is_active`, `collection_name`.
+
+Ein neuer `collection_name` verschiebt die Quelle in die Wissensbasis, zu der dieser
+Name für Ihre Organisation aufgelöst wird und auf die Sie Schreibrechte haben müssen;
+`null` trennt sie von jeder Basis, und eine Quelle ohne Basis synchronisiert nicht.
 
 Setzen Sie `is_active` auf `false`, um eine Quelle anzuhalten, ohne sie zu
 löschen. Eine pausierte Quelle kann weder nach Zeitplan noch über API oder CLI

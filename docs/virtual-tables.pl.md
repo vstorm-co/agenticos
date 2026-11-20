@@ -1,5 +1,5 @@
 ---
-source_sha: "8d167fac78c1"
+source_sha: "3e730a85b6b4"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -265,6 +265,19 @@ w sumie, pusta komórka - zostawia komórkę tego rekordu pustą. Formuła jest
 wyliczana przy odczycie rekordu, jak odczyt z powiązania, i nigdy nie jest
 zapisywana, filtrowana ani sortowana.
 
+Ułamki dziesiętne zapisuje się z kropką, `{Price} * 1.23`, w każdym języku:
+przecinek oddziela argumenty funkcji, więc `{Price} * 1,23` zostaje odrzucone z tą
+wskazówką, a nie odczytane jako liczba; tak samo wywołanie, któremu przecinek dodaje o jedną
+wartość za dużo, jak `IF({Price} > 0,5, "yes", "no")`.
+
+Liczba wartości wywołania jest sprawdzana przy zapisie formuły:
+formuła zapisana wcześniej działa dalej, a pozostałe kolumny tabeli można zmieniać, dopóki
+ktoś jej nie zmieni. Odmowa podaje stały powód w
+`details.formula.reason`, na przykład `decimal_comma` albo `not_a_column`, dzięki
+któremu konsola mówi o nim w języku czytelnika. Konsola pokazuje liczby, także
+wynik formuły, z separatorem dziesiętnym czytelnika - `12,177` po polsku - i nie
+grupuje liczb czterocyfrowych.
+
 ## Zmiana schematu { #changing-a-schema }
 
 `PUT /tables/{id}/schema` przyjmuje pełną listę kolumn, jakie tabela ma mieć, oraz
@@ -508,7 +521,7 @@ według zegara serwera, a kolejne go odsyłają. Wiersz powtarzający zewnętrzn
 plik już podał, trafia na listę zamiast zostać wysłany, a partia odrzuca wiersz
 powtarzający id, które już zawiera, kodem `INVALID_RECORD`.
 
-**New table** zaczyna się od kolumny **Name**. Najpierw podaj nazwę tabeli i jej kolumny; opis oraz widoczność są pod **More options**, z domyślną widocznością prywatną. Zamiast tego może zacząć się od pliku:
+**New table** zaczyna się od kolumny **Name**. Podaj nazwę tabeli, wybierz, kto ją widzi, i dodaj kolumny; opis jest pod **More options**. Tabela zaczyna jako **Only me**; **Everyone** otwiera ją dla organizacji, a **Some people** udostępnia ją wybranym grupom i osobom, każdej na poziomie `read`, w tym samym żądaniu (`group_ids` i `user_ids` w `POST /tables`). Zamiast tego może zacząć się od pliku:
 **Start from a CSV file** zamienia nagłówek na kolumny i daje każdej najwęższy typ, w którym dają się odczytać
 wszystkie jej wartości - liczba całkowita, liczba, tak/nie, data, data i godzina
 w ISO, adres e-mail albo link - a w przeciwnym razie tekst lub długi tekst, gdy wartość ma podział wiersza albo
@@ -545,6 +558,13 @@ nowy zapis: wykonuje się ponownie, zamiast zwrócić pierwszą odpowiedź. Pona
 oknie, a dłuższą przerwę traktuj jak nowe żądanie. Czas życia jest egzekwowany w chwili użycia
 klucza, więc obowiązuje co do godziny; codzienny sweep tylko odzyskuje miejsce po receipts,
 których nikt nie ponowił.
+
+Usunięcie grupy, projektu albo konta usuwa potwierdzenia zapisów powiązane z tabelą
+jej tablicy zadań, w tym wyniki operacji zbiorczych. Podczas aktualizacji starsze wyniki
+operacji zbiorczych bez id tabeli są kasowane, bo nie można odtworzyć ich powiązania
+z tabelą. Ich klucze pozostają do wygaśnięcia: ponowienie tego samego żądania zwraca
+`IDEMPOTENCY_RESULT_PURGED` (409) i niczego nie zapisuje. Sprawdź tabelę przed
+rozpoczęciem nowego zapisu. Pozostałe rodzaje potwierdzeń pozostają bez zmian.
 
 ## Listowanie i filtrowanie { #listing-and-filtering }
 
@@ -935,6 +955,7 @@ według czego klient się rozgałęzia.
 | `INVALID_QUERY` | 422 | Filtr lub sortowanie, na które tabela nie odpowie |
 | `INVALID_SCHEMA` | 422 | Niespójna zmiana schematu |
 | `IDEMPOTENCY_KEY_REUSED` | 422 | Klucz został użyty dla innego żądania |
+| `IDEMPOTENCY_RESULT_PURGED` | 409 | Wynik starszej operacji zbiorczej usunięto podczas aktualizacji; klucz blokuje kolejny zapis do wygaśnięcia |
 | `QUOTA_EXCEEDED` | 402 | Zapis przekroczyłby limit przechowywania; `details` nazywa limit (`tables`, `records`, `record_bytes`, `storage_bytes`) i jego pułap |
 | `RATE_LIMIT_EXCEEDED` | 429 | Za dużo zapisów do tabel w ostatniej minucie; zobacz `Retry-After` |
 | `VALIDATION_ERROR` | 422 | Samo żądanie jest wadliwe: zły typ, nieznane pole, limit albo NUL, znak nowego wiersza lub osamotniony surogat w id, kluczu lub nazwie. Trasa odrzuca je, zanim uruchomi się serwis |

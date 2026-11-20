@@ -15,6 +15,17 @@
 import type { NextStepBlocked } from "@/types/improvement";
 import { apiClient } from "./api-client";
 
+/** A criterion an improvement attempt moved, as a notification names it. */
+export interface MovedCriterion {
+  display_name?: string;
+  scorer?: string;
+  name: string;
+  graded: number;
+  before: number;
+  after: number;
+  direction: "better" | "worse";
+}
+
 export interface Notification {
   id: string;
   event_type: string;
@@ -31,11 +42,15 @@ export interface Notification {
     reason: string | null;
     stage?: string | null;
     next_step_blocked?: NextStepBlocked | null;
+    /** The criteria an improvement's selected attempt moved with no question flipped. */
+    criteria?: MovedCriterion[];
   } | null;
   /** The shared outcome this row is one delivery of, when it is something to act on (#2575). */
   outcome_id?: string | null;
   /** An approval request's or a budget limit's named values, for the reader's own wording. */
   params?: Record<string, string> | null;
+  /** Versioned wording; legacy consoles ignore this and retain the stored summary. */
+  wording_params?: Record<string, string> | null;
 }
 
 export interface NotificationAgent {

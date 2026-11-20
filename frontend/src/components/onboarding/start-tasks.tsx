@@ -1,5 +1,6 @@
 "use client";
 
+import { NativeSelect } from "@/components/ui/native-select";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, LoaderCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -31,7 +32,9 @@ export function StartTasks({ data }: { data: Onboarding }) {
     };
   }, []);
   const agent = data.agents.find((item) => item.id === selectedAgent) ?? data.agents[0];
-  const setupAgent = !agent ? data.setup_agent : null;
+  // Somebody who may prepare an agent connects a model here; the setup agent's
+  // chat is for whoever has to wait for an administrator to do it.
+  const setupAgent = !agent && !data.can_prepare ? data.setup_agent : null;
   const chatAgent = agent ?? setupAgent;
   const save = async (next: StartGoal, navigate: boolean) => {
     setSaving(true);
@@ -57,7 +60,7 @@ export function StartTasks({ data }: { data: Onboarding }) {
           {agent ? (
             <div className={styles.agentChoice}>
               <Label htmlFor="start-agent">{t("agent")}</Label>
-              <select
+              <NativeSelect
                 id="start-agent"
                 value={agent.id}
                 onChange={(event) => setSelectedAgent(event.target.value)}
@@ -67,7 +70,7 @@ export function StartTasks({ data }: { data: Onboarding }) {
                     {item.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
           ) : (
             <p className={styles.actionHint}>

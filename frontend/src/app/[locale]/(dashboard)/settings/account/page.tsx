@@ -1,5 +1,10 @@
 "use client";
 
+import { AssistantSettings } from "@/components/assistant/assistant-settings";
+
+import Link from "next/link";
+import { ArrowUpRight, Smartphone } from "lucide-react";
+import { ROUTES } from "@/lib/constants";
 import { useState } from "react";
 import { AlertTriangle, KeyRound, LogOut, Lock } from "lucide-react";
 import { toast } from "sonner";
@@ -30,6 +35,7 @@ export default function AccountSettingsPage() {
   const tErrors = useTranslations("errors");
 
   const t = useTranslations("pages.settings");
+  const nav = useTranslations("nav");
   const { user, logout } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -146,6 +152,19 @@ export default function AccountSettingsPage() {
       <MfaSettingsSection />
 
       <ActiveSessions />
+      <SectionCard
+        icon={Smartphone}
+        title={nav("mobileApp")}
+        description={t("mobileAccountHint")}
+        action={
+          <Button asChild variant="outline">
+            <Link href={ROUTES.SETTINGS_MOBILE}>
+              {t("openMobileApp")}
+              <ArrowUpRight aria-hidden className="size-4" />
+            </Link>
+          </Button>
+        }
+      />
 
       <SectionCard
         icon={LogOut}
@@ -229,6 +248,7 @@ export default function AccountSettingsPage() {
           </AlertDialog>
         </div>
       </SectionCard>
+      <AssistantSettings />
     </div>
   );
 }

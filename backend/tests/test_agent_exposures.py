@@ -1010,3 +1010,9 @@ async def test_saving_automatic_participation_rotates_authority_and_records_the_
         validate.assert_awaited_once_with(service.db, _ctx(), exposure, config)
     else:
         validate.assert_not_awaited()
+
+
+@pytest.fixture(autouse=True)
+def organization_model_surface(monkeypatch: pytest.MonkeyPatch) -> None:
+    """This suite's fake registry represents an organization-key agent."""
+    monkeypatch.setattr("app.services.agent_exposure.require_organization_agent", AsyncMock())

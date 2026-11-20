@@ -9,7 +9,7 @@ So the model is constructed **per run** from the vault:
     profile -> credential -> unsealed secret -> provider client -> Model
 
 There used to be one hand-written builder per provider, and four providers. That
-does not scale to the thirty-one Pydantic AI ships, and it does not need to:
+does not scale to the provider set Pydantic AI ships, and it does not need to:
 :func:`pydantic_ai.providers.infer_provider_class` finds the class and
 :func:`pydantic_ai.models.infer_model` picks the right model wrapper for it. What
 this module still owns is the part inference cannot know - **which credential
@@ -29,8 +29,9 @@ Four provider names Pydantic AI knows are deliberately absent. `bedrock-mantle`,
 point at - the last two are embedding models - and `gateway` does not resolve
 to a provider class at all: it is a routing prefix over the others.
 
-Everything else Pydantic AI ships is here. Three of them (`xai`, `cohere`,
-`huggingface`) need an SDK of their own, so they are in this repository's
+The catalog is the subset with credential contracts implemented here. Exposing
+another SDK provider also needs those contracts and construction tests. Three
+entries (`xai`, `cohere`, `huggingface`) need an SDK of their own, so they are in this repository's
 `pydantic-ai-slim` extras: a provider selectable in the Builder that raises
 `ImportError` when a run reaches it would be worse than one nobody can pick.
 
@@ -43,7 +44,7 @@ second run.
 """
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
@@ -445,6 +446,11 @@ class ResolvedCredential:
     # The profile's, like `api`: where the requests may run, for a provider that
     # takes a region. `None` for every provider that does not.
     region: ModelRegion | None = None
+    # Identity and non-secret routing bind replay to the actual vault destination,
+    # including providers whose endpoint lives in a structured credential.
+    credential_id: UUID | None = None
+    authorization_generation: UUID | None = None
+    routing: Mapping[str, str | None] = field(default_factory=dict)
 
 
 def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provider[Any]:

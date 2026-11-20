@@ -33,6 +33,7 @@ from app.core.permissions import AuthContext
 from app.db.session import get_worker_db_context
 from app.repositories import knowledge_base_repo
 from app.services.collection_access import readable_kb
+from app.services.rag.citation import cited_page
 from app.services.rag.models import SearchResult
 from app.services.spend import assert_organization_within_budget
 from app.services.workflow_execution import budget, context
@@ -104,14 +105,15 @@ async def check_resources(
 
 def _source(result: SearchResult, fallback_collection: str) -> SourceRef:
     metadata: dict[str, Any] = result.metadata
-    page = metadata.get("page_num")
     chunk = metadata.get("chunk_num")
     document_id = metadata.get("document_id") or result.parent_doc_id
     return SourceRef(
         document_id=None if document_id is None else str(document_id),
         filename=str(metadata.get("filename", "unknown")),
         collection=str(metadata.get("collection") or fallback_collection),
-        page=page if isinstance(page, int) else None,
+        # Only a paged format's page: Markdown's stored "page 1" is the parser's,
+        # and `agent.run` would cite it as a location (#2482).
+        page=cited_page(metadata),
         chunk=chunk if isinstance(chunk, int) else None,
         score=result.score,
         content=result.content,

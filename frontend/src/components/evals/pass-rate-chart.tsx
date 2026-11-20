@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import dynamic from "next/dynamic";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import type { PassRateLine, PassRatePoint } from "@/components/charts/pass-rate-lines.impl";
 import { ChoiceGroup } from "@/components/settings/choice-group";
@@ -21,6 +21,9 @@ const PassRateLinesImpl = dynamic(
     loading: () => <div className="bg-muted h-full w-full animate-pulse rounded-md" />,
   },
 );
+
+/** Fewer finished runs than this is no trend to draw: a line through two points reads as one. */
+const MIN_TREND_RUNS = 3;
 
 /** The ranges the trend offers, counted in runs back from the newest; the first is the default. */
 const RANGES = [10, 30] as const;
@@ -123,8 +126,9 @@ export function passRateLines(
 /**
  * The pass-rate trend: a key to its lines and colours, the newest runs over a
  * range picked above the chart - ten, thirty or every run, kept in `?<rangeKey>=`
- * so Back and a link return to it - and, with one run, what makes it a trend.
- * A page drawing several trends gives each its own `rangeKey`.
+ * so Back and a link return to it. Below three runs it lists them and says how many
+ * there are so far, rather than drawing a line. A page drawing several trends gives
+ * each its own `rangeKey`.
  */
 export function PassRateChart({
   lines,
@@ -136,10 +140,39 @@ export function PassRateChart({
   rangeKey?: string;
 }) {
   const t = useTranslations("evals");
+  const locale = useLocale();
   const rangeLabel = useId();
   const [param, setParam] = useUrlState(rangeKey);
   const points = lines.reduce((sum, line) => sum + line.points.length, 0);
   if (points === 0) return null;
+  if (points < MIN_TREND_RUNS) {
+    const runs = lines
+      .flatMap((line) =>
+        line.points.map((run) => ({ ...run, series: line.name, seriesKey: line.key })),
+      )
+      .sort((a, b) => a.index - b.index);
+    return (
+      <div className="space-y-2" data-tour="evals-trend">
+        <p className="text-muted-foreground text-sm">{t("trend.soFar", { count: points })}</p>
+        <ul className="flex flex-wrap gap-2">
+          {runs.map((run) => (
+            <li key={`${run.seriesKey}:${run.index}`}>
+              <a
+                href={run.href}
+                className="hover:bg-muted/50 focus-visible:ring-ring flex flex-col rounded-lg border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+              >
+                <span className="font-medium">{run.series}</span>
+                <span>{run.title}</span>
+                <span className="text-muted-foreground text-xs">
+                  {t("trend.rate", { rate: percent(run.rate, locale) })}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
   const options = [
     ...RANGES.filter((count) => points > count).map((count) => ({
       value: String(count),
@@ -212,11 +245,7 @@ export function PassRateChart({
       >
         <PassRateLinesImpl lines={visible} />
       </div>
-      {(!compact || points === 1) && (
-        <p className="text-muted-foreground text-xs">
-          {points === 1 ? t("trend.single") : t("trend.legend")}
-        </p>
-      )}
+      {!compact && <p className="text-muted-foreground text-xs">{t("trend.legend")}</p>}
     </div>
   );
 }

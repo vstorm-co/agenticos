@@ -12,16 +12,18 @@ tool runs without a test connection, and attributed to no version when it runs
 a draft. What it answered and called is copied onto the attempt, because a run
 without a conversation keeps no transcript.
 
-After the first answer of every case, the cases whose outcome flipped against
-the baseline are rerun, and the run ends.
+After the first answer of every case, an improvement session's check asks once
+more the answers the infrastructure lost, then the cases whose outcome, or any one
+of whose criteria, flipped against the baseline are rerun, and the run ends.
 """
 
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from contextlib import AbstractAsyncContextManager, suppress
+from contextlib import AbstractAsyncContextManager, aclosing, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -64,6 +66,7 @@ from app.repositories import (
     agent_repo,
     dataset_repo,
     eval_run_repo,
+    improvement_repo,
     intercepted_tool_call_repo,
     personal_data_repo,
 )
@@ -73,8 +76,9 @@ from app.services.access import AGENT, DATASET, resolve_access
 from app.services.agent_registry import Candidate, PublishedCandidate, UnpublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
-from app.services.eval_comparison import Flip, classify
+from app.services.eval_comparison import Flip, classify, criterion_flipped
 from app.services.eval_run import EvalRunService, drifts, skill_body_from_json
+from app.services.improvement_states import affordable
 from app.services.message_history import HistoryMessage, build_message_history
 from app.services.notifications import NotificationService
 from app.services.rag.overlay import KnowledgeOverlay, OverlayDocument
@@ -275,6 +279,8 @@ class EvalRunWorker:
         beating = asyncio.create_task(self._beat())
         try:
             await self._wave(ctx)
+            if await self._ask_lost_again():
+                await self._wave(ctx)
             if await self._queue_reruns(ctx):
                 await self._wave(ctx)
             await self._route_to_review(ctx)
@@ -683,7 +689,7 @@ class EvalRunWorker:
                     db,
                     attempt,
                     values={
-                        **self._spend(agent_run),
+                        **self._spend(agent_run, attempt),
                         "status": CaseAttemptStatus.DONE.value,
                         "answer": output,
                         "calls": rows,
@@ -722,7 +728,7 @@ class EvalRunWorker:
                 db,
                 attempt,
                 values={
-                    **self._spend(agent_run),
+                    **self._spend(agent_run, attempt),
                     "status": CaseAttemptStatus.DONE.value,
                     "answer": output,
                     "calls": rows,
@@ -821,14 +827,21 @@ class EvalRunWorker:
             )
 
     @staticmethod
-    def _spend(agent_run: AgentRun) -> dict[str, Any]:
+    def _spend(agent_run: AgentRun, attempt: EvalRunCase) -> dict[str, Any]:
+        """What an answer spent, including earlier tries of an attempt asked again."""
+
+        def accumulated(current: int | None, previous: int | None) -> int | None:
+            return (
+                None if current is None and previous is None else (current or 0) + (previous or 0)
+            )
+
         return {
             "agent_run_id": agent_run.id,
-            "cost_usd": agent_run.cost_usd,
-            "cost_is_partial": agent_run.cost_is_partial,
-            "input_tokens": agent_run.input_tokens,
-            "output_tokens": agent_run.output_tokens,
-            "latency_ms": _latency_ms(agent_run),
+            "cost_usd": agent_run.cost_usd + (attempt.cost_usd or Decimal(0)),
+            "cost_is_partial": agent_run.cost_is_partial or bool(attempt.cost_is_partial),
+            "input_tokens": accumulated(agent_run.input_tokens, attempt.input_tokens),
+            "output_tokens": accumulated(agent_run.output_tokens, attempt.output_tokens),
+            "latency_ms": accumulated(_latency_ms(agent_run), attempt.latency_ms),
         }
 
     async def _fail(
@@ -846,7 +859,7 @@ class EvalRunWorker:
             db,
             attempt,
             values={
-                **(self._spend(agent_run) if agent_run is not None else {}),
+                **(self._spend(agent_run, attempt) if agent_run is not None else {}),
                 "status": CaseAttemptStatus.FAILED.value,
                 "fault": fault.value,
                 "answer": answer,
@@ -888,8 +901,94 @@ class EvalRunWorker:
         await eval_run_repo.skip_pending(db, run.id, organization_id=self.organization_id)
         await NotificationService(db).eval_run_finished(run)
 
+    async def _ask_lost_again(self) -> bool:
+        """Ask once more the first answers an improvement check lost to the infrastructure.
+        True if any were queued.
+
+        An answer a provider timed out on, or failed, leaves its case incomplete, and
+        an incomplete case makes the whole check inconclusive - which the session then
+        pays to run again in full. Asking just those answers again uses their arm's frozen
+        answer and judge estimate, and is done only when the session's budget still covers it
+        beside the confirming reruns still to come. It happens once, before the flips
+        are confirmed, so a case it settles is confirmed like any other; an answer
+        that fails again stays incomplete. A case anonymised meanwhile is not asked.
+
+        The attempt is asked in place. What its failed try's run kept of the question
+        is forgotten, since the attempt - the way an erasure finds that run - no
+        longer leads to it.
+        """
+        org = self.organization_id
+        async with self.sessions() as db:
+            run = await eval_run_repo.lock(db, self.eval_run_id, organization_id=org)
+            if (
+                run is None
+                or run.status != EvalRunStatus.RUNNING.value
+                or run.proposal_check is None
+            ):
+                return False
+            record = ProposalCheckRecord.model_validate(run.proposal_check)
+            session_id = record.improvement_run_id
+            if session_id is None:
+                return False
+            firsts = [
+                a
+                for a in await eval_run_repo.list_cases(db, run.id, organization_id=org)
+                if a.attempt == 0
+            ]
+            failed = [
+                a
+                for a in firsts
+                if a.status == CaseAttemptStatus.FAILED.value
+                and a.fault != AttemptFault.AGENT.value
+            ]
+            revisions = await eval_run_repo.revisions(
+                db, [a.case_revision_id for a in failed], organization_id=org
+            )
+            lost = [
+                a
+                for a in failed
+                if (revision := revisions.get(a.case_revision_id)) is not None
+                and revision.anonymised_at is None
+            ]
+            if not lost:
+                return False
+            session = await improvement_repo.get_run(db, session_id, organization_id=org)
+            if session is None:
+                return False
+            spent = await improvement_repo.spent(db, session_id, organization_id=org)
+            arms = await eval_run_repo.list_arms(db, [run.id], organization_id=org)
+            prices = {
+                arm.id: record.answer_estimates_usd[arm.position]
+                for arm in arms
+                if 0 <= arm.position < len(record.answer_estimates_usd)
+            }
+            if any(attempt.arm_id not in prices for attempt in lost):
+                logger.info(
+                    "eval_answer_retry_estimate_missing", extra={"eval_run_id": str(run.id)}
+                )
+                return False
+            price = (
+                sum((prices[attempt.arm_id] for attempt in lost), Decimal(0))
+                + run.rerun_ceiling_usd
+            )
+            if not affordable(spent=spent, step_estimate=price, budget=session.budget_usd):
+                return False
+            await personal_data_repo.forget_runs(
+                db, {a.agent_run_id for a in lost if a.agent_run_id is not None}
+            )
+            await eval_run_repo.ask_again(db, cases=lost)
+            logger.info(
+                "eval_answers_asked_again",
+                extra={"eval_run_id": str(run.id), "attempts": len(lost)},
+            )
+            return True
+
     async def _queue_reruns(self, ctx: AuthContext) -> bool:
         """Queue the confirmation reruns of every flipped case. True if any were queued.
+
+        A case flipped when its outcome did, or when any criterion graded on both
+        sides did: a case that kept failing for one reason may pass another now,
+        and only the reruns can confirm that.
 
         A stability run compares nothing: every first answer is asked again.
 
@@ -924,15 +1023,18 @@ class EvalRunWorker:
                     baseline = await service.baseline_for(ctx, run, arm)
                     if baseline is None:
                         continue
+                    if await service._incomparable(ctx, run, arm, baseline, attempts) is not None:
+                        continue
                     mine = await service.outcomes(ctx, arm, attempts)
-                    theirs = await service.outcomes(
-                        ctx,
-                        baseline.here or baseline.arm,
+                    their_attempts = (
                         attempts
                         if baseline.here is not None or baseline.run.id == run.id
                         else await eval_run_repo.list_cases(
                             db, baseline.run.id, organization_id=org
-                        ),
+                        )
+                    )
+                    theirs = await service.outcomes(
+                        ctx, baseline.here or baseline.arm, their_attempts
                     )
                     rerun_on = (
                         None
@@ -944,13 +1046,36 @@ class EvalRunWorker:
                         else None
                     )
                     same, _ = await service.pairing(ctx, run, arm, baseline, attempts)
+                    criterion_flips: set[UUID] = set()
+                    async with aclosing(
+                        service.criterion_batches(
+                            ctx,
+                            arm,
+                            attempts,
+                            baseline.here or baseline.arm,
+                            their_attempts,
+                            case_ids=[
+                                case_id for case_id in mine if case_id in same and case_id in theirs
+                            ],
+                        )
+                    ) as batches:
+                        async for batch in batches:
+                            criterion_flips.update(
+                                case_id
+                                for case_id, pair in batch
+                                if criterion_flipped(pair.baseline, pair.candidate)
+                            )
                     for case_id, (outcome, _, _) in mine.items():
                         first = firsts.get((arm.id, case_id))
                         if case_id not in same or first is None:
                             continue
-                        if classify(theirs[case_id][0], outcome) not in (
-                            Flip.REGRESSION,
-                            Flip.FIXED,
+                        if (
+                            classify(theirs[case_id][0], outcome)
+                            not in (
+                                Flip.REGRESSION,
+                                Flip.FIXED,
+                            )
+                            and case_id not in criterion_flips
                         ):
                             continue
                         queued[(arm.id, case_id)] = first

@@ -1025,3 +1025,12 @@ async def test_table_image_upload_and_private_bytes(client, service):
         assert served.headers["cache-control"] == "private, no-store"
         assert served.headers["x-content-type-options"] == "nosniff"
         assert served.headers["content-type"] == "image/png"
+
+
+async def test_schema_history_accepts_an_exact_positive_version(client, service):
+    async with client() as http:
+        response = await http.get(_url(f"/{_TABLE}/schema-versions?version=7"))
+        invalid = await http.get(_url(f"/{_TABLE}/schema-versions?version=0"))
+    assert response.status_code == 200
+    assert invalid.status_code == 422
+    assert service.list_schema_versions.call_args.kwargs == {"version": 7}

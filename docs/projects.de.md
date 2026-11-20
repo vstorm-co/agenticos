@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "2ad663e05982"
+source_sha: "c8a333081821"
 ---
 
 # Projekte { #projects }
@@ -72,6 +72,17 @@ Zwei Wege hinein:
 
 Ein Chat bleibt in dem Projekt, in dem er begonnen wurde. Der Chip in einem
 bestehenden Chat führt zurück zum Projekt.
+
+Ein Agent mit Sandbox kann `select_project_workspace` mit der ID eines
+zugänglichen Projekts aufrufen, um dessen Dateien und Shell im aktuellen Lauf zu
+verwenden, auch in einem verbundenen Kanal. Die Antwort zeigt die ausgewählten
+Projekte. Ohne ID wird der ursprüngliche Workspace wiederhergestellt.
+Fortsetzungen nach Freigaben behalten die Auswahl; die nächste Nachricht beginnt
+im ursprünglichen Workspace. Die Auswahl verschiebt keinen Chatverlauf, kopiert
+keine privaten Dateien und ändert keine Anweisungen. Jede Operation prüft den
+Zugriff erneut. Routinen bleiben auf geprüfte Quellen beschränkt; isolierte
+Evaluationen können keine aktiven Projekte auswählen. Dateien bleiben im Projekt;
+zum Ausliefern eine App veröffentlichen oder eine Datei ausdrücklich senden.
 
 ## Was ein Agent im Projekt bekommt { #what-an-agent-gets-in-a-project }
 
