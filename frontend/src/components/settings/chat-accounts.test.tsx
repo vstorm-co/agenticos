@@ -188,7 +188,7 @@ it("distinguishes identical Matrix accounts linked on different homeservers", as
   expect(await screen.findByText("https://a.example.org")).toBeVisible();
   expect(screen.getByText("https://b.example.org")).toBeVisible();
   await userEvent.click(
-    screen.getByRole("button", { name: /Disconnect.*https:\/\/b.example.org/ }),
+    screen.getByRole("button", { name: "Disconnect @ada:domain · https://b.example.org" }),
   );
   expect(unlinkAccount).toHaveBeenCalledWith("matrix-b");
   await waitFor(() => expect(screen.queryByText("https://b.example.org")).toBeNull());
