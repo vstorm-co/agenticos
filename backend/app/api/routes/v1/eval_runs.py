@@ -27,7 +27,11 @@ from app.schemas.eval_run import (
 router = APIRouter()
 
 
-@router.post("/agents/{agent_id}/eval-runs/estimate", response_model=EvalRunEstimate)
+@router.post(
+    "/agents/{agent_id}/eval-runs/estimate",
+    dependencies=[ASSISTANT],
+    response_model=EvalRunEstimate,
+)
 async def estimate_eval_run(
     agent_id: UUID, data: EvalRunRequest, service: EvalRunSvc, ctx: Auth
 ) -> Any:
@@ -40,6 +44,7 @@ async def estimate_eval_run(
 
 @router.post(
     "/agents/{agent_id}/eval-runs",
+    dependencies=[ASSISTANT],
     response_model=EvalRunRead,
     status_code=status.HTTP_201_CREATED,
 )

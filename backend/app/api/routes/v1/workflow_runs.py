@@ -261,12 +261,21 @@ async def list_workflow_run_nodes(
     run_id: UUID,
     service: WorkflowExecutionSvc,
     ctx: Auth,
+    node_run_id: Annotated[
+        UUID | None, Query(description="Only this actual node-run instance, within this run")
+    ] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(200, ge=1, le=500),
 ) -> Any:
     """Every step of this run, loop iterations included: its status, tries, cost
     and the error it last failed with."""
-    return await service.node_runs(ctx, run_id, skip=skip, limit=limit)
+    return await service.node_runs(
+        ctx,
+        run_id,
+        skip=skip,
+        limit=limit,
+        **({"node_run_id": node_run_id} if node_run_id is not None else {}),
+    )
 
 
 @router.get("/{run_id}/logs", response_model=WorkflowLogEntryList)

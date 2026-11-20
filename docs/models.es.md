@@ -1,5 +1,5 @@
 ---
-source_sha: "7b83980dd889"
+source_sha: "28fef18e676b"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -382,6 +382,7 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | GitHub Models | `github` | clave de API | |
 | Groq | `groq` | clave de API | |
 | Heroku AI | `heroku` | clave de API | ✓ |
+| LLMTR | `llmtr` | clave de API | |
 | Mistral | `mistral` | clave de API | |
 | Moonshot AI | `moonshotai` | clave de API | |
 | Nebius AI Studio | `nebius` | clave de API | |
@@ -394,6 +395,8 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | xAI (Grok) | `xai` | clave de API | ✓ (`api_host`) |
 | Cohere | `cohere` | clave de API | |
 | Hugging Face | `huggingface` | clave de API | ✓ |
+
+LLMTR solo muestra modelos que anuncian `CHAT_COMPLETIONS`. Un modelo sin precio revisado en el snapshot incluido solo puede ejecutarse sin un límite activo en dólares; su coste sigue marcado como incompleto. Con un límite activo también se rechazan nuevas llamadas a LLMTR si el coste del uso anterior es desconocido.
 
 ### Autoalojados { #self-hosted }
 

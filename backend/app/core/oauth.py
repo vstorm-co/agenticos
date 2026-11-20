@@ -180,16 +180,40 @@ def verified_identity(userinfo: Mapping[str, object] | None) -> tuple[str, str, 
         turns that into one sentence for the visitor; which of the three failed
         is in the log, not in the redirect.
     """
-    if not userinfo:
+    outcome = _judge(userinfo)
+    if isinstance(outcome, str):
         return None
-    subject = userinfo.get("sub")
-    email = userinfo.get("email")
-    if not isinstance(subject, str) or not isinstance(email, str) or not subject or not email:
-        return None
-    if not _is_verified(userinfo):
-        return None
-    name = userinfo.get("name")
+    subject, email = outcome
+    name = userinfo.get("name") if userinfo else None
     return subject, email, name if isinstance(name, str) else None
+
+
+def refusal_reason(userinfo: Mapping[str, object] | None) -> str | None:
+    """Which condition of `verified_identity` these claims fail, or None if none.
+
+    For the operator's log, never the visitor: an identity provider whose tokens
+    lack a claim the platform needs is a configuration to fix, and the log line
+    is the only place that says which one.
+
+    Returns:
+        `no_claims`, `no_subject`, `no_email` or `email_not_verified`.
+    """
+    outcome = _judge(userinfo)
+    return outcome if isinstance(outcome, str) else None
+
+
+def _judge(userinfo: Mapping[str, object] | None) -> tuple[str, str] | str:
+    """The `(subject, email)` the claims vouch for, or why they do not."""
+    if not userinfo:
+        return "no_claims"
+    subject, email = userinfo.get("sub"), userinfo.get("email")
+    if not isinstance(subject, str) or not subject:
+        return "no_subject"
+    if not isinstance(email, str) or not email:
+        return "no_email"
+    if not _is_verified(userinfo):
+        return "email_not_verified"
+    return subject, email
 
 
 def groups_claim(claims: Mapping[str, object] | None) -> frozenset[str] | None:

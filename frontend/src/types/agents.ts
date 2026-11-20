@@ -391,6 +391,8 @@ export interface PlatformMcpServerRef {
   account: "platform";
   allowed_tools: string[] | null;
   approval: McpApproval;
+  /** Each tool's own approval, over `approval` - see {@link McpToolApproval}. */
+  tool_approval?: McpToolApproval;
 }
 
 /** One MCP binding: the organization's connection, each person's own, or the platform's. */
