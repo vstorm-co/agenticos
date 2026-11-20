@@ -32,7 +32,7 @@ _VERSIONS = Path(__file__).parents[1] / "alembic" / "versions"
 _MIGRATION = _VERSIONS / "0212_improvement_waiting.py"
 _CRITERIA = _VERSIONS / "0342_criterion_verdicts.py"
 """The revision that last changed the verdicts."""
-_SEARCH = _VERSIONS / "0347_improvement_search.py"
+_SEARCH = _VERSIONS / "0350_improvement_search.py"
 """The revision that last changed the stages, the stop reasons and the modes."""
 
 
