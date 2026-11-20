@@ -1,5 +1,5 @@
 ---
-source_sha: "7b83980dd889"
+source_sha: "183ba9d579a2"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -373,6 +373,7 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | GitHub Models | `github` | klucz API | |
 | Groq | `groq` | klucz API | |
 | Heroku AI | `heroku` | klucz API | ✓ |
+| LLMTR | `llmtr` | klucz API | |
 | Mistral | `mistral` | klucz API | |
 | Moonshot AI | `moonshotai` | klucz API | |
 | Nebius AI Studio | `nebius` | klucz API | |

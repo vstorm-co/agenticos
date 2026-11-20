@@ -361,6 +361,7 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | GitHub Models | `github` | API key | |
 | Groq | `groq` | API key | |
 | Heroku AI | `heroku` | API key | ✓ |
+| LLMTR | `llmtr` | API key | |
 | Mistral | `mistral` | API key | |
 | Moonshot AI | `moonshotai` | API key | |
 | Nebius AI Studio | `nebius` | API key | |
