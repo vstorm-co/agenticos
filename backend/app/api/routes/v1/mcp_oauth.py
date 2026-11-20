@@ -37,7 +37,7 @@ async def approve_consent_request(
         ctx,
         request_id,
         data.scopes,
-        **({"deployment_admin": True} if data.deployment_admin else {}),
+        deployment_admin=data.deployment_admin,
     )
 
 
