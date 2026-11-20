@@ -2303,9 +2303,12 @@ class TestLlmtrEndpoint:
         )
         model = build_model(credential, "llmtr/qwen3-8-27b")
 
-        assert isinstance(model, OpenAIChatModel)
+        from app.agents.llmtr import LlmtrModel
+
+        assert isinstance(model, LlmtrModel)
+        assert isinstance(model.wrapped, OpenAIChatModel)
         # Inferred from `openai-chat` alone, the client would point at api.openai.com.
-        assert str(model._provider.client.base_url) == "https://llmtr.com/v1/"
+        assert str(model.wrapped._provider.client.base_url) == "https://llmtr.com/v1/"
 
 
 @pytest.mark.anyio

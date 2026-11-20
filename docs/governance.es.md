@@ -1,5 +1,5 @@
 ---
-source_sha: "ef824da65bb6"
+source_sha: "753163fbbe69"
 ---
 
 # Governance { #governance }
@@ -853,6 +853,14 @@ Las escrituras en Virtual Tables de AgenticOS se ejecutan dentro de sus permisos
 El creador abre **Consentimiento para acciones** en su rutina y elige acciones de capacidades y acciones MCP individuales de una cuenta identificada. Requiere `approvals:decide` y el ajuste `chat_may_waive_approvals` de la organización. Una clave API, un agente, una sesión suplantada o un administrador actuando por otro propietario no pueden consentir. No se pueden omitir aprobaciones explícitas del agente o de una vinculación MCP.
 
 Una excepción MCP identifica la cuenta concreta, el hash de la dirección, la generación de autorización y el nombre original de la acción. Enviar correo no autoriza borrar ni escribir en otra cuenta. Las cuentas personales solo aparecen si la rutina actúa como su creador. El selector usa la lista de herramientas guardada; comprueba la conexión o pide ayuda a su administrador cuando no esté disponible. Revocar todo el consentimiento no requiere una lista operativa.
+
+La revisión muestra las capabilities del agente, AgenticOS y cada otra cuenta MCP como secciones separadas, cada una con sus grupos. Solo aparecen las acciones que el agente ya ejecuta sin preguntar: una ante la que pregunta no admite consentimiento aquí, así que no se muestra. **Usar la configuración del agente** selecciona exactamente esas acciones y reemplaza la selección actual; nada se guarda hasta elegir **Guardar consentimiento**.
+
+El panel **Fuentes revisadas** de arriba lista las fuentes de la rutina por tipo - capabilities, skills, bases de conocimiento, tablas, cuentas -, cada tipo plegado a un recuento y cada fuente con su nombre. Una fuente que ya no existe aparece como no disponible; su identificador se ve al pasar el cursor.
+
+Cuando una rutina actúa como su creador, las herramientas propias del servidor de AgenticOS aparecen en los grupos que muestra el Builder: tablas, tareas, workflows, agentes y el resto. Solo aparecen las que cambian algo, porque las lecturas nunca preguntan; la búsqueda de herramientas tampoco pregunta. Una herramienta ante la que el agente pregunta no aparece. Eso cubre cada cambio que su vinculación no marca como **Run freely** y las herramientas que siempre preguntan. Así, una rutina mantiene las aprobaciones del agente o las endurece, y nunca libera ninguna.
+
+Una excepción de la plataforma nombra solo la herramienta: las ejecuciones de la rutina llegan a la plataforma solo como su creador, la única persona que puede revisarla.
 
 Al guardar, la versión y configuración deben seguir coincidiendo con lo revisado
 por la persona. El consentimiento identifica la versión publicada inmutable, los identificadores

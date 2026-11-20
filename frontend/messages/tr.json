@@ -2469,7 +2469,9 @@
     "disconnected": "Uygulamanın bağlantısı kesildi",
     "couldNotLoad": "Bağlı uygulamalar yüklenemedi",
     "emptyTitle": "Bağlı uygulama yok",
-    "emptyWhy": "AgenticOS'u Claude Code'a veya başka bir MCP client'a ekleyip oturum açın; burada görünür."
+    "emptyWhy": "AgenticOS'u Claude Code'a veya başka bir MCP client'a ekleyip oturum açın; burada görünür.",
+    "deploymentAdminTitle": "Tüm kurulumu yönet",
+    "deploymentAdminHint": "Seçilen kuruluşun ötesindeki kurulum ayarlarına ve güncellemelere izin verir. deployment:admin kapsamını yalnızca uygulama yöneticisi verebilir; kuruluş profillerine dahil edilmez."
   },
   "pages": {
     "retention": {
@@ -6757,6 +6759,8 @@
     "loadTools": "Tool'larını yükle",
     "toolsAfterConnecting": "{name} hesabı bağlandığında tool'ları listelenir.",
     "toolsSearch": "Tool'larda ara",
+    "toolsAddNew": "Sunucunun sonradan eklediği tool'ları ekle",
+    "toolsAddNewHint": "{state, select, on {Sunucunun sonradan eklediği bir tool bu agent'a kendiliğinden ulaşır.} narrowed {Agent yalnızca burada seçilen tool'ları tutar. Bunu açmak için tüm tool'ları seçin.} other {Agent yalnızca burada listelenen tool'ları tutar; sonradan eklenen bir tool dışarıda kalır.}}",
     "eachPersonsOwnAccountShort": "Herkes kendi hesabını bağlar; API key'leri, widget veya rutinler için uygun değildir.",
     "connectYours": "Kendi hesabınızı bağlayın",
     "cardOrganizationsAccount": "Kuruluşun hesabı · {name}",
@@ -6825,11 +6829,9 @@
     "platformAsWhoeverAsks": "İstekte bulunan kişi olarak işlem yapar",
     "platformActsAsWhoeverAsks": "Her tool, Agent'ın adına çalıştığı kişinin tam olarak kendi izinleriyle işlem yapar. Yeni izin verilmez: kişinin console'da yapamadığını Agent da burada yapamaz.",
     "platformUseIt": "Bu Agent'ta kullan",
-    "platformApproval": "Onay",
-    "platformWritesHint": "Okuma ücretsizdir; oluşturma, çalıştırma veya değiştirme için kişinin onayı beklenir.",
-    "platformAllHint": "Okuma dahil her çağrı onay bekler.",
-    "platformTools": "Bu Agent'ın çağırabileceği tool'lar",
-    "platformWritesBadge": "değişiklik yapar",
+    "toolChangesSomething": "Değişiklik yapar",
+    "platformSomeRunFreely": "Bazı araçlar sormadan çalışır",
+    "platformToolGroup": "{group, select, tables {Tablolar} tasks {Görevler ve Inbox} workflows {Workflow'lar} agents {Agent'lar} knowledge {Bilgi tabanları ve bağlam} skills {Skill'ler} projects {Projeler} automations {Rutinler ve izlemeler} apps {Uygulamalar} runs {Run'lar, konuşmalar ve harcama} connections {Bağlantılar} account {Organizasyon ve hesap} administration {Yönetim} other {Diğer}}",
     "platformRemove": "Bu Agent'tan kaldır",
     "voiceTitle": "Voice",
     "voiceDescription": "İnsanların bu Agent'la konuşma yolları: canlı voice call veya konuşmayı metne çeviren dikte. Agent yayınlandığında etkinleşir.",
@@ -6978,8 +6980,8 @@
     "newStarter": "Yeni ilk mesaj",
     "newStarterPlaceholder": "Size nasıl yardımcı olabilirim?",
     "addStarter": "Ekle",
+    "platformAlwaysAsksBadge": "her zaman sorar: burada kimin yetkisi olduğunu değiştirir",
     "platformUngatedBadge": "kendi ayarınız, onay istemez",
-    "platformHeldBadge": "önceki konuşmaları okur, önce sorar",
     "noKeyForEndpoint": "Key yok - endpoint gerektirmiyor",
     "notAChatModel": "chat modeli değil",
     "notAChatModelHint": "{model} chat modeli değildir; metinden konuşma, transkripsiyon, görsel veya embedding içindir ve Agent bununla çalışamaz. Yayınlamadan önce chat modeli seçin.",
@@ -11078,23 +11080,29 @@
       "notAllowedOrganization": "Kuruluşunuz kalıcı onayı kapattığı için bu rutin onayları atlayamaz. Budget ve approvals bölümünden açılabilir. Tüm onayları yine de iptal edebilirsiniz.",
       "openApprovalSettings": "Onay ayarlarını aç",
       "empty": "Bu sürümde burada yetkilendirilebilecek eylem yok.",
-      "required": "Agent onayı gerekli",
       "revokeAll": "Tümünü iptal et",
       "save": "İzni kaydet",
       "search": "Eylemleri ara",
-      "selectAll": "İzin verilebilir tüm eylemleri seç",
-      "bulkScope": "Toplu seçim, aramada gizlenenler dahil tüm grubu veya listeyi kapsar. Zorunlu onaylar geçerliliğini korur.",
       "selectGroup": "{name} içindeki izin verilebilir eylemleri seç",
       "noMatches": "Aramayla eşleşen eylem yok.",
       "reselectPrevious": "Daha önce incelenen eylemleri yeniden seç",
-      "selected": "{count, plural, =1 {1 eylem seçildi} other {# eylem seçildi}} · sınır {limit}",
       "tooMany": "{count} eylem seçildi; sınır {limit}. Kaydetmeden önce bazı eylemlerin seçimini kaldırın.",
       "changed": {
         "version": "Yayımlanan agent sürümü değişti. Eylemlerini yeniden inceleyin.",
         "intent": "Rutinin işi veya hedefi değişti. Eylemleri yeniden inceleyin.",
         "instructions": "Skill, context veya proje talimatları değişti. Eylemleri yeniden inceleyin.",
         "actions": "Önceden seçilen bazı eylemler kullanılamıyor, onay gerektiriyor veya hesap yetkilendirmesi değişmiş. Bunlar yeniden seçilmez."
-      }
+      },
+      "capabilitiesSection": "Capabilities",
+      "groupCount": "{selected} / {total}",
+      "useAgent": "Agent ayarlarını kullan",
+      "useAgentHint": "Bu agent'ın sohbette zaten sormadan çalıştırdığı eylemleri tam olarak seçer ve mevcut seçimin yerine koyar. Buradaki onay yalnızca agent ayarlarının izin verdiğini daraltabilir, asla genişletmez: agent'ın önce sorduğu bir eylem sunulmaz. Onayı kaydet seçilene kadar hiçbir şey kaydedilmez.",
+      "allowHeading": "Bu eylemlerin onay istemeden çalışmasına izin ver"
+    },
+    "sourceConsents": {
+      "kind": "{kind, select, capability {Capabilities} skill {Skill'ler} context {Bağlam dosyaları} knowledge {Bilgi tabanları} table {Tablolar} delegate {Delege agent'lar} remote_agent {Uzak agent'lar} platform {Platform} mcp_account {MCP hesapları} chat_connection {Sohbet bağlantıları} phone {Telefon} terminal_account {Terminal hesapları} terminal_credential {Terminal kimlik bilgileri} event_source {Olay kaynağı} other {Diğer}}",
+      "kindCount": "{name} ({count})",
+      "unnamed": "Artık kullanılamıyor"
     }
   },
   "teams": {
@@ -12826,7 +12834,7 @@
     "needsModel": "Henüz modeli yok; bu nedenle yanıt veremez. Agent Builder’daki Model bölümünden bir model seçin."
   },
   "appearance": {
-    "description": "Konsolun sizin için nasıl görünüp davrandığı. Bu tarayıcıda saklanır ve hemen uygulanır.",
+    "description": "Tema, stil ve dil hesabını takip eder. Hareket ve efektler bu tarayıcıda kalır; seçimler hemen uygulanır.",
     "theme": "Tema",
     "voiceGlowHint": "Dikte sırasında sohbet kutusunun sesinize nasıl tepki vereceği",
     "motion": "Hareket",

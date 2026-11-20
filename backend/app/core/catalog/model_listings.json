@@ -165,6 +165,8 @@
     "name_field": "name",
     "context_field": "context_length",
     "modalities_path": "architecture.output_modalities",
+    "operations_path": "supported_operations",
+    "required_operation": "CHAT_COMPLETIONS",
     "auth_header": "Authorization",
     "auth_template": "Bearer {key}"
   },

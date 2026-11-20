@@ -375,6 +375,8 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | Cohere | `cohere` | API key | |
 | Hugging Face | `huggingface` | API key | ✓ |
 
+LLMTR lists only models advertising `CHAT_COMPLETIONS`. A model without a reviewed price in the bundled snapshot can run only without an active dollar ceiling; its cost remains marked incomplete. A budgeted run also refuses further LLMTR calls when earlier usage has an unknown cost.
+
 ### Self-hosted
 
 | Provider | id | Credential | Custom URL |

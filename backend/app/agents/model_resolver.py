@@ -595,6 +595,10 @@ def build_model(credential: ResolvedCredential, model: str) -> Model:
         BadRequestError: If the provider has no catalog entry.
     """
     model_client = _build_model(credential, model)
+    if credential.provider == "llmtr":
+        from app.agents.llmtr import LlmtrModel
+
+        return LlmtrModel(model_client)
     if credential.provider == "stav":
         from app.agents.stav_cost import StavCostModel
 

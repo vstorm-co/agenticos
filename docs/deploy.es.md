@@ -1,5 +1,5 @@
 ---
-source_sha: "0d080c65b077"
+source_sha: "e885d6a41f7e"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -316,8 +316,7 @@ contenedores llevan etiquetas, Traefik los descubre, pide el certificado y lo
 renueva. Nada que recargar y ningún segundo archivo de configuración que mantener
 sincronizado.
 
-Si Traefik aún no está, el repositorio trae uno: `traefik/traefik.yml` y
-`docker-compose-traefik.yml`, que es un entrypoint en el 443 con un resolver de
+Si Traefik aún no está, el repositorio trae uno: `docker-compose-traefik.yml`, que es un entrypoint en el 443 con un resolver de
 Let's Encrypt y el 80 redirigiendo hacia él.
 
 ```bash
@@ -341,9 +340,16 @@ make prod-frontend PROXY=traefik
 lo lee `scripts/deploy.sh` — así que los despliegues posteriores conservan el
 proxy con el que se configuró este host y no el que asumiera un script.
 
+El proxy incluido lee todos los ajustes estáticos de los argumentos de Compose,
+incluidos `ACME_EMAIL` y `TRAEFIK_NETWORK`. No montes además un archivo estático
+`traefik.yml`: Traefik elige una fuente estática e ignora esos argumentos
+si ese archivo existe. `traefik/dynamic.yml` sigue siendo la configuración de
+rutas del proveedor de archivos, incluido HSTS. Las conexiones WebSocket no
+necesitan middleware adicional; las cargas se transmiten sin límite en el proxy.
+
 !!! info "`exposedByDefault: false` está haciendo trabajo de verdad"
 
-    Es el único ajuste de `traefik/traefik.yml` que merece la pena leer antes de
+    Es el único ajuste de `docker-compose-traefik.yml` que merece la pena leer antes de
     ejecutarlo. Solo `app` y `frontend` llevan `traefik.enable=true`, así que
     Postgres, Redis, el worker y el demonio de la sandbox no son
     alcanzables desde nada fuera del host — y eso es una propiedad de *no estar
@@ -394,7 +400,7 @@ proxy con el que se configuró este host y no el que asumiera un script.
     parámetros de consulta, como `q`, `skip`, `limit` y los ids, se conservan.
 
     Traefik puede conservar, eliminar o redactar un campo entero, pero no
-    reescribir una parte de él, así que `traefik/traefik.yml` elimina
+    reescribir una parte de él, así que `docker-compose-traefik.yml` elimina
     `RequestPath`, que incluye la query string, del log de acceso de
     Traefik. Nginx sí puede reescribir parte de un valor, pero
     `nginx/nginx.conf` elimina la ruta, la query string y el `Referer` de
@@ -426,6 +432,27 @@ deja deliberadamente a lo que termine el TLS. El log de acceso de la plantilla d
 fuera la ruta de la petición, la query string y el `Referer`; *Algunas
 rutas y query strings de petición son credenciales*, más arriba, explica
 por qué y qué sigue escribiendo el log de errores.
+
+La plantilla requiere **Nginx 1.25.1 o posterior**, porque usa `http2 on`.
+Nginx 1.24 en Ubuntu 24.04 necesita un paquete más reciente o sustituir las
+directivas separadas `http2 on;` por `listen 443 ssl http2;` y su equivalente
+IPv6. Instala la plantilla dentro del contexto `http`, por ejemplo como
+`/etc/nginx/conf.d/agenticos.conf`, y ejecuta `nginx -t` antes de recargar.
+
+El host de la API y las rutas multipart enumeradas de la consola fijan
+`client_max_body_size 55m;`: el mayor de
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` y
+`ML_MAX_UPLOAD_SIZE_MB`, más 5 MiB para el formato multipart. Aumenta los límites
+del proxy en **ambos** hosts cuando subas el mayor ajuste. Nginx permite solo
+1 MiB por defecto, incluido el formato, y rechaza las cargas antes de la aplicación.
+La consola reenvía archivos desde su propio host; las páginas alojadas usan el
+host de la API.
+
+Las páginas de la consola, la autenticación y el JSON ordinario
+conservan el límite de 1 MiB. Añade nuevas rutas de carga de la consola a la
+lista de ubicaciones de la plantilla. El proxy de la API reenvía las conexiones WebSocket en cualquier
+ruta, incluidas `/api/v1/ws/`, el chat y la voz integrados y los medios telefónicos.
+El HTTP normal conserva `Connection: close`.
 
 !!! warning "`BIND_HOST` es un ajuste de seguridad, no una comodidad"
 
@@ -628,8 +655,8 @@ ssh you@your-host "trap 'rm -f $remote' EXIT; bash $remote <commit-sha>"
 ```
 
 `scripts/deploy.sh` trae ese commit, espera a las imágenes que CI publicó para él
-(`sha-<short>`, normalmente ya están), las descarga, reinicia y espera a que los
-dos contenedores se declaren sanos antes de devolver distinto de cero o no. Toma
+(`sha-<short>`, normalmente ya están), las descarga, reinicia y espera a que la API,
+el worker en segundo plano y el frontend se declaren sanos antes de devolver distinto de cero o no. Toma
 un **commit** y no una rama, así que lo que se despliega es lo que se revisó y no
 aquello a lo que `main` se haya movido desde entonces - y lo que se ejecuta es
 byte a byte lo que construyó CI, en un host que nunca necesita la cadena de
@@ -829,3 +856,18 @@ eso funciona depende de la migración. Léela antes de dar nada por supuesto.
   required reviewers en el entorno `production`, cada merge se despliega solo.
 - **Copia `postgres_data` y `backend/.env` juntos.** Cualquiera de los dos sin el
   otro no es una restauración.
+
+## Imágenes del fork y verificación local { #fork-images-and-local-verification }
+
+Compose y `scripts/deploy.sh` aceptan `AGENTICOS_IMAGE_PREFIX`, cuyo valor por
+defecto es `ghcr.io/vstorm-co/agenticos`. Configure el prefijo de imágenes del fork
+y su GitHub `owner/repository` en `AGENTICOS_SOURCE_REPOSITORY`. Backend, frontend
+y navegador usan ese prefijo; el daemon del sandbox, con versión independiente,
+sigue siendo una dependencia upstream. Images usa por defecto el prefijo GHCR
+de su propio repositorio en minúsculas. Una variable de repositorio GitHub con
+ese nombre puede sustituirlo; los permisos deben incluir el destino.
+
+Crear un fork no configura secretos SSH, revisores de entornos ni protecciones.
+Compruébelos antes de activar despliegues iniciados por publicaciones. El plugin
+y la prueba local aislada de imágenes publicadas se explican en
+[Gestionar AgenticOS con un cliente de IA](howto/operate-with-ai.md).

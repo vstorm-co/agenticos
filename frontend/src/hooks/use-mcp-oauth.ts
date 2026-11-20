@@ -8,8 +8,12 @@ import { apiClient } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
-import type { ConnectedAppList, OAuthConsentAnswer, OAuthConsentRequest } from "@/types/mcp-oauth";
-import type { Permission } from "@/types/permissions";
+import type {
+  ConnectedAppList,
+  OAuthConsentAnswer,
+  OAuthConsentChoice,
+  OAuthConsentRequest,
+} from "@/types/mcp-oauth";
 
 /**
  * One MCP client's request for access, in the active organization, and the two
@@ -24,8 +28,8 @@ export function useConsentRequest(requestId: string) {
     retry: false,
   });
   const approve = useMutation({
-    mutationFn: (scopes: Permission[]) =>
-      apiClient.post<OAuthConsentAnswer>(`/mcp-oauth/requests/${requestId}/approve`, { scopes }),
+    mutationFn: (choice: OAuthConsentChoice) =>
+      apiClient.post<OAuthConsentAnswer>(`/mcp-oauth/requests/${requestId}/approve`, choice),
   });
   const deny = useMutation({
     mutationFn: () => apiClient.post<OAuthConsentAnswer>(`/mcp-oauth/requests/${requestId}/deny`),

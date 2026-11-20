@@ -1,5 +1,5 @@
 ---
-source_sha: "183ba9d579a2"
+source_sha: "28fef18e676b"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -395,6 +395,8 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | xAI (Grok) | `xai` | clave de API | ✓ (`api_host`) |
 | Cohere | `cohere` | clave de API | |
 | Hugging Face | `huggingface` | clave de API | ✓ |
+
+LLMTR solo muestra modelos que anuncian `CHAT_COMPLETIONS`. Un modelo sin precio revisado en el snapshot incluido solo puede ejecutarse sin un límite activo en dólares; su coste sigue marcado como incompleto. Con un límite activo también se rechazan nuevas llamadas a LLMTR si el coste del uso anterior es desconocido.
 
 ### Autoalojados { #self-hosted }
 
