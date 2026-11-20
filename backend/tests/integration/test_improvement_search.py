@@ -339,6 +339,47 @@ class TestSearch:
         assert "10 training questions" in (run.error or "")
 
 
+class TestDraftEdits:
+    """A variant is a rewrite from the search's start: adopted onto an edited draft it
+    would undo the edit, so an edited draft ends the session instead."""
+
+    async def test_a_draft_edited_during_the_search_ends_the_session_before_any_hunk(self, db):
+        ctx, agent, _, read = await _start(db)
+        await _to_search(db, ctx, read.id)
+        await _units(db, ctx, read.id, Searcher(db))
+
+        agent.draft_spec = {**agent.draft_spec, "instructions": INSTRUCTIONS + "\nNew rule."}
+        await db.flush()
+        run = await _finish(db, ctx, read.id)
+
+        assert run.status == "stale" and run.stop_reason == "stale"
+        assert (await _iteration(db, read.id)).batch_id is None
+        assert await db.scalar(select(SpecProposalHunk)) is None
+
+    async def test_another_variant_is_not_brought_onto_an_edited_draft(self, db):
+        ctx, agent, _, read = await _start(db)
+        await _to_search(db, ctx, read.id)
+        model = Searcher(
+            db,
+            variants=[{"instructions": _KINDLY}, {"instructions": _WINDOW}],
+        )
+        await _units(db, ctx, read.id, model)
+        await _finish(db, ctx, read.id)
+        service = ImprovementPipelineService(db)
+        found = (await service.read(ctx, agent.id, read.id)).iterations[0].variant_search
+        assert found is not None and len(found.top) == 2
+        batch = (await _iteration(db, read.id)).batch_id
+
+        agent.draft_spec = {**agent.draft_spec, "instructions": INSTRUCTIONS + "\nNew rule."}
+        await db.flush()
+        with pytest.raises(ConcurrentChangeError, match="stale"):
+            await service.choose_variant(
+                ctx, agent.id, read.id, SearchChoice(variant_id=found.top[1].id)
+            )
+
+        assert (await _iteration(db, read.id)).batch_id == batch
+
+
 class TestBudget:
     async def test_the_search_goes_over_its_budget_by_at_most_the_variant_it_was_scoring(self, db):
         ctx, _, _, read = await _start(

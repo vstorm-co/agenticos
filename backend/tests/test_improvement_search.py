@@ -57,7 +57,6 @@ def _progress(**values: object) -> SearchProgress:
         settings=search_settings(SearchOptions(budget_usd=Decimal("2"))),
         case_ids=[],
         spent_before_usd="1",
-        reserved_usd="0",
         generation=0,
         closed_generation=-1,
         stale_generations=0,

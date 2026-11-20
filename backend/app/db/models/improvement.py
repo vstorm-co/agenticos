@@ -279,10 +279,9 @@ class SearchProgress(TypedDict, total=False):
     """Where a search attempt is: its settings, what it spent and what it found.
 
     `spent_before_usd` is the session's spend when the search began, so the
-    search's own cost is the session's spend now less it. `reserved_usd` is the
-    estimate of the unit in flight, held against the budget until it settles.
-    `best_before` is the best score a round of proposals started from, and
-    `stale_generations` counts the rounds in a row that found nothing better.
+    search's own cost is the session's spend now less it. `best_before` is the
+    best score a round of proposals started from, and `stale_generations` counts
+    the rounds in a row that found nothing better.
     """
 
     settings: SearchSettings
@@ -290,7 +289,6 @@ class SearchProgress(TypedDict, total=False):
     """The training questions every variant is scored on, so their scores compare."""
 
     spent_before_usd: str
-    reserved_usd: str
     generation: int
     closed_generation: int
     stale_generations: int

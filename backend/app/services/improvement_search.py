@@ -15,8 +15,10 @@ a lost job is picked up where it left off. The session's own step starts the
 search, keeps a job queued, and hands the winner on once the search says it
 ended; nothing here moves the session.
 
-Money is held before it is spent. A unit starts only while its estimate fits what
-is left of the search's budget and of the session's, and each answer is capped at
+A session's search runs one unit at a time - one queued job per session, one
+running per organization - and each unit is priced against what the search has
+spent so far before it starts. A unit starts only while its estimate fits what is
+left of the search's budget and of the session's, and each answer is capped at
 twice its share of that estimate, so a search goes over its budget by at most the
 one variant it was scoring.
 """
@@ -355,7 +357,6 @@ class ImprovementSearchService:
                     settings=progress["settings"],
                     case_ids=[str(case_id) for case_id in chosen],
                     spent_before_usd=str(spent),
-                    reserved_usd="0",
                     generation=0,
                     closed_generation=-1,
                     stale_generations=0,
@@ -646,7 +647,7 @@ class SearchWorker:
         await improvement_repo.update_variant(
             db, variant=variant, values={"attempts": variant.attempts + 1, "estimate_usd": estimate}
         )
-        await self._hold(db, run, iteration, progress, estimate)
+        await self._claimed(db, run, iteration, progress)
         return _Score(
             ctx=ctx,
             run_id=run.id,
@@ -707,7 +708,7 @@ class SearchWorker:
         progress = SearchProgress(
             **{**progress, "best_before": max((p.train_score or 0 for p in parents), default=None)}
         )
-        await self._hold(db, run, iteration, progress, estimate)
+        await self._claimed(db, run, iteration, progress)
         return _Propose(
             ctx=ctx,
             run_id=run.id,
@@ -721,16 +722,15 @@ class SearchWorker:
             helper=helper,
         )
 
-    async def _hold(
+    async def _claimed(
         self,
         db: AsyncSession,
         run: ImprovementRun,
         iteration: ImprovementIteration,
         progress: SearchProgress,
-        estimate: Decimal,
     ) -> None:
         await improvement_repo.update_iteration(
-            db, iteration=iteration, values={"search": {**progress, "reserved_usd": str(estimate)}}
+            db, iteration=iteration, values={"search": progress}
         )
         await improvement_repo.update_run(db, run=run, values={"heartbeat_at": datetime.now(UTC)})
 
@@ -885,7 +885,6 @@ class SearchWorker:
             updated = SearchProgress(
                 **{
                     **progress,
-                    "reserved_usd": "0",
                     "cost_usd": str(search_cost(progress, spent=spent)),
                 }
             )
@@ -927,7 +926,6 @@ class SearchWorker:
             updated = SearchProgress(
                 **{
                     **progress,
-                    "reserved_usd": "0",
                     "cost_usd": str(search_cost(progress, spent=spent)),
                 }
             )
@@ -1010,7 +1008,6 @@ async def _end(
         values={
             "search": {
                 **progress,
-                "reserved_usd": "0",
                 "cost_usd": str(search_cost(progress, spent=spent)),
                 "stop_reason": reason,
             }
