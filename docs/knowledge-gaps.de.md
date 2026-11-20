@@ -1,5 +1,5 @@
 ---
-source_sha: "c428b004a390"
+source_sha: "efd4f647f085"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -83,8 +83,8 @@ gebundenen Agent-Version lief, bewertet oder nicht: Eine Antwort, in der der
 Agent es nicht wusste, bewertet oft niemand. Ein Run, dessen Suche schon ein Fehltreffer war,
 wird ebenfalls gelesen, damit eine berechtigte Ablehnung seinen Fehltreffer aus
 den Lücken nimmt; sonst zählt er weiterhin einmal, als dieser Fehltreffer. Runs über die HTTP-API behalten keine
-Antwort, und Eval-Runs, deren Fragen wiederholt oder erzeugt sind, werden nie
-gelesen. Tests eines Entwurfs im Builder, delegierte Runs und Runs, deren
+Antwort, und Eval-Runs, deren Fragen wiederholt oder erzeugt sind, liest keine
+Prüfung. Tests eines Entwurfs im Builder, delegierte Runs und Runs, deren
 Starter kein Konto mehr hat, ebenso wenig.
 
 Eine Prüfung gehört zu einer Wissensbasis: Was sie findet, ist eine Lücke nur
@@ -113,14 +113,24 @@ ordnet jede nach ihren Urteilen ein: fehlendes Wissen, wo einer Wissensbasis
 Inhalt fehlte, nichts zu beheben, wo der Agent zu Recht abgelehnt hat, und sonst
 ein Fehler des Agents.
 
-Die Antworten mit fehlendem Wissen fallen aus dem heraus, was der
-Authoring-Assistent liest, und ihre Fehlschläge werden sofort zu Themen
-gruppiert, bevor die Sitzung bei **Verstehen** anhält, damit ein Mensch sie
-ansieht. Die Sitzung entwirft keines davon: Sie listet die Themen auf, die in
-der Wissensbasis fehlen, und ein Mensch entwirft die, die er braucht, wie
-[unten](#drafting-the-missing-content) beschrieben. Nichts wird entworfen, ohne
-dass ein Mensch darum bittet, ob in einer Sitzung oder außerhalb. Die Runs eines
-Evals werden nie gelesen, also auch kein zurückgehaltener Fall.
+Eine Sitzung, die aus Evals lernt, ordnet auch die fehlgeschlagenen Antworten auf
+ihre Trainingsfragen ein: die Frage des Falls und die Antwort, die das Eval
+aufgezeichnet hat. Ihre Urteile werden nach dem Run aufbewahrt, der geantwortet
+hat, denn eine Eval-Antwort hat keine Nachricht. Eine, in der der Agent es nicht
+wusste, wird wie eine Chatantwort zu einer Frage in den Themen der Wissensbasis,
+sodass eine Tatsache, die kein Dokument enthält, zum Ergänzen durch einen
+Menschen aufgelistet wird statt einer Anweisung überlassen zu werden, die sie
+nicht liefern kann. Ein zurückgehaltener Fall wird nie gelesen.
+
+Die Chatantworten mit fehlendem Wissen fallen aus dem heraus, was der
+Authoring-Assistent liest. Eine Trainingsantwort bleibt darin: Sie wird nach
+mehreren Kriterien bewertet, und fehlendes Wissen erklärt vielleicht nur einige
+davon. Die Fehlschläge werden sofort zu Themen gruppiert, bevor die Sitzung bei
+**Verstehen** anhält, damit ein Mensch sie ansieht. Die Sitzung entwirft keines
+davon: Sie listet die Themen auf, die in der Wissensbasis fehlen, und ein Mensch
+entwirft die, die er braucht, wie [unten](#drafting-the-missing-content)
+beschrieben. Nichts wird entworfen, ohne dass ein Mensch darum bittet, ob in
+einer Sitzung oder außerhalb.
 
 ## Themen { #topics }
 
@@ -336,7 +346,9 @@ Person, die es hinzugefügt hat, oder eine Person, deren Frage es geprägt hat,
 gelöscht wird: Jemand hat geprüft und bestätigt, was es sagt.
 
 Eine aus einer Antwort gelesene Frage wird wie eine Suche aufbewahrt: Sie hält
-die Frage der Person und geht mit ihrem Run und ihrer Conversation. Das Prüfen
+die Frage der Person und geht mit ihrem Run und ihrer Conversation. Eine aus einer
+Eval-Antwort gelesene hält die Frage des Falls und geht mit ihrem Urteil, wenn die
+Kopien des Falls in Eval-Ergebnissen gelöscht werden. Das Prüfen
 von Antworten schickt Fragen, Antworten und Kommentare zu negativen Bewertungen
 an den Modellanbieter des Klassifizierers.
 

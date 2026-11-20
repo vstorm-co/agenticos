@@ -38,10 +38,15 @@ Two things are versioned separately from this file and worth knowing about:
 - A skill check keeps each agent's families of criteria, so its details table one row per family - every case's check of one thing together - instead of one row per case's check. Agents expose `families`; `skill_check_agents` gains the column (#3178).
 - A skill check's agent whose runs graded every answer on fewer held-out questions than a result needs is unknown for `too_few_questions` rather than `inconclusive`, and its row says how many came out better and worse and that they are too few to be sure (#3178).
 
+### Fixed
+
+- **Improve finds missing knowledge in eval answers.** A session that learned from evals sorted no answer for missing knowledge, so it listed no topic even when the agent said the documents were silent: the sort read chat answers alone. Its failed training answers now go to the Knowledge gap classifier too, kept by the run that answered, and one the agent did not know becomes a question in the knowledge base's topics, listed at **Understand** and on the result. Such an answer stays in what the improver reads. A case's erased copies take the questions and verdicts read from its answers with them (#3190).
+
 ### Upgrading
 
 - Migration `backend/alembic/versions/0343_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
 - Migration `backend/alembic/versions/0344_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0345_eval_answer_gaps.py` adds `knowledge_gap_eval_classifications` and a unique index on `knowledge_searches` for misses read from eval answers. Its downgrade drops both, with those misses.
 
 ## [1.85.0] - 2026-11-19
 

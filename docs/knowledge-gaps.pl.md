@@ -1,5 +1,5 @@
 ---
-source_sha: "c428b004a390"
+source_sha: "efd4f647f085"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -79,8 +79,8 @@ przeszukał bazę wiedzy, albo działał na wersji agenta z nią powiązanej, oc
 czy nie: odpowiedzi, w której agent nie wiedział, często nikt nie ocenia. Run, którego wyszukiwanie już było
 chybione, też jest czytany, żeby słuszna odmowa usunęła jego chybienie z luk; w
 przeciwnym razie nadal liczy się raz, jako to chybienie. Runy przez HTTP API nie zachowują
-odpowiedzi, a runy ewaluacji, których pytania są odtwarzane albo generowane, nie
-są nigdy czytane. Testy wersji roboczej w Builderze, runy delegowane i runy, których
+odpowiedzi, a runów ewaluacji, których pytania są odtwarzane albo generowane, nie
+czyta żadne sprawdzenie. Testy wersji roboczej w Builderze, runy delegowane i runy, których
 autor nie ma już konta, też nie.
 
 Sprawdzenie dotyczy jednej bazy wiedzy: to, co znajdzie, jest luką tylko tej
@@ -108,14 +108,23 @@ wieku, i przypisuje każdą do grupy według jej werdyktów: brakująca wiedza, 
 bazie wiedzy brakowało treści, nic do poprawienia, gdy agent słusznie odmówił,
 a w pozostałych przypadkach błąd agenta.
 
-Odpowiedzi z brakującą wiedzą wypadają z tego, co czyta asystent tworzenia, a
-ich braki od razu są grupowane w tematy, zanim sesja zatrzyma się na **Zrozumieniu**,
-żeby człowiek mógł je obejrzeć. Sesja nie pisze szkicu żadnego z nich:
-wymienia tematy, których brakuje w bazie wiedzy, a człowiek pisze szkice tych,
-których potrzebuje, jak [niżej](#drafting-the-missing-content). Nic nie powstaje
-jako szkic, dopóki nie poprosi o to człowiek, w sesji ani poza nią. Runy
-ewaluacji nie są nigdy czytane, więc żaden przypadek zachowany do sprawdzenia
-też nie.
+Sesja, która uczy się z ewaluacji, sortuje też nieudane odpowiedzi na swoje
+pytania treningowe: pytanie przypadku i odpowiedź zapisaną przez ewaluację. Ich
+werdykty są przechowywane według runa, który odpowiedział, bo odpowiedź z
+ewaluacji nie ma wiadomości. Taka, w której agent nie wiedział, staje się
+pytaniem w tematach bazy wiedzy jak odpowiedź z rozmowy, więc fakt, którego nie
+ma w żadnym dokumencie, trafia na listę do dodania przez człowieka, a nie do
+instrukcji, która nie może go dostarczyć. Przypadek zachowany do sprawdzenia nie
+jest nigdy czytany.
+
+Odpowiedzi z rozmów z brakującą wiedzą wypadają z tego, co czyta asystent
+tworzenia. Odpowiedź treningowa w nim zostaje: jest oceniana według kilku
+kryteriów, a brak wiedzy może tłumaczyć tylko część z nich. Braki od razu są
+grupowane w tematy, zanim sesja zatrzyma się na **Zrozumieniu**, żeby człowiek
+mógł je obejrzeć. Sesja nie pisze szkicu żadnego z nich: wymienia tematy, których
+brakuje w bazie wiedzy, a człowiek pisze szkice tych, których potrzebuje, jak
+[niżej](#drafting-the-missing-content). Nic nie powstaje jako szkic, dopóki nie
+poprosi o to człowiek, w sesji ani poza nią.
 
 ## Tematy { #topics }
 
@@ -312,7 +321,9 @@ co. Dokument zostaje, gdy zostanie usunięty temat, osoba, która go dodała, al
 osoba, której pytanie go ukształtowało: ktoś sprawdził i potwierdził jego treść.
 
 Pytanie odczytane z odpowiedzi jest przechowywane tak samo jak wyszukiwanie:
-zawiera pytanie osoby i znika razem ze swoim runem i rozmową. Sprawdzanie
+zawiera pytanie osoby i znika razem ze swoim runem i rozmową. Odczytane z
+odpowiedzi z ewaluacji zawiera pytanie przypadku i znika razem ze swoim
+werdyktem, gdy kopie przypadku w wynikach ewaluacji zostają wymazane. Sprawdzanie
 odpowiedzi wysyła pytania, odpowiedzi i komentarze do ocen łapką w dół do
 dostawcy modelu klasyfikatora.
 
