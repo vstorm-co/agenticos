@@ -163,7 +163,8 @@ fn revision() -> String {
     format!(
         "{:x}",
         Sha256::digest(
-            format!("{NODE_VERSION}\n{MANIFEST}\n{LOCK}\n{MUSE}\n{BRIDGE}\n{PI_TOOLS}\n{PLATFORM_HTTP}\n{HERMES}").as_bytes()
+            format!("{NODE_VERSION}\n{MANIFEST}\n{LOCK}\n{MUSE}\n{BRIDGE}\n{PI_TOOLS}\n{PLATFORM_HTTP}\n{HERMES}")
+                .as_bytes()
         )
     )
 }

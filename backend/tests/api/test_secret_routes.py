@@ -345,7 +345,7 @@ class TestOfficialChatGPTPlan:
             )
         assert result.status_code == 201
         assert result.json()["plan_usage_granted"] is False
-        assert result.json()["secret"]["kind"] == "openai_chatgpt"
+        assert result.json()["connection"]["kind"] == "openai_chatgpt"
         assert "never-return" not in result.text and "refresh_token" not in result.text
         assert official.create.call_args.kwargs["visibility"].value == "private"
 
@@ -358,6 +358,6 @@ class TestOfficialChatGPTPlan:
                 json={"callback_url": "http://127.0.0.1:1455/auth/callback?code=c&state=s"},
             )
         assert result.status_code == 200 and result.json()["plan_usage_granted"] is True
-        assert result.json()["secret"]["id"] == str(_SECRET_ID)
+        assert result.json()["connection"]["id"] == str(_SECRET_ID)
         assert "never-return" not in result.text
         assert official.reconnect.call_args.args[1] == _SECRET_ID
