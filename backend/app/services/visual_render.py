@@ -212,15 +212,15 @@ async def preview(
     title: str,
     width: int,
     appearance: Literal["light", "dark"],
-    allow_tiles: bool = False,
 ) -> artifact_render.Rendered:
     """Inspect a fresh visual with the Apps renderer, without saving or publishing it.
 
     Uses the same document, libraries and sandbox as the chat frame. The Apps
     renderer supplies bounded diagnostics and isolation for every subframe;
     its deployment-owned endpoint is never chosen by the model. Inputs inside
-    the person's already-open visual are not read or changed. Tile access must
-    be explicitly enabled by a caller that has not inlined stored images.
+    the person's already-open visual are not read or changed. Only the page and
+    bundled libraries are served; map tiles cannot carry conversation content
+    to an external provider.
 
     Raises:
         ConfigurationError: The deployment has no Apps renderer or browser extra.
@@ -234,7 +234,6 @@ async def preview(
             injected_lines=(artifacts.platform_script() + VISUAL_RUNTIME).count("\n"),
             width=width,
             appearance=appearance,
-            allow_tiles=allow_tiles,
         )
     )
 

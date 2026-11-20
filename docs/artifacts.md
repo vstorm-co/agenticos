@@ -874,15 +874,13 @@ email or a repository event - whoever it executes as. A surface with nobody sign
 in previews nothing.
 
 The renderer answers requests with the page, the
-[library set](#the-library-set) or a refusal. App previews and PDF exports with
-live-data bindings block map tiles, including when no records are available:
-page-selected tile coordinates could disclose those records to the tile provider.
+[library set](#the-library-set) or a refusal. `preview_visual`, App previews and
+PDF exports block map tiles, including visuals without images or live-data
+bindings. Model-authored source can contain private conversation text, which
+page-selected tile coordinates could disclose to the provider.
 
-Visual previews containing stored images also block tiles: coordinates could
-disclose the inlined image bytes. Only image-free visuals without data bindings
-can use the deployment's configured tile proxy. Permitted tiles load concurrently
-through a bounded worker pool, with at most 256 admitted tile requests per preview;
-excess requests are blocked and reported even when earlier batches have completed.
+Use the bundled `AOWorldMap` SVG maps for network-free previews. Deployment-configured
+street tiles are not fetched for these screenshots or PDF exports.
 
 The picture needs a browser the operator runs, named by
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), and the backend's

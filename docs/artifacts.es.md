@@ -1,5 +1,5 @@
 ---
-source_sha: "f5258338362b"
+source_sha: "8b9149ab95f2"
 ---
 
 # Aplicaciones { #artifacts }
@@ -909,18 +909,15 @@ sea cual sea la identidad con la que se ejecute. Una superficie sin nadie con se
 iniciada no previsualiza nada.
 
 El renderer responde a las peticiones con la página, el
-[conjunto de bibliotecas](#the-library-set) o un rechazo. Las vistas previas de
-aplicaciones y las exportaciones PDF con enlaces a datos en vivo bloquean las
-teselas de mapas, incluso cuando no hay registros disponibles: las coordenadas
-elegidas por la página podrían revelar esos registros al proveedor de mapas.
+[conjunto de bibliotecas](#the-library-set) o un rechazo. `preview_visual`, las
+vistas previas de aplicaciones y las exportaciones PDF bloquean las teselas de
+mapas, incluso en visualizaciones sin imágenes ni enlaces a datos en vivo. El
+código creado por el modelo puede contener información privada de la conversación,
+que las coordenadas elegidas por la página podrían revelar al proveedor.
 
-Las vistas previas de visualizaciones con imágenes almacenadas también bloquean
-las teselas: las coordenadas podrían revelar los bytes de las imágenes incrustadas.
-Solo las visualizaciones sin imágenes ni enlaces a datos pueden usar el proxy de
-teselas del despliegue. Las teselas permitidas se cargan en paralelo mediante un
-grupo limitado de tareas, con un máximo de 256 peticiones de teselas admitidas
-por vista previa. Las peticiones adicionales se bloquean y se incluyen en el
-informe, aunque los lotes anteriores ya hayan terminado.
+Usa los mapas SVG incluidos de `AOWorldMap` para vistas previas sin acceso a la
+red. Las teselas de calles configuradas en el despliegue no se descargan para
+estas capturas ni para las exportaciones PDF.
 
 La imagen necesita un navegador que ejecute el operador, indicado por
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), y el extra

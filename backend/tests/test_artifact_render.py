@@ -21,7 +21,7 @@ import pytest
 from app.core.exceptions import ConfigurationError, ExternalServiceError
 from app.schemas.artifact import BindingData
 from app.services import artifact_render as renderer
-from app.services.artifact import content_address, content_security_policy
+from app.services.artifact import content_address, content_security_policy, tile_source
 from app.services.artifact_render import (
     CdpError,
     CdpPayload,
@@ -202,37 +202,6 @@ class FakeBrowser:
         return out
 
 
-class TileBrowser(FakeBrowser):
-    """Load completes only after every map request is answered, as with real images."""
-
-    def __init__(self, count: int) -> None:
-        events = [event for event in _page_events() if event[0] != "Page.loadEventFired"]
-        events.extend(
-            (
-                "Fetch.requestPaused",
-                _paused(f"tile-{i}", f"{renderer.tile_source()}6/0/{i}"),
-                "FRAME",
-            )
-            for i in range(count)
-        )
-        super().__init__(events=events)
-        self.remaining_tiles = count
-
-    async def send(
-        self, method: str, params: CdpPayload | None = None, *, session_id: str | None = None
-    ) -> CdpPayload:
-        result = await super().send(method, params, session_id=session_id)
-        if (
-            method in ("Fetch.fulfillRequest", "Fetch.failRequest")
-            and params
-            and str(params["requestId"]).startswith("tile-")
-        ):
-            self.remaining_tiles -= 1
-            if self.remaining_tiles == 0:
-                self.handlers["Page.loadEventFired"]({}, "PAGE")
-        return result
-
-
 @pytest.fixture(autouse=True)
 def configured() -> Any:
     with (
@@ -278,12 +247,12 @@ async def _render(browser: FakeBrowser, **overrides: Any) -> renderer.Rendered:
 
 class TestNothingReachesTheNetwork:
     @pytest.mark.security
-    async def test_unbound_renders_block_tiles_unless_explicitly_admitted(
+    async def test_unbound_renders_never_forward_page_selected_map_tiles(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from app.services import visual_render
 
-        address = f"{renderer.tile_source()}3/4/5"
+        address = f"{tile_source()}3/4/5"
         browser = FakeBrowser(
             events=[*_page_events(), ("Fetch.requestPaused", _paused("tile", address), "FRAME")]
         )
@@ -303,14 +272,14 @@ class TestNothingReachesTheNetwork:
     ) -> None:
         from app.services import visual_render
 
-        address = f"{renderer.tile_source()}3/4/5"
+        address = f"{tile_source()}3/4/5"
         browser = FakeBrowser(
             events=[*_page_events(), ("Fetch.requestPaused", _paused("tile", address), "FRAME")]
         )
         proxy = AsyncMock(return_value=visual_render.Answer(body=b"tile", content_type="image/png"))
         monkeypatch.setattr(visual_render, "answer", proxy)
 
-        drawn = await _render(browser, bindings=bindings, allow_tiles=True)
+        drawn = await _render(browser, bindings=bindings)
 
         assert browser.answered()["tile"] == "failRequest"
         assert address in drawn.blocked
@@ -412,25 +381,6 @@ class TestTheRender:
             ({"features": [{"name": "prefers-color-scheme", "value": "dark"}]}, "PAGE")
         ]
 
-    @pytest.mark.parametrize("body", [b"tile", None])
-    async def test_only_the_configured_tile_proxy_can_answer_map_tiles(
-        self, body: bytes | None, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from app.services import visual_render
-
-        events = [
-            *_page_events(),
-            ("Fetch.requestPaused", _paused("tile", f"{renderer.tile_source()}3/4/5"), "FRAME"),
-        ]
-        browser = FakeBrowser(events=events)
-        proxy = AsyncMock(return_value=visual_render.Answer(body=body, content_type="image/png"))
-        monkeypatch.setattr(visual_render, "answer", proxy)
-        await _render(browser, bindings=None, allow_tiles=True)
-        assert browser.answered()["tile"] == (
-            "fulfillRequest" if body is not None else "failRequest"
-        )
-        assert proxy.await_args.args[0] == f"{renderer.tile_source()}3/4/5"
-
     async def test_it_reports_what_the_page_did(self) -> None:
         drawn = await _render(FakeBrowser())
         assert drawn.errors == [
@@ -519,197 +469,6 @@ class TestTheRender:
         events = [*noisy, ("Page.loadEventFired", {}, "PAGE")]
         drawn = await _render(FakeBrowser(events=events))
         assert drawn.console == [f"error: e{n}" for n in range(renderer.MAX_NOTES)]
-
-
-class TestConcurrentTiles:
-    @pytest.mark.security
-    @pytest.mark.parametrize("body", [b"tile", None])
-    async def test_successive_tile_batches_cannot_exhaust_the_shared_allowance(
-        self, body: bytes | None, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from app.services import visual_render
-
-        monkeypatch.setattr(renderer, "MAX_TILE_REQUESTS", 3)
-        monkeypatch.setattr(renderer, "MAX_QUEUED_TILES", 2)
-        proxy = AsyncMock(return_value=visual_render.Answer(body=body))
-        monkeypatch.setattr(visual_render, "answer", proxy)
-
-        def successive_batches() -> TileBrowser:
-            browser = TileBrowser(6)
-            events = browser.events[-6:]
-            browser.events = [*browser.events[:-6], *events[:2]]
-            remaining = iter(events[2:])
-            send = browser.send
-
-            async def next_tile(
-                method: str, params: CdpPayload | None = None, *, session_id: str | None = None
-            ) -> CdpPayload:
-                result = await send(method, params, session_id=session_id)
-                if (
-                    method in ("Fetch.fulfillRequest", "Fetch.failRequest")
-                    and params
-                    and str(params["requestId"]).startswith("tile-")
-                ):
-                    event = next(remaining, None)
-                    if event is not None:
-                        name, payload, session = event
-                        browser.handlers[name](payload, session)
-                return result
-
-            monkeypatch.setattr(browser, "send", next_tile)
-            return browser
-
-        # A second render gets its own budget; each queue drains between batches.
-        for _ in range(2):
-            browser = successive_batches()
-            proxy.reset_mock()
-
-            drawn = await _render(browser, bindings=None, allow_tiles=True)
-
-            assert drawn.image == b"jpeg-bytes"
-            assert browser.remaining_tiles == 0
-            assert proxy.await_count == 3
-            assert all(browser.answered()[f"tile-{i}"] == "failRequest" for i in range(3, 6))
-            assert all(f"{renderer.tile_source()}6/0/{i}" in drawn.blocked for i in range(3, 6))
-
-    async def test_slow_tiles_load_together_before_the_picture_is_taken(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from app.services import visual_render
-
-        browser = TileBrowser(3)
-        together = asyncio.Event()
-        started = 0
-
-        async def tile(_: str, __: bytes) -> visual_render.Answer:
-            nonlocal started
-            started += 1
-            if started == 3:
-                together.set()
-            await together.wait()
-            return visual_render.Answer(body=b"tile", content_type="image/png")
-
-        monkeypatch.setattr(visual_render, "answer", tile)
-        monkeypatch.setattr(renderer, "DEADLINE_SECONDS", 1)
-
-        drawn = await _render(browser, bindings=None, allow_tiles=True)
-
-        assert drawn.timed_out is False
-        assert drawn.image == b"jpeg-bytes"
-        assert browser.remaining_tiles == 0
-        assert all(browser.answered()[f"tile-{i}"] == "fulfillRequest" for i in range(3))
-
-    @pytest.mark.security
-    async def test_tile_work_is_bounded_and_overflow_is_refused(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from app.services import visual_render
-
-        browser = TileBrowser(7)
-        together = asyncio.Event()
-        active = peak = 0
-
-        async def tile(_: str, __: bytes) -> visual_render.Answer:
-            nonlocal active, peak
-            active += 1
-            peak = max(peak, active)
-            if active == 2:
-                together.set()
-            await together.wait()
-            active -= 1
-            return visual_render.Answer(body=b"tile", content_type="image/png")
-
-        monkeypatch.setattr(visual_render, "answer", tile)
-        monkeypatch.setattr(renderer, "TILE_WORKERS", 2)
-        monkeypatch.setattr(renderer, "MAX_QUEUED_TILES", 3)
-        monkeypatch.setattr(renderer, "DEADLINE_SECONDS", 1)
-
-        drawn = await _render(browser, bindings=None, allow_tiles=True)
-
-        assert peak == 2
-        assert browser.remaining_tiles == 0
-        assert drawn.image == b"jpeg-bytes"
-        assert any(browser.answered()[f"tile-{i}"] == "failRequest" for i in range(7))
-        assert any(url.startswith(renderer.tile_source()) for url in drawn.blocked)
-
-    async def test_deadline_cancels_tile_fetches_before_disposing_the_browser(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from app.services import visual_render
-
-        browser = TileBrowser(1)
-        cancelled = asyncio.Event()
-        send = browser.send
-
-        async def tile(_: str, __: bytes) -> visual_render.Answer:
-            try:
-                await asyncio.Event().wait()
-            finally:
-                cancelled.set()
-            raise AssertionError  # pragma: no cover - waits for cancellation
-
-        async def checked_send(
-            method: str, params: CdpPayload | None = None, *, session_id: str | None = None
-        ) -> CdpPayload:
-            if method == "Target.disposeBrowserContext":
-                assert cancelled.is_set()
-            return await send(method, params, session_id=session_id)
-
-        monkeypatch.setattr(visual_render, "answer", tile)
-        monkeypatch.setattr(browser, "send", checked_send)
-        monkeypatch.setattr(renderer, "DEADLINE_SECONDS", 0.05)
-
-        drawn = await _render(browser, bindings=None, allow_tiles=True)
-
-        assert drawn.timed_out is True
-        assert cancelled.is_set()
-        assert browser.closed
-        assert "tile-0" not in browser.answered()
-
-    async def test_a_frame_disappearing_during_tile_fulfillment_does_not_stop_the_render(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from app.services import visual_render
-
-        browser = TileBrowser(1)
-        send = browser.send
-
-        async def disappeared(
-            method: str, params: CdpPayload | None = None, *, session_id: str | None = None
-        ) -> CdpPayload:
-            result = await send(method, params, session_id=session_id)
-            if method == "Fetch.fulfillRequest" and params and params["requestId"] == "tile-0":
-                assert session_id == "FRAME"
-                raise CdpError("Frame disappeared")
-            return result
-
-        monkeypatch.setattr(browser, "send", disappeared)
-        monkeypatch.setattr(
-            visual_render, "answer", AsyncMock(return_value=visual_render.Answer(body=b"tile"))
-        )
-
-        drawn = await _render(browser, bindings=None, allow_tiles=True)
-
-        assert drawn.image == b"jpeg-bytes"
-        assert browser.closed
-
-    async def test_a_failed_tile_worker_reports_its_error_and_disposes_the_browser(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        from app.services import visual_render
-
-        browser = TileBrowser(1)
-        monkeypatch.setattr(
-            visual_render,
-            "answer",
-            AsyncMock(side_effect=ExternalServiceError(message="Tile service failed")),
-        )
-
-        with pytest.raises(ExternalServiceError, match="Tile service failed"):
-            await _render(browser, bindings=None, allow_tiles=True)
-
-        assert browser.closed
-        assert browser.commands("Target.disposeBrowserContext")
 
 
 class TestEveryRenderEnds:

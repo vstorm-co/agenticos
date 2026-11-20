@@ -408,6 +408,7 @@ class VisualsToolset:
         it as an App. Try width 390 for a phone layout. The preview runs a fresh
         copy of the latest source and its images in the isolated Apps renderer;
         it neither reads nor changes inputs in the person's live preview.
+        Map tiles are blocked in previews; use the bundled offline SVG maps.
         Fix reported problems with `revise_visual`, then preview again.
 
         Args:
@@ -447,7 +448,6 @@ class VisualsToolset:
                 title=visual.title,
                 width=width,
                 appearance=appearance,
-                allow_tiles=not visual.images,
             )
         except (ConfigurationError, ExternalServiceError) as unavailable:
             return f"Preview unavailable: {unavailable.message} No screenshot was taken."

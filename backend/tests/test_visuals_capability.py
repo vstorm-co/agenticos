@@ -7,6 +7,7 @@ the web - an address; and the person's browser's report reaches the model.
 """
 
 import asyncio
+import base64
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -766,6 +767,67 @@ class TestChecks:
 
 
 class TestPreviewVisual:
+    @pytest.mark.security
+    async def test_private_model_authored_source_cannot_send_tile_coordinates_to_a_provider(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from tests.test_artifact_render import FakeBrowser, _page_events, _paused
+
+        tools = VisualsToolset()
+        secret = "confidential project forecast"
+        message = self._message(
+            tools,
+            content=(
+                f"<script>const forecast = '{secret}'</script>"
+                '<script src="lib/agenticos-worldmap-1.js"></script>'
+            ),
+        )
+        addresses = [f"{visual_render.artifacts.tile_source()}6/0/{i}" for i in range(3)]
+        browser = FakeBrowser(
+            events=[
+                *_page_events(),
+                (
+                    "Fetch.requestPaused",
+                    _paused(
+                        "offline-map",
+                        f"{artifact_render.content_address('lib/')}agenticos-worldmap-1.js",
+                    ),
+                    "FRAME",
+                ),
+                *(
+                    ("Fetch.requestPaused", _paused(f"tile-{i}", url), "FRAME")
+                    for i, url in enumerate(addresses)
+                ),
+            ]
+        )
+        monkeypatch.setattr(
+            artifact_render.settings, "ARTIFACT_RENDER_CDP_URL", "http://renderer:9222"
+        )
+        monkeypatch.setattr(artifact_render, "SETTLE_SECONDS", 0)
+        monkeypatch.setattr(artifact_render, "_RESIZE_SECONDS", 0)
+        monkeypatch.setattr(artifact_render, "_connect", AsyncMock(return_value=browser))
+        proxy = AsyncMock(return_value=visual_render.Answer(body=b"tile", content_type="image/png"))
+        monkeypatch.setattr(visual_render, "answer", proxy)
+
+        result = await tools.preview_visual(_ctx(messages=[message]), "drawing")
+
+        assert isinstance(result, ToolReturn)
+        page = next(
+            params
+            for params, _ in browser.commands("Fetch.fulfillRequest")
+            if params and params["requestId"] == "page"
+        )
+        assert secret in base64.b64decode(page["body"]).decode()
+        offline_map = next(
+            params
+            for params, _ in browser.commands("Fetch.fulfillRequest")
+            if params and params["requestId"] == "offline-map"
+        )
+        assert "AOWorldMap" in base64.b64decode(offline_map["body"]).decode()
+        assert all(browser.answered()[f"tile-{i}"] == "failRequest" for i in range(3))
+        assert all(url in result.return_value for url in addresses)
+        proxy.assert_not_awaited()
+
     def _message(self, tools: VisualsToolset, **args: Any) -> ModelResponse:
         values = {"title": "Calculator", "kind": "html", "content": "<p>Revenue</p>"}
         values.update(args)
@@ -817,7 +879,6 @@ class TestPreviewVisual:
             "title": "Calculator",
             "width": 390,
             "appearance": "dark",
-            "allow_tiles": True,
         }
 
     async def test_a_revision_is_previewed_with_its_edits_applied(
@@ -868,7 +929,6 @@ class TestPreviewVisual:
 
         assert inline.await_args.args[1:] == (deps.organization_id, conversation)
         assert render.await_args.args[1] == '<img src="data:image/png;base64,cGlj">'
-        assert render.await_args.kwargs["allow_tiles"] is False
 
     @pytest.mark.security
     @pytest.mark.parametrize("organization", [True, False])

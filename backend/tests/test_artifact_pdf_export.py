@@ -11,8 +11,9 @@ from app.agents.audience import RunAudience
 from app.agents.capabilities.artifacts._toolset import build_artifacts_toolset
 from app.agents.deps import AgentDeps
 from app.core.exceptions import ConfigurationError, ExternalServiceError, NotFoundError
+from app.schemas.artifact import AnyBindingData
 from app.services import artifact_render as renderer
-from app.services.artifact import ArtifactPreview
+from app.services.artifact import ArtifactPreview, tile_source
 from app.services.artifact_render import CdpPayload, Rendered, RenderRequest
 from tests.test_artifact_render import FakeBrowser
 from tests.test_artifacts_capability import _ctx, _deps, _preview
@@ -78,14 +79,16 @@ async def test_real_pdf_uses_a_separate_context_and_closes_the_stream(
 
 
 @pytest.mark.security
-async def test_pdf_exports_with_bound_records_cannot_send_them_through_map_tiles(
+@pytest.mark.parametrize("bindings", [None, {}, _preview().bindings])
+async def test_pdf_exports_cannot_send_content_through_map_tiles(
+    bindings: dict[str, AnyBindingData] | None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.services import visual_render
 
     monkeypatch.setattr(renderer.settings, "ARTIFACT_RENDER_CDP_URL", "http://renderer:9222")
     monkeypatch.setattr(renderer, "SETTLE_SECONDS", 0)
-    address = f"{renderer.tile_source()}3/4/5"
+    address = f"{tile_source()}3/4/5"
     browser = PrintBrowser(pdf())
     browser.events.append(
         (
@@ -99,9 +102,8 @@ async def test_pdf_exports_with_bound_records_cannot_send_them_through_map_tiles
     request = RenderRequest(
         document=b"<h1>Report</h1>",
         nonce="n",
-        bindings=_preview().bindings,
+        bindings=bindings,
         output="pdf",
-        allow_tiles=True,
     )
 
     found = await renderer.render(request, connect=AsyncMock(return_value=browser))

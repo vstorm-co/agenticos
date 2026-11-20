@@ -1,5 +1,5 @@
 ---
-source_sha: "f5258338362b"
+source_sha: "8b9149ab95f2"
 ---
 
 # Apps { #artifacts }
@@ -1001,18 +1001,15 @@ als wer er ausgeführt wird. Eine Oberfläche, an der niemand angemeldet ist, ze
 keine Vorschau.
 
 Der Renderer beantwortet Anfragen mit der Seite, dem
-[Bibliothekssatz](#the-library-set) oder einer Ablehnung. App-Vorschauen und
-PDF-Exporte mit Live-Datenbindungen blockieren Kartenkacheln, auch wenn keine
-Datensätze verfügbar sind: Von der Seite gewählte Kachelkoordinaten könnten
-diese Datensätze an den Kartenanbieter weitergeben.
+[Bibliothekssatz](#the-library-set) oder einer Ablehnung. `preview_visual`,
+App-Vorschauen und PDF-Exporte blockieren Kartenkacheln, auch bei Visuals ohne
+Bilder oder Live-Datenbindungen. Vom Modell erstellter Quelltext kann private
+Gesprächsinhalte enthalten, die durch von der Seite gewählte Kachelkoordinaten
+an den Anbieter gelangen könnten.
 
-Visual-Vorschauen mit
-gespeicherten Bildern blockieren ebenfalls Kacheln: Koordinaten könnten die
-eingebetteten Bilddaten weitergeben. Nur Visuals ohne Bilder und Datenbindungen
-können den konfigurierten Kachelproxy nutzen. Erlaubte Kacheln werden parallel
-durch einen begrenzten Worker-Pool geladen, mit höchstens 256 zugelassenen
-Kachelanfragen pro Vorschau. Weitere Anfragen werden blockiert und im Bericht
-aufgeführt, auch wenn frühere Anfragen bereits abgeschlossen sind.
+Verwenden Sie die mitgelieferten SVG-Karten von `AOWorldMap` für Vorschauen ohne
+Netzwerkzugriff. Die konfigurierten Straßenkartenkacheln werden für diese
+Screenshots und PDF-Exporte nicht abgerufen.
 
 Das Bild braucht einen Browser, den der Betreiber bereitstellt, benannt durch
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), und das Extra

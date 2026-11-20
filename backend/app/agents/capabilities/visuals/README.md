@@ -60,11 +60,11 @@ agent's through `publish_artifact`, which has its own rules.
 `read_visual`, then inlines only that conversation's stored images. It uses the
 Apps renderer (`ARTIFACT_RENDER_CDP_URL` and the `browser` extra), not a browser
 endpoint supplied by an agent. A fresh isolated context, the frame's sandbox,
-and the bundled libraries bound what can run. Only image-free previews enable
-the configured tile proxy: page-selected coordinates could disclose inlined
-image bytes to the provider. Permitted tiles use a bounded concurrent pool;
-at most 256 tile requests are admitted per preview, overflow is blocked and
-reported, and pending fetches stop before browser disposal.
+and the bundled libraries bound what can run. Preview requests never use the
+external tile proxy: even image-free source can encode private conversation text
+in page-selected coordinates. The renderer serves bundled `AOWorldMap` SVG maps;
+street-tile requests are blocked and reported. There is no tile opt-in or
+background tile-fetch pool in the preview renderer.
 The tool never inspects or resets the person's live page.
 
 Viewport width is bounded to 240-1600 CSS pixels, with light or dark appearance.
