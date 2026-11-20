@@ -26,10 +26,16 @@ class TraceTests(unittest.TestCase):
         call = EvalCallRead(
             tool="agenticos_list_inbox_items",
             args={"item_id": "f3333ec4-01dd-42d5-a543-af449cc44eda"},
-            outcome="replayed",
+            outcome="executed",
         )
         answer = "See the linked Inbox card."
         self.assertEqual(runner.trace_errors(scenario, answer=answer, calls=[call]), [])
+        self.assertEqual(
+            runner.trace_errors(
+                scenario, answer=answer, calls=[call.model_copy(update={"outcome": "blocked"})]
+            ),
+            ["missing expected call: agenticos_list_inbox_items"],
+        )
         calls = [
             call.model_copy(update={"args": {"item_id": "wrong"}}),
             EvalCallRead(tool="agenticos_list_inbox_cases", args={}, outcome="blocked"),

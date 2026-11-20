@@ -884,6 +884,7 @@ def platform_spec(
         allowed_tools=allowed_tools,
         approval=approval,
         in_process=True,
+        trust_read_only_hints=True,
         ungated=PLATFORM_UNGATED_TOOLS,
     )
 

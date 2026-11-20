@@ -292,9 +292,10 @@ def trace_errors(scenario: Scenario, *, answer: str, calls: list[EvalCallRead]) 
         for name in sorted({call.tool for call in calls} & set(scenario.forbidden))
     ]
     for expected in scenario.case.expected_tool_calls or []:
+        inbox_read = expected.tool == "agenticos_list_inbox_items"
         if not any(
             call.tool == expected.tool
-            and call.outcome != "divergent"
+            and (call.outcome == "executed" if inbox_read else call.outcome != "divergent")
             and all(call.args.get(key) == value for key, value in (expected.args or {}).items())
             for call in calls
         ):
@@ -826,6 +827,12 @@ def run_live(args: argparse.Namespace) -> int:
 def main() -> int:
     os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
     logging.getLogger("app.agents.cache_watch").setLevel(logging.ERROR)
+    for logger_name in (
+        "app.agents.isolation",
+        "app.services.conversation",
+        "mcp.server.streamable_http_manager",
+    ):
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", choices=SUITES)
     parser.add_argument(
