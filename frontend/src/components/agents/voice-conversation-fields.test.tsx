@@ -341,3 +341,34 @@ describe("VoiceConversationFields", () => {
     expect(screen.getByLabelText("Longest call")).toBeDisabled();
   });
 });
+
+it("shows ElevenLabs billing limits and its fixed default language", async () => {
+  const first = PROVIDERS[0]!;
+  const model = first.models[0]!;
+  state.providers = [
+    {
+      ...first,
+      provider: "elevenlabs",
+      name: "ElevenLabs",
+      models: [
+        {
+          ...model,
+          id: "eleven_realtime_v1_mini",
+          name: "Eleven Realtime v1 Mini",
+          transport: "relay",
+          unreported_token_usage: true,
+          default_language: "en",
+          voices: ["brian"],
+          default_voice: "brian",
+        },
+      ],
+    },
+  ];
+  mount({ value: { ...EMPTY, provider: "elevenlabs", model: "eleven_realtime_v1_mini" } });
+  expect(screen.getByRole("note")).toHaveTextContent("Calls cannot start with a spending budget");
+  expect(screen.getByRole("combobox", { name: "Call provider" })).toHaveTextContent("ElevenLabs");
+  expect(screen.getByRole("combobox", { name: "Spoken language" })).toHaveTextContent("English");
+  await userEvent.click(screen.getByRole("combobox", { name: "Spoken language" }));
+  expect(screen.queryByRole("option", { name: /Follow the caller/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("option", { name: /Polish/ })).toBeVisible();
+});

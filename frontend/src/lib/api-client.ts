@@ -289,7 +289,12 @@ class ApiClient {
           useAuthStore.getState().logout();
         }
       }
-      throw new ApiError(response.status, parseErrorMessage(errorData), errorData);
+      throw new ApiError(
+        response.status,
+        parseErrorMessage(errorData),
+        errorData,
+        response.headers?.get("retry-after"),
+      );
     }
 
     return response;

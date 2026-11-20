@@ -553,6 +553,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-build",
     permission: Perm.agentsView,
   },
+  {
+    id: "agent-model-credentials",
+    page: AGENT_BUILDER,
+    target: "agent-model-credentials",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
+    agentKind: "ordinary",
+  },
   // The Voice card, right under the model: dictation and, below it, the
   // realtime model, key and voice the agent takes calls with (#54).
   {
@@ -1411,7 +1419,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // The organization detail, entered from the workspaces list. Two routes, one
   // walk: the organization tabs (profile, then the member list) and then a step
   // across into the roles matrix. Ungated — any member reaches both.
-  { id: "org-profile", page: ORG_MEMBERS, target: "org-profile", activate: "org-tab-profile" },
+  { id: "org-profile", page: ORG_MEMBERS, target: "org-tab-profile" },
   {
     id: "org-governance",
     page: ORG_MEMBERS,
@@ -1430,14 +1438,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "org-proactivity",
     page: ORG_MEMBERS,
     target: "org-proactivity",
-    activate: "org-tab-proactivity",
+    activate: "org-tab-assistant",
     anyPermission: [Perm.budgetsManage, Perm.orgSettings],
   },
   {
     id: "org-proactivity-model",
     page: ORG_MEMBERS,
     target: "org-proactivity-model",
-    activate: "org-tab-proactivity",
+    activate: ["org-tab-assistant", "org-proactivity-expand"],
     permission: Perm.budgetsManage,
     anyPermission: [Perm.connectionsManage],
     optional: true,
@@ -1462,7 +1470,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "org-voice",
     page: ORG_MEMBERS,
     target: "org-voice",
-    activate: "org-tab-profile",
+    activate: "org-tab-assistant",
     permission: Perm.orgSettings,
   },
   // The AI Architect's card: drawn only on the active organization's page, and
@@ -1606,6 +1614,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "phone-contact", page: SETTINGS_DETAIL, target: "phone-contact", optional: true },
   { id: "phone-dial", page: SETTINGS_DETAIL, target: "phone-dial", optional: true },
 
+  {
+    id: "channels-diagnostics",
+    page: ROUTES.CHANNELS,
+    target: "channels-diagnostics",
+    permission: Perm.channelsManage,
+    optional: true,
+  },
   // A Discord bot's role mappings (#2569): only on a Discord row, and only for
   // somebody who may manage members, so optional - most organizations have none.
   {

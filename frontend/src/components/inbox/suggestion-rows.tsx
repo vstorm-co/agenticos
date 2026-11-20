@@ -25,11 +25,13 @@ export function SuggestionRows({
   items,
   dense = false,
   expandedDetails = false,
+  showDetails = true,
   className,
 }: {
   items: Suggestion[];
   dense?: boolean;
   expandedDetails?: boolean;
+  showDetails?: boolean;
   className?: string;
 }) {
   const t = useTranslations("chat.suggestions");
@@ -64,7 +66,9 @@ export function SuggestionRows({
               aria-label={suggestion.title}
               className={cn(
                 "hover:bg-muted/40 grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 transition-colors",
-                dense ? "px-1 py-2.5" : "px-4 py-5 sm:px-5 md:grid-cols-[2rem_minmax(0,1fr)_auto]",
+                dense
+                  ? "items-center px-1 py-2.5 @[48rem]/widget:grid-cols-[2rem_minmax(0,1fr)_auto]"
+                  : "px-4 py-5 sm:px-5 md:grid-cols-[2rem_minmax(0,1fr)_auto]",
               )}
             >
               <SuggestionMark suggestion={suggestion} className="bg-muted shadow-none" />
@@ -104,7 +108,7 @@ export function SuggestionRows({
                     </Badge>
                   )}
                 </div>
-                <span className="text-muted-foreground mt-1 block text-xs">
+                <span className={cn("text-muted-foreground mt-1 block text-xs")}>
                   {waitingSource ? (
                     <Skeleton aria-hidden className="h-4 w-32" />
                   ) : (
@@ -114,11 +118,13 @@ export function SuggestionRows({
                     })
                   )}
                 </span>
-                {suggestion.detail && (
+                {showDetails && suggestion.detail && (
                   <p
                     className={cn(
                       "text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed",
-                      dense ? "line-clamp-1" : !expandedDetails && "line-clamp-2",
+                      dense
+                        ? "line-clamp-1 @[48rem]/widget:col-span-2"
+                        : !expandedDetails && "line-clamp-2",
                     )}
                   >
                     {suggestion.detail}
@@ -128,7 +134,9 @@ export function SuggestionRows({
               <div
                 className={cn(
                   "col-start-2 flex flex-wrap items-center gap-1.5",
-                  dense ? "mt-0.5" : "md:col-start-3 md:row-start-1 md:self-center",
+                  dense
+                    ? "mt-0.5 @[48rem]/widget:col-start-3 @[48rem]/widget:row-start-1 @[48rem]/widget:self-center"
+                    : "md:col-start-3 md:row-start-1 md:self-center",
                 )}
               >
                 {suggestion.kind === "finding" &&

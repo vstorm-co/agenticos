@@ -59,6 +59,16 @@ describe("platformProxy", () => {
     vi.unstubAllGlobals();
   });
 
+  it("passes Retry-After through on a rate refusal", async () => {
+    backendReplies(JSON.stringify({ detail: "Busy" }), {
+      status: 429,
+      headers: { "Retry-After": "17" },
+    });
+    const response = await platformProxy().GET(request("/api/eval-runs/r/comparison"));
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("17");
+  });
+
   it("forwards the path and query verbatim to the backend's v1 prefix", async () => {
     const backend = backendReplies('{"items":[]}');
 

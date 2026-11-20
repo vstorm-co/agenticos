@@ -851,7 +851,7 @@ describe("the favourites band", () => {
     mount();
     await within(list()).findByText("Refund policy");
 
-    expect(within(list()).queryByRole("button", { name: "Favourite" })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Favourite" })).toBeNull();
 
     await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Favourite" }));

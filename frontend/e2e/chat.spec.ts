@@ -104,7 +104,7 @@ test.describe("Chat", () => {
     await page.reload();
     const conversations = page.getByRole("main").getByRole("complementary");
     await expect(conversations.getByText(message)).toBeVisible();
-    await conversations.getByText(message).click();
+    await conversations.getByRole("button", { name: message, exact: true }).click();
     await expect(page.getByRole("main").getByText(message).first()).toBeVisible();
   });
 

@@ -3,10 +3,11 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { Button } from "@/components/ui";
+import { Button, Card } from "@/components/ui";
 import { usd } from "@/components/evals/format";
 import type { Improvement } from "@/types/improvement";
 import { AttemptChoice } from "./attempt-choice";
+import { GAINS, criteriaSentences } from "./criteria";
 import { ContinueSession, continuation } from "./continue-session";
 import { NoiseActions, TooFewShared, UnstableQuestions, noiseSentence } from "./measurement-noise";
 import { draftCheckShown } from "./knowledge-drafts";
@@ -100,38 +101,56 @@ function resultSituation(
 type Translate = ReturnType<typeof useTranslations>;
 
 /** The verdicts, the knowledge gaps and why the session stopped, as plain sentences. */
-function headline(t: Translate, session: Improvement, agent: string, topics: number): string[] {
+function headline(
+  t: Translate,
+  locale: string,
+  session: Improvement,
+  agent: string,
+  topics: number,
+): string[] {
   const rounds = session.iterations.filter(
     (round) => round.verdict !== null && round.number <= session.max_iterations,
   );
   const chosen = session.iterations.find((round) => round.id === session.best_iteration_id);
   const decided = session.status === "accepted" || session.status === "published";
   const sentences: string[] = [];
-  const better = (round: (typeof rounds)[number]) =>
-    t("resultDecision.better", {
-      number: round.number,
-      agent,
-      fixed: Number(round.verdict_detail?.fixed ?? 0),
-    });
+  const better = (round: (typeof rounds)[number]) => {
+    const criteria = criteriaSentences(t, locale, round, agent);
+    if (round.verdict === "better")
+      return [
+        t("resultDecision.better", {
+          number: round.number,
+          agent,
+          fixed: Number(round.verdict_detail?.fixed ?? 0),
+        }),
+        ...criteria,
+      ];
+    return criteria.length
+      ? criteria
+      : [t("resultDecision.criteriaBetter", { number: round.number, agent })];
+  };
+  const gained = chosen !== undefined && GAINS.includes(chosen.verdict);
   if (session.status === "ready" && chosen) {
     sentences.push(
-      chosen.verdict === "better"
-        ? better(chosen)
-        : t("resultDecision.chosen", { number: chosen.number }),
+      ...(gained ? better(chosen) : [t("resultDecision.chosen", { number: chosen.number })]),
     );
   } else if (session.status === "failed") {
     sentences.push(t("resultDecision.failed"));
-  } else if (decided && chosen?.verdict === "better") {
-    sentences.push(better(chosen));
+  } else if (decided && chosen && gained) {
+    sentences.push(...better(chosen));
   } else {
     sentences.push(t("resultDecision.noneBetter", { count: rounds.length, agent }));
-    for (const round of rounds.filter((item) => item.verdict === "regression"))
-      sentences.push(
-        t("resultDecision.worse", {
-          number: round.number,
-          broken: Number(round.verdict_detail?.broken ?? 0),
-        }),
-      );
+    for (const round of rounds) {
+      if (round.verdict === "regression")
+        sentences.push(
+          t("resultDecision.worse", {
+            number: round.number,
+            broken: Number(round.verdict_detail?.broken ?? 0),
+          }),
+        );
+      else if (round.verdict === "criteria_worse")
+        sentences.push(...criteriaSentences(t, locale, round, agent));
+    }
   }
   if (decided && chosen)
     sentences.push(
@@ -148,7 +167,7 @@ function headline(t: Translate, session: Improvement, agent: string, topics: num
     session.stop_reason === "max_iterations" ||
     (!decided && session.iteration >= session.max_iterations);
   // A verdict's own stop reason repeats the sentences above it.
-  const told = ["max_iterations", "no_change", "regression"];
+  const told = ["max_iterations", "no_change", "regression", "criteria_worse"];
   if (session.status !== "ready" && session.stop_reason && !told.includes(session.stop_reason))
     sentences.push(
       session.stop_reason === "no_data" && missingHeldOut > 0
@@ -191,7 +210,7 @@ function ResultDecision({
   const noise = session.measurement_noise;
   const noisy = noise?.noisy === true;
   const better = session.iterations.some(
-    (round) => round.verdict === "better" && round.number <= session.max_iterations,
+    (round) => GAINS.includes(round.verdict) && round.number <= session.max_iterations,
   );
   const diagnosed = noisy && !better;
   const topicsButton = (variant: "default" | "outline") => (
@@ -200,7 +219,7 @@ function ResultDecision({
     </Button>
   );
   return (
-    <section className="space-y-4 rounded-xl border p-4 sm:p-6" data-tour="improvement-decision">
+    <Card className="space-y-4 p-4 sm:p-6" data-tour="improvement-decision">
       <h2 className="font-medium">{t("resultDecision.title")}</h2>
       <p
         role={session.status === "failed" && session.stop_reason ? "alert" : undefined}
@@ -208,7 +227,7 @@ function ResultDecision({
       >
         {[
           ...(diagnosed && noise ? [noiseSentence(t, locale, noise, agent)] : []),
-          ...headline(t, session, agent, topics),
+          ...headline(t, locale, session, agent, topics),
         ].join(" ")}
       </p>
       {noise && <TooFewShared noise={noise} />}
@@ -259,6 +278,6 @@ function ResultDecision({
         </div>
       )}
       {diagnosed && noise && <UnstableQuestions noise={noise} />}
-    </section>
+    </Card>
   );
 }

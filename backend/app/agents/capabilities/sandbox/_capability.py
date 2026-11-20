@@ -1,6 +1,7 @@
 """The workspace capability, and the text the model reads about it.
 
-The tools come from `pydantic-ai-backend`, so there is no `_toolset.py` here -
+The file and shell tools come from `pydantic-ai-backend`; project selection is
+owned by `_project.py`. There is no copied filesystem `_toolset.py` here -
 this is the `skills` arrangement, where the library owns the implementation and
 this repository owns the presentation. What lives here instead is the tool
 declaration, which is used twice and must be one list: registration in
@@ -14,29 +15,37 @@ sentence; two copies in two repositories drift, and nothing reports it.
 
 from typing import Any
 
-from pydantic_ai.capabilities import CombinedCapability
+from pydantic_ai.capabilities import CombinedCapability, Toolset
 from pydantic_ai_backends import ConsoleCapability, StateWorkspace
 from pydantic_ai_backends.toolsets.descriptions import TOOL_TEXT
 
 from app.agents.capabilities._registry import CapabilityToolInfo
 from app.agents.capabilities.sandbox._permissions import workspace_ruleset
+from app.agents.capabilities.sandbox._project import (
+    PROJECT_TOOL,
+    ProjectWorkspacePort,
+    project_tools,
+)
 
 # What leaves the workspace as it was. A workspace can outlive the run, so a
 # write to it is a write an eval must not make.
 _READS = frozenset({"ls", "read_file", "glob", "grep"})
 
-WORKSPACE_TOOLS: tuple[CapabilityToolInfo, ...] = tuple(
-    CapabilityToolInfo(
-        id=tool_id,
-        description=TOOL_TEXT[tool_id].summary,
-        side_effecting=tool_id == "execute",
-        read_only=tool_id in _READS,
-    )
-    for tool_id in ("ls", "read_file", "glob", "grep", "write_file", "edit_file", "execute")
+WORKSPACE_TOOLS: tuple[CapabilityToolInfo, ...] = (
+    *(
+        CapabilityToolInfo(
+            id=tool_id,
+            description=TOOL_TEXT[tool_id].summary,
+            side_effecting=tool_id == "execute",
+            read_only=tool_id in _READS,
+        )
+        for tool_id in ("ls", "read_file", "glob", "grep", "write_file", "edit_file", "execute")
+    ),
+    PROJECT_TOOL,
 )
 """Every tool the workspace offers, declared once, with the library's own text.
 
-All seven are declared even though a configuration may offer six: a tool absent
+All eight are declared even though a configuration may omit shell execution: a tool absent
 from this list cannot be gated by the approval policy or renamed by a binding,
 and the dangerous half of that is silent. `execute` in particular stays declared
 for the `state` backend, which has no shell - the library answers such a call
@@ -69,7 +78,9 @@ looking. A binding that wants the stricter behaviour still gets it with one
 """
 
 
-def build_workspace(*, include_execute: bool) -> CombinedCapability[Any]:
+def build_workspace(
+    *, include_execute: bool, project_port: ProjectWorkspacePort | None = None
+) -> CombinedCapability[Any]:
     """The console tools this agent runs with, and where they work without a runner.
 
     The tools work in the run's workspace, `ctx.workspace`. The runner opens the
@@ -84,11 +95,20 @@ def build_workspace(*, include_execute: bool) -> CombinedCapability[Any]:
             rather than gating it, which is a different decision from "ask
             first" and belongs to whoever configured the agent.
     """
-    return CombinedCapability([StateWorkspace(), _console(include_execute=include_execute)])
+    return CombinedCapability(
+        [
+            StateWorkspace(),
+            _console(include_execute=include_execute),
+            Toolset(project_tools(project_port)),
+        ]
+    )
 
 
 def _console(*, include_execute: bool) -> ConsoleCapability:
     return ConsoleCapability(
+        # CombinedCapability flattens its children; the container's registry id
+        # does not become the console tools' owner in Pydantic AI.
+        id="sandbox",
         include_execute=include_execute,
         # So `read_file` on an image returns something a multimodal model can
         # see. Without it an agent cannot look at the chart it just rendered,

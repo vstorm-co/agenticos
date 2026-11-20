@@ -72,23 +72,36 @@ async def test_an_oversized_image_is_served_but_not_retained(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "error",
-    [ConfigurationError(message="not configured"), ExternalServiceError(message="unavailable")],
+    ("error", "retryable"),
+    [
+        (ConfigurationError(message="not configured"), False),
+        (ExternalServiceError(message="unavailable"), True),
+    ],
 )
-async def test_renderer_absence_and_failure_are_explicit_without_an_executable_fallback(error):
+async def test_renderer_absence_and_failure_are_explicit_without_an_executable_fallback(
+    error: ConfigurationError | ExternalServiceError, retryable: bool
+) -> None:
     with patch.object(thumbnails.artifact_render, "render", AsyncMock(side_effect=error)):
         result = await thumbnails.render_thumbnail(uuid4(), request())
     assert result.state == "unavailable" and result.image is None
+    assert result.retryable is retryable
     assert not thumbnails._IMAGES
 
 
-async def test_a_timed_out_render_is_not_saved_as_a_thumbnail():
+@pytest.mark.parametrize("timed_out", [False, True])
+async def test_an_empty_render_is_retryable_and_not_saved_as_a_thumbnail(
+    timed_out: bool, caplog: pytest.LogCaptureFixture
+) -> None:
     with patch.object(
-        thumbnails.artifact_render, "render", AsyncMock(return_value=Rendered(timed_out=True))
+        thumbnails.artifact_render, "render", AsyncMock(return_value=Rendered(timed_out=timed_out))
     ):
         result = await thumbnails.render_thumbnail(uuid4(), request())
-    assert result.state == "unavailable"
+    assert result.state == "unavailable" and result.retryable
     assert not thumbnails._IMAGES
+    entry = next(
+        record for record in caplog.records if record.message == "artifact_thumbnail_unavailable"
+    )
+    assert entry.reason == ("deadline" if timed_out else "empty_image")
 
 
 async def test_pdf_requests_cannot_enter_the_shared_thumbnail_cache():
@@ -138,3 +151,20 @@ async def test_version_deleted_between_authorization_and_read_is_reported_missin
         pytest.raises(NotFoundError),
     ):
         await service.thumbnail(MagicMock(), uuid4())
+
+
+async def test_transient_render_failure_can_recover_without_caching_the_failure() -> None:
+    version = uuid4()
+    with patch.object(
+        thumbnails.artifact_render,
+        "render",
+        AsyncMock(side_effect=[ExternalServiceError(message="busy"), Rendered(image=b"jpeg")]),
+    ) as render:
+        unavailable = await thumbnails.render_thumbnail(version, request())
+        recovered = await thumbnails.render_thumbnail(version, request())
+        cached = await thumbnails.render_thumbnail(version, request())
+    assert unavailable.retryable and unavailable.image is None
+    assert recovered.state == cached.state == "ready"
+    assert recovered.image == cached.image
+    assert not recovered.retryable
+    assert render.await_count == 2

@@ -20,15 +20,25 @@ import pytest
 
 from app.core.exceptions import BadRequestError
 from app.db.vector_tables import VectorScope
+from app.repositories.rag_document import CollectionScope
 from app.services.rag.connectors import RemoteFile, RemoteListing, WithdrawnFile
 from app.services.rag.models import IngestionStatus
 from app.worker.tasks import rag_tasks
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("sole_source_run")]
 
+# The base the source records (#2551): a sync with none refuses before it lists.
+_BASE = MagicMock(
+    id=uuid.uuid4(),
+    collection_name="docs",
+    ingestion_config={},
+    embedding_model="text-embedding-3-small",
+    vector_scope=VectorScope(tenant=None),
+)
+
 SOURCE_ID = uuid.uuid4()
 # The base a removed row is filed under - not the one the sync resolves to,
-# which is unbound here (`_knowledge_base_for` answers None).
+# which is unbound here (`_source_knowledge_base` is patched).
 ROW_SCOPE = VectorScope(tenant=uuid.uuid4(), knowledge_base_id=uuid.uuid4())
 KEPT = RemoteFile(id="k", name="kept.md", source_path="web://docs.example.com/kept")
 HIDDEN = RemoteFile(id="h", name="hidden.md", source_path="web://docs.example.com/hidden")
@@ -84,6 +94,7 @@ async def _syncing(
         connected_account_id=None,
         organizational_unit=None,
     )
+    source.knowledge_base_id = _BASE.id
     sources = MagicMock(
         get_source=AsyncMock(return_value=source),
         update_after_sync=AsyncMock(),
@@ -131,6 +142,8 @@ async def _syncing(
         patch.object(rag_tasks, "_record_embedding_spend", new=AsyncMock()),
         patch.object(rag_tasks, "assert_organization_within_budget", new=AsyncMock()),
         patch.object(rag_tasks, "SyncSourceService", return_value=sources),
+        patch.object(rag_tasks, "_source_knowledge_base", new=AsyncMock(return_value=_BASE)),
+        patch.object(rag_tasks.knowledge_base_repo, "get_by_id", new=AsyncMock(return_value=_BASE)),
         patch.object(
             rag_tasks.sync_log_repo,
             "get_by_id",
@@ -138,11 +151,10 @@ async def _syncing(
                 return_value=MagicMock(
                     collection_name=source.collection_name,
                     organization_id=source.organization_id,
-                    knowledge_base_id=None,
+                    knowledge_base_id=_BASE.id,
                 )
             ),
         ),
-        patch.object(rag_tasks, "_knowledge_base_for", new=AsyncMock(return_value=None)),
         patch.object(rag_tasks, "IngestionConfigService") as config_service,
         patch.object(rag_tasks, "NotificationService", return_value=notifications),
         patch.object(rag_tasks.IngestionService, "ingest_file", new=ingest),
@@ -213,7 +225,7 @@ class TestAgainstACompleteListing:
             pass
 
         run["documents"].unlisted_by_source.assert_awaited_once_with(
-            sync_source_id=SOURCE_ID, collection_name="docs", listed={KEPT.source_path}
+            sync_source_id=SOURCE_ID, scope=CollectionScope.of(_BASE), listed={KEPT.source_path}
         )
         assert run["completed"]["removed"] == 0
 
@@ -267,7 +279,7 @@ class TestAgainstACompleteListing:
             pass
 
         run["documents"].unlisted_by_source.assert_awaited_once_with(
-            sync_source_id=SOURCE_ID, collection_name="docs", listed={KEPT.source_path}
+            sync_source_id=SOURCE_ID, scope=CollectionScope.of(_BASE), listed={KEPT.source_path}
         )
         completed = run["completed"]
         assert (completed["status"], completed["failed"], completed["removed"]) == ("done", 0, 1)

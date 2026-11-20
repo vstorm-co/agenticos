@@ -1,5 +1,5 @@
 ---
-source_sha: "a6eae1ab61a9"
+source_sha: "3da9f2a96156"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -292,10 +292,12 @@ nombre de la herramienta en el servidor. Un grupo cuyas herramientas difieren
 muestra **Per tool**, y elegir para el grupo vuelve a ajustar todas sus
 herramientas. Una herramienta que el servidor añada más tarde sigue a su grupo.
 
-En dos casos manda la marca del servidor. En una app de chat, una herramienta que
-el servidor no marca como de solo lectura pregunta primero aunque esté ajustada
-para ejecutarse sin preguntar, y una vigilancia nunca lee una herramienta ante la
-que su vinculación pregunta, porque no hay nadie para responder.
+Las ejecuciones en canales siguen los ajustes de aprobación del vínculo y de cada
+herramienta para todo remitente admitido, tenga o no su identidad de chat vinculada.
+El canal no añade otra aprobación. Las cuentas personales siguen requiriendo la
+identidad vinculada del remitente y su conexión autorizada; las conexiones de
+plataforma mantienen al menos `writes`. Una vigilancia no lee una herramienta
+que requiera aprobación, porque no hay nadie para responder.
 
 ### A través de qué cuenta habla una vinculación { #whose-account-a-binding-speaks-through }
 
@@ -323,7 +325,7 @@ canal sería entregárselo al canal.
 
 !!! info "Donde no habla nadie, las herramientas están ausentes — y el agent lo dice"
 
-    Una clave de API, el widget embebido, una programación, un trigger y un
+    Una clave de API sin [delegación MCP explícita](api.md#explicit-personal-mcp-delegation), el widget embebido, una programación, un trigger y un
     remitente de canal que no ha enlazado su cuenta de chat no tienen cuenta a
     través de la cual hablar. El run continúa sin ese servidor, con todas las demás
     vinculaciones intactas, y se añade una línea a sus instrucciones que dice qué
@@ -625,6 +627,8 @@ añaden ocho dígitos hexadecimales de un hash, así que dos nombres largos sigu
 siendo dos herramientas. Al servidor se le sigue llamando por su nombre real.
 
 !!! warning "Un servidor inalcanzable se salta con un aviso, no lanza un error"
+
+    La inicialización se reintenta una vez antes de ejecutar cualquier herramienta. Esta protección cubre los servidores recién comprobados, las conexiones en caché y el MCP integrado de la plataforma. Un fallo al descubrir herramientas deja disponibles las demás. Un fallo de transporte durante una llamada se comunica al modelo como una petición fallida con resultado desconocido; las escrituras nunca se repiten automáticamente. La inicialización local de la plataforma tiene un límite de 15 segundos para autenticación y arranque en frío; las conexiones remotas conservan su límite de 3 segundos.
 
     Pydantic AI entra en todos los toolsets cuando arranca un run, así que un
     servidor muerto abortaría si no el turno entero: un token caducado en una

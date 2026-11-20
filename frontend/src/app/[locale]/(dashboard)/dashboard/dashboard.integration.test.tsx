@@ -7,7 +7,7 @@ import { useSyncExternalStore, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import DashboardPage from "./page";
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 import { useAuthStore, useOrgStore } from "@/stores";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import type { Permission } from "@/types/permissions";
@@ -646,7 +646,7 @@ describe("the viewer's dashboard", () => {
 });
 
 describe("the member's dashboard", () => {
-  it("asks for usage and quality only at own scope", async () => {
+  it("asks only for personal usage and skips quality-management metrics", async () => {
     auth.role = "member";
     auth.can = holds("agents:view", "agents:edit", "agents:run", "collections:view");
 
@@ -659,10 +659,7 @@ describe("the member's dashboard", () => {
     for (const [, options] of callsTo("/stats/usage")) {
       expect((options as { params: Record<string, string> }).params.scope).toBe("own");
     }
-    await waitFor(() => expect(callsTo("/ratings/summary").length).toBeGreaterThan(0));
-    for (const [, options] of callsTo("/ratings/summary")) {
-      expect((options as { params: Record<string, string> }).params.scope).toBe("own");
-    }
+    expect(callsTo("/ratings/summary")).toHaveLength(0);
     expect(callsTo("/approvals")).toHaveLength(0);
     expect(callsTo("/orgs/org1/members")).toHaveLength(0);
   });
@@ -770,6 +767,53 @@ describe("the arrangeable dashboard", () => {
 
     expect(await screen.findByText("dashboard.edit.emptyTitle")).toBeInTheDocument();
     expect(screen.getByText("dashboard.edit.reset")).toBeInTheDocument();
+  });
+
+  it("withholds the default and every write while the saved layout cannot be read, then shows it after a retry", async () => {
+    // A failed read is not "no saved layout": the default would render, and its
+    // first save would replace the arrangement this person already has.
+    savedLayout = {
+      entries: [
+        { widget: "my-agents", span: "s6" },
+        { widget: "runs", span: "s8" },
+      ],
+    };
+    const previous = vi.mocked(apiClient.get).getMockImplementation()!;
+    let layoutReads = 0;
+    vi.mocked(apiClient.get).mockImplementation((path, options) => {
+      if (path !== "/me/dashboard-layout") return previous(path, options);
+      layoutReads += 1;
+      return layoutReads === 1
+        ? Promise.reject(new ApiError(503, "Service unavailable"))
+        : Promise.resolve(savedLayout);
+    });
+
+    render(<DashboardPage />, { wrapper });
+
+    // The failure is said, with a retry. The default's cards never mount, so the
+    // default's requests never go out, and neither the customize control nor the
+    // preset menu is offered.
+    expect(await screen.findByText("dashboard.layoutError.title")).toBeInTheDocument();
+    expect(screen.queryByText("dashboard.edit.customize")).not.toBeInTheDocument();
+    expect(screen.queryByText("dashboard.presets.menu")).not.toBeInTheDocument();
+    expect(callsTo("/stats/usage")).toHaveLength(0);
+    expect(callsTo("/me/dashboard-layout")).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("button", { name: "dashboard.layoutError.retry" }));
+
+    // The saved arrangement shows after the retry, and nothing was written at any point.
+    expect(await screen.findByText("dashboard.widgets.my-agents.title")).toBeInTheDocument();
+    expect(screen.getByText("dashboard.widgets.runs.title")).toBeInTheDocument();
+    expect(screen.queryByText("dashboard.layoutError.title")).not.toBeInTheDocument();
+    expect(screen.getByText("dashboard.edit.customize")).toBeInTheDocument();
+    expect(screen.getByText("dashboard.presets.menu")).toBeInTheDocument();
+    expect(callsTo("/me/dashboard-layout")).toHaveLength(2);
+    expect(
+      vi.mocked(apiClient.put).mock.calls.some(([path]) => path === "/me/dashboard-layout"),
+    ).toBe(false);
+    expect(
+      vi.mocked(apiClient.delete).mock.calls.some(([path]) => path === "/me/dashboard-layout"),
+    ).toBe(false);
   });
 
   it("does not offer a widget the caller cannot see in the add catalog", async () => {
@@ -1120,4 +1164,44 @@ it("keeps one loading state until onboarding and briefing can mount in their fin
     await screen.findByRole("heading", { name: "dashboard.widgets.suggestions.title" }),
   ).toBeInTheDocument();
   expect(document.querySelector('[role="status"][aria-busy="true"]')).toBeNull();
+});
+
+it("shows personal metrics once, before the briefing", async () => {
+  render(<DashboardPage />, { wrapper });
+  const briefing = await screen.findByRole("heading", {
+    name: "dashboard.widgets.suggestions.title",
+  });
+  const summary = screen.getByRole("heading", { name: "dashboard.widgets.my-summary.title" });
+  expect(
+    screen.getAllByRole("heading", { name: "dashboard.widgets.my-summary.title" }),
+  ).toHaveLength(1);
+  expect(summary.compareDocumentPosition(briefing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it("keeps Me free of quality-management cards and their requests", async () => {
+  render(<DashboardPage />, { wrapper });
+  await screen.findByRole("heading", { name: "dashboard.widgets.suggestions.title" });
+  for (const widget of [
+    "eval-runs",
+    "eval-suites",
+    "datasets",
+    "review-queue",
+    "knowledge-gaps",
+    "authoring-suggestions",
+    "needs-attention",
+    "improvements-waiting",
+    "my-quality",
+    "tables",
+    "workflows",
+  ]) {
+    expect(screen.queryByRole("heading", { name: `dashboard.widgets.${widget}.title` })).toBeNull();
+  }
+  const qualityRequests = vi
+    .mocked(apiClient.get)
+    .mock.calls.filter(([path]) =>
+      /^\/(?:datasets|eval-runs|eval-suites|authoring|ratings)(?:[/?]|$)/.test(path),
+    );
+  expect(qualityRequests).toEqual([]);
+  expect(callsTo("/knowledge-gaps")).toHaveLength(0);
+  expect(callsTo("/workflows/summary")).toHaveLength(0);
 });

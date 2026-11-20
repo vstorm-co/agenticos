@@ -1,0 +1,303 @@
+---
+title: Retrieval evaluation
+description: A question set over the AgenticOS docs with known answers, and the harness that measures knowledge retrieval on it, by category, top_k and query expansion.
+---
+
+# Retrieval evaluation
+
+A knowledge agent is only as good as what its search hands the model. A change
+to chunking, to `top_k` or to query expansion moves that, and an answer that
+reads well says nothing about whether the right page was retrieved. So there is
+a question set with known answers over these docs, and a harness that measures
+retrieval on it, in `evals/retrieval/`. This page is what it measures, how to
+run it, and what a run costs.
+
+It started with one question ([#2482](https://github.com/vstorm-co/agenticos/issues/2482)).
+Asked *"Does AgenticOS support SAML single sign-on?"*, an agent over the docs
+retrieved only the Dify comparison page and answered that the documentation does
+not say. [Directory sign-in](directory.md) says plainly that there is no SAML, and
+how to reach AgenticOS through Keycloak instead.
+
+## The question set
+
+`evals/retrieval/docs_questions.yaml` holds 34 questions in three categories:
+
+| Category | What it tests | Example |
+|---|---|---|
+| `factual` | A stated setting, default or name | "If I never set a vault master key, what does the platform encrypt credentials with?" |
+| `negative` | A "do you support X" question the docs answer with a plain no | "Does AgenticOS support SAML single sign-on?" |
+| `cross_language` | A Polish question answered from the English pages only, or an English question from the Polish pages only | "Czy da się logować do AgenticOS przez SAML?" |
+
+Each question names its expected pages and, for the answer check, the facts a
+correct answer contains. An entry looks like this:
+
+```yaml
+- id: saml-single-sign-on
+  category: negative
+  language: en
+  question: Does AgenticOS support SAML single sign-on?
+  expected_pages: [directory.md]
+  expected_facts:
+    - ["no", "not", "nie"]
+    - [Keycloak*]
+  evidence: "directory.md: **No SAML.** A SAML-only identity provider can reach AgenticOS through Keycloak"
+```
+
+A page is named without its language: `directory.md` is also `directory.pl.md`,
+so a chunk from either translation counts as finding it. A `cross_language`
+question adds `search_locales`, the only language its search may read, which is
+never the language it is asked in. The file is versioned, and a change to what a
+field means increases `version`. The loader refuses an expected page that does
+not exist or is not published, so renaming a page fails the unit tests rather
+than becoming a miss in a run somebody paid for.
+
+## What a run measures
+
+The corpus is the published site: every Markdown page under `docs/` except what
+`mkdocs.yml` leaves out (`plans/`, `design/`, `audits/`, the roadmap), and
+except this page, which quotes the questions and their answers. Each language is
+indexed into its own collection, named after the embedding model and a digest of
+the embedding and ingestion settings, so a run that changes the chunk size or the
+model indexes afresh. A later run reuses a collection while it holds every page
+as the page is now, and builds it again when a page was added, removed, renamed
+or edited. A normal question
+searches all of them together, as an agent bound to several collections does.
+
+Each configuration is one pass over all 34 questions. Search is the knowledge
+tool's own path: the query is expanded by `query_analysis_mode`, every query is
+retrieved, and the results are fused and cut to `top_k`. A question's expanded
+queries are generated once per mode and reused for every `top_k`, so two `top_k`
+values are compared on the same rephrasings. Per category, the run reports:
+
+| Number | Meaning |
+|---|---|
+| hit@k | The share of questions with at least one chunk from an expected page in the `top_k` returned |
+| recall@k | The share of each question's expected pages that were reached, averaged |
+| MRR | The mean of 1/rank of the first chunk from an expected page, 0 when none was returned |
+| Answers correct | With `--answers`: how many answers contain every expected fact |
+
+After each table the run lists the questions it missed and the pages it got
+instead, which is where the useful information is.
+
+The answer check matches facts as whole words, ignoring case. An alternative
+ending in `*` matches a prefix (`Keycloak*` matches "Keycloaka"). Citation markers
+such as `[5]` do not supply numeric facts. Question echoes are ignored after
+normalizing case, punctuation and spacing.
+
+Recognized English and Polish don't-know clauses are excluded before matching:
+the `not` in "the documentation does not state" does not establish a negative
+answer. Separate clear assertions still count. Negative cases beginning with
+"yes" or "tak" fail, and a plain "no" still needs the documented alternative.
+This remains a word-based signal: unrecognized fallbacks or confused answers
+using the expected words still need manual review.
+
+A wildcard needs a nonblank stem: `*` alone is refused before indexing because
+it would match every answer.
+
+`--json` writes every question's retrieved pages and answer for anyone who
+wants to read them, and the queries a `multi_query` or `hyde` mode
+searched for it. The file also records what produced the run: when it started,
+a SHA-256 of the question set, the embedding model and its dimension, the chunk
+settings and parsers, and the digest the collection names carry.
+
+`corpus` also records each locale's page count and source fingerprint, captured
+before indexing. `corpus_fingerprint_algorithm` is `sha256-path-content-v1`:
+SHA-256 of compact UTF-8 JSON (`ensure_ascii=False`) containing sorted
+`[relative POSIX path, SHA-256(source bytes)]` pairs. Absolute checkout paths are
+excluded. This distinguishes changed source pages even when the questions and
+ingestion settings stay the same. Keep the checkout unchanged during a run.
+
+## Running it
+
+A run needs a migrated database with pgvector (`make dev` gives you one), an
+embedding endpoint and, for `multi_query`, `hyde` and `--answers`, a model. Use a
+development database, not a deployment's. The harness drops and rebuilds its own
+collections, and it refuses to start when a knowledge base already uses one of
+their names.
+
+!!! warning "Every call is a real, billed call"
+    The harness embeds the corpus and every query with the endpoint you give it,
+    and calls the model you name. Nothing is cached or faked. Read [Cost](#cost)
+    before the first run.
+
+```bash
+export OPENAI_API_KEY=sk-...
+make eval-retrieval EVAL_ARGS="--top-k 5 --top-k 10 --mode off --mode multi_query --mode hyde \
+    --llm-model openai:gpt-4.1-mini --answers --json /tmp/retrieval.json"
+```
+
+The options:
+
+| Option | Default | |
+|---|---|---|
+| `--collection-prefix` | `retrieval_eval` | Start with a lowercase letter; then lowercase letters, digits or underscores. The generated names must fit the store's collection-name limit |
+| `--top-k` | `5` | Repeatable, 1–50. Chunks per search, the knowledge capability's `default_top_k` |
+| `--mode` | `off` | Repeatable. `off`, `multi_query` or `hyde`, the capability's `query_analysis_mode` |
+| `--chunk-size` | `2500` | Characters per chunk, as a collection's ingestion settings set it |
+| `--chunk-overlap` | `200` | Characters a chunk repeats from the one before. Must be smaller than `--chunk-size` |
+| `--chunking-strategy` | `recursive` | `recursive`, `markdown` or `fixed` |
+| `--max-variants` | `3` | Rephrasings `multi_query` may add, 1–5 |
+| `--locale` | `en`, `pl` | Repeatable. The languages indexed; must include each `cross_language` question's |
+| `--embedding-model` | `text-embedding-3-small` | Any model in the embedding catalog, or another with `--embedding-dim` |
+| `--embedding-dim` | from the model catalog | Required positive dimension for a model outside the catalog; rejected for catalogued models |
+| `--embedding-base-url` | `https://api.openai.com/v1` | Any OpenAI-compatible `/v1/embeddings` endpoint |
+| `--embedding-api-key-env` | `OPENAI_API_KEY` | The variable the key is read from |
+| `--keyless` | off | The endpoint takes no key |
+| `--llm-model` | none | A Pydantic AI model name. Its provider reads its own key variable. `openai:` uses OpenAI's Responses API; see below for other endpoints |
+| `--answers` | off | Also answer each question from what was retrieved, and check the facts |
+| `--reingest` | off | Drop the collections and index the corpus again. A run does this by itself when a page or a chunk setting changed; pass it after a change to parser code |
+| `--json` | none | Also write the per-question results to this file |
+
+Required expansion and answer agents are prepared before indexing, so an invalid LLM configuration stops before embedding work. With only `--mode off` and no `--answers`, a supplied `--llm-model` is unused and no LLM agent is constructed.
+
+Concurrent benchmarks reserve their collection names with PostgreSQL session advisory locks, from the ownership check through indexing and measurement. If any name is busy, the new run stops before embedding or retrieval calls. Wait for the other run, or choose a different `--collection-prefix`. Success, failure and interruption release all reservations.
+
+The chunk options are checked as a knowledge base's ingestion settings are, and
+every other ingestion setting is that form's default. The corpus is Markdown,
+which the built-in reader parses whatever PDF parser is set, so there is no
+parser option. The harness reads no environment variables for these settings.
+
+A question set the loader refuses stops the run before anything is indexed,
+with one message that names each item and its problem.
+
+The report goes to standard output and progress to standard error, so
+`> results.md` keeps the report alone. The first page that fails indexing stops
+the run immediately and drops the incomplete collection without trying more
+pages. An interrupted collection is also dropped: a corpus with gaps measures
+the gaps.
+
+The `--json` destination is checked before indexing or billed calls. Its parent
+directory must already exist and the file must be writable. The check creates
+a new file empty; an existing report stays intact if evaluation fails. Successful
+evaluation replaces the file with the complete JSON report.
+
+### Without a paid key
+
+An OpenAI-compatible server on your own machine works for the embeddings. With
+[Ollama](https://ollama.com), after `ollama pull bge-m3`:
+
+```bash
+make eval-retrieval EVAL_ARGS="--embedding-base-url http://localhost:11434/v1 \
+    --embedding-model bge-m3 --keyless"
+```
+
+`bge-m3` is multilingual, which matters for the `cross_language` questions. The
+numbers describe that model, not the one a deployment's collections use, so
+compare runs with the same embedding model only.
+
+A local model for `multi_query`, `hyde` and `--answers` needs the
+`openai-chat:` prefix, because `openai:` calls the Responses API, which most
+OpenAI-compatible servers do not have. `OPENAI_BASE_URL` points the provider at
+the server. Set it for the one command, as below: exported, it would send every
+later `openai:` call, and the key that goes with it, to the local server.
+Without `OPENAI_API_KEY` the provider sends a placeholder key. After
+`ollama pull qwen3:8b`:
+
+```bash
+OPENAI_BASE_URL=http://localhost:11434/v1 make eval-retrieval EVAL_ARGS="\
+    --embedding-base-url http://localhost:11434/v1 --embedding-model bge-m3 --keyless \
+    --mode multi_query --llm-model openai-chat:qwen3:8b"
+```
+
+The same applies to any endpoint that offers chat completions only.
+
+## Cost
+
+The published corpus is about 0.6 million tokens in English and 1.0 million in
+Polish, measured with the `cl100k_base` tokenizer that OpenAI's embedding models
+use. With the 200-character chunk overlap, indexing both languages is about 1.7
+million tokens. It is paid once, and again for a language when one of its pages
+changes or with `--reingest`.
+
+| Part | Tokens per run | At list price |
+|---|---|---|
+| Indexing, `text-embedding-3-small` | ~1.7M, once | ~$0.03 |
+| Indexing, `text-embedding-3-large` | ~1.7M, once | ~$0.22 |
+| Embedding the questions | under 10k per configuration | under $0.01 |
+| `multi_query` or `hyde`, `gpt-4.1-mini` | ~34 calls, ~10k tokens per configuration | under $0.01 |
+| `--answers` at `top_k` 5, `gpt-4.1-mini` | ~34 calls, ~150k input and ~5k output tokens | ~$0.07 |
+| `--answers` at `top_k` 10, `gpt-4.1-mini` | ~300k input and ~5k output tokens | ~$0.13 |
+
+The prices are list prices per million tokens at the time of writing:
+`text-embedding-3-small` $0.02, `text-embedding-3-large` $0.13, `gpt-4.1-mini`
+$0.40 input and $1.60 output. Check your provider's current prices. With these
+prices, the full matrix of two `top_k` values, three modes and answers costs
+under a dollar. The run prints the model calls it made and their tokens at the
+end.
+
+## Measured comparison
+
+On 10 November 2026, a real run used the existing GPT-6 Luna connection through
+OpenRouter: `openai/gpt-6-luna` for expansion and answers, and
+`openai/text-embedding-3-small` at 1536 dimensions for embeddings. Revision
+`e8e782562` supplied 128 English pages (1452 chunks) and 128 Polish pages (1553
+chunks), with recursive chunking, size 2500 and overlap 200. All 34 questions
+ran in every configuration, sharing generated queries across retrieval depths.
+
+Review corrected answer wording and added documented answer pages for timeouts,
+context files, the default parser and environment/version behavior. Three days
+also counts as 72 hours. The scorer now normalizes question echoes and excludes
+recognized don't-know clauses and affirmative replies to negative cases.
+
+The table applies those revised oracles to the saved ranks and answers. No
+retrieval, embedding or model call was repeated. Expanded expected-page lists
+change hit@k, recall@k and MRR; the search outputs themselves are unchanged.
+Original answer-check totals remain alongside the revised totals.
+
+| `top_k` | Mode | Revised hit@k | Revised recall@k | Revised MRR | Original fact checks | Revised fact checks |
+|---|---|---|---|---|---|---|
+| 5 | `off` | 91.2% | 79.4% | 0.676 | 23/34 | 27/34 |
+| 5 | `multi_query` | 91.2% | 80.9% | 0.667 | 25/34 | 27/34 |
+| 5 | `hyde` | 97.1% | 85.3% | 0.772 | 25/34 | 29/34 |
+| 10 | `off` | 97.1% | 89.7% | 0.682 | 28/34 | 29/34 |
+| 10 | `multi_query` | 94.1% | 85.3% | 0.709 | 24/34 | 29/34 |
+| 10 | `hyde` | 100.0% | 94.1% | 0.775 | 27/34 | 31/34 |
+
+Both SAML questions retrieve and cite the directory page and answer that direct
+SAML is unsupported, with Keycloak as the bridge, in all six configurations.
+`10/hyde` reaches an expected page for all 34 questions, including all ten
+cross-language cases, and passes 31/34 fact checks. `10/off` reaches an expected
+page for 33/34 questions and passes 29/34 fact checks without expansion calls.
+
+For documentation agents on this snapshot, choose `default_top_k: 10` with
+`query_analysis_mode: hyde` when coverage takes priority. Use `off` to avoid
+additional expansion calls. Retain platform defaults of `default_top_k: 5` and
+`query_analysis_mode: off`: one corpus and one model do not justify a global
+context or cost increase.
+
+The unchanged [original run](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json) holds every answer, retrieved page,
+query, corpus hash and environment setting. It made 272 model requests using
+872,567 input and 41,553 output tokens, plus embeddings. The
+[first rescoring](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored.json) preserves the answer-wording corrections;
+the [second rescoring](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v2.json) records the revised answer-page
+lists and scorer, with source/dataset/scorer hashes, category scores and each
+question's new retrieval and answer verdicts. Both rescoring passes made zero
+provider requests.
+
+The [Redis correction](https://github.com/vstorm-co/agenticos/blob/main/evals/retrieval/results/2026-11-10-openrouter-gpt6-luna-rescored-v3.json) also accepts “managed Redis instance” as the non-cluster alternative. It raises `10/hyde` from 30/34 to 31/34 fact checks; all other answer verdicts and retrieval metrics are unchanged. This correction records source and previous-result hashes, the changed fact group and verdict, and every category summary. It makes zero provider calls and preserves all three earlier files.
+
+These are single-run measurements. A hit names an expected page; its returned
+chunk may still miss the answering sentence. Three `10/hyde` answers still fail
+fact checks, and a word match is no guarantee of semantic correctness. Read the
+answers and repeat on your corpus before adopting a setting broadly.
+
+To repeat the model and retrieval settings with your own authorized key:
+
+```bash
+OPENAI_BASE_URL=https://openrouter.ai/api/v1 make eval-retrieval EVAL_ARGS="\
+    --embedding-base-url https://openrouter.ai/api/v1 \
+    --embedding-model openai/text-embedding-3-small --embedding-dim 1536 \
+    --llm-model openai-chat:openai/gpt-6-luna \
+    --top-k 5 --top-k 10 --mode off --mode multi_query --mode hyde \
+    --answers --json /tmp/retrieval.json"
+```
+
+## What it does not decide
+
+The harness never changes an agent's settings. The recommendation above applies
+to the measured documentation corpus; evaluate your own corpus before changing
+an agent. The suite also does not test permissions. Its collections
+belong to no organization and are searched unscoped, as `rag-search` does. The
+[file processing](file-processing.md) and
+[knowledge capability](reference/capabilities.md#query-analysis-and-expansion)
+pages describe scoped search.

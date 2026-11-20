@@ -11,6 +11,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai_harness.guardrails import GuardrailResult
 
+from app.schemas.conversation import HistoryCheckpointFrontier
 from app.services.message_history import REFUSED_TURN, ModelHistory
 from app.services.screened_replay import screen_history, screened_copy
 
@@ -30,10 +31,12 @@ def test_projection_preserves_raw_audit_and_screens_the_whole_attachment_briefin
 def test_legacy_history_is_screened_before_compaction_without_mutating_its_snapshot():
     user = ModelRequest(parts=[UserPromptPart("SECRET"), UserPromptPart(["image caption"])])
     answer = ModelResponse(parts=[TextPart("OK")])
-    history = ModelHistory([user, answer], revision=7)
+    frontier = HistoryCheckpointFrontier(summary_ordinal=2, message_ordinal=4)
+    history = ModelHistory([user, answer], revision=7, frontier=frontier)
     cleaned = screen_history(history, lambda text: GuardrailResult.replace(""))
     assert isinstance(cleaned, ModelHistory)
     assert cleaned.revision == 7
+    assert cleaned.frontier is frontier
     assert cleaned[0].parts[0].content == ""
     assert user.parts[0].content == "SECRET"
     assert cleaned[1] == answer

@@ -147,10 +147,12 @@ async def test_updating_answers_with_what_the_service_returned():
 
 async def test_running_now_answers_with_what_the_service_returned():
     fired = _read()
-    service = MagicMock(run_now=AsyncMock(return_value=fired))
+    accepted = MagicMock(trigger=fired, activation_id=uuid.uuid4(), job_id=None)
+    service = MagicMock(run_now=AsyncMock(return_value=accepted))
     agent_id, trigger_id = uuid.uuid4(), uuid.uuid4()
     result = await run_trigger_now(agent_id, trigger_id, _CTX, service)
-    assert result is fired
+    assert result.id == fired.id
+    assert result.activation_id == accepted.activation_id
     service.run_now.assert_awaited_once_with(_CTX, agent_id, trigger_id)
 
 

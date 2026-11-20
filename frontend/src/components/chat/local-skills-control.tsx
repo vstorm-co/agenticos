@@ -10,6 +10,7 @@ import { useDeviceLink, useDeviceStatus, useLocalSkills } from "@/hooks/use-desk
 import { SKILL_SOURCES, type LocalSkill, type SkillSource } from "@/lib/desktop/commands";
 import { useConversationStore } from "@/stores";
 import { useWorkOnStore } from "@/stores/work-on-store";
+import { Label } from "@/components/ui/label";
 
 const FOLDERS: Record<SkillSource, string> = {
   agents: "~/.agents/skills",
@@ -95,10 +96,10 @@ export function LocalSkillsControl() {
                     )
                   }
                 />
-                <label htmlFor={id} className="flex min-w-0 flex-1 items-baseline justify-between">
+                <Label htmlFor={id} className="flex min-w-0 flex-1 items-baseline justify-between">
                   <span className="font-mono text-xs">{FOLDERS[source]}</span>
                   <span className="text-muted-foreground text-xs">{t("count", { count })}</span>
-                </label>
+                </Label>
               </li>
             );
           })}

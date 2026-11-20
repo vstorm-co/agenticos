@@ -5,6 +5,7 @@ import { Command } from "cmdk";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
+import { FORM_CONTROL } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 import type { Agent } from "@/types/agents";
 import { AgentAvatar } from "./agent-avatar";
@@ -55,7 +56,10 @@ export function AgentSelect({
           aria-invalid={invalid}
           aria-describedby={describedBy}
           disabled={disabled || loading}
-          className="border-input bg-card focus-visible:ring-ring touch:min-h-11 aria-invalid:border-destructive flex min-h-9 w-full min-w-0 items-center gap-2 rounded-lg border px-3 py-1.5 text-left text-sm outline-none focus-visible:ring-2 disabled:opacity-50"
+          className={cn(
+            FORM_CONTROL,
+            "touch:min-h-11 flex min-h-10 items-center gap-2 px-3 py-1.5 text-left text-sm",
+          )}
         >
           {chosen && (
             <AgentAvatar

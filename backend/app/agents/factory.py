@@ -22,7 +22,7 @@ from uuid import UUID
 
 from jsonschema import validators
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai import ModelRetry, StructuredDict
+from pydantic_ai import ModelRetry, StructuredDict, ToolOutput
 from pydantic_ai.capabilities import (
     AbstractCapability,
     HandleDeferredToolCalls,
@@ -198,6 +198,14 @@ def answer_text(answer: AgentAnswer) -> str:
 # How often the model may be sent back to fix an answer that does not fit the
 # spec's `output_schema` before the run fails on it.
 OUTPUT_RETRIES = 2
+
+
+class OutputSchemaRetry(ModelRetry):
+    """Schema feedback whose stored diagnosis never includes the model's values."""
+
+    def __init__(self, message: str, *, schema_path: str) -> None:
+        super().__init__(message)
+        self.diagnosis = f"The answer did not match its output schema at {schema_path}"
 
 
 @dataclass
@@ -708,10 +716,11 @@ def build_agent(
     agent = PydanticAgent[AgentDeps, AgentOutput](
         model=RecordingModel(model_spec.build(), recorder),
         model_settings=model_settings,
-        # A realtime session reads only `instructions=` (#54), so a call carries
-        # the spec's instructions there and no system prompt at all.
-        system_prompt="" if voice is not None else spec.instructions or "",
-        instructions=None if voice is None else voice_instructions(spec.instructions, voice),
+        # Instructions are resolved on every run, including one continuing a
+        # stored model history from an older published version.
+        instructions=(spec.instructions or "")
+        if voice is None
+        else voice_instructions(spec.instructions, voice),
         # The answer first - text, or the spec's object - then
         # `DeferredToolRequests`, which is not a shape the model can choose: it
         # is what the run ends with when the approval gate parks a call.
@@ -898,13 +907,85 @@ def _spend_limits(
 
 
 def _output_type(schema: dict[str, Any] | None) -> OutputSpec[AgentOutput]:
-    """Text, or an object of `schema` handed back as one tool call's arguments."""
+    """Text, or an object of `schema` handed back as one tool call's arguments.
+
+    A schema a strict grammar can express keeps the provider's default, so Gemini
+    still validates every call in the request. Any other is sent non-strict:
+    Anthropic compiles a strict tool into a grammar and rejects the whole request
+    over a node it cannot express. The schema is enforced either way, because
+    `_fits_schema` sends a misshapen answer back.
+    """
     if schema is None:
         return [str, DeferredToolRequests]
     return [
-        StructuredDict(schema, name="answer", description="The answer, in the shape asked for"),
+        ToolOutput(
+            StructuredDict(schema, name="answer", description="The answer, in the shape asked for"),
+            strict=None if _grammar_expresses(schema) else False,
+        ),
         DeferredToolRequests,
     ]
+
+
+_TYPED = frozenset({"type", "$ref", "enum", "const", "anyOf", "oneOf", "allOf"})
+_GRAMMAR_KEYS = frozenset(
+    {
+        "type",
+        "$ref",
+        "enum",
+        "const",
+        "anyOf",
+        "oneOf",
+        "allOf",
+        "properties",
+        "required",
+        "additionalProperties",
+        "items",
+        "prefixItems",
+        "$defs",
+        "minItems",
+        "title",
+        "description",
+        "default",
+        "examples",
+        "deprecated",
+        "readOnly",
+        "writeOnly",
+        "$schema",
+        "$id",
+        "$anchor",
+        "$comment",
+    }
+)
+
+
+def _grammar_expresses(node: object) -> bool:
+    """Whether a provider's strict-mode grammar accepts `node` and every schema under it.
+
+    It cannot express a free JSON value (`{}`, no type at all), numeric or length
+    bounds, or `minItems` above one. Unknown keywords take the locally validated
+    non-strict path rather than hiding an unvisited child schema.
+    """
+    if not isinstance(node, dict):
+        # Draft-07 tuple-form items are outside the strict compatibility contract.
+        return node is not True and not isinstance(node, list)
+    if not _TYPED & node.keys() or node.keys() - _GRAMMAR_KEYS or node.get("minItems", 0) > 1:
+        return False
+    declared = node.get("type")
+    array = declared == "array" or (isinstance(declared, list) and "array" in declared)
+    object_ = declared == "object" or (isinstance(declared, list) and "object" in declared)
+    children: list[object] = [
+        *node.get("properties", {}).values(),
+        *node.get("$defs", {}).values(),
+        *node.get("prefixItems", []),
+        *node.get("anyOf", []),
+        *node.get("oneOf", []),
+        *node.get("allOf", []),
+        node.get("items", True) if array or "items" in node or "prefixItems" in node else None,
+        node.get("additionalProperties", True)
+        if object_ or "properties" in node or "additionalProperties" in node
+        else None,
+    ]
+    return all(_grammar_expresses(child) for child in children)
 
 
 def _fits_schema(schema: dict[str, Any]) -> Callable[[AgentOutput], AgentOutput]:
@@ -923,8 +1004,9 @@ def _fits_schema(schema: dict[str, Any]) -> Callable[[AgentOutput], AgentOutput]
             problem = next(iter(sorted(checker.iter_errors(output), key=str)), None)
             if problem is not None:
                 where = "/".join(str(part) for part in problem.absolute_path) or "the answer"
-                raise ModelRetry(
-                    f"The answer does not fit its schema at {where}: {problem.message}"
+                raise OutputSchemaRetry(
+                    f"The answer does not fit its schema at {where}: {problem.message}",
+                    schema_path="/".join(str(part) for part in problem.absolute_schema_path),
                 )
         return output
 

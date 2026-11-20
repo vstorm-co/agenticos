@@ -1,16 +1,31 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { CheckCheck, CircleAlert, Radar, Sparkles, type LucideIcon } from "lucide-react";
+import {
+  CheckCheck,
+  CircleAlert,
+  Radar,
+  SlidersHorizontal,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
 import { InboxIcon as InboxIcon } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { YourSuggestions } from "@/components/assistant/your-suggestions";
+import { DIALOG_FORM } from "@/lib/dialog-sizes";
 import { ErrorState, LoadingState } from "@/components/states";
 import { useUrlState } from "@/hooks/use-url-state";
 import { SuggestionMark } from "@/components/chat/suggestion-actions";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
   Badge,
   Button,
   ListCard,
@@ -26,6 +41,8 @@ import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { Suggestion } from "@/lib/suggestions-api";
 import { timeAgo } from "@/lib/utils";
+import { usePendingApprovals } from "@/hooks/use-pending-approvals";
+import { ApprovalsWaiting } from "./approvals-waiting";
 import { SuggestionRows } from "./suggestion-rows";
 
 type Filter = "all" | "urgent" | "watches" | "suggestions" | "done";
@@ -61,19 +78,51 @@ function initialFilter(param: string | null): Filter {
 export function InboxPage() {
   const t = useTranslations("inbox");
   const ts = useTranslations("common");
-  const { suggestions, isLoading, error, refetch } = useSuggestions();
+  const suggested = useSuggestions();
+  const { suggestions } = suggested;
   const [asked, setFilter] = useUrlState("filter");
   const filter = initialFilter(asked);
   const open = filter === "done" ? [] : suggestions.filter(KEEPS[filter]);
+  // A step or a tool call standing still until somebody decides is as urgent as
+  // anything here, so it leads the list wherever urgent things are shown.
+  const pending = usePendingApprovals();
+  const approvals = pending.count;
+  const isLoading = suggested.isLoading || pending.isLoading;
+  const error = suggested.error ?? pending.error;
+  const refetch = () => Promise.all([suggested.refetch(), pending.refetch()]);
+  const showsApprovals =
+    (filter === "all" || filter === "urgent") && !isLoading && !error && approvals > 0;
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
-      <PageHeader title={t("title")} description={t("description")} />
+      <PageHeader
+        title={t("title")}
+        description={t("description")}
+        actions={
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <SlidersHorizontal className="size-4" aria-hidden />
+                {t("preferences")}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className={DIALOG_FORM}>
+              <DialogHeader>
+                <DialogTitle>{t("preferences")}</DialogTitle>
+                <DialogDescription>{t("preferencesDescription")}</DialogDescription>
+              </DialogHeader>
+              <YourSuggestions />
+            </DialogContent>
+          </Dialog>
+        }
+      />
       <ListCard
-        fill
+        fill={!showsApprovals && open.length === 0}
         namedByPage
         title={t("title")}
-        counted={isLoading ? null : error ? "—" : t("waiting", { count: suggestions.length })}
+        counted={
+          isLoading ? null : error ? "—" : t("waiting", { count: suggestions.length + approvals })
+        }
         contentClassName="p-0"
         headerTour="inbox-filters"
         controls={
@@ -135,6 +184,7 @@ export function InboxPage() {
           </>
         }
       >
+        {showsApprovals && <ApprovalsWaiting />}
         {filter === "done" ? (
           <Decided />
         ) : isLoading ? (
@@ -145,7 +195,7 @@ export function InboxPage() {
             cta={{ label: ts("retry"), onClick: () => void refetch() }}
           />
         ) : open.length === 0 ? (
-          <Nothing filter={filter} />
+          !showsApprovals && <Nothing filter={filter} />
         ) : (
           <SuggestionRows items={open} expandedDetails />
         )}

@@ -1985,3 +1985,39 @@ async def test_a_refused_source_never_launches_a_sandbox_harness(harness, late):
         await _call(shell, harness=harness)
     assert shell.started == []
     assert checks == (2 if late else 1)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("personal", [True, False])
+async def test_run_selected_project_never_receives_personal_coding_credentials(personal: bool):
+    from dataclasses import replace
+    from unittest.mock import MagicMock
+
+    from app.core.permissions import AuthContext
+    from app.services.run_project_workspace import RunProjectWorkspace
+
+    shell = _Shell()
+    ctx = _ctx(shell)
+    selector = RunProjectWorkspace(
+        ctx.workspace, AuthContext(user_id=RUNNER, organization_id=uuid4(), role="member")
+    )
+    selector.project_id = uuid4()
+    ctx = replace(ctx, workspace=selector.workspace)
+    executor = MagicMock()
+    store = _Store()
+    tool = _tools(
+        "codex",
+        api_key=None,
+        sign_in=lambda _org: store,
+        runs_on="personal_sandbox" if personal else "sandbox",
+        personal_executor=executor,
+    )["run_coding_agent"]
+    answer = await tool.function(ctx, task="Review the selected project")
+    assert (
+        "shared workspace" in answer
+        if personal
+        else "only in a sandbox nobody else's tasks share" in answer
+    )
+    executor.session.assert_not_called()
+    assert store.asked_for == []
+    assert shell.commands == []

@@ -45,7 +45,13 @@ from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 from app.repositories import visual as visual_repo
 from app.repositories.conversation import ToolCallArgs
-from app.schemas.visual import VisualList, VisualListItem, VisualPublish, VisualPublished
+from app.schemas.visual import (
+    VisualList,
+    VisualListItem,
+    VisualPreview,
+    VisualPublish,
+    VisualPublished,
+)
 from app.services import artifact as artifacts
 from app.services.access import AGENT, resolve_access
 from app.services.artifact import platform_script
@@ -757,6 +763,36 @@ class VisualService:
                 )
                 for row in rows
             ]
+        )
+
+    async def preview(self, ctx: AuthContext, visual_id: UUID) -> VisualPreview:
+        """Rebuild one caller-owned visual without requiring a server browser.
+
+        Raises:
+            NotFoundError: No caller-owned drawing, or its transcript cannot be rebuilt.
+        """
+        missing = NotFoundError(message="There is no such visual")
+        row = await visual_repo.get(self.db, visual_id, organization_id=ctx.organization_id)
+        if row is None or row.user_id is None or row.user_id != ctx.user_id:
+            raise missing
+
+        async def lookup(call_id: str) -> ToolCallArgs | None:
+            return await conversation_repo.tool_call_in_conversation(
+                self.db,
+                conversation_id=row.conversation_id,
+                tool_call_id=call_id,
+                names=VISUAL_TOOLS,
+                result_prefixes=DREW,
+            )
+
+        try:
+            visual = await rebuild(row.tool_call_id, lookup)
+        except VisualError as error:
+            raise missing from error
+        return VisualPreview(
+            kind=visual.kind,
+            title=visual.title,
+            content=await inlined(visual, row.organization_id, row.conversation_id),
         )
 
     async def thumbnail(self, ctx: AuthContext, visual_id: UUID) -> bytes:

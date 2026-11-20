@@ -1,5 +1,5 @@
 ---
-source_sha: "66a7891467fd"
+source_sha: "8bc14e41e751"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -384,6 +384,21 @@ se puede convertir falla con `MAPPING_COERCION_FAILED` y nombra el campo.
 ::: app.workflows.nodes.data_map._handler.DataMapConfig
 
 ::: app.workflows.nodes.data_map._handler.FieldMapping
+
+## data.value { #data-value }
+
+**Data** guarda un valor para los pasos siguientes: un objeto, una lista o un
+único número, texto o booleano. Escríbalo como JSON o vincúlelo entero a una
+salida anterior. El paso lo entrega sin cambios como `value`, y un paso
+posterior vincula el valor completo o una ruta dentro de él, como
+`value.customer.email`.
+
+El valor se fija una vez por run y nunca se sobrescribe. La salida de un paso
+queda fijada cuando el paso termina, así que ningún paso posterior puede
+cambiarla: Data es una constante con nombre, no una variable. Para cambiar un
+valor, añada un paso que construya uno nuevo a partir de él. Para reunir valores
+de los elementos de un bucle, use `loop.yield`. Un run de prueba de un paso Data
+sin valor falla con `DATA_NOT_SET`.
 
 ## data.filter y data.combine { #data-filter-and-data-combine }
 
@@ -1014,9 +1029,13 @@ vuelve a enviar.
 **Ask for approval** detiene el run hasta que una persona apruebe o rechace lo
 que está a punto de hacer, y sigue por `approved` o `rejected`. Quien aprueba lee
 el `title` del paso y los `details` vinculados en la pestaña **Approvals** de
-Activity o por `GET /api/v1/workflow-approvals`. `approvers` nombra quién puede
-decidir, y esas personas reciben un aviso en la aplicación; vacío, puede
-cualquiera con `approvals:decide`. Pasado `timeout_hours` la solicitud caduca y el
+Activity o por `GET /api/v1/workflow-approvals`. `approvers` y
+`approver_groups` nombran quién puede decidir: esas personas y los miembros de
+los grupos que tienen `approvals:decide`
+([grupos de aprobación](../governance.md#approval-groups)). Reciben un aviso en
+la aplicación. Si ambos están vacíos, puede decidir cualquiera con
+`approvals:decide`, y todas esas personas reciben el aviso. La
+solicitud también encabeza el Inbox de quien puede decidirla. Pasado `timeout_hours` la solicitud caduca y el
 paso sale por `rejected` con `decision: "expired"`. Cancelar el run cancela lo que
 pidió, y también cancelar un workflow que llamó a ese run. Cada ejecución del paso pregunta una vez, así que un reintento o una
 iteración de un bucle nunca preguntan dos veces lo mismo.
@@ -1309,6 +1328,8 @@ Cuatro pasos más leen qué tablas tiene la organización, y no cambian nada.
 workflow puede crear su tabla la primera vez que se ejecuta y reutilizarla
 después. Las dos preguntas salen por exactamente un puerto, y un `logic.merge`
 puede volver a unir las ramas.
+
+`table.record.exists` y `table.record.query` aceptan etiquetas de opciones de selección además de IDs en filtros guardados. Resuelven las etiquetas con la tabla actual antes de consultar; las etiquetas desconocidas o ambiguas siguen causando errores de validación.
 
 ::: app.workflows.nodes.table_list._handler.TableListOutput
 

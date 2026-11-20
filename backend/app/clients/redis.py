@@ -17,6 +17,13 @@ end
 return 0
 """
 
+_EXPIRE_IF_EQUALS = """
+if redis.call("get", KEYS[1]) == ARGV[1] then
+  return redis.call("expire", KEYS[1], ARGV[2])
+end
+return 0
+"""
+
 _DELETE_IF_EQUAL = (
     "if redis.call('get', KEYS[1]) == ARGV[1] then "
     "return redis.call('del', KEYS[1]) else return 0 end"
@@ -188,7 +195,7 @@ class RedisClient:
             raise RuntimeError("Redis client not connected")
         # `bytes` to the stubs, `str` at runtime: `connect` passes
         # `decode_responses=True`, which redis-py cannot express in a return type.
-        return await self.client.get(key)  # ty: ignore[invalid-return-type]
+        return await self.client.get(key)  # ty: ignore[invalid-explicit-return]
 
     async def set(
         self,
@@ -356,6 +363,10 @@ class RedisClient:
         deleted = await self.client.eval(_DELETE_IF_EQUALS, 1, key, value)
         return bool(deleted)
 
+    async def expire_if_equals(self, key: str, value: str, ttl: int) -> bool:
+        """Extend a lease only while its holder token still matches, atomically."""
+        return bool(await self.raw.eval(_EXPIRE_IF_EQUALS, 1, key, value, ttl))
+
     async def getdel(self, key: str) -> str | None:
         """Read a key and delete it in one atomic step (Redis GETDEL).
 
@@ -364,14 +375,14 @@ class RedisClient:
         """
         if not self.client:
             raise RuntimeError("Redis client not connected")
-        return await self.client.getdel(key)  # ty: ignore[invalid-return-type]
+        return await self.client.getdel(key)  # ty: ignore[invalid-explicit-return]
 
     async def pop_left(self, key: str) -> str | None:
         """Take the first item of a list, or `None` when it is empty (Redis LPOP)."""
         if not self.client:
             raise RuntimeError("Redis client not connected")
         # `bytes` to the stubs, `str` at runtime - see `get`.
-        return await self.client.lpop(key)  # ty: ignore[invalid-return-type]
+        return await self.client.lpop(key)  # ty: ignore[invalid-explicit-return]
 
     async def wait_pop_left(self, key: str, timeout: float) -> str | None:
         """Take the first item of a list, waiting up to `timeout` seconds (BLPOP).

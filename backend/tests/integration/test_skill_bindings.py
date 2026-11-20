@@ -297,6 +297,11 @@ class TestAChangeReachesItsLine:
 
         assert [item.agent.id for item in main[skill.id]] == [on_main.id]
         assert [item.agent.id for item in forked[skill.id]] == [on_fork.id]
+        shown, hidden = await proposal_reach.reached(db, ctx, main[skill.id])
+        assert hidden == 0
+        assert shown[0].slug == on_main.slug
+        assert shown[0].has_avatar is False
+        assert shown[0].avatar_color == on_main.avatar_color
 
     def test_a_specialist_reads_a_line_as_its_agent_does(self):
         skill, fork = uuid.uuid4(), uuid.uuid4()

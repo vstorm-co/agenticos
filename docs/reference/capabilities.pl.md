@@ -1,5 +1,5 @@
 ---
-source_sha: "cd351d048f37"
+source_sha: "cf75a731ea37"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -137,7 +137,7 @@ zatrzymania po przejściu przez granicę sandboxa.
 | `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
 | `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | dla daemona | przekazana |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
-| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
+| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | dla Daytony | przekazana |
 | `mirage` | Wirtualny terminal | analiza | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | dla każdego folderu, przez extra `mirage` | przekazana |
 | `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
 | `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — | bez zmian |
@@ -238,7 +238,7 @@ wstrzymuje i zapisuje:
 | `image_generation` | `generate_image` |
 | `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
 | `memory_mem0` | `remember` |
-| `sandbox` | `write_file`, `edit_file`, `execute` |
+| `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
 
 Każde inne narzędzie powyżej tylko czyta. Delegowanie liczy się jako czytanie:
@@ -357,7 +357,9 @@ wyszukiwaniem, więc wymieniają opóźnienie i niewielki koszt na lepszą pełn
 rozmytych pytaniach. `multi_query` dodatkowo wyszukuje raz na każde zapytanie,
 jedno po drugim, a każde wyszukiwanie osobno tworzy embedding swojego zapytania —
 warianty nie są łączone w jedno wywołanie embeddingu — więc trzymaj
-`query_analysis_max_variants` nisko, aby ograniczyć rozgałęzienie.
+`query_analysis_max_variants` nisko, aby ograniczyć rozgałęzienie. Czy któryś z
+trybów się opłaca na danym korpusie, rozstrzyga pomiar, a nie wartość domyślna:
+[ewaluacja wyszukiwania](../retrieval-eval.md) porównuje je na tej dokumentacji.
 
 Oba tryby używają własnego modelu agenta — nie ma osobnego modelu do
 skonfigurowania — a ich koszt jest mierzony względem budżetu runu jak każde inne
@@ -1221,6 +1223,8 @@ jedynymi limitami wartymi ustawienia.
 
 ## Sandbox { #files-shell }
 
+`select_project_workspace` wybiera dostępny projekt dla narzędzi plikowych i powłoki do końca runu. Pominięcie identyfikatora przywraca pierwotny workspace. Wznowienie po zatwierdzeniu zachowuje wybór; kolejna tura zaczyna w pierwotnym workspace. Rozmowa pozostaje w swoim wątku. Każda operacja sprawdza dostęp, a rutyny pozostają ograniczone do zatwierdzonego źródła projektu. Izolowane ewaluacje nie mogą przełączać się na trwałe projekty.
+
 `ls`, `read_file`, `glob`, `grep` — _odczyt._
 `write_file`, `edit_file`, `execute` — _zapis i uruchamianie._
 
@@ -1447,7 +1451,7 @@ oraz tekstowy grep; semantyczne wyszukiwanie wymagające modelu nie jest włącz
 Zgodę na połączenie konta należy dokończyć w tej samej przeglądarce i na tym samym
 zalogowanym koncie, na którym ją rozpoczęto.
 
-Sekret z vaulta musi odpowiadać przeznaczeniu backendu; `custom` pozwala świadomie użyć własnej integracji. OneDrive i SharePoint przyjmują aplikację Entra o przeznaczeniu `sharepoint`, a usługi Hugging Face — `huggingface`. Ta sama reguła obowiązuje przy publikacji i uruchomieniu. Każdy host z listy serwerów PostgreSQL musi znajdować się na liście dozwolonych hostów deploymentu. MongoDB i GridFS wymagają jednego hosta `mongodb://`: platforma wymusza `directConnection=true` i odrzuca odkrywanie przez SRV. Nadawca z kanału bez połączonego konta wymaga zgody na każde narzędzie Mirage, także odczyt; połączenie konta przywraca zwykłe zasady folderów ustalone przez autora.
+Sekret z vaulta musi odpowiadać przeznaczeniu backendu; `custom` pozwala świadomie użyć własnej integracji. OneDrive i SharePoint przyjmują aplikację Entra o przeznaczeniu `sharepoint`, a usługi Hugging Face — `huggingface`. Ta sama reguła obowiązuje przy publikacji i uruchomieniu. Każdy host z listy serwerów PostgreSQL musi znajdować się na liście dozwolonych hostów deploymentu. MongoDB i GridFS wymagają jednego hosta `mongodb://`: platforma wymusza `directConnection=true` i odrzuca odkrywanie przez SRV. Uruchomienia w kanałach stosują zwykłe ustawienia akceptacji powiązania Mirage i poszczególnych narzędzi ustalone przez autora, także dla nadawców bez połączonego konta.
 
 Montowania PostgreSQL wymagają niepustego hasła w DSN z vaulta; puste hasła i uwierzytelnianie bez hasła nie są obsługiwane. Nie korzystają zastępczo z `PGPASSWORD` ani `.pgpass`. Parametry DSN wskazujące pliki poświadczeń lub TLS na hoście (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) są odrzucane.
 
@@ -1569,8 +1573,13 @@ Odczytuje tekst na głos przez providera mowy wybranego przez autora i zachowuje
 się jak generowanie obrazów: nagranie jest zapisywane, pokazywane w rozmowie jako
 odtwarzacz i zapisywane w `output/`, gdy workspace jest otwarty (#2259).
 
+Domyślne TTS organizacji jest opcjonalne. W **Organizacja → AI & services → Text to speech** administrator zapisuje providera, model, głos i klucz z vault widoczny dla organizacji jako jedną grupę. Agent dziedziczy ją dopiero po włączeniu **Use organization defaults** przez autora; istniejący agenci zachowują własne ustawienia. Oczekujący run zachowuje rozstrzygniętą grupę po zmianie ustawień, ale wyłączenie TTS organizacji lub cofnięcie dostępu do klucza blokuje mowę. Własna konfiguracja agenta łączy jego providera z jego kluczem.
+
+Katalog HTTP obejmuje Eleven v4 przez endpoint text-to-dialogue, z fragmentami do 2000 znaków, oraz Eleven v3 i Flash v2. Modele konwersacyjne dostępne wyłącznie przez WebSocket wymagają innego transportu i nie są oferowane do generowania klipów.
+
 | Konfiguracja | Domyślnie | Wartości |
 | --- | --- | --- |
+| `use_organization_defaults` | `false` | Dziedzicz razem providera, model, głos i klucz organizacji; w przeciwnym razie użyj tego bindingu |
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | Modele tego providera z `app/core/catalog/text_to_speech_models.json` |
 | `voice` | pierwszy głos modelu | Domyślny głos agenta; może przełączyć się dla każdego klipu w obrębie `voices`. Głos z katalogu dla OpenAI i Gemini; id z własnej biblioteki głosów dla ElevenLabs |
@@ -1791,6 +1800,11 @@ pracę innej rozmowy. Potrzebujesz bieżącego dostępu do edycji; żaden run ni
 zapisywać workspace. Treść i tryb wykonywalny każdego pliku muszą odpowiadać
 stanowi po zadaniu. Konflikt odrzuca całe cofnięcie i wskazuje pliki. Pozostałe
 pliki oraz indeks i historia Git pozostają bez zmian.
+
+Cofnięcie jest niedostępne, jeśli którykolwiek snapshot napotka niezapisany duży
+plik, nieczytelną ścieżkę lub nieobsługiwany typ pliku, nawet gdy ta ścieżka wydaje
+się niezmieniona. Zapisany diff nadal można czytać. Katalogi platformy i narzędzi
+pozostają celowo poza zakresem snapshotów.
 
 Akcja kolejkuje trwałe zadanie i rezerwuje workspace. Panel pokazuje postęp oraz
 jednoznaczne odmowy. Nieznany wynik zachowuje rezerwację; **Ponów cofnięcie**
@@ -2804,12 +2818,17 @@ Streszczanie zamienia tokeny wejściowe w wyjściowe, które są rozliczane z pr
 generowane szeregowo, więc agent, którego runom przewodzą duże wyniki narzędzi,
 zwykle wychodzi lepiej na `tiered`.
 
-**Sięga do jednego runa, a nie do jednej rozmowy.** Między turami historia jest
-odbudowywana z zapisu rozmowy jako tekst użytkownika i asystenta, więc nie ma tam
-wywołań narzędzi ani ich wyników do kompaktowania i żadna zrobiona tu edycja nie
-przeżywa granicy tury. Historią wartą kompaktowania jest długa pętla narzędzi
-wewnątrz jednego runa, gdzie jedno wylistowanie katalogu albo jedno wyszukanie w
-wiedzy to dziesiątki tysięcy tokenów.
+**Historia przechodzi między turami.** Każda zakończona tura zapisuje wiadomości
+modelowe, w tym wywołania narzędzi, wyniki i odkrycia lokalnego lub natywnego
+tool search. Kompakcja działa na tej samej historii; jej streszczenie przechodzi
+do następnej tury.
+
+Zapis obejmuje najwyżej 200 wiadomości modelowych i 2 MiB zserializowanej historii.
+Starsze wiadomości wypadają bez rozdzielania wywołań i wyników. Komunikat o
+pominięciu każe ponownie odkryć brakujące narzędzia lub odczytać dane. Odkrycia
+wygasają wraz z ich zapisem. Każdy run nadal stosuje aktualne definicje narzędzi,
+dostępność, uprawnienia i zgody na wykonanie. Oczekujące zgody mają osobny stan
+wznowienia; zapis historii nie wykonuje ponownie operacji.
 
 **Wyzwalaczem jest ułamek, bo liczba bezwzględna jest właściwa tylko dla jednego
 modelu**, a ten sam agent chodzi na dowolnym profilu, na który wskazuje jego spec.
@@ -2874,14 +2893,10 @@ i walkery pochodzą z
 | --- | --- | --- |
 | `threshold_bytes` | 32768 | 1 KiB–10 MiB; części co najmniej tej wielkości trafiają poza historię |
 
-**Jest jedno miejsce, w którym media naprawdę się kumulują, i to właśnie ono.**
-Załącznik trafia do modelu raz, w turze, w której został dołączony: zwykła
-historia jest odtwarzana z _tekstu_ transkryptu, więc obrazek nie jest wysyłany
-ponownie. Wyjątkiem jest rozmowa [skompaktowana](#context-management) — wtedy
-zrzut wiadomości runa robiony przez bibliotekę jest zapisywany w całości
-i odtwarzany dokładnie tak, jak widział go model, razem z base64, aż do kolejnego
-podsumowania. Ten blob to wiersze w Postgresie i bajty na łączu, w każdej turze
-pomiędzy.
+**Załączniki mogą przechodzić do następnych tur.** Zakończone tury zachowują
+wiadomości modelowe w granicach limitów historii, również zachowane obrazy.
+Odciążanie mediów działa przy zwykłym zapisie i po kompakcji. Efemeryczne zrzuty
+ekranu pulpitu zastępuje komunikat przed zapisem.
 
 **Gdzie trafiają bajty i jak długo żyją.** Do własnego magazynu plików wdrożenia,
 pod `media/<organizacja>/<rozmowa>/<digest>`. Organizacja to izolacja: URI mediów
@@ -3562,7 +3577,7 @@ Wpis decyzji może przechowywać ustrukturyzowane dowody: sytuację, wybór, alt
 
 W **Ustawienia → Pamięć** przeczytaj dowody i zapisz zaobserwowany wynik przez korektę. Korekta dopisuje nowy wpis; wcześniejszy epizod i jego pochodzenie pozostają w historii. Konsolidacja deterministyczna nie zamienia epizodów w ogólne reguły. Usuwanie pamięci usuwa ich treść razem z wpisami; eksport danych osobistych ją uwzględnia.
 
-**Przygotuj przypadek Improve** otwiera edytowalne wejście i oczekiwaną odpowiedź. Sprawdź tekst, usuń informacje, które muszą pozostać prywatne, i jawnie zatwierdź pobranie jednego rekordu JSONL. Pola `input`, `reference_answer`, `tags` i `note` odpowiadają importerowi zbiorów w [PR Improve #2172](https://github.com/vstorm-co/agenticos/pull/2172). Zaimportuj plik do zbioru Improve po instalacji tej funkcji, przeprowadź ocenę i tam zaakceptuj/opublikuj zmiany. Ten eksport nie tworzy zbioru, nie uruchamia optymalizatora ani nie publikuje instrukcji automatycznie.
+**Dodaj jako przypadek do Improve** otwiera edytowalne wejście i oczekiwaną odpowiedź oraz pyta, do którego datasetu je dodać; przycisk widzi członek, który może edytować datasety. Przejrzyj tekst, usuń to, co ma zostać prywatne, i wyraźnie zatwierdź dodanie. Przypadek dostaje tag `decision-episode`, zapisuje Ciebie jako osobę, która zadała pytanie, i łączy run oraz rozmowę, z których pochodzi epizod, dopóki istnieją, więc wymazanie Ciebie anonimizuje go jak każdy przypadek wzięty z Twoich rozmów. Oceń go oraz zaakceptuj lub opublikuj zmiany w Improve. Samo dodanie nie uruchamia optymalizatora ani nie publikuje automatycznie instrukcji.
 
 Wybór lokalnego dostępu należy do wybranego agenta, a nie do globalnego ustawienia dziedziczonego przez innych agentów. Cofnięcie dostępu do folderu usuwa także zapamiętane wybory i zgody coding agentów dla jego podfolderów. Starsze aplikacje desktopowe zachowują zgodę na cały komputer tylko w jednej rozmowie; aktualizacja pozwala zapamiętać ją we wszystkich rozmowach agenta.
 

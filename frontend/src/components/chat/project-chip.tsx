@@ -25,7 +25,7 @@ import { setUrlParam } from "@/lib/utils";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
 
 /**
- * The project a chat is in, beside who answers it.
+ * The project a chat is in, above the composer.
  *
  * Before the first message it is a choice - picked from the `+`, or arriving as
  * `?project=` from a project's New chat - and can be dropped. Once the chat

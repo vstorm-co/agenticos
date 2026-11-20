@@ -382,6 +382,14 @@ class RealtimeModelRead(BaseSchema):
     supports_thinking: bool
     input_sample_rate: int
     output_sample_rate: int
+    unreported_token_usage: bool = Field(
+        default=False,
+        description="Token charges are unavailable; calls cannot enforce a spending budget.",
+    )
+    default_language: str | None = Field(
+        default=None,
+        description="Fixed provider default when language is omitted; null supports following the caller.",
+    )
 
 
 class RealtimeProviderRead(BaseSchema):

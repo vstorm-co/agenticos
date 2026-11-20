@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import type { Agent, AgentList, AgentSpec } from "@/types/agents";
 import type { Dataset, DatasetList } from "@/types/datasets";
@@ -159,7 +160,18 @@ export function useEvalComparison(
       const suffix = params.size ? `?${params}` : "";
       return apiClient.get<EvalComparison>(`/eval-runs/${runId}/comparison${suffix}`);
     },
-    refetchInterval: live ? LIVE_POLL_MS : false,
+    retry: (count, error) => (error instanceof ApiError && error.status === 429) || count < 1,
+    retryDelay: (_count, error) =>
+      error instanceof ApiError && error.status === 429
+        ? Math.max(1_000, (error.retryAt ?? Date.now() + 60_000) - Date.now())
+        : 1_000,
+    refetchInterval: (current) =>
+      current.state.fetchFailureReason instanceof ApiError &&
+      current.state.fetchFailureReason.status === 429
+        ? false
+        : live
+          ? LIVE_POLL_MS
+          : false,
   });
   return {
     comparison: query.data,

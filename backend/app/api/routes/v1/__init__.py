@@ -387,3 +387,10 @@ v1_router.include_router(
 )
 
 v1_router.include_router(me_onboarding.router, prefix="/me/onboarding", tags=["me:onboarding"])
+
+
+from app.api.routes.v1 import personal_model_keys
+
+v1_router.include_router(
+    personal_model_keys.router, prefix="/personal-model-keys", tags=["personal-model-keys"]
+)

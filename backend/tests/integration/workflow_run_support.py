@@ -422,3 +422,13 @@ async def worker_running(factory: async_sessionmaker[AsyncSession]) -> AsyncIter
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+
+
+class SkewedClock:
+    """Stands in for a module's `datetime` on an application host whose clock is `offset` off."""
+
+    def __init__(self, offset: timedelta) -> None:
+        self.offset = offset
+
+    def now(self, tz: object = None) -> datetime:
+        return datetime.now(UTC) + self.offset

@@ -1,8 +1,12 @@
 "use client";
 
+import { Search } from "lucide-react";
+import { EmptyIllustration } from "@/components/illustrations/empty-illustration";
+
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { SortButton } from "@/components/ui/sort-button";
+import { StickyScrollbar } from "@/components/ui/sticky-scrollbar";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -399,10 +403,19 @@ export function DataTable<T>({
               !empty && "px-4 py-6",
             )}
           >
-            {empty ?? t("noResults")}
+            {typeof empty === "string" || empty == null ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-5">
+                <EmptyIllustration icon={Search} />
+                <p className="text-foreground text-sm font-medium">{empty ?? t("noResults")}</p>
+              </div>
+            ) : (
+              empty
+            )}
           </div>
         )}
       </div>
+      {/* Its own bar is under the last row; this one floats while that is off screen. */}
+      <StickyScrollbar target={scrollRef} />
     </div>
   );
 }

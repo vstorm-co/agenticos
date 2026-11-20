@@ -10,6 +10,7 @@ import {
   Button,
   ConfirmDialog,
   ListCard,
+  ListCardEmpty,
   Pager,
   SearchInput,
   Select,
@@ -18,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { LoadingState, ErrorState } from "@/components/states";
 import { ListFilters } from "@/components/ui/list-filters";
 import { CardStatus, McpServerCard } from "@/components/mcp/mcp-server-card";
 import { McpConnectionDialog } from "@/components/mcp/mcp-connection-dialog";
@@ -118,12 +120,14 @@ function rowDescription(row: McpServerRow, t: (key: string) => string): string {
 }
 
 interface McpServerListProps {
-  /** False for a member without `connections:manage` - the organization column reads only. */
+  /** Whether the caller holds `mcp:manage` and may manage organization accounts. */
   canManageOrganization: boolean;
   /** An embedded account picker starts on the service its caller needs. */
   initialServerKey?: string;
   /** The full page bookmarks its selection; an embedded picker keeps its caller’s URL. */
   persistSelection?: boolean;
+  /** Disable only when the enclosing page already owns the initial organization read. */
+  retryOrganizationOnMount?: boolean;
 }
 
 /**
@@ -139,7 +143,7 @@ interface McpServerListProps {
  *
  * - **Organization** - the organization's credential. The only kind an agent
  *   spec may name by id, because a published agent must not reach different
- *   tools depending on whose session built it. Gated on `connections:manage`.
+ *   tools depending on whose session built it. Gated on `mcp:manage`.
  * - **You** - your own credential. What an agent bound to *each person's own
  *   account* speaks through when you are the one talking to it, and what a
  *   `?connect=<key>` arrival from such an agent creates.
@@ -189,10 +193,14 @@ export function McpServerList({
   canManageOrganization,
   initialServerKey,
   persistSelection = true,
+  retryOrganizationOnMount = true,
 }: McpServerListProps) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
-  const { organization, personal, recordTools } = useMcpServers();
+  const tc = useTranslations("common");
+  const { organization, personal, recordTools } = useMcpServers({
+    retryOnMount: retryOrganizationOnMount,
+  });
   const createdToast = useCreatedToast();
   const managedConnect = useManagedAppConnect();
   // The whole curated catalog, for the category filter alone - see below.
@@ -736,173 +744,213 @@ export function McpServerList({
       <ListCard
         fill
         namedByPage
+        layout="grid"
         headerTour="mcp-catalog"
         title={t("servers")}
-        counted={t("serverCount", { count: listing.total })}
-        controls={<SearchInput value={query} onChange={ask} placeholder={t("searchServers")} />}
-        contentClassName="space-y-4 p-4"
-      >
-        <div data-tour="mcp-filter" className="flex flex-wrap items-center gap-2">
-          <ListFilters
-            compact
-            active={Number(category !== "all") + Number(auth !== "all") + Number(state !== "all")}
-          >
-            <div className="order-2 grid w-full gap-2 sm:grid-cols-3">
-              <Select value={category} onValueChange={narrow}>
-                <SelectTrigger className="w-full min-w-0" aria-label={t("category")}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("allCategories")}</SelectItem>
-                  {categories.map((entry) => (
-                    <SelectItem key={entry} value={entry}>
-                      {categoryLabel(entry)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={auth}
-                onValueChange={(value) => {
-                  setAuth(value as McpAuthKind | "all");
-                  setPage(0);
-                }}
+        counted={
+          listing.isLoading || listing.error ? null : t("serverCount", { count: listing.total })
+        }
+        controls={
+          <>
+            {" "}
+            <SearchInput value={query} onChange={ask} placeholder={t("searchServers")} />{" "}
+            <div data-tour="mcp-filter" className="flex flex-wrap items-center gap-2">
+              <ListFilters
+                compact
+                active={
+                  Number(category !== "all") + Number(auth !== "all") + Number(state !== "all")
+                }
               >
-                <SelectTrigger className="w-full min-w-0" aria-label={t("authFilter")}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("anyAuth")}</SelectItem>
-                  {(["oauth", "token", "none"] as const).map((kind) => (
-                    <SelectItem key={kind} value={kind}>
-                      {t(MCP_AUTH_LABEL[kind])}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={state}
-                onValueChange={(value) => {
-                  setState(value as McpServerStateFilter);
-                  setPage(0);
-                }}
-              >
-                <SelectTrigger className="w-full min-w-0" aria-label={t("connectionState")}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("anyState")}</SelectItem>
-                  <SelectItem value="connected">{t("connected")}</SelectItem>
-                  <SelectItem value="not-connected">{t("notConnected")}</SelectItem>
-                </SelectContent>
-              </Select>
+                <div className="order-2 grid w-full gap-2 sm:grid-cols-3">
+                  <Select value={category} onValueChange={narrow}>
+                    <SelectTrigger className="w-full min-w-0" aria-label={t("category")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{t("allCategories")}</SelectItem>
+                      {categories.map((entry) => (
+                        <SelectItem key={entry} value={entry}>
+                          {categoryLabel(entry)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={auth}
+                    onValueChange={(value) => {
+                      setAuth(value as McpAuthKind | "all");
+                      setPage(0);
+                    }}
+                  >
+                    <SelectTrigger className="w-full min-w-0" aria-label={t("authFilter")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{t("anyAuth")}</SelectItem>
+                      {(["oauth", "token", "none"] as const).map((kind) => (
+                        <SelectItem key={kind} value={kind}>
+                          {t(MCP_AUTH_LABEL[kind])}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={state}
+                    onValueChange={(value) => {
+                      setState(value as McpServerStateFilter);
+                      setPage(0);
+                    }}
+                  >
+                    <SelectTrigger className="w-full min-w-0" aria-label={t("connectionState")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{t("anyState")}</SelectItem>
+                      <SelectItem value="connected">{t("connected")}</SelectItem>
+                      <SelectItem value="not-connected">{t("notConnected")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </ListFilters>
+              {canManageOrganization && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  data-tour="mcp-add"
+                  onClick={() =>
+                    openDraft(
+                      "organization",
+                      {
+                        key: "new",
+                        name: t("customServer"),
+                        description: null,
+                        descriptionKey: null,
+                        category: CUSTOM_CATEGORY,
+                        auth: "token",
+                        url: null,
+                        docsUrl: null,
+                        tokenHint: null,
+                        entry: null,
+                        organizations: [],
+                        personals: [],
+                      },
+                      null,
+                    )
+                  }
+                >
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  {t("addCustomServer")}
+                </Button>
+              )}
             </div>
-          </ListFilters>
-          {canManageOrganization && (
-            <Button
-              size="sm"
-              variant="outline"
-              data-tour="mcp-add"
-              onClick={() =>
-                openDraft(
-                  "organization",
-                  {
-                    key: "new",
-                    name: t("customServer"),
-                    description: null,
-                    descriptionKey: null,
-                    category: CUSTOM_CATEGORY,
-                    auth: "token",
-                    url: null,
-                    docsUrl: null,
-                    tokenHint: null,
-                    entry: null,
-                    organizations: [],
-                    personals: [],
-                  },
-                  null,
-                )
-              }
-            >
-              <Plus className="mr-1 h-3.5 w-3.5" />
-              {t("addCustomServer")}
-            </Button>
-          )}
-        </div>
+          </>
+        }
+        contentClassName="space-y-4 p-0 pt-2"
+      >
+        {listing.error ? (
+          <ErrorState
+            title={t("catalogLoadFailed")}
+            description={getErrorMessage(listing.error, tErrors)}
+            cta={{ label: tc("retry"), onClick: () => void listing.refetch() }}
+          />
+        ) : listing.isLoading ? (
+          <LoadingState variant="skeleton-cards" />
+        ) : rows.length === 0 ? (
+          <ListCardEmpty
+            icon={Plug}
+            title={t("noServersMatch")}
+            description={t("noServersMatchHint")}
+            onClearFilters={
+              query || category !== "all" || auth !== "all" || state !== "all"
+                ? () => {
+                    setQuery("");
+                    setCategory("all");
+                    setAuth("all");
+                    setState("all");
+                    setPage(0);
+                  }
+                : undefined
+            }
+          />
+        ) : (
+          <>
+            {/*
+             * One grid over the whole catalog, and no per-category sections.
+             *
+             * The categories were headings until it was a grid, and a grid made the
+             * arithmetic obvious: this catalog has six entries under six distinct
+             * categories, so every section held exactly one card and the page was a
+             * column of headings down the left quarter of the screen. A category that
+             * groups one thing is not a group - so it moves onto the card, where it
+             * still says what the server is for without claiming to sort anything.
+             *
+             * Three columns at a normal window, four on a wide one. Six to a dozen
+             * cards then land in two or three rows with no scrolling, which is the
+             * only reason to lay a catalog out as a grid rather than as rows.
+             */}
+            <div className="rise-in grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {rows.map((row, index) => (
+                <McpServerCard
+                  key={row.key}
+                  name={row.name}
+                  icon={row.entry?.icon ?? null}
+                  category={row.category}
+                  url={row.url}
+                  // Nobody here checked a registry server: the description is the
+                  // publisher's and there is no token hint, which is worth knowing
+                  // before pasting a credential into it.
+                  badge={
+                    isReviewed(row) ? null : (
+                      <Badge variant="secondary" className="shrink-0" title={t("fromRegistryHint")}>
+                        {t("fromRegistry")}
+                      </Badge>
+                    )
+                  }
+                  description={rowDescription(row, t)}
+                  dataTour={index === 0 ? "mcp-connect" : undefined}
+                  status={<RowStatus row={row} onManage={() => manage(row.key)} />}
+                  // A server somebody holds an account on opens its accounts.
+                  onOpen={connectionCount(row) > 0 ? () => manage(row.key) : undefined}
+                  // The same two controls on every card, whatever it holds.
+                  actions={
+                    <>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() =>
+                          openDraft(defaultScope(row, canManageOrganization), row, null)
+                        }
+                        disabled={busyId === row.key}
+                        title={t("configureNamed", { name: row.name })}
+                        aria-label={t("configureNamed", { name: row.name })}
+                      >
+                        <Settings2 aria-hidden />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => connect(defaultScope(row, canManageOrganization), row)}
+                        disabled={busyId === row.key}
+                      >
+                        <Plug className="mr-1 h-3.5 w-3.5" />
+                        {busyId === row.key ? t("redirecting") : t("connectAction")}
+                      </Button>
+                    </>
+                  }
+                />
+              ))}
+            </div>
 
-        {/*
-         * One grid over the whole catalog, and no per-category sections.
-         *
-         * The categories were headings until it was a grid, and a grid made the
-         * arithmetic obvious: this catalog has six entries under six distinct
-         * categories, so every section held exactly one card and the page was a
-         * column of headings down the left quarter of the screen. A category that
-         * groups one thing is not a group - so it moves onto the card, where it
-         * still says what the server is for without claiming to sort anything.
-         *
-         * Three columns at a normal window, four on a wide one. Six to a dozen
-         * cards then land in two or three rows with no scrolling, which is the
-         * only reason to lay a catalog out as a grid rather than as rows.
-         */}
-        <div className="rise-in grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {rows.map((row, index) => (
-            <McpServerCard
-              key={row.key}
-              name={row.name}
-              icon={row.entry?.icon ?? null}
-              category={row.category}
-              url={row.url}
-              // Nobody here checked a registry server: the description is the
-              // publisher's and there is no token hint, which is worth knowing
-              // before pasting a credential into it.
-              badge={
-                isReviewed(row) ? null : (
-                  <Badge variant="secondary" className="shrink-0" title={t("fromRegistryHint")}>
-                    {t("fromRegistry")}
-                  </Badge>
-                )
-              }
-              description={rowDescription(row, t)}
-              dataTour={index === 0 ? "mcp-connect" : undefined}
-              status={<RowStatus row={row} onManage={() => manage(row.key)} />}
-              // A server somebody holds an account on opens its accounts.
-              onOpen={connectionCount(row) > 0 ? () => manage(row.key) : undefined}
-              // The same two controls on every card, whatever it holds.
-              actions={
-                <>
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    onClick={() => openDraft(defaultScope(row, canManageOrganization), row, null)}
-                    disabled={busyId === row.key}
-                    title={t("configureNamed", { name: row.name })}
-                    aria-label={t("configureNamed", { name: row.name })}
-                  >
-                    <Settings2 aria-hidden />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => connect(defaultScope(row, canManageOrganization), row)}
-                    disabled={busyId === row.key}
-                  >
-                    <Plug className="mr-1 h-3.5 w-3.5" />
-                    {busyId === row.key ? t("redirecting") : t("connectAction")}
-                  </Button>
-                </>
-              }
+            <Pager
+              page={page}
+              pageCount={pageCount}
+              matched={listing.total}
+              total={listing.total}
+              onPage={setPage}
+              counted={t("serverCount", { count: listing.total })}
             />
-          ))}
-        </div>
-
-        <Pager
-          page={page}
-          pageCount={pageCount}
-          matched={listing.total}
-          total={listing.total}
-          onPage={setPage}
-          counted={t("serverCount", { count: listing.total })}
-        />
+          </>
+        )}
       </ListCard>
 
       <ServerConnectionsDialog

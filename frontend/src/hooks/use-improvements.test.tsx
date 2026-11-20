@@ -3,6 +3,8 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
+import type { ImprovementEvidence } from "@/types/improvement";
 import {
   useAttemptChanges,
   useImprovement,
@@ -22,6 +24,22 @@ beforeEach(() => {
   client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+});
+it("exposes a refresh of cached empty evidence separately from the first load", async () => {
+  const empty: ImprovementEvidence = { items: [], sample_limit: 20, training_failures: 0 };
+  client.setQueryData(qk.improvements.evidence("a1", null, "d1"), empty);
+  let finish!: (value: ImprovementEvidence) => void;
+  vi.mocked(apiClient.get).mockReturnValueOnce(
+    new Promise<ImprovementEvidence>((resolve) => {
+      finish = resolve;
+    }),
+  );
+  const view = renderHook(() => useImprovementEvidence("a1", { datasetId: "d1" }), { wrapper });
+  await waitFor(() => expect(view.result.current.isFetching).toBe(true));
+  expect(view.result.current.isLoading).toBe(false);
+  expect(view.result.current.evidence).toEqual(empty);
+  finish(empty);
+  await waitFor(() => expect(view.result.current.isFetching).toBe(false));
 });
 it("estimates without writing, starts with the confirmed limit and loads durable sessions", async () => {
   vi.mocked(apiClient.get).mockResolvedValue([{ id: "s1", status: "published" }]);

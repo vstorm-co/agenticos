@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useOrgMcpConnections, useOrgMcpToolCalls } from "./use-org-mcp-connections";
 import { apiClient } from "@/lib/api-client";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+import { qk } from "@/lib/query-keys";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -53,6 +54,31 @@ async function loaded() {
 }
 
 describe("useOrgMcpConnections", () => {
+  it("hides cached organization records when disabled and does not refetch them", async () => {
+    const client = new QueryClient();
+    client.setQueryData(qk.mcpConnections.org(), [record()]);
+    const { result, rerender } = renderHook(({ enabled }) => useOrgMcpConnections({ enabled }), {
+      initialProps: { enabled: true },
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    expect(result.current.connections).toHaveLength(1);
+    rerender({ enabled: false });
+    vi.mocked(apiClient.get).mockClear();
+    expect(result.current.connections).toEqual([]);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.error).toBeNull();
+    await act(async () => {
+      await result.current.refresh();
+    });
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: qk.mcpConnections.org() });
+    });
+    expect(apiClient.get).not.toHaveBeenCalled();
+    client.clear();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(apiClient.get).mockResolvedValue({ items: [record()], total: 1 });
@@ -119,7 +145,7 @@ describe("useOrgMcpConnections", () => {
   });
 
   it("reports a refusal rather than showing an empty organization", async () => {
-    // A member without connections:manage gets a 403. An empty list would read
+    // An enabled query that fails must report the refusal. An empty list would read
     // as "your organization has connected nothing", which is a different and
     // wrong thing to tell somebody about to build an agent.
     vi.mocked(apiClient.get).mockRejectedValue(new Error("Insufficient permissions"));
@@ -128,6 +154,22 @@ describe("useOrgMcpConnections", () => {
 
     expect(result.current.error).toBe("Insufficient permissions");
     expect(result.current.connections).toEqual([]);
+  });
+
+  it("recovers a transient organization failure on a later mount", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const sharedWrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("Temporarily unavailable"));
+    const first = renderHook(() => useOrgMcpConnections(), { wrapper: sharedWrapper });
+    await waitFor(() => expect(first.result.current.error).toBe("Temporarily unavailable"));
+    first.unmount();
+    const second = renderHook(() => useOrgMcpConnections(), { wrapper: sharedWrapper });
+    await waitFor(() => expect(second.result.current.connections).toHaveLength(1));
+    expect(second.result.current.error).toBeNull();
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+    client.clear();
   });
 
   it("patches an edited server in place", async () => {

@@ -121,6 +121,7 @@ export function McpServerPicker({
   const t = useTranslations("agents");
   const { appName } = useBranding();
   const [connectedOnly, setConnectedOnly] = useState(false);
+  const [boundOnly, setBoundOnly] = useState(false);
   const known = new Set(connections.map((connection) => connection.id));
   const catalogKeys = new Set(catalog.map((entry) => entry.key));
   // Of either kind: an organization binding to a connection this organization no
@@ -187,7 +188,11 @@ export function McpServerPicker({
     })),
   ];
 
-  const narrowed = connectedOnly ? rows.filter((row) => row.connections.length > 0) : rows;
+  const narrowed = rows.filter(
+    (row) =>
+      (!connectedOnly || row.connections.length > 0) &&
+      (!boundOnly || bindingsFor(row, value).length > 0),
+  );
   const list = useListControls({
     items: narrowed,
     // More than the default fifty, and a multiple of four, three and two, so
@@ -219,23 +224,30 @@ export function McpServerPicker({
           />
           {t("connectedOnly")}
         </label>
+        <label className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Checkbox checked={boundOnly} onCheckedChange={(next) => setBoundOnly(next === true)} />
+          {t("boundToAgentOnly")}
+        </label>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {/* First, and on every page a search does not rule out: the one server
             that needs no connection, because it is this deployment (#2190). */}
-        {list.page === 0 && !connectedOnly && platformMatches && (
-          <PlatformServerCard
-            binding={platform}
-            onChange={(next) =>
-              onChange([
-                ...value.filter((ref) => ref.account !== "platform"),
-                ...(next === null ? [] : [next]),
-              ])
-            }
-            disabled={disabled}
-          />
-        )}
+        {list.page === 0 &&
+          !connectedOnly &&
+          (!boundOnly || platform !== null) &&
+          platformMatches && (
+            <PlatformServerCard
+              binding={platform}
+              onChange={(next) =>
+                onChange([
+                  ...value.filter((ref) => ref.account !== "platform"),
+                  ...(next === null ? [] : [next]),
+                ])
+              }
+              disabled={disabled}
+            />
+          )}
         {list.visible.map((row) => (
           <ServerCard
             key={row.key}

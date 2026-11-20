@@ -1,5 +1,5 @@
 ---
-source_sha: "5ddb966db952"
+source_sha: "b50c2e4de07b"
 ---
 
 # Uprawnienia { #permissions }
@@ -97,7 +97,9 @@ Dwa rodzaje uprawnień, i zachowują się różnie.
 **Globalne** uprawnienia są binarne i obejmują całą organizację: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
 `approvals:decide`, `promotions:override`, `connections:view`, `connections:manage`,
-`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`.
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`, `personal:consent`, `mcp:personal:use`.
+
+Jawny scope `mcp:personal:use` pozwala zewnętrznym runom API lub OAuth korzystać z osobistych połączeń MCP wystawcy credentiala. Wybierz go w **Custom** i potwierdź delegację; żaden preset, także **Full access**, go nie zawiera, a istniejące credentiale zachowują dostęp wyłącznie do zasobów organizacji. Nie daje dostępu do osobistej pamięci, wyszukiwania rozmów ani zgody na routines. Wznowienie po zatwierdzeniu zachowuje pierwotnego właściciela i credential; przed wywołaniem osobistego narzędzia ponownie sprawdzane są połączenia, aktualne scope’y klucza oraz dostęp do agenta głównego i automatycznie dobranych subagentów.
 
 Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:consent`, wybranego w **Custom** przy wystawianiu klucza lub autoryzacji klienta MCP. Nie zawiera go żaden preset, także **Full access**. Potwierdzenie pozwala credentialowi zatwierdzać trwałe routines i watche korzystające z twoich osobistych połączeń i danych; zwykłe scope’y `agents:run` i `runs:view` tego nie umożliwiają. Istniejące klucze i autoryzacje MCP nie zyskują osobistej zgody automatycznie.
 

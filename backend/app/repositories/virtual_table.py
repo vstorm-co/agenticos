@@ -43,6 +43,7 @@ from sqlalchemy import (
     or_,
     select,
     text,
+    true,
     tuple_,
     union_all,
     update,
@@ -373,11 +374,14 @@ async def get_schema_version(
 
 
 async def list_schema_versions(
-    db: AsyncSession, *, table_id: UUID
+    db: AsyncSession, *, table_id: UUID, version: int | None = None
 ) -> list[VirtualTableSchemaVersion]:
     result = await db.execute(
         select(VirtualTableSchemaVersion)
-        .where(VirtualTableSchemaVersion.table_id == table_id)
+        .where(
+            VirtualTableSchemaVersion.table_id == table_id,
+            VirtualTableSchemaVersion.version == version if version is not None else true(),
+        )
         .order_by(VirtualTableSchemaVersion.version.asc())
     )
     return list(result.scalars().all())
@@ -1297,6 +1301,35 @@ async def add_outbox(
     return row
 
 
+async def delete_receipts_for_table(
+    db: AsyncSession, *, organization_id: UUID, table_id: UUID
+) -> None:
+    """Remove every receipt that names this table, before the table itself goes.
+
+    A receipt holds the whole record a keyed write returned, and has no foreign key
+    to the table. A record write names it inside `outcome` at `record.table_id`, a
+    table creation at `id`, and a batch - whose outcome holds the refused rows'
+    details - in the `table_id` column. A record deletion's receipt holds only the
+    record id, so it carries no values and cannot be matched. An expired receipt
+    still holds its values until the retention sweep reaches it, so age is no
+    reason to keep one.
+    """
+    table = str(table_id)
+    await db.execute(
+        delete(VirtualTableReceipt).where(
+            VirtualTableReceipt.organization_id == organization_id,
+            or_(
+                VirtualTableReceipt.table_id == table_id,
+                VirtualTableReceipt.outcome["record"]["table_id"].astext == table,
+                and_(
+                    VirtualTableReceipt.operation == "table.create",
+                    VirtualTableReceipt.outcome["id"].astext == table,
+                ),
+            ),
+        )
+    )
+
+
 async def delete_expired_receipt(
     db: AsyncSession,
     *,
@@ -1332,6 +1365,7 @@ async def claim_receipt(
     operation: str,
     operation_key: str,
     payload_hash: str,
+    table_id: UUID | None = None,
 ) -> VirtualTableReceipt | None:
     """Claim an operation key, or `None` if this principal already used it for this operation.
 
@@ -1349,6 +1383,7 @@ async def claim_receipt(
             operation_key=operation_key,
             payload_hash=payload_hash,
             outcome={},
+            table_id=table_id,
         )
         .on_conflict_do_nothing(constraint="uq_virtual_table_receipt_key")
         .returning(VirtualTableReceipt)

@@ -104,7 +104,7 @@ export function AgentCard({
     <div className="h-full">
       <div
         className={cn(
-          "border-foreground/8 bg-card relative flex h-full flex-col rounded-xl border p-4 transition-colors",
+          "border-border bg-card relative flex h-full flex-col rounded-xl border p-4 transition-colors",
           "hover:border-foreground/25",
           busy && "pointer-events-none opacity-50",
         )}
@@ -115,7 +115,7 @@ export function AgentCard({
           aria-label={tc("openNamed", { name: agent.name })}
         />
 
-        <div className="pointer-events-none relative mb-3 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 sm:flex">
+        <div className="pointer-events-none relative mb-3 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
           <AgentAvatar
             agentId={agent.id}
             slug={agent.slug}
@@ -124,12 +124,12 @@ export function AgentCard({
             size="lg"
             className="max-sm:size-12"
           />
-          <div className="contents sm:block sm:min-w-0 sm:flex-1">
+          <div className="contents">
             <div className="flex min-w-0 flex-col items-start gap-1.5 sm:flex-row sm:justify-between sm:gap-2">
               <div className="w-full min-w-0 sm:w-auto">
                 <h3
                   className={cn(
-                    "text-foreground line-clamp-2 font-semibold break-words sm:truncate",
+                    "text-foreground line-clamp-2 font-semibold break-words",
                     archived && "text-muted-foreground",
                   )}
                 >
@@ -138,10 +138,10 @@ export function AgentCard({
               </div>
               <AgentStatusBadge status={agent.status} />
             </div>
-            <p className="text-foreground/85 col-span-2 line-clamp-2 min-h-[2.5rem] text-sm sm:mt-2">
+            <p className="text-foreground/85 col-span-2 line-clamp-2 min-h-[2.5rem] text-sm">
               {agent.description || t("noDescription")}
             </p>
-            <div className="col-span-2 flex flex-wrap items-center gap-1.5 sm:mt-2">
+            <div className="col-span-2 flex flex-wrap items-center gap-1.5">
               <AccessChip agent={agent} />
               {attention && <AttentionBadge attention={attention} />}
               {isSystemAgent(agent.kind) &&

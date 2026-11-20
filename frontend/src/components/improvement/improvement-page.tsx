@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ErrorState, LoadingState } from "@/components/states";
-import { Button, Checkbox } from "@/components/ui";
+import { Button, Card, Checkbox } from "@/components/ui";
 import { ChangeSelection } from "./change-selection";
 import { useAgent } from "@/hooks/use-agents";
 import { useAgentAuthoring } from "@/hooks/use-authoring";
@@ -23,6 +23,7 @@ import { AttemptHistory } from "./attempt-history";
 import { CheckProgress } from "./check-progress";
 import { AcceptedChanges, TriedChanges } from "./tried-changes";
 import { NotBetterWarning } from "./attempt-choice";
+import { CriteriaNote, GAINS } from "./criteria";
 import { AcceptSummary, GuardNote, KnowledgeDocuments } from "./outcome";
 import { ResultStep } from "./result-decision";
 import { type ReadOnlyReason } from "./read-only";
@@ -111,7 +112,7 @@ function Session({
       : "viewOnly";
   const active = isActive(session);
   const chosen = session.iterations.find((r) => r.id === session.best_iteration_id);
-  const gain = chosen?.verdict === "better";
+  const gain = chosen !== undefined && GAINS.includes(chosen.verdict);
   // Without a measured gain nothing is pressed on the person: no standing check, no publish first.
   const automatic = automaticChoice ?? gain;
   const selectedBatch = authoring?.batch?.id === chosen?.batch_id ? authoring?.batch : null;
@@ -215,7 +216,7 @@ function Session({
               ) : session.iterations.some((round) => round.batch_id) ? (
                 <TriedChanges session={session} />
               ) : (
-                <section className="space-y-3 rounded-xl border p-6 text-sm">
+                <Card className="space-y-3 p-6 text-sm">
                   <p>{t("noChangesFound")}</p>
                   <ul className="list-disc space-y-1 pl-5">
                     {session.iterations.map((round) => (
@@ -230,7 +231,7 @@ function Session({
                       </li>
                     ))}
                   </ul>
-                </section>
+                </Card>
               )}
               <KnowledgeDocuments session={session} />
             </section>
@@ -255,10 +256,11 @@ function Session({
           )}
           {step === "accept" && isClosed(session) && <SessionDecision session={session} />}
           {step === "accept" && !isClosed(session) && (
-            <section className="space-y-4 rounded-xl border p-6" data-tour="improvement-accept">
+            <Card className="space-y-4 p-6" data-tour="improvement-accept">
               <h2 className="font-medium">{t("steps.accept")}</h2>
               <AcceptSummary session={session} round={chosen} />
               {chosen && !gain && <NotBetterWarning round={chosen} agent={agentName} />}
+              {chosen && gain && <CriteriaNote round={chosen} agent={agentName} />}
               {chosen && session.status === "ready" && (
                 <AcceptedChanges session={session} round={chosen} />
               )}
@@ -366,7 +368,7 @@ function Session({
               <Link className="block text-sm underline" href={`/agents/${agentId}`}>
                 {t("openAgent")}
               </Link>
-            </section>
+            </Card>
           )}
         </>
       )}

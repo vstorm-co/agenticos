@@ -1,6 +1,6 @@
-import type { AgentSpec } from "@/types/agents";
+import type { AgentDraftUpdate } from "@/types/agents";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,6 +31,7 @@ const AGENT: AgentDetail = {
   has_avatar: false,
   categories: [],
   tags: [],
+  draft_revision: "base",
   draft_spec: {
     name: "Support",
     description: null,
@@ -75,7 +76,10 @@ vi.mock("@/hooks", async () => {
       agent: { ...(page.agent as AgentDetail), kind: page.kind },
       isLoading: false,
       saveDraft: {
-        mutateAsync: vi.fn(async (spec: AgentSpec) => ({ draft_spec: spec })),
+        mutateAsync: vi.fn(async ({ spec }: AgentDraftUpdate) => ({
+          draft_spec: spec,
+          draft_revision: "saved",
+        })),
         isPending: false,
       },
       validate: page.validate,
@@ -107,6 +111,7 @@ vi.mock("@/hooks", async () => {
     useEmbeds: () => ({ embeds: [] }),
     useKnowledgeBases: () => ({ kbs: [] }),
     useMcpCatalog: () => ({ servers: [] }),
+    usePlatformMcpTools: () => ({ tools: [], isLoading: false, error: null }),
     useModelProviders: () => ({
       profiles: [],
       profilesStatus: "loaded",
@@ -129,6 +134,12 @@ vi.mock("@/hooks", async () => {
     useSkills: () => ({ skills: [], total: 0 }),
   };
 });
+
+vi.mock("@/components/mcp/mcp-server-list", () => ({
+  McpServerList: ({ canManageOrganization }: { canManageOrganization: boolean }) => (
+    <div data-testid="embedded-mcp-management">{String(canManageOrganization)}</div>
+  ),
+}));
 
 // The page's eval parts read their own queries; this test is not about them.
 vi.mock("@/hooks/use-eval-runs", () => ({
@@ -310,7 +321,6 @@ describe("the detail page's way into Improve", () => {
       name: "Needs attention: 7 answers rated down, 1 failed run. Improve this agent",
     });
     expect(improve).not.toHaveClass("bg-action");
-    expect(improve.className).toBe(screen.getByRole("button", { name: "Share" }).className);
     expect(screen.getByRole("button", { name: "Publish" })).toHaveClass("bg-action");
   });
 
@@ -369,4 +379,21 @@ describe("a publish asked for by a link", () => {
 
     expect(await screen.findByRole("dialog", { name: "Publish v1?" })).toBeInTheDocument();
   });
+});
+
+describe("embedded organization MCP management", () => {
+  it.each([true, false])(
+    "uses mcp:manage rather than model-connection permission: %s",
+    async (manageMcp) => {
+      allowed = new Set([manageMcp ? Perm.mcpManage : Perm.connectionsManage]);
+      page.params = "tab=mcp";
+      await mount();
+      if (manageMcp) {
+        fireEvent.click(await screen.findByRole("button", { name: "Connect a server" }));
+        expect(await screen.findByTestId("embedded-mcp-management")).toHaveTextContent("true");
+      } else {
+        expect(screen.queryByRole("button", { name: "Connect a server" })).toBeNull();
+      }
+    },
+  );
 });

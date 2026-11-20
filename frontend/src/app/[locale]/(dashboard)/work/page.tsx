@@ -30,7 +30,6 @@ export default function WorkPage() {
       <PageHeader
         title={t("background")}
         description={t("backgroundDescription")}
-        descriptionMode="summary"
         actions={
           can(Perm.agentsView) ? (
             <Button variant="outline" asChild>

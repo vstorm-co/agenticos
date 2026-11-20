@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuthStore, useOrgStore } from "@/stores";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CancelledError, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -613,10 +613,31 @@ export function useArtifactThumbnail(
     queryKey: key,
     // Let an already-started static preview finish into this scoped cache when
     // navigating away. Cancelling it would restart its isolated render on Back.
-    queryFn: () =>
-      apiClient.get<ArtifactThumbnail>(
-        `/apps/${artifactId}/thumbnail${versionId ? `?version_id=${encodeURIComponent(versionId)}` : ""}`,
-      ),
+    queryFn: async () => {
+      // Keep the bounded recovery inside this shared fetch: Query cancels its
+      // own retries when the last card unmounts, even if its request continues.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
+        }
+        if (
+          useOrgStore.getState().activeOrgId !== org ||
+          (useAuthStore.getState().user?.id ?? null) !== user
+        ) {
+          // Revert this scope's unfinished fetch so returning can start it
+          // again, rather than caching a refusal from the newly selected scope.
+          await client.cancelQueries({ queryKey: key, exact: true });
+          throw new CancelledError({ revert: true });
+        }
+        const thumbnail = await apiClient.get<ArtifactThumbnail>(
+          `/apps/${artifactId}/thumbnail${versionId ? `?version_id=${encodeURIComponent(versionId)}` : ""}`,
+        );
+        if (thumbnail.state !== "unavailable" || thumbnail.retryable !== true) {
+          return thumbnail;
+        }
+      }
+      throw new Error("ARTIFACT_THUMBNAIL_UNAVAILABLE");
+    },
     // Visibility toggles enabled after mount. Keep a failed immutable version
     // failed instead of treating each visibility change as a fresh render.
     enabled: enabled && client.getQueryState(key)?.status !== "error",

@@ -20,7 +20,6 @@ from app.services.channels.slack_app import (
     parse_shortcut,
 )
 from app.worker.background.channel import (
-    process_channel_event,
     process_channel_press,
     process_feedback_comment,
     process_slack_surface,
@@ -102,7 +101,7 @@ async def slack_events(
     if incoming is None:
         return Response(status_code=200)
 
-    spawn(process_channel_event(incoming), name=f"slack_event:{bot_id}")
+    await bot_service.queue_message(bot, incoming)
     return Response(status_code=200)
 
 
@@ -127,7 +126,9 @@ async def slack_interactions(bot_id: UUID, request: Request, bot_service: Channe
         return Response(status_code=200)
     shortcut = parse_shortcut(payload, str(bot_id))
     if shortcut is not None:
-        spawn(process_channel_event(shortcut), name=f"slack_shortcut:{bot_id}")
+        bot = await bot_service.find_active(bot_id)
+        if bot is not None:
+            await bot_service.queue_message(bot, shortcut)
     return Response(status_code=200)
 
 
@@ -140,5 +141,7 @@ async def slack_commands(bot_id: UUID, request: Request, bot_service: ChannelBot
     incoming = parse_command(form, str(bot_id))
     if incoming is None:
         return {"response_type": "ephemeral", "text": "Ask a question after `/agent`."}
-    spawn(process_channel_event(incoming), name=f"slack_command:{bot_id}")
+    bot = await bot_service.find_active(bot_id)
+    if bot is not None:
+        await bot_service.queue_message(bot, incoming)
     return Response(status_code=200)

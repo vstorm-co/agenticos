@@ -306,6 +306,9 @@ async def test_a_rename_keeps_the_column_id_and_the_records_keep_their_values(db
     }
     versions = await service.list_schema_versions(ctx, table.id)
     assert [version.columns[0].label for version in versions.items] == ["Name", "Full name"]
+    exact = await service.list_schema_versions(ctx, table.id, version=1)
+    assert [version.columns[0].label for version in exact.items] == ["Name"]
+    assert (await service.list_schema_versions(ctx, table.id, version=999)).items == []
 
 
 @pytest.mark.security
@@ -974,6 +977,7 @@ async def test_another_organizations_table_does_not_exist(db):
         service.archive_table(intruder, table.id),
         service.unarchive_table(intruder, table.id),
         service.list_schema_versions(intruder, table.id),
+        service.list_schema_versions(intruder, table.id, version=1),
         service.update_schema(intruder, table.id, SchemaUpdate(expected_version=1, columns=[])),
     ):
         with pytest.raises(NotFoundError):

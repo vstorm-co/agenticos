@@ -1,7 +1,7 @@
 import Link from "next/link";
-import type { LucideIcon } from "lucide-react";
+import { Inbox, type LucideIcon } from "lucide-react";
 
-import { SectionGlyph } from "@/components/states/section-glyph";
+import { EmptyIllustration } from "@/components/illustrations/empty-illustration";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +33,7 @@ export function EmptyState({
         className,
       )}
     >
-      {Icon && <SectionGlyph icon={Icon} className="mb-4" />}
+      <EmptyIllustration icon={Icon ?? Inbox} className="mb-3" />
       <h3 className="text-foreground max-w-full text-base font-semibold tracking-tight break-words">
         {title}
       </h3>

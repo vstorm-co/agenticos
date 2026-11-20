@@ -74,6 +74,7 @@ from app.agents.capabilities.coding_agent._task import (
     run_detached,
     task_files,
 )
+from app.agents.capabilities.sandbox._project import ProjectWorkspacePort
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.model_context import check_model_context
 from app.core.exceptions import AppException, BadRequestError
@@ -279,7 +280,11 @@ def build_coding_toolset(
                     "its sandbox. Leave it empty and name the folder in the task.",
                 )
         if runs_on == "personal_sandbox":
-            if shared_sandbox or _in_room(ctx.deps):
+            if (
+                shared_sandbox
+                or isinstance(ctx.workspace.backend, ProjectWorkspacePort)
+                or _in_room(ctx.deps)
+            ):
                 return failed_report(
                     "Personal coding accounts cannot run on sources from a shared workspace, "
                     "project or group chat. Copying those files into a private container does "
@@ -532,7 +537,11 @@ def build_coding_toolset(
         # subscription is theirs alone, so it runs only where nobody else does.
         # A group chat is shared the same way whatever the sandbox's scope says:
         # everybody in the room runs in its conversation's container.
-        if shared_sandbox or (_in_room(ctx.deps) and not personal_isolated):
+        if (
+            shared_sandbox
+            or isinstance(ctx.workspace.backend, ProjectWorkspacePort)
+            or (_in_room(ctx.deps) and not personal_isolated)
+        ):
             return (
                 f"{label} runs on a ChatGPT sign-in only in a sandbox nobody else's tasks "
                 "share, and this one is shared - a project's, a group chat's, or the whole "

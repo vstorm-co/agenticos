@@ -46,11 +46,14 @@ export function ChatApprovalSelector({
           title={t("activeApprovalMode", { mode: t(`mode.${approvalMode}`) })}
           disabled={disabled}
           aria-label={t("activeApprovalMode", { mode: t(`mode.${approvalMode}`) })}
-          className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring touch:min-h-11 inline-flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-lg px-2 text-xs focus-visible:ring-2 disabled:opacity-50"
+          className="group/approval text-muted-foreground hover:bg-muted hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground focus-visible:ring-ring touch:min-h-11 inline-flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-lg px-2 text-xs transition-colors outline-none focus-visible:ring-2 disabled:opacity-50"
         >
           <Icon className="size-3.5 shrink-0" aria-hidden />
           <span className="truncate">{t(`compactMode.${approvalMode}`)}</span>
-          <ChevronDown className="size-3 shrink-0" aria-hidden />
+          <ChevronDown
+            className="size-3 shrink-0 transition-transform group-data-[state=open]/approval:rotate-180 motion-reduce:transition-none"
+            aria-hidden
+          />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="end" className="w-80 max-w-[calc(100vw-2rem)]">

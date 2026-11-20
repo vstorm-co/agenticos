@@ -197,6 +197,9 @@ class TestSending:
             def raise_for_status(self) -> None:
                 return None
 
+            def json(self) -> dict[str, str]:
+                return {"id": "reply-post"}
+
         class _Client:
             async def __aenter__(self):
                 return self
@@ -230,6 +233,9 @@ class TestSending:
         class _Response:
             def raise_for_status(self) -> None:
                 return None
+
+            def json(self) -> dict[str, str]:
+                return {"id": "reply-post"}
 
         class _Client:
             async def post(self, url: str, **_kwargs: object) -> _Response:

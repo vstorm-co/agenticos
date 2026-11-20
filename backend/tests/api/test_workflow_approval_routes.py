@@ -110,6 +110,14 @@ async def test_the_queue_lists_what_the_statuses_ask_for(service: MagicMock):
     ]
 
 
+async def test_the_callers_own_queue_is_asked_for_by_name(service: MagicMock):
+    for open_client in _client_for(OrgRoleName.OPERATOR, service):
+        async with open_client() as http:
+            response = await http.get(_url(), params={"decidable": "true"})
+    assert response.status_code == 200
+    assert service.queue.await_args.kwargs["decidable"] is True
+
+
 async def test_the_record_is_read_newest_first_within_a_window(service: MagicMock):
     for open_client in _client_for(OrgRoleName.OPERATOR, service):
         async with open_client() as http:

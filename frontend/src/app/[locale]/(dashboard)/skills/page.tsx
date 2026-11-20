@@ -175,7 +175,7 @@ export default function SkillsPage() {
     return (
       <div className="flex flex-1 flex-col space-y-4">
         {header}
-        <ListCard fill namedByPage title={t("skills")} counted={null}>
+        <ListCard layout="grid" fill namedByPage title={t("skills")} counted={null}>
           <CatalogLoading kind="document" />
         </ListCard>
       </div>
@@ -298,6 +298,7 @@ export default function SkillsPage() {
       <ProposedChanges canEdit={canCreate} />
 
       <ListCard
+        layout="grid"
         fill
         data-tour="skills-list"
         namedByPage

@@ -37,6 +37,7 @@ async def list_workflow_approvals(
     created_from: datetime | None = Query(None, description="Asked at or after this instant"),
     created_to: datetime | None = Query(None, description="Asked at or before this instant"),
     oldest_first: bool = Query(True, description="The queue drains from the top"),
+    decidable: bool = Query(False, description="Only the requests the caller may decide"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -53,6 +54,7 @@ async def list_workflow_approvals(
         created_from=created_from,
         created_to=created_to,
         oldest_first=oldest_first,
+        decidable=decidable,
     )
 
 

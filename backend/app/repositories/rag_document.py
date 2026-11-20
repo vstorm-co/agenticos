@@ -35,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError
 from app.db.base import Base
-from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.rag_document_claim import RAGDocumentClaim
 from app.db.models.sync_source import SyncSource
@@ -354,7 +354,7 @@ async def update_status(
             .values(**values)
             .execution_options(synchronize_session="fetch")
         )
-        if not result.rowcount:  # ty: ignore[unresolved-attribute]
+        if not result.rowcount:  # ty: ignore[missing-attribute]
             return None
         await db.flush()
         return await db.get(RAGDocument, doc_id)
@@ -457,7 +457,7 @@ async def discard_failed(
 
 
 async def get_settled_for_sync_source(
-    db: AsyncSession, *, sync_source_id: UUID, collection_name: str
+    db: AsyncSession, *, sync_source_id: UUID, scope: CollectionScope
 ) -> list[RAGDocument]:
     """The settled rows one sync source claims in one collection.
 
@@ -475,7 +475,7 @@ async def get_settled_for_sync_source(
         .join(RAGDocumentClaim, RAGDocumentClaim.rag_document_id == RAGDocument.id)
         .where(
             RAGDocumentClaim.sync_source_id == sync_source_id,
-            RAGDocument.collection_name == collection_name,
+            in_collection_scope(scope),
             RAGDocument.status != DocumentStatus.PROCESSING,
         )
     )
@@ -483,7 +483,7 @@ async def get_settled_for_sync_source(
 
 
 async def get_stale_for_sync_source(
-    db: AsyncSession, *, sync_source_id: UUID, collection_name: str
+    db: AsyncSession, *, sync_source_id: UUID, scope: CollectionScope
 ) -> list[RAGDocument]:
     """The `PROCESSING` rows one sync source left in one collection.
 
@@ -501,7 +501,7 @@ async def get_stale_for_sync_source(
         .join(RAGDocumentClaim, RAGDocumentClaim.rag_document_id == RAGDocument.id)
         .where(
             RAGDocumentClaim.sync_source_id == sync_source_id,
-            RAGDocument.collection_name == collection_name,
+            in_collection_scope(scope),
             RAGDocument.status == DocumentStatus.PROCESSING,
             RAGDocument.source_path.is_not(None),
         )
@@ -546,6 +546,25 @@ async def is_claimed_by_another_source(
                 SyncSource.id == RAGDocumentClaim.sync_source_id,
                 RAGDocument.id == RAGDocumentClaim.rag_document_id,
                 SyncSource.collection_name == RAGDocument.collection_name,
+                KnowledgeBase.id == SyncSource.knowledge_base_id,
+                or_(
+                    RAGDocument.knowledge_base_id == KnowledgeBase.id,
+                    and_(
+                        RAGDocument.knowledge_base_id.is_(None),
+                        or_(
+                            and_(
+                                KnowledgeBase.scope == KBScope.APP.value,
+                                RAGDocument.organization_id.is_(None),
+                                RAGDocument.writer_kind == VectorWriterKind.OPERATOR,
+                            ),
+                            and_(
+                                KnowledgeBase.scope != KBScope.APP.value,
+                                KnowledgeBase.organization_id.is_not(None),
+                                RAGDocument.organization_id == KnowledgeBase.organization_id,
+                            ),
+                        ),
+                    ),
+                ),
             )
         )
     )
@@ -600,7 +619,7 @@ async def claim_listed(
     db: AsyncSession,
     *,
     sync_source_id: UUID,
-    collection_name: str,
+    scope: CollectionScope,
     documents: set[tuple[str, str]],
 ) -> None:
     """Claim the settled rows tracking these `(source_path, vector_document_id)` pairs.
@@ -625,7 +644,7 @@ async def claim_listed(
                 ["rag_document_id", "sync_source_id"],
                 select(RAGDocument.id, literal(sync_source_id, PG_UUID(as_uuid=True)))
                 .where(
-                    RAGDocument.collection_name == collection_name,
+                    in_collection_scope(scope),
                     RAGDocument.status == DocumentStatus.DONE,
                     tuple_(RAGDocument.source_path, RAGDocument.vector_document_id).in_(
                         pairs[start : start + CLAIM_BATCH]
@@ -656,14 +675,14 @@ async def transfer_claims(db: AsyncSession, *, from_ids: list[UUID], to_id: UUID
 
 
 async def get_tracked_vector_ids(
-    db: AsyncSession, *, collection_name: str, vector_document_ids: set[str]
+    db: AsyncSession, *, scope: CollectionScope, vector_document_ids: set[str]
 ) -> set[str]:
     """Which of these stored documents a row of the collection points at."""
     if not vector_document_ids:
         return set()
     result = await db.execute(
         select(RAGDocument.vector_document_id).where(
-            RAGDocument.collection_name == collection_name,
+            in_collection_scope(scope),
             RAGDocument.vector_document_id.in_(vector_document_ids),
         )
     )

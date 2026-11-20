@@ -286,9 +286,14 @@ async def set_row_policy(
 
 
 @router.get("/{table_id}/schema-versions", response_model=SchemaVersionList, responses=_REFUSALS)
-async def list_schema_versions(table_id: UUID, service: VirtualTableSvc, ctx: Auth) -> Any:
-    """Every schema version the table has had."""
-    return await service.list_schema_versions(ctx, table_id)
+async def list_schema_versions(
+    table_id: UUID,
+    service: VirtualTableSvc,
+    ctx: Auth,
+    version: int | None = Query(None, ge=1, description="Return only this schema version"),
+) -> Any:
+    """Schema history, optionally restricted to one version without loading the rest."""
+    return await service.list_schema_versions(ctx, table_id, version=version)
 
 
 @router.get("/{table_id}/records", response_model=RecordList, responses=_REFUSALS)

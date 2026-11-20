@@ -6,6 +6,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { McpServerList } from "./mcp-server-list";
+import { ManualConnections as McpServersPage } from "@/app/[locale]/(dashboard)/connectors/manual-connections";
+import { Perm, type Permission } from "@/types/permissions";
+import { qk } from "@/lib/query-keys";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import type { McpCatalog, McpCatalogEntry } from "@/types/mcp";
@@ -29,6 +32,11 @@ vi.mock("@/hooks/use-managed-app-connect", async (importOriginal) => ({
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  client.setQueryData(qk.organizations.permissions("current"), {
+    permissions: permissions.map((permission) => ({ permission, scope: "all" })),
+    role: "member",
+    is_app_admin: false,
   });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
@@ -119,8 +127,16 @@ function registryEntry(overrides: Partial<McpCatalogEntry> = {}): McpCatalogEntr
 }
 
 /** Route each GET to the list it is asking for, so the two owners stay distinct. */
+let permissions: Permission[] = [Perm.mcpManage, Perm.connectionsManage];
 function serve(org: OrgMcpConnectionRecord[], own: McpConnectionRecord[]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path === "/me/permissions")
+      return {
+        permissions: permissions.map((permission) => ({ permission, scope: "all" })),
+        role: "member",
+        is_app_admin: false,
+      };
+    if (path === "/orgs") return { items: [], total: 0 };
     // The unpaged curated catalog, which the category filter and the connection
     // dialogs read - a page cannot answer "which entry is this connection".
     if (path === "/agents/mcp-catalog")
@@ -204,7 +220,10 @@ function serve(org: OrgMcpConnectionRecord[], own: McpConnectionRecord[]) {
         registry_total: registryResults.length,
       };
     }
-    if (path === "/mcp-connections") return { items: org, total: org.length };
+    if (path === "/mcp-connections") {
+      if (!permissions.includes(Perm.mcpManage)) throw new Error("403: Insufficient permissions");
+      return { items: org, total: org.length };
+    }
     if (path === "/me/mcp-connections") return { items: own, total: own.length };
     throw new Error(`unexpected GET ${path}`);
   });
@@ -236,12 +255,165 @@ async function mount({
 // Opening a server writes `?server=` into jsdom's one URL, which every test
 // shares; the next would start with that server's accounts open over the page.
 beforeEach(() => {
+  permissions = [Perm.mcpManage, Perm.connectionsManage];
   window.history.replaceState({}, "", "/mcp-servers");
   catalogEntries = CATALOG.items;
   registryResults = [];
 });
 
 describe("McpServerList", () => {
+  it("lets a member load the full page and replace only their personal token", async () => {
+    permissions = [Perm.agentsView];
+    const own = connection({ id: "p1", name: "my-github" });
+    serve([], [own]);
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: 1,
+          retryDelay: 1,
+          staleTime: 300_000,
+        },
+      },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <McpServersPage />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("group", { name: "GitHub" });
+    const dialog = await openConnections();
+    expect(dialog.getByText("my-github")).toBeVisible();
+    await userEvent.click(dialog.getByRole("button", { name: "More for my-github" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+    expect(screen.queryByRole("radio", { name: /^Organization/ })).toBeNull();
+    expect(screen.getByLabelText("Access token")).toHaveValue("");
+    vi.mocked(apiClient.patch).mockResolvedValue(own);
+    await userEvent.type(screen.getByLabelText("Access token"), "synthetic-replacement");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith(
+        "/me/mcp-connections/p1",
+        expect.objectContaining({ auth_token: "synthetic-replacement" }),
+      ),
+    );
+    expect(apiClient.get).not.toHaveBeenCalledWith("/mcp-connections");
+    expect(screen.getByRole("group", { name: "GitHub" })).toBeVisible();
+  });
+
+  it("uses mcp:manage to retain organization management on the full page", async () => {
+    permissions = [Perm.mcpManage];
+    serve([connection({ name: "shared-github" })], []);
+    render(<McpServersPage />, { wrapper });
+    await screen.findByRole("group", { name: "GitHub" });
+    const dialog = await openConnections();
+    await userEvent.click(dialog.getByRole("button", { name: "More for shared-github" }));
+    expect(screen.getByRole("menuitem", { name: "Edit" })).toBeVisible();
+    expect(apiClient.get).toHaveBeenCalledWith("/mcp-connections");
+  });
+
+  it("keeps personal accounts editable when an authorized organization read fails", async () => {
+    permissions = [Perm.mcpManage];
+    serve([], [connection({ id: "p1", name: "my-github" })]);
+    const get = vi.mocked(apiClient.get).getMockImplementation();
+    if (!get) throw new Error("Expected the MCP API fixture");
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/mcp-connections") throw new Error("Organization service unavailable");
+      return get(path);
+    });
+    render(<McpServersPage />, { wrapper });
+
+    await screen.findByRole("group", { name: "GitHub" });
+    const dialog = await openConnections();
+    await userEvent.click(dialog.getByRole("button", { name: "More for my-github" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+    expect(screen.getByLabelText("Access token")).toBeVisible();
+    expect(apiClient.get).toHaveBeenCalledWith("/mcp-connections");
+  });
+
+  it("retries organization connections when an embedded picker reopens", async () => {
+    serve([connection({ name: "recovered-company" })], []);
+    const get = vi.mocked(apiClient.get).getMockImplementation();
+    if (!get) throw new Error("Expected the MCP API fixture");
+    let unavailable = true;
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/mcp-connections" && unavailable) throw new Error("Temporary failure");
+      return get(path);
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const embedded = () => (
+      <QueryClientProvider client={client}>
+        <McpServerList canManageOrganization persistSelection={false} />
+      </QueryClientProvider>
+    );
+    const first = render(embedded());
+    await waitFor(() =>
+      expect(client.getQueryState(qk.mcpConnections.org())?.status).toBe("error"),
+    );
+    first.unmount();
+    unavailable = false;
+    render(embedded());
+    await waitFor(() =>
+      expect(client.getQueryState(qk.mcpConnections.org())?.status).toBe("success"),
+    );
+    await screen.findByRole("group", { name: "GitHub" });
+    const dialog = await openConnections();
+    expect(dialog.getByText("recovered-company")).toBeVisible();
+  });
+
+  it("waits for permissions and organization accounts before opening personal editing", async () => {
+    permissions = [Perm.mcpManage];
+    serve([], [connection({ id: "p1", name: "my-github" })]);
+    const get = vi.mocked(apiClient.get).getMockImplementation();
+    if (!get) throw new Error("Expected the MCP API fixture");
+    let releasePermissions: () => void = () => {};
+    let releaseOrganization: () => void = () => {};
+    const permissionGate = new Promise<void>((resolve) => {
+      releasePermissions = resolve;
+    });
+    const organizationGate = new Promise<void>((resolve) => {
+      releaseOrganization = resolve;
+    });
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/me/permissions") await permissionGate;
+      if (path === "/mcp-connections") await organizationGate;
+      return get(path);
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <McpServersPage />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/mcp-connections"));
+    expect(screen.queryByRole("group", { name: "GitHub" })).toBeNull();
+    await act(async () => releasePermissions());
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/mcp-connections"));
+    expect(screen.queryByRole("group", { name: "GitHub" })).toBeNull();
+    await act(async () => releaseOrganization());
+    await screen.findByRole("group", { name: "GitHub" });
+    const dialog = await openConnections();
+    await userEvent.click(dialog.getByRole("button", { name: "More for my-github" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+    await userEvent.type(screen.getByLabelText("Access token"), "keep-this-draft");
+    expect(screen.getByLabelText("Access token")).toHaveValue("keep-this-draft");
+  });
+
+  it("does not expose cached organization accounts to a member", async () => {
+    permissions = [Perm.connectionsManage, Perm.agentsView];
+    serve([], [connection({ id: "p1", name: "my-github" })]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(qk.mcpConnections.org(), [connection({ name: "private-org-account" })]);
+    render(
+      <QueryClientProvider client={client}>
+        <McpServersPage />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("group", { name: "GitHub" });
+    const dialog = await openConnections();
+    expect(dialog.getByText("my-github")).toBeVisible();
+    expect(dialog.queryByText("private-org-account")).toBeNull();
+    expect(apiClient.get).not.toHaveBeenCalledWith("/mcp-connections");
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     registryResults = [];
@@ -1784,4 +1956,31 @@ describe("arriving with ?connect= for a server behind OAuth", () => {
     );
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+});
+
+it("explains an empty search and clears every narrowing", async () => {
+  await mount();
+  await userEvent.type(screen.getByPlaceholderText("Search servers…"), "no-server-matches");
+  expect(await screen.findByText("No servers found")).toBeVisible();
+  expect(screen.queryByRole("group", { name: "GitHub" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  expect(await screen.findByRole("group", { name: "GitHub" })).toBeVisible();
+  expect(screen.getByPlaceholderText("Search servers…")).toHaveValue("");
+});
+
+it("shows a failed catalog request and retries without claiming an empty catalog", async () => {
+  serve([], []);
+  const original = vi.mocked(apiClient.get).getMockImplementation();
+  if (!original) throw new Error("Missing catalog mock");
+  let refused = true;
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.startsWith("/agents/mcp-servers") && refused) throw new Error("Offline");
+    return original(path);
+  });
+  render(<McpServerList canManageOrganization />, { wrapper });
+  expect(await screen.findByText("Could not load servers")).toBeVisible();
+  expect(screen.queryByText("No servers found")).not.toBeInTheDocument();
+  refused = false;
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(await screen.findByRole("group", { name: "GitHub" })).toBeVisible();
 });

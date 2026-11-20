@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   Building2,
   Sparkles,
-  Radar,
   Link2,
   MailPlus,
   Network,
@@ -50,6 +49,12 @@ import {
   ConfirmDialog,
   EntityAvatar,
   ListCard,
+  SearchInput,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
   ListCardEmpty,
   Select,
   SelectContent,
@@ -79,6 +84,8 @@ import { ROUTES } from "@/lib/constants";
 import { useOrgStore } from "@/stores";
 import { useAssistant } from "@/hooks/use-assistant";
 import { OrganizationProfileSettings } from "@/components/teams/organization-profile-settings";
+import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { useTenantId } from "@/hooks/use-organizations";
 import { BrowserTeachingPolicy } from "@/components/browser/browser-teaching-policy";
 
@@ -116,6 +123,8 @@ export default function OrgMembersPage({ params }: PageProps) {
   const [removing, setRemoving] = useState<OrganizationMember | null>(null);
   const [removingBusy, setRemovingBusy] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  const [memberQuery, setMemberQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
 
   useEffect(() => {
     fetchMembers();
@@ -143,9 +152,9 @@ export default function OrgMembersPage({ params }: PageProps) {
   const canSystemServices = can(Perm.budgetsManage) && tenantId === id;
   const { roles: systemRoles, error: systemRolesError } = useSystemAgents(canSystemServices);
   const hints: Record<string, SetupHint[]> = {
-    profile: org && canSettings ? voiceSetupHints(org) : [],
-    proactivity: org && can(Perm.budgetsManage) ? proactivitySetupHints(org) : [],
     assistant: [
+      ...(org && canSettings ? voiceSetupHints(org) : []),
+      ...(org && can(Perm.budgetsManage) ? proactivitySetupHints(org) : []),
       ...(canConfigureAssistant && assistant ? architectSetupHints(assistant) : []),
       ...(canSystemServices && !systemRolesError
         ? (systemRoles ?? []).flatMap(systemAgentSetupHints)
@@ -154,7 +163,6 @@ export default function OrgMembersPage({ params }: PageProps) {
   };
   const sections = [
     { id: "members", label: "members", icon: Users, visible: true },
-    { id: "profile", label: "tabProfile", icon: Building2, visible: true },
     {
       id: "governance",
       label: "tabGovernance",
@@ -162,20 +170,24 @@ export default function OrgMembersPage({ params }: PageProps) {
       visible: can(Perm.budgetsManage) || can(Perm.approvalsDecide) || canSettings,
     },
     {
-      id: "proactivity",
-      label: "tabProactivity",
-      icon: Radar,
-      visible: tenantId !== id || can(Perm.budgetsManage) || canSettings,
-    },
-    {
       id: "assistant",
       label: "tabAssistant",
       icon: Sparkles,
-      visible: canConfigureAssistant || canSystemServices,
+      visible: canConfigureAssistant || canSystemServices || canSettings || tenantId !== id,
     },
   ].filter((section) => section.visible);
   // Existing bookmarks and settings links keep opening the moved voice controls.
-  const requestedTab = tabParam === "voice" && canSettings ? "profile" : tabParam;
+  const requestedTab = tabParam === "voice" || tabParam === "proactivity" ? "assistant" : tabParam;
+  const workspaceOpen = tabParam === "profile";
+  const closeWorkspace = () =>
+    useUnsavedChangesStore.getState().leave(() => setTabParam(null), [`org-profile:${id}`]);
+  const visibleMembers = members.filter((member) => {
+    const needle = memberQuery.trim().toLocaleLowerCase(locale);
+    return (
+      (roleFilter === "all" || member.role === roleFilter) &&
+      `${member.full_name ?? ""} ${member.email}`.toLocaleLowerCase(locale).includes(needle)
+    );
+  });
   const tab = sections.find((section) => section.id === requestedTab)?.id ?? "members";
   const pendingInvitations = invitations.filter((i) => i.status === "pending");
 
@@ -278,6 +290,22 @@ export default function OrgMembersPage({ params }: PageProps) {
         },
       },
       {
+        key: "lastAction",
+        header: <span title={t("lastActionHint")}>{t("lastAction")}</span>,
+        cell: (member) => (
+          <span
+            className="text-muted-foreground text-sm"
+            title={
+              member.last_action_at
+                ? new Date(member.last_action_at).toLocaleString(locale)
+                : t("noRecordedAction")
+            }
+          >
+            {member.last_action_at ? formatDate(member.last_action_at, locale) : "—"}
+          </span>
+        ),
+      },
+      {
         key: "joined",
         header: t("joined"),
         hideBelow: "md",
@@ -321,7 +349,7 @@ export default function OrgMembersPage({ params }: PageProps) {
     }
 
     return cols;
-  }, [canManage, user?.id, assignable, changeRole, removeMember, tDirectory]);
+  }, [canManage, user?.id, assignable, changeRole, tDirectory, tDiscord, t, tc, locale]);
 
   return (
     <div className="flex flex-1 flex-col space-y-4">
@@ -385,12 +413,22 @@ export default function OrgMembersPage({ params }: PageProps) {
           </div>
         }
         actions={
-          canManage && (
-            <Button onClick={() => setInviteOpen(true)}>
-              <UserPlus className="h-4 w-4" />
-              {t("inviteTeammate")}
+          <>
+            <Button
+              variant="outline"
+              data-tour="org-tab-profile"
+              onClick={() => setTabParam("profile")}
+            >
+              <Building2 className="size-4" aria-hidden />
+              {t("editWorkspace")}
             </Button>
-          )
+            {canManage && (
+              <Button onClick={() => setInviteOpen(true)}>
+                <UserPlus className="h-4 w-4" />
+                {t("inviteTeammate")}
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -447,10 +485,38 @@ export default function OrgMembersPage({ params }: PageProps) {
             fill
             data-tour="org-members"
             title={t("membersCard")}
+            namedByPage
+            controls={
+              <>
+                <SearchInput
+                  value={memberQuery}
+                  onChange={setMemberQuery}
+                  placeholder={t("searchMembers")}
+                />
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger
+                    className="w-auto min-w-36 capitalize"
+                    aria-label={t("filterRole")}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("allRoles")}</SelectItem>
+                    {Array.from(new Set(members.map((member) => member.role)))
+                      .sort()
+                      .map((role) => (
+                        <SelectItem key={role} value={role} className="capitalize">
+                          {role}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </>
+            }
             counted={
               isLoading || permissionsLoading || error
                 ? null
-                : t("memberCount", { count: members.length })
+                : t("memberCount", { count: visibleMembers.length })
             }
             contentClassName="p-0"
           >
@@ -476,14 +542,14 @@ export default function OrgMembersPage({ params }: PageProps) {
               <DataTable<OrganizationMember>
                 stackOnNarrow
                 columns={columns}
-                rows={members}
+                rows={visibleMembers}
                 // Wait on the permission answer too, or the row-action column - built
                 // from `canManage` - draws without its actions and then flickers them
                 // in a beat later once `can()` resolves (safe direction, but a glitch).
                 loading={isLoading || permissionsLoading}
                 skeletonRows={4}
                 getRowKey={(m) => m.id}
-                empty={t("noMembersYet")}
+                empty={t("noMatchingMembers")}
                 className="rounded-none border-0 bg-transparent"
               />
             )}
@@ -556,18 +622,6 @@ export default function OrgMembersPage({ params }: PageProps) {
           )}
         </TabsContent>
         <TabsContent
-          value="profile"
-          hidden={tab !== "profile"}
-          forceMount
-          className="space-y-6 data-[state=inactive]:hidden"
-        >
-          <p className="text-muted-foreground max-w-3xl text-sm leading-6">
-            {t("workspaceSettingsHint")}
-          </p>
-          {org && <OrganizationProfileSettings org={org} />}
-          {org && canSettings && <OrgVoiceSettings org={org} />}
-        </TabsContent>
-        <TabsContent
           value="governance"
           data-tour="org-governance"
           hidden={tab !== "governance"}
@@ -581,26 +635,36 @@ export default function OrgMembersPage({ params }: PageProps) {
           {org && <BrowserTeachingPolicy />}
         </TabsContent>
         <TabsContent
-          value="proactivity"
-          data-tour="org-proactivity"
-          hidden={tab !== "proactivity"}
-          forceMount
-          className="space-y-6 data-[state=inactive]:hidden"
-        >
-          {org && <OrgProactivity org={org} />}
-        </TabsContent>
-        <TabsContent
           value="assistant"
           hidden={tab !== "assistant"}
           forceMount
           className="space-y-6 data-[state=inactive]:hidden"
         >
-          <p className="text-muted-foreground max-w-3xl text-sm leading-6">{t("aiServicesHint")}</p>
+          {org && canSystemServices && <OrgSystemAgents org={org} excludeBriefing />}
           {canConfigureAssistant && <OrgAssistant orgId={id} />}
-          {org && canSystemServices && <OrgSystemAgents org={org} />}
+          <div data-tour="org-proactivity">
+            {org && (
+              <OrgProactivity org={org} collapsible defaultOpen={tabParam === "proactivity"} />
+            )}
+          </div>
+          {org && canSettings && <OrgVoiceSettings org={org} collapsible={tabParam !== "voice"} />}
         </TabsContent>
       </Tabs>
 
+      <Dialog
+        open={workspaceOpen}
+        onOpenChange={(open) => {
+          if (!open) closeWorkspace();
+        }}
+      >
+        <DialogContent className={`${DIALOG_FORM} ${DIALOG_SCROLL}`}>
+          <DialogHeader>
+            <DialogTitle>{t("editWorkspace")}</DialogTitle>
+            <DialogDescription>{t("workspaceAppearanceHint")}</DialogDescription>
+          </DialogHeader>
+          {org && <OrganizationProfileSettings org={org} inDialog />}
+        </DialogContent>
+      </Dialog>
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => {

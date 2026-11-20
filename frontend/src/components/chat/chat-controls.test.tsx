@@ -8,6 +8,7 @@ import { ChatControls } from "./chat-controls";
 
 const state = vi.hoisted(() => ({
   desktop: false,
+  personalModel: false,
   profiles: [] as { id: string; label: string; provider: string; model: string }[],
   conversationId: null as string | null,
   // Both halves of "may this session waive approvals": the caller's permission
@@ -62,7 +63,13 @@ vi.mock("@/stores", () => ({
 }));
 vi.mock("@/hooks/use-agents", () => ({
   useAgents: () => ({
-    agents: [{ id: "agent-1", personal_coding_harness: state.personalHarness }],
+    agents: [
+      {
+        id: "agent-1",
+        personal_coding_harness: state.personalHarness,
+        personal_model_key: state.personalModel,
+      },
+    ],
   }),
 }));
 
@@ -102,6 +109,7 @@ const trigger = () => screen.getByRole("button", { name: /Chat controls/ });
 beforeEach(() => {
   useChatControlsStore.setState({ byScope: {} });
   state.desktop = false;
+  state.personalModel = false;
   useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
   state.profiles = [{ id: "p-1", label: "openai default", provider: "openai", model: "gpt-4.1" }];
   state.conversationId = null;
@@ -440,4 +448,33 @@ it("keeps both personal account connections reachable for an agent that delegate
   await userEvent.click(screen.getByRole("tab", { name: "Tools & files" }));
   expect(screen.getByRole("region", { name: "Your codex account" })).toBeVisible();
   expect(screen.getByRole("region", { name: "Your claude_code account" })).toBeVisible();
+});
+
+it("keeps usage inside the controls panel", async () => {
+  render(<ChatControls usageSlot={<span>Context usage details</span>} />);
+  expect(screen.queryByText("Context usage details")).toBeNull();
+  await userEvent.click(trigger());
+  expect(screen.getByText("Context usage details")).toBeVisible();
+});
+
+vi.mock("./personal-model-connection", () => ({
+  PersonalModelConnection: () => <p>Private model connection form</p>,
+}));
+it("offers the private connection instead of a model picker for a fixed personal-key agent", async () => {
+  state.personalModel = true;
+  open();
+  await userEvent.click(trigger());
+  expect(screen.getByText("Private model connection form")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /pick a model/ })).not.toBeInTheDocument();
+});
+
+it("clears a saved model override when switching to a personal-key agent", async () => {
+  const changed = vi.fn();
+  const { rerender } = render(<ChatControls onModelProfileChange={changed} />);
+  await userEvent.click(trigger());
+  await userEvent.click(screen.getByRole("button", { name: /pick a model/ }));
+  expect(changed).toHaveBeenLastCalledWith("p-1");
+  state.personalModel = true;
+  rerender(<ChatControls onModelProfileChange={changed} />);
+  expect(changed).toHaveBeenLastCalledWith(null);
 });

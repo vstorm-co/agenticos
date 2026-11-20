@@ -10,7 +10,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-from pydantic import ValidationError
+from jsonschema import Draft202012Validator
+from pydantic import TypeAdapter, ValidationError
 
 from app.schemas.scoring import (
     CHECK,
@@ -31,6 +32,7 @@ from app.services.scorers import (
     MAX_REASON,
     MAX_RULE,
     CaseView,
+    JudgeCriterion,
     JudgeGrade,
     JudgeVerdict,
     ScoredAnswer,
@@ -46,6 +48,7 @@ from app.services.scorers import (
     restates,
     run_checks,
     score_trajectory,
+    verdict_schema,
 )
 
 
@@ -1112,3 +1115,60 @@ class TestLengthCheck:
     def test_a_check_without_sound_bounds_is_refused(self, check, message) -> None:
         with pytest.raises(ValidationError, match=message):
             CHECK.validate_python(check)
+
+
+def test_the_verdict_schema_asks_for_one_grade_on_the_scale_per_criterion() -> None:
+    criteria = [
+        JudgeCriterion(id=i, scorer="judge", name=i, description=i, required=True)
+        for i in ("r1", "c1")
+    ]
+
+    schema = verdict_schema(criteria, scale_max=2)
+
+    grades = schema["properties"]["grades"]
+    assert (grades["minItems"], grades["maxItems"]) == (2, 2)
+    grade = schema["$defs"]["JudgeGrade"]["properties"]
+    assert grade["id"]["enum"] == ["r1", "c1"]
+    assert (grade["score"]["minimum"], grade["score"]["maximum"]) == (1, 2)
+    # Narrowed per call: the type's own schema keeps no criterion's ids.
+    assert (
+        "enum"
+        not in TypeAdapter(JudgeVerdict).json_schema()["$defs"]["JudgeGrade"]["properties"]["id"]
+    )
+
+
+@pytest.mark.parametrize("ids", [("a", "a"), ("b", "b"), ("a",), ("a", "b", "a"), ("a", "unknown")])
+def test_judge_schema_retries_duplicate_missing_and_unknown_criteria(ids: tuple[str, ...]) -> None:
+    criteria = [
+        JudgeCriterion(id=i, scorer="judge", name=i, description=i, required=True)
+        for i in ("a", "b")
+    ]
+    schema = verdict_schema(criteria, scale_max=5)
+    grades = [{"id": i, "score": 3, "reason": "Grounded"} for i in ids]
+    assert not Draft202012Validator(schema).is_valid({"grades": grades})
+
+
+def test_judge_schema_keeps_lenient_evidence_and_accepts_any_criterion_order() -> None:
+    criteria = [
+        JudgeCriterion(id=i, scorer="judge", name=i, description=i, required=True)
+        for i in ("a", "b")
+    ]
+    schema = verdict_schema(criteria, scale_max=5)
+    answer = {
+        "grades": [
+            {"id": "b", "score": 3, "reason": "Grounded", "quotes": "Exact passage", "rule": None},
+            {
+                "id": "a",
+                "score": 4,
+                "reason": "Grounded",
+                "quotes": [None, "Other passage"],
+                "rule": 12,
+            },
+        ]
+    }
+    Draft202012Validator(schema).validate(answer)
+    verdict = JudgeVerdict.model_validate(answer)
+    assert [(g.id, g.quotes, g.rule) for g in verdict.grades] == [
+        ("b", ["Exact passage"], ""),
+        ("a", ["Other passage"], ""),
+    ]

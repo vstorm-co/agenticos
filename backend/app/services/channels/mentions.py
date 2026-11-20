@@ -42,12 +42,14 @@ import re
 from collections.abc import AsyncGenerator, Set
 from dataclasses import dataclass, field
 from decimal import Decimal
+from functools import partial
 from io import BytesIO
 from typing import Any
 from uuid import UUID
 
 from botocore.exceptions import BotoCoreError, ClientError
 from PIL import Image
+from pydantic import JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.channel_tools import ChannelDirectory
@@ -62,7 +64,7 @@ from app.db.models.organization import Organization
 from app.repositories import agent_exposure_repo, agent_repo, member_repo
 from app.services import generated_media, visual_render
 from app.services.access import publisher_context
-from app.services.agent_runner import AgentRunnerService, RunStream
+from app.services.agent_runner import AgentRunnerService, RunSegment, RunStream
 from app.services.channels.attachments import MAX_OUTBOUND_BYTES
 from app.services.channels.base import (
     ROOM_HANDLES,
@@ -77,6 +79,7 @@ from app.services.channels.formatting import (
 )
 from app.services.channels.live_reply import with_preview_links
 from app.services.channels.next_steps import next_steps_of
+from app.services.channels.reply_receipts import saved_rendering, segment_sink
 from app.services.channels.steering import current_steering, is_asked_aside
 from app.services.file_storage import get_file_storage
 from app.services.transcript import RecordedToolCall
@@ -508,6 +511,11 @@ class ChannelAgentRouter:
             tool_calls=called,
             generated_files=generated_files,
             stream=stream,
+            on_segment=segment_sink(
+                partial(
+                    self._render_segment, ctx, usage_reporting=exposure.usage_reporting, turn=turn
+                )
+            ),
             surface=_SURFACES.get(platform, RunSurface.API),
             # A question is asked here as buttons and answered later (#2064) - of
             # a linked member. An unlinked sender's turn runs as the publisher,
@@ -539,9 +547,11 @@ class ChannelAgentRouter:
             # enforcing nothing.
             exposure=exposure,
         )
-        rendered_answer = await self._with_usage(
-            ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
-        )
+        rendered_answer = saved_rendering()
+        if rendered_answer is None:
+            rendered_answer = await self._with_usage(
+                ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
+            )
         return AnsweredTurn(
             text=rendered_answer,
             attachments=produced,
@@ -640,6 +650,11 @@ class ChannelAgentRouter:
             tool_calls=called,
             generated_files=generated_files,
             stream=stream,
+            on_segment=segment_sink(
+                partial(
+                    self._render_segment, ctx, usage_reporting=exposure.usage_reporting, turn=turn
+                )
+            ),
             surface=_SURFACES.get(platform, RunSurface.API),
             # A question is asked here as buttons and answered later (#2064) - of
             # a linked member. An unlinked sender's turn runs as the publisher,
@@ -665,9 +680,11 @@ class ChannelAgentRouter:
             channel_author_context="" if incoming is None else authored_prompt("", incoming),
             exposure=exposure,
         )
-        rendered_answer = await self._with_usage(
-            ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
-        )
+        rendered_answer = saved_rendering()
+        if rendered_answer is None:
+            rendered_answer = await self._with_usage(
+                ctx, answer, run, usage_reporting=exposure.usage_reporting, turn=turn
+            )
         return AnsweredTurn(
             text=rendered_answer,
             attachments=produced,
@@ -687,6 +704,18 @@ class ChannelAgentRouter:
             status=run.status,
             run_id=run.id,
             next_steps=next_steps_of(called),
+        )
+
+    async def _render_segment(
+        self,
+        ctx: AuthContext,
+        segment: RunSegment,
+        *,
+        usage_reporting: dict[str, JsonValue] | None,
+        turn: int,
+    ) -> str:
+        return await self._with_usage(
+            ctx, segment.output, segment.run, usage_reporting=usage_reporting, turn=turn
         )
 
     async def _with_usage(

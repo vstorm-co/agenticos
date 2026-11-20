@@ -18,6 +18,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
+    DDL,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -28,6 +29,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -290,7 +292,7 @@ class AgentRun(Base, TimestampMixin):
     routine_policy: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("conversations.id", ondelete="SET NULL"),
+        ForeignKey("conversations.id", ondelete="SET NULL", deferrable=True, initially="DEFERRED"),
         nullable=True,
     )
     # Who asked, when who asked is not a person: the chat account a channel turn
@@ -340,6 +342,9 @@ class AgentRun(Base, TimestampMixin):
     # a test of the draft has no version, and a run parked on an approval has to
     # continue on exactly what it was running.
     test_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    text_to_speech_defaults: Mapped[dict[str, str | bool | None] | None] = mapped_column(
+        JSONB, nullable=True
+    )
 
     # The skill versions this run served, its inline specialists' included; null for
     # a run from before skills were versioned.
@@ -489,6 +494,15 @@ class AgentRun(Base, TimestampMixin):
 
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The transactions committed when the row was inserted, before the run reads any
+    # memory: an erasure missing from it was still running, so what the run read may
+    # predate it. Prefixed with the database boot so restarts and restores invalidate
+    # older visibility evidence. Null only on runs predating this column.
+    memory_snapshot: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        server_default=text("agenticos_memory_snapshot()"),
+    )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Stamped every few seconds by the process executing the run
     # (`app.services.run_heartbeat`), so a run whose process died is told apart
@@ -501,6 +515,10 @@ class AgentRun(Base, TimestampMixin):
     # column rather than a `paused_state` key: `PausedRunState` is
     # `extra="forbid"`, so a key there would make the run unreadable to an older
     # process on a rollback or a rolling deploy.
+    channel_stop_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    """A verified channel sender asked this active run to stop at its next model boundary."""
     chat_notice_sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -526,6 +544,12 @@ class AgentRun(Base, TimestampMixin):
         # Monthly spend, per organization. Read before *every* model request to
         # check the budget, so it is the most frequently served query here.
         Index("ix_agent_runs_org_started", "organization_id", "started_at"),
+        Index(
+            "ix_agent_runs_routine_activation",
+            "organization_id",
+            text("(routine_policy ->> 'activation_id')"),
+            postgresql_where=text("(routine_policy ->> 'activation_id') IS NOT NULL"),
+        ),
         # The same window broken down by provider - "what did we spend at OpenAI"
         # is the question a bill arrives with.
         Index(
@@ -551,6 +575,30 @@ class AgentRun(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<AgentRun(agent={self.agent_id}, status={self.status}, cost=${self.cost_usd})>"
+
+
+# The functions `memory_snapshot`'s default calls, for a schema built from the models;
+# 0336_run_memory_snapshot.py creates the same ones for a migrated database.
+_MEMORY_CLUSTER_FUNCTION = DDL(
+    """
+CREATE OR REPLACE FUNCTION agenticos_memory_cluster() RETURNS text
+LANGUAGE sql STABLE AS $$
+    SELECT 'boot:' || md5(extract(epoch FROM pg_postmaster_start_time())::text
+                         || '/' || oid::text)
+    FROM pg_database WHERE datname = current_database()
+$$
+"""
+)
+_MEMORY_SNAPSHOT_FUNCTION = DDL(
+    """
+CREATE OR REPLACE FUNCTION agenticos_memory_snapshot() RETURNS text
+LANGUAGE sql VOLATILE AS $$
+    SELECT agenticos_memory_cluster() || '/' || pg_current_snapshot()::text
+$$
+"""
+)
+event.listen(AgentRun.__table__, "before_create", _MEMORY_CLUSTER_FUNCTION)
+event.listen(AgentRun.__table__, "before_create", _MEMORY_SNAPSHOT_FUNCTION)
 
 
 class ApprovalStatus(enum.StrEnum):

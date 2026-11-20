@@ -43,10 +43,9 @@ test.use({ storageState: AUTH_STATE });
  * colleague declines once (and nothing starts) and confirms once (and the page
  * gets the workflow's answer, a run recorded as started by an app).
  *
- * The run's end needs the workflow worker (`make dev` starts it; CI starts the
- * workflow pool and sets `E2E_WORKER=1`). Without that flag the journey proves
- * admission - the page's progress shows it queued or running and an app run
- * exists. With the worker, it must also receive the workflow's answer.
+ * The run's end needs the workflow worker (`make dev` and CI start it). CI sets
+ * `E2E_WORKER=1` so the answer and terminal state are required. A local API-only
+ * stack can still exercise admission without that flag.
  */
 
 /** Long enough for the runs and the polls behind them, on a dev server that compiles. */
@@ -268,7 +267,14 @@ test.describe("artifact actions", () => {
     await ok(agent, "creating the agent");
     fixture.agentId = ((await agent.json()) as { id: string }).id;
     await ok(
-      await request.put(`/api/agents/${fixture.agentId}/draft`, { data: { spec } }),
+      await request.put(`/api/agents/${fixture.agentId}/draft`, {
+        data: {
+          spec,
+          expected_revision: (
+            await json<{ draft_revision: string }>(request, `/api/agents/${fixture.agentId}`)
+          ).draft_revision,
+        },
+      }),
       "the agent's draft",
     );
     await ok(

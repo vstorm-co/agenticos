@@ -1,0 +1,2057 @@
+{
+  "kind": "retrieval_answer_rescore",
+  "rescored_at": "2026-11-10T13:35:34.123090+00:00",
+  "source": {
+    "path": "evals/retrieval/results/2026-11-10-openrouter-gpt6-luna.json",
+    "sha256": "ae537c9848a49514ee005dcf142c57edb2ab9adc1a0db0505e54deda100a9933",
+    "dataset_sha256": "03a2e444e77dab09b3e6624557a9672815550604c5fd85e783320a3408f80417",
+    "source_revision": "e8e782562ccd88b44e34e3054572cd37da1f12cc"
+  },
+  "dataset": {
+    "path": "evals/retrieval/docs_questions.yaml",
+    "version": 1,
+    "sha256": "a80ae8813451c5746fafc3eb140937dda5e02dbad8dfc32161f4a71f0b9dead7"
+  },
+  "scoring": {
+    "path": "evals/retrieval/scoring.py",
+    "sha256": "9fdfc953dd2c8141c515ee7620b13a9170d57ee29ac2147590f072e5d9c725a1"
+  },
+  "model_requests": 0,
+  "embedding_requests": 0,
+  "method": "Recompute ItemResult and summarize from the source artifact answers and ranked page keys. Only expected-fact alternatives and ignoring verbatim question echoes change; retrieval, queries, model outputs and their original measurements remain unchanged.",
+  "expected_facts": {
+    "saml-single-sign-on": [
+      [
+        "no",
+        "not",
+        "nie"
+      ],
+      [
+        "Keycloak*"
+      ]
+    ],
+    "scim-provisioning": [
+      [
+        "no",
+        "not",
+        "isn't",
+        "doesn't"
+      ],
+      [
+        "sign-in*",
+        "sign in",
+        "signs in",
+        "signing in",
+        "deactivat*"
+      ]
+    ],
+    "org-wide-default-model": [
+      [
+        "no",
+        "not",
+        "cannot",
+        "isn't"
+      ],
+      [
+        "spec*"
+      ]
+    ],
+    "api-client-sdk": [
+      [
+        "no",
+        "not",
+        "isn't"
+      ],
+      [
+        "OpenAPI",
+        "curl",
+        "API reference"
+      ]
+    ],
+    "per-document-access-in-collection": [
+      [
+        "no",
+        "not",
+        "cannot",
+        "isn't"
+      ],
+      [
+        "every document",
+        "all documents",
+        "whole collection",
+        "collection as a whole",
+        "collection level",
+        "collection-level",
+        "separate*",
+        "split*",
+        "different collection*",
+        "another collection"
+      ]
+    ],
+    "admin-creates-account-when-closed": [
+      [
+        "no",
+        "not",
+        "cannot"
+      ],
+      [
+        "invite_only",
+        "invite*"
+      ]
+    ],
+    "zapier-signed-webhook": [
+      [
+        "no",
+        "not",
+        "cannot"
+      ],
+      [
+        "code"
+      ]
+    ],
+    "deployment-wide-embedding-key": [
+      [
+        "no",
+        "not",
+        "cannot",
+        "isn't"
+      ],
+      [
+        "embedding_secret_id",
+        "vault*",
+        "each collection",
+        "each personal or organization collection",
+        "its own key",
+        "per collection",
+        "per-collection"
+      ]
+    ],
+    "environment-without-version-pl": [
+      [
+        "nie",
+        "no",
+        "not",
+        "brak"
+      ],
+      [
+        "domyśln*",
+        "default",
+        "opublikowan*",
+        "published"
+      ]
+    ],
+    "voice-calls-recorded-pl": [
+      [
+        "nie",
+        "no",
+        "not"
+      ],
+      [
+        "transkrypc*",
+        "transcript*",
+        "tekst*",
+        "text"
+      ]
+    ],
+    "vault-master-key-fallback": [
+      [
+        "SECRET_KEY"
+      ]
+    ],
+    "unanswered-question-expiry": [
+      [
+        "24"
+      ]
+    ],
+    "job-queue-engine": [
+      [
+        "Postgres*",
+        "pgqueue"
+      ]
+    ],
+    "table-record-limit": [
+      [
+        "100,000",
+        "100000",
+        "100 000",
+        "100k"
+      ]
+    ],
+    "podman-deployment": [
+      [
+        "yes",
+        "supported",
+        "can"
+      ],
+      [
+        "Compose"
+      ]
+    ],
+    "session-lifetime": [
+      [
+        "7",
+        "seven",
+        "10080"
+      ]
+    ],
+    "workflow-worker-concurrency": [
+      [
+        "five",
+        "5"
+      ]
+    ],
+    "skill-file-name": [
+      [
+        "SKILL.md"
+      ]
+    ],
+    "context-always-loaded": [
+      [
+        "inject*"
+      ]
+    ],
+    "embedding-providers": [
+      [
+        "openrouter"
+      ],
+      [
+        "ollama"
+      ],
+      [
+        "openai"
+      ]
+    ],
+    "default-pdf-parser-pl": [
+      [
+        "pymupdf"
+      ]
+    ],
+    "table-write-rate-limit-pl": [
+      [
+        "300"
+      ]
+    ],
+    "project-default-agent-pl": [
+      [
+        "domyśln*",
+        "default"
+      ]
+    ],
+    "role-approves-without-editing-pl": [
+      [
+        "operator*"
+      ]
+    ],
+    "saml-single-sign-on-pl": [
+      [
+        "nie",
+        "no",
+        "not",
+        "brak"
+      ],
+      [
+        "Keycloak*"
+      ]
+    ],
+    "default-chunk-size-pl": [
+      [
+        "2500",
+        "2 500",
+        "2,500"
+      ]
+    ],
+    "voice-call-length-pl": [
+      [
+        "50"
+      ]
+    ],
+    "publish-reaches-production-pl": [
+      [
+        "nie",
+        "no",
+        "not"
+      ],
+      [
+        "tracks_latest",
+        "tracks latest",
+        "promowa*",
+        "promocj*",
+        "śledzi najnowsz*",
+        "śledzenie najnowsz*"
+      ]
+    ],
+    "model-weights-in-image-pl": [
+      [
+        "nie",
+        "no",
+        "not",
+        "brak"
+      ],
+      [
+        "dostawc*",
+        "provider*",
+        "pobier*",
+        "download*",
+        "profil*"
+      ]
+    ],
+    "redis-cluster-pl-corpus": [
+      [
+        "no",
+        "not",
+        "nie",
+        "isn't"
+      ],
+      [
+        "one instance",
+        "single instance",
+        "primary",
+        "one endpoint",
+        "one Redis",
+        "single Redis",
+        "pojedyncz*"
+      ]
+    ],
+    "desktop-app-framework-pl-corpus": [
+      [
+        "Tauri"
+      ]
+    ],
+    "approval-expiry-pl-corpus": [
+      [
+        "72"
+      ]
+    ],
+    "stdio-mcp-server-pl-corpus": [
+      [
+        "no",
+        "not",
+        "cannot",
+        "nie"
+      ],
+      [
+        "bridge*",
+        "most",
+        "mostu",
+        "mostem",
+        "streamable HTTP",
+        "streamable-HTTP",
+        "SSE",
+        "server-sent events"
+      ]
+    ],
+    "sandbox-docker-in-docker-pl-corpus": [
+      [
+        "no",
+        "not",
+        "nie"
+      ],
+      [
+        "sibling*",
+        "host's daemon",
+        "host daemon",
+        "sandboxd",
+        "socket"
+      ]
+    ]
+  },
+  "configurations": [
+    {
+      "label": "top_k=5, query_analysis_mode=off",
+      "top_k": 5,
+      "query_analysis_mode": "off",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.7142857142857143,
+          "recall": 0.7142857142857143,
+          "mrr": 0.5595238095238095,
+          "answered": 14,
+          "answers_correct": 12
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.85,
+          "mrr": 0.7333333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.6,
+          "recall": 0.55,
+          "mrr": 0.425,
+          "answered": 10,
+          "answers_correct": 6
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.7352941176470589,
+          "recall": 0.7058823529411765,
+          "mrr": 0.5710784313725491,
+          "answered": 34,
+          "answers_correct": 27
+        }
+      ],
+      "answer_checks": [
+        {
+          "id": "saml-single-sign-on",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "scim-provisioning",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "org-wide-default-model",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "api-client-sdk",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "environment-without-version-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "domyśln*",
+              "default",
+              "opublikowan*",
+              "published"
+            ]
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "job-queue-engine",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-record-limit",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "podman-deployment",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "session-lifetime",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "7",
+              "seven",
+              "10080"
+            ]
+          ]
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "skill-file-name",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "context-always-loaded",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "embedding-providers",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "project-default-agent-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "operator*"
+            ]
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "2500",
+              "2 500",
+              "2,500"
+            ]
+          ]
+        },
+        {
+          "id": "voice-call-length-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "dostawc*",
+              "provider*",
+              "pobier*",
+              "download*",
+              "profil*"
+            ]
+          ]
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "one instance",
+              "single instance",
+              "primary",
+              "one endpoint",
+              "one Redis",
+              "single Redis",
+              "pojedyncz*"
+            ]
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "72"
+            ]
+          ]
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        }
+      ]
+    },
+    {
+      "label": "top_k=5, query_analysis_mode=multi_query",
+      "top_k": 5,
+      "query_analysis_mode": "multi_query",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.7142857142857143,
+          "recall": 0.7142857142857143,
+          "mrr": 0.5595238095238095,
+          "answered": 14,
+          "answers_correct": 12
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.85,
+          "mrr": 0.6583333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.7,
+          "recall": 0.65,
+          "mrr": 0.5333333333333333,
+          "answered": 10,
+          "answers_correct": 7
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.7647058823529411,
+          "recall": 0.7352941176470589,
+          "mrr": 0.5808823529411765,
+          "answered": 34,
+          "answers_correct": 28
+        }
+      ],
+      "answer_checks": [
+        {
+          "id": "saml-single-sign-on",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "scim-provisioning",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "org-wide-default-model",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "api-client-sdk",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "OpenAPI",
+              "curl",
+              "API reference"
+            ]
+          ]
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "environment-without-version-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "job-queue-engine",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-record-limit",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "podman-deployment",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "session-lifetime",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "7",
+              "seven",
+              "10080"
+            ]
+          ]
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "skill-file-name",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "context-always-loaded",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "embedding-providers",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "project-default-agent-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "operator*"
+            ]
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "2500",
+              "2 500",
+              "2,500"
+            ]
+          ]
+        },
+        {
+          "id": "voice-call-length-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "dostawc*",
+              "provider*",
+              "pobier*",
+              "download*",
+              "profil*"
+            ]
+          ]
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "one instance",
+              "single instance",
+              "primary",
+              "one endpoint",
+              "one Redis",
+              "single Redis",
+              "pojedyncz*"
+            ]
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        }
+      ]
+    },
+    {
+      "label": "top_k=5, query_analysis_mode=hyde",
+      "top_k": 5,
+      "query_analysis_mode": "hyde",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.8571428571428571,
+          "recall": 0.8214285714285714,
+          "mrr": 0.6571428571428571,
+          "answered": 14,
+          "answers_correct": 11
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.85,
+          "mrr": 0.7833333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.85,
+          "mrr": 0.67,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.8823529411764706,
+          "recall": 0.8382352941176471,
+          "mrr": 0.6980392156862746,
+          "answered": 34,
+          "answers_correct": 29
+        }
+      ],
+      "answer_checks": [
+        {
+          "id": "saml-single-sign-on",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "scim-provisioning",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "org-wide-default-model",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "api-client-sdk",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "environment-without-version-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "domyśln*",
+              "default",
+              "opublikowan*",
+              "published"
+            ]
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "24"
+            ]
+          ]
+        },
+        {
+          "id": "job-queue-engine",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-record-limit",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "podman-deployment",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "session-lifetime",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "7",
+              "seven",
+              "10080"
+            ]
+          ]
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "skill-file-name",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "context-always-loaded",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "embedding-providers",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "project-default-agent-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "operator*"
+            ]
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "voice-call-length-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "one instance",
+              "single instance",
+              "primary",
+              "one endpoint",
+              "one Redis",
+              "single Redis",
+              "pojedyncz*"
+            ]
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        }
+      ]
+    },
+    {
+      "label": "top_k=10, query_analysis_mode=off",
+      "top_k": 10,
+      "query_analysis_mode": "off",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.7857142857142857,
+          "recall": 0.7857142857142857,
+          "mrr": 0.5714285714285714,
+          "answered": 14,
+          "answers_correct": 13
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.9,
+          "mrr": 0.7333333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.85,
+          "mrr": 0.46416666666666667,
+          "answered": 10,
+          "answers_correct": 8
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.8529411764705882,
+          "recall": 0.8382352941176471,
+          "mrr": 0.5875,
+          "answered": 34,
+          "answers_correct": 30
+        }
+      ],
+      "answer_checks": [
+        {
+          "id": "saml-single-sign-on",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "scim-provisioning",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "org-wide-default-model",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "api-client-sdk",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "environment-without-version-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "domyśln*",
+              "default",
+              "opublikowan*",
+              "published"
+            ]
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "job-queue-engine",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-record-limit",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "podman-deployment",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "session-lifetime",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "skill-file-name",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "context-always-loaded",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "embedding-providers",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "project-default-agent-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "operator*"
+            ]
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "2500",
+              "2 500",
+              "2,500"
+            ]
+          ]
+        },
+        {
+          "id": "voice-call-length-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "one instance",
+              "single instance",
+              "primary",
+              "one endpoint",
+              "one Redis",
+              "single Redis",
+              "pojedyncz*"
+            ]
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        }
+      ]
+    },
+    {
+      "label": "top_k=10, query_analysis_mode=multi_query",
+      "top_k": 10,
+      "query_analysis_mode": "multi_query",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.7857142857142857,
+          "recall": 0.7857142857142857,
+          "mrr": 0.5738095238095238,
+          "answered": 14,
+          "answers_correct": 13
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.9,
+          "mrr": 0.7083333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 0.7,
+          "recall": 0.65,
+          "mrr": 0.6,
+          "answered": 10,
+          "answers_correct": 7
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.7941176470588235,
+          "recall": 0.7794117647058824,
+          "mrr": 0.621078431372549,
+          "answered": 34,
+          "answers_correct": 29
+        }
+      ],
+      "answer_checks": [
+        {
+          "id": "saml-single-sign-on",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "scim-provisioning",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "org-wide-default-model",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "api-client-sdk",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "environment-without-version-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "domyśln*",
+              "default",
+              "opublikowan*",
+              "published"
+            ]
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "job-queue-engine",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-record-limit",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "podman-deployment",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "session-lifetime",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "skill-file-name",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "context-always-loaded",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "embedding-providers",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "project-default-agent-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "operator*"
+            ]
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "2500",
+              "2 500",
+              "2,500"
+            ]
+          ]
+        },
+        {
+          "id": "voice-call-length-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "dostawc*",
+              "provider*",
+              "pobier*",
+              "download*",
+              "profil*"
+            ]
+          ]
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "one instance",
+              "single instance",
+              "primary",
+              "one endpoint",
+              "one Redis",
+              "single Redis",
+              "pojedyncz*"
+            ]
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        }
+      ]
+    },
+    {
+      "label": "top_k=10, query_analysis_mode=hyde",
+      "top_k": 10,
+      "query_analysis_mode": "hyde",
+      "summary": [
+        {
+          "category": "factual",
+          "questions": 14,
+          "hit_rate": 0.9285714285714286,
+          "recall": 0.9285714285714286,
+          "mrr": 0.6642857142857144,
+          "answered": 14,
+          "answers_correct": 12
+        },
+        {
+          "category": "negative",
+          "questions": 10,
+          "hit_rate": 0.9,
+          "recall": 0.9,
+          "mrr": 0.7833333333333333,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "cross_language",
+          "questions": 10,
+          "hit_rate": 1.0,
+          "recall": 0.95,
+          "mrr": 0.6825,
+          "answered": 10,
+          "answers_correct": 9
+        },
+        {
+          "category": "all",
+          "questions": 34,
+          "hit_rate": 0.9411764705882353,
+          "recall": 0.9264705882352942,
+          "mrr": 0.704656862745098,
+          "answered": 34,
+          "answers_correct": 30
+        }
+      ],
+      "answer_checks": [
+        {
+          "id": "saml-single-sign-on",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "scim-provisioning",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "org-wide-default-model",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "api-client-sdk",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "per-document-access-in-collection",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "admin-creates-account-when-closed",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "zapier-signed-webhook",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "deployment-wide-embedding-key",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "environment-without-version-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "domyśln*",
+              "default",
+              "opublikowan*",
+              "published"
+            ]
+          ]
+        },
+        {
+          "id": "voice-calls-recorded-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "vault-master-key-fallback",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "unanswered-question-expiry",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "24"
+            ]
+          ]
+        },
+        {
+          "id": "job-queue-engine",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-record-limit",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "podman-deployment",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "session-lifetime",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "workflow-worker-concurrency",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "skill-file-name",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "context-always-loaded",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "embedding-providers",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-pdf-parser-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "table-write-rate-limit-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "project-default-agent-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "role-approves-without-editing-pl",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "operator*"
+            ]
+          ]
+        },
+        {
+          "id": "saml-single-sign-on-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "default-chunk-size-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "voice-call-length-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "publish-reaches-production-pl",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "model-weights-in-image-pl",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "redis-cluster-pl-corpus",
+          "previous_answer_correct": false,
+          "answer_correct": false,
+          "missing_facts": [
+            [
+              "one instance",
+              "single instance",
+              "primary",
+              "one endpoint",
+              "one Redis",
+              "single Redis",
+              "pojedyncz*"
+            ]
+          ]
+        },
+        {
+          "id": "desktop-app-framework-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "approval-expiry-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "stdio-mcp-server-pl-corpus",
+          "previous_answer_correct": false,
+          "answer_correct": true,
+          "missing_facts": []
+        },
+        {
+          "id": "sandbox-docker-in-docker-pl-corpus",
+          "previous_answer_correct": true,
+          "answer_correct": true,
+          "missing_facts": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-source_sha: "5605d024cb81"
+source_sha: "febed1aea968"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -805,7 +805,11 @@ Optionaler **Secure Access** benötigt das Kubernetes-Ingress-Gateway von OpenSa
 
 Ein späterer Turn verbindet den gespeicherten Arbeitsbereich erneut. Fehlende oder unerreichbare Arbeitsbereiche werden abgelehnt; ihre Referenz bleibt erhalten, statt stillschweigend leere Dateien anzulegen. Setze sie nach der Dateiwiederherstellung ausdrücklich zurück. Das Turn-Ende schließt HTTP-Clients; der Arbeitsbereich bleibt gemäß seinem Bereich erhalten. Die bestehende dauerhafte Löschwarteschlange übernimmt die Bereinigung. Behalte Verbindung und Schlüssel bis zum Erfolg ausstehender Löschungen. AgenticOS listet nicht alle Sandboxes des Servers auf; sandboxd-spezifische Sitzungs- und Limitansichten gelten nicht für diesen Anbieter.
 
-Validiert wurden Docker-Lebenszyklus, Dateierhalt, Wiederverbindung, Ablehnung fehlender Arbeitsbereiche und Bereinigung auf server/execd 1.2.0. Kubernetes Secure Access wurde nicht auf einem echten Cluster geprüft. Das Downgrade von `0317_opensandbox_connections.py` wird verweigert, solange OpenSandbox-Verbindungen oder Runtime-Namen mit mehr als 64 Zeichen existieren.
+Validiert wurden Docker-Lebenszyklus, Dateierhalt, Wiederverbindung, Ablehnung fehlender Arbeitsbereiche und Bereinigung auf server/execd 1.2.0.
+
+Die lokale OpenShift-5.0.0-Validierung prüfte außerdem Kubernetes BatchSandbox, Secure Access, Shell-Verbindungsprüfung und Dateierhalt auf server/controller/execd/gateway 1.2.1. Die Konversationslöschung benötigt die im [Kubernetes-Leitfaden](kubernetes.md#oidc-and-sandbox-configuration) beschriebene Korrektur der Bereinigungsreihenfolge; Release 1.80.0 lässt Remote-Workspaces zurück. Agentenwerkzeuge lesen/schreiben Dateien, die Workspace-Archiv-API der Konsole unterstützt jedoch kein Browsen oder Herunterladen von OpenSandbox-Dateien.
+
+ Das Downgrade von `0317_opensandbox_connections.py` wird verweigert, solange OpenSandbox-Verbindungen oder Runtime-Namen mit mehr als 64 Zeichen existieren.
 
 **Der eigene Computer der Person.** In der [Desktop-App](desktop.md#work-on-this-computer)
 kann ein Chat in einem Ordner auf dem Computer arbeiten, auf dem sie läuft. Die

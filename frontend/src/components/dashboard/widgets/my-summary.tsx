@@ -23,7 +23,7 @@ import type { DashboardWidgetProps } from "./types";
  * this is the one a member opens their dashboard on. Read from the caller's own
  * usage (`scope=own`), which carries the waiting count the organization's does
  * not. What waits counts the same as the dashboard's greeting: tool calls,
- * answers to review, failing suites and suggestions. An empty period still draws
+ * personal Inbox proposals. An empty period still draws
  * the four figures at zero: a person with no runs yet is told so by numbers, not
  * by a card that says nothing. It counts what waits only once every list behind
  * that figure answered, and fails as a whole when one of them is refused.

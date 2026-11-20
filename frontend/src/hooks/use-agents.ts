@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { agentListParams, canonicalFacet } from "@/lib/agent-facets";
 import { hasResource, withResource, type AgentResourceRef } from "@/lib/agent-spec";
 import { apiClient } from "@/lib/api-client";
-import { fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
+import { ApiError, fieldProblems, getErrorMessage, problemList } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { invalidateSpeechSettings } from "@/lib/dictation-api";
 import { readThrough } from "@/lib/offline/device-cache";
@@ -20,6 +20,7 @@ import type {
   Agent,
   AgentCeiling,
   AgentDetail,
+  AgentDraftUpdate,
   AgentList,
   AgentSpec,
   AgentVersion,
@@ -378,11 +379,18 @@ export function useAgent(agentId: string | null) {
     [queryClient, agentId],
   );
 
+  const tDraft = useTranslations("pages.agents");
+
   const saveDraft = useMutation({
-    mutationFn: (spec: AgentSpec) =>
-      apiClient.put<AgentDetail>(`/agents/${agentId}/draft`, { spec }),
+    mutationFn: (update: AgentDraftUpdate) =>
+      apiClient.put<AgentDetail>(`/agents/${agentId}/draft`, update),
     onSuccess: invalidate,
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: (error) =>
+      toast.error(
+        error instanceof ApiError && error.details?.reason === "draft_changed"
+          ? tDraft("draftChanged")
+          : getErrorMessage(error, tErrors),
+      ),
   });
 
   /**
@@ -709,6 +717,7 @@ export function useAddToAgent() {
       if (hasResource(agent.draft_spec, resource)) return { already: true };
       await apiClient.put<Agent>(`/agents/${agentId}/draft`, {
         spec: withResource(agent.draft_spec, resource),
+        expected_revision: agent.draft_revision,
       });
       return { already: false };
     },

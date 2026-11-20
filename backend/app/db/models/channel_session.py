@@ -43,6 +43,10 @@ class ChannelSession(Base, TimestampMixin):
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     turn_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    thread_context_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    """Upper timestamp of the last bounded thread import, independent of compaction."""
     thread_history_version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )
@@ -91,3 +95,14 @@ class ChannelSession(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<ChannelSession(id={self.id}, bot_id={self.bot_id}, platform_chat_id={self.platform_chat_id})>"
+
+
+class ChannelMessageSource(Base):
+    """Native post receipts survive transcript compaction without copying its text."""
+
+    __tablename__ = "channel_message_sources"
+
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), primary_key=True
+    )
+    post_id: Mapped[str] = mapped_column(String(255), primary_key=True)

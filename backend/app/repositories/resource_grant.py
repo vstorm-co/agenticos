@@ -34,7 +34,7 @@ async def _delete_rows(db: AsyncSession, statement: Delete) -> int:
     """
     result = await db.execute(statement)
     await db.flush()
-    return result.rowcount  # ty: ignore[unresolved-attribute]
+    return result.rowcount  # ty: ignore[missing-attribute]
 
 
 def _unexpired() -> ColumnElement[bool]:

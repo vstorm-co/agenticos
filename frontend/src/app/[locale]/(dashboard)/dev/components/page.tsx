@@ -18,6 +18,16 @@ import {
   FormField,
   IconButton,
   Input,
+  Textarea,
+  NativeSelect,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Switch,
+  Checkbox,
+  AvatarColorPicker,
   SectionHeading,
 } from "@/components/ui";
 
@@ -145,6 +155,39 @@ function Gallery() {
           <FormField label="Email" htmlFor="g-email" error="That email is already taken." required>
             <Input id="g-email" type="email" defaultValue="taken@example.com" />
           </FormField>
+          <FormField label="Notes" htmlFor="g-notes">
+            <Textarea id="g-notes" placeholder="Context for your teammates" />
+          </FormField>
+          <FormField label="Native select" htmlFor="g-native-select">
+            <NativeSelect id="g-native-select" defaultValue="one">
+              <option value="one">First option</option>
+              <option value="two">Second option</option>
+            </NativeSelect>
+          </FormField>
+          <FormField label="Select" htmlFor="g-select">
+            <Select defaultValue="one">
+              <SelectTrigger id="g-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="one">First option</SelectItem>
+                <SelectItem value="two">Second option</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="Unavailable" htmlFor="g-disabled">
+            <Input id="g-disabled" disabled defaultValue="Unavailable field" />
+          </FormField>
+          <FormField label="Enable notifications" htmlFor="g-switch" layout="switch">
+            <Switch id="g-switch" />
+          </FormField>
+          <FormField label="Checked switch" htmlFor="g-switch-checked" layout="switch">
+            <Switch id="g-switch-checked" defaultChecked />
+          </FormField>
+          <FormField label="Accept updates" htmlFor="g-checkbox" layout="switch">
+            <Checkbox id="g-checkbox" />
+          </FormField>
+          <AvatarColorPicker value={null} onChange={() => undefined} />
         </div>
       </Section>
 

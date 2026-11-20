@@ -1,5 +1,5 @@
 ---
-source_sha: "66a7891467fd"
+source_sha: "8bc14e41e751"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -380,6 +380,20 @@ zamienić, kończy się błędem `MAPPING_COERCION_FAILED` z nazwą pola.
 ::: app.workflows.nodes.data_map._handler.DataMapConfig
 
 ::: app.workflows.nodes.data_map._handler.FieldMapping
+
+## data.value { #data-value }
+
+**Data** przechowuje jedną wartość dla kolejnych kroków: obiekt, listę albo
+pojedynczą liczbę, tekst lub wartość logiczną. Wpisz ją jako JSON albo podepnij
+w całości pod wynik wcześniejszego kroku. Krok przekazuje ją bez zmian jako
+`value`, a kolejny krok podpina całą wartość albo ścieżkę w niej, na przykład
+`value.customer.email`.
+
+Wartość jest ustawiana raz na run i nigdy nie jest nadpisywana. Wynik kroku jest
+ustalony w chwili jego zakończenia, więc żaden kolejny krok nie może go zmienić:
+Data to nazwana stała, a nie zmienna. Aby zmienić wartość, dodaj krok, który
+zbuduje z niej nową. Aby zebrać wartości z elementów pętli, użyj `loop.yield`.
+Testowy run kroku Data bez wartości kończy się błędem `DATA_NOT_SET`.
 
 ## data.filter i data.combine { #data-filter-and-data-combine }
 
@@ -1001,8 +1015,11 @@ Poczta nie ma klucza idempotencji, więc ponowiony krok wysyła ponownie.
 tego, co run ma zrobić, a potem idzie dalej przez `approved` albo `rejected`.
 Zatwierdzający czyta `title` kroku i powiązane z nim `details` w zakładce
 **Approvals** w Activity albo przez `GET /api/v1/workflow-approvals`.
-`approvers` wskazuje, kto może zdecydować, i ci ludzie dostają powiadomienie w
-aplikacji; gdy lista jest pusta, może każdy z `approvals:decide`. Po
+`approvers` i `approver_groups` wskazują, kto może zdecydować: te osoby i członkowie
+grup z `approvals:decide` ([grupy akceptujące](../governance.md#approval-groups)).
+Dostają powiadomienie w aplikacji. Gdy obie listy są puste, może każdy z
+`approvals:decide` i wszyscy oni dostają powiadomienie. Prośba trafia też na początek Inboxu każdego, kto może ją
+rozstrzygnąć. Po
 `timeout_hours` prośba wygasa, a krok wychodzi przez `rejected` z
 `decision: "expired"`. Anulowanie runa anuluje jego prośby, tak samo jak anulowanie workflowu, który ten run wywołał. Każdy przebieg kroku
 pyta raz, więc ponowienie ani iteracja pętli nigdy nie pytają dwa razy o to samo.
@@ -1288,6 +1305,8 @@ zmieniają.
 może utworzyć swoją tabelę przy pierwszym uruchomieniu, a potem jej używać. Oba
 pytania wychodzą dokładnie jednym portem, a `logic.merge` może z powrotem
 połączyć gałęzie.
+
+`table.record.exists` i `table.record.query` przyjmują w zapisanych filtrach etykiety opcji select obok identyfikatorów. Rozwiązują etykiety według bieżącej tabeli przed zapytaniem; nieznane lub niejednoznaczne etykiety nadal powodują błąd walidacji.
 
 ::: app.workflows.nodes.table_list._handler.TableListOutput
 

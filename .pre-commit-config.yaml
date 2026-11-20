@@ -118,13 +118,13 @@ repos:
     hooks:
       - id: ruff-format
         name: ruff format
-        entry: uv run --no-sync --directory backend ruff format . ../scripts
+        entry: uv run --no-sync --directory backend ruff format . ../scripts ../evals
         language: system
         types: [python]
         pass_filenames: false
       - id: ruff-check
         name: ruff check
-        entry: uv run --no-sync --directory backend ruff check . ../scripts --fix
+        entry: uv run --no-sync --directory backend ruff check . ../scripts ../evals --fix
         language: system
         types: [python]
         pass_filenames: false
@@ -181,6 +181,16 @@ repos:
         entry: uv run --no-sync --directory backend python3 ../scripts/check_docs_i18n.py
         language: system
         types: [markdown]
+        pass_filenames: false
+      # The Architect's skill carries copies of some `docs/` pages, because the
+      # backend image has none. An edited page whose copy was not rewritten has
+      # the Architect quote the old text. Fix: python3 scripts/gen_architect_guide.py
+      - id: check-architect-guide
+        name: Architect guide copies current
+        entry: uv run --no-sync --directory backend python3 ../scripts/gen_architect_guide.py --check
+        language: system
+        files: '(\.md$|^scripts/gen_architect_guide\.py$)'
+        types_or: [markdown, python]
         pass_filenames: false
       # Double backticks are reStructuredText; Markdown renders them literally,
       # and so do editor hovers over a docstring.

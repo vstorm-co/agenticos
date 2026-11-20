@@ -612,11 +612,20 @@ export interface WorkflowRunRead {
   /** The run this one retries; its succeeded steps were not run again. */
   retry_of_run_id: Uuid | null;
   depth: number;
+  /** The one step a step test ran; null for a whole-draft test and a real run. */
+  tested_step?: WorkflowTestedStep | null;
   /** Whether the caller may cancel the run and resolve its steps; the single-run read says so. */
   can_cancel: boolean;
   started_at: string | null;
   ended_at: string | null;
   created_at: string | null;
+}
+
+/** The step a step test ran, as the run's own snapshot names it. */
+export interface WorkflowTestedStep {
+  node_id: Uuid;
+  label: string | null;
+  definition_id: string | null;
 }
 
 export interface WorkflowRunList {
@@ -850,6 +859,8 @@ export interface RunHistoryQuery {
   workflowId?: Uuid;
   status?: WorkflowRunStatus;
   mode?: "real" | "test";
+  /** Only step tests when true; leaves them out when false. */
+  stepTest?: boolean;
   triggeredBy?: string;
   /** Only runs started at or after this instant, ISO 8601. */
   createdAfter?: string;

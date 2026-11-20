@@ -1,9 +1,8 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { YourSuggestions } from "./your-suggestions";
-import type { Suggestion } from "@/lib/suggestions-api";
 
 /**
  * The person's side of the nightly look (#2301): switching it off for
@@ -12,10 +11,9 @@ import type { Suggestion } from "@/lib/suggestions-api";
 
 const state = vi.hoisted(() => ({
   optedOut: false,
+  signedIn: true,
   orgOn: true as boolean | undefined,
-  history: [] as Suggestion[],
   saveOptOut: vi.fn(),
-  restore: vi.fn(),
 }));
 const toastSuccess = vi.hoisted(() => vi.fn());
 const toastError = vi.hoisted(() => vi.fn());
@@ -26,42 +24,46 @@ vi.mock("@/hooks", () => ({
   }),
 }));
 vi.mock("@/hooks/use-account-profile", () => ({ useSaveProactiveOptOut: () => state.saveOptOut }));
-vi.mock("@/hooks/use-suggestions", () => ({
-  useSuggestionHistory: () => ({
-    history: state.history,
-    isLoading: false,
-    restore: state.restore,
-  }),
-}));
 vi.mock("@/stores", () => ({
-  useAuthStore: (pick: (store: { user: { proactive_opt_out: boolean } }) => unknown) =>
-    pick({ user: { proactive_opt_out: state.optedOut } }),
+  useAuthStore: (pick: (store: { user: { proactive_opt_out: boolean } | null }) => unknown) =>
+    pick({ user: state.signedIn ? { proactive_opt_out: state.optedOut } : null }),
 }));
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 
-function suggestion(id: string, status: Suggestion["status"], detail: string | null = null) {
-  return {
-    id,
-    kind: "routine",
-    status,
-    title: `Title ${id}`,
-    detail,
-    payload: {},
-    created_at: "2026-10-22T05:00:00Z",
-  } satisfies Suggestion;
-}
-
 beforeEach(() => {
   state.optedOut = false;
+  state.signedIn = true;
   state.orgOn = true;
-  state.history = [];
   state.saveOptOut.mockReset().mockResolvedValue(undefined);
-  state.restore.mockReset().mockResolvedValue(undefined);
   toastSuccess.mockReset();
   toastError.mockReset();
 });
 
 describe("YourSuggestions", () => {
+  it("blocks another preference change while its write is pending", async () => {
+    let finish: (() => void) | undefined;
+    state.saveOptOut.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(<YourSuggestions />);
+    const toggle = screen.getByRole("switch");
+    await userEvent.click(toggle);
+    expect(toggle).toBeDisabled();
+    await userEvent.click(toggle);
+    expect(state.saveOptOut).toHaveBeenCalledTimes(1);
+    await act(async () => finish?.());
+    expect(toggle).toBeEnabled();
+  });
+
+  it("handles an account still loading without claiming an opt-out", () => {
+    state.signedIn = false;
+    render(<YourSuggestions />);
+    expect(screen.getByRole("switch")).toBeChecked();
+  });
+
   it("lets a person leave themselves out, and back in", async () => {
     render(<YourSuggestions />);
     const mine = screen.getByRole("switch", { name: "Nightly suggestions for me" });
@@ -99,33 +101,12 @@ describe("YourSuggestions", () => {
     expect(screen.queryByText(/organization has nightly suggestions off/)).toBeNull();
   });
 
-  it("lists what was proposed and brings a declined one back", async () => {
-    state.history = [
-      suggestion("a", "open", "Every Monday"),
-      suggestion("b", "accepted"),
-      suggestion("c", "dismissed"),
-    ];
-    render(<YourSuggestions />);
-
-    const rows = screen.getAllByRole("listitem");
-    expect(within(rows[0]!).getByText("Waiting")).toBeInTheDocument();
-    expect(within(rows[0]!).getByText("Every Monday")).toBeInTheDocument();
-    expect(within(rows[1]!).getByText("Taken")).toBeInTheDocument();
-    expect(within(rows[1]!).queryByRole("button")).toBeNull();
-
-    await userEvent.click(within(rows[2]!).getByRole("button", { name: "Bring back" }));
-
-    expect(state.restore).toHaveBeenCalledWith("c");
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Back among your suggestions"));
-  });
-
-  it("says when nothing was proposed yet, and a failed answer out loud", async () => {
+  it("reports a failed preference change and leaves history to Inbox", async () => {
     state.saveOptOut.mockRejectedValue(new Error("down"));
     render(<YourSuggestions />);
-    expect(screen.getByText("Nothing proposed yet.")).toBeInTheDocument();
-
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("switch", { name: "Nightly suggestions for me" }));
-
     await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect(screen.getByRole("switch")).toBeChecked();
   });
 });

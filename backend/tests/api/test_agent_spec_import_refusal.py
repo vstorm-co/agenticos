@@ -65,7 +65,8 @@ def client(mock_db_session: Any, mock_redis: MagicMock) -> Iterator[Any]:
 async def _import(client: Any, text: str) -> Any:
     async with client() as opened:
         return await opened.post(
-            f"{settings.API_V1_STR}/agents/{_AGENT_ID}/spec.yaml", json={"yaml": text}
+            f"{settings.API_V1_STR}/agents/{_AGENT_ID}/spec.yaml",
+            json={"yaml": text, "expected_revision": "0" * 64},
         )
 
 

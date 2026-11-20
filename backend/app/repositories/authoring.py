@@ -778,6 +778,10 @@ async def train_answers(
 ) -> list[TrainAnswer]:
     """Only current, non-erased training revisions; holdout content never enters this result.
 
+    Only answers the agent itself gave, as a version or its draft: a spec an
+    improvement attempt proposed is not what the agent is, and one that was
+    rejected never becomes it.
+
     `case_ids` are an improvement attempt's own learning questions, in place of the
     dataset's stored partition. `until` leaves out runs from that moment on.
     """
@@ -815,7 +819,11 @@ async def train_answers(
             EvalRun.status == "completed",
             EvalRun.created_at >= since,
             EvalRun.created_at < until if until is not None else true(),
-            EvalRunArm.role == "candidate",
+            or_(
+                EvalRunArm.role == "candidate",
+                and_(EvalRun.proposal_check.is_not(None), EvalRunArm.role == "baseline"),
+            ),
+            EvalRunArm.source != "explicit",
             EvalRunCase.attempt == 0,
         )
         .order_by(EvalRun.created_at.desc(), EvalRunCase.position, EvalRunCase.id)

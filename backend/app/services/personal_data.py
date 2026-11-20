@@ -52,6 +52,7 @@ from app.schemas.personal_data import (
     RoutineHealthExport,
     RoutineSourceExport,
 )
+from app.schemas.personal_model_key import PersonalModelKeyRead
 from app.services.dataset import redact_credentials
 
 logger = logging.getLogger(__name__)
@@ -352,6 +353,10 @@ class PersonalDataService:
                 await personal_data_repo.notification_routes_of(self.db, user_id),
                 ("id", "organization_id", "channel", "session_id", "created_at"),
             ),
+            personal_model_keys=[
+                PersonalModelKeyRead.model_validate(row)
+                for row in await personal_data_repo.personal_model_keys_of(self.db, user_id)
+            ],
             coding_accounts=personal_data_repo.as_rows(
                 await personal_data_repo.coding_accounts_of(self.db, user_id),
                 (
@@ -510,6 +515,7 @@ class PersonalDataService:
         await TaskService(self.db).purge_scope("private", user_id)
         await personal_data_repo.purge_routine_authority(self.db, user_id)
         notes = await personal_data_repo.purge_memory_about(self.db, person_owner_key(user_id))
+        await personal_data_repo.forget_all_system_runs_of(self.db, user_id)
         workspaces = await personal_data_repo.purge_workspaces_of(
             self.db, person_owner_key(user_id)
         )

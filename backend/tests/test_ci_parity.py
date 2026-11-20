@@ -368,3 +368,19 @@ class TestCheckRunsUnderThePinnedInterpreter:
             "route each through `uv run --directory backend python3 "
             "../scripts/<name>.py`, the fix `check_routes.py` already got"
         )
+
+
+def test_dependency_freshness_allows_the_full_backend_runtime() -> None:
+    """The upgrade canary runs the same suite; 25 minutes cut off healthy tests."""
+    timeouts: list[int] = []
+    for filename, job_name in (("ci.yml", "test"), ("dependency-freshness.yml", "newest")):
+        config: object = yaml.safe_load((WORKFLOW.parent / filename).read_text())
+        assert isinstance(config, dict)
+        jobs = config["jobs"]
+        assert isinstance(jobs, dict)
+        job = jobs[job_name]
+        assert isinstance(job, dict)
+        timeout = job["timeout-minutes"]
+        assert isinstance(timeout, int)
+        timeouts.append(timeout)
+    assert timeouts[1] >= timeouts[0], "dependency freshness must allow the full backend CI runtime"

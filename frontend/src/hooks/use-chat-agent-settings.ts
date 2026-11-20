@@ -36,12 +36,12 @@ export function useChatAgentSettings(agentId: string, readOnly: boolean) {
   const blocked = !editable || detail.saveDraft.isPending || remote.held || !spec?.name.trim();
 
   const save = async (): Promise<boolean> => {
-    if (blocked || spec === null) return false;
+    if (blocked || spec === null || !agent) return false;
     setFailure(null);
     try {
       // The hook instance is keyed by account, organization and agent. Its mutation
       // closes over this agent ID even when the visible chat switches during the request.
-      await detail.saveDraft.mutateAsync(spec);
+      await detail.saveDraft.mutateAsync({ spec, expected_revision: agent.draft_revision });
       return true;
     } catch (error) {
       setFailure(getErrorMessage(error, tErrors));

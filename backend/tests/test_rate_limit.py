@@ -12,6 +12,7 @@ not trusted by default, and that a Redis nobody can reach degrades to no limit
 rather than to no service.
 """
 
+import asyncio
 from contextlib import AbstractAsyncContextManager, AsyncExitStack
 from unittest.mock import AsyncMock, MagicMock
 
@@ -987,3 +988,95 @@ class TestPaidSurfacesKeepAFloorWhileRedisIsDown:
         ]
 
         assert [(d.allowed, d.metered) for d in decisions] == [(True, True), (True, True)]
+
+
+@pytest.mark.security
+async def test_renewed_comparison_claim_outlives_its_ttl_and_stops_renewing_on_exit():
+    client, store = _claims()
+    renewed = asyncio.Event()
+    renewals = 0
+
+    async def extend(key: str, token: str, ttl: int) -> bool:
+        nonlocal renewals
+        renewals += 1
+        if renewals >= 3:
+            renewed.set()
+        return True
+
+    client.expire_if_equals = AsyncMock(side_effect=extend)
+    rate_limit.configure(client)
+    async with rate_limit.one_in_flight(
+        "eval_comparison", "org:renew", ttl_seconds=1, message="Busy", renew=True
+    ):
+        await asyncio.wait_for(renewed.wait(), timeout=5)
+        assert client.expire_if_equals.await_count >= 3
+        key, token, ttl = client.expire_if_equals.await_args.args
+        assert store == {key: token} and ttl == 1
+        with pytest.raises(RateLimitError):
+            async with rate_limit.one_in_flight(
+                "eval_comparison", "org:renew", ttl_seconds=1, message="Busy", renew=True
+            ):
+                pass
+    assert not store and key not in rate_limit._held_here
+    calls = client.expire_if_equals.await_count
+    await asyncio.sleep(0.4)
+    assert client.expire_if_equals.await_count == calls
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("outcome", [False, ConnectionError("unreachable")])
+async def test_renewal_failure_logs_and_keeps_the_per_process_floor(
+    outcome: bool | ConnectionError, caplog: pytest.LogCaptureFixture
+):
+    client, store = _claims()
+    attempted = asyncio.Event()
+
+    async def extend(key: str, token: str, ttl: int) -> bool:
+        attempted.set()
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    client.expire_if_equals = AsyncMock(side_effect=extend)
+    rate_limit.configure(client)
+    async with rate_limit.one_in_flight(
+        "eval_comparison", "org:failure", ttl_seconds=1, message="Busy", renew=True
+    ):
+        await asyncio.wait_for(attempted.wait(), timeout=5)
+        store.clear()
+        with pytest.raises(RateLimitError):
+            async with rate_limit.one_in_flight(
+                "eval_comparison", "org:failure", ttl_seconds=1, message="Busy", renew=True
+            ):
+                pass
+    assert "in_flight_limit_" in caplog.text
+    assert "inflight:eval_comparison:org:failure" not in rate_limit._held_here
+
+
+async def test_renewal_cleanup_preserves_cancellation():
+    client, store = _claims()
+    client.expire_if_equals = AsyncMock(return_value=True)
+    rate_limit.configure(client)
+    entered = asyncio.Event()
+
+    async def load():
+        async with rate_limit.one_in_flight(
+            "eval_comparison", "org:cancel", ttl_seconds=1, message="Busy", renew=True
+        ):
+            entered.set()
+            await asyncio.Event().wait()
+
+    task = asyncio.create_task(load())
+    await entered.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert not store and "inflight:eval_comparison:org:cancel" not in rate_limit._held_here
+
+
+async def test_an_in_flight_claim_needs_a_positive_ttl():
+    with pytest.raises(ValueError, match="positive TTL"):
+        async with rate_limit.one_in_flight(
+            "eval_comparison", "org:ttl", ttl_seconds=0, message="Busy", renew=True
+        ):
+            pass

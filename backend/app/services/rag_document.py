@@ -865,7 +865,7 @@ class RAGDocumentService:
         )
 
     async def unlisted_by_source(
-        self, *, sync_source_id: UUID, collection_name: str, listed: set[str]
+        self, *, sync_source_id: UUID, scope: CollectionScope, listed: set[str]
     ) -> list[RAGDocument]:
         """The documents a source claims that its latest listing no longer names.
 
@@ -874,7 +874,7 @@ class RAGDocumentService:
         download, is still there.
         """
         rows = await rag_document_repo.get_settled_for_sync_source(
-            self.db, sync_source_id=sync_source_id, collection_name=collection_name
+            self.db, sync_source_id=sync_source_id, scope=scope
         )
         return [row for row in rows if row.source_path not in listed]
 
@@ -902,7 +902,7 @@ class RAGDocumentService:
         return None
 
     async def claim_listed(
-        self, *, sync_source_id: UUID, collection_name: str, documents: set[tuple[str, str]]
+        self, *, sync_source_id: UUID, scope: CollectionScope, documents: set[tuple[str, str]]
     ) -> None:
         """Claim the stored documents at addresses a sync listed (`claim_listed`).
 
@@ -912,7 +912,7 @@ class RAGDocumentService:
         await rag_document_repo.claim_listed(
             self.db,
             sync_source_id=sync_source_id,
-            collection_name=collection_name,
+            scope=scope,
             documents=documents,
         )
 
@@ -925,28 +925,28 @@ class RAGDocumentService:
         return await rag_document_repo.get_claimants(self.db, [UUID(doc_id) for doc_id in doc_ids])
 
     async def stale_for_source(
-        self, *, sync_source_id: UUID, collection_name: str
+        self, *, sync_source_id: UUID, scope: CollectionScope
     ) -> list[RAGDocument]:
         """The rows a dead run of this source left `PROCESSING` (`get_stale_for_sync_source`)."""
         return await rag_document_repo.get_stale_for_sync_source(
-            self.db, sync_source_id=sync_source_id, collection_name=collection_name
+            self.db, sync_source_id=sync_source_id, scope=scope
         )
 
     async def settled_at(
-        self, *, sync_source_id: UUID, collection_name: str, source_path: str
+        self, *, sync_source_id: UUID, scope: CollectionScope, source_path: str
     ) -> list[RAGDocument]:
         """The settled rows this source claims at one address."""
         rows = await rag_document_repo.get_settled_for_sync_source(
-            self.db, sync_source_id=sync_source_id, collection_name=collection_name
+            self.db, sync_source_id=sync_source_id, scope=scope
         )
         return [row for row in rows if row.source_path == source_path]
 
     async def tracked_vector_ids(
-        self, *, collection_name: str, vector_document_ids: set[str]
+        self, *, scope: CollectionScope, vector_document_ids: set[str]
     ) -> set[str]:
         """Which of these stored documents some row of the collection tracks."""
         return await rag_document_repo.get_tracked_vector_ids(
-            self.db, collection_name=collection_name, vector_document_ids=vector_document_ids
+            self.db, scope=scope, vector_document_ids=vector_document_ids
         )
 
     async def forget_document(self, doc_id: str) -> None:

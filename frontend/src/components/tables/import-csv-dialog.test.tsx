@@ -286,6 +286,35 @@ describe("ImportCsvDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("lists a row of the wrong width and sends none of its values", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ created: 1, failed: [] });
+    const user = userEvent.setup();
+    renderDialog();
+
+    await choose("Name,Seats\nAcme,3\nShort\nWide,4,extra\n");
+    await user.click(screen.getByRole("button", { name: "Import 3 rows" }));
+
+    expect(await screen.findByText("1 record added.")).toBeInTheDocument();
+    expect(sent()).toEqual([[{ external_id: null, values: { name: "Acme", seats: 3 } }]]);
+    expect(screen.getByText("2 rows were not imported:")).toBeInTheDocument();
+    expect(screen.getByText("Line 3:")).toBeInTheDocument();
+    expect(screen.getByText("Has 1 cell, but the header has 2 columns.")).toBeInTheDocument();
+    expect(screen.getByText("Line 4:")).toBeInTheDocument();
+    expect(screen.getByText("Has 3 cells, but the header has 2 columns.")).toBeInTheDocument();
+  });
+
+  it("sends nothing when every row is the wrong width", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    await choose("Name,Seats\nShort\nWide,4,extra\n");
+    await user.click(screen.getByRole("button", { name: "Import 2 rows" }));
+
+    expect(await screen.findByText("No records were added.")).toBeInTheDocument();
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(screen.getByText("Has 1 cell, but the header has 2 columns.")).toBeInTheDocument();
+  });
+
   it("names a column without a header", async () => {
     renderDialog();
     await choose(",Name\nx,Acme\n");

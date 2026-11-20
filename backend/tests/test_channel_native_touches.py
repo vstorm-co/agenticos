@@ -251,27 +251,26 @@ class TestTheMattermostCommandRoute:
         from app.api.routes.v1 import mattermost_webhook as route
 
         row = MagicMock(api_base_url="https://mm.acme.com") if bot else None
-        service = MagicMock(find_active=AsyncMock(return_value=row))
+        queued = AsyncMock()
+        service = MagicMock(find_active=AsyncMock(return_value=row), queue_message=queued)
         with (
             patch.object(route, "unseal_command_token", return_value=token),
             patch.object(route, "get_adapter", return_value=MattermostAdapter()),
-            patch.object(route, "spawn") as spawn,
         ):
-            spawn.side_effect = lambda coroutine, name: coroutine.close()
             result = await route.mattermost_command(uuid.uuid4(), self._request(form), service)
-        return result, spawn
+        return result, queued
 
-    async def test_a_verified_command_is_answered_in_the_background(self) -> None:
-        result, spawn = await self._call(
+    async def test_a_verified_command_is_queued_before_acknowledgement(self) -> None:
+        result, queued = await self._call(
             {"token": "cmd-token", "text": "hi", "channel_id": "ch1"}, token="cmd-token"
         )
         assert result == {}
-        spawn.assert_called_once()
+        queued.assert_awaited_once()
 
     async def test_an_empty_command_says_how_to_use_it(self) -> None:
-        result, spawn = await self._call({"token": "cmd-token", "text": ""}, token="cmd-token")
+        result, queued = await self._call({"token": "cmd-token", "text": ""}, token="cmd-token")
         assert result["response_type"] == "ephemeral"
-        spawn.assert_not_called()
+        queued.assert_not_called()
 
     @pytest.mark.parametrize(("sent", "stored"), [("wrong", "cmd-token"), ("x", None)])
     async def test_an_unverified_command_is_refused(self, sent: str, stored: str | None) -> None:
@@ -280,9 +279,9 @@ class TestTheMattermostCommandRoute:
         assert refused.value.status_code == 403
 
     async def test_an_unknown_bot_is_answered_with_nothing(self) -> None:
-        result, spawn = await self._call({"text": "hi"}, token="t", bot=False)
+        result, queued = await self._call({"text": "hi"}, token="t", bot=False)
         assert result == {}
-        spawn.assert_not_called()
+        queued.assert_not_called()
 
 
 def test_the_manifest_is_org_ready_and_may_react() -> None:

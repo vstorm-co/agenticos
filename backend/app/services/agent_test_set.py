@@ -29,6 +29,7 @@ from app.agents.system_agents import JUDGE
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
+    NotFoundError,
     SystemAgentUnavailableError,
 )
 from app.core.permissions import AuthContext, Perm
@@ -231,7 +232,7 @@ class AgentTestSetService:
                 agent_id=scoring.judge.agent_id,
                 model_profile_id=scoring.judge.model_profile_id,
             )
-        except SystemAgentUnavailableError:
+        except NotFoundError, SystemAgentUnavailableError:
             return False
         return True
 

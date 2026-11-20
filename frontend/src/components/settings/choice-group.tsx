@@ -3,6 +3,7 @@
 import { useRef, type KeyboardEvent } from "react";
 import type { LucideIcon } from "lucide-react";
 
+import { CONTROL_DISABLED, CONTROL_FOCUS } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 
 export interface Choice<T extends string> {
@@ -59,7 +60,7 @@ export function ChoiceGroup<T extends string>({
       role="radiogroup"
       aria-labelledby={labelledBy}
       aria-disabled={disabled || undefined}
-      className="border-input inline-flex flex-wrap gap-0.5 rounded-lg border p-0.5"
+      className="border-input bg-field inline-flex flex-wrap gap-0.5 rounded-xl border-2 p-0.5"
     >
       {options.map((option, index) => {
         const checked = option.value === value;
@@ -77,9 +78,11 @@ export function ChoiceGroup<T extends string>({
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(
-              "focus-visible:ring-ring touch:min-h-11 touch:min-w-11 inline-flex touch-manipulation items-center gap-1.5 rounded-md px-3 py-1 text-sm transition-colors outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60",
+              CONTROL_FOCUS,
+              CONTROL_DISABLED,
+              "touch:min-h-11 touch:min-w-11 inline-flex touch-manipulation items-center gap-1.5 rounded-lg px-3 py-1 text-sm transition-colors duration-[var(--duration-fast)]",
               checked
-                ? "bg-accent text-foreground font-medium"
+                ? "bg-control-active text-foreground font-semibold"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >

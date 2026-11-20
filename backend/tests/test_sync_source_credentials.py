@@ -82,6 +82,7 @@ def _service(
                 name=kwargs["name"],
                 connector_type=kwargs["connector_type"],
                 collection_name=kwargs["collection_name"],
+                knowledge_base_id=kwargs["knowledge_base_id"],
                 config=kwargs["config"],
                 secret_id=kwargs["secret_id"],
                 connected_account_id=kwargs["connected_account_id"],
@@ -113,7 +114,6 @@ def _drive(**overrides) -> SyncSourceCreate:
     return SyncSourceCreate(
         name="Legal docs",
         connector_type="gdrive",
-        collection_name="legal",
         config={"folder_id": "1AbC_-def"},
         **overrides,
     )
@@ -167,7 +167,13 @@ class TestTheCredentialIsReferencedNotCarried:
         assert not ctx.has(Perm.CONNECTIONS_VIEW)
 
         if operation == "create":
-            call = service.create_source(_drive(connected_account_id=account_id), ctx=ctx)
+            call = service.create_source(
+                _drive(connected_account_id=account_id, collection_name="legal"),
+                ctx=ctx,
+                knowledge_base=MagicMock(
+                    id=uuid.uuid4(), collection_name="legal", scope="org", organization_id=_ORG
+                ),
+            )
         elif operation == "update":
             existing = SimpleNamespace(
                 connector_type="gdrive",
@@ -197,7 +203,12 @@ class TestTheCredentialIsReferencedNotCarried:
                 AsyncMock(return_value=source),
             )
             call = service.clone_source(
-                str(source.id), SyncSourceClone(collection_name="mine"), ctx=ctx
+                str(source.id),
+                SyncSourceClone(collection_name="mine"),
+                ctx=ctx,
+                knowledge_base=MagicMock(
+                    id=uuid.uuid4(), collection_name="mine", scope="org", organization_id=_ORG
+                ),
             )
 
         with pytest.raises(
@@ -273,7 +284,12 @@ class TestTheCredentialIsReferencedNotCarried:
 
         with pytest.raises(BadRequestError):
             await service.clone_source(
-                str(source.id), SyncSourceClone(collection_name="mine"), ctx=_ctx(_ORG)
+                str(source.id),
+                SyncSourceClone(collection_name="mine"),
+                ctx=_ctx(_ORG),
+                knowledge_base=MagicMock(
+                    id=uuid.uuid4(), collection_name="mine", scope="org", organization_id=_ORG
+                ),
             )
 
         sync_source_module.sync_source_repo.create.assert_not_awaited()
@@ -355,7 +371,12 @@ class TestACredentialInTheConfigIsRefused:
 
         with pytest.raises(BadRequestError) as exc:
             await service.clone_source(
-                str(source.id), SyncSourceClone(collection_name="copy"), ctx=_ctx(_ORG)
+                str(source.id),
+                SyncSourceClone(collection_name="copy"),
+                ctx=_ctx(_ORG),
+                knowledge_base=MagicMock(
+                    id=uuid.uuid4(), collection_name="copy", scope="org", organization_id=_ORG
+                ),
             )
 
         assert exc.value.details["fields"] == ["refresh_token"]

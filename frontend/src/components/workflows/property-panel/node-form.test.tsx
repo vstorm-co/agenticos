@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,7 @@ import {
   node,
 } from "@/components/workflows/validation/fixtures";
 
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { NodeForm } from "./node-form";
 import type { Schema } from "./schema-model";
 
@@ -181,11 +182,23 @@ vi.mock("@/components/workflows/pickers", () => ({
       {error !== undefined && <span>{error}</span>}
     </div>
   ),
-  TableColumnPicker: ({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) => (
+  TableColumnPicker: ({
+    value,
+    onChange,
+    pinsColumns,
+    requiresReview,
+  }: {
+    value: unknown;
+    onChange: (v: unknown) => void;
+    pinsColumns: boolean;
+    requiresReview?: boolean;
+  }) => (
     <div>
+      {pinsColumns && <span>pins-columns</span>}
       <button
         type="button"
         aria-label="set-table"
+        data-requires-review={requiresReview}
         onClick={() =>
           onChange({ kind: "table", table_id: "t", column_ids: null, schema_version: 1 })
         }
@@ -555,6 +568,31 @@ describe("NodeForm sections", () => {
       definition: makeDefinition({ id: "logic.merge", kind: "control" }),
     });
     expect(screen.getByLabelText("The branch that ran")).toBeChecked();
+  });
+
+  it("says a Data step's value is set once, and takes it as JSON", () => {
+    const { upsertBinding } = renderForm({
+      definition: makeDefinition({
+        id: "data.value",
+        input_schema: {
+          type: "object",
+          properties: { value: { title: "Value" } },
+          required: ["value"],
+        } as Schema,
+      }),
+      folded: true,
+    });
+    expect(screen.getByText(/Set once per run and never overwritten/)).toBeVisible();
+    const field = screen.getByRole("textbox", { name: /^Value/ });
+    fireEvent.change(field, { target: { value: '{"limit": 10, "tags": ["a"]}' } });
+    fireEvent.blur(field);
+    expect(upsertBinding).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        target_node_id: "N",
+        target_field: "value",
+        source: { kind: "literal", value: { limit: 10, tags: ["a"] } },
+      }),
+    );
   });
 
   it("shows an empty message when a node has no fields", () => {
@@ -1567,6 +1605,113 @@ describe("record values from a table's columns", () => {
   });
 });
 
+describe("a record filter's column", () => {
+  const filterStep = (id = "table.record.exists") =>
+    makeDefinition({
+      id,
+      config_schema: {
+        type: "object",
+        properties: {
+          table: { type: "object", title: "Table", "x-resource": "table" },
+          filters: {
+            type: "array",
+            title: "Filters",
+            items: {
+              type: "object",
+              properties: {
+                column_id: { type: "string", format: "uuid", title: "Column Id" },
+                op: { type: "string", enum: ["eq", "ne"], title: "Op" },
+                value: { type: "string", title: "Typed value" },
+              },
+              required: ["column_id", "op"],
+            },
+          },
+        },
+      },
+    });
+
+  it("offers a select column's options as the value, and leaves any other column typed", async () => {
+    tableColumns.columns = [
+      { id: "email-col", label: "Email", type: "text", archived: false, options: [] },
+      {
+        id: "status-col",
+        label: "Status",
+        type: "single_select",
+        archived: false,
+        options: [{ id: "o2", label: "Not worth sharing", archived: false }],
+      },
+    ];
+    const table = { table_id: "table-id", schema_version: 1, column_ids: null };
+    const { updateNodeConfig } = renderForm({
+      config: {
+        table,
+        filters: [
+          { column_id: "status-col", op: "eq" },
+          { column_id: "email-col", op: "eq" },
+        ],
+      },
+      definition: filterStep(),
+    });
+
+    expect(screen.getAllByLabelText("Typed value")).toHaveLength(1);
+    await userEvent.click(screen.getByRole("combobox", { name: "Value" }));
+    await userEvent.click(screen.getByRole("option", { name: "Not worth sharing" }));
+
+    expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+      table,
+      filters: [
+        { column_id: "status-col", op: "eq", value: "o2" },
+        { column_id: "email-col", op: "eq" },
+      ],
+    });
+  });
+
+  it.each([
+    ["Email", { column_id: "email-col", op: "contains" }],
+    ["Done", { column_id: "done-col", op: "eq", value: true }],
+  ])(
+    "is chosen by name, saved as the column's id, and starts the row afresh for %s",
+    async (label, row) => {
+      tableColumns.columns = [
+        { id: "email-col", label: "Email", type: "text", archived: false },
+        { id: "done-col", label: "Done", type: "boolean", archived: false },
+      ];
+      const table = { table_id: "table-id", schema_version: 1, column_ids: null };
+      const { updateNodeConfig } = renderForm({
+        config: { table, filters: [{ column_id: "status-col", op: "in", value: ["o1"] }] },
+        definition: filterStep(),
+      });
+
+      expect(screen.queryByLabelText("Column Id")).toBeNull();
+      await userEvent.click(screen.getByRole("combobox", { name: "Column" }));
+      await userEvent.click(screen.getByRole("option", { name: label }));
+
+      expect(updateNodeConfig).toHaveBeenLastCalledWith("N", { table, filters: [row] });
+    },
+  );
+
+  it("waits for a table before offering any column", () => {
+    renderForm({
+      config: { filters: [{ op: "eq" }] },
+      errors: new Map([["filters/0/column_id", "Not a live column of this table"]]),
+      definition: filterStep(),
+    });
+
+    expect(screen.getByRole("combobox", { name: "Column" })).toBeDisabled();
+    expect(screen.getByText("Choose a table first")).toBeInTheDocument();
+    expect(screen.getByText("Not a live column of this table")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["table.record.exists", false],
+    ["table.record.query", false],
+    ["trigger.table_record", true],
+  ])("%s offers the table's column list: %s", (id, pins) => {
+    renderForm({ definition: filterStep(id) });
+    expect(screen.queryByText("pins-columns") !== null).toBe(pins);
+  });
+});
+
 it("offers the notification channels a notification step sends through", () => {
   renderForm({
     definition: makeDefinition({
@@ -1675,3 +1820,32 @@ it("uses group selection for an approval audience and saves group ids", () => {
   fireEvent.click(screen.getByRole("button", { name: "pick-approval-group" }));
   expect(updateNodeConfig).toHaveBeenCalledWith("N", { approver_group_ids: ["engineering"] });
 });
+
+it.each([
+  { nodeId: "N", binding: null, requiresReview: true, expected: true },
+  { nodeId: "other", binding: null, requiresReview: true, expected: false },
+  { nodeId: "N", binding: 0, requiresReview: true, expected: false },
+  { nodeId: "N", binding: null, requiresReview: false, expected: false },
+])(
+  "routes the matching config-table review to its picker: %j",
+  ({ nodeId, binding, requiresReview, expected }) => {
+    useWorkflowEditorStore.getState().setTableDrift([
+      {
+        nodeId,
+        field: binding === null ? null : "rows",
+        site: { nodeId, binding },
+        requiresReview,
+        rebound: { kind: "table", table_id: "t", column_ids: null, schema_version: 2 },
+      },
+    ]);
+    try {
+      renderForm({ config: { table: { table_id: "t", column_ids: null, schema_version: 1 } } });
+      expect(screen.getByRole("button", { name: "set-table" })).toHaveAttribute(
+        "data-requires-review",
+        String(expected),
+      );
+    } finally {
+      act(() => useWorkflowEditorStore.getState().setTableDrift([]));
+    }
+  },
+);

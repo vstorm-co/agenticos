@@ -155,15 +155,15 @@ flowchart TD
   | `zendesk` | `X-Zendesk-Webhook-Signature` | `X-Zendesk-Webhook-Signature-Timestamp` and the body, base64 |
 
   GitHub, HubSpot, Zendesk and Linear sign their own deliveries, so you give the provider
-  the secret - or, for HubSpot, Zendesk and Linear, take the one it issued - and it does the
+  the secret or use the one it issued, and it does the
   signing. By default, the API source reuses GitHub's scheme under `X-Signature-256`, which
   whatever you point at the URL has to set itself. A **polled** source signs
   nothing and holds no secret: it was not addressed, it was read, and the account's
   own OAuth grant is what authorized reading it.
 
-The generic `webhook` defaults to the signature above. When creating or updating a trigger through the API, set `event_config` to `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` for Shopify, or use `X-Hookdeck-Signature` for Hookdeck's default signature. Use `hmac-sha256-hex` for an unprefixed hex digest. Both sign the exact raw body and require the provider's secret as `event_secret`; header names are case-insensitive.
+The generic `webhook` defaults to the signature above. In the console, choose the signature scheme and header for an API trigger when creating or editing it. Through the API, set `event_config` to `{"signature_scheme":"hmac-sha256-base64","signature_header":"X-Shopify-Hmac-Sha256"}` for Shopify, or use `X-Hookdeck-Signature` for Hookdeck's default signature. Use `hmac-sha256-hex` for an unprefixed hex digest. Both sign the exact raw body and require the provider's secret as `event_secret`; header names are case-insensitive.
 
-These modes do not authenticate a timestamp, so captured requests can be replayed. The generic delivery ID header is not signed and does not prevent an attacker changing it. Configure provider-side filtering and use a dedicated integration when its contract requires timestamp checks, a different success response, or another signature scheme. In particular, these options alone do not implement Linear's webhook contract. The console currently creates the default scheme; configure alternatives through the API.
+These modes do not authenticate a timestamp, so captured requests can be replayed. The generic delivery ID header is not signed and does not prevent an attacker changing it. Configure provider-side filtering and use a dedicated integration when its contract requires timestamp checks, a different success response, or another signature scheme. In particular, these options alone do not implement Linear's webhook contract.
 
 Shopify and Hookdeck do not normally send `X-Delivery-ID`, so retries can fire again. Their provider delivery IDs are not checked by this trigger. Body signatures do not bind the destination URL or provider headers: use a separate secret for each trust boundary, and do not rely on unsigned shop or topic headers to authorize a delivery. Shopify's app secret may be shared across shops, so do not use this mode when a signature must prove which shop or subscription sent the event.
 
@@ -393,11 +393,16 @@ address. DMARC does not authenticate a person's display name.
 
 ## Linear
 
-1. Open Linear's webhook settings and copy the signing secret.
-2. In AgenticOS, create an event trigger with source **Linear**. Paste Linear's
-   signing secret and finish setup.
-3. Copy the trigger's webhook URL into Linear, choose the events to send, and
-   save the webhook.
+1. Generate a strong signing secret and keep it private. In AgenticOS, create an
+   event trigger with source **Linear** and enter that secret. Copy its webhook URL.
+2. Use Linear's GraphQL API `webhookCreate` mutation with that URL and the same
+   `secret`. Supply at least one `resourceTypes` entry and either a `teamId` or
+   `allPublicTeams: true`. See [Linear's webhook schema](https://github.com/linear/linear/blob/master/packages/sdk/src/schema.graphql) for the fields.
+
+Alternatively, create a disabled Linear webhook with a temporary public HTTPS URL,
+copy its generated secret into a new AgenticOS Linear trigger, then use Linear's
+`webhookUpdate` to set the trigger URL and enable delivery. Do not use a temporary
+endpoint you do not control. These setup paths have not been tested with live Linear deliveries.
 
 The API also accepts optional `event_types` and `actions` filters in `event_config`.
 
@@ -812,7 +817,7 @@ Two ways through it:
   the secret is a credential. Linear secret replacement requires a new trigger.
 - The signature is an `HMAC-SHA256` over the **exact raw bytes**, in each provider's
   scheme, and it is what makes a delivery authentic rather than merely addressed
-  correctly. HubSpot's, Zendesk's and Linear's secrets are the provider's to issue.
+  correctly. Use the same signing secret in the provider and AgenticOS.
 - A success response (`202`, or `200` for Linear) means **accepted**, not finished. Read the run in Activity.
 - **The mailboxes, files and calendars are polled**, so they have no URL and no
   secret at all - connect the account and that is the setup.

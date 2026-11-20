@@ -1,5 +1,5 @@
 ---
-source_sha: "cd351d048f37"
+source_sha: "cf75a731ea37"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -140,7 +140,7 @@ Der Code-Modus erhält diese Stopps über die Sandbox-Grenze hinweg.
 | `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
 | `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | für einen Daemon | übergeben |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — | unverändert |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | übergeben |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | für Daytona | übergeben |
 | `mirage` | Virtuelles Terminal | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | pro Ordner, über das Extra `mirage` | übergeben |
 | `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | unverändert |
@@ -243,7 +243,7 @@ ein Eval anhält und aufzeichnet:
 | `image_generation` | `generate_image` |
 | `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
 | `memory_mem0` | `remember` |
-| `sandbox` | `write_file`, `edit_file`, `execute` |
+| `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
 
 Jedes andere Tool oben liest nur. Delegieren zählt als Lesen: Die eigenen Tools
@@ -366,7 +366,9 @@ tauschen so Latenz und ein wenig Ausgabe gegen bessere Trefferquote bei
 unscharfen Fragen. `multi_query` ruft außerdem einmal je Abfrage ab, eine nach
 der anderen, und jeder Abruf bettet seine eigene Abfrage ein — die Varianten
 werden nicht in einem Embedding-Aufruf gebündelt —, also halte
-`query_analysis_max_variants` niedrig, um die Auffächerung zu begrenzen.
+`query_analysis_max_variants` niedrig, um die Auffächerung zu begrenzen. Ob sich
+ein Modus für einen Korpus lohnt, entscheidet eine Messung, kein Standardwert: die
+[Retrieval-Evaluierung](../retrieval-eval.md) vergleicht beide auf dieser Dokumentation.
 
 Beide Modi nutzen das eigene Modell des Agents — es gibt kein separates Modell zu
 konfigurieren — und ihre Kosten werden gegen das Budget des Runs gemessen wie
@@ -1296,6 +1298,8 @@ und Speicher die einzigen Grenzen, die zu setzen sich lohnt.
 
 ## Sandbox { #files-shell }
 
+`select_project_workspace` wählt ein zugängliches Projekt für Datei- und Shell-Tools bis zum Ende des Runs. Ohne Projekt-ID wird der ursprüngliche Workspace wiederhergestellt. Eine Fortsetzung nach einer Freigabe behält die Auswahl; die nächste Gesprächsrunde beginnt im ursprünglichen Workspace. Der Gesprächsverlauf bleibt in seinem Thread. Jeder Zugriff wird erneut autorisiert; Routinen bleiben auf ihre geprüfte Projektquelle beschränkt. Isolierte Evaluationen können keine dauerhaften Projekte auswählen.
+
 `ls`, `read_file`, `glob`, `grep` — _Lesen._
 `write_file`, `edit_file`, `execute` — _Schreiben und Ausführen._
 
@@ -1535,7 +1539,7 @@ Lesezugriffe und Text-grep; modellgestützte semantische Suche ist nicht aktivie
 Die Kontoverknüpfung muss im selben Browser und mit derselben angemeldeten
 Identität abgeschlossen werden, mit der sie begonnen wurde.
 
-Vault-Secrets müssen zum Zweck des Backends passen; `custom` erlaubt ausdrücklich eine eigene Integration. OneDrive und SharePoint akzeptieren eine Entra-App mit dem Zweck `sharepoint`, Hugging-Face-Dienste den Zweck `huggingface`. Veröffentlichung und Ausführung prüfen dieselbe Regel. Jeder Host einer PostgreSQL-Seed-Liste muss auf der Allowlist des Deployments stehen. MongoDB und GridFS benötigen genau einen `mongodb://`-Host: Die Plattform erzwingt `directConnection=true` und lehnt SRV-Erkennung ab. Nicht verknüpfte Kanalabsender benötigen für jedes Mirage-Werkzeug eine Genehmigung, auch zum Lesen; nach der Kontoverknüpfung gilt die normale Ordnerregel des Autors.
+Vault-Secrets müssen zum Zweck des Backends passen; `custom` erlaubt ausdrücklich eine eigene Integration. OneDrive und SharePoint akzeptieren eine Entra-App mit dem Zweck `sharepoint`, Hugging-Face-Dienste den Zweck `huggingface`. Veröffentlichung und Ausführung prüfen dieselbe Regel. Jeder Host einer PostgreSQL-Seed-Liste muss auf der Allowlist des Deployments stehen. MongoDB und GridFS benötigen genau einen `mongodb://`-Host: Die Plattform erzwingt `directConnection=true` und lehnt SRV-Erkennung ab. Kanalausführungen verwenden die gewöhnlichen Genehmigungseinstellungen des Autors für die Mirage-Bindung und einzelne Werkzeuge, auch bei Absendern ohne verknüpftes Konto.
 
 PostgreSQL-Mounts benötigen ein nicht leeres Passwort im Vault-DSN; leere Passwörter und passwortlose Anmeldung werden nicht unterstützt. Sie greifen nicht auf `PGPASSWORD` oder `.pgpass` zurück. DSN-Parameter für Zugangsdaten- oder TLS-Dateien auf dem Host (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) werden abgelehnt.
 
@@ -1663,8 +1667,13 @@ Liest einen Text über einen Sprach-Provider vor, den der Autor wählt, und verh
 sich wie die Bilderzeugung: Der Clip wird gespeichert, im Gespräch als Player
 gezeigt und unter `output/` abgelegt, wenn ein Workspace offen ist (#2259).
 
+Organisationsvorgaben sind optional. Unter **Organisation → AI & services → Text to speech** speichert ein Administrator Provider, Modell, Stimme und organisationsweit sichtbaren Vault-Schlüssel als eine Gruppe. Ein Agent übernimmt sie erst, wenn sein Autor **Use organization defaults** aktiviert; bestehende Agenten behalten ihre eigenen Einstellungen. Ein wartender Run behält seine aufgelöste Gruppe bei Änderungen der Vorgabe. Deaktiviertes Organisations-TTS oder ein entzogener Schlüssel verhindert die Sprachausgabe weiterhin. Ein Agent-Override verwendet seinen eigenen Provider und Schlüssel gemeinsam.
+
+Der HTTP-Katalog enthält Eleven v4 über den Text-to-dialogue-Endpunkt mit Abschnitten von höchstens 2.000 Zeichen sowie Eleven v3 und Flash v2. Konversationsmodelle, die nur WebSocket unterstützen, benötigen einen anderen Transport und werden nicht für Audioclips angeboten.
+
 | Konfiguration | Standard | Werte |
 | --- | --- | --- |
+| `use_organization_defaults` | `false` | Provider, Modell, Stimme und Schlüssel der Organisation gemeinsam übernehmen; sonst dieses Binding verwenden |
 | `provider` | `openai` | `openai`, `elevenlabs`, `google` |
 | `model` | `gpt-4o-mini-tts` | Die Modelle dieses Providers aus `app/core/catalog/text_to_speech_models.json` |
 | `voice` | die erste des Modells | Die Voreinstellung, mit der der Agent spricht; er darf pro Clip innerhalb von `voices` wechseln. Eine Katalogstimme für OpenAI und Gemini; eine ID aus Ihrer eigenen Stimmenbibliothek für ElevenLabs |
@@ -1900,6 +1909,11 @@ enthalten können. Du brauchst aktuellen Bearbeitungszugriff; kein Run darf im
 Workspace schreiben. Inhalt und Ausführungsmodus jeder Datei müssen dem Zustand
 nach der Aufgabe entsprechen. Ein Konflikt lehnt die gesamte Aktion ab und nennt
 die Dateien. Andere Dateien sowie Git-Index und Git-Verlauf bleiben unverändert.
+
+Die Rücknahme ist nicht verfügbar, wenn einer der Snapshots eine nicht erfasste
+übergroße Datei, einen unlesbaren Pfad oder einen nicht unterstützten Dateityp
+findet, auch wenn der Pfad unverändert erscheint. Der erfasste Diff bleibt lesbar.
+Plattform- und Werkzeugordner bleiben bewusst außerhalb der Snapshot-Abdeckung.
 
 Die Aktion reiht einen dauerhaften Job ein und reserviert den Workspace. Das
 Panel zeigt Fortschritt und eindeutige Ablehnungen. Bei unbekanntem Ergebnis
@@ -3005,13 +3019,18 @@ Zusammenfassen macht aus Eingabe-Tokens Ausgabe-Tokens, die mit einem Aufschlag
 abgerechnet und seriell erzeugt werden, deshalb ist ein Agent, dessen Runs von
 großen Tool-Ergebnissen dominiert werden, meist mit `tiered` besser bedient.
 
-**Sie reicht über einen Run, nicht über eine Unterhaltung.** Zwischen den Zügen
-wird die Historie aus dem Transkript als Nutzer- und Assistententext neu aufgebaut,
-deshalb sind Tool-Aufrufe und ihre Ergebnisse nicht mehr da, um komprimiert zu
-werden, und keine hier vorgenommene Änderung überdauert eine Zuggrenze. Die
-Historie, deren Compaction sich lohnt, ist die lange Tool-Schleife innerhalb eines
-einzelnen Runs, wo eine Verzeichnisauflistung oder eine Wissenssuche
-Zehntausende Tokens groß ist.
+**Der Verlauf bleibt über Runden hinweg erhalten.** Jede abgeschlossene Runde
+speichert Modellnachrichten einschließlich Tool-Aufrufen, Ergebnissen und lokaler
+oder nativer Tool-Suche. Die Komprimierung bearbeitet denselben Verlauf; ihre
+Zusammenfassung bleibt für die nächste Runde erhalten.
+
+Der gespeicherte Verlauf umfasst höchstens 200 Modellnachrichten und 2 MiB
+serialisierte Daten. Ältere Nachrichten werden entfernt, ohne Aufrufe von ihren
+Ergebnissen zu trennen. Ein Hinweis fordert das Modell auf, fehlende Tools erneut
+zu suchen oder Belege erneut zu lesen. Entdeckungen verfallen mit ihrem Nachweis.
+Aktuelle Tool-Definitionen, Verfügbarkeit, Berechtigungen und Freigaben gelten
+weiterhin bei jedem Run. Ausstehende Freigaben haben einen eigenen Fortsetzungszustand;
+der Verlauf führt keine Aktionen erneut aus.
 
 **Der Auslöser ist ein Bruchteil, weil eine absolute Zahl nur für ein Modell
 stimmt**, und derselbe Agent läuft auf dem Profil, auf das sein Spec gerade zeigt.
@@ -3085,15 +3104,11 @@ stammen aus
 | --- | --- | --- |
 | `threshold_bytes` | 32768 | 1 KiB–10 MiB; Teile ab dieser Größe werden ausgelagert |
 
-**Es gibt eine Stelle, an der sich Medien wirklich anhäufen, und das ist diese.**
-Ein Anhang erreicht das Modell einmal, in der Runde, in der er angehängt wurde:
-die gewöhnliche Historie wird aus dem _Text_ des Transkripts aufgebaut, ein Bild
-wird also nicht erneut gesendet. Die Ausnahme ist eine
-[verdichtete](#context-management) Konversation — dann wird der bibliothekseigene
-Dump der Run-Nachrichten vollständig gespeichert und exakt so wiedergegeben, wie
-das Modell ihn zuletzt gesehen hat, Base64 inklusive, bis die nächste
-Zusammenfassung ihn ersetzt. Dieser Blob sind Zeilen in Postgres und Bytes auf der
-Leitung, in jeder Runde dazwischen.
+**Anhänge können in späteren Runden erhalten bleiben.** Abgeschlossene Runden
+behalten Modellnachrichten einschließlich gespeicherter Bilder innerhalb der
+Verlaufsgrenzen. Medien werden sowohl bei gewöhnlichen Speicherungen als auch
+nach Komprimierung ausgelagert. Flüchtige Desktop-Screenshots werden vor dem
+Speichern durch einen Hinweis ersetzt.
 
 **Wohin die Bytes gehen, und wie lange sie leben.** In den eigenen Dateispeicher
 des Deployments, nach `media/<Organisation>/<Konversation>/<Digest>`. Die
@@ -3819,7 +3834,7 @@ Eine Entscheidung kann strukturierte Belege enthalten: Situation, Wahl, Alternat
 
 Unter **Einstellungen → Gedächtnis** liest du Belege und erfasst mit der Korrektur ein beobachtetes Ergebnis. Eine Korrektur fügt einen neuen Eintrag hinzu; die bisherige Episode und ihre Herkunft bleiben im Verlauf. Die deterministische Konsolidierung macht aus Episoden keine allgemeinen Regeln. Löschung entfernt ihre Inhalte zusammen mit den Einträgen; der persönliche Datenexport enthält sie.
 
-**Improve-Fall vorbereiten** öffnet eine bearbeitbare Eingabe und erwartete Antwort. Prüfe den Text, entferne private Angaben und bestätige ausdrücklich den Download eines JSONL-Datensatzes. Die Felder `input`, `reference_answer`, `tags` und `note` entsprechen dem Importer in [Improve PR #2172](https://github.com/vstorm-co/agenticos/pull/2172). Importiere die Datei nach Installation dieser Funktion in einen Improve-Datensatz, evaluiere sie und akzeptiere/veröffentliche Änderungen dort. Dieser Export erstellt keinen Datensatz, startet keinen Optimierer und veröffentlicht keine Anweisungen automatisch.
+**Als Improve-Fall hinzufügen** öffnet eine bearbeitbare Eingabe und erwartete Antwort und fragt, zu welchem Dataset sie hinzugefügt werden; angeboten wird es einem Mitglied, das Datasets bearbeiten darf. Prüfe den Text, entferne, was privat bleiben muss, und stimme dem Hinzufügen ausdrücklich zu. Der Fall erhält das Tag `decision-episode`, hält dich als die Person fest, die gefragt hat, und verknüpft Run und Conversation, aus denen die Episode stammt, solange sie existieren. Wenn du gelöscht wirst, wird er deshalb anonymisiert wie jeder Fall aus deinen Conversations. Bewerte ihn und nimm Änderungen in Improve an oder veröffentliche sie dort. Das Hinzufügen startet keinen Optimierer und veröffentlicht keine Anweisungen automatisch.
 
 Die Auswahl des lokalen Zugriffs gehört zum gewählten Agenten, nicht zu einer globalen Vorgabe für andere Agenten. Das Widerrufen eines Ordners entfernt auch gespeicherte Auswahlen und Coding-Zustimmungen für seine Unterordner. Ältere Desktop-Apps behalten den Zugriff auf den ganzen Computer nur für ein Gespräch; ein Update ermöglicht die Wiederverwendung für weitere Gespräche desselben Agenten.
 

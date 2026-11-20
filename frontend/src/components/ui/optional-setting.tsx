@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
+import { ContextHelp } from "./context-help";
 import { Label } from "./label";
 
 /**
@@ -54,13 +55,16 @@ export function OptionalSetting({
   return (
     <div className="space-y-1.5">
       <div className="flex min-h-8 items-center justify-between gap-2">
-        <Label htmlFor={htmlFor}>{label}</Label>
+        <div className="flex items-center gap-1">
+          <Label htmlFor={htmlFor}>{label}</Label>
+          <ContextHelp>{description}</ContextHelp>
+        </div>
         {onReset && (
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-6 px-2 text-xs"
+            className="h-8 px-2.5 text-[13px]"
             disabled={disabled}
             onClick={onReset}
           >
@@ -73,9 +77,7 @@ export function OptionalSetting({
         <p id={`${htmlFor}-error`} className="text-destructive text-xs">
           {error}
         </p>
-      ) : (
-        <p className="text-muted-foreground text-xs">{description}</p>
-      )}
+      ) : null}
     </div>
   );
 }

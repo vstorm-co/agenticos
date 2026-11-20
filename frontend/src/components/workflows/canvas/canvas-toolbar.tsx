@@ -91,6 +91,8 @@ export function CanvasToolbar({
     onPhone ? state.phoneMinimapShown : state.minimapShown,
   );
   const toggleMinimap = useWorkflowEditorStore((state) => state.toggleMinimap);
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
+  const rebindTables = useWorkflowEditorStore((state) => state.rebindTables);
   const nodeStyle = useWorkflowNodeStyleStore((state) => state.style);
   const [savingAppearance, setSavingAppearance] = useState(false);
   const tErrors = useTranslations("errors");
@@ -153,7 +155,7 @@ export function CanvasToolbar({
   return (
     <>
       <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex items-start justify-between gap-3">
-        <div className="pointer-events-auto flex flex-wrap items-center gap-2">
+        <div className="bg-card/95 border-border pointer-events-auto flex flex-wrap items-center gap-1 rounded-xl border p-1 shadow-sm">
           {!readOnly && !empty && (
             <Popover open={adding} onOpenChange={setAdding}>
               <PopoverTrigger asChild>
@@ -162,7 +164,7 @@ export function CanvasToolbar({
                   variant="outline"
                   aria-label={t("toolbarAddStep")}
                   title={t("toolbarAddStep")}
-                  className="bg-background/90 hover:bg-background h-8 rounded-lg shadow-sm backdrop-blur"
+                  className="h-8 rounded-lg"
                 >
                   <Plus className="h-4 w-4" />
                   {t("toolbarAddStep")}
@@ -181,7 +183,7 @@ export function CanvasToolbar({
               <Button
                 size="icon"
                 variant="outline"
-                className="bg-background/90 size-8 rounded-lg shadow-sm"
+                className="size-8 rounded-lg border-transparent bg-transparent shadow-none"
                 aria-label={t("toolbarDisplay")}
               >
                 <Settings2 className="size-4" />
@@ -242,6 +244,37 @@ export function CanvasToolbar({
                 </PopoverTrigger>
                 <PopoverContent align="end" sideOffset={8} className="w-96 p-3">
                   <p className="text-muted-foreground mb-2 text-xs">{t("toolbarProblemsHint")}</p>
+                  {tableDrift.length > 0 && (
+                    // One click for every step whose table changed under it, rather
+                    // than opening each step to update it.
+                    <div className="mb-3 rounded-lg border border-dashed p-2.5">
+                      <p className="text-muted-foreground text-xs">
+                        {t("toolbarTablesChanged", { count: tableDrift.length })}
+                      </p>
+                      {tableDrift.some((entry) => entry.requiresReview) && (
+                        <p className="text-muted-foreground mt-1 text-xs">
+                          {t("problemTableDependenciesChanged")}
+                        </p>
+                      )}
+                      {tableDrift.some((entry) => !entry.requiresReview) && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="mt-2"
+                          onClick={() =>
+                            rebindTables(
+                              tableDrift
+                                .filter((entry) => !entry.requiresReview)
+                                .map((entry) => ({ site: entry.site, ref: entry.rebound })),
+                            )
+                          }
+                        >
+                          {t("toolbarRebindTables")}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                   <ProblemsFooter
                     problems={problems}
                     names={names}
@@ -312,7 +345,7 @@ function ToolbarIcon({
       title={label}
       onClick={onClick}
       className={cn(
-        "bg-background/70 hover:bg-background size-8 rounded-lg shadow-sm backdrop-blur",
+        "size-8 rounded-lg border-transparent bg-transparent shadow-none",
         pressed && "bg-accent",
       )}
     >

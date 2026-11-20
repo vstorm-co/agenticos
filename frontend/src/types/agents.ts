@@ -450,6 +450,7 @@ export interface AgentSpec {
   /** `system`, `user` (the person's own) or an IANA zone, for `{{current_time}}`. */
   time_zone?: string;
   model_profile_id?: string | null;
+  model_credential_mode?: "organization" | "personal";
   model_settings: ModelSettingsSpec;
   capabilities: CapabilityBindingSpec[];
   collection_ids: string[];
@@ -612,6 +613,7 @@ export interface Agent {
    * Read off the frozen spec, not the draft; null for a draft agent and when the
    * profile has been deleted. Listing only.
    */
+  personal_model_key?: boolean;
   published_model?: PublishedModel | null;
   /** Enabled bindings from the frozen version; absent on older servers. */
   published_capabilities?: string[] | null;
@@ -648,6 +650,12 @@ export interface AgentDetail extends Agent {
   /** Resolved for this caller, including resource grants. Absent on older servers. */
   can_edit?: boolean;
   can_publish?: boolean;
+  draft_revision: string;
+}
+
+export interface AgentDraftUpdate {
+  spec: AgentSpec;
+  expected_revision: string;
 }
 
 /**

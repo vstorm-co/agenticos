@@ -299,7 +299,9 @@ class Improver:
         )
         self.db.add(run)
         await self.db.flush()
-        return json.dumps(self._answer(prompt)), run
+        answer = self._answer(prompt)
+        kw["structured"].append(answer)
+        return json.dumps(answer), run
 
 
 def _answering(model: Improver):
@@ -792,6 +794,7 @@ class TestCheck:
         with pytest.raises(NotFoundError, match="Eval suite not found"):
             await service.check(ctx, agent.id, ProposalCheck(suite_id=foreign.id))
 
+    @pytest.mark.security
     async def test_a_check_on_a_suite_is_held_to_its_threshold_and_is_none_of_its_runs(self, db):
         """What the suite would have said, by the threshold it had when the check
         started - and nothing the suite keeps: no result, no history, no notice."""
@@ -835,7 +838,15 @@ class TestCheck:
         suite.name, suite.min_pass_rate = "renamed", Decimal("0")
         await db.flush()
         await _finish_eval(db, ctx, started.id, answer="Refunds take 90 days.")
-        judged = await evals.get(ctx, started.id)
+        with patch.object(
+            evals,
+            "criterion_batches",
+            side_effect=AssertionError("run reads must not aggregate criteria"),
+        ) as criterion_reads:
+            judged = await evals.get(ctx, started.id)
+            repeated = await evals.get(ctx, started.id)
+        criterion_reads.assert_not_called()
+        assert repeated.suite_check == judged.suite_check
         await eval_suite_repo.delete_suite(db, suite=suite)
         gone = await evals.get(ctx, started.id)
         by_dataset = await service.check(ctx, agent.id, ProposalCheck(dataset_id=dataset.id))

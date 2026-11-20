@@ -605,7 +605,8 @@ def _console_tools(built: list[AbstractCapability[Any]]) -> dict[str, ToolsetToo
     """The tools the sandbox binding offers the model, by id.
 
     The binding is a combination - a workspace for the runs nobody opened one for,
-    and the console - and only the console has tools.
+    and the console, plus the project selection toolset. This helper selects
+    only the console tools, whose descriptions share the console text contract.
     """
     (combined,) = built
     assert isinstance(combined, CombinedCapability)
@@ -646,10 +647,11 @@ class TestBuildingTheCapability:
         definition = get_capability("sandbox")
         tools = _console_tools(build_capabilities([CapabilityBinding(capability_id="sandbox")]))
 
-        for tool in definition.tools:
-            described = tools[tool.id].tool_def.description
+        metadata = {tool.id: tool for tool in definition.tools}
+        for tool_id, tool in tools.items():
+            described = tool.tool_def.description
             assert described is not None
-            assert described.startswith(f"<summary>{tool.description}")
+            assert described.startswith(f"<summary>{metadata[tool_id].description}")
 
     def test_the_catalog_shows_a_sentence_rather_than_the_whole_prompt(self):
         """`execute` used to render 2501 characters beside a checkbox."""

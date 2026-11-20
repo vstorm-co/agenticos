@@ -20,6 +20,7 @@ import { wordCount, type DictationActions, type DictationState } from "@/hooks/u
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { cn } from "@/lib/utils";
 
+import type { BrowserSpeechFailure } from "./browser-speech-failure";
 import { clock } from "./dictation-bar";
 
 /** One hint, prompt or error under the composer. */
@@ -391,6 +392,32 @@ export function browserDictationHint(agentHref: string | null, t: Translate): St
         )}
       </>
     ),
+  };
+}
+
+/** The visitor's `hint.*` sentence for each way the browser's own recognition fails. */
+const BROWSER_FAILURE_HINTS = {
+  micDenied: "micDenied",
+  micInsecure: "micInsecure",
+  micNotFound: "micNotFound",
+  unavailable: "browserUnavailable",
+  network: "browserNetwork",
+  noSpeech: "browserNoSpeech",
+  generic: "browserFailed",
+} as const satisfies Record<BrowserSpeechFailure, string>;
+
+/** Why the browser's own recognition stopped on a hosted page, and what the visitor can do. */
+export function browserFailureHint(
+  failure: BrowserSpeechFailure,
+  onDismiss: () => void,
+  t: Translate,
+): StripHint {
+  return {
+    key: `browser-${failure}`,
+    tone: failure === "noSpeech" ? "warn" : "error",
+    icon: failure === "noSpeech" ? TriangleAlert : MicOff,
+    message: t.rich(`hint.${BROWSER_FAILURE_HINTS[failure]}`, { strong }),
+    actions: <StripButton onClick={onDismiss}>{t("dismiss")}</StripButton>,
   };
 }
 

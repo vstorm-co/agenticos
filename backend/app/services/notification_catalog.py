@@ -28,6 +28,8 @@ class ContentGate(enum.Enum):
     "you left the audience this was sent to".
     """
 
+    # Coarse completion notices remain visible; persisted grade details require
+    # their current dataset and skill access, including before delayed delivery.
     NONE = "none"
     DEGRADE = "degrade"
     ORG_ADMIN_OR_APP_ADMIN = "org_admin_or_app_admin"
@@ -38,6 +40,7 @@ class ContentGate(enum.Enum):
     ARTIFACTS_VIEW = "artifacts_view"
     WORKFLOWS_VIEW = "workflows_view"
     SHARED_CONVERSATION = "shared_conversation"
+    IMPROVEMENT_CRITERIA = "improvement_criteria"
 
 
 # Decision 1's "Content gated on" column, read by event type. A row with no
@@ -45,6 +48,7 @@ class ContentGate(enum.Enum):
 # beyond the tenant/membership check every row already gets from the read
 # paths' own organization scoping.
 CONTENT_GATE: dict[NotificationEventType, ContentGate] = {
+    NotificationEventType.IMPROVEMENT_FINISHED: ContentGate.IMPROVEMENT_CRITERIA,
     NotificationEventType.RESOURCE_SHARED: ContentGate.SHARED_CONVERSATION,
     NotificationEventType.ROOM_MENTION: ContentGate.SHARED_CONVERSATION,
     NotificationEventType.ROOM_THREAD_REPLY: ContentGate.SHARED_CONVERSATION,

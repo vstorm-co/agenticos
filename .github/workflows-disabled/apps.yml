@@ -1,10 +1,10 @@
 name: Apps
 on:
   pull_request:
-    paths: ["desktop/**", "mobile/**", ".github/workflows/apps.yml", ".github/workflows/app-release.yml"]
+    paths: ["desktop/**", "mobile/**", "packaging/arch/**", "scripts/build_arch_package.sh", "scripts/check_arch_package.sh", "scripts/arch_render_smoke.sh", ".github/workflows/arch-package.yml", "scripts/check_desktop_installation.py", "scripts/build_linux_desktop_release.sh", ".github/workflows/apps.yml", ".github/workflows/app-release.yml"]
   push:
     branches: [main]
-    paths: ["desktop/**", "mobile/**", ".github/workflows/apps.yml"]
+    paths: ["desktop/**", "mobile/**", "packaging/arch/**", "scripts/build_arch_package.sh", "scripts/check_arch_package.sh", "scripts/arch_render_smoke.sh", ".github/workflows/arch-package.yml", "scripts/check_desktop_installation.py", "scripts/build_linux_desktop_release.sh", ".github/workflows/apps.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,6 +12,9 @@ concurrency:
   group: apps-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  arch:
+    uses: ./.github/workflows/arch-package.yml
+
   desktop:
     # Smoke packages exercise installation, not debugger symbols. The Linux RPM
     # step stalled for 32 minutes; avoid its unnecessary debug-symbol payload.
@@ -31,21 +34,20 @@ jobs:
         timeout-minutes: 8
         run: |
           set -euo pipefail
-          # Choose a reachable mirror; apt still verifies Ubuntu's signed indexes.
-          UBUNTU_SERIES="$(. /etc/os-release && printf '%s' "$VERSION_CODENAME")"
+          # Test signed indexes with apt itself before selecting an archive.
+          APT_NETWORK=(-o Acquire::ForceIPv4=true -o Acquire::Retries=2 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
           UBUNTU_ARCHIVE=""
-          for CANDIDATE in https://mirrors.edge.kernel.org/ubuntu https://archive.ubuntu.com/ubuntu; do
-            if curl --ipv4 --fail --silent --show-error --connect-timeout 15 --max-time 25 "$CANDIDATE/dists/$UBUNTU_SERIES/InRelease" > /dev/null; then
+          for CANDIDATE in https://archive.ubuntu.com/ubuntu https://mirrors.edge.kernel.org/ubuntu; do
+            sudo sed -Ei "s#https?://(azure\.archive\.ubuntu\.com/ubuntu|archive\.ubuntu\.com/ubuntu|mirrors\.edge\.kernel\.org/ubuntu)#$CANDIDATE#g" /etc/apt/sources.list.d/ubuntu.sources
+            printf '%s\n' "$CANDIDATE" | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+            if sudo apt-get "${APT_NETWORK[@]}" update --error-on=any; then
               UBUNTU_ARCHIVE="$CANDIDATE"
               break
             fi
+            echo "Ubuntu archive failed: $CANDIDATE" >&2
           done
           test -n "$UBUNTU_ARCHIVE"
           echo "Using Ubuntu archive: $UBUNTU_ARCHIVE"
-          sudo sed -Ei "s|https?://azure.archive.ubuntu.com/ubuntu|$UBUNTU_ARCHIVE|g" /etc/apt/sources.list.d/ubuntu.sources
-          printf '%s\n' "$UBUNTU_ARCHIVE" | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
-          APT_NETWORK=(-o Acquire::ForceIPv4=true -o Acquire::Retries=2 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
-          sudo apt-get "${APT_NETWORK[@]}" update --error-on=any
           sudo apt-get "${APT_NETWORK[@]}" install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libpipewire-0.3-dev libgbm-dev clang xvfb bubblewrap
       # Ubuntu's hosted runner restricts unprivileged user namespaces. Exercise
       # the actual bubblewrap boundary instead of skipping its confinement test.

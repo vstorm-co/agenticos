@@ -12,7 +12,7 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return {
     ...actual,
-    apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+    apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -38,6 +38,17 @@ function agent(id: string, name: string, status = "published", can_run = true) {
 
 function serve() {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.endsWith("/sources"))
+      return {
+        current: true,
+        review_token: "sources",
+        version_id: "v1",
+        resources: ["Skill instructions"],
+        accounts: [],
+        unavailable_sources: [],
+      };
+    if (path.endsWith("/action-consents"))
+      return { can_waive: true, review_token: "actions", items: [] };
     if (path === "/me/permissions") return { permissions: [] };
     if (path === "/agents") {
       return {
@@ -87,7 +98,11 @@ describe("TriggerFormDialog with no agent in context", () => {
 
   it("creates the schedule on whichever agent was picked", async () => {
     const user = userEvent.setup();
-    vi.mocked(apiClient.post).mockResolvedValue({ id: "t-1", trigger_type: "schedule" });
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "t-1",
+      agent_id: "a2",
+      trigger_type: "schedule",
+    });
     const onCreated = vi.fn();
     render(<TriggerFormDialog agentId={null} open onOpenChange={vi.fn()} onCreated={onCreated} />, {
       wrapper,
@@ -131,7 +146,11 @@ describe("TriggerFormDialog with no agent in context", () => {
 
 it("delivers a routine proposed in a chat back to that exact chat", async () => {
   const user = userEvent.setup();
-  vi.mocked(apiClient.post).mockResolvedValue({ id: "t-chat", trigger_type: "schedule" });
+  vi.mocked(apiClient.post).mockResolvedValue({
+    id: "t-chat",
+    agent_id: "a1",
+    trigger_type: "schedule",
+  });
   render(
     <TriggerFormDialog
       agentId="a1"
@@ -176,4 +195,85 @@ it("creates a quiet Inbox routine with working chats instead of a report destina
     "/agents/a1/triggers",
     expect.objectContaining({ result_mode: "inbox" }),
   );
+});
+
+it("creates paused and saves reviewed sources and actions before enabling", async () => {
+  const user = userEvent.setup();
+  const closed = vi.fn();
+  const normal = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+    if (path.endsWith("/sources"))
+      return {
+        current: false,
+        review_token: "exact-sources",
+        version_id: "v1",
+        resources: ["Glossary skill"],
+        accounts: [],
+        unavailable_sources: [],
+      };
+    if (path.endsWith("/action-consents"))
+      return {
+        can_waive: true,
+        review_token: "exact-actions",
+        items: [
+          {
+            capability_id: "sandbox",
+            tool_id: "execute",
+            name: "execute",
+            consented: false,
+            waivable: true,
+          },
+        ],
+      };
+    return normal(path, options);
+  });
+  vi.mocked(apiClient.post).mockResolvedValue({
+    id: "new",
+    agent_id: "a1",
+    trigger_type: "schedule",
+    is_active: false,
+  });
+  vi.mocked(apiClient.put).mockImplementation(async (path) =>
+    path.endsWith("/sources")
+      ? {
+          current: true,
+          review_token: "exact-sources",
+          version_id: "v1",
+          resources: ["Glossary skill"],
+          accounts: [],
+          unavailable_sources: [],
+        }
+      : { can_waive: true, review_token: "exact-actions", items: [] },
+  );
+  vi.mocked(apiClient.patch).mockResolvedValue({
+    id: "new",
+    agent_id: "a1",
+    trigger_type: "schedule",
+    is_active: true,
+  });
+  render(<TriggerFormDialog agentId="a1" open onOpenChange={closed} />, { wrapper });
+  let dialog = within(await screen.findByRole("dialog"));
+  await user.click(dialog.getByRole("button", { name: "Continue" }));
+  await user.type(dialog.getByLabelText("Message"), "Check the glossary");
+  await user.click(dialog.getByRole("button", { name: "Continue" }));
+  await user.click(dialog.getByRole("button", { name: "Create" }));
+  dialog = within(await screen.findByRole("dialog", { name: "Review routine access" }));
+  expect(await dialog.findByText("Glossary skill")).toBeVisible();
+  expect(closed).not.toHaveBeenCalled();
+  expect(apiClient.patch).not.toHaveBeenCalled();
+  expect(apiClient.post).toHaveBeenCalledWith(
+    "/agents/a1/triggers",
+    expect.objectContaining({ is_active: false }),
+  );
+  await user.click(await dialog.findByRole("checkbox", { name: "execute" }));
+  await user.click(dialog.getByRole("button", { name: "Enable routine" }));
+  expect(apiClient.put).toHaveBeenNthCalledWith(1, "/agents/a1/triggers/new/sources", {
+    review_token: "exact-sources",
+  });
+  expect(apiClient.put).toHaveBeenNthCalledWith(2, "/agents/a1/triggers/new/action-consents", {
+    actions: [{ capability_id: "sandbox", tool_id: "execute" }],
+    review_token: "exact-actions",
+  });
+  expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/triggers/new", { is_active: true });
+  expect(closed).toHaveBeenCalledWith(false);
 });

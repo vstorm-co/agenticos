@@ -211,6 +211,33 @@ the request.
 Expiry only bounds what a key can start: work it started while valid goes on after it
 expires.
 
+### Explicit personal MCP delegation
+
+Under **Settings → API → Create key → Custom**, select `agents:run` and
+`mcp:personal:use` to let an external run use the key issuer's own MCP accounts.
+OAuth clients use the same explicit scope choice. No preset includes this scope,
+including Full access, and existing credentials gain no access automatically.
+
+This affects only published `account: personal` MCP bindings. Organization
+bindings retain their configured account; a missing personal connection never
+falls back to an organization or publisher account. Connect or repair the personal
+account in the console before retrying an API request. This scope does not open
+personal memory, old chats, signed-in browser sessions, personal terminals or
+user-scoped workspaces. Internal agent credentials cannot delegate it onward.
+
+The original credential, issuer and agent access are checked at admission, on
+resume and before MCP calls, including delegates. Expiring or revoking that
+credential prevents subsequent calls; an upstream request already in flight is
+not cancelled. Disconnecting, replacing or narrowing a bound MCP account also
+blocks its cached tools; reconnect it and start a new run.
+
+A paused run remains bound to the original credential, including
+an OAuth access token's expiry, and cannot borrow an approver's accounts.
+A client may start a new run with a fresh credential. Old paused runs gain no
+personal MCP delegation. Runs and tool origins retain their existing user/key
+attribution and connection identifiers; no credentials enter prompts or audit.
+
+
 ## The organization header
 
 **An API key acts in its own organization**, and needs no header. Sending

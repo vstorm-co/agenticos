@@ -28,7 +28,7 @@ export function partOfDay(hour: number): "morning" | "afternoon" | "evening" {
 /**
  * A person's own dashboard opens on them: the day, a greeting by name, what
  * happened in the period and everything waiting on them - their tool calls,
- * answers sent to review, failing suites and the assistant's suggestions.
+ * personal Inbox proposals.
  *
  * "Dashboard" and a description of the page told a person nothing they did not
  * know; this line is the answer they opened it for, before any card. It reads

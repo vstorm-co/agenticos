@@ -69,3 +69,35 @@ describe("FormField feedback", () => {
     );
   });
 });
+
+it("offers optional help on demand while retaining the field's accessible description", async () => {
+  render(
+    <FormField htmlFor="project" label="Project" help="Choose where the files belong.">
+      <Input />
+    </FormField>,
+  );
+  const input = screen.getByRole("textbox", { name: "Project" });
+  expect(input).toHaveAccessibleDescription("Choose where the files belong.");
+  await userEvent.click(screen.getByRole("button", { name: "More information" }));
+  expect(screen.getByRole("dialog")).toHaveTextContent("Choose where the files belong.");
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it("keeps requirements and validation visible when optional help is provided", () => {
+  const { rerender } = render(
+    <FormField htmlFor="limit" label="Limit" description="At least 1" help="How limits work">
+      <Input />
+    </FormField>,
+  );
+  expect(screen.getByText("At least 1")).toBeVisible();
+  expect(screen.getByRole("textbox")).toHaveAccessibleDescription("At least 1");
+  rerender(
+    <FormField htmlFor="limit" help="How limits work" error="Too small">
+      <Input aria-label="Limit" />
+    </FormField>,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("Too small");
+  expect(screen.getByRole("textbox")).toHaveAccessibleDescription("Too small");
+  expect(screen.getByRole("button", { name: "More information" })).toBeVisible();
+});
