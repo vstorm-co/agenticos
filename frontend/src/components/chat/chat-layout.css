@@ -410,18 +410,36 @@
   min-block-size: 3.75rem;
   padding-block-start: 0.375rem;
 }
-.chat-layout .chat-home-timeline .chat-input-primary-face {
-  border-radius: 0.625rem;
-  background: color-mix(in oklab, var(--color-action) 78%, var(--color-background));
+@media (min-width: 768px) {
+  .chat-layout .chat-home-timeline .chat-input-primary {
+    min-inline-size: 2.5rem;
+    min-block-size: 2.5rem;
+  }
 }
+.chat-layout .chat-home-timeline .chat-input-primary-face {
+  min-inline-size: 2.375rem;
+  min-block-size: 2.375rem;
+  border-radius: 0.75rem;
+  background: color-mix(in oklab, var(--color-action) 90%, var(--color-background));
+}
+.chat-layout
+  .chat-home-timeline
+  .chat-input-primary[type="submit"]:not(:disabled)
+  .chat-input-primary-face,
 .chat-layout .chat-home-timeline .chat-input-primary:not(:disabled):hover .chat-input-primary-face {
-  background: color-mix(in oklab, var(--color-action) 88%, var(--color-background));
+  background: var(--color-action);
+}
+.chat-layout
+  .chat-home-timeline
+  .chat-input-primary[type="submit"]:not(:disabled):hover
+  .chat-input-primary-face {
+  background: var(--color-action-hover);
 }
 .chat-layout
   .chat-home-timeline
   .chat-input-primary:not(:disabled):active
   .chat-input-primary-face {
-  background: var(--color-action);
+  background: var(--color-action-active);
 }
 .chat-layout .chat-home-timeline [data-chat-model] {
   font-size: 0.8125rem;

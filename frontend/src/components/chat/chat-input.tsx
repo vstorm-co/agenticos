@@ -14,7 +14,7 @@ import { isRenderSafeImage } from "@/lib/file-kinds";
 import { getErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { Button, Spinner } from "@/components/ui";
-import { Send, Mic, MicOff } from "lucide-react";
+import { ArrowUp, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
@@ -1123,10 +1123,14 @@ export function ChatInput({
                 aria-hidden
               >
                 <span className="composer-action-icon" data-active={primary === "mic"}>
-                  {isListening ? <MicOff /> : <Mic />}
+                  {isListening ? (
+                    <MicOff className="composer-primary-glyph stroke-[2.25]" />
+                  ) : (
+                    <Mic className="composer-primary-glyph stroke-[2.25]" />
+                  )}
                 </span>
                 <span className="composer-action-icon" data-active={primary === "send"}>
-                  <Send />
+                  <ArrowUp className="composer-primary-glyph stroke-[2.5]" />
                 </span>
                 {primary === "stop" && <span className="size-3 rounded-[3px] bg-current" />}
                 {primary === "busy" && <Spinner className="size-4" />}
@@ -1180,7 +1184,11 @@ export function ChatInput({
                   }
                 >
                   <span className={PRIMARY_ACTION_FACE} aria-hidden>
-                    {isProcessing ? <Spinner className="size-4" /> : <Send className="size-4" />}
+                    {isProcessing ? (
+                      <Spinner className="size-4" />
+                    ) : (
+                      <ArrowUp className="composer-primary-glyph stroke-[2.5]" />
+                    )}
                   </span>
                   <span className="sr-only">{t("send")}</span>
                 </Button>
