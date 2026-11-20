@@ -3,7 +3,7 @@
 from dataclasses import replace
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +14,7 @@ from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.mcp_connection import McpConnection
-from app.schemas.routine_sources import RoutineSourceConsent
+from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceItem
 from app.services.agent_trigger import AgentTriggerService
 from app.services.routine_authority import RoutineAuthority
 from app.services.routine_sources import (
@@ -1317,3 +1317,202 @@ async def test_the_review_names_each_source_and_never_another_organizations(db: 
     assert (
         await RoutineSourceService(db).options(ctx, trigger)
     ).review_token == review.review_token
+
+
+@pytest.mark.security
+async def test_the_review_does_not_name_a_source_its_reader_may_not_view(db: AsyncSession) -> None:
+    """Running a shared agent does not reveal the name of a private skill it uses."""
+    from app.db.models.skill import Skill
+
+    owner, _, spec, _ = await world(db)
+    member = replace(owner, role="member")
+
+    def skill(name: str, visibility: str) -> Skill:
+        return Skill(
+            organization_id=owner.organization_id,
+            name=name,
+            description=name,
+            content=f"# {name}",
+            visibility=visibility,
+        )
+
+    shared, private = skill("deck-review", "org"), skill("salary-bands", "private")
+    db.add_all([shared, private])
+    await db.flush()
+    spec = spec.model_copy(update={"skill_ids": [shared.id, private.id]})
+    service = RoutineSourceService(db)
+
+    def names(items: list[RoutineSourceItem]) -> dict[str, str | None]:
+        return {
+            item.id: item.name for item in items if item.kind == "skill" and item.id is not None
+        }
+
+    assert names(await service._named(member, [spec], delegates=[], credentials=[])) == {
+        str(shared.id): "deck-review",
+        str(private.id): None,
+    }
+    # An owner reaches every skill in the organization, so the same review names both.
+    assert names(await service._named(owner, [spec], delegates=[], credentials=[])) == {
+        str(shared.id): "deck-review",
+        str(private.id): "salary-bands",
+    }
+
+
+@pytest.mark.security
+async def test_review_names_follow_view_grants_for_every_resource_kind(db: AsyncSession) -> None:
+    from app.db.models.context import ContextFile
+    from app.db.models.knowledge_base import KnowledgeBase
+    from app.db.models.organization_secret import OrganizationSecret
+    from app.db.models.resource_grant import ResourceGrant
+    from app.db.models.skill import Skill
+    from app.db.models.virtual_table import VirtualTable
+
+    owner, _, spec, _ = await world(db)
+    other, _ = await seed_member(db)
+    member = replace(owner, role="member")
+    private = {
+        "organization_id": owner.organization_id,
+        "owner_user_id": other.id,
+        "visibility": "private",
+    }
+    skill = Skill(name="private-skill", description="Private", content="# Private", **private)
+    context = ContextFile(name="private-context", content="Private", **private)
+    knowledge = KnowledgeBase(
+        name="private-knowledge",
+        scope="organization",
+        collection_name=f"private-{uuid4()}",
+        embedding_model="text-embedding-3-small",
+        embedding_dim=1536,
+        embedding_provider="openrouter",
+        **private,
+    )
+    delegate = Agent(name="private-delegate", slug=f"private-{uuid4()}", **private)
+    secret = OrganizationSecret(
+        name="private-credential",
+        kind="api_key",
+        sealed_secret="not-read-by-review",
+        **private,
+    )
+    table = VirtualTable(name="private-table", **private)
+    db.add_all([skill, context, knowledge, delegate, secret, table])
+    await db.flush()
+    spec = spec.model_copy(
+        update={
+            "skill_ids": [skill.id],
+            "context_ids": [context.id],
+            "collection_ids": [knowledge.id],
+        }
+    )
+    spec = AgentSpec.model_validate(
+        {
+            **spec.model_dump(mode="json"),
+            "table_bindings": [{"table_id": str(table.id), "operations": ["read"]}],
+        }
+    )
+    service = RoutineSourceService(db)
+
+    async def names(ctx: AuthContext) -> dict[str, str | None]:
+        return {
+            item.kind: item.name
+            for item in await service._named(
+                ctx,
+                [spec],
+                delegates=[delegate.id],
+                credentials=[secret.id],
+            )
+        }
+
+    expected = {
+        "skill": skill.name,
+        "context": context.name,
+        "knowledge": knowledge.name,
+        "delegate": delegate.name,
+        "terminal_credential": secret.name,
+        "table": table.name,
+    }
+    assert await names(member) == dict.fromkeys(expected)
+    assert await names(owner) == expected
+    # A grant widens view access without giving the reader an organization-wide role.
+    for resource_type, identifier in (
+        ("skill", skill.id),
+        ("context", context.id),
+        ("collection", knowledge.id),
+        ("agent", delegate.id),
+        ("secret", secret.id),
+        ("table", table.id),
+    ):
+        db.add(
+            ResourceGrant(
+                organization_id=owner.organization_id,
+                resource_type=resource_type,
+                resource_id=identifier,
+                subject_user_id=member.user_id,
+                level="read",
+            )
+        )
+    await db.flush()
+    assert await names(member) == expected
+
+
+@pytest.mark.security
+async def test_many_collection_labels_use_one_grant_lookup_and_preserve_scope_rules(
+    db: AsyncSession,
+) -> None:
+    from app.db.models.knowledge_base import KnowledgeBase
+    from app.db.models.resource_grant import ResourceGrant
+    from app.repositories import resource_grant_repo
+    from app.services.collection_access import readable_kb
+
+    owner, _, spec, _ = await world(db)
+    other, foreign = await seed_member(db)
+    member = replace(owner, role="member")
+
+    def collection(
+        name: str, scope: str, organization_id: UUID | None, owner_id: UUID | None
+    ) -> KnowledgeBase:
+        return KnowledgeBase(
+            name=name,
+            scope=scope,
+            organization_id=organization_id,
+            owner_user_id=owner_id,
+            visibility="private",
+            collection_name=f"batch-{uuid4()}",
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            embedding_provider="openrouter",
+        )
+
+    rows = [
+        collection(f"private-{i}", "organization", owner.organization_id, other.id)
+        for i in range(100)
+    ]
+    rows.extend(
+        [
+            collection("app-shared", "app", None, other.id),
+            collection("personal-mine", "personal", None, owner.user_id),
+            collection("personal-other", "personal", None, other.id),
+            collection("foreign-private", "organization", foreign.id, other.id),
+        ]
+    )
+    db.add_all(rows)
+    await db.flush()
+    db.add(
+        ResourceGrant(
+            organization_id=owner.organization_id,
+            resource_type="collection",
+            resource_id=rows[0].id,
+            subject_user_id=member.user_id,
+            level="read",
+        )
+    )
+    await db.flush()
+    spec = spec.model_copy(update={"collection_ids": [row.id for row in rows]})
+    with patch(
+        "app.services.access.resource_grant_repo.list_shared_ids",
+        wraps=resource_grant_repo.list_shared_ids,
+    ) as grants:
+        items = await RoutineSourceService(db)._named(member, [spec], delegates=[], credentials=[])
+        assert grants.await_count == 1
+    named = {item.id: item.name for item in items}
+    for row in rows:
+        assert named[str(row.id)] == (row.name if await readable_kb(db, member, row) else None)

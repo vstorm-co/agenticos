@@ -1,5 +1,5 @@
 ---
-source_sha: "a8bf70087a14"
+source_sha: "a0637ae8ab9e"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1392,6 +1392,8 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
   działają z uprawnieniami osoby, dla której agent działa, nie jego autora - więc
   agent opublikowany przez Buildera nie zaprosi Admina bez pytania w runie
   Ownera. Ich tarczy nie da się wyłączyć, a publikacja odrzuca dla nich `never`.
+  Każde wywołanie czeka na osobną odpowiedź: ani **Zatwierdzaj wszystko**, ani
+  zapamiętana decyzja go nie przepuszcza.
 
 Szablon **AgenticOS** wiąże go właśnie tak, podobnie jak każdy agent tworzony od
 zera, więc agent od razu sięga do platformy - i ustawia rutynę albo przełącza język
