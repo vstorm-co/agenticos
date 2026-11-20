@@ -67,6 +67,8 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState(false);
   const [searchMode, setSearchMode] = useState<ImprovementMode>("steps");
+  // Kept across re-pricing, so the Search option does not flicker while a new quote loads.
+  const [trainQuestions, setTrainQuestions] = useState<number | null>(null);
   const [searchBudget, setSearchBudget] = useState("");
   const [gradingModel, setGradingModel] = useState<string | null>(null);
   const searchLimit = limitValue(searchBudget);
@@ -102,6 +104,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
       (priced) => {
         if (current) {
           setQuote({ key, value: priced });
+          setTrainQuestions(priced.train_questions ?? null);
           setRefusal(null);
         }
       },
@@ -118,9 +121,6 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
       current = false;
     };
   }, [asked, key, target, searchReady, estimateSession, tErrors]);
-  const [trainQuestions, setTrainQuestions] = useState<number | null>(null);
-  if (quote && (quote.train_questions ?? null) !== trainQuestions)
-    setTrainQuestions(quote.train_questions ?? null);
   const questionsReady = useCallback((datasetId: string) => {
     setChosen(datasetId);
     setWritten((count) => count + 1);

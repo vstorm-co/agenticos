@@ -1,5 +1,5 @@
 ---
-source_sha: "015b7d8838d5"
+source_sha: "e95c5b9ff5ca"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -566,9 +566,11 @@ Rest.
 Standardmäßig bewertet der Bewerter des Datasets die Varianten auf seinem eigenen
 Modell; `grading_model_profile_id` bewertet sie stattdessen auf einem günstigeren
 oder lokalen Modell. Die Prüfung nach **Änderungen** bewertet immer der Bewerter
-des Datasets. Die Suche läuft als Hintergrundjobs mit je einer Variante oder
-einer Runde Vorschläge, einer nach dem anderen pro Organisation, neben ihren
-Eval-Runs. Die Suche im Inhalt eines Skills ist noch nicht verfügbar.
+des Datasets. Die Antworten
+einer Variante sind keine Eval-Runs: Sie erscheinen weder auf dem Tab **Evals**
+noch in Vergleichen, und die Sitzung zeigt, was sie gekostet haben. Die Jobs der
+Suche laufen einer nach dem anderen pro Organisation und belegen keine Plätze
+von Eval-Runs. Die Suche im Inhalt eines Skills ist noch nicht verfügbar.
 
 ### Einen neuen Skill vorschlagen { #proposing-a-new-skill }
 

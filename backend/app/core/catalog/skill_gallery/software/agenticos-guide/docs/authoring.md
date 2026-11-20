@@ -515,10 +515,11 @@ search spent apart from the rest.
 
 By default the dataset's judge grades the variants on its own model;
 `grading_model_profile_id` grades them on a cheaper or local model instead. The
-check after **Changes** always grades with the dataset's judge. The search runs
-as background jobs of one variant or one round of proposals each, one at a time
-per organization, beside its eval runs. Searching a skill's content is not
-available yet.
+check after **Changes** always grades with the dataset's judge. A variant's
+answers are not eval runs: they appear neither on the Evals tab nor in
+comparisons, and the session shows what they cost. The search's jobs run one at a
+time per organization, without taking the slots of eval runs. Searching a
+skill's content is not available yet.
 
 ### Proposing a new skill { #proposing-a-new-skill }
 

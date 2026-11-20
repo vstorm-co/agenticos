@@ -1,5 +1,5 @@
 ---
-source_sha: "015b7d8838d5"
+source_sha: "e95c5b9ff5ca"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -531,10 +531,11 @@ wydatki wyszukiwania osobno od reszty.
 
 Domyślnie warianty ocenia sędzia datasetu na własnym modelu;
 `grading_model_profile_id` ocenia je zamiast tego na tańszym albo lokalnym
-modelu. Sprawdzenie po **Zmianach** zawsze ocenia sędzia datasetu. Wyszukiwanie
-działa jako zadania w tle, każde z jednym wariantem albo jedną rundą propozycji,
-po jednym naraz w organizacji, obok jej ewaluacji. Wyszukiwanie treści skilla
-nie jest jeszcze dostępne.
+modelu. Sprawdzenie po **Zmianach** zawsze ocenia sędzia datasetu. Odpowiedzi
+wariantów nie są ewaluacjami: nie pojawiają się ani na karcie **Ewaluacje**, ani w
+porównaniach, a sesja pokazuje, ile kosztowały. Zadania wyszukiwania działają po
+jednym naraz w organizacji i nie zajmują miejsc ewaluacji. Wyszukiwanie treści
+skilla nie jest jeszcze dostępne.
 
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 

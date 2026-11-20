@@ -1,5 +1,5 @@
 ---
-source_sha: "015b7d8838d5"
+source_sha: "e95c5b9ff5ca"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -548,8 +548,10 @@ aparte del resto.
 Por defecto, el juez del dataset califica las variantes con su propio modelo;
 `grading_model_profile_id` las califica en su lugar con un modelo más barato o
 local. La comprobación después de **Changes** siempre la califica el juez del
-dataset. La búsqueda se ejecuta como trabajos en segundo plano de una variante o
-una ronda de propuestas cada uno, de uno en uno por organización, junto a sus
+dataset. Las respuestas
+de una variante no son ejecuciones de eval: no aparecen en la pestaña **Evals** ni
+en las comparaciones, y la sesión muestra lo que costaron. Los trabajos de la
+búsqueda se ejecutan de uno en uno por organización, sin ocupar los huecos de las
 ejecuciones de eval. Buscar en el contenido de un skill aún no está disponible.
 
 ### Proponer un skill nuevo { #proposing-a-new-skill }
