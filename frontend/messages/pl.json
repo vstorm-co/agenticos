@@ -2413,7 +2413,7 @@
         "current": "Agent korzysta już z wbudowanych ustawień.",
         "apply": "Zastosuj wbudowaną aktualizację",
         "reload": "Pobierz aktualne różnice",
-        "draft": "Draft",
+        "draft": "Wersja robocza",
         "published": "Opublikowana wersja"
       },
       "draftChanged": "Ta wersja robocza zmieniła się w innym miejscu. Twoje wpisy nadal tu są, ale zapis został wstrzymany. Skopiuj to, co chcesz zachować, a potem wczytaj najnowszą wersję roboczą.",
