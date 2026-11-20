@@ -272,6 +272,9 @@ COMPATIBLE_ENDPOINTS: dict[str, str] = {
     "alibaba_coding_plan": "https://coding-intl.dashscope.aliyuncs.com/v1",
     "opencode_go": "https://opencode.ai/inference/go/openai/v1",
     "ollama_cloud": "https://ollama.com/v1",
+    # Required in the profile. Loopback is never reachable from the server, so the
+    # example is a gateway service on the deployment's network, allowlisted there.
+    "cliproxyapi": "http://cliproxyapi:8317/v1",
 }
 """OpenAI-compatible providers built with their own history identity, and the
 endpoint each reaches when a profile names none. A plan key works only at its
@@ -337,6 +340,16 @@ PROVIDERS: dict[str, ProviderSpec] = {
         ),
         _api_key(
             "ollama_cloud", "Ollama Cloud", base_url_param="base_url", model_prefix="openai-chat"
+        ),
+        # A CLIProxyAPI gateway the operator or person runs: it holds account
+        # sign-ins (Antigravity, Grok Build, Kimi, Devin, Muse and others) and
+        # serves them as one OpenAI-compatible endpoint behind its client key.
+        _api_key(
+            "cliproxyapi",
+            "CLIProxyAPI (subscription gateway)",
+            base_url_param="base_url",
+            requires_base_url=True,
+            model_prefix="openai-chat",
         ),
         _api_key("moonshotai", "Moonshot AI"),
         _api_key("nebius", "Nebius AI Studio"),

@@ -285,6 +285,7 @@ class TestProviderCatalog:
             ("alibaba_coding_plan", "https://coding-intl.dashscope.aliyuncs.com/v1/"),
             ("opencode_go", "https://opencode.ai/inference/go/openai/v1/"),
             ("ollama_cloud", "https://ollama.com/v1/"),
+            ("cliproxyapi", "http://cliproxyapi:8317/v1/"),
         ],
     )
     def test_subscription_plan_keys_reach_their_plans_endpoint_under_their_own_identity(
@@ -322,7 +323,13 @@ class TestProviderCatalog:
         from app.agents.capabilities.budget._capability import price_request
 
         usage = RequestUsage(input_tokens=1000, output_tokens=1000)
-        for provider in ("kimi_code", "alibaba_coding_plan", "opencode_go", "ollama_cloud"):
+        for provider in (
+            "kimi_code",
+            "alibaba_coding_plan",
+            "opencode_go",
+            "ollama_cloud",
+            "cliproxyapi",
+        ):
             assert price_request(usage, "qwen3-coder-plus", provider) is None
 
     def test_minimax_uses_its_own_history_identity_and_selected_key(self) -> None:

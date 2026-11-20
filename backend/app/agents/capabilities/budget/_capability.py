@@ -178,6 +178,7 @@ def price_request(
         "alibaba_coding_plan",
         "opencode_go",
         "ollama_cloud",
+        "cliproxyapi",
     }:
         # Subscription allowances have no verified per-token USD contract.
         return None

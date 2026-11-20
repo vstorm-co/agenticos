@@ -301,7 +301,7 @@ export const KEYED_PLAN_ENDPOINTS = [
 ];
 
 /** Providers whose catalog is read at a named endpoint with the profile's own key. */
-export const KEYED_LISTINGS = ["stav", "otari", ...KEYED_PLAN_ENDPOINTS];
+export const KEYED_LISTINGS = ["stav", "otari", "cliproxyapi", ...KEYED_PLAN_ENDPOINTS];
 
 /**
  * The models one provider offers, for the field where a model id is typed.

@@ -1,5 +1,5 @@
 ---
-source_sha: "3be190cfaa35"
+source_sha: "ecef2a482381"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -380,6 +380,7 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | Alibaba Coding Plan | `alibaba_coding_plan` | klucz API | ✓ |
 | OpenCode Go | `opencode_go` | klucz API | ✓ |
 | Ollama Cloud | `ollama_cloud` | klucz API | ✓ |
+| CLIProxyAPI (subscription gateway) | `cliproxyapi` | klucz API | ✓ |
 | Moonshot AI | `moonshotai` | klucz API | |
 | Nebius AI Studio | `nebius` | klucz API | |
 | OVHcloud AI Endpoints | `ovhcloud` | klucz API | |
@@ -406,6 +407,8 @@ Dla **Z.AI GLM Coding Plan** wybierz **Z.AI** i ustaw **Endpoint** na `https://a
 | Ollama Cloud | `https://ollama.com/v1` | Modele chmurowe Twojego konta Ollama |
 
 Klucz planu nie jest zamienny z kluczem zwykłego API rozliczanego według użycia. Niektórzy dostawcy ograniczają klucze planów do narzędzi programistycznych; użycie ich z platformy agentów to Twoja decyzja i może skutkować ograniczeniem lub zawieszeniem planu. Budżety AgenticOS traktują to zużycie jako niewycenione użycie subskrypcji.
+
+**Brama subskrypcji (CLIProxyAPI).** Konta, do których dostawcy nie wydają klucza planu (Antigravity, Grok Build, Devin, Muse Code, logowanie Kimi Code i inne), można używać przez bramę [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) uruchomioną przez Ciebie lub operatora. Zaloguj konta w bramie jej własnymi poleceniami logowania, dodaj klucz klienta w `access.api-keys`, a potem utwórz profil **CLIProxyAPI (subscription gateway)** z jej Endpointem (na przykład `http://cliproxyapi:8317/v1` dla kontenera bramy w sieci wdrożenia) i tym kluczem klienta. Każde konto trzymane przez bramę jest dostępne dla każdego, kto może użyć profilu, więc dla konta osobistego uruchom osobistą bramę. Dodaj host bramy do `OUTBOUND_PRIVATE_ALLOWLIST`; adresy pętli zwrotnej nigdy nie są osiągalne z serwera. Dostawcy mogą ograniczyć lub zawiesić konta używane w ten sposób; to ryzyko ponosi właściciel konta.
 
 Przed wczytaniem modeli wybierz klucz z sejfu i potwierdź adres docelowy. Własny katalog korzysta tylko z tego klucza i endpointu; brak listy pozwala wpisać model ręcznie, bez zastępowania jej katalogiem zwykłego API. Szacunki budżetu AgenticOS nie określają pozostałego limitu subskrypcji.
 
@@ -583,13 +586,13 @@ siedmiu providerów, co odpowiedź mówi wprost.
 
 ### Żywe { #live }
 
-Dwudziestu czterech providerów publikuje endpoint listy i jest to jedyne źródło, które wie
+Dwudziestu pięciu providerów publikuje endpoint listy i jest to jedyne źródło, które wie
 o modelu wypuszczonym dziś rano:
 
 `anthropic`, `openai`, `google`, `openrouter`, `groq`, `mistral`, `together`,
 `cohere`, `deepseek`, `xai`, `sambanova`, `vercel`, `ovhcloud`, `huggingface`,
 `cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`,
-`kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`.
+`kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`, `cliproxyapi`.
 
 Kształty odpowiedzi się różnią — tablica siedzi w `data`, w `models` albo w
 korzeniu dokumentu; id to `id`, `name` albo `model`; Gemini poprzedza je

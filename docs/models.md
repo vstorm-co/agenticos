@@ -368,6 +368,7 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | Alibaba Coding Plan | `alibaba_coding_plan` | API key | ✓ |
 | OpenCode Go | `opencode_go` | API key | ✓ |
 | Ollama Cloud | `ollama_cloud` | API key | ✓ |
+| CLIProxyAPI (subscription gateway) | `cliproxyapi` | API key | ✓ |
 | Moonshot AI | `moonshotai` | API key | |
 | Nebius AI Studio | `nebius` | API key | |
 | OVHcloud AI Endpoints | `ovhcloud` | API key | |
@@ -394,6 +395,8 @@ For a **Z.AI GLM Coding Plan**, select **Z.AI** and explicitly set **Endpoint** 
 | Ollama Cloud | `https://ollama.com/v1` | Cloud models of your Ollama account |
 
 A plan key is not interchangeable with the vendor's metered API key. Some vendors restrict plan keys to coding tools; using one from an agent platform is your decision and may limit or suspend the plan. AgenticOS budgets treat this usage as unpriced subscription use.
+
+**Subscription gateway (CLIProxyAPI).** Accounts whose vendors offer no plan key (Antigravity, Grok Build, Devin, Muse Code, Kimi Code sign-in and others) can be used through a [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) gateway that you or your operator run. Sign the accounts in to the gateway with its own login commands, add a client key under `access.api-keys`, then create a **CLIProxyAPI (subscription gateway)** profile with its Endpoint (for example `http://cliproxyapi:8317/v1` for a gateway container on the deployment's network) and that client key. Every account the gateway holds is available to whoever can use the profile, so run a personal gateway for a personal account. Add the gateway's host to `OUTBOUND_PRIVATE_ALLOWLIST`; loopback addresses are never reachable from the server. Vendors may limit or suspend accounts used this way; that risk is the account owner's.
 
 Choose the vault key and confirm the destination before loading models. A custom catalog uses that key and endpoint only; an unavailable listing leaves the model field editable rather than substituting the general API catalog. AgenticOS budget estimates do not measure your remaining subscription allowance.
 
@@ -563,13 +566,13 @@ for seven providers, which the answer says out loud.
 
 ### Live
 
-Twenty-four providers publish a list endpoint, and it is the only source that knows
+Twenty-five providers publish a list endpoint, and it is the only source that knows
 about a model released this morning:
 
 `anthropic`, `openai`, `google`, `openrouter`, `groq`, `mistral`, `together`,
 `cohere`, `deepseek`, `xai`, `sambanova`, `vercel`, `ovhcloud`, `huggingface`,
 `cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`,
-`kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`.
+`kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`, `cliproxyapi`.
 
 The response shapes disagree — the array sits at `data`, at `models` or at the
 document root; the id is `id`, `name` or `model`; Gemini prefixes it with

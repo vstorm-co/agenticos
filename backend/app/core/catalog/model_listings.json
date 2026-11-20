@@ -206,5 +206,12 @@
     "id_field": "id",
     "auth_header": "Authorization",
     "auth_template": "Bearer {key}"
+  },
+  "cliproxyapi": {
+    "url": "http://cliproxyapi:8317/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
   }
 }

@@ -420,6 +420,7 @@ CUSTOM_LISTINGS: dict[str, bool] = {
     "alibaba_coding_plan": True,
     "opencode_go": True,
     "ollama_cloud": True,
+    "cliproxyapi": True,
 }
 """Providers whose model list can be read at an endpoint the caller names, and
 whether the vault key goes with that request.

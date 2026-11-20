@@ -75,6 +75,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Register installed ACP agents in Desktop settings and delegate tasks through the External ACP agent capability, with native consent, isolated session identity and revocation (#3130).
 
+- Use subscription accounts without a plan key (Antigravity, Grok Build, Devin, Muse Code and others) as model profiles through a CLIProxyAPI subscription gateway that holds their sign-ins, with the gateway's own model list.
 - Kimi Code, Alibaba Coding Plan, OpenCode Go and Ollama Cloud plan keys work as model profiles on their plans' OpenAI-compatible endpoints, with each key's own model catalog, regional endpoints and unpriced subscription usage.
 - MiniMax models accept vault API or M Plan keys through a separate OpenAI-compatible provider identity, with explicit regional endpoints and tool calling.
 - Z.AI model profiles accept explicit GLM Coding Plan endpoints, with authenticated model catalogs isolated from the ordinary API and other accounts.
