@@ -6,11 +6,14 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import JsonValue
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, cast, column, func, or_, select, true
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.authoring import AuthoringRequest
+from app.db.models.case_score import CaseScore
 from app.db.models.eval_run import EvalRunCase
 from app.db.models.improvement import ACTIVE_STATUSES, OPEN_STATUSES
 from app.db.models.skill_check import SkillCheckAgent
@@ -291,7 +294,8 @@ async def spent(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> Dec
 
 
 async def check_cost(db: AsyncSession, check_id: UUID, *, organization_id: UUID) -> Decimal:
-    """What a check's eval runs cost, across every agent and stage it ran."""
+    """What a check's eval runs cost, across every agent and stage it ran: every
+    answer, and every grading the judge made of one."""
     runs = (
         select(SkillCheckAgent.skill_set_run_id.label("run_id"))
         .where(
@@ -312,7 +316,29 @@ async def check_cost(db: AsyncSession, check_id: UUID, *, organization_id: UUID)
             EvalRunCase.eval_run_id.in_(select(runs.c.run_id)),
         )
     )
-    return Decimal(total or 0)
+    result = (
+        func.jsonb_array_elements(CaseScore.results)
+        .table_valued(column("value", JSONB))
+        .render_derived(name="result")
+    )
+    graded_by = result.c.value["judge_run_id"].astext
+    gradings = (
+        select(graded_by)
+        .select_from(CaseScore)
+        .join(result, true())
+        .where(
+            CaseScore.organization_id == organization_id,
+            CaseScore.eval_run_id.in_(select(runs.c.run_id)),
+            graded_by.is_not(None),
+        )
+    )
+    judged = await db.scalar(
+        select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+            AgentRun.organization_id == organization_id,
+            cast(AgentRun.id, String).in_(gradings),
+        )
+    )
+    return Decimal(total or 0) + Decimal(judged or 0)
 
 
 async def timeline(
