@@ -1241,6 +1241,8 @@ class TestKeysCheck:
             ("234", "Total: 1 234 PLN", False),
             ("1 234", "Total 1 234 567", False),
             ("234 567", "Total 1 234 567", False),
+            ("234567", "Total 1 234 567", False),
+            ("345678", "Total 12 345 678", False),
             ("12", "Amount 12,50", False),
             ("1,234", "A total of 1,234.", True),
             ("12", "Pay 12 PLN", True),

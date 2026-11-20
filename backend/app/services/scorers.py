@@ -264,7 +264,6 @@ def _ceiling_check(check: CeilingCheck, answer: ScoredAnswer, *, required: bool)
 # one locale groups thousands with them, another marks decimals.
 _THOUSANDS_GAP = re.compile(r"(?<=\d) (?=\d{3}(?!\d))")
 _DIGIT_RUN = re.compile(r"\d+")
-_THOUSANDS_GROUP = re.compile(r"\d{3}(?!\d)")
 _SPACES = re.compile(r"\s+")
 _WORD = re.compile(r"\w")
 MAX_MISSING_NAMED = 20
@@ -298,10 +297,11 @@ def _carries(haystack: str, value: str) -> bool:
     before = r"(?<!\w)" if _WORD.match(needle[:1]) else ""
     after = r"(?!\w)" if _WORD.match(needle[-1:]) else ""
     # A number continues past a separator: `234` is part of `1 234`, `12` of `12,50`.
-    # Past a space only into a group of three digits, the way thousands are grouped.
-    if needle[:1].isdigit():
+    # Past a space only when the value's leading group, once grouped, has three digits.
+    first = _DIGIT_RUN.match(needle)
+    if first:
         before += r"(?<!\d[.,])"
-        if _THOUSANDS_GROUP.match(written):
+        if len(first.group()) % 3 == 0:
             before += r"(?<!\d )"
     if needle[-1:].isdigit():
         after += r"(?! \d{3}(?!\d))(?![.,]\d)"
