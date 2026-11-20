@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { PlatformToolChecklist } from "@/components/agents/platform-tool-checklist";
 import { BrandMark } from "@/components/branding/brand-mark";
 import { useBranding } from "@/components/branding/branding-provider";
 import { CardStatus, McpServerCard } from "@/components/mcp/mcp-server-card";
@@ -11,14 +12,12 @@ import { ErrorState } from "@/components/states";
 import {
   Badge,
   Button,
-  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Label,
   Skeleton,
   Switch,
 } from "@/components/ui";
@@ -26,7 +25,7 @@ import { usePlatformMcpTools } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
-import type { McpApproval, PlatformMcpServerRef } from "@/types/agents";
+import type { PlatformMcpServerRef } from "@/types/agents";
 
 /** What a new binding starts as: every tool, and every one that changes something held. */
 export const NEW_PLATFORM_BINDING: PlatformMcpServerRef = {
@@ -35,13 +34,26 @@ export const NEW_PLATFORM_BINDING: PlatformMcpServerRef = {
   approval: "writes",
 };
 
+/** What the card says about approval: a tool the agent can call let run freely is worth saying. */
+function ApprovalStatus({ binding }: { binding: PlatformMcpServerRef }) {
+  const t = useTranslations("agents");
+  const callable = (name: string) => binding.allowed_tools?.includes(name) ?? true;
+  const released = Object.entries(binding.tool_approval ?? {}).filter(
+    ([name, mode]) => mode === "never" && callable(name),
+  );
+  if (released.length > 0) {
+    return t("platformSomeRunFreely");
+  }
+  return binding.approval === "all" ? t("platformAsksEveryCall") : t("platformAsksBeforeWrites");
+}
+
 /**
  * This deployment's own MCP server, first in the Builder's gallery (#2190).
  *
  * It needs no connection - it is the platform - and its tools act as whoever the
  * agent runs for, so the card says that rather than whose account it uses. Writes
- * wait for approval from the moment it is switched on; `none` is not offered,
- * because the server holds it to `writes` anyway.
+ * wait for approval from the moment it is switched on; the settings group the
+ * tools by what they work on, and only a tool named there runs a change freely.
  */
 export function PlatformServerCard({
   binding,
@@ -83,11 +95,7 @@ export function PlatformServerCard({
             onClick={disabled ? undefined : () => setOpen(true)}
             label={t("serverSettingsNamed", { name: appName })}
           >
-            {isOn
-              ? binding.approval === "all"
-                ? t("platformAsksEveryCall")
-                : t("platformAsksBeforeWrites")
-              : t("platformAsWhoeverAsks")}
+            {isOn ? <ApprovalStatus binding={binding} /> : t("platformAsWhoeverAsks")}
           </CardStatus>
         }
         selected={isOn}
@@ -126,19 +134,6 @@ function PlatformBindingDialog({
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const { tools, isLoading, error } = usePlatformMcpTools();
-  const current = binding ?? NEW_PLATFORM_BINDING;
-  const allowed = current.allowed_tools ?? null;
-  const isAllowed = (tool: string) => allowed === null || allowed.includes(tool);
-
-  const setTool = (tool: string, on: boolean) => {
-    const base = allowed ?? tools.map((entry) => entry.name);
-    const next = on ? [...base, tool] : base.filter((name) => name !== tool);
-    // Every tool chosen is "no limit", so a tool added to the server later is
-    // offered to an agent whose author never narrowed the list.
-    const everything = tools.every((entry) => next.includes(entry.name));
-    onChange({ ...current, allowed_tools: everything ? null : next });
-  };
-  const setApproval = (approval: McpApproval) => onChange({ ...current, approval });
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -157,81 +152,18 @@ function PlatformBindingDialog({
           <Button onClick={() => onChange(NEW_PLATFORM_BINDING)} disabled={disabled}>
             {t("platformUseIt")}
           </Button>
+        ) : error ? (
+          // A request that failed is said, never drawn as a server with no tools.
+          <ErrorState description={getErrorMessage(error, tErrors)} className="py-6" />
+        ) : isLoading ? (
+          <Skeleton className="h-32 w-full" />
         ) : (
-          <>
-            <div className="space-y-2">
-              <p id="platform-approval" className="text-sm font-medium">
-                {t("platformApproval")}
-              </p>
-              <div role="radiogroup" aria-labelledby="platform-approval" className="space-y-1.5">
-                {(["writes", "all"] as const).map((mode) => {
-                  const chosen = (current.approval ?? "writes") === mode;
-                  return (
-                    <button
-                      key={mode}
-                      type="button"
-                      role="radio"
-                      aria-checked={chosen}
-                      onClick={() => setApproval(mode)}
-                      disabled={disabled}
-                      className={cn(
-                        "w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors",
-                        chosen ? "border-foreground/40 bg-accent" : "hover:bg-accent/60",
-                      )}
-                    >
-                      <span className="block font-medium">
-                        {mode === "writes"
-                          ? t("platformAsksBeforeWrites")
-                          : t("platformAsksEveryCall")}
-                      </span>
-                      <span className="text-muted-foreground block text-xs">
-                        {mode === "writes" ? t("platformWritesHint") : t("platformAllHint")}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>{t("platformTools")}</Label>
-              {error ? (
-                // A request that failed is said, never drawn as a server with no tools.
-                <ErrorState description={getErrorMessage(error, tErrors)} className="py-6" />
-              ) : isLoading ? (
-                <Skeleton className="h-32 w-full" />
-              ) : (
-                <ul className="divide-border divide-y rounded-lg border">
-                  {tools.map((tool) => (
-                    <li key={tool.name} className="flex items-start gap-3 px-3 py-2">
-                      <Checkbox
-                        id={`platform-tool-${tool.name}`}
-                        checked={isAllowed(tool.name)}
-                        onCheckedChange={(on) => setTool(tool.name, on === true)}
-                        disabled={disabled}
-                        className="mt-0.5"
-                      />
-                      <Label htmlFor={`platform-tool-${tool.name}`} className="min-w-0 flex-1">
-                        <span className="flex items-center gap-2">
-                          <span className="font-mono text-xs">{tool.name}</span>
-                          {tool.writes ? (
-                            <Badge variant="outline">
-                              {tool.ungated ? t("platformUngatedBadge") : t("platformWritesBadge")}
-                            </Badge>
-                          ) : (
-                            tool.held && <Badge variant="outline">{t("platformHeldBadge")}</Badge>
-                          )}
-                        </span>
-                        <span className="text-muted-foreground block text-xs">
-                          {tool.description}
-                        </span>
-                      </Label>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </>
+          <PlatformToolChecklist
+            tools={tools}
+            binding={binding}
+            onChange={onChange}
+            disabled={disabled}
+          />
         )}
 
         <DialogFooter>

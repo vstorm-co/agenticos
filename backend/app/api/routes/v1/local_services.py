@@ -14,6 +14,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 
 from app.api.deps import Auth, LocalServiceSvc, require
+from app.api.public_api import ASSISTANT
 from app.core.permissions import Perm
 from app.schemas.local_service import (
     LocalServiceCreate,
@@ -28,7 +29,7 @@ router = APIRouter()
 @router.get(
     "",
     response_model=LocalServiceList,
-    dependencies=[Depends(require(Perm.CONNECTIONS_VIEW))],
+    dependencies=[ASSISTANT, Depends(require(Perm.CONNECTIONS_VIEW))],
 )
 async def list_local_services(service: LocalServiceSvc, ctx: Auth) -> Any:
     """The organization's own services and the deployment's."""
@@ -40,7 +41,7 @@ async def list_local_services(service: LocalServiceSvc, ctx: Auth) -> Any:
     "",
     response_model=LocalServiceRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+    dependencies=[ASSISTANT, Depends(require(Perm.CONNECTIONS_MANAGE))],
 )
 async def create_local_service(
     data: LocalServiceCreate, service: LocalServiceSvc, ctx: Auth

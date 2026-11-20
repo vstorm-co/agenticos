@@ -11,3 +11,5 @@ it("routes historical onboarding links into the working start hub", () => {
   render(<OnboardingPlaceholder />);
   expect(screen.getByRole("heading", { name: "First task" })).toBeVisible();
 });
+
+vi.mock("@/components/layout/account-appearance", () => ({ AccountAppearance: () => null }));

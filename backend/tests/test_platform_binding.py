@@ -147,6 +147,73 @@ class TestPublishing:
         assert len(clashing) == 1
         assert "'agenticos'" in clashing[0]
 
+    @pytest.mark.security
+    async def test_a_tool_approval_naming_no_platform_tool_is_refused(self) -> None:
+        """A mistyped name would leave the tool on the binding's default, silently."""
+        registry = AgentRegistryService(MagicMock())
+
+        known = await registry._mcp_problems(
+            CTX,
+            [
+                PlatformMcpServerRef(
+                    account="platform", tool_approval={"add_virtual_table_record": "never"}
+                )
+            ],
+            taken={},
+        )
+        unknown = await registry._mcp_problems(
+            CTX,
+            [PlatformMcpServerRef(account="platform", tool_approval={"add_table_row": "never"})],
+            taken={},
+        )
+
+        assert known == []
+        assert unknown == [
+            "This platform's server has no tool named add_table_row to set approval for"
+        ]
+
+    @pytest.mark.security
+    async def test_a_tool_that_widens_authority_cannot_be_published_to_run_freely(self) -> None:
+        """Codex on #3172: a Builder's agent, run by an Owner, invited an Admin unasked."""
+        registry = AgentRegistryService(MagicMock())
+
+        def binding(mode: str) -> list[PlatformMcpServerRef]:
+            approvals = {"invite_member": mode, "update_proactivity_settings": mode}
+            return [PlatformMcpServerRef(account="platform", tool_approval=approvals)]
+
+        released = await registry._mcp_problems(CTX, binding("never"), taken={})
+        asked = await registry._mcp_problems(CTX, binding("required"), taken={})
+
+        assert released == [
+            "invite_member, update_proactivity_settings always asks the person the agent "
+            "runs for, so it cannot run freely"
+        ]
+        assert asked == []
+
+
+class TestTheStoredBinding:
+    def test_a_binding_with_no_tool_of_its_own_stores_as_before(self) -> None:
+        """Published agents' stored specs do not change shape."""
+        stored = {"account": "platform", "allowed_tools": None, "approval": "writes"}
+
+        assert PlatformMcpServerRef.model_validate(stored).model_dump(mode="json") == stored
+
+    @pytest.mark.security
+    def test_each_tool_s_own_approval_survives_the_yaml_round_trip(self) -> None:
+        spec = AgentSpec(
+            name="Ops",
+            mcp_servers=[
+                PlatformMcpServerRef(
+                    account="platform",
+                    tool_approval={"run_workflow": "never", "default_tool": "default"},
+                )
+            ],
+        )
+
+        (platform,) = AgentSpec.from_yaml(spec.to_yaml()).mcp_servers
+        assert isinstance(platform, PlatformMcpServerRef)
+        assert platform.tool_approval == {"run_workflow": "never"}
+
 
 @pytest.mark.parametrize(
     "surface",

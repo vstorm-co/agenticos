@@ -60,7 +60,12 @@ async def test_a_viewer_lists_their_open_outcomes_for_one_chat() -> None:
     (item,) = response.json()["items"]
     assert item["source_run_id"] == str(RUN)
     assert (item["id"], item["status"], item["summary"]) == (str(OUTCOME), "open", "Found it")
-    assert listed.await_args.kwargs == {"open_only": True, "conversation_id": CHAT}
+    assert listed.await_args.kwargs == {
+        "open_only": True,
+        "conversation_id": CHAT,
+        "limit": 51,
+        "skip": 0,
+    }
 
 
 async def test_a_viewer_settles_their_own_outcome_and_says_where() -> None:
@@ -98,3 +103,16 @@ async def test_an_unknown_action_is_a_validation_error() -> None:
         )
 
     assert response.status_code == 422
+
+
+async def test_outcome_pages_report_a_real_continuation_and_forward_the_offset() -> None:
+    listed = AsyncMock(return_value=[_row(), _row()])
+    with patch("app.services.outcome.OutcomeService.list_mine", new=listed):
+        async with _client() as client:
+            response = await client.get(
+                f"{settings.API_V1_STR}/outcomes", params={"limit": 1, "skip": 4}
+            )
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == 1
+    assert response.json()["next_skip"] == 5
+    assert listed.await_args.kwargs["skip"] == 4 and listed.await_args.kwargs["limit"] == 2

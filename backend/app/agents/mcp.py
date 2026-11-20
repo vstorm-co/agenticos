@@ -511,6 +511,9 @@ def _make_toolset(spec: McpServerSpec) -> Any:
                 tool_prefix=tool_prefix(spec.name),
             ),
         )
+    if spec.in_process:
+        # Deployment authority belongs only to explicitly authorized external OAuth clients.
+        server = server.filtered(lambda _ctx, tool: tool.name != "change_deployment")
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
@@ -862,11 +865,19 @@ PLATFORM_MCP_NAME = "agenticos"
 
 PLATFORM_MCP_PREFIX = tool_prefix(PLATFORM_MCP_NAME)
 
-PLATFORM_UNGATED_TOOLS = frozenset({"set_my_language"})
+PLATFORM_UNGATED_TOOLS = frozenset({"set_my_language", "set_my_preferences"})
 """The platform's writes that never wait for approval - `platform_mcp._tools.UNGATED`.
 
 Named again rather than imported: the platform's server imports the application,
 which imports this layer.
+"""
+
+PLATFORM_ALWAYS_ASK_TOOLS = frozenset(
+    {"invite_member", "update_proactivity_settings", "change_deployment", "change_organization"}
+)
+"""The platform's writes no binding lets run unasked - `platform_mcp._tools.ALWAYS_ASKS`.
+
+Named again for the same reason as `PLATFORM_UNGATED_TOOLS`.
 """
 
 PLATFORM_MCP_URL = "http://agenticos/mcp"
@@ -874,15 +885,30 @@ PLATFORM_MCP_URL = "http://agenticos/mcp"
 
 
 def platform_spec(
-    credential: str, *, allowed_tools: list[str] | None, approval: McpApproval
+    credential: str,
+    *,
+    allowed_tools: list[str] | None,
+    approval: McpApproval,
+    tool_approval: Mapping[str, ApprovalMode] | None = None,
 ) -> McpServerSpec:
-    """This deployment's own MCP server, as the holder of `credential`."""
+    """This deployment's own MCP server, as the holder of `credential`.
+
+    A `never` on a tool in `PLATFORM_ALWAYS_ASK_TOOLS` is dropped, so the tool
+    falls back to the default, which holds every write: publishing refuses one,
+    and this keeps a spec that reached the store another way from releasing it.
+    """
+    own = {
+        name: mode
+        for name, mode in (tool_approval or {}).items()
+        if not (mode == "never" and name in PLATFORM_ALWAYS_ASK_TOOLS)
+    }
     return McpServerSpec(
         name=PLATFORM_MCP_NAME,
         url=PLATFORM_MCP_URL,
         headers={"Authorization": f"Bearer {credential}"},
         allowed_tools=allowed_tools,
         approval=approval,
+        tool_approval=own,
         in_process=True,
         ungated=PLATFORM_UNGATED_TOOLS,
     )

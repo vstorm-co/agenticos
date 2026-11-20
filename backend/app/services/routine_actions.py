@@ -12,13 +12,14 @@ from app.agents.capabilities import CapabilityDef, CapabilityToolInfo
 from app.agents.capabilities import get as capability
 from app.agents.capabilities.approval import tool_needs_approval
 from app.agents.mcp import approval_needed
-from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef
+from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef, PlatformMcpServerRef
 from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.mcp_connection import McpConnection
 from app.repositories import agent_repo, agent_trigger_repo, mcp_connection_repo, organization_repo
+from app.schemas.agent import PlatformToolGroup
 from app.schemas.mcp_connection import McpToolRead
 from app.schemas.routine_actions import (
     RoutineAction,
@@ -31,6 +32,9 @@ from app.schemas.routine_actions import (
     RoutineMcpActionConsent,
     RoutineMcpActionKey,
     RoutineMcpActionOption,
+    RoutinePlatformActionConsent,
+    RoutinePlatformActionKey,
+    RoutinePlatformActionOption,
     RoutineReviewChange,
     WaiveBlockedReason,
 )
@@ -79,6 +83,8 @@ def activation_intent(trigger: AgentTrigger) -> str:
 def action_key(action: RoutineAction) -> RoutineAction:
     if isinstance(action, RoutineActionKey):
         return RoutineActionKey(capability_id=action.capability_id, tool_id=action.tool_id)
+    if isinstance(action, RoutinePlatformActionKey):
+        return RoutinePlatformActionKey(kind="platform", tool_id=action.tool_id)
     return RoutineMcpActionKey(
         connection_id=action.connection_id,
         authorization_generation=action.authorization_generation,
@@ -176,6 +182,7 @@ def action_options(spec: AgentSpec, *, local: bool = False) -> list[RoutineActio
                 options.append(
                     RoutineActionOption(
                         capability_id=binding.id,
+                        capability_name=definition.name,
                         tool_id=tool.id,
                         name=tool.name,
                         consented=False,
@@ -183,6 +190,61 @@ def action_options(spec: AgentSpec, *, local: bool = False) -> list[RoutineActio
                     )
                 )
     return options
+
+
+def platform_action_options(
+    spec: AgentSpec, *, as_creator: bool
+) -> list[RoutinePlatformActionOption]:
+    """The platform's own tools that change something, as its binding offers them.
+
+    Only for a routine acting as its creator, the only way it reaches the
+    platform at all. A read asks nobody, so it is not listed. Standing consent
+    may only stand in for an approval the binding itself does not demand: a
+    tool the agent asks before - the default for every change - is listed but
+    cannot be chosen, so a routine can keep the agent's approvals or add to
+    them, never release one.
+    """
+    ref = next((ref for ref in spec.mcp_servers if isinstance(ref, PlatformMcpServerRef)), None)
+    if ref is None or not as_creator:
+        return []
+    # Imported here: the platform's tools reach workflow execution, whose node
+    # handlers import the agent registry, which this module imports.
+    from app.services.platform_mcp import platform_tool_catalog
+
+    # The same floor a run applies: the platform's default never drops below `writes`.
+    policy = "all" if ref.approval == "all" else "writes"
+    tools = [
+        tool
+        for tool in platform_tool_catalog()
+        if tool.writes
+        and not tool.ungated
+        and (ref.allowed_tools is None or tool.name in ref.allowed_tools)
+    ]
+    groups = list(PlatformToolGroup)
+    return [
+        RoutinePlatformActionOption(
+            kind="platform",
+            tool_id=tool.name,
+            name=tool.name,
+            group=tool.group,
+            consented=False,
+            waivable=not tool.always_asks
+            and not approval_needed(
+                policy, read_only=False, own=ref.tool_approval.get(tool.name, "default")
+            ),
+        )
+        for tool in sorted(tools, key=lambda tool: groups.index(tool.group))
+    ]
+
+
+def _consent_type(
+    key: RoutineAction,
+) -> type[RoutineActionConsent | RoutineMcpActionConsent | RoutinePlatformActionConsent]:
+    if isinstance(key, RoutineActionKey):
+        return RoutineActionConsent
+    if isinstance(key, RoutinePlatformActionKey):
+        return RoutinePlatformActionConsent
+    return RoutineMcpActionConsent
 
 
 class RoutineActionService:
@@ -240,7 +302,11 @@ class RoutineActionService:
         from app.services.channel_actions import ChannelActionService, with_actions
 
         spec = with_actions(spec, await ChannelActionService(ctx, trigger.agent_id).tools(self.db))
-        options = [*action_options(spec, local=trigger.local_target is not None), *mcp]
+        options = [
+            *action_options(spec, local=trigger.local_target is not None),
+            *mcp,
+            *platform_action_options(spec, as_creator=trigger.runs_as_creator),
+        ]
         review_changes: list[RoutineReviewChange] = []
         if any(consent.version_id != version for consent in previous):
             review_changes.append("version")
@@ -309,7 +375,11 @@ class RoutineActionService:
         spec = with_actions(spec, await ChannelActionService(ctx, current.agent_id).tools(self.db))
         available = {
             action_key(option)
-            for option in [*action_options(spec, local=current.local_target is not None), *mcp]
+            for option in [
+                *action_options(spec, local=current.local_target is not None),
+                *mcp,
+                *platform_action_options(spec, as_creator=current.runs_as_creator),
+            ]
             if option.waivable
         }
         chosen = {action_key(action) for action in data.actions}
@@ -324,11 +394,7 @@ class RoutineActionService:
             chosen, key=lambda key: json.dumps(key.model_dump(mode="json"), sort_keys=True)
         )
         consents = [
-            (
-                RoutineActionConsent
-                if isinstance(key, RoutineActionKey)
-                else RoutineMcpActionConsent
-            )(
+            _consent_type(key)(
                 **key.model_dump(),
                 id=uuid4(),
                 consented_by=ctx.subject_id,

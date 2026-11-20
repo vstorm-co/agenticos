@@ -1,5 +1,5 @@
 ---
-source_sha: "775173862ab0"
+source_sha: "a8bf70087a14"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -187,6 +187,14 @@ oznacza brak zawężenia z tej strony, więc powiązanie, które nie wymienia ni
 dostaje to, na co pozwala połączenie — czyli to, co robiło każde powiązanie,
 zanim to istniało.
 
+Null na powiązaniu bierze więc też każde narzędzie, które serwer zyska później.
+W Builderze przełącznik **Dodawaj narzędzia, które serwer zyska później** mówi,
+które to z dwóch: włączony to null; wyłączony to lista dzisiejszych narzędzi, a
+narzędzie dodane później zostaje poza nią. Zaznaczenie z powrotem wszystkich
+narzędzi po zawężeniu daje dzisiejszą listę, nigdy null, a przełącznik da się
+włączyć tylko przy wszystkich zaznaczonych - powiązanie nie umie powiedzieć „te,
+i cokolwiek dojdzie”.
+
 Builder wypisuje narzędzia serwera z jego **ostatniego udanego odpytania**,
 zapisanego na połączeniu. Odpytanie wydzwania do zewnętrznej firmy i jest
 bramkowane przez `connections:manage`; autor agenta ma `agents:edit` i potrzebuje
@@ -234,6 +242,8 @@ wymuszają co najmniej `writes`, także przy `none`, ponieważ narzędzia dział
 z uprawnieniami pytającej osoby. Odczyty, w tym `get_project` i `read_conversation`,
 działają automatycznie przy `writes`. Tworzenie, aktualizacja, usuwanie i inne
 operacje zmieniające stan wymagają akceptacji. Wybierz `all`, aby pytać również o odczyty.
+To minimum dotyczy tylko domyślnego ustawienia powiązania: pojedyncze, wskazane
+narzędzie nadal może działać bez pytania, jak na każdym innym serwerze.
 
 W Builderze
 ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez
@@ -1366,8 +1376,22 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
   pozostają wymagane, ale nie zastępują zatwierdzenia trwałej automatyzacji.
   `set_my_profile` też czeka, bo jego treść trafia do przyszłych uruchomień agentów.
 
-- **Narzędzia można zawęzić** w ustawieniach karty, które pokazują każde narzędzie
-  i oznaczają te, które coś zmieniają.
+- **Narzędzia można zawęzić** w ustawieniach karty, które grupują je według tego,
+  na czym działają - tabele, zadania, workflowy, agenci, bazy wiedzy, skille,
+  projekty, automatyzacje, aplikacje, runy, połączenia i konto - a każde narzędzie,
+  które coś zmienia, oznaczają ikoną, która mówi o tym po najechaniu.
+- **Każde narzędzie działa bez pytania albo najpierw pyta.** Ustawienie grupy
+  zmienia wszystkie jej narzędzia, a tarcza obok narzędzia zmienia tylko je. Spec
+  przechowuje własne ustawienie narzędzia w `tool_approval` powiązania, pod nazwą
+  narzędzia; publikacja odrzuca nazwę, której platforma nie oferuje. Zgoda na
+  zmianę bez pytania dotyczy tylko tego narzędzia: domyślne ustawienie powiązania
+  pozostaje `writes` albo staje się `all`, gdy pytają wszystkie odczyty, więc
+  odczyt dodany później do platformy też pyta.
+- **Niektóre narzędzia zawsze pytają.** `invite_member` i
+  `update_proactivity_settings` zmieniają, kto ma uprawnienia w organizacji, a
+  działają z uprawnieniami osoby, dla której agent działa, nie jego autora - więc
+  agent opublikowany przez Buildera nie zaprosi Admina bez pytania w runie
+  Ownera. Ich tarczy nie da się wyłączyć, a publikacja odrzuca dla nich `never`.
 
 Szablon **AgenticOS** wiąże go właśnie tak, podobnie jak każdy agent tworzony od
 zera, więc agent od razu sięga do platformy - i ustawia rutynę albo przełącza język
@@ -1475,3 +1499,85 @@ Indeksy wiadomości dotyczą przefiltrowanej transkrypcji. Zwraca ograniczone ok
 Wyszukiwanie agenta po nazwie w Improve sprawdza wszystkie strony przed wyborem lub zgłoszeniem niejednoznaczności; pierwsze 100 agentów nie jest uznawane za cały katalog.
 
 `read_conversation` stosuje te same ograniczone okna wiadomości i metadanych wywołań co analiza runów, domyślnie po 10 wiadomości. `read_conversation_tool_call` czyta wybrany zapisany wynik, także w starszych wiadomościach bez identyfikatora runu, przez niezmienione API własnych rozmów. Klienci MCP muszą korzystać ze wskaźników kontynuacji zamiast oczekiwać pełnych wyników narzędzi w transkrypcji.
+
+## Plugin klienta AI i cykl zarządzania { #ai-client-plugin-and-lifecycle-tools }
+
+[Przewodnik klienta AI](howto/operate-with-ai.md) opisuje instalację pluginu,
+konfigurację zależności, wydawanie agentów przez evale i środowiska oraz instalację
+sprawdzonych pakietów. Odkrywanie kontraktu 1 rozróżnia funkcje serwera od scopes.
+Referencje vaultu zwracają ID i metadane, bez wartości ani końcówek kluczy;
+sekrety wprowadza się w konsoli. Nowe operacje tylko dla asystenta wymagają OAuth.
+
+## Ograniczone wyniki i preferencje użytkownika { #bounded-results-and-personal-preferences }
+
+Kontrakt MCP 2 ogranicza kontekst: najpierw wyszukiwanie, domyślnie strony po 10
+rekordów i kontynuacja `next_skip`. Listy zwracają metadane. Osobne narzędzia
+szczegółów odczytują przypadek datasetu, treść Context, plik skilla, model,
+dostawcę, środowisko, węzeł workflow lub krok wykonania. `get_authoring_schema`
+udostępnia rozbudowane kontrakty na żądanie; API nadal waliduje pełne dane.
+Przed zastąpieniem grafu trzeba odczytać go w całości i zachować bindings.
+
+Udany wynik mieści się w 16 KiB. Duży odczyt wystawia pięciominutową
+`continuation` dla `read_platform_details`, powiązaną z konkretnym poświadczeniem
+i wcześniej autoryzowanym wywołaniem. Nie można zmienić jego argumentów ani
+wybrać innego narzędzia; każda część ponownie sprawdza dostęp w API. Najpierw
+sprawdź wskaźniki JSON, potem pobieraj fragmenty treści, zachowując `value_hash`
+jako `expected_hash`. Fragmenty JSON trzeba złożyć przed parsowaniem. Zmiana
+wyniku lub wygaśnięcie kontynuacji wymaga nowego autoryzowanego odczytu.
+Duży zapis zwraca identyfikator i status: odczytaj zasób z właściwym uprawnieniem,
+zamiast powtarzać zapis. Potwierdzenie żądania nie oznacza zakończenia zadania.
+
+`prepare_solution` zachowuje przegląd pakietu przez 24 godziny, tylko dla danej
+osoby i organizacji. `install_solution` przyjmuje `plan_id`, klucz instalacji i
+sprawdzony hash manifestu. Trwałe potwierdzenia instalacji przeżywają ten przegląd.
+
+`get_my_preferences` odczytuje motyw, styl i język osoby wywołującej.
+`set_my_preferences` zmienia tylko podane pola: motyw `light`, `dark`, `system`;
+styl `standard`, `glass`, `graphite`, `midnight`, `paper`; język z enumu narzędzia.
+W czacie zmiana działa od razu; inne otwarte konsole synchronizują preferencje mniej
+więcej co dziesięć sekund, gdy są widoczne. Ustawienia zapisują te same wybory na
+koncie. Migracja `0344_user_appearance.py` dodaje opcjonalne kolumny; dotychczasowe
+konta zachowują domyślny wygląd urządzenia, dopóki nie zapiszą wyboru.
+
+Jawny wybór zapisuje się także wtedy, gdy ekran już używa tej wartości; wybierz ją ponownie, aby powtórzyć nieudany zapis.
+
+Duże odpowiedzi uruchomień zachowują `parked`, w tym identyfikatory oczekujących
+zgód. Gdy wywołania nie mieszczą się w limicie, odpowiedź zawiera maksymalnie
+dziesięć identyfikatorów zgód, `parked_total` i `approval_review_url` do konsoli.
+`approval_details_omitted` oznacza niepełne argumenty: przed decyzją sprawdź tam
+całe wywołania; nigdy nie zatwierdzaj na podstawie skróconej odpowiedzi.
+
+## Administracja przez MCP {#administration-through-mcp}
+
+Wyszukaj zadanie lub pole przez `list_administration_actions`, a następnie pobierz
+kontrakt ścieżki i danych przez `get_administration_schema`. Katalog obejmuje
+ustawienia instalacji, aktualizacje, diagnostykę i gotowość powiadomień push oraz
+ustawienia organizacji, retencję, AI Architect, agentów systemowych, członków,
+grupy i zaproszenia. Listy zawierają metadane; `read_administration` odczytuje
+wybraną konfigurację w ograniczonych oknach szczegółów.
+
+Działania organizacji wymagają jej dotychczasowych uprawnień i dotyczą wyłącznie
+organizacji połączenia. `change_organization` nie nadaje administratorowi organizacji
+uprawnień do instalacji. Odczyt konfiguracji AI Architect i agentów systemowych nie
+tworzy zasobów. Instalacja lub odświeżenie dostarczonych asystentów jest jawnym
+zapisem; może opublikować gotowe ustawienia domyślne.
+
+Działania instalacji wymagają bieżącej flagi administratora aplikacji oraz jawnego
+grantu OAuth `deployment:admin`. Ekran zgody pokazuje osobne, domyślnie niezaznaczone
+pole tylko administratorom aplikacji. Aby dodać ten zakres do istniejącego
+połączenia, autoryzuj je ponownie. Zakres nie należy do uprawnień ani zestawów
+organizacji. Wewnętrzni agenci, rutyny i zwykłe klucze API go nie dziedziczą;
+`change_deployment` jest wykluczone z narzędzi wewnętrznych agentów.
+
+Zapisuj ustawienia instalacji przez `change_deployment` i odczytaj wynik.
+Przygotowanie, zastosowanie i anulowanie aktualizacji to osobne działania:
+przyjęcie żądania nie oznacza ukończenia aktualizacji. Uwierzytelnianie MCP pozostaje
+dostępne w trybie konserwacji, aby uprawniony klient mógł go wyłączyć; zwykłe
+operacje API pozostają zablokowane. Odebranie flagi administratora aplikacji blokuje
+kolejne żądanie, nawet gdy token nadal wymienia wcześniej przyznany zakres.
+
+Wprowadzenie prywatnego klucza APNs i przesłanie binarnego logo lub favicony
+odbywa się przez bezpieczny formularz konsoli. Wartości sekretów i bajty obrazów
+nie trafiają do kontekstu modelu. Ustawienia zarządzane przez środowisko pozostają
+tylko do odczytu. Pamięć podręczna frontendu może opóźnić widoczność zmiany
+identyfikacji wizualnej wykonanej przez MCP o maksymalnie pięć minut.
