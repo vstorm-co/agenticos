@@ -14,7 +14,10 @@ from uuid import uuid4
 
 import run as runner
 from pydantic_ai import Agent
+from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RequestUsage
 
 from app.core.permissions import AuthContext, OrgRoleName
 from app.schemas.eval_run import EvalCallRead
@@ -178,6 +181,51 @@ class JudgeTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(first["verdict"])
             self.assertEqual(first["error"], "UsageLimitExceeded")
             self.assertTrue(second["verdict"]["passed"])
+
+
+class BackgroundTests(unittest.IsolatedAsyncioTestCase):
+    async def test_memory_continues_after_a_token_limit(self) -> None:
+        await self._assert_token_limit_isolated("memory", "one-off-brief")
+
+    async def test_briefing_continues_after_a_token_limit(self) -> None:
+        await self._assert_token_limit_isolated("briefing", "no-connector")
+
+    async def _assert_token_limit_isolated(self, suite: runner.Suite, case_id: str) -> None:
+        case = next(item for item in runner.load(suite) if item.id == case_id)
+        requested_caps: list[int | None] = []
+        cap = runner.BACKGROUND_REQUEST_LIMIT * runner.BACKGROUND_RESPONSE_TOKENS
+
+        def respond(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            requested_caps.append((info.model_settings or {}).get("max_tokens"))
+            return ModelResponse(
+                parts=[ToolCallPart(info.output_tools[0].name, {})],
+                usage=RequestUsage(
+                    input_tokens=100,
+                    output_tokens=cap + 1 if len(requested_caps) == 1 else 20,
+                ),
+                provider_details={"cost": 0.001},
+            )
+
+        def build_agent(_model: str, **kwargs: object):
+            return Agent(FunctionModel(respond), **kwargs)
+
+        with (
+            patch.object(runner, "Agent", side_effect=build_agent),
+            patch.object(runner, "print", create=True) as emit,
+        ):
+            self.assertEqual(await runner.run_background("fixture", [case, case]), 1)
+
+        first, second = [
+            runner.Evidence.model_validate_json(call.args[0]) for call in emit.call_args_list
+        ]
+        self.assertEqual(first.errors, ["technical: UsageLimitExceeded"])
+        self.assertIsNone(first.output)
+        self.assertEqual(first.output_tokens, cap + 1)
+        self.assertEqual(first.cost_usd, Decimal("0.001"))
+        self.assertTrue(first.cost_is_partial)
+        self.assertEqual(second.errors, [])
+        self.assertEqual(second.output_tokens, 20)
+        self.assertEqual(requested_caps, [runner.BACKGROUND_RESPONSE_TOKENS] * 2)
 
 
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):

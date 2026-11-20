@@ -825,6 +825,7 @@ class TestTheNightlyLook:
         erased_meanwhile=False,
         claims=(),
         prior=(),
+        connections=(),
     ):
         thinker = MagicMock()
         thinker.starter_agent = AsyncMock(return_value=_agent() if agent else None)
@@ -860,7 +861,7 @@ class TestTheNightlyLook:
                 ),
                 patch(
                     f"{NIGHTLY}.mcp_connection_repo.list_for_user",
-                    new=AsyncMock(return_value=([], 0)),
+                    new=AsyncMock(return_value=(list(connections), len(connections))),
                 ),
                 patch(f"{NIGHTLY}.user_repo.update", new=AsyncMock()),
                 patch(f"{NIGHTLY}.member_repo.set_personal_starters", new=AsyncMock()),
@@ -995,6 +996,7 @@ class TestTheNightlyLook:
                 RepeatedRequest(
                     intent="write-sales-report",
                     evidence=[1, 2, 3],
+                    required_services=["Notion"],
                     title="Raport",
                     why="3x",
                     prompt="Raport sprzedaży",
@@ -1023,6 +1025,12 @@ class TestTheNightlyLook:
         )
         made, _, mocks = await self._look(
             reading=reading,
+            connections=[SimpleNamespace(name="Notion")],
+            claims=[
+                SimpleNamespace(
+                    agent_id=None, kind="fact", statement="Head of sales, 09:00 to 17:00"
+                )
+            ],
             requests=[
                 _request(text)
                 for text in ("Raport", "Raport", "Raport", "Odpowiedź", "Odpowiedź", "Odpowiedź")
@@ -1067,7 +1075,16 @@ class TestTheNightlyLook:
         ]
 
     @pytest.mark.parametrize(
-        "duplicate", ["intent", "evidence", "wording", "same-thread", "unknown-evidence", "no-cron"]
+        "duplicate",
+        [
+            "intent",
+            "evidence",
+            "wording",
+            "same-thread",
+            "unknown-evidence",
+            "no-cron",
+            "no-service",
+        ],
     )
     async def test_repeat_requires_independent_evidence_and_unseen_work(self, duplicate):
         thread = uuid.uuid4() if duplicate == "same-thread" else None
@@ -1080,6 +1097,7 @@ class TestTheNightlyLook:
             as_agent=duplicate != "no-cron",
             intent="summarize-updates",
             evidence=[1, 2, 4] if duplicate == "unknown-evidence" else [1, 2, 3],
+            required_services=["Notion"] if duplicate == "no-service" else [],
         )
         if duplicate in {"intent", "evidence", "wording"}:
             metadata = {
@@ -1109,15 +1127,36 @@ class TestTheNightlyLook:
 
     async def test_a_profile_it_already_has_and_an_unknown_pack_propose_nothing(self):
         reading = NightlyReading(
-            profile=ProfileUpdate(job_title="CFO", title="t", why="w"),
+            profile=ProfileUpdate(job_title="Head of support", title="t", why="w"),
             role_pack="astronaut",
         )
-        made, _, mocks = await self._look(user=_user(job_title="CFO"), reading=reading)
+        made, _, mocks = await self._look(
+            user=_user(job_title="CFO"),
+            reading=reading,
+            claims=[SimpleNamespace(agent_id=None, kind="fact", statement="I lead support")],
+        )
 
         assert made == 0
         mocks["propose"].assert_not_awaited()
         mocks["update"].assert_not_awaited()
         mocks["notify"].return_value.suggestions_ready.assert_not_awaited()
+
+    async def test_a_starter_claim_cannot_fill_a_profile_field(self):
+        reading = NightlyReading(
+            profile=ProfileUpdate(job_title="Migration lead", title="Save role?", why="From chat")
+        )
+        made, _, mocks = await self._look(
+            reading=reading,
+            requests=[_request("Draft a handoff")],
+            claims=[
+                SimpleNamespace(
+                    agent_id=uuid.uuid4(), kind="fact", statement="I lead the migration here"
+                )
+            ],
+        )
+
+        assert made == 0
+        mocks["propose"].assert_not_awaited()
 
     async def test_a_proposal_already_made_does_not_count_as_new(self):
         reading = NightlyReading(role_pack="sales")

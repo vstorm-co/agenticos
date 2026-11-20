@@ -22,7 +22,7 @@ from uuid import UUID, uuid4
 
 import httpx
 from pydantic import BaseModel, JsonValue
-from pydantic_ai import Agent
+from pydantic_ai import Agent, capture_run_messages
 from pydantic_ai.exceptions import (
     ModelAPIError,
     ModelHTTPError,
@@ -30,7 +30,8 @@ from pydantic_ai.exceptions import (
     UsageLimitExceeded,
 )
 from pydantic_ai.messages import ModelResponse
-from pydantic_ai.usage import UsageLimits
+from pydantic_ai.settings import ModelSettings
+from pydantic_ai.usage import RunUsage, UsageLimits
 
 # On the host the app lives next to evals. In Compose it is installed in /app.
 BACKEND = Path(__file__).resolve().parent.parent.parent / "backend"
@@ -71,6 +72,8 @@ LIVE_CASES = (
     "report-chart-real",
     "app-private-preview",
 )
+BACKGROUND_RESPONSE_TOKENS = 3072
+BACKGROUND_REQUEST_LIMIT = 2
 
 
 class Scenario(NamedTuple):
@@ -577,8 +580,15 @@ def briefing_errors(scenario: Scenario, found: nightly.NightlyReading) -> list[s
     errors = []
     if len(found.repeats) != int(scenario.operation):
         errors.append("wrong number of recurring proposals")
-    if any(scenario.cue.casefold() not in item.prompt.casefold() for item in found.repeats):
+    if scenario.cue != "-" and any(
+        scenario.cue.casefold() not in item.prompt.casefold() for item in found.repeats
+    ):
         errors.append("proposal not grounded in the expected source or output")
+    connected_services = scenario.state.get("connection", "").split(",")
+    if any(
+        not nightly.repeat_sources_available(item, connected_services) for item in found.repeats
+    ):
+        errors.append("proposal requires an unavailable service")
     valid_ids = {1, 3, 4} if "same-thread" not in scenario.state else set()
     if any(set(item.evidence) != valid_ids for item in found.repeats):
         errors.append("invalid evidence for recurrence")
@@ -605,38 +615,75 @@ async def run_background(model: str, scenarios: list[Scenario]) -> int:
     label = scenarios[0].suite if scenarios else "Background replay"
     console(f"{label} · {model} · {len(scenarios)} cases")
     progress = Progress(label, len(scenarios))
-    memory = Agent(model, instructions=extraction._INSTRUCTIONS, output_type=extraction._Extraction)
-    briefing = Agent(model, instructions=nightly._INSTRUCTIONS, output_type=nightly.NightlyReading)
-    limit = UsageLimits(request_limit=2, output_tokens_limit=2_000)
+    settings = ModelSettings(
+        thinking="low", max_tokens=BACKGROUND_RESPONSE_TOKENS, request_timeout=90
+    )
+    memory = Agent(
+        model,
+        instructions=extraction._INSTRUCTIONS,
+        output_type=extraction._Extraction,
+        model_settings=settings,
+    )
+    briefing = Agent(
+        model,
+        instructions=nightly._INSTRUCTIONS,
+        output_type=nightly.NightlyReading,
+        model_settings=settings,
+    )
+    limit = UsageLimits(
+        request_limit=BACKGROUND_REQUEST_LIMIT,
+        output_tokens_limit=BACKGROUND_REQUEST_LIMIT * BACKGROUND_RESPONSE_TOKENS,
+    )
     for item in scenarios:
         started = perf_counter()
-        with progress.case(item.id):
-            if item.suite == "memory":
-                result = await memory.run(
-                    json.dumps(memory_input(item), ensure_ascii=False), usage_limits=limit
-                )
-                errors = memory_errors(item, result.output)
-            else:
-                result = await briefing.run(
-                    json.dumps(briefing_input(item), ensure_ascii=False), usage_limits=limit
-                )
-                errors = briefing_errors(item, result.output)
-        usage = result.usage
-        cost = response_cost(result.new_messages())
+        usage = RunUsage()
+        output: JsonValue = None
+        with progress.case(item.id), capture_run_messages() as messages:
+            try:
+                if item.suite == "memory":
+                    memory_result = await memory.run(
+                        json.dumps(memory_input(item), ensure_ascii=False),
+                        usage=usage,
+                        usage_limits=limit,
+                    )
+                    errors = memory_errors(item, memory_result.output)
+                    output = memory_result.output.model_dump(mode="json")
+                else:
+                    briefing_result = await briefing.run(
+                        json.dumps(briefing_input(item), ensure_ascii=False),
+                        usage=usage,
+                        usage_limits=limit,
+                    )
+                    errors = briefing_errors(item, briefing_result.output)
+                    output = briefing_result.output.model_dump(mode="json")
+            except ModelHTTPError as exc:
+                if exc.status_code in (401, 402, 403, 404):
+                    raise
+                errors = [f"technical: Model HTTP {exc.status_code}"]
+            except (ModelAPIError, UnexpectedModelBehavior, UsageLimitExceeded) as exc:
+                errors = [f"technical: {type(exc).__name__}"]
+        cost = response_cost(messages)
         latency_ms = round((perf_counter() - started) * 1000)
+        has_usage = usage.requests > 0 or usage.has_values()
         evidence = Evidence(
             case=item.id,
             model=model,
             errors=errors,
-            output=result.output.model_dump(mode="json"),
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
+            output=output,
+            input_tokens=usage.input_tokens if has_usage else None,
+            output_tokens=usage.output_tokens if has_usage else None,
             latency_ms=latency_ms,
             cost_usd=cost,
-            cost_is_partial=cost is None,
+            cost_is_partial=cost is None or output is None,
         )
         print(evidence.model_dump_json(), flush=True)
-        progress.result(passed=not errors, latency_ms=latency_ms, cost=cost)
+        progress.result(
+            passed=not errors,
+            latency_ms=latency_ms,
+            cost=cost,
+            partial=evidence.cost_is_partial,
+            detail=" · ".join(errors),
+        )
     progress.summary()
     return int(bool(progress.failed))
 

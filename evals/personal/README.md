@@ -97,6 +97,8 @@ done
 
 Use repeated `--case` with `--limit 3` for a smoke run. These modes and the judge also accept other Pydantic AI model identifiers. Provider-reported USD is recorded when available.
 
+Each background case allows two requests, with a target cap of 3,072 output tokens per response and a run limit of 6,144 output tokens. The runner requests low thinking where supported. If a case exceeds its limit, retries an invalid output unsuccessfully, or hits a transient provider error, the JSONL records a technical failure, any available usage, and partial cost. The remaining cases still run. Authentication, billing, permission and missing-model errors stop the suite. A completed suite with failures exits nonzero.
+
 ## Live probes
 
 Live probes use the published starter on the isolated stack. Set `AGENTICOS_EVAL_TOKEN` to a test account's access token, `AGENT_ID` to the published starter ID and `ORG_ID` to the organization ID saved in `.env`. Run from `backend/`:
