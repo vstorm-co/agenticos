@@ -12,7 +12,7 @@ import base64
 import json
 import sys
 import types
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -332,6 +332,24 @@ class TestNothingReachesTheNetwork:
 
 
 class TestTheRender:
+    @pytest.mark.parametrize(("appearance", "background"), [("light", "#fff"), ("dark", "#121212")])
+    async def test_transparent_previews_use_the_requested_canvas_appearance(
+        self, appearance: Literal["light", "dark"], background: str
+    ) -> None:
+        browser = FakeBrowser()
+        await _render(browser, appearance=appearance)
+        (host,) = [
+            params
+            for params, _ in browser.commands("Fetch.fulfillRequest")
+            if params and params["requestId"] == "shell"
+        ]
+        shell = base64.b64decode(host["body"]).decode()
+        assert f"background: {background};" in shell
+        assert "color-scheme:" not in shell
+        assert browser.commands("Emulation.setEmulatedMedia") == [
+            ({"features": [{"name": "prefers-color-scheme", "value": appearance}]}, "PAGE")
+        ]
+
     async def test_visual_previews_use_the_requested_width_and_color_scheme(self) -> None:
         browser = FakeBrowser()
         drawn = await _render(browser, width=390, appearance="dark")

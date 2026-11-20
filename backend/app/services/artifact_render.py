@@ -555,6 +555,7 @@ class _Render:
                     page_url=self.page_url,
                     nonce=self.request.nonce,
                     bindings=self.request.bindings,
+                    appearance=self.request.appearance,
                 ),
                 headers={"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store"},
             )
@@ -766,7 +767,11 @@ def pdf_document(request: RenderRequest) -> bytes:
 
 
 def shell_document(
-    *, page_url: str, nonce: str, bindings: dict[str, AnyBindingData] | None
+    *,
+    page_url: str,
+    nonce: str,
+    bindings: dict[str, AnyBindingData] | None,
+    appearance: Literal["light", "dark"] = "light",
 ) -> bytes:
     """The host the page is framed in: the console's frame and its half of the data bridge.
 
@@ -776,6 +781,9 @@ def shell_document(
     a page that listens. `window.__agenticosPreview.asked` is what the report
     reads back; the page cannot reach it from its opaque origin.
     """
+    # Keep the host's default color scheme: changing it can make a child that
+    # does not declare color-scheme paint an opaque canvas instead of remaining transparent.
+    background = "#fff" if appearance == "light" else "#121212"
     page = (
         None
         if bindings is None
@@ -806,7 +814,8 @@ def shell_document(
     return (
         "<!doctype html>\n"
         '<html lang="en"><head><meta charset="utf-8"><title>Preview</title>\n'
-        "<style>html, body { margin: 0; height: 100%; background: #fff; }\n"
+        "<style>html, body { margin: 0; height: 100%; "
+        f"background: {background}; }}\n"
         "iframe { border: 0; display: block; width: 100%; height: 100%; }</style>\n"
         f"<script>{script}</script></head><body>\n"
         f'<iframe id="page" title="Preview" src="{_attribute(page_url)}" '
