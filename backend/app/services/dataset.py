@@ -1194,6 +1194,27 @@ class DatasetService:
             )
         return previous, found[0], found[1]
 
+    async def editable_case(
+        self, ctx: AuthContext, dataset_id: UUID, case_id: UUID
+    ) -> tuple[Dataset, DatasetCase]:
+        """The dataset and its newest revision of a case, for an editor who can read its text.
+
+        Raises:
+            NotFoundError: As :meth:`get` does, or when the newest version holds no
+                such case.
+            AuthorizationError: Without `datasets:edit`, or when the case's text is
+                masked because its source conversation is not readable.
+        """
+        dataset = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        _, current, _ = await self._held_case(ctx, dataset, case_id)
+        [visible] = await self.case_reads(ctx, [current])
+        if visible.masked:
+            raise AuthorizationError(
+                message="The source conversation must be readable before its text can be read",
+                details={"permission": "runs:view"},
+            )
+        return dataset, current
+
     async def read_case(
         self, ctx: AuthContext, dataset_id: UUID, case_id: UUID, *, version: int | None = None
     ) -> DatasetCaseRead:

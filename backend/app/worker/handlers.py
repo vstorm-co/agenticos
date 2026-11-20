@@ -50,6 +50,7 @@ def production() -> Handlers:
         approval_tasks,
         authoring_tasks,
         case_generation_tasks,
+        case_key_tasks,
         channel_observation_tasks,
         channel_tasks,
         coding_tasks,
@@ -105,6 +106,7 @@ def production() -> Handlers:
             Handler(jobs.CLASSIFY_GAPS, knowledge_gap_tasks.classify_knowledge_gaps),
             Handler(jobs.DRAFT_TOPIC, knowledge_gap_tasks.draft_knowledge_gap),
             Handler(jobs.GENERATE_CASES, case_generation_tasks.generate_cases),
+            Handler(jobs.EXTRACT_CASE_KEYS, case_key_tasks.extract_case_keys),
             Handler(jobs.RUN_CONVERSATION_TASK, conversation_tasks.run_task),
             Handler(jobs.RETURN_CONVERSATION_TASK, conversation_tasks.return_task),
             Handler(
@@ -194,6 +196,7 @@ def _settlers() -> dict[str, Settler]:
     from app.worker.tasks import (
         authoring_tasks,
         case_generation_tasks,
+        case_key_tasks,
         conversation_tasks,
         eval_tasks,
         project_tasks,
@@ -209,6 +212,9 @@ def _settlers() -> dict[str, Settler]:
         ),
         jobs.GENERATE_CASES.kind: _settler(
             jobs.GENERATE_CASES, case_generation_tasks.settle_lost_generation
+        ),
+        jobs.EXTRACT_CASE_KEYS.kind: _settler(
+            jobs.EXTRACT_CASE_KEYS, case_key_tasks.settle_lost_draft
         ),
         jobs.MOVE_PROJECT_WORKSPACE.kind: _settler(
             jobs.MOVE_PROJECT_WORKSPACE, project_tasks.settle_project_copies

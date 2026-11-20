@@ -487,6 +487,7 @@ _ORIGIN_KINDS: dict[str, Literal["grader", "improve", "knowledge_gaps", "test_qu
     AgentKind.CLASSIFIER.value: "knowledge_gaps",
     AgentKind.DRAFTER.value: "knowledge_gaps",
     AgentKind.GENERATOR.value: "test_questions",
+    AgentKind.EXTRACTOR.value: "test_questions",
 }
 
 

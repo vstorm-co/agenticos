@@ -52,6 +52,7 @@ from app.db.models.authoring import AuthoringRequest, SpecProposalHunk
 from app.db.models.background_job import BackgroundJob
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.case_generation import CaseProposal
+from app.db.models.case_key_draft import CaseKeyDraft
 from app.db.models.case_score import CaseScore
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
@@ -750,7 +751,8 @@ async def anonymise_dataset_cases_of(
     the comment a down-rating left - are emptied. The case keeps its id, its
     place, its expected tool calls and its checks, which are the curator's,
     except a `keys` check: its values were drawn from the reference answer that
-    goes. It is marked anonymised, so its curator can rewrite it or remove it.
+    goes, and so were the keys drafted from it, which go too. It is marked
+    anonymised, so its curator can rewrite it or remove it.
 
     Revisions are immutable everywhere else; an erasure is the exception, and
     reaches the revisions only earlier versions still hold. Unscoped by
@@ -791,6 +793,8 @@ async def anonymise_dataset_cases_of(
         .returning(DatasetCase.id)
     )
     revisions = list(result.scalars().all())
+    if revisions:
+        await db.execute(sa_delete(CaseKeyDraft).where(CaseKeyDraft.revision_id.in_(revisions)))
     await db.flush()
     return revisions
 

@@ -422,7 +422,9 @@ class AgentList(BaseSchema):
     )
 
 
-SystemAgentKindLiteral = Literal["judge", "drafter", "generator", "classifier", "improver"]
+SystemAgentKindLiteral = Literal[
+    "judge", "drafter", "generator", "classifier", "improver", "extractor"
+]
 
 
 class SystemAgentCreate(BaseSchema):

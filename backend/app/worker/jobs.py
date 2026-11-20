@@ -287,6 +287,13 @@ class GenerateCases(Payload):
     organization_id: UUID
 
 
+class ExtractCaseKeys(Payload):
+    """One case's keys, drafted by the key extractor from its reference answer."""
+
+    draft_id: UUID
+    organization_id: UUID
+
+
 class RunAuthoring(Payload):
     """One Improve or Verify the authoring assistant was asked for."""
 
@@ -667,6 +674,15 @@ GENERATE_CASES = Task(
     priority=Priority.INTERACTIVE,
     cancellable=False,
 )
+EXTRACT_CASE_KEYS = Task(
+    kind="extract-case-keys",
+    payload_type=ExtractCaseKeys,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.INTERACTIVE,
+    cancellable=False,
+)
 # One attempt, like `RUN_AGENT`: `dispatch_outbox`, not the job, holds a node's
 # position, and a second attempt of the same job could only find its claim held.
 # Re-running a node is the workflow reconciler's call, made from `node_attempts`.
@@ -965,6 +981,7 @@ TASKS: dict[str, TaskKind] = {
         CLASSIFY_GAPS,
         DRAFT_TOPIC,
         GENERATE_CASES,
+        EXTRACT_CASE_KEYS,
         RUN_CONVERSATION_TASK,
         RETURN_CONVERSATION_TASK,
         RECONCILE_CONVERSATION_TASKS,
