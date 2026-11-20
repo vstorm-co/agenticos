@@ -163,6 +163,18 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Refine the default AgenticOS assistant’s guidance for economical specialist delegation, safe tool-error recovery, editable drafts and artifact verification. Keep media generation tied to available configured tools and preserve personal model, budget and prompt choices during normal default refreshes.
 
+## [1.87.0] - 2026-11-20
+
+### Added
+
+- Answer on **Matrix**: register a bot account on your own homeserver with its access token and the homeserver's URL, and invite it to a room or a direct chat. Answers stream into a thread on the question as edits, approvals and questions are numbered replies, and files, the thread's earlier messages and the room's members reach the agent. Limited sync batches recover in bounded pages from the durable cursor, including after a restart. Unencrypted rooms only for now; end-to-end encryption follows (#2081).
+
+### Upgrading
+
+- Stop old API and worker processes before applying the Matrix migration, then start the new API and workers together. Account uniqueness now includes the homeserver URL; older binaries cannot create new identities against this schema. Rolling back to older binaries also requires a schema downgrade, which refuses while homeserver-bound accounts or identifiers exceeding the legacy limits remain.
+
+- Apply `0345_matrix_channel.py`, which enables Matrix exposures and widens channel identifiers to fit native Matrix IDs. Matrix account links are bound to the configured homeserver URL; each other server needs a separate `/link`. Unscoped preview links must be linked again. Downgrade refuses homeserver-bound accounts and identifiers exceeding the legacy limits instead of truncating conversation history. Give a Matrix bot account a rate-limit exemption on its homeserver so streamed answers are not throttled; [Channels → Matrix](docs/channels.md#matrix) has the Synapse call.
+
 ## [1.86.2] - 2026-11-20
 
 ### Added
@@ -22395,7 +22407,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.86.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.87.0...HEAD
+[1.87.0]: https://github.com/vstorm-co/agenticos/compare/v1.86.2...v1.87.0
 [1.86.2]: https://github.com/vstorm-co/agenticos/compare/v1.86.1...v1.86.2
 [1.86.1]: https://github.com/vstorm-co/agenticos/compare/v1.86.0...v1.86.1
 [1.86.0]: https://github.com/vstorm-co/agenticos/compare/v1.85.1...v1.86.0

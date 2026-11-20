@@ -1,5 +1,5 @@
 ---
-source_sha: "17a1b5a9ba2f"
+source_sha: "9dab1088209c"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1889,10 +1889,137 @@ Wenn beide Quellen Zugang gewähren, hat das Verzeichnis bei der Anmeldung Vorra
 Entfällt diese Freigabe, übernimmt eine verbleibende Discord-Rolle dieselbe
 Mitgliedschaft ohne Schlüssel zu widerrufen. Siehe [Mitgliedschaftsübergabe](directory.md#what-the-sync-never-touches).
 
+## Matrix { #matrix }
+
+Ein Matrix-Bot ist ein gewöhnliches Konto auf Ihrem eigenen Homeserver,
+angesprochen über die Client-Server-API, ohne Bibliothek dazwischen (#2081).
+Alles kommt über den `/sync`-Long-Poll des Bots, sodass **ein Deployment für
+Matrix keine öffentliche Adresse braucht** und ein Matrix-Bot keinen
+Webhook-Modus hat. Wo der Bot aufgehört hat zu lesen, steht im Redis des
+Deployments, sodass er nach einem Neustart dort weitermacht. Beim ersten Start
+eines Kontos überspringt er den Verlauf des Raums, statt darauf zu antworten.
+
+Eine Lücke in einem begrenzten `/sync`-Batch wird chronologisch in Seiten mit
+50 Nachrichten ab dem zuletzt gespeicherten Cursor nachgelesen, auch nach einem
+Neustart. Jede Seite wird vor dem Lesen der nächsten angenommen; der Cursor
+rückt erst nach erfolgreicher Annahme des gesamten Batches vor.
+
+!!! warning "Vorerst nur unverschlüsselte Räume"
+
+    Der Bot liest Räume ohne Ende-zu-Ende-Verschlüsselung. Eine Einladung in
+    einen verschlüsselten Raum oder Direktchat lehnt er mit einer Begründung ab,
+    die die einladende Person sieht, und in einem Raum, dessen Verschlüsselung
+    später eingeschaltet wird, bleibt er stumm. Verschlüsselung ist die zweite
+    Stufe von #2081. Der Adapter prüft den aktuellen Verschlüsselungsstatus
+    vor der Annahme von Nachrichten und vor Antworten, Änderungen oder
+    Reaktionen. Ist der Status nicht lesbar, sendet er keinen Klartext.
+    Fehlt der Verschlüsselungsstatus in der Einladung, prüft der Bot ihn nach
+    dem Beitritt und verlässt einen verschlüsselten Raum wieder.
+
+1. Legen Sie auf dem Homeserver ein Konto für den Bot an, zum Beispiel `@agent:example.org`.
+2. Besorgen Sie dafür ein **Access-Token**:
+    - Auf einem Homeserver hinter dem Matrix Authentication Service (MAS) stellen
+      Sie auf dem MAS-Host ein Kompatibilitäts-Token aus:
+      `mas-cli manage issue-compatibility-token <username>`. Ab MAS 1.5 lässt
+      sich auch eine persönliche Session in den Kontoeinstellungen anlegen.
+    - Auf einem Homeserver ohne MAS melden Sie sich einmal mit dem Passwort des
+      Kontos an:
+      `curl -XPOST https://matrix.example.org/_matrix/client/v3/login -d
+      '{"type":"m.login.password","identifier":{"type":"m.id.user","user":"agent"},"password":"…"}'`
+      und behalten `access_token` aus der Antwort. Melden Sie diese Session nicht
+      ab: Das Token dieser Session ist das des Bots.
+3. Registrieren Sie ihn: **Channels → Channel hinzufügen**, Plattform `matrix`,
+   mit dem Token und der **Client-URL** des Homeservers
+   (`https://matrix.example.org`). Wenn sich der Stream öffnet, fragt der Bot den
+   Homeserver, wer er ist. Ein Token, das der Homeserver zurückweist, hält den
+   Bot an, und seine Zeile sagt das.
+4. Laden Sie den Bot in einen Raum ein oder beginnen Sie einen Direktchat mit
+   ihm. Er tritt bei, wenn die einladende Person jemand ist, den seine
+   Zugriffsrichtlinie zulässt, und lehnt sonst ab.
+
+**Heben Sie das Ratenlimit für den Bot auf.** Eine Antwort ist eine Nachricht,
+die einmal pro Sekunde bearbeitet wird, während sie einströmt, und das
+Standard-Ratenlimit für Nachrichten von Synapse drosselt das nach wenigen
+Sekunden. Der Bot wartet, wenn der Homeserver sagt, wie lange, sodass nichts
+verloren geht, aber eine lange Antwort erscheint dann in Sprüngen. Auf Synapse
+nimmt ein Administrator den Bot mit
+`POST /_synapse/admin/v1/users/@agent:example.org/override_ratelimit` und
+`{"messages_per_second": 0, "burst_count": 0}` davon aus.
+
+| Wo | Wann er antwortet |
+|---|---|
+| Ein Direktchat (ein Raum aus dem Bot und einer Person) | Auf jede Nachricht |
+| Ein Raum | Wenn die Nachricht den Bot erwähnt. Die Antwort öffnet einen Thread auf der Frage, und der Thread ist die Unterhaltung |
+| Ein Thread, in dem der Bot gefragt wurde | Auf jede Nachricht darin |
+
+Eine Erwähnung ist der Bot in `m.mentions` der Nachricht, eine Pill, die auf ihn
+verlinkt, oder ein getippter Handle: `@` und die Benutzer-ID, der Localpart oder
+der Anzeigename des Bots, etwa `@AgenticOS was kannst du?`. Manche Clients senden
+einen getippten Handle als reinen Text, deshalb zählt er auch ohne Pill. Der Name
+ohne `@`, ein Handle in Code und ein längerer Handle wie `@agent-ops` zählen
+nicht.
+
+Auf `@room`
+antwortet er nur, wenn seine Richtlinie sagt, auf kanalweite Erwähnungen zu
+antworten. Wie überall ist auch ein Direktchat in Threads gegliedert: Eine
+Antwort im Thread der Antwort setzt die Unterhaltung fort, und eine neue
+Nachricht unten beginnt eine neue.
+
+**Die Antwort wird an Ort und Stelle geschrieben.** Der Bot postet eine Nachricht
+und bearbeitet sie mit `m.replace`, während die Antwort einströmt. Nach 4.000
+Zeichen läuft die Antwort in weitere Nachrichten im selben Thread über.
+Geschrieben wird nur Text, den die Guardrails schon geprüft haben. Nichts, was
+der Bot postet, kann jemanden benachrichtigen: Jede Nachricht trägt ein leeres
+`m.mentions`. Antworten werden als zu HTML gerendertes Markdown gesendet, und
+HTML in der Ausgabe des Modells wird escaped, nie als Markup gesendet.
+
+**Freigaben und Fragen sind nummeriert.** Matrix hat keine Schaltflächen, und
+Umfragen stehen nicht in der Spezifikation, also listet eine Anfrage ihre
+Auswahlmöglichkeiten als nummerierte Zeilen im Thread auf. Eine Antwort, die nur
+aus der Nummer besteht, entscheidet sie, wie bei [SMS](#sms). Der Bot reagiert
+mit 👀 auf eine Frage, sobald sie ankommt, und zeigt an, dass er tippt, während
+er arbeitet.
+
+**Befehle in Element.** Element liest eine Nachricht, die mit `/` beginnt, als
+eigenen Befehl. `/help` öffnet die Hilfe von Element und erreicht den Bot nie.
+Jeder andere Bot-Befehl, etwa `/new` oder `/link`, öffnet den Dialog *Unbekannter
+Befehl* von Element, in dem **Als Nachricht senden** ihn sendet. Beginnt die
+Nachricht mit `//`, etwa `//help`, wird sie sofort gesendet.
+
+Vor jeder als privat eingestuften Nachricht prüft der Bot die aktuellen
+Mitglieder. Eine dritte Person, die still beitritt, erhält dadurch keinen
+privaten Kontext. Gruppeneinstufungen gelten nur für den aktuellen Sync-Batch.
+Private Antworten, Änderungen, Rückfragen und Dateien prüfen den ursprünglichen
+Empfänger unmittelbar vor dem Senden, auch bei fortgesetzten Läufen. Neue
+Mitglieder oder ein anderer Empfänger blockieren die private Antwort;
+Gruppenbeiträge verwenden einen eigenen Gesprächskontext.
+
+Mediendownloads folgen keinen Weiterleitungen. Der Homeserver muss
+authentifizierte Medien direkt ausliefern; CDN-Weiterleitungen werden abgelehnt.
+
+**Dateien**, die Leute posten, werden über die authentifizierten Medien des
+Homeservers mit dem Token des Bots geholt, bis zum Upload-Limit; Dateien und
+Diagramme, die der Agent sendet, werden auf dieselbe Weise hochgeladen. **Ein
+Thread, in den der Bot mittendrin geholt wird, wird zuerst gelesen**, wie bei
+Slack und Mattermost. Jede Nachricht wird so gelesen, wie ihre letzte
+Bearbeitung sie zeigt, und Dateien, die der Bot selbst gepostet hat, bleiben
+außen vor. Wo die Anbindung es erlaubt, kann der Agent den Raum beschreiben,
+seine Mitglieder auflisten und seinen Verlauf lesen.
+
+**Wer spricht**, bestimmen die Matrix-Benutzer-ID (`@ada:example.org`) und die
+konfigurierte Client-URL des Homeservers gemeinsam. `/link` bestätigt dieses
+Paar; ein anderer Homeserver erfordert eine eigene Verknüpfung, auch bei gleicher
+Benutzer-ID. Bestätigungsseite und verknüpfte Konten zeigen die Server-URL.
+Host-Schreibweise, Standardports und abschließende Schrägstriche werden
+normalisiert; unterschiedliche Pfade bleiben getrennte Identitätsquellen.
+Ein Serverwechsel kann weder die alte Identität fortsetzen noch eine alte
+Antwort über den neuen Server senden. Eine Raumunterhaltung sehen in der
+Konsole nur Personen, die weiterhin dem Raum angehören.
+
 ## Ein Bot, der nicht starten kann, hört auf, statt es erneut zu versuchen { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
-Telegram-Polling, Slack Socket Mode, der Mattermost-Event-Stream und das
-Discord-Gateway laufen alle unter einem Supervisor, der eine abgerissene Session neu verbindet. Ein fehlender
+Telegram-Polling, Slack Socket Mode, der Mattermost-Event-Stream, das
+Discord-Gateway und der Matrix-Sync laufen alle unter einem Supervisor, der eine abgerissene Session neu verbindet. Ein fehlender
 oder zurückgewiesener Konfigurationswert ist keine abgerissene Session, und der
 Supervisor behandelt ihn anders: er vermerkt den Bot mit dem Grund als
 ausgefallen, protokolliert einmal und hört auf. Nichts, was er tut, würde die

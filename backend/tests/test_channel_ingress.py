@@ -31,6 +31,7 @@ def bot():
         id=uuid4(),
         organization_id=uuid4(),
         authorization_generation=uuid4(),
+        platform="mattermost",
         is_active=True,
         access_policy={},
     )
