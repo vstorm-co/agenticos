@@ -12,6 +12,14 @@ interface UseDashboardLayoutResult {
   /** The saved arrangement, or `null` when none is saved (use the default). */
   storedEntries: StoredEntry[] | null;
   isLoading: boolean;
+  /**
+   * Set while the arrangement cannot be read at all. `storedEntries` is `null` then
+   * too, but that means unknown rather than "no preference", so the page must not
+   * render the default. A refresh that fails after a good read keeps that read.
+   */
+  loadError: Error | null;
+  /** Read the arrangement again, after a failed read. */
+  retryLoad: () => Promise<void>;
   save: (entries: StoredEntry[]) => Promise<void>;
   reset: () => Promise<void>;
 }
@@ -29,7 +37,7 @@ export function useDashboardLayout(): UseDashboardLayoutResult {
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const queryKey = qk.dashboard.layout(activeOrgId ?? "current");
 
-  const { data, isLoading } = useQuery({ queryKey, queryFn: getLayout });
+  const { data, error, isLoading, refetch } = useQuery({ queryKey, queryFn: getLayout });
 
   const saveMutation = useMutation({
     // Snapshot the key when the mutation starts, not when onSuccess runs: save,
@@ -65,9 +73,17 @@ export function useDashboardLayout(): UseDashboardLayoutResult {
     await resetMutation.mutateAsync();
   }, [resetMutation]);
 
+  const retryLoad = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
+
   return {
     storedEntries: data ? data.entries : null,
     isLoading,
+    // `data` stays undefined until a read succeeds, so this is exactly the failure that
+    // leaves the arrangement unknown. A refresh that fails after a good read keeps it.
+    loadError: data === undefined ? error : null,
+    retryLoad,
     save,
     reset,
   };

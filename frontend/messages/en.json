@@ -3121,6 +3121,11 @@
     "failedRevokeSession": "Failed to revoke session",
     "failedRevokeSessions": "Failed to revoke sessions",
     "lastActive": "Last active {when}",
+    "layoutError": {
+      "description": "Your saved layout hasn't changed. Try again to show it.",
+      "retry": "Try again",
+      "title": "Couldn't load your dashboard layout"
+    },
     "noSessionDataAvailable": "No session data available.",
     "period": {
       "1d": "Today",

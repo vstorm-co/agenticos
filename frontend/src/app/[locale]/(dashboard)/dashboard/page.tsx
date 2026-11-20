@@ -23,7 +23,7 @@ import { ViewSwitcher } from "@/components/dashboard/view-switcher";
 import { WIDGET_COMPONENTS } from "@/components/dashboard/widgets";
 import { MySummaryWidget } from "@/components/dashboard/widgets/my-summary";
 import { Button } from "@/components/ui";
-import { EmptyState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import { useDashboardLayout, useDashboardPresets, useGroups, usePermissions } from "@/hooks";
 import type { DashboardPreset } from "@/lib/dashboard-preset-api";
 import { useOrgStore } from "@/stores";
@@ -84,7 +84,14 @@ import { Perm } from "@/types/permissions";
 export default function DashboardPage() {
   const t = useTranslations("dashboard");
   const { can, role, isAppAdmin, isLoading } = usePermissions();
-  const { storedEntries, isLoading: layoutLoading, save, reset } = useDashboardLayout();
+  const {
+    storedEntries,
+    isLoading: layoutLoading,
+    loadError: layoutLoadError,
+    retryLoad,
+    save,
+    reset,
+  } = useDashboardLayout();
   const { presets, savePreset, removePreset } = useDashboardPresets();
   const searchParams = useSearchParams();
   const periodParam = searchParams.get("period");
@@ -135,6 +142,23 @@ export default function DashboardPage() {
             <Spinner className="text-muted-foreground size-5" aria-hidden />
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // A failed read is unknown, not "no saved layout": the default would render here,
+  // and its first save would replace the arrangement this person already has. Offer
+  // a retry instead, and nothing that writes, until a read succeeds or the server
+  // confirms there is nothing saved (a 404 is not an error).
+  if (layoutLoadError) {
+    return (
+      <div className="space-y-4">
+        {personal ? <MeHeader period={period} canRun={false} /> : <PageHeader title={t("title")} />}
+        <ErrorState
+          title={t("layoutError.title")}
+          description={t("layoutError.description")}
+          cta={{ label: t("layoutError.retry"), onClick: retryLoad }}
+        />
       </div>
     );
   }
