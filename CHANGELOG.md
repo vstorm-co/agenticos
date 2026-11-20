@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Require a fresh decision for every platform MCP call marked as always asking,
+  including organization administration. Session-wide and remembered approvals
+  cannot release these calls. Routine source reviews reveal resource names only
+  when the reviewer has view access, including explicit resource grants.
+
 ## [1.86.0] - 2026-11-20
 
 ### Added

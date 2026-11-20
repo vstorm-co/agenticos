@@ -1,5 +1,5 @@
 ---
-source_sha: "a8bf70087a14"
+source_sha: "a0637ae8ab9e"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1437,7 +1437,9 @@ con los propios registros de la plataforma. En el Builder es la primera tarjeta 
   y se ejecutan con la autoridad de la persona para la que trabaja el agent, no
   de su autor - así que un agent publicado por un Builder no puede invitar a un
   Admin sin preguntar en el run de un Owner. Su escudo no se puede desactivar, y
-  publicar rechaza `never` en cualquiera de las dos.
+  publicar rechaza `never` en cualquiera de las dos. Cada llamada espera su
+  propia respuesta: ni **Aprobar todo** ni una decisión recordada la dejan
+  ejecutarse.
 
 La plantilla **AgenticOS** lo enlaza así, igual que cada agent creado desde cero,
 de modo que un agent consulta la plataforma desde el principio - y configura una
