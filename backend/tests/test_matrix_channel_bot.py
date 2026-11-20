@@ -141,3 +141,28 @@ def test_matrix_refuses_secret_bearing_homeserver_urls(url: str) -> None:
         ChannelBotCreate(platform="matrix", name="bot", token="token", api_base_url=url)
     with pytest.raises(BadRequestError):
         ChannelBotService._check_server_url("matrix", url)
+
+
+@pytest.mark.parametrize("allowed", [True, False])
+def test_group_allowlists_use_the_native_room_even_with_a_scoped_key(allowed: bool) -> None:
+    from app.core.exceptions import AuthorizationError
+    from app.services.channels.base import IncomingMessage
+    from app.services.channels.matrix_protocol import room_key
+    from app.services.channels.router import ChannelMessageRouter
+
+    room = "!room:example.org"
+    bot = _row(access_policy={"mode": "group_only", "allowed_groups": [room] if allowed else []})
+    incoming = IncomingMessage(
+        platform="matrix",
+        bot_id=str(bot.id),
+        platform_user_id="@ada:example.org",
+        platform_chat_id=f"{room_key(room, server_url=HOMESERVER)}:$root",
+        chat_type="group",
+        text="hi",
+        raw={"server_url": HOMESERVER},
+    )
+    if allowed:
+        assert ChannelMessageRouter()._check_access(incoming, bot) is False
+    else:
+        with pytest.raises(AuthorizationError):
+            ChannelMessageRouter()._check_access(incoming, bot)
