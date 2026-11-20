@@ -69,16 +69,30 @@ def bind_to_person(
     )
 
 
-async def queue_wipe(db: AsyncSession, organization_id: UUID, user_ids: Iterable[UUID]) -> None:
-    """Delete these people's sign-ins in this organization, durably, once `db` commits."""
-    scopes = sorted(gateway_scope(organization_id, user_id) for user_id in user_ids)
+async def _queue(db: AsyncSession, scopes: list[str], organization_id: UUID | None) -> None:
     if scopes and configured_gateway() is not None:
         await enqueue(
             db,
             WIPE_SUBSCRIPTION_ACCOUNTS,
-            WipeSubscriptionAccounts(scopes=scopes),
+            WipeSubscriptionAccounts(scopes=sorted(scopes)),
             organization_id=organization_id,
         )
+
+
+async def queue_wipe(db: AsyncSession, organization_id: UUID, user_ids: Iterable[UUID]) -> None:
+    """Delete these people's sign-ins in this organization, durably, once `db` commits."""
+    await _queue(
+        db, [gateway_scope(organization_id, user_id) for user_id in user_ids], organization_id
+    )
+
+
+async def queue_wipe_person(
+    db: AsyncSession, user_id: UUID, organization_ids: Iterable[UUID]
+) -> None:
+    """Delete one person's sign-ins in every organization, when their account goes."""
+    await _queue(
+        db, [gateway_scope(organization_id, user_id) for organization_id in organization_ids], None
+    )
 
 
 async def wipe_scopes(job: WipeSubscriptionAccounts) -> None:

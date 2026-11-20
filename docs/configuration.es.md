@@ -1,5 +1,5 @@
 ---
-source_sha: "950747e821e4"
+source_sha: "36237a38facf"
 ---
 
 # Configuración { #configuration }
@@ -1692,6 +1692,29 @@ permanecen hasta su eliminación manual y no sustituyen copias externas. Prueba 
 restauración en un despliegue desechable antes de producción. Varios hosts,
 superposiciones Compose propias y almacenamiento externo requieren tu pipeline:
 `UPDATE_PIPELINE_URL` muestra su enlace HTTPS sin iniciar el despliegue.
+
+## Cuentas de suscripción { #subscription-accounts }
+
+El servicio `subscription-gateway` ejecuta los inicios de sesión de las personas
+en sus propias suscripciones ([cuentas de suscripción](models.md#subscription-accounts)).
+Usa la imagen del backend con `python -m app.subscription_gateway`, no publica
+ningún puerto y guarda los inicios de sesión en el volumen
+`subscription_accounts`.
+
+| Variable | La lee | Significado |
+|---|---|---|
+| `SUBSCRIPTION_GATEWAY_URL` | API, worker | La dirección de la pasarela, `http://subscription-gateway:8400` en compose. Sin valor, las cuentas de suscripción se desactivan. |
+| `SUBSCRIPTION_GATEWAY_TOKEN` | API, worker, pasarela | El token compartido, de 32 caracteres como mínimo. La pasarela rechaza cualquier petición sin él, y la API no arranca con una URL pero sin ese token. |
+| `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | pasarela | Cuánto puede estar inactivo el proceso de una persona antes de detenerse. Por defecto 600. |
+| `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | pasarela | Cuántos procesos de personas pueden ejecutarse a la vez. Por defecto 64; por encima, se detiene el proceso inactivo usado hace más tiempo. |
+
+`docker-compose.yml` arranca la pasarela por defecto con un token local fijo, así
+que define tu propio `SUBSCRIPTION_GATEWAY_TOKEN` en `.env` para cualquier
+despliegue al que lleguen otras personas. En `docker-compose-prod.yml` y
+`docker-compose-dev.yml` el servicio está en el perfil `subscriptions`.
+`scripts/deploy.sh` activa el perfil y define `SUBSCRIPTION_GATEWAY_URL` cuando
+`backend/.env` contiene un `SUBSCRIPTION_GATEWAY_TOKEN`. Genéralo con
+`openssl rand -hex 32`.
 
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 

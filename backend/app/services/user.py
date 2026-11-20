@@ -766,6 +766,12 @@ class UserService:
         await conversation_repo.invalidate_author_checkpoints(self.db, user_id=user_id)
         await GeneratedMediaService(self.db).forget_user(user_id)
         await PersonalDataService(self.db).purge(user_id)
+        # Memberships go by cascade, which `end_membership` never sees.
+        from app.services.subscription_accounts import queue_wipe_person
+
+        await queue_wipe_person(
+            self.db, user_id, await member_repo.list_organization_ids(self.db, user_id=user_id)
+        )
         await user_repo.delete(self.db, user_id)
         if attachments:
             # After the commit, for the reason #1293 gives: an unlink undone by

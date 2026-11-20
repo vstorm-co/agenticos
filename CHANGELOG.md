@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- To offer subscription accounts on a server deployed with `docker-compose-prod.yml`, add `SUBSCRIPTION_GATEWAY_TOKEN` (32 or more characters, for example `openssl rand -hex 32`) to `backend/.env`. `scripts/deploy.sh` then starts the `subscriptions` profile and points the API and worker at it. Without the token nothing changes. `docker-compose.yml` starts the gateway by default; set your own token there too.
+
 - Apply `0346_personal_model_generations.py` before running this version. It adds credential-free connection revisions that prevent an older OAuth sign-in from recreating a deleted personal connection.
 
 - Apply `0347_chatgpt_registrations.py` for durable official ChatGPT application registrations. Official plan usage remains disabled until the operator verifies deployment eligibility and configures a stable host UUID.
@@ -28,6 +30,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Apply `0342_personal_coding_sessions.py` and update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
 
 ### Added
+
+- Sign in to your own Claude, ChatGPT, Antigravity, Grok, Kimi, Devin and Meta AI subscriptions under Settings → Profile, and run models on the new **Subscription accounts** provider with them. A bundled `subscription-gateway` service runs a separate CLIProxyAPI process for each person in each organization, only the person's own chats spend their accounts, and leaving an organization deletes the sign-ins.
 
 - Choose any registered Desktop ACP agent, including Antigravity, Cursor, Cline, Grok, OpenCode and Hermes, as the conversation runtime, with the models of its own sign-in read by Desktop and an `EXTERNAL_NATIVE_CONVERSATION_ENABLED` switch (on by default) to withhold it (#3177).
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "d526ab6dd6d3"
+source_sha: "fb77a07d22c7"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -395,6 +395,7 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | Chutes | `chutes` | clave de API | ✓ |
 | Synthetic | `synthetic` | clave de API | ✓ |
 | CLIProxyAPI (subscription gateway) | `cliproxyapi` | clave de API | ✓ |
+| Cuentas de suscripción | `subscription_accounts` | Ninguna: cada persona inicia sesión | |
 | Moonshot AI | `moonshotai` | clave de API | |
 | Nebius AI Studio | `nebius` | clave de API | |
 | OVHcloud AI Endpoints | `ovhcloud` | clave de API | |
@@ -432,9 +433,46 @@ Una clave de plan no es intercambiable con la clave de API facturada por uso del
 | Chutes | `https://llm.chutes.ai/v1` |
 | Synthetic | `https://api.synthetic.new/openai/v1` |
 
-**Pasarela de suscripciones (CLIProxyAPI).** Las cuentas cuyos proveedores no emiten clave de plan (Antigravity, Grok Build, Devin, Muse Code, inicio de sesión de Kimi Code y otras) se pueden usar mediante una pasarela [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) que ejecutes tú o tu operador. Inicia sesión en las cuentas con los comandos propios de la pasarela, añade una clave de cliente en `access.api-keys` y crea un perfil **CLIProxyAPI (subscription gateway)** con su Endpoint (por ejemplo `http://cliproxyapi:8317/v1` para un contenedor de la pasarela en la red del despliegue) y esa clave de cliente. Cada cuenta de la pasarela está disponible para quien pueda usar el perfil, así que ejecuta una pasarela personal para una cuenta personal. Añade el host de la pasarela a `OUTBOUND_PRIVATE_ALLOWLIST`; las direcciones de loopback nunca son accesibles desde el servidor. Los proveedores pueden limitar o suspender cuentas usadas así; ese riesgo es del titular de la cuenta.
+**Tu propia pasarela CLIProxyAPI.** Las cuentas cuyos proveedores no emiten clave de plan (Antigravity, Grok Build, Devin, Muse Code, inicio de sesión de Kimi Code y otras) se pueden usar mediante una pasarela [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) que ejecutes tú o tu operador fuera del stack. Las [cuentas de suscripción](#subscription-accounts) son la misma idea integrada, con las cuentas de cada persona separadas. Inicia sesión en las cuentas con los comandos propios de la pasarela, añade una clave de cliente en `access.api-keys` y crea un perfil **CLIProxyAPI (subscription gateway)** con su Endpoint (por ejemplo `http://cliproxyapi:8317/v1` para un contenedor de la pasarela en la red del despliegue) y esa clave de cliente. Cada cuenta de la pasarela está disponible para quien pueda usar el perfil, así que ejecuta una pasarela personal para una cuenta personal. Añade el host de la pasarela a `OUTBOUND_PRIVATE_ALLOWLIST`; las direcciones de loopback nunca son accesibles desde el servidor. Los proveedores pueden limitar o suspender cuentas usadas así; ese riesgo es del titular de la cuenta.
 
 Selecciona la clave del almacén y confirma el destino antes de cargar modelos. Un catálogo personalizado utiliza solo esa clave y ese endpoint. Si la lista no está disponible, puedes escribir el modelo manualmente; no se sustituye por el catálogo general de la API. Las estimaciones de presupuesto de AgenticOS no miden la cuota restante de tu suscripción.
+
+### Cuentas de suscripción { #subscription-accounts }
+
+Las personas inician sesión en sus propias suscripciones desde la consola, y los
+modelos del proveedor **Subscription accounts** se ejecutan con ellas. En
+**Ajustes → Perfil → Cuentas de suscripción**, cada persona conecta cuentas de
+Claude (Pro, Max), ChatGPT (Codex), Google Antigravity, Grok, Kimi, Devin o Meta
+AI. Un inicio de sesión muestra un código para introducir en la página del
+proveedor, o pide la dirección en la que terminó el navegador tras aprobarlo.
+
+Un perfil de este proveedor solo admite un id de modelo, sin clave y sin
+endpoint. **Add model** lista los modelos que sirven tus propias cuentas. Cuando
+una persona chatea con un agente sobre ese perfil, la ejecución usa las cuentas
+de esa persona y de nadie más. Una ejecución iniciada por una clave de API, por
+un visitante de un agente publicado o por trabajo en segundo plano no tiene una
+persona detrás, así que se rechaza. Por el mismo motivo, la plataforma nunca
+elige ese modelo para un agente nuevo.
+
+El servicio `subscription-gateway` viene con el stack y ejecuta
+[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) (MIT) una vez por
+persona y organización. El proceso de una persona arranca en el primer uso y se
+detiene tras diez minutos inactivo. Cada proceso escucha en loopback con sus
+propias claves y su directorio de inicios de sesión, y la API deduce a cuál
+llega una petición a partir de la organización y la persona; un navegador nunca
+lo nombra. Cuando un miembro se va, un trabajo en segundo plano borra sus
+inicios de sesión; borrar una organización borra los de todos sus miembros.
+Iniciar sesión en la misma cuenta en dos organizaciones significa hacerlo dos
+veces.
+
+Los proveedores pueden limitar el uso de una suscripción fuera de sus propias
+aplicaciones y suspender la cuenta por ello. La consola indica este riesgo, y lo
+asume el titular de la cuenta. Cursor y Qwen Code no tienen un inicio de sesión
+que la pasarela admita, así que no se ofrecen. Los presupuestos de AgenticOS
+registran estas ejecuciones sin precio, porque el cupo restante de una
+suscripción no se mide por tokens. Consulta la
+[configuración](configuration.md#subscription-accounts) para ejecutar la
+pasarela.
 
 ### Autoalojados { #self-hosted }
 

@@ -498,3 +498,14 @@ async def test_the_catalog_offers_subscription_accounts_only_with_a_gateway(
     assert all(
         row["personal_gateway"] is False for row in on if row["id"] != "subscription_accounts"
     )
+
+
+async def test_deleting_an_account_wipes_it_in_every_organization(enabled: None) -> None:
+    person, first, second = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    with patch.object(module, "enqueue", AsyncMock()) as enqueue:
+        await module.queue_wipe_person(MagicMock(), person, [first, second])
+        await module.queue_wipe_person(MagicMock(), person, [])
+    enqueue.assert_awaited_once()
+    payload = enqueue.await_args.args[2]
+    assert payload.scopes == sorted([gateway_scope(first, person), gateway_scope(second, person)])
+    assert enqueue.await_args.kwargs["organization_id"] is None

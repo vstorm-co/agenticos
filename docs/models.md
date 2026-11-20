@@ -374,6 +374,7 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | Chutes | `chutes` | API key | ✓ |
 | Synthetic | `synthetic` | API key | ✓ |
 | CLIProxyAPI (subscription gateway) | `cliproxyapi` | API key | ✓ |
+| Subscription accounts | `subscription_accounts` | None: each person signs in | |
 | Moonshot AI | `moonshotai` | API key | |
 | Nebius AI Studio | `nebius` | API key | |
 | OVHcloud AI Endpoints | `ovhcloud` | API key | |
@@ -411,9 +412,42 @@ A plan key is not interchangeable with the vendor's metered API key. Some vendor
 | Chutes | `https://llm.chutes.ai/v1` |
 | Synthetic | `https://api.synthetic.new/openai/v1` |
 
-**Subscription gateway (CLIProxyAPI).** Accounts whose vendors offer no plan key (Antigravity, Grok Build, Devin, Muse Code, Kimi Code sign-in and others) can be used through a [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) gateway that you or your operator run. Sign the accounts in to the gateway with its own login commands, add a client key under `access.api-keys`, then create a **CLIProxyAPI (subscription gateway)** profile with its Endpoint (for example `http://cliproxyapi:8317/v1` for a gateway container on the deployment's network) and that client key. Every account the gateway holds is available to whoever can use the profile, so run a personal gateway for a personal account. Add the gateway's host to `OUTBOUND_PRIVATE_ALLOWLIST`; loopback addresses are never reachable from the server. Vendors may limit or suspend accounts used this way; that risk is the account owner's.
+**Your own CLIProxyAPI gateway.** Accounts whose vendors offer no plan key (Antigravity, Grok Build, Devin, Muse Code, Kimi Code sign-in and others) can also be used through a [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) gateway that you or your operator run outside the stack. [Subscription accounts](#subscription-accounts) are the same idea built in, with each person's accounts kept apart. Sign the accounts in to the gateway with its own login commands, add a client key under `access.api-keys`, then create a **CLIProxyAPI (subscription gateway)** profile with its Endpoint (for example `http://cliproxyapi:8317/v1` for a gateway container on the deployment's network) and that client key. Every account the gateway holds is available to whoever can use the profile, so run a personal gateway for a personal account. Add the gateway's host to `OUTBOUND_PRIVATE_ALLOWLIST`; loopback addresses are never reachable from the server. Vendors may limit or suspend accounts used this way; that risk is the account owner's.
 
 Choose the vault key and confirm the destination before loading models. A custom catalog uses that key and endpoint only; an unavailable listing leaves the model field editable rather than substituting the general API catalog. AgenticOS budget estimates do not measure your remaining subscription allowance.
+
+### Subscription accounts { #subscription-accounts }
+
+People sign in to their own subscriptions from the console, and models on the
+**Subscription accounts** provider run on them. Under **Settings → Profile →
+Subscription accounts**, each person connects Claude (Pro, Max), ChatGPT (Codex),
+Google Antigravity, Grok, Kimi, Devin or Meta AI accounts. A sign-in shows a code
+to enter on the provider's page, or asks for the address the browser ended on
+after approving.
+
+A profile on this provider takes only a model id, with no key and no endpoint.
+**Add model** lists the models your own accounts serve. When a person chats with
+an agent on such a profile, the run uses that person's accounts and nobody
+else's. A run started by an API key, a published agent's visitor or background
+work has no person behind it, so it is refused. For the same reason the platform
+never picks such a model for a new agent.
+
+The `subscription-gateway` service ships with the stack and runs
+[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) (MIT) once per person
+per organization. It starts a person's process on first use and stops it after
+ten idle minutes. Each process listens on loopback with its own keys and
+sign-in directory, and the API derives which one a request reaches from the
+organization and the person; a browser never names it. When a member leaves, a
+background job deletes their sign-ins; deleting an organization deletes every
+member's. Signing in to the same account in two organizations means signing in
+twice.
+
+Vendors may limit how a subscription is used outside their own apps and can
+suspend an account for it. The console states this risk, and the account owner
+accepts it. Cursor and Qwen Code have no sign-in the gateway supports, so they
+are not offered. AgenticOS budgets record these runs without a price, because a
+subscription's remaining allowance is not measured per token. See
+[configuration](configuration.md#subscription-accounts) for running the gateway.
 
 ### Self-hosted
 

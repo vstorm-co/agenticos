@@ -1,5 +1,5 @@
 ---
-source_sha: "950747e821e4"
+source_sha: "36237a38facf"
 ---
 
 # Konfiguration { #configuration }
@@ -1760,6 +1760,28 @@ bleiben bis zur manuellen Entfernung auf dem Host und ersetzen keine externen
 Sicherungen. Testen Sie die Wiederherstellung zunächst auf einer Wegwerf-Installation.
 Mehrere Hosts, eigene Compose-Overlays und externer Dateispeicher benötigen Ihre
 Pipeline: `UPDATE_PIPELINE_URL` zeigt nur deren HTTPS-Link und startet kein Deployment.
+
+## Abonnement-Konten { #subscription-accounts }
+
+Der Dienst `subscription-gateway` betreibt die eigenen Abonnement-Anmeldungen
+der Personen ([Abonnement-Konten](models.md#subscription-accounts)). Er nutzt
+das Backend-Image mit `python -m app.subscription_gateway`, veröffentlicht
+keinen Port und hält die Anmeldungen im Volume `subscription_accounts`.
+
+| Variable | Gelesen von | Bedeutung |
+|---|---|---|
+| `SUBSCRIPTION_GATEWAY_URL` | API, Worker | Die Adresse des Gateways, in Compose `http://subscription-gateway:8400`. Leer schaltet Abonnement-Konten ab. |
+| `SUBSCRIPTION_GATEWAY_TOKEN` | API, Worker, Gateway | Das gemeinsame Token, mindestens 32 Zeichen. Das Gateway lehnt ohne es jede Anfrage ab, und die API startet nicht mit einer URL, aber ohne ein solches Token. |
+| `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | Gateway | Wie lange der Prozess einer Person im Leerlauf bleiben darf, bevor er stoppt. Standard 600. |
+| `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | Gateway | Wie viele Prozesse von Personen gleichzeitig laufen dürfen. Standard 64; darüber stoppt der am längsten unbenutzte Prozess im Leerlauf. |
+
+`docker-compose.yml` startet das Gateway standardmäßig mit einem festen lokalen
+Token; setze für jedes Deployment, das andere erreichen, ein eigenes
+`SUBSCRIPTION_GATEWAY_TOKEN` in `.env`. In `docker-compose-prod.yml` und
+`docker-compose-dev.yml` liegt der Dienst im Profil `subscriptions`.
+`scripts/deploy.sh` aktiviert das Profil und setzt `SUBSCRIPTION_GATEWAY_URL`,
+wenn `backend/.env` ein `SUBSCRIPTION_GATEWAY_TOKEN` enthält. Erzeuge es mit
+`openssl rand -hex 32`.
 
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 

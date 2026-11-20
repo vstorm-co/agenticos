@@ -1,5 +1,5 @@
 ---
-source_sha: "d526ab6dd6d3"
+source_sha: "fb77a07d22c7"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -415,6 +415,7 @@ Standard-Provider verwenden die Modell- und Provider-Ableitung von Pydantic AI. 
 | Chutes | `chutes` | API-Key | ✓ |
 | Synthetic | `synthetic` | API-Key | ✓ |
 | CLIProxyAPI (subscription gateway) | `cliproxyapi` | API-Key | ✓ |
+| Abonnement-Konten | `subscription_accounts` | Keiner: jede Person meldet sich an | |
 | Moonshot AI | `moonshotai` | API-Key | |
 | Nebius AI Studio | `nebius` | API-Key | |
 | OVHcloud AI Endpoints | `ovhcloud` | API-Key | |
@@ -452,9 +453,45 @@ Ein Planschlüssel ist nicht mit dem nutzungsabhängigen API-Schlüssel des Anbi
 | Chutes | `https://llm.chutes.ai/v1` |
 | Synthetic | `https://api.synthetic.new/openai/v1` |
 
-**Abo-Gateway (CLIProxyAPI).** Konten, für die der Anbieter keinen Planschlüssel ausgibt (Antigravity, Grok Build, Devin, Muse Code, Kimi-Code-Anmeldung und weitere), lassen sich über ein [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)-Gateway nutzen, das du oder dein Betreiber betreibt. Melde die Konten mit den eigenen Login-Befehlen des Gateways an, lege unter `access.api-keys` einen Client-Schlüssel an und erstelle dann ein Profil **CLIProxyAPI (subscription gateway)** mit dessen Endpoint (zum Beispiel `http://cliproxyapi:8317/v1` für einen Gateway-Container im Netz des Deployments) und diesem Client-Schlüssel. Jedes Konto im Gateway steht allen offen, die das Profil nutzen dürfen; betreibe für ein persönliches Konto daher ein persönliches Gateway. Trage den Host des Gateways in `OUTBOUND_PRIVATE_ALLOWLIST` ein; Loopback-Adressen sind vom Server aus nie erreichbar. Anbieter können so genutzte Konten einschränken oder sperren; dieses Risiko trägt der Kontoinhaber.
+**Eigenes CLIProxyAPI-Gateway.** Konten, für die der Anbieter keinen Planschlüssel ausgibt (Antigravity, Grok Build, Devin, Muse Code, Kimi-Code-Anmeldung und weitere), lassen sich über ein [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)-Gateway nutzen, das du oder dein Betreiber außerhalb des Stacks betreibt. [Abonnement-Konten](#subscription-accounts) sind dieselbe Idee eingebaut, mit den Konten jeder Person getrennt voneinander. Melde die Konten mit den eigenen Login-Befehlen des Gateways an, lege unter `access.api-keys` einen Client-Schlüssel an und erstelle dann ein Profil **CLIProxyAPI (subscription gateway)** mit dessen Endpoint (zum Beispiel `http://cliproxyapi:8317/v1` für einen Gateway-Container im Netz des Deployments) und diesem Client-Schlüssel. Jedes Konto im Gateway steht allen offen, die das Profil nutzen dürfen; betreibe für ein persönliches Konto daher ein persönliches Gateway. Trage den Host des Gateways in `OUTBOUND_PRIVATE_ALLOWLIST` ein; Loopback-Adressen sind vom Server aus nie erreichbar. Anbieter können so genutzte Konten einschränken oder sperren; dieses Risiko trägt der Kontoinhaber.
 
 Wähle den Vault-Schlüssel und bestätige das Ziel, bevor du Modelle lädst. Ein eigener Katalog verwendet nur diesen Schlüssel und Endpoint. Eine nicht verfügbare Liste lässt die manuelle Modelleingabe zu, statt den allgemeinen API-Katalog einzusetzen. Die Budgetschätzungen von AgenticOS messen nicht dein verbleibendes Abonnementkontingent.
+
+### Abonnement-Konten { #subscription-accounts }
+
+Personen melden sich in der Konsole bei ihren eigenen Abonnements an, und
+Modelle des Anbieters **Subscription accounts** laufen darauf. Unter
+**Einstellungen → Profil → Abonnement-Konten** verbindet jede Person Konten von
+Claude (Pro, Max), ChatGPT (Codex), Google Antigravity, Grok, Kimi, Devin oder
+Meta AI. Eine Anmeldung zeigt einen Code, den du auf der Seite des Anbieters
+eingibst, oder fragt nach der Adresse, auf der der Browser nach der Bestätigung
+gelandet ist.
+
+Ein Profil dieses Anbieters nimmt nur eine Modell-ID, ohne Schlüssel und ohne
+Endpoint. **Add model** listet die Modelle, die deine eigenen Konten anbieten.
+Chattet eine Person mit einem Agenten auf einem solchen Profil, nutzt der Lauf
+die Konten dieser Person und keine anderen. Ein Lauf, den ein API-Schlüssel, ein
+Besucher eines veröffentlichten Agenten oder Hintergrundarbeit startet, hat
+keine Person dahinter und wird abgelehnt. Aus demselben Grund wählt die
+Plattform ein solches Modell nie für einen neuen Agenten.
+
+Der Dienst `subscription-gateway` gehört zum Stack und betreibt
+[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) (MIT) einmal pro
+Person und Organisation. Der Prozess einer Person startet bei der ersten
+Nutzung und stoppt nach zehn Minuten Leerlauf. Jeder Prozess lauscht auf
+Loopback mit eigenen Schlüsseln und eigenem Anmeldeverzeichnis, und die API
+leitet aus Organisation und Person ab, welchen eine Anfrage erreicht; ein
+Browser benennt ihn nie. Verlässt ein Mitglied die Organisation, löscht ein
+Hintergrundjob seine Anmeldungen; das Löschen einer Organisation löscht die
+aller Mitglieder. Dasselbe Konto in zwei Organisationen heißt zwei Anmeldungen.
+
+Anbieter können die Nutzung eines Abonnements außerhalb ihrer eigenen Apps
+einschränken und ein Konto dafür sperren. Die Konsole nennt dieses Risiko, und
+die Kontoinhaberin oder der Kontoinhaber trägt es. Cursor und Qwen Code haben
+keine Anmeldung, die das Gateway unterstützt, und werden daher nicht angeboten.
+AgenticOS-Budgets erfassen diese Läufe ohne Preis, weil das verbleibende
+Kontingent eines Abonnements nicht pro Token gemessen wird. Den Betrieb des
+Gateways beschreibt die [Konfiguration](configuration.md#subscription-accounts).
 
 ### Selbst gehostet { #self-hosted }
 

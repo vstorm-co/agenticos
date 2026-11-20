@@ -1,5 +1,5 @@
 ---
-source_sha: "950747e821e4"
+source_sha: "36237a38facf"
 ---
 
 # Konfiguracja { #configuration }
@@ -1663,6 +1663,28 @@ nie ma automatycznego cofania bazy. Backupy pozostają na hoście do ręcznego u
 i nie zastępują kopii poza serwerem. Najpierw przetestuj odzyskiwanie na środowisku
 jednorazowym. Wiele hostów, własne nakładki Compose i zewnętrzny magazyn plików
 obsługuj pipeline’em: `UPDATE_PIPELINE_URL` pokazuje link HTTPS bez uruchamiania wdrożenia.
+
+## Konta subskrypcyjne { #subscription-accounts }
+
+Usługa `subscription-gateway` obsługuje własne logowania osób do subskrypcji
+([Konta subskrypcyjne](models.md#subscription-accounts)). Używa obrazu backendu
+z poleceniem `python -m app.subscription_gateway`, nie publikuje portu i trzyma
+logowania w wolumenie `subscription_accounts`.
+
+| Zmienna | Czyta ją | Znaczenie |
+|---|---|---|
+| `SUBSCRIPTION_GATEWAY_URL` | API, worker | Adres bramy, w compose `http://subscription-gateway:8400`. Brak wartości wyłącza konta subskrypcyjne. |
+| `SUBSCRIPTION_GATEWAY_TOKEN` | API, worker, brama | Wspólny token, co najmniej 32 znaki. Brama odrzuca bez niego każde żądanie, a API nie wystartuje z adresem, ale bez takiego tokenu. |
+| `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | brama | Jak długo proces osoby może być bezczynny, zanim się zatrzyma. Domyślnie 600. |
+| `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | brama | Ile procesów osób może działać naraz. Domyślnie 64; powyżej tej liczby zatrzymuje się najdawniej używany bezczynny proces. |
+
+`docker-compose.yml` uruchamia bramę domyślnie ze stałym lokalnym tokenem, więc
+dla każdego wdrożenia, do którego dostęp mają inni, ustaw własny
+`SUBSCRIPTION_GATEWAY_TOKEN` w `.env`. W `docker-compose-prod.yml` i
+`docker-compose-dev.yml` usługa jest w profilu `subscriptions`.
+`scripts/deploy.sh` włącza ten profil i ustawia `SUBSCRIPTION_GATEWAY_URL`, gdy
+`backend/.env` zawiera `SUBSCRIPTION_GATEWAY_TOKEN`. Wygeneruj go poleceniem
+`openssl rand -hex 32`.
 
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 

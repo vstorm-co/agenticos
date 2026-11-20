@@ -1,5 +1,5 @@
 ---
-source_sha: "d526ab6dd6d3"
+source_sha: "fb77a07d22c7"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -386,6 +386,7 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | Chutes | `chutes` | klucz API | ✓ |
 | Synthetic | `synthetic` | klucz API | ✓ |
 | CLIProxyAPI (subscription gateway) | `cliproxyapi` | klucz API | ✓ |
+| Konta subskrypcyjne | `subscription_accounts` | Brak: każda osoba się loguje | |
 | Moonshot AI | `moonshotai` | klucz API | |
 | Nebius AI Studio | `nebius` | klucz API | |
 | OVHcloud AI Endpoints | `ovhcloud` | klucz API | |
@@ -423,9 +424,43 @@ Klucz planu nie jest zamienny z kluczem zwykłego API rozliczanego według użyc
 | Chutes | `https://llm.chutes.ai/v1` |
 | Synthetic | `https://api.synthetic.new/openai/v1` |
 
-**Brama subskrypcji (CLIProxyAPI).** Konta, do których dostawcy nie wydają klucza planu (Antigravity, Grok Build, Devin, Muse Code, logowanie Kimi Code i inne), można używać przez bramę [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) uruchomioną przez Ciebie lub operatora. Zaloguj konta w bramie jej własnymi poleceniami logowania, dodaj klucz klienta w `access.api-keys`, a potem utwórz profil **CLIProxyAPI (subscription gateway)** z jej Endpointem (na przykład `http://cliproxyapi:8317/v1` dla kontenera bramy w sieci wdrożenia) i tym kluczem klienta. Każde konto trzymane przez bramę jest dostępne dla każdego, kto może użyć profilu, więc dla konta osobistego uruchom osobistą bramę. Dodaj host bramy do `OUTBOUND_PRIVATE_ALLOWLIST`; adresy pętli zwrotnej nigdy nie są osiągalne z serwera. Dostawcy mogą ograniczyć lub zawiesić konta używane w ten sposób; to ryzyko ponosi właściciel konta.
+**Własna brama CLIProxyAPI.** Konta, do których dostawcy nie wydają klucza planu (Antigravity, Grok Build, Devin, Muse Code, logowanie Kimi Code i inne), można używać przez bramę [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) uruchomioną przez Ciebie lub operatora poza stosem. [Konta subskrypcyjne](#subscription-accounts) to ten sam pomysł wbudowany w platformę, z kontami każdej osoby trzymanymi osobno. Zaloguj konta w bramie jej własnymi poleceniami logowania, dodaj klucz klienta w `access.api-keys`, a potem utwórz profil **CLIProxyAPI (subscription gateway)** z jej Endpointem (na przykład `http://cliproxyapi:8317/v1` dla kontenera bramy w sieci wdrożenia) i tym kluczem klienta. Każde konto trzymane przez bramę jest dostępne dla każdego, kto może użyć profilu, więc dla konta osobistego uruchom osobistą bramę. Dodaj host bramy do `OUTBOUND_PRIVATE_ALLOWLIST`; adresy pętli zwrotnej nigdy nie są osiągalne z serwera. Dostawcy mogą ograniczyć lub zawiesić konta używane w ten sposób; to ryzyko ponosi właściciel konta.
 
 Przed wczytaniem modeli wybierz klucz z sejfu i potwierdź adres docelowy. Własny katalog korzysta tylko z tego klucza i endpointu; brak listy pozwala wpisać model ręcznie, bez zastępowania jej katalogiem zwykłego API. Szacunki budżetu AgenticOS nie określają pozostałego limitu subskrypcji.
+
+### Konta subskrypcyjne { #subscription-accounts }
+
+Osoby logują się do własnych subskrypcji z konsoli, a modele dostawcy
+**Subscription accounts** działają na nich. W **Ustawienia → Profil → Konta
+subskrypcyjne** każda osoba łączy konta Claude (Pro, Max), ChatGPT (Codex),
+Google Antigravity, Grok, Kimi, Devin lub Meta AI. Logowanie pokazuje kod do
+wpisania na stronie dostawcy albo prosi o adres, na którym przeglądarka
+skończyła po zatwierdzeniu.
+
+Profil tego dostawcy przyjmuje tylko identyfikator modelu, bez klucza i bez
+endpointu. **Add model** pokazuje modele, które serwują Twoje własne konta. Gdy
+osoba rozmawia z agentem na takim profilu, uruchomienie korzysta z kont tej
+osoby i niczyich innych. Uruchomienie rozpoczęte kluczem API, przez gościa
+opublikowanego agenta albo przez pracę w tle nie ma za sobą osoby, więc jest
+odrzucane. Z tego samego powodu platforma nigdy nie wybiera takiego modelu dla
+nowego agenta.
+
+Usługa `subscription-gateway` jest częścią stosu i uruchamia
+[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) (MIT) osobno dla
+każdej osoby w każdej organizacji. Proces danej osoby startuje przy pierwszym
+użyciu i zatrzymuje się po dziesięciu minutach bezczynności. Każdy proces
+nasłuchuje na pętli zwrotnej z własnymi kluczami i katalogiem logowań, a API
+wyznacza, do którego trafia żądanie, z organizacji i osoby; przeglądarka nigdy
+go nie wskazuje. Gdy członek odchodzi, zadanie w tle usuwa jego logowania;
+usunięcie organizacji usuwa logowania wszystkich członków. Zalogowanie się do
+tego samego konta w dwóch organizacjach oznacza dwa logowania.
+
+Dostawcy mogą ograniczać używanie subskrypcji poza własnymi aplikacjami i
+zawiesić za to konto. Konsola mówi o tym ryzyku, a przyjmuje je właściciel
+konta. Cursor i Qwen Code nie mają logowania obsługiwanego przez bramę, więc nie
+są oferowane. Budżety AgenticOS zapisują te uruchomienia bez ceny, bo pozostały
+limit subskrypcji nie jest mierzony w tokenach. Uruchamianie bramy opisuje
+[konfiguracja](configuration.md#subscription-accounts).
 
 ### Samodzielnie hostowane { #self-hosted }
 
