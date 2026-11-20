@@ -9,6 +9,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
+from app.db.models.dataset import Dataset
 from app.db.models.key_coverage_report import CoverageStatus, KeyCoverageReport
 
 
@@ -115,15 +116,21 @@ async def finish(
 async def ready_for_agent(
     db: AsyncSession, *, organization_id: UUID, agent_id: UUID, dataset_ids: Sequence[UUID]
 ) -> list[KeyCoverageReport]:
-    """The agent's ready reports over these datasets, made for the version it runs now.
+    """The agent's ready reports over these datasets, made for the versions current now.
 
-    A report on an earlier version judged sources the agent may since have gained.
+    A report on an earlier agent version judged sources the agent may since have
+    gained, and one on an earlier dataset version keys the dataset may since have changed.
     """
     if not dataset_ids:
         return []
     result = await db.scalars(
         select(KeyCoverageReport)
         .join(Agent, Agent.current_version_id == KeyCoverageReport.agent_version_id)
+        .join(
+            Dataset,
+            (Dataset.id == KeyCoverageReport.dataset_id)
+            & (Dataset.latest_version == KeyCoverageReport.dataset_version),
+        )
         .where(
             KeyCoverageReport.organization_id == organization_id,
             KeyCoverageReport.agent_id == agent_id,

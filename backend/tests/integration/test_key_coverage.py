@@ -620,6 +620,13 @@ class TestReading:
         )
 
         assert not (await service.get(owner, dataset.id, agent.id)).current
+        assert await service.uncovered_labels(owner, agent.id, [dataset.id]) == {}
+
+        report = await service.start(owner, dataset.id, agent.id)
+        await service.judge(report.id, owner.organization_id)
+        assert await service.uncovered_labels(owner, agent.id, [dataset.id]) == {
+            dataset.id: frozenset({"due date"})
+        }
 
         republished = AgentVersion(
             id=uuid.uuid4(),
