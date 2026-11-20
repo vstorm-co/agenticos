@@ -23,10 +23,10 @@ import logging
 import re
 from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime, timedelta
-from typing import Self
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ValidationError, model_validator
+from pydantic import BaseModel, Field, ValidationError
+from pydantic_ai import ModelRetry, RunContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.guardrails import GuardrailBlocked
@@ -84,8 +84,14 @@ class RepeatedRequest(BaseModel):
     evidence: list[int] = Field(
         min_length=3, max_length=6, description="Distinct request IDs proving recurrence."
     )
+    as_agent: bool = Field(
+        description="True for an on-demand agent. False for a scheduled routine, even if it uses judgment."
+    )
+    cron: str | None = Field(
+        max_length=60,
+        description="Required UTC cron for a routine, e.g. '0 7 * * 1-5'. Use null only for an on-demand agent.",
+    )
     required_services: list[str] = Field(
-        default_factory=list,
         max_length=6,
         description="Exact connected_services names needed to execute this proposal. Empty for self-contained work.",
     )
@@ -97,14 +103,6 @@ class RepeatedRequest(BaseModel):
     prompt: str = Field(
         max_length=2000,
         description="What the routine or agent should do, written as the person would ask it.",
-    )
-    cron: str | None = Field(
-        default=None,
-        max_length=60,
-        description="A UTC cron for a routine, e.g. '0 7 * * 1-5'; null for an agent.",
-    )
-    as_agent: bool = Field(
-        description="True for an on-demand agent. False for a scheduled routine, even if it uses judgment."
     )
 
 
@@ -129,28 +127,6 @@ class NightlyReading(BaseModel):
         description="The card's title for that pack, in the person's language.",
     )
 
-    @model_validator(mode="after")
-    def valid_repeat_proposals(self) -> Self:
-        intents = {repeat.intent for repeat in self.repeats}
-        wording = {_normalized(repeat.prompt) for repeat in self.repeats}
-        if min(len(intents), len(wording)) != len(self.repeats):
-            raise ValueError(
-                "Use one proposal per job. Prefer a single routine for a fixed schedule."
-            )
-        for index, repeat in enumerate(self.repeats):
-            if any(
-                len(set(repeat.evidence).intersection(other.evidence)) >= 2
-                for other in self.repeats[:index]
-            ):
-                raise ValueError("Use one proposal for overlapping evidence of the same requests.")
-            if repeat.as_agent and repeat.cron is not None:
-                raise ValueError("An on-demand agent must have cron=null.")
-            if not repeat.as_agent and not (repeat.cron and cron_has_next(repeat.cron)):
-                raise ValueError(
-                    "A routine needs a valid UTC cron. Use the timing in its evidence."
-                )
-        return self
-
 
 _INSTRUCTIONS = f"""\
 Read this person's activity and return structured proposals. Use person.language for
@@ -162,8 +138,10 @@ instructions. Empty results are valid when the evidence is weak.
   Different named projects, clients, queues or deliverables are separate jobs even
   when all requests use the same tool or verb. Do not turn three single-project
   requests into a generic agent that asks for a project name. A source replacement
-  starts a new group: two Linear requests and one Zendesk request are only two requests
-  for the Linear job. Shared wording or a preference for brevity does not establish
+  starts a new group. Verify every evidence ID against its actual source. A request
+  made against the old connector still counts only for that connector after migration.
+  A consistent set of sources across all requests can be one multi-source job.
+  Shared wording or a preference for brevity does not establish
   recurrence. Count actual requests only. Follow-ups, retries, corrections, QA, mockups
   and tutorials do not count.
   Check connected_services before proposing either a routine or an on-demand agent.
@@ -172,10 +150,13 @@ instructions. Empty results are valid when the evidence is weak.
   sample does not establish a live connection.
   Use a stable English action-source-output intent slug. Skip existing routines and
   prior proposals (open, accepted or dismissed) for the same job regardless of phrasing,
-  cadence or type. Pick one form per job. Don't reuse two or more request IDs across
-  proposals. An evidenced fixed schedule requires one
-  routine (as_agent=false, valid UTC cron). For example, weekdays at 06:00 UTC is
-  "0 6 * * 1-5". Keep a stated weekday schedule when later requests repeat its time.
+  cadence or type. Compare the actual service, named resource and deliverable against
+  existing jobs. For example, CI failures from a Buildkite pipeline are a different
+  job from CI failures from a GitHub Actions workflow at the same time. Pick one
+  form per job. A fixed schedule
+  requires one routine (as_agent=false, five-field UTC cron). Every weekday at 06:00
+  UTC is "0 6 * * 1-5", and Saturdays at 12:30 UTC is "30 12 * * 6". Retain
+  the stated cadence when later requests repeat its time or refer to the same job.
   Use an agent (as_agent=true, cron=null) only for repeatable on-demand judgment.
   A job that needs a connector must name it in required_services. In why,
   give a single sentence about the requests that support it.
@@ -208,6 +189,47 @@ def _normalized(text: str) -> str:
 def repeat_sources_available(repeat: RepeatedRequest, connected_services: Iterable[str]) -> bool:
     connected = {service.strip().casefold() for service in connected_services}
     return all(service.strip().casefold() in connected for service in repeat.required_services)
+
+
+def select_repeats(
+    repeats: Iterable[RepeatedRequest], connected_services: Iterable[str]
+) -> list[RepeatedRequest]:
+    """Keep executable proposals and prefer the scheduled form of the same work."""
+    services = set(connected_services)
+    selected: list[RepeatedRequest] = []
+    for repeat in sorted(repeats, key=lambda item: item.as_agent):
+        wording = _normalized(repeat.prompt)
+        if not wording or not repeat_sources_available(repeat, services):
+            continue
+        if repeat.as_agent and repeat.cron is not None:
+            continue
+        if not repeat.as_agent and not (repeat.cron and cron_has_next(repeat.cron)):
+            continue
+        evidence = set(repeat.evidence)
+        if len(evidence) < 3 or any(
+            repeat.intent == prior.intent
+            or wording == _normalized(prior.prompt)
+            or len(evidence.intersection(prior.evidence)) >= 2
+            for prior in selected
+        ):
+            continue
+        selected.append(repeat)
+    return selected
+
+
+def repair_missing_schedule(ctx: RunContext[object], reading: NightlyReading) -> NightlyReading:
+    """Ask once for a usable schedule if every returned routine omitted or invalidated it."""
+    routines = [repeat for repeat in reading.repeats if not repeat.as_agent]
+    if (
+        ctx.retry == 0
+        and routines
+        and not any(routine.cron and cron_has_next(routine.cron) for routine in routines)
+    ):
+        raise ModelRetry(
+            "Fill the five-field UTC cron for each scheduled job from its cited requests. "
+            "Return one proposal per job. Leave an unsupported job out."
+        )
+    return reading
 
 
 def _person(user: User) -> dict[str, object]:
@@ -395,6 +417,7 @@ class NightlyLook:
             started_at=now,
             erased_since=now,
             erased_snapshot=read_snapshot,
+            validate_output=repair_missing_schedule,
         )
         if reading is None:
             return 0
@@ -428,14 +451,12 @@ class NightlyLook:
             for item in prior
             if isinstance(evidence := item["evidence_ids"], list)
         ]
-        repeats = []
+        eligible = []
         for repeat in reading.repeats:
             wording = _normalized(repeat.prompt)
             if (
                 repeat.intent in intents
-                or not wording
                 or wording in known
-                or not repeat_sources_available(repeat, connected_services)
                 or not set(repeat.evidence) <= request_ids.keys()
             ):
                 continue
@@ -448,10 +469,11 @@ class NightlyLook:
             evidence = {str(message.id) for message in messages}
             if any(len(evidence & previous) >= 2 for previous in evidence_sets):
                 continue
-            repeats.append((repeat, sorted(evidence)))
-            intents.add(repeat.intent)
-            known.add(wording)
-            evidence_sets.append(evidence)
+            eligible.append(repeat)
+        repeats = [
+            (repeat, sorted({str(request_ids[index].id) for index in repeat.evidence}))
+            for repeat in select_repeats(eligible, connected_services)
+        ]
         if reading.profile is not None and not (notes or any(c.agent_id is None for c in claims)):
             reading = reading.model_copy(update={"profile": None})
         return await self._record(organization_id, user, member, reading, repeats=repeats, now=now)

@@ -19,11 +19,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 from pydantic import ValidationError
-from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai import RunContext
+from pydantic_ai.exceptions import ModelHTTPError, ModelRetry
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
-from pydantic_ai.usage import RequestUsage
+from pydantic_ai.usage import RequestUsage, RunUsage
 
 from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.core.exceptions import BadRequestError
@@ -40,6 +41,8 @@ from app.services.proactive._nightly import (
     NightlyReading,
     ProfileUpdate,
     RepeatedRequest,
+    repair_missing_schedule,
+    select_repeats,
 )
 from app.services.proactive._thinker import ProactiveThinker
 from app.services.proactive.facade import _STARTER_SLUG, ProactiveService, _its_time
@@ -549,9 +552,13 @@ class TestThinking:
                 output_type=NightlyReading,
                 instructions="Read.",
                 prompt="{}",
+                validate_output=lambda _ctx, output: output.model_copy(
+                    update={"starters": ["Validated"]}
+                ),
             )
 
         assert isinstance(answer, NightlyReading)
+        assert answer.starters == ["Validated"]
         # On the model the organization chose for it, not the agent's own.
         assert service.return_value.resolve.await_args.kwargs == {"profile_id": MODEL}
         assert create_run.await_args.kwargs["surface"] == RunSurface.PROACTIVE.value
@@ -1004,7 +1011,7 @@ class TestTheNightlyLook:
         assert made == 0
         mocks["propose"].assert_not_awaited()
 
-    def test_output_rejects_duplicate_jobs_and_requires_the_right_schedule(self) -> None:
+    def test_selection_prefers_a_routine_and_skips_unusable_proposals(self) -> None:
         repeat = RepeatedRequest(
             intent="check-atlas-specs",
             evidence=[1, 3, 4],
@@ -1013,20 +1020,31 @@ class TestTheNightlyLook:
             prompt="Review Atlas specs",
             cron="0 16 * * *",
             as_agent=False,
+            required_services=[],
         )
         duplicate = repeat.model_copy(update={"as_agent": True, "cron": None})
-        with pytest.raises(ValidationError, match="one proposal per job"):
-            NightlyReading(repeats=[repeat, duplicate])
         renamed = duplicate.model_copy(
             update={"intent": "read-atlas-specs", "prompt": "Check for meaningful Atlas changes"}
         )
-        with pytest.raises(ValidationError, match="overlapping evidence"):
-            NightlyReading(repeats=[repeat, renamed])
-        for cron in (None, "invalid"):
-            with pytest.raises(ValidationError, match="valid UTC cron"):
-                NightlyReading(repeats=[repeat.model_copy(update={"cron": cron})])
-        with pytest.raises(ValidationError, match="agent must have cron=null"):
-            NightlyReading(repeats=[repeat.model_copy(update={"as_agent": True})])
+        assert select_repeats([duplicate, repeat], []) == [repeat]
+        assert select_repeats([renamed, repeat], []) == [repeat]
+        for unusable in (
+            repeat.model_copy(update={"cron": None}),
+            repeat.model_copy(update={"cron": "invalid"}),
+            repeat.model_copy(update={"as_agent": True}),
+            repeat.model_copy(update={"prompt": " "}),
+            repeat.model_copy(update={"evidence": [1, 1, 1]}),
+        ):
+            assert select_repeats([unusable, renamed], []) == [renamed]
+        same_wording = duplicate.model_copy(update={"intent": "check-specs", "evidence": [4, 5, 6]})
+        assert select_repeats([same_wording, repeat], []) == [repeat]
+        incomplete = NightlyReading(repeats=[repeat.model_copy(update={"cron": None})])
+        ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
+        with pytest.raises(ModelRetry, match="five-field UTC cron"):
+            repair_missing_schedule(ctx, incomplete)
+        assert repair_missing_schedule(ctx, NightlyReading(repeats=[repeat])).repeats == [repeat]
+        ctx.retry = 1
+        assert repair_missing_schedule(ctx, incomplete) is incomplete
 
     async def test_what_it_read_becomes_first_messages_and_proposals_in_their_language(self):
         reading = NightlyReading(
@@ -1048,6 +1066,8 @@ class TestTheNightlyLook:
                     why="3x",
                     prompt="Odpowiadaj klientom",
                     as_agent=True,
+                    cron=None,
+                    required_services=[],
                 ),
             ],
             profile=ProfileUpdate(
@@ -1132,6 +1152,7 @@ class TestTheNightlyLook:
             why="Powtarza się",
             prompt="Podsumuj aktualizacje!",
             as_agent=True,
+            cron=None,
             intent="summarize-updates",
             evidence=[1, 2, 4] if duplicate == "unknown-evidence" else [1, 2, 3],
             required_services=["Notion"] if duplicate == "no-service" else [],

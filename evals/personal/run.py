@@ -22,7 +22,7 @@ from uuid import UUID, uuid4
 
 import httpx
 from pydantic import BaseModel, JsonValue, TypeAdapter
-from pydantic_ai import Agent, capture_run_messages
+from pydantic_ai import Agent, RunContext, capture_run_messages
 from pydantic_ai.exceptions import (
     ModelAPIError,
     ModelHTTPError,
@@ -41,10 +41,11 @@ if BACKEND.is_dir():
 from app.agents.isolation import RunIsolation
 from app.agents.spec import AgentSpec
 from app.core.cron import cron_has_next, cron_next
+from app.core.exceptions import RunFailedError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.session import get_db_context
-from app.repositories import agent_repo, credential_repo, intercepted_tool_call_repo
+from app.repositories import agent_repo, agent_run_repo, credential_repo, intercepted_tool_call_repo
 from app.schemas.agent import AgentRunResult
 from app.schemas.conversation import ConversationCreate, MessageList, ToolCallRead
 from app.schemas.dataset import CaseMessage, DatasetCaseContent
@@ -405,8 +406,17 @@ def trace_errors(
             for call in calls
         ):
             errors.append("watch did not target the test source and agent at 30-minute cadence")
-    if scenario.id == "context-reuse" and answer.strip() != "Pilot":
+    if scenario.id == "context-reuse" and answer.strip().removesuffix(".") not in {
+        "Pilot",
+        "**Pilot**",
+        "__Pilot__",
+        "*Pilot*",
+        "_Pilot_",
+        "`Pilot`",
+    }:
         errors.append("expected the title Pilot from conversation history")
+    if scenario.id == "new-connection" and len(calls) > 6:
+        errors.append("watch proposal exceeded six tool calls")
     if scenario.id == "natural-hello" and calls:
         errors.append("greeting called tools")
     return errors
@@ -571,7 +581,7 @@ def memory_errors(scenario: Scenario, found: extraction._Extraction) -> list[str
     user_text = [
         turn["text"] for turn in memory_input(scenario)["conversation"] if turn["role"] == "user"
     ]
-    if any(not any(claim.evidence in text for text in user_text) for claim in found.claims):
+    if any(not extraction.quote_supported(claim.evidence, user_text) for claim in found.claims):
         errors.append("claim without exact user evidence")
     subjects = [nightly._normalized(claim.subject or claim.statement) for claim in found.claims]
     if len(set(subjects)) != len(subjects):
@@ -610,23 +620,22 @@ def same_test_schedule(actual: str | None, expected: str) -> bool:
 
 def briefing_errors(scenario: Scenario, found: nightly.NightlyReading) -> list[str]:
     errors = []
-    if len(found.repeats) != int(scenario.operation):
+    connected_services = (
+        scenario.state["connection"].split(",") if "connection" in scenario.state else []
+    )
+    repeats = nightly.select_repeats(found.repeats, connected_services)
+    if len(repeats) != int(scenario.operation):
         errors.append("wrong number of recurring proposals")
     if scenario.cue != "-" and any(
-        scenario.cue.casefold() not in item.prompt.casefold() for item in found.repeats
+        scenario.cue.casefold() not in item.prompt.casefold() for item in repeats
     ):
         errors.append("proposal not grounded in the expected source or output")
-    connected_services = scenario.state.get("connection", "").split(",")
-    if any(
-        not nightly.repeat_sources_available(item, connected_services) for item in found.repeats
-    ):
-        errors.append("proposal requires an unavailable service")
     if (expected_cron := scenario.state.get("cron")) and any(
-        item.as_agent or not same_test_schedule(item.cron, expected_cron) for item in found.repeats
+        item.as_agent or not same_test_schedule(item.cron, expected_cron) for item in repeats
     ):
         errors.append("proposal did not use the requested routine schedule")
     valid_ids = {1, 3, 4} if "same-thread" not in scenario.state else set()
-    if any(set(item.evidence) != valid_ids for item in found.repeats):
+    if any(set(item.evidence) != valid_ids for item in repeats):
         errors.append("invalid evidence for recurrence")
     expected_role = {
         "role-from-claim": "support operations lead",
@@ -658,14 +667,23 @@ async def run_background(model: str, scenarios: list[Scenario]) -> int:
         model,
         instructions=extraction._INSTRUCTIONS,
         output_type=extraction._Extraction,
+        deps_type=list[str],
         model_settings=settings,
     )
+
+    @memory.output_validator
+    def validate_grounding(
+        ctx: RunContext[list[str]], result: extraction._Extraction
+    ) -> extraction._Extraction:
+        return extraction.require_grounded_claims(result, ctx.deps)
+
     briefing = Agent(
         model,
         instructions=nightly._INSTRUCTIONS,
         output_type=nightly.NightlyReading,
         model_settings=settings,
     )
+    briefing.output_validator(nightly.repair_missing_schedule)
     limit = UsageLimits(
         request_limit=BACKGROUND_REQUEST_LIMIT,
         output_tokens_limit=BACKGROUND_REQUEST_LIMIT * BACKGROUND_RESPONSE_TOKENS,
@@ -677,8 +695,14 @@ async def run_background(model: str, scenarios: list[Scenario]) -> int:
         with progress.case(item.id), capture_run_messages() as messages:
             try:
                 if item.suite == "memory":
+                    packet = memory_input(item)
                     memory_result = await memory.run(
-                        json.dumps(memory_input(item), ensure_ascii=False),
+                        json.dumps(packet, ensure_ascii=False),
+                        deps=[
+                            turn["text"]
+                            for turn in packet["conversation"]
+                            if turn["role"] == "user"
+                        ],
                         usage=usage,
                         usage_limits=limit,
                     )
@@ -835,22 +859,43 @@ async def evaluate_agenticos(
                         notion_watch_source(ctx, profile_id)
                     )
                 conversation_id = await open_eval_conversation(ctx, item.id)
+                failure: RunFailedError | None = None
+                try:
+                    async with get_db_context() as db:
+                        answer, run = await AgentRunnerService(db).execute(
+                            ctx,
+                            agent_id,
+                            item.case.input,
+                            surface=RunSurface.WEB,
+                            conversation_id=conversation_id,
+                            acts_for_sender=True,
+                            version_id=version_id,
+                            model_profile_id=profile_id,
+                            message_history=history,
+                            isolation=RunIsolation(),
+                            tool_calls=calls,
+                            run_limit_usd=remaining,
+                            reports_failure=True,
+                        )
+                except RunFailedError as exc:
+                    failed_id = (exc.details or {}).get("run_id")
+                    if not isinstance(failed_id, str):
+                        raise
+                    async with get_db_context() as db:
+                        run = await agent_run_repo.get_run(
+                            db, UUID(failed_id), organization_id=ctx.organization_id
+                        )
+                    if (
+                        run is None
+                        or run.conversation_id != conversation_id
+                        or run.agent_version_id != version_id
+                        or run.status
+                        not in (RunStatus.FAILED.value, RunStatus.BUDGET_EXCEEDED.value)
+                    ):
+                        raise
+                    failure = exc
+                    answer = ""
                 async with get_db_context() as db:
-                    answer, run = await AgentRunnerService(db).execute(
-                        ctx,
-                        agent_id,
-                        item.case.input,
-                        surface=RunSurface.WEB,
-                        conversation_id=conversation_id,
-                        acts_for_sender=True,
-                        version_id=version_id,
-                        model_profile_id=profile_id,
-                        message_history=history,
-                        isolation=RunIsolation(),
-                        tool_calls=calls,
-                        run_limit_usd=remaining,
-                        reports_failure=True,
-                    )
                     intercepted = await intercepted_tool_call_repo.list_for_run(
                         db, run_id=run.id, organization_id=ctx.organization_id
                     )
@@ -858,11 +903,14 @@ async def evaluate_agenticos(
                         EvalCallRead.model_validate(row) for row in trajectory(calls, intercepted)
                     ]
                     status = run.status
-                    errors = (
-                        trace_errors(item, answer=answer, calls=trace, watch_source=watch_source)
-                        if status == RunStatus.COMPLETED.value
-                        else [f"run {status}"]
-                    )
+                    if failure is not None:
+                        errors = [f"technical: {run.error or failure.code}"]
+                    elif status == RunStatus.COMPLETED.value:
+                        errors = trace_errors(
+                            item, answer=answer, calls=trace, watch_source=watch_source
+                        )
+                    else:
+                        errors = [f"run {status}"]
                     latency_ms = round((perf_counter() - started) * 1000)
                     evidence = Evidence(
                         case=item.id,
@@ -887,7 +935,11 @@ async def evaluate_agenticos(
             partial=evidence.cost_is_partial,
             detail=", ".join(errors) if errors else f"{len(trace)} tool calls",
         )
-        if status == RunStatus.BUDGET_EXCEEDED.value or evidence.cost_is_partial:
+        if (
+            status == RunStatus.BUDGET_EXCEEDED.value
+            or evidence.cost_is_partial
+            or evidence.cost_usd is None
+        ):
             console("Stopped: the run budget was exceeded or the cost is incomplete.")
             progress.summary()
             return 1

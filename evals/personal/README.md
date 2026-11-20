@@ -77,6 +77,8 @@ evals/personal/stack.sh run --rm --no-deps -T app sh -c '
 
 The terminal shows the current case, a heartbeat after each 15 seconds of waiting, the outcome, elapsed time and cost. The report receives one JSON line per completed case. An exit code of 1 means a failed check or an incomplete run. Check the summary for how many cases finished.
 
+A failed agent run recorded by the backend, such as a sandbox permission refusal, produces a technical failure row with its known cost. The runner continues with the remaining budget and stops if it cannot account for the failed run's spend.
+
 Use `--max-usd 0.25` with the preflight selection for a paid three-case smoke run. The runner passes the remaining budget into the production budget guard and stops when cost is incomplete. The platform uses its bundled price catalog when there is no verified provider cost. A provider key spend limit also covers pricing uncertainty and work outside this guard.
 
 The trace runner starts each case in a fresh private test chat with the authored history. It scores the recorded tools, argument subsets and forbidden attempts before any judge call. The production isolation guard holds side-effecting actions. Use live probes to verify effects. The Notion watch case uses the local, read-only `eval-notion` MCP service. The runner connects it as a synthetic personal account for that case and removes the connection after the case. The separate published watch agent has only that fixture binding. Watch creation remains an isolated tool attempt. Seed synthetic Inbox items, task state and other connections for positive-path cases that need them.
@@ -98,6 +100,8 @@ done
 ```
 
 Use repeated `--case` with `--limit 3` for a smoke run. These modes and the judge also accept other Pydantic AI model identifiers. Provider-reported USD is recorded when available.
+
+Briefing uses the same proposal selection as production for duplicates, connected sources and usable schedules. The JSONL retains the model's proposals for diagnosis. Memory validates quoted evidence against the supplied user turns.
 
 Each background case allows two requests, with a target cap of 3,072 output tokens per response and a run limit of 6,144 output tokens. The runner requests low thinking where supported. If a case exceeds its limit, retries an invalid output unsuccessfully, or hits a transient provider error, the JSONL records a technical failure, any available usage, and partial cost. The remaining cases still run. Authentication, billing, permission and missing-model errors stop the suite. A completed suite with failures exits nonzero.
 

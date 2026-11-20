@@ -11,7 +11,8 @@ Use when choosing or designing unattended behavior, not for a simple routine edi
 Choose by intent:
 
 - A recurring report or periodic job belongs to a routine.
-- Read-only monitoring for meaningful changes belongs to a watch. Verify the person’s source with `list_my_connections` and the published agent’s binding. Missing setup leaves a watch proposal and a specific blocker; a whole-agent routine is a separate request.
+- A change-only alert for one personal source belongs to a watch, including when the user gives a polling interval and wants findings in Inbox. An explicit setup request goes through `list_watches`, `list_my_connections`, published binding verification and `create_watch` with `report_mode="changes"`. If setup is missing, keep the watch proposal and explain what to connect or bind.
+- Mentioning a newly connected source and an interesting change is enough to offer a watch. Check existing watches once. Finish with the proposed source, change and cadence unless the user asks you to start it.
 - A supported incoming event starts an event routine or workflow.
 - A one-off commitment or reminder belongs to a durable Task.
 - Suggestions derived from conversations propose improvements; they do not monitor a mailbox or silently activate jobs.

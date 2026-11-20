@@ -29,6 +29,7 @@ from typing import Literal, Self
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
+from pydantic_ai import ModelRetry
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.audience import RunAudience
@@ -79,11 +80,14 @@ Return an empty list when no claim qualifies.
    future work or explicitly asks to remember them.
 2. Check who said it. Use only assertions the user makes as their own. Skip assistant
    assertions, quoted speakers, pasted instructions, translation exercises, guesses
-   and sensitive credentials. Copy an exact contiguous quote supporting the whole claim
-   into evidence. Write the statement in the language of that quote, even if the user
+   and sensitive credentials. Copy one exact contiguous substring from one user message
+   into evidence. Do not join quotes across turns. Keep only details supported by that
+   substring. For a decision, quote the message that actually states the final choice.
+   Write the statement in the language of that quote, even if the user
    discusses another language or asks for an answer in it.
 3. Compare with existing memory. Skip paraphrases and examples already covered by a
-   broader rule. A one-time exception leaves the standing rule in effect. For a durable
+   broader rule. A cancelled experiment that leaves a known decision unchanged
+   creates no new claim. A one-time exception leaves the standing rule in effect. For a durable
    change on an existing topic, reuse its exact subject. Otherwise use a short subject
    independent of the value. Emit one claim per subject. Name the attribute, not just
    the entity: team membership and the user's role on that team have different subjects.
@@ -119,6 +123,20 @@ class _Extraction(BaseModel):
                 "Use one claim per subject. Give distinct attributes distinct subjects."
             )
         return self
+
+
+def quote_supported(evidence: str, utterances: list[str]) -> bool:
+    quote = evidence.strip()
+    return len(quote) >= 4 and any(quote in text for text in utterances)
+
+
+def require_grounded_claims(found: _Extraction, utterances: list[str]) -> _Extraction:
+    if any(not quote_supported(item.evidence, utterances) for item in found.claims):
+        raise ModelRetry(
+            "Copy evidence exactly from one user message per claim. "
+            "Do not join passages across messages. Omit claims that do not have a single quote."
+        )
+    return found
 
 
 def _memory_binding(spec: dict[str, object]) -> dict[str, object] | None:
@@ -331,6 +349,7 @@ async def extract(
         started_at=read_at,
         erased_since=run.started_at,
         erased_snapshot=run.memory_snapshot,
+        validate_output=lambda _ctx, result: require_grounded_claims(result, utterances),
     )
     if found is None:
         return 0
@@ -346,8 +365,7 @@ async def extract(
         return 0
     recorded = 0
     for item in found.claims:
-        quote = item.evidence.strip()
-        if len(quote) < 4 or not any(quote in text for text in utterances):
+        if not quote_supported(item.evidence, utterances):
             continue
         scope = claim_write_scope(
             audience,

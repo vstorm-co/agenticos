@@ -101,10 +101,23 @@ class TraceTests(unittest.TestCase):
 
     def test_context_reuse_checks_the_title_from_history(self):
         scenario = next(item for item in runner.load("agenticos") if item.id == "context-reuse")
-        self.assertEqual(runner.trace_errors(scenario, answer="Pilot", calls=[]), [])
+        for title in ("Pilot", "**Pilot**", "`Pilot`", "Pilot."):
+            self.assertEqual(runner.trace_errors(scenario, answer=title, calls=[]), [])
         self.assertEqual(
             runner.trace_errors(scenario, answer="I do not recall the title.", calls=[]),
             ["expected the title Pilot from conversation history"],
+        )
+
+    def test_new_connection_enforces_delegation_and_tool_budget(self) -> None:
+        scenario = next(item for item in runner.load("agenticos") if item.id == "new-connection")
+        watch = EvalCallRead(tool="agenticos_list_watches", args={}, outcome="executed")
+        task = EvalCallRead(tool="task", args={}, outcome="executed")
+        self.assertEqual(
+            runner.trace_errors(scenario, answer="A watch can work.", calls=[watch]), []
+        )
+        self.assertEqual(
+            runner.trace_errors(scenario, answer="A watch can work.", calls=[watch] * 6 + [task]),
+            ["forbidden call: task", "watch proposal exceeded six tool calls"],
         )
 
     def test_watch_attempt_matches_the_fixture_agent_and_source(self):
@@ -247,7 +260,46 @@ class BackgroundOutputTests(unittest.TestCase):
 
 
 class BackgroundTests(unittest.IsolatedAsyncioTestCase):
-    async def test_briefing_can_repair_duplicate_output_in_one_retry(self) -> None:
+    async def test_memory_retries_a_quote_joined_across_turns(self) -> None:
+        case = next(item for item in runner.load("memory") if item.id == "chosen-oncall")
+        quote = case.case.input
+        quotes = iter([f"{case.case.history[0].content} {quote}", quote])
+
+        def respond(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        info.output_tools[0].name,
+                        {"claims": [{"statement": quote, "evidence": next(quotes)}]},
+                    )
+                ]
+            )
+
+        def build_agent(_model: str, **kwargs: object):
+            return Agent(FunctionModel(respond), **kwargs)
+
+        with (
+            patch.object(runner, "Agent", side_effect=build_agent),
+            patch.object(runner, "print", create=True) as emit,
+        ):
+            self.assertEqual(await runner.run_background("fixture", [case]), 0)
+        row = runner.Evidence.model_validate_json(emit.call_args.args[0])
+        assert isinstance(row.output, dict)
+        self.assertEqual(
+            row.output["claims"],
+            [
+                {
+                    "statement": quote,
+                    "evidence": quote,
+                    "subject": None,
+                    "kind": "fact",
+                    "profile": False,
+                    "episode": None,
+                },
+            ],
+        )
+
+    async def test_briefing_preserves_valid_routine_without_a_retry(self) -> None:
         case = next(item for item in runner.load("briefing") if item.id == "curated-hours")
         scheduled = runner.nightly.RepeatedRequest(
             intent="review-staged-pages",
@@ -260,10 +312,7 @@ class BackgroundTests(unittest.IsolatedAsyncioTestCase):
             as_agent=False,
         ).model_dump(mode="json")
         candidate_outputs = iter(
-            [
-                {"repeats": [scheduled, {**scheduled, "as_agent": True, "cron": None}]},
-                {"repeats": [scheduled]},
-            ]
+            [{"repeats": [scheduled, {**scheduled, "as_agent": True, "cron": None}]}]
         )
 
         def respond(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
@@ -325,6 +374,63 @@ class BackgroundTests(unittest.IsolatedAsyncioTestCase):
 
 
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_a_recorded_sandbox_failure_keeps_the_next_case(self) -> None:
+        version_id, run_id, next_run_id, conversation_id = (uuid4() for _ in range(4))
+        ctx = AuthContext(organization_id=uuid4(), user_id=uuid4(), role=OrgRoleName.OWNER)
+        cases = {item.id: item for item in runner.load("agenticos")}
+        failed_run = SimpleNamespace(
+            id=run_id,
+            status="failed",
+            conversation_id=conversation_id,
+            agent_version_id=version_id,
+            error="Sandbox denied the read",
+            input_tokens=120,
+            output_tokens=20,
+            cost_usd=Decimal("0.003"),
+            cost_is_partial=False,
+        )
+        healthy_run = SimpleNamespace(**vars(failed_run))
+        healthy_run.id = next_run_id
+        healthy_run.status = "completed"
+        error = runner.RunFailedError(details={"run_id": str(run_id)})
+
+        @asynccontextmanager
+        async def session():
+            yield object()
+
+        with (
+            patch.object(runner, "get_db_context", session),
+            patch.object(runner, "open_eval_conversation", AsyncMock(return_value=conversation_id)),
+            patch.object(
+                runner.AgentRunnerService,
+                "execute",
+                AsyncMock(side_effect=[error, ("Cześć!", healthy_run)]),
+            ) as execute,
+            patch.object(runner.agent_run_repo, "get_run", AsyncMock(return_value=failed_run)),
+            patch.object(
+                runner.intercepted_tool_call_repo, "list_for_run", AsyncMock(return_value=[])
+            ),
+            patch.object(runner, "print", create=True) as emit,
+        ):
+            status = await runner.evaluate_agenticos(
+                ctx,
+                uuid4(),
+                version_id,
+                uuid4(),
+                "fixture",
+                Decimal("0.05"),
+                [cases["sandbox-policy-by-connection"], cases["natural-hello"]],
+            )
+        self.assertEqual(status, 1)
+        first, next_row = [
+            runner.Evidence.model_validate_json(call.args[0]) for call in emit.call_args_list
+        ]
+        self.assertEqual(first.errors, ["technical: Sandbox denied the read"])
+        self.assertEqual(first.attempt, run_id)
+        self.assertEqual(first.cost_usd, Decimal("0.003"))
+        self.assertEqual(next_row.errors, [])
+        self.assertEqual(execute.await_args_list[1].kwargs["run_limit_usd"], Decimal("0.047"))
+
     async def test_refuses_to_use_a_non_eval_environment(self):
         with (
             patch.dict(runner.os.environ, {"AGENTICOS_PERSONAL_EVAL": "0"}),
