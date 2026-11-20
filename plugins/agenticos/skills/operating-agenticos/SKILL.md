@@ -35,7 +35,7 @@ This skill writes tools as `agenticos:<tool>`. The server name is whatever the c
 Do not promise these; send the user to the console instead.
 
 - Create, read or rotate credential values. Use `list_secret_references` for authorized IDs and metadata, and `get_setup_link` for secure entry in the console. Model profiles and organization embedding endpoints can be configured through contract-1 lifecycle tools.
-- Delete agents, workflows, tables, knowledge bases, skills or documents. The only deletions are an unpublished agent draft the caller created, a routine, a watch and a table record.
+- Delete agents, workflows, tables, knowledge bases, skills or documents. Resource deletion remains limited to the explicitly listed tools; administrative member/group removal does not add deletion for these resource types.
 - Upload binary documents. `agenticos:add_document` takes text content (`.md`, `.txt`).
 - Read the Inbox from an external MCP client. `agenticos:list_inbox_cases` and `agenticos:settle_inbox_case` need the person's own chat or console session.
 - Grant desktop folders, browsers or local models. The person selects those in the Desktop app.
