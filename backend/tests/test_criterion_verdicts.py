@@ -499,6 +499,8 @@ def test_a_large_single_pass_comparison_constructs_only_the_kept_moves(monkeypat
 def test_a_response_limit_cannot_disable_the_resource_bound(limit):
     with pytest.raises(ValueError, match="limit"):
         compare_criteria([], limit=limit, alpha=ALPHA)
+    with pytest.raises(ValueError, match="Family response limit"):
+        compare_criteria([], family_limit=limit, alpha=ALPHA)
 
 
 def test_a_zero_limit_returns_no_moves():
@@ -658,7 +660,8 @@ def test_criterion_identity_comes_from_the_same_newest_report(source):
         {"skill_problems": None},
         {"skill_problems": [None]},
         {"skill_problems": [{"criteria": None}]},
-        {"skill_problems": [{"criteria": [None]}]},
+        {"skill_problems": [{"skill_line": "Quotes last 7 days.", "criteria": None}]},
+        {"skill_problems": [{"skill_line": "Quotes last 7 days.", "criteria": [None]}]},
     ],
 )
 def test_malformed_historical_attributions_authorize_no_identity(report):
@@ -682,3 +685,31 @@ def test_confirmed_whole_question_movement_never_becomes_a_criterion_only_verdic
     )
     assert transition.status is ImprovementStatus.STOPPED
     assert transition.stop_reason is StopReason.NO_CHANGE
+
+
+def test_a_family_keeps_the_identity_of_the_skill_it_was_put_down_to():
+    from app.services.improvement_pipeline import ImprovementPipelineService
+    from app.services.improvement_states import criterion_skill_ids
+
+    source = "00000000-0000-0000-0000-000000000007"
+    report = {
+        "skill_problems": [
+            {
+                "skill_name": "Quote rules",
+                "skill_id": source,
+                "skill_line": "Keep every quote under 200 words.",
+                "criteria": ["Under 200 words"],
+            }
+        ]
+    }
+    owners, owner_ids = criterion_owners([report]), criterion_skill_ids([report])
+
+    result = ImprovementPipelineService._owned(
+        _no_question_flipped(_worse_family()), owners, owner_ids
+    )
+    [detail] = ImprovementPipelineService._result_detail(result, owners, owner_ids)["families"]
+
+    assert (detail.get("skill"), detail.get("skill_id")) == ("Quote rules", source)
+    assert judge(result) is ImprovementVerdict.NO_CHANGE
+    [unnamed] = family_details([_worse_family()], {"under 200 words": "Quote rules"})
+    assert "skill_id" not in unnamed
