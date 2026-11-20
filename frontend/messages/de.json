@@ -2661,7 +2661,6 @@
     "runFailedHint": "Es wurde keine abschließende Antwort erstellt. Die bisherigen Schritte stehen oben.",
     "homeInbox": {
       "title": "Tagesbriefing",
-      "openInbox": "Posteingang öffnen",
       "urgent": "Wichtig",
       "approvalsLabel": "Genehmigungen",
       "approvals": "{count, plural, one {# Genehmigung wartet auf dich} other {# Genehmigungen warten auf dich}}",

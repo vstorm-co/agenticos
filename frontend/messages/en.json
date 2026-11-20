@@ -2661,7 +2661,6 @@
     "runFailedHint": "No final answer was produced. You can review the work above.",
     "homeInbox": {
       "title": "Daily briefing",
-      "openInbox": "Open inbox",
       "urgent": "Priority",
       "approvalsLabel": "Approvals",
       "approvals": "{count, plural, one {# approval needs your attention} other {# approvals need your attention}}",

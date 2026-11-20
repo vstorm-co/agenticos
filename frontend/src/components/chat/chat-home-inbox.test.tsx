@@ -56,10 +56,15 @@ const suggestion = (id: string, urgent = false): Suggestion => ({
   created_at: "2026-11-19T09:00:00Z",
 });
 
-it("prioritizes urgent topics, limits the preview and links to actual inbox rows", () => {
-  state.items = [suggestion("a"), suggestion("b"), suggestion("c"), suggestion("urgent", true)];
+it("limits the timeline preview and keeps approval and item links without a visual header", () => {
+  state.items = [
+    suggestion("a"),
+    suggestion("b"),
+    suggestion("c"),
+    { ...suggestion("urgent", true), created_at: "2026-11-20T09:00:00Z" },
+  ];
   state.pending = 2;
-  render(<ChatHomeInbox />);
+  render(<ChatHomeInbox onDiscuss={vi.fn()} />);
   const list = screen.getByRole("list");
   expect(within(list).getAllByRole("listitem")).toHaveLength(3);
   expect(within(list).getAllByRole("link")[0]).toHaveAttribute("href", "/inbox#suggestion-urgent");
@@ -68,16 +73,14 @@ it("prioritizes urgent topics, limits the preview and links to actual inbox rows
   expect(approvalLink).toHaveAttribute("href", "/runs?tab=approvals");
   expect(within(approvalLink).getByText("Approvals")).toBeVisible();
   expect(within(approvalLink).getByText("2")).toBeVisible();
-  expect(approvalLink.closest("header")).toContainElement(
-    screen.getByRole("heading", { name: "Daily briefing" }),
-  );
-  expect(screen.getByRole("heading", { name: "Daily briefing" })).toBeVisible();
-  expect(screen.getByRole("link", { name: "Open inbox" })).toHaveAttribute("href", "/inbox");
+  expect(screen.getByRole("region", { name: "Daily briefing" })).toContainElement(approvalLink);
+  expect(screen.queryByText("Daily briefing")).toBeNull();
+  expect(screen.queryByRole("link", { name: "Open inbox" })).toBeNull();
 });
 
 it("shows up to eight entries in the expanded Inbox", () => {
   state.items = Array.from({ length: 10 }, (_, index) => suggestion(String(index)));
-  render(<ChatHomeInbox expanded />);
+  render(<ChatHomeInbox expanded onDiscuss={vi.fn()} />);
   expect(within(screen.getByRole("list")).getAllByRole("listitem")).toHaveLength(8);
   expect(screen.getByRole("link", { name: /Topic 7/ })).toBeVisible();
 });
@@ -88,31 +91,22 @@ it("shows real Inbox entries in chronological order and composes a question abou
     { ...suggestion("latest"), created_at: "2026-11-20T10:15:00Z" },
   ];
   const discuss = vi.fn();
-  render(<ChatHomeInbox variant="timeline" onDiscuss={discuss} />);
+  render(<ChatHomeInbox onDiscuss={discuss} />);
   expect(screen.getByRole("list").tagName).toBe("OL");
   const [latest, older] = screen.getAllByRole("listitem");
   if (!latest || !older) throw new Error("Expected two timeline entries");
   expect(within(latest).getByRole("link")).toHaveAttribute("href", "/inbox#suggestion-latest");
   expect(latest.querySelector("time")).toHaveAttribute("datetime", "2026-11-20T10:15:00Z");
   expect(older).toHaveTextContent("Topic urgent");
-  await userEvent.click(within(latest).getByRole("button", { name: "Discuss with agent" }));
+  const action = within(latest).getByRole("button", { name: "Discuss with agent" });
+  expect(action).not.toHaveTextContent("Discuss with agent");
+  await userEvent.click(action);
   expect(discuss).toHaveBeenCalledExactlyOnceWith("Does Inbox item latest need my attention?");
-});
-
-it("keeps a journal summary only for the featured Inbox item", () => {
-  state.items = [
-    { ...suggestion("ordinary"), detail: "Secondary detail" },
-    { ...suggestion("urgent", true), detail: "Featured detail" },
-  ];
-  render(<ChatHomeInbox variant="journal" />);
-  expect(screen.getByRole("link", { name: /Topic urgent/ })).toHaveTextContent("Featured detail");
-  expect(screen.getByRole("link", { name: /Topic ordinary/ })).toBeVisible();
-  expect(screen.queryByText("Secondary detail")).not.toBeInTheDocument();
 });
 
 it("does not turn a failed read into an empty inbox and retries both reads", async () => {
   state.pendingError = new Error("offline");
-  render(<ChatHomeInbox />);
+  render(<ChatHomeInbox onDiscuss={vi.fn()} />);
   expect(screen.getByRole("status")).toHaveTextContent("Your inbox could not be loaded.");
   expect(screen.queryByText(/all caught up/)).toBeNull();
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -122,21 +116,21 @@ it("does not turn a failed read into an empty inbox and retries both reads", asy
 
 it("shows loading before declaring the inbox empty", () => {
   state.loading = true;
-  const { rerender } = render(<ChatHomeInbox />);
+  const { rerender } = render(<ChatHomeInbox onDiscuss={vi.fn()} />);
   expect(screen.getByRole("region", { name: "Daily briefing" })).toHaveAttribute(
     "aria-busy",
     "true",
   );
   expect(screen.queryByText(/all caught up/)).toBeNull();
   state.loading = false;
-  rerender(<ChatHomeInbox />);
+  rerender(<ChatHomeInbox onDiscuss={vi.fn()} />);
   expect(screen.getByText(/all caught up/)).toBeVisible();
 });
 
 it("keeps cached topics visible when a background refresh fails", () => {
   state.items = [suggestion("cached")];
   state.error = new Error("offline");
-  render(<ChatHomeInbox />);
+  render(<ChatHomeInbox onDiscuss={vi.fn()} />);
   expect(screen.getByRole("status")).toHaveTextContent(
     "Could not refresh your inbox. Showing the last loaded items.",
   );

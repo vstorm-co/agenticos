@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 
 import { ChatContainer, ConversationSidebar } from "@/components/chat";
 import { ChatLayout } from "@/components/chat/chat-layout";
-import { chatHomeVariant } from "@/components/chat/chat-home-variants";
 import { PhoneChatBar } from "@/components/chat/phone-chat-bar";
 import { useMcpOAuthOutcome } from "@/hooks";
 import { useChatWith } from "@/hooks/use-chat-with";
@@ -41,7 +40,6 @@ export default function ChatPage() {
         <PhoneChatBar />
         <ChatLayout>
           <ChatContainer
-            homeVariant={chatHomeVariant(params.get("chat_variant"))}
             composerDraft={composerDraft}
             requestedConversationId={requestedConversationId}
             emptyState={

@@ -10268,7 +10268,6 @@
     "runFailedHint": "Nihai yanıt üretilmedi. Yukarıdaki çalışmayı inceleyebilirsiniz.",
     "homeInbox": {
       "title": "Günlük brifing",
-      "openInbox": "Gelen kutusunu aç",
       "urgent": "Öncelikli",
       "approvalsLabel": "Onaylar",
       "approvals": "{count, plural, one {# onay kararını bekliyor} other {# onay kararını bekliyor}}",

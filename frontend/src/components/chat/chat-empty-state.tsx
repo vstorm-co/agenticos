@@ -75,16 +75,9 @@ export function useDefaultChatSuggestions(draws: boolean): WelcomeSuggestion[] {
 interface ChatEmptyStateProps {
   onPick: (prompt: string) => void;
   suggestionsSlot?: HTMLElement | null;
-  showArt?: boolean;
-  spotlight?: boolean;
 }
 
-export function ChatEmptyState({
-  onPick,
-  suggestionsSlot,
-  showArt,
-  spotlight,
-}: ChatEmptyStateProps) {
+export function ChatEmptyState({ onPick, suggestionsSlot }: ChatEmptyStateProps) {
   // Whoever will answer, so the page opens on them rather than on a generic
   // sparkle and a line about streaming and tool calls. The list is the one the
   // picker already holds.
@@ -109,8 +102,6 @@ export function ChatEmptyState({
       loading={waiting}
       suggestionsSlot={showStarters ? suggestionsSlot : null}
       onPick={onPick}
-      showArt={showArt}
-      spotlight={spotlight}
     />
   );
 }
@@ -122,15 +113,7 @@ interface WelcomeProps extends ChatEmptyStateProps {
   loading?: boolean;
 }
 
-function Welcome({
-  agent,
-  starters,
-  loading,
-  onPick,
-  suggestionsSlot,
-  showArt,
-  spotlight,
-}: WelcomeProps) {
+function Welcome({ agent, starters, loading, onPick, suggestionsSlot }: WelcomeProps) {
   const t = useTranslations("chat.empty");
   const th = useTranslations("workspaceHome");
   const { user } = useAuth();
@@ -157,8 +140,6 @@ function Welcome({
       quiet
       loading={loading}
       suggestionsSlot={suggestionsSlot}
-      showArt={showArt}
-      spotlight={spotlight}
       mark={
         agent ? (
           <AgentAvatar

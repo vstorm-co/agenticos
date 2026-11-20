@@ -1665,7 +1665,6 @@
     "runFailedHint": "Nie powstała końcowa odpowiedź. Możesz przejrzeć wykonane działania powyżej.",
     "homeInbox": {
       "title": "Podsumowanie dnia",
-      "openInbox": "Otwórz Inbox",
       "urgent": "Ważne",
       "approvalsLabel": "Zgody",
       "approvals": "{count, plural, one {# zgoda czeka na Twoją decyzję} few {# zgody czekają na Twoją decyzję} other {# zgód czeka na Twoją decyzję}}",

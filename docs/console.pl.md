@@ -1,5 +1,5 @@
 ---
-source_sha: "f125b322eb40"
+source_sha: "a41470a3c122"
 ---
 
 # Konsola { #the-console }
@@ -92,7 +92,7 @@ Przyciski drugorzędne i filtry mają wspólne, wyraźniejsze wypełnienie, kont
 
 Ustawienia osobiste mają poziome, przewijane zakładki na komputerze i telefonie. Objaśnienia otwierają się pod przyciskami informacji; wymagania pól, błędy walidacji i ostrzeżenia przy usuwaniu pozostają widoczne. Konto zawiera zmianę hasła i aktywne sesje.
 
-Tytuły rozmów są pierwszą linią listy czatów, z nazwami agentów i aktywnością poniżej. Wyszukiwanie, filtry i Nowy czat dzielą nagłówek. Filtry nagłówka otwierają się pod przyciskiem, a filtry zwiniętej szyny obok niego. Dekoracyjne ilustracje zmieniają się bez przycisków odtwarzania i respektują preferencję ograniczonego ruchu.
+Tytuły rozmów są pierwszą linią listy czatów, z nazwami agentów i aktywnością poniżej. Wyszukiwanie, filtry i Nowy czat dzielą nagłówek. Filtry nagłówka otwierają się pod przyciskiem, a filtry zwiniętej szyny obok niego. Powitanie w głównym czacie pokazuje aktywnego agenta.
 
 Gdy lista rozmów ma wolne miejsce, rozwija kolejne starsze grupy dat aż do zapełnienia panelu. Grupy projektów również respektują zapisane wybory: ręcznie zwinięta grupa pozostaje zwinięta, dopóki jej nie rozwiniesz, także po zmianie aktywnej rozmowy.
 
@@ -131,7 +131,7 @@ Nieudany run pokazuje błąd oddzielnie od odpowiedzi agenta, poza zwijanymi nar
 
 Załączniki pozostają wewnątrz pola wiadomości w jednym przewijanym wierszu. Bezpieczne obrazy mają lokalną miniaturę podczas wysyłania; trwające wysyłanie wskazuje animowany wskaźnik bez wymyślonego procentu. Podkreślenia kart i zaznaczenia segmentów płynnie przechodzą między opcjami; przy ograniczeniu animacji zmiana jest natychmiastowa.
 
-Nowy czat pokazuje nad polem wiadomości do czterech promptów bieżącego agenta. W szerokim panelu układają się w dwie kolumny. Kliknięcie promptu dodaje go do edytowalnego szkicu. Pod polem znajduje się Podsumowanie dnia z maksymalnie czterema pozycjami z Inboxa, w tym linkiem do oczekujących zgód. Wyłączenie proponowanych promptów w Builderze rozszerza podsumowanie do ośmiu pozycji. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
+Nowy czat pokazuje pod polem wiadomości do czterech promptów bieżącego agenta. Układają się jeden pod drugim. Kliknięcie promptu dodaje go do edytowalnego szkicu. Nad polem znajduje się oś czasu z maksymalnie czterema pozycjami z Inboxa, w tym linkiem do oczekujących zgód. Wyłączenie proponowanych promptów w Builderze rozszerza podsumowanie do ośmiu pozycji. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
 
 Główny czat ma szerokie pole wiadomości. Biblioteka modeli pokazuje najpierw podłączonych dostawców, z logotypami i nazwami od wielkiej litery, oraz rozdziela katalog i zapisane modele. Kliknięcie modelu od razu go wybiera. Brakujące poświadczenia można dodać w formularzach Vaulta z poziomu wyboru modelu, również dla dostawców wymagających kilku pól; nadal obowiązują dotychczasowe uprawnienia i walidacja modeli. Mikrofon i przycisk wysyłania płynnie zmieniają stan podczas pisania.
 
@@ -249,7 +249,9 @@ pokazują opisy, a wiersze agentów używają tych samych avatarów co chat.
 
 Karty dashboardu korzystają ze spójnych, zwartych wierszy, oznaczeń usług i etykiet statusu. Liczniki i wykresy dostosowują się do szerokości karty, również we własnych układach. Placeholdery odpowiadają rodzajowi ładowanej zawartości; niedostępny briefing pokazuje możliwość ponowienia zamiast informacji o braku propozycji.
 
-Nowy chat wita zależnie od lokalnej pory dnia i pokazuje zwarte pole wiadomości. Pliki są obok agenta, a ustawienia i tarcza uprawnień obok modelu. Zużycie kontekstu pozostaje ikoną do chwili otwarcia szczegółów. Pod polem wiadomości w Podsumowaniu dnia widać tematy z Inboxa, z pilnymi ustaleniami na początku i ikonami źródeł z katalogu MCP; licznik zgód prowadzi do kolejki decyzji. Otwarcie podglądu niczego nie zatwierdza ani nie odrzuca. Ładowanie, błąd i pusta lista mają osobne stany. Dyktowanie i połączenia korzystają z tej samej lekkiej powierzchni co pole wiadomości. Widget Architecta korzysta z tego samego przycisku głównego i kontrolek dyktowania.
+Nowy chat wita zależnie od lokalnej pory dnia i pokazuje zwarte pole wiadomości. Pliki są obok agenta, a ustawienia i tarcza uprawnień obok modelu. Zużycie kontekstu pozostaje ikoną do chwili otwarcia szczegółów.
+
+Oś czasu nad polem wiadomości pokazuje najnowsze pozycje z Inboxa, ich daty i źródła. Kliknij wiersz, aby otworzyć pozycję, albo ikonę czatu, aby przygotować pytanie na jej temat. Licznik zgód prowadzi do kolejki decyzji. Ładowanie, błąd i pusta lista mają osobne stany. Dyktowanie i połączenia korzystają z tej samej lekkiej powierzchni co pole wiadomości. Widget Architecta korzysta z tego samego przycisku głównego i kontrolek dyktowania.
 
 Przed pierwszą wiadomością pliki i użycie kontekstu pozostają widoczne, ale nieaktywne. Menu załączników pokazuje dostępne akcje od razu. Ustawienia czatu mają zwarte sekcje połączeń i zapamiętanych zgód; podgląd Inbox pokazuje źródło i priorytet.
 

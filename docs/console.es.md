@@ -1,5 +1,5 @@
 ---
-source_sha: "f125b322eb40"
+source_sha: "a41470a3c122"
 ---
 
 # La consola { #the-console }
@@ -92,7 +92,7 @@ Los botones secundarios y los filtros comparten un relleno más visible, etiquet
 
 Los ajustes personales usan pestañas horizontales desplazables en escritorio y teléfono. Las explicaciones se abren desde los botones de información; los requisitos de los campos, los errores de validación y las advertencias de eliminación siguen visibles. Cuenta contiene los cambios de contraseña y las sesiones activas.
 
-Los títulos encabezan la lista de chats, con los nombres de los agentes y la actividad debajo. Búsqueda, filtros y Nuevo chat comparten la cabecera. Los filtros de la cabecera se abren debajo del botón; los de la barra contraída, a su lado. Las ilustraciones decorativas cambian sin controles de reproducción y respetan la preferencia de movimiento reducido.
+Los títulos encabezan la lista de chats, con los nombres de los agentes y la actividad debajo. Búsqueda, filtros y Nuevo chat comparten la cabecera. Los filtros de la cabecera se abren debajo del botón; los de la barra contraída, a su lado. El saludo del chat principal muestra el agente activo.
 
 Si queda espacio en la lista de conversaciones, se abren grupos de fechas anteriores hasta llenar el panel. Los grupos de proyectos también respetan las decisiones guardadas: un grupo contraído manualmente permanece cerrado hasta que lo abras, incluso al cambiar la conversación activa.
 
@@ -133,7 +133,7 @@ Una ejecución fallida muestra el error separado de la respuesta y fuera de las 
 
 Los adjuntos permanecen dentro del cuadro de mensaje en una fila desplazable. Las imágenes seguras muestran una miniatura local durante la carga; un indicador giratorio señala las cargas pendientes sin inventar porcentajes. Los subrayados de pestañas y las selecciones segmentadas se deslizan entre opciones; con movimiento reducido, cambian de inmediato.
 
-Los chats nuevos muestran hasta cuatro sugerencias del agente activo encima del editor. En un panel ancho se organizan en dos columnas. Al seleccionar una, se añade al borrador editable. El resumen diario debajo del editor muestra hasta cuatro elementos de la bandeja de entrada, con un enlace a las aprobaciones pendientes. Al desactivar las sugerencias en Builder, muestra hasta ocho elementos. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
+Los chats nuevos muestran hasta cuatro sugerencias del agente activo debajo del editor. Se muestran en una sola lista. Al seleccionar una, se añade al borrador editable. La cronología encima del editor muestra hasta cuatro elementos de la bandeja de entrada, con un enlace a las aprobaciones pendientes. Al desactivar las sugerencias en Builder, muestra hasta ocho elementos. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
 
 El chat principal tiene un cuadro de mensaje ancho. La biblioteca muestra primero los proveedores conectados, con logotipos y nombres que empiezan en mayúscula, y separa el catálogo de los modelos guardados. Pulsar un modelo lo selecciona directamente. Las credenciales que falten se añaden mediante los formularios existentes de Vault dentro del selector, incluidas las credenciales de varios campos. Se conservan los permisos y la validación de modelos. El micrófono y el envío cambian suavemente al escribir.
 
@@ -257,7 +257,9 @@ los mismos avatares que en el chat.
 
 Las tarjetas del panel usan filas compactas coherentes, símbolos de servicios y etiquetas de estado. Las cifras y los gráficos se adaptan al ancho de la tarjeta, también en diseños personalizados. Los indicadores de carga reflejan el tipo de contenido; un resumen no disponible permite reintentar en vez de afirmar que no hay propuestas.
 
-Un chat nuevo saluda según la hora local y muestra un editor compacto. Los archivos están junto al agente; los ajustes y el escudo de permisos, junto al modelo. El uso de contexto permanece como icono hasta abrirlo. El resumen diario debajo del editor muestra temas de Inbox, primero los urgentes, con marcas de origen del catálogo MCP; el contador de aprobaciones enlaza a su cola. Abrir una vista previa no aprueba ni descarta nada. La carga, los errores y la lista vacía tienen estados distintos. El dictado y las llamadas usan la misma superficie ligera que el editor. El widget de Architect comparte el botón principal y los controles de dictado.
+Un chat nuevo saluda según la hora local y muestra un editor compacto. Los archivos están junto al agente; los ajustes y el escudo de permisos, junto al modelo. El uso de contexto permanece como icono hasta abrirlo.
+
+La cronología encima del editor muestra primero las entradas más recientes de Inbox, con su fecha y origen. Haz clic en una fila para abrir la entrada o en el icono de chat para preparar una pregunta sobre ella. El contador de aprobaciones enlaza a su cola. La carga, los errores y la lista vacía tienen estados distintos. El dictado y las llamadas usan la misma superficie ligera que el editor. El widget de Architect comparte el botón principal y los controles de dictado.
 
 Antes del primer mensaje, Archivos y uso de contexto permanecen visibles pero desactivados. El menú de adjuntos muestra directamente sus acciones disponibles. Los ajustes del chat usan secciones compactas para conexiones y aprobaciones recordadas; la vista previa de Inbox muestra origen y prioridad.
 

@@ -1943,7 +1943,7 @@ it("keeps findings beside the composer and leaves approvals to decision cards", 
 });
 
 describe("starting a new chat", () => {
-  it("puts the agent's opening prompts above the composer and the Daily briefing below it", async () => {
+  it("puts the Inbox timeline above the composer and the agent's prompts below it", async () => {
     const base = get.getMockImplementation()!;
     get.mockImplementation((url: string) =>
       url === "/agents"
@@ -1970,10 +1970,10 @@ describe("starting a new chat", () => {
     const opener = openers[1]!;
     const editor = screen.getByRole("textbox");
     const briefing = screen.getByRole("region", { name: "Daily briefing" });
-    expect(opener.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(
-      editor.compareDocumentPosition(briefing) & Node.DOCUMENT_POSITION_FOLLOWING,
+      briefing.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(editor.compareDocumentPosition(opener) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await userEvent.click(opener);
     await waitFor(() => expect(editor.textContent).toContain(opener.textContent));
     expect(
