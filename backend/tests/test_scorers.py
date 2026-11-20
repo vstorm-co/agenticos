@@ -1209,3 +1209,80 @@ def test_judge_schema_keeps_lenient_evidence_and_accepts_any_criterion_order() -
         ("b", ["Exact passage"], ""),
         ("a", ["Other passage"], ""),
     ]
+
+
+def _keys(*pairs: tuple[str, str], **extra) -> dict:
+    return {"type": "keys", "keys": [{"key": k, "value": v} for k, v in pairs], **extra}
+
+
+class TestKeysCheck:
+    @pytest.mark.parametrize(
+        ("value", "text", "carried"),
+        [
+            ("12", "Room 120 is booked", False),
+            ("12", "Room 12 is booked.", True),
+            ("INV-1", "Invoice INV-10 is due", False),
+            ("INV-10", "Invoice INV-10 is due", True),
+            ("1234", "A total of 1 234 PLN", True),
+            ("1 234", "A total of 1234 PLN", True),
+            ("1\u00a0234", "A total of 1 234 PLN", True),
+            ("1\u2009234", "A total of 1\u202f234 PLN", True),
+            ("1,234", "A total of 1234 PLN", False),
+            ("1.234", "A total of 1,234 PLN", False),
+            ("1234", "A total of 1.234 PLN", False),
+            ("1,5", "A rate of 1.5", False),
+            ("1.5", "A rate of 1.5%", True),
+            ("1.5", "A rate of 1.55", False),
+            ("1234567", "Paid 1 234 567 in full", True),
+            ("1 234 567,89", "Paid 1234567,89 in full", True),
+            ("913.68", "Invoice INV-7 913.68", True),
+            ("£913.68", "Total: £913.68.", True),
+            ("ACME  Ltd", "Billed to acme ltd today", True),
+            ("\ufb01le 7", "the file 7 attached", True),
+        ],
+    )
+    def test_a_value_counts_only_as_a_whole_token(self, value, text, carried) -> None:
+        result = _check(_keys(("Fact", value)), _answer(text))
+        assert (result.status == "pass") is carried
+
+    def test_the_score_is_the_share_of_keys_carried_and_only_all_of_them_pass(self) -> None:
+        check = _keys(("Invoice", "INV-7"), ("Total", "913.68"), ("Due", "2026-12-01"))
+
+        result = _check(check, _answer("Invoice INV-7, total 913.68"))
+
+        assert result.name == "keys"
+        assert result.status == "fail"
+        assert result.score == pytest.approx(2 / 3)
+        assert result.reason == "Missing 1 of 3 keys: Due"
+
+    def test_every_key_carried_passes(self) -> None:
+        result = _check(_keys(("Invoice", "INV-7"), ("Total", "913.68")), _answer("INV-7 913.68"))
+        assert (result.status, result.score, result.reason) == ("pass", 1.0, "Carries all 2 keys")
+
+    def test_the_reason_names_at_most_twenty_missing_keys(self) -> None:
+        check = _keys(*((f"Fact {n}", f"value-{n}") for n in range(25)))
+
+        result = _check(check, _answer("nothing here"))
+
+        assert result.reason.startswith("Missing 25 of 25 keys: Fact 0, Fact 1")
+        assert "Fact 19" in result.reason and "Fact 20" not in result.reason
+        assert result.reason.endswith(", and 5 more")
+        assert result.score == 0.0
+
+    def test_its_family_is_carried_onto_the_result(self) -> None:
+        result = _check(_keys(("Invoice", "INV-7"), family="invoice facts"), _answer("INV-7"))
+        assert result.family == "invoice facts"
+
+    @pytest.mark.parametrize(
+        "check",
+        [
+            {"type": "keys", "keys": []},
+            _keys(("Invoice", "INV-7"), ("invoice ", "INV-8")),
+            _keys(("Invoice", "")),
+            _keys(("", "INV-7")),
+            _keys(*((f"k{n}", "v") for n in range(201))),
+        ],
+    )
+    def test_a_malformed_keys_check_is_refused(self, check) -> None:
+        with pytest.raises(ValidationError):
+            CHECK.validate_python(check)

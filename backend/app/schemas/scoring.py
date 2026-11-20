@@ -33,6 +33,9 @@ MAX_PATTERN = 500
 MAX_CHECK_VALUE = 2000
 MAX_CRITERION = 1000
 MAX_FAMILY = 80
+MAX_KEYS = 200
+MAX_KEY_LABEL = 200
+MAX_KEY_VALUE = 2000
 
 ScorerKind = Literal["check", "trajectory", "judge", "reference"]
 ScorerStatus = Literal["pass", "fail", "skipped", "error"]
@@ -202,8 +205,37 @@ class JudgeCheck(_CheckBase):
     criterion: str = Field(min_length=1, max_length=MAX_CRITERION)
 
 
+class DocumentKey(BaseSchema):
+    """One fact a written document must carry: what it is, and its value."""
+
+    key: str = Field(min_length=1, max_length=MAX_KEY_LABEL)
+    value: str = Field(min_length=1, max_length=MAX_KEY_VALUE)
+
+
+class KeysCheck(_CheckBase):
+    """The answer carries every listed value, each as a whole token.
+
+    The keys are the non-prose facts of a reference document - its numbers, names
+    and dates - and the check scores the share of them the answer repeats.
+    """
+
+    type: Literal["keys"]
+    keys: list[DocumentKey] = Field(min_length=1, max_length=MAX_KEYS)
+
+    @field_validator("keys")
+    @classmethod
+    def _labels_are_unique(cls, keys: list[DocumentKey]) -> list[DocumentKey]:
+        seen: set[str] = set()
+        for entry in keys:
+            label = entry.key.strip().casefold()
+            if label in seen:
+                raise ValueError(f"The key {entry.key!r} is listed twice")
+            seen.add(label)
+        return keys
+
+
 Check = Annotated[
-    TextCheck | JsonSchemaCheck | CeilingCheck | LengthCheck | JudgeCheck,
+    TextCheck | JsonSchemaCheck | CeilingCheck | LengthCheck | JudgeCheck | KeysCheck,
     Field(discriminator="type"),
 ]
 CHECK = TypeAdapter(Check)
