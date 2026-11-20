@@ -23,9 +23,13 @@ vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useKnowledgeGapDraftEstimate: () => ({ estimate: { total_usd: "0.02" } }),
 }));
 vi.mock("./knowledge-gap-draft-card", () => ({
-  KnowledgeGapDraftCard: ({ draft }: { draft: { title: string } }) => (
-    <p>{`card ${draft.title}`}</p>
-  ),
+  KnowledgeGapDraftCard: ({
+    draft,
+    addedTo = null,
+  }: {
+    draft: { title: string };
+    addedTo?: string | null;
+  }) => <p>{addedTo ? `card ${draft.title} added to ${addedTo}` : `card ${draft.title}`}</p>,
 }));
 vi.mock("./knowledge-gap-editor", () => ({
   KnowledgeGapEditor: ({ topic }: { topic: { draft: { title: string } | null } }) => (
@@ -163,7 +167,9 @@ describe("KnowledgeGapDraftPanel", () => {
       "href",
       "/rag/kb1?tab=documents",
     );
-    expect(screen.getByText("card Parental leave")).toBeInTheDocument();
+    expect(
+      screen.getByText(`card Parental leave added to ${DRAFTED.knowledge_base_name}`),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/^editor/)).toBeNull();
   });
 

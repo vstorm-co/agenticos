@@ -48,7 +48,14 @@ export function KnowledgeGapDraftPanel({ topic }: { topic: KnowledgeGapTopicDeta
       {topic.can_edit && topic.status === "open" ? (
         <KnowledgeGapEditor key={topic.draft?.drafted_at ?? "new"} topic={topic} />
       ) : (
-        topic.draft && <KnowledgeGapDraftCard draft={topic.draft} />
+        topic.draft && (
+          <KnowledgeGapDraftCard
+            draft={topic.draft}
+            addedTo={
+              topic.status === "covered" && topic.covered_by ? topic.knowledge_base_name : null
+            }
+          />
+        )
       )}
     </section>
   );

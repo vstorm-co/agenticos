@@ -19,6 +19,7 @@ import { useEvalCases, useEvalRun } from "@/hooks/use-eval-runs";
 import { DIALOG_BODY, DIALOG_CANVAS, DIALOG_FILL } from "@/lib/dialog-sizes";
 import { expectedEffect } from "@/lib/authoring-text";
 import { ROUTES } from "@/lib/constants";
+import { leadingContext, trailingContext } from "@/lib/diff";
 import type {
   AuthoringRequest,
   EvidenceSource,
@@ -231,8 +232,8 @@ export function ChangePreview({
         <DiffView
           before={before}
           after={after}
-          context={hunk.kind === "instructions" ? hunk.context_before : ""}
-          trailing={hunk.kind === "instructions" ? hunk.context_after : ""}
+          context={hunk.kind === "instructions" ? leadingContext(hunk.context_before) : ""}
+          trailing={hunk.kind === "instructions" ? trailingContext(hunk.context_after) : ""}
           emptyLabel={t("emptyPassage")}
         />
       )}

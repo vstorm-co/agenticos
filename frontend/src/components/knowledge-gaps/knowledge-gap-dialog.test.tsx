@@ -74,6 +74,18 @@ describe("KnowledgeGapDialog", () => {
     expect(screen.getByText("How long can I take parental leave?")).toBeInTheDocument();
   });
 
+  it("counts test questions apart from the people who asked", () => {
+    answer({ topic: { ...TOPIC, question_count: 1, asker_count: 0, test_question_count: 1 } });
+    const { rerender } = render(<KnowledgeGapDialog topicId="t1" onClose={vi.fn()} />);
+    expect(screen.getByText("Came up in 1 test question in Handbook")).toBeInTheDocument();
+    expect(screen.queryByText(/by one person/)).toBeNull();
+    answer({ topic: { ...TOPIC, question_count: 3, asker_count: 1, test_question_count: 2 } });
+    rerender(<KnowledgeGapDialog topicId="t1" onClose={vi.fn()} />);
+    expect(
+      screen.getByText("Asked once by one person, and in 2 test questions, in Handbook"),
+    ).toBeInTheDocument();
+  });
+
   it("says the topic failed to load, and retries", async () => {
     const refetch = vi.fn();
     answer({ error: new Error("502"), refetch });

@@ -172,6 +172,7 @@ from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
 from app.db.models.case_generation import CaseGeneration, CaseProposal
 from app.db.models.knowledge_gap import (
     KnowledgeGapClassification,
+    KnowledgeGapEvalClassification,
     KnowledgeGapMember,
     KnowledgeGapTopic,
     KnowledgeSearch,
@@ -258,6 +259,7 @@ __all__ = [
     "DatasetCase",
     "DatasetVersion",
     "KnowledgeGapClassification",
+    "KnowledgeGapEvalClassification",
     "KnowledgeGapMember",
     "KnowledgeGapTopic",
     "KnowledgeSearch",

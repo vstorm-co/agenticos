@@ -49,13 +49,32 @@ export function familiesOf(round: ImprovementIteration | undefined): VerdictFami
 }
 
 /**
+ * The longest name a grade keeps for a criterion. A case's own judged check is named
+ * by its text cut there and trimmed, so a cut that fell on a space leaves one less.
+ */
+const NAME_CHARS = 80;
+
+/**
+ * A criterion's name as a reader sees it, an ellipsis where its text was cut. At the
+ * full length its last word may be cut, so it ends at the word before; one short of
+ * it, the cut fell on a space and the last word is whole. A name ending a sentence was
+ * written whole.
+ */
+export function criterionName(name: string): string {
+  if (name.length < NAME_CHARS - 1 || /[.!?)]$/.test(name)) return name;
+  if (name.length < NAME_CHARS) return `${name}…`;
+  const at = name.lastIndexOf(" ");
+  return `${(at > 0 ? name.slice(0, at) : name).replace(/[\s,;:.-]+$/, "")}…`;
+}
+
+/**
  * Single criteria as rows: better with confirmed fixes, nothing broken and no fewer passes,
  * worse with a break.
  */
 export function criterionRows(criteria: VerdictCriterion[]): CriterionRow[] {
   return criteria.map((item) => ({
     key: `${item.scorer}:${item.name}`,
-    name: item.name,
+    name: criterionName(item.name),
     scorer: item.scorer,
     graded: item.graded,
     before: item.before,
@@ -72,7 +91,7 @@ export function criterionRows(criteria: VerdictCriterion[]): CriterionRow[] {
 export function familyRows(families: FamilyMove[]): CriterionRow[] {
   return families.map((item) => ({
     key: `family:${item.family}`,
-    name: item.family,
+    name: criterionName(item.family),
     graded: item.cases,
     before: item.baseline_passed,
     after: item.candidate_passed,
@@ -96,7 +115,7 @@ export function verdictRows(
   if (families.length === 0) return criterionRows(criteria);
   return families.map((item) => ({
     key: `family:${item.family}`,
-    name: item.family,
+    name: criterionName(item.family),
     graded: item.cases,
     before: item.before,
     after: item.after,
@@ -142,7 +161,7 @@ export function criteriaTotals(round: ImprovementIteration | undefined) {
 }
 
 /** A row's name, with its scorer when another criterion shares the name. */
-function criterionName(item: CriterionRow, rows: CriterionRow[]): string {
+function scoredName(item: CriterionRow, rows: CriterionRow[]): string {
   return item.scorer && rows.filter((other) => other.name === item.name).length > 1
     ? `${item.name} [${item.scorer}]`
     : item.name;
@@ -159,14 +178,14 @@ function listed(
   const words = shown.map((item) =>
     named === undefined
       ? t("criteria.item", {
-          name: criterionName(item, context),
+          name: scoredName(item, context),
           before: item.before,
           after: item.after,
           graded: item.graded,
         })
       : item.skill
-        ? t("criteria.failingSkill", { name: criterionName(item, context), skill: item.skill })
-        : criterionName(item, context),
+        ? t("criteria.failingSkill", { name: scoredName(item, context), skill: item.skill })
+        : scoredName(item, context),
   );
   if (items.length > shown.length)
     words.push(t("criteria.more", { count: items.length - shown.length }));
@@ -268,7 +287,7 @@ export function CriteriaTable({ criteria }: { criteria: CriterionRow[] }) {
           {criteria.map((item) => (
             <tr key={item.key} className="border-t">
               <td className="py-1 pr-3">
-                {criterionName(item, criteria)}
+                {scoredName(item, criteria)}
                 {item.skill && (
                   <span className="text-muted-foreground block text-xs">
                     {t("skill", { skill: item.skill })}
