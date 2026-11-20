@@ -1445,8 +1445,8 @@ class TestTheBundledSkill:
         skill = self._skill()
         assert skill.category == "design"
         assert {resource.name for resource in skill.resources} == {
-            "templates/dashboard.html",
-            "templates/live-table.html",
+            "templates/analytics-dashboard.html",
+            "templates/records-list.html",
             "templates/report.html",
             "references/design-recipes.md",
             "references/styles-and-deliverables.md",
@@ -1471,7 +1471,7 @@ class TestTheBundledSkill:
         )
         assert lint_page(page.encode()) == []
 
-    def test_its_class_table_is_exactly_what_kit_3_defines(self) -> None:
+    def test_its_class_table_is_exactly_what_kit_4_defines(self) -> None:
         """Every class the skill names is real, and every real one is named."""
         recipes = next(
             resource.content
@@ -1479,20 +1479,33 @@ class TestTheBundledSkill:
             if resource.name == "references/design-recipes.md"
         )
         named = set(re.findall(r"(?<![\w-])ao-[a-z0-9]+(?:-[a-z0-9]+)*", recipes))
-        assert named == KIT_CLASSES[3]
+        assert named == KIT_CLASSES[4]
 
     def test_every_template_uses_the_kit_or_its_own_style_and_passes_the_lint(self) -> None:
         for resource in self._skill().resources:
             if not resource.name.startswith("templates/"):
                 continue
-            assert "lib/agenticos-3.css" in resource.content or "<style>" in resource.content, (
+            assert "lib/agenticos-4.css" in resource.content or "<style>" in resource.content, (
                 resource.name
             )
-            assert "lib/agenticos-3.js" in resource.content or "<script" in resource.content, (
+            assert "lib/agenticos-4.js" in resource.content or "<script" in resource.content, (
                 resource.name
             )
-            bound = ["tickets"] if resource.name == "templates/live-table.html" else []
+            bound = ["tickets"] if resource.name == "templates/records-list.html" else []
             assert lint_page(resource.content.encode(), bound=bound) == [], resource.name
+
+    def test_the_three_kit_templates_have_no_style_block_and_no_inline_style(self) -> None:
+        """The templates teach kit-first: their look comes from classes alone."""
+        names = {"analytics-dashboard", "report", "records-list"}
+        found = 0
+        for resource in self._skill().resources:
+            if resource.name.removeprefix("templates/").removesuffix(".html") not in names:
+                continue
+            found += 1
+            assert "lib/agenticos-4.css" in resource.content, resource.name
+            assert "<style" not in resource.content, resource.name
+            assert "style=" not in resource.content, resource.name
+        assert found == len(names)
 
     def test_every_library_file_it_names_is_one_the_deployment_serves(self) -> None:
         """A renamed or upgraded library would otherwise leave the skill teaching
@@ -1509,10 +1522,8 @@ class TestTheBundledSkill:
         from app.agents.capabilities.artifacts._toolset import build_artifacts_toolset
 
         tool = build_artifacts_toolset(table_grants={}).tools["publish_artifact"]
-        # The contract moves to agenticos-4 in the follow-up (#201, 2/2); until then
-        # the tool text names the kit it still points agents at.
         served = set(artifacts.ARTIFACT_LIBRARY) - artifacts.FRAME_ONLY_LIBRARY
-        for name in served - {"agenticos-4.css", "agenticos-4.js"}:
+        for name in served:
             assert f"lib/{name}" in (tool.description or "")
 
 

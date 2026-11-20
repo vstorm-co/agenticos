@@ -131,10 +131,10 @@ Skeleton, in this order:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>What and when</title>
-<link rel="stylesheet" href="lib/agenticos-3.css">
+<link rel="stylesheet" href="lib/agenticos-4.css">
 <script src="lib/chart-4.5.1.umd.min.js"></script>  <!-- only with a chart -->
 <script src="lib/lucide-1.46.0.min.js"></script>
-<script src="lib/agenticos-3.js"></script>
+<script src="lib/agenticos-4.js"></script>
 </head>
 <body><main class="ao-page">
 <header class="ao-header"><div>
@@ -147,14 +147,8 @@ Skeleton, in this order:
 </main></body></html>
 
 Rules:
-- Classes: the kit's only, plus inline styles. The common ones - ao-page, ao-page-narrow, ao-header, \
-ao-header-actions, ao-eyebrow, ao-subtitle, ao-meta, ao-section, ao-section-header, \
-ao-section-title, ao-section-desc, ao-grid-2, ao-grid-3, ao-grid-4, ao-card, ao-card-header, \
-ao-card-title, ao-card-flush, ao-stat, ao-stat-label, ao-stat-value, ao-stat-foot, ao-delta, \
-ao-up, ao-down, ao-table-wrap, ao-table, ao-num, ao-strong, ao-badge, ao-badge-success, \
-ao-badge-warning, ao-badge-danger, ao-callout, ao-kv, ao-empty, ao-loading, ao-note, ao-muted, \
-ao-chart, ao-footer. Any other class in the `{PAGES_GUIDE}` guide's class table is fine \
-too; never one outside the kit.
+- Build every layout and look from kit classes, never one outside the kit. Beyond the skeleton and table rules: ao-section-header, ao-section-title, ao-stack, ao-row, ao-grid-2, ao-grid-3, ao-grid-4, ao-card, ao-card-header, ao-card-title, ao-card-flush, ao-stat, ao-stat-tile, ao-stat-label, ao-stat-value, ao-stat-foot, ao-delta, ao-up, ao-down, ao-tabs-line, ao-toolbar, ao-button, ao-chip, ao-badge, ao-callout, ao-progress, ao-empty, ao-loading, ao-note, ao-muted, ao-chart, ao-footer; the `{PAGES_GUIDE}` guide's class table lists the rest. No `<style>` block or class of your own, unless the person supplied a brand or design that needs one.
+- Inline `style` only for a value computed at run time: a bar `width`, a `--value`, a chart or canvas height, a position. Never for color, font, spacing, border, shadow or layout.
 - A table is `table.ao-table` inside `div.ao-table-wrap`, with `<thead>` and `<tbody>`; \
 `ao-num` on the `th` and every `td` of a number column, nowhere else.
 - Icons are `<i data-lucide="name"></i>` with Lucide names, never emoji unless asked for.
@@ -170,7 +164,7 @@ it has the templates and every component.
 
 Static, so it stays in the cached prefix; short, because it is paid on every
 request. The skill holds the rest, and `tests/test_artifacts_capability.py` holds
-every class named here to `agenticos-3.css`."""
+every class named here to `agenticos-4.css`."""
 
 READ_LIMIT = 100_000
 """How much of a page `read_artifact` returns, in characters.
@@ -351,11 +345,11 @@ def build_artifacts_toolset(
         never `innerHTML`. Data you only need once still goes inline. The deployment serves a
         small library set the page may load by a relative address, which costs nothing
         to include:
-        `<link rel="stylesheet" href="lib/agenticos-3.css">` (the product's look, light
+        `<link rel="stylesheet" href="lib/agenticos-4.css">` (the product's look, light
         and dark, with `ao-` components), `lib/chart-4.5.1.umd.min.js` (Chart.js,
         `window.Chart`), `lib/d3-7.9.0.min.js` (d3, `window.d3`),
         `lib/lucide-1.46.0.min.js` (icons: write `<i data-lucide="calendar"></i>`) and,
-        after those, `lib/agenticos-3.js` (`window.AO`: chart defaults in the product's
+        after those, `lib/agenticos-4.js` (`window.AO`: chart defaults in the product's
         style, number formatting, icons, tabs, and `AO.records(target, data.<binding>)`,
         which draws bound records as a finished table); `lib/mermaid-12.1.0.min.js`
         (`window.mermaid`) for diagrams; three.js as ES modules through an import map
@@ -373,8 +367,8 @@ def build_artifacts_toolset(
         map by default, including city-to-city routes and itineraries. Use the tile
         map only for street detail when `agenticos.map` is configured, and render
         AOWorldMap as the fallback if tile loading fails);
-        `lib/agenticos-2.css`, `lib/agenticos-2.js`, `lib/agenticos-1.css` and `lib/agenticos-map-1.js` stay served for pages published
-        against them; build new pages on version 3. Follow the page
+        `lib/agenticos-3.css`, `lib/agenticos-3.js`, `lib/agenticos-2.css`, `lib/agenticos-2.js`, `lib/agenticos-1.css` and `lib/agenticos-map-1.js` stay served for pages published
+        against them; build new pages on version 4. Follow the page
         contract in your instructions: doctype and viewport, `main.ao-page`, the header,
         readable semantic sections and tables with `<thead>`. Use the kit for working
         defaults, then choose a deliberate visual direction for the audience and supplied

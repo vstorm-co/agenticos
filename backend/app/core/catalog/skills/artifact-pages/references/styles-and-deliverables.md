@@ -1,5 +1,7 @@
 # Choose a visual language and a real deliverable
 
+Product-style Apps (reports, dashboards, record lists) use the AgenticOS kit as it comes, with no custom CSS; the directions below apply to a supplied brand or an open creative brief such as a lesson, game or story.
+
 The audience and task choose the style. Respect a supplied brand. For an open brief, choose a direction deliberately instead of reusing one dashboard in every answer. A playful classroom activity and a board report can be equally polished without looking alike.
 
 | Purpose                 | Composition and tone                                                                             | Useful visual choices                                                                                | Avoid                                                                                       |

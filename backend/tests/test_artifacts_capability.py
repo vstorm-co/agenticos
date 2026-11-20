@@ -540,10 +540,10 @@ class TestThePageContract:
         (built,) = registry.build([registry.CapabilityBinding(capability_id="artifacts")])
         assert built.get_instructions() == PAGE_CONTRACT
 
-    def test_every_class_it_names_is_one_kit_3_defines(self) -> None:
+    def test_every_class_it_names_is_one_kit_4_defines(self) -> None:
         named = set(re.findall(r"(?<![\w-])ao-[a-z0-9]+(?:-[a-z0-9]+)*", PAGE_CONTRACT))
         assert len(named) > 30
-        assert named <= KIT_CLASSES[3]
+        assert named <= KIT_CLASSES[4]
 
     def test_it_admits_the_kit_classes_the_guide_teaches_beyond_its_list(self) -> None:
         """The guide's templates use kit classes the contract does not name, so the
@@ -555,7 +555,7 @@ class TestThePageContract:
         pattern = r"(?<![\w-])ao-[a-z0-9]+(?:-[a-z0-9]+)*"
         used = {name for res in guide.resources for name in re.findall(pattern, res.content)}
         assert used - set(re.findall(pattern, PAGE_CONTRACT))
-        assert used <= KIT_CLASSES[3]
+        assert used <= KIT_CLASSES[4]
         assert "only these" not in PAGE_CONTRACT
         assert f"`{PAGES_GUIDE}` guide's class table" in PAGE_CONTRACT
         assert "never one outside the kit" in PAGE_CONTRACT
@@ -563,8 +563,8 @@ class TestThePageContract:
     def test_every_file_it_loads_is_one_the_deployment_serves(self) -> None:
         loaded = set(re.findall(r"lib/([\w.-]+\.(?:js|css))", PAGE_CONTRACT))
         assert loaded == {
-            "agenticos-3.css",
-            "agenticos-3.js",
+            "agenticos-4.css",
+            "agenticos-4.js",
             "chart-4.5.1.umd.min.js",
             "lucide-1.46.0.min.js",
         }
@@ -575,8 +575,24 @@ class TestThePageContract:
         assert lint_page(skeleton.encode()) == []
 
     def test_it_stays_short_enough_to_pay_for_on_every_request(self) -> None:
-        # About four characters a token: the brief is under 600 tokens.
-        assert len(PAGE_CONTRACT) < 2400
+        # About four characters a token: the brief is under 650 tokens.
+        assert len(PAGE_CONTRACT) < 2600
+
+    def test_it_asks_for_kit_classes_and_limits_inline_style_to_run_time_values(self) -> None:
+        text = " ".join(PAGE_CONTRACT.split())
+        assert "Build every layout and look from kit classes" in text
+        assert "No `<style>` block or class of your own" in text
+        assert "Inline `style` only for a value computed at run time" in text
+        assert "plus inline styles" not in text
+        for allowed in ("bar `width`", "`--value`", "chart or canvas height", "a position"):
+            assert allowed in text
+        for refused in ("color", "font", "spacing", "border", "shadow", "layout"):
+            assert refused in text.split("Never for", 1)[1]
+
+    def test_it_names_the_layout_and_tile_classes_a_dashboard_is_built_from(self) -> None:
+        added = {"ao-stack", "ao-row", "ao-stat-tile", "ao-tabs-line", "ao-chip"}
+        named = set(re.findall(r"(?<![\w-])ao-[a-z0-9]+(?:-[a-z0-9]+)*", PAGE_CONTRACT))
+        assert added <= named
 
 
 def _guide(*, loaded: bool = False, deferred: bool = True) -> dict[str, Any]:

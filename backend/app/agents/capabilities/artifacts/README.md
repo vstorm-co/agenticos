@@ -88,11 +88,11 @@ no head and icons that never drew (#1974). Three things answer that, cheapest
 first.
 
 - **The page contract**, `PAGE_CONTRACT`, is this capability's standing
-  instruction: the skeleton, a closed list of the kit's most-used classes, icons
+  instruction: the skeleton, a kit-first rule (kit classes for layout and look, inline `style` only for run-time values), icons
   rather than emoji, `AO.records` for bound data, and "load `artifact-pages`
   when it is listed". It is static so the cached prompt prefix keeps it, and
   short because every request pays for it. A test holds each class it names to
-  `agenticos-3.css`.
+  `agenticos-4.css`.
 - **One steer a run to the guide.** The first whole HTML page of a run that
   offers the `artifact-pages` skill without having loaded it is sent back to
   load it and rebuild. Once per run, because the flag lives in the toolset the
