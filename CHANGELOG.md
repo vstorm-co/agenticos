@@ -26,6 +26,11 @@ Two things are versioned separately from this file and worth knowing about:
   an Improve session waiting for you, and open knowledge gaps. The tab says why to a
   screen reader and on hover. An agent marked **Needs attention** on the agent list or
   the dashboard opens on its **Evals** tab.
+
+## [1.87.0] - 2026-11-20
+
+### Added
+
 - Answer on **Matrix**: register a bot account on your own homeserver with its access token and the homeserver's URL, and invite it to a room or a direct chat. Answers stream into a thread on the question as edits, approvals and questions are numbered replies, and files, the thread's earlier messages and the room's members reach the agent. Limited sync batches recover in bounded pages from the durable cursor, including after a restart. Unencrypted rooms only for now; end-to-end encryption follows (#2081).
 
 ### Upgrading
@@ -22246,7 +22251,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.86.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.87.0...HEAD
+[1.87.0]: https://github.com/vstorm-co/agenticos/compare/v1.86.2...v1.87.0
 [1.86.2]: https://github.com/vstorm-co/agenticos/compare/v1.86.1...v1.86.2
 [1.86.1]: https://github.com/vstorm-co/agenticos/compare/v1.86.0...v1.86.1
 [1.86.0]: https://github.com/vstorm-co/agenticos/compare/v1.85.1...v1.86.0
