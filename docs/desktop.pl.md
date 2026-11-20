@@ -1,5 +1,5 @@
 ---
-source_sha: "540b1f4e65db"
+source_sha: "9887014f4046"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -777,7 +777,7 @@ dopuszczają wyłącznie argument `acp` i żaden nie kopiuje plików z tokenami.
 | Szablon | Logowanie | Rozliczenie |
 | --- | --- | --- |
 | **Antigravity** | Osobiste logowanie Google (`oauth-personal`). Najpierw uruchom `agy acp --login`. Odziedziczone klucze Gemini API i selektory API/Vertex są usuwane. | Twój plan Google AI |
-| **Antigravity · klucz Gemini API** | `gemini-api-key`, wyłącznie z `GEMINI_API_KEY` odziedziczonym przez aplikację desktopową. Brak klucza blokuje uruchomienie; zapisane logowanie Google nigdy nie jest użyte zamiast niego. AgenticOS nie przechowuje klucza. | Cennik i warunki Gemini API |
+| **Antigravity · klucz Gemini API** | `gemini-api-key`, z kluczem Gemini wybranym ze skarbca (przeznaczenie Google Gemini lub Custom) dla danego uruchomienia, a w przeciwnym razie z `GEMINI_API_KEY` odziedziczonym przez aplikację desktopową. Klucz ze skarbca wymaga Twojego własnego dostępu do niego i trafia tylko do Twojego prywatnego czatu na Twoim komputerze. Brak klucza blokuje uruchomienie; zapisane logowanie Google nigdy nie jest użyte zamiast niego. | Cennik i warunki Gemini API |
 
 Pierwszy szablon niesie ryzyko dla Twojego konta Google. Sekcja 6
 [dodatkowych warunków Antigravity](https://antigravity.google/terms) ogranicza
@@ -1005,7 +1005,7 @@ Logowanie wymaga wylogowanego konta Muse bez nadrzędnego klucza API. Szablon wy
 
 ## Pi z wybranym kluczem API ze skarbca { #pi-vault-key }
 
-Zarejestruj **Pi · Inception**, **Pi · DeepSeek** lub **Pi · OpenRouter**, podając bezwzględną ścieżkę do Pi CLI **1.5.2**. W konfiguracji External ACP agent wybierz tego samego **Dostawcę Pi z kluczem ze skarbca**, jego klucz API i dokładny **External model ID** z prefiksem dostawcy, np. `deepseek/<model-id>`. To tryby klucza API, odrębne od zapisanych kont Pi i istniejących bezpośrednich dostawców Pydantic AI.
+Zarejestruj **Pi · Inception**, **Pi · DeepSeek** lub **Pi · OpenRouter**, podając bezwzględną ścieżkę do Pi CLI **1.5.2**. W konfiguracji External ACP agent wybierz tego samego **Dostawcę klucza ze skarbca**, jego klucz API i dokładny **External model ID** z prefiksem dostawcy, np. `deepseek/<model-id>`. To tryby klucza API, odrębne od zapisanych kont Pi i istniejących bezpośrednich dostawców Pydantic AI.
 
 Klucz może otrzymać tylko prywatny komputer osoby rozpoczynającej zadanie, z zatwierdzonym pełnym dostępem. Samo prawo uruchomienia agenta nie wystarcza: przed uruchomieniem lub inspekcją sprawdzamy aktualne członkostwo i niezależny dostęp do tego klucza w skarbcu. Zadania anonimowe, z pokoju współdzielonego i podszywania się nie mogą go eksportować. Rejestracja natywna musi potwierdzić tego samego dostawcę przed wysłaniem promptu. Rotacja klucza zmienia zakres wznowienia.
 

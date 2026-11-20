@@ -8,7 +8,7 @@ from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities.external_acp._toolset import build_acp_toolset
 from app.agents.deps import AgentDeps
-from app.agents.pi_keys import PiKeyProvider
+from app.agents.pi_keys import NativeKeyProvider
 
 
 @dataclass
@@ -19,7 +19,7 @@ class ExternalAcp(AbstractCapability[AgentDeps]):
     timeout_seconds: int = 900
     auth_method: str | None = None
     model_id: str | None = None
-    api_provider: PiKeyProvider | None = None
+    api_provider: NativeKeyProvider | None = None
     secret_id: UUID | None = None
     platform_tools: bool = False
 

@@ -14,7 +14,7 @@ from app.agents.capabilities.coding_agent._task import MAIN_SESSION, SESSION_NAM
 from app.agents.capabilities.coding_agent._toolset import run_local_task
 from app.agents.capabilities.external_acp._catalog import inspect_session
 from app.agents.deps import AgentDeps
-from app.agents.pi_keys import PiKeyProvider
+from app.agents.pi_keys import NativeKeyProvider
 from app.services.device_hub import (
     DeviceCallFailed,
     DeviceCallTimedOut,
@@ -38,7 +38,7 @@ def build_acp_toolset(
     *,
     auth_method: str | None = None,
     model_id: str | None = None,
-    api_provider: PiKeyProvider | None = None,
+    api_provider: NativeKeyProvider | None = None,
     secret_id: UUID | None = None,
     platform_tools: bool = False,
 ) -> FunctionToolset[AgentDeps]:
@@ -138,7 +138,9 @@ def build_acp_toolset(
                 from ._pi import inspect_pi
 
                 catalog = await inspect_pi(
-                    pipe, timeout_seconds=min(timeout_seconds, 60), key_provider=api_provider
+                    pipe,
+                    timeout_seconds=min(timeout_seconds, 60),
+                    key_provider=key.pi_provider if key is not None else None,
                 )
                 return catalog_json(catalog, key)
             catalog = await inspect_session(

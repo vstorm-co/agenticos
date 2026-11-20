@@ -8,7 +8,7 @@ from pydantic_ai import RunContext
 from app.agents.capabilities.coding_agent._acp import AcpError
 from app.agents.capabilities.external_acp._catalog import AcpCatalog
 from app.agents.deps import AgentDeps
-from app.agents.pi_keys import PiKeyProvider, PiRuntimeKey
+from app.agents.pi_keys import NativeKeyProvider, NativeRuntimeKey
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.db.session import get_db_context
 from app.services.device_hub import DeviceWorkspace
@@ -16,8 +16,8 @@ from app.services.organization_secret import OrganizationSecretService
 
 
 async def selected_key(
-    ctx: RunContext[AgentDeps], provider: PiKeyProvider | None, secret_id: UUID | None
-) -> PiRuntimeKey | None:
+    ctx: RunContext[AgentDeps], provider: NativeKeyProvider | None, secret_id: UUID | None
+) -> NativeRuntimeKey | None:
     if provider is None:
         return None
     audience = ctx.deps.audience
@@ -35,12 +35,12 @@ async def selected_key(
         or ctx.deps.user_id != str(person)
     ):
         raise AuthorizationError(
-            message="A Pi vault key can reach only its initiating member's own approved computer"
+            message="A vault key can reach only its initiating member's own approved computer"
         )
     if secret_id is None:
-        raise BadRequestError(message="Choose a vault API key for this Pi runtime")
+        raise BadRequestError(message="Choose a vault API key for this runtime")
     async with get_db_context() as db:
-        return await OrganizationSecretService(db).native_pi_key(
+        return await OrganizationSecretService(db).native_runtime_key(
             organization_id=ctx.deps.organization_id,
             user_id=person,
             secret_id=secret_id,
@@ -48,7 +48,7 @@ async def selected_key(
         )
 
 
-def catalog_json(catalog: AcpCatalog, key: PiRuntimeKey | None) -> str:
+def catalog_json(catalog: AcpCatalog, key: NativeRuntimeKey | None) -> str:
     serialized = catalog.model_dump_json()
     if key is not None and json.dumps(key.api_key.get_secret_value())[1:-1] in serialized:
         raise AcpError(

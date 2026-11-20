@@ -767,7 +767,7 @@ only the `acp` argument, and neither copies token files.
 | Template | Login | Billing |
 | --- | --- | --- |
 | **Antigravity** | Google personal sign-in (`oauth-personal`). Run `agy acp --login` first. Inherited Gemini API keys and API/Vertex selectors are removed. | Your Google AI plan |
-| **Antigravity · Gemini API key** | `gemini-api-key`, using only the `GEMINI_API_KEY` that Desktop inherited. A missing key refuses the launch; the saved Google sign-in is never used instead. AgenticOS stores no key. | Gemini API pricing and terms |
+| **Antigravity · Gemini API key** | `gemini-api-key`, using a Gemini key chosen from the vault (purpose Google Gemini or Custom) for the run, otherwise the `GEMINI_API_KEY` that Desktop inherited. A vault key needs your own view access to it and reaches only your private chat on your own computer. A missing key refuses the launch; the saved Google sign-in is never used instead. | Gemini API pricing and terms |
 
 Using the first template carries a risk to your Google account. Section 6 of the
 [Antigravity Additional Terms](https://antigravity.google/terms) restricts consumer
@@ -995,7 +995,7 @@ Sign-in requires a logged-out Muse account with no overriding API key. The requi
 
 ## Pi with a selected vault API key { #pi-vault-key }
 
-Register **Pi · Inception**, **Pi · DeepSeek** or **Pi · OpenRouter** with the absolute path to Pi CLI **1.5.2**. In External ACP agent configuration, choose the same **Pi vault-key provider**, select its vault API key and set a provider-qualified **External model ID**, such as `deepseek/<model-id>`. These are API-key lanes, separate from Pi's own saved accounts and the existing direct Pydantic AI providers.
+Register **Pi · Inception**, **Pi · DeepSeek** or **Pi · OpenRouter** with the absolute path to Pi CLI **1.5.2**. In External ACP agent configuration, choose the same **Vault-key provider**, select its vault API key and set a provider-qualified **External model ID**, such as `deepseek/<model-id>`. These are API-key lanes, separate from Pi's own saved accounts and the existing direct Pydantic AI providers.
 
 Only the initiating member's private, approved full-access computer may receive the key. Agent run access alone is insufficient: current organization membership and independent visibility of this exact vault key are checked before each launch or inspection. Anonymous, shared-room and impersonated runs cannot export it. The native registration must acknowledge the same provider before a prompt can be sent. Key rotation changes the continuation scope.
 

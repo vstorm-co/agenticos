@@ -9094,6 +9094,9 @@
         "externalModelsRetry": "Modelleri yeniden oku",
         "externalHelp": "Ajanın CLI'deki kendi oturumunu ve ayarlarını kullanır; başka bir oturum veya faturalandırma modu kullanılmaz. Kendi araçları yerel erişimle çalışır. Listelenen bir model, yetkiyi veya kalan kotayı kanıtlamaz.",
         "externalCliModels": "Bu ajan modelini kendi ayarlarında seçer.",
+        "geminiVaultKey": "Gemini API anahtarı",
+        "geminiDesktopKey": "Masaüstü'nün devraldığı anahtar (GEMINI_API_KEY)",
+        "geminiVaultUnavailable": "Kasa anahtarlarınız burada listelenemedi; Masaüstü'nün devraldığı anahtar kullanılır.",
         "primaryRuntimeTerms": "Bu CLI ile kendi hesabınızı kullanırsınız. Sağlayıcının şartları üçüncü taraf uygulamalar üzerinden kullanımı kısıtlayabilir ve sağlayıcı hesabı sınırlayabilir veya askıya alabilir; bu risk size aittir.",
         "antigravityPersonalRisk": "Bu kayıt kişisel Google oturumunuzu kullanır. Google, üçüncü taraf araçlarla kullanılan hesapları sınırlayabilir veya askıya alabilir; bu riski kaydederken kabul ettiniz."
       },
@@ -12023,7 +12026,7 @@
         "custom": "Özel ACP programı",
         "antigravityHelp": "Mutlak agy yolunu ve acp argümanını kullanın. Kişisel Google oturumu zorunludur; uygulama ortamından gelen Gemini API anahtarları kaldırılır. Önce agy acp --login çalıştırın. Builder içinde bu kimliği Harici ACP ajanında kullanın; inspect_acp_agent hesabın modellerini okur. Bu, görev devretmedir. Gerçek hesap uygunluğu ve plan limitleri henüz doğrulanmalıdır.",
         "antigravityApi": "Antigravity · Gemini API anahtarı",
-        "antigravityKeyHelp": "Mutlak agy yolunu ve acp argümanını kullanın. Yalnızca Masaüstü'nün devraldığı GEMINI_API_KEY, gemini-api-key oturumuyla kullanılır; anahtar yoksa başlatma reddedilir ve kayıtlı Google oturumuna asla geçilmez. AgenticOS anahtar saklamaz. Google AI aboneliği değil, Gemini API fiyatları ve şartları geçerlidir; kullanım AgenticOS'ta fiyatlandırılmaz.",
+        "antigravityKeyHelp": "Mutlak agy yolunu ve acp argümanını kullanın. Bir çalıştırma, kasadan seçilen Gemini anahtarını, yoksa Masaüstü'nün devraldığı GEMINI_API_KEY'i gemini-api-key oturumuyla kullanır; anahtar yoksa başlatma reddedilir ve kayıtlı Google oturumuna asla geçilmez. Google AI aboneliği değil, Gemini API fiyatları ve şartları geçerlidir; kullanım AgenticOS'ta fiyatlandırılmaz.",
         "antigravityRisk": "Google Ek Şartları (bölüm 6), tüketici oturumunun üçüncü taraf araçlarla kullanılmasını kısıtlar ve Google ihlal saydığı hesapları sınırlayabilir veya askıya alabilir. Bu şablonu AgenticOS ajanlarıyla kullanmanın riski size aittir; Gemini API anahtarı şablonu bu riski taşımaz.",
         "antigravityRiskAccept": "Google hesabımın sınırlanabileceğini veya askıya alınabileceğini anlıyorum ve bu riski kabul ediyorum.",
         "opencodeHelp": "Kurulu opencode programını acp argümanıyla kaydedin. Sağlayıcıları opencode auth login veya TUI içinde /connect ile bağlayın. inspect_acp_agent gecikmeli güncellemeler dahil mevcut model listesini okur. Özel uç noktaları OpenCode içinde yapılandırın; AgenticOS kasa anahtarlarını kopyalamaz veya program dosyalarını değiştirmez. Modeller ücretsiz erişim, abonelik veya API bakiyesi kullanabilir.",

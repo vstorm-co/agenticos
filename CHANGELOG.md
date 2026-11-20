@@ -31,7 +31,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Codex and Claude Agent conversation runtimes are now available by default; each person answers for their own CLI account's terms, which the picker states. Operators can still withhold them with `CODEX_NATIVE_CONVERSATION_ENABLED=false` or `CLAUDE_NATIVE_CONVERSATION_ENABLED=false`.
 
-- Add an Antigravity Gemini API key template that uses only the Desktop-inherited `GEMINI_API_KEY` and never falls back to the saved Google sign-in. Registering the personal sign-in template now requires accepting the risk that Google limits or suspends the account.
+- Add an Antigravity Gemini API key template that uses a Gemini key chosen from the vault, or the Desktop-inherited `GEMINI_API_KEY`, and never falls back to the saved Google sign-in. Delegation selects the key through **Vault-key provider → Gemini**; the conversation runtime picker offers the vault keys you can view. Registering the personal sign-in template now requires accepting the risk that Google limits or suspends the account.
 
 - Run Hermes through an owned foreground ACP host with isolated private-conversation profiles, Nous Portal setup handoff, model discovery and optional scoped platform tools.
 

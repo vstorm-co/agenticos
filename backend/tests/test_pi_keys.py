@@ -15,7 +15,7 @@ from app.agents.capabilities.external_acp import ExternalAcpConfig
 from app.agents.capabilities.external_acp._catalog import AcpCatalog, AcpChoice
 from app.agents.capabilities.external_acp._keys import catalog_json, selected_key
 from app.agents.capabilities.external_acp._pi import inspect_pi, run_pi
-from app.agents.pi_keys import PiRuntimeKey
+from app.agents.pi_keys import NativeRuntimeKey
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.secret_kinds import ApiKeySecret
 from app.repositories import member_repo, organization_secret_repo
@@ -28,8 +28,8 @@ from tests.test_secrets import _db, _row
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
-def key(provider: str = "deepseek") -> PiRuntimeKey:
-    return PiRuntimeKey.model_validate(
+def key(provider: str = "deepseek") -> NativeRuntimeKey:
+    return NativeRuntimeKey.model_validate(
         {"provider": provider, "api_key": "selected-private-key", "revision": "a" * 64}
     )
 
@@ -45,7 +45,7 @@ def test_keys_are_masked_except_for_the_explicit_native_payload() -> None:
     }
     for value in ["tinykey", "private\nkey", "private\rkey", "private key"]:
         with pytest.raises(ValidationError) as invalid:
-            PiRuntimeKey(provider="deepseek", api_key=SecretStr(value), revision="a" * 64)
+            NativeRuntimeKey(provider="deepseek", api_key=SecretStr(value), revision="a" * 64)
         assert value not in str(invalid.value)
 
 
@@ -76,7 +76,7 @@ async def test_vault_visibility_and_live_membership_are_checked_before_native_ex
     access = AsyncMock(return_value=True)
     monkeypatch.setattr("app.services.organization_secret.resolve_access", access)
     service = OrganizationSecretService(_db())
-    selected = await service.native_pi_key(
+    selected = await service.native_runtime_key(
         organization_id=context.organization_id,
         user_id=context.user_id,
         secret_id=row.id,
@@ -87,7 +87,7 @@ async def test_vault_visibility_and_live_membership_are_checked_before_native_ex
     assert access.call_args.args[1].user_id == context.user_id
     row.purpose = "openrouter"
     with pytest.raises(BadRequestError):
-        await service.native_pi_key(
+        await service.native_runtime_key(
             organization_id=context.organization_id,
             user_id=context.user_id,
             secret_id=row.id,
@@ -96,7 +96,7 @@ async def test_vault_visibility_and_live_membership_are_checked_before_native_ex
     row.purpose = "deepseek"
     access.return_value = False
     with pytest.raises(NotFoundError):
-        await service.native_pi_key(
+        await service.native_runtime_key(
             organization_id=context.organization_id,
             user_id=context.user_id,
             secret_id=row.id,
@@ -104,7 +104,7 @@ async def test_vault_visibility_and_live_membership_are_checked_before_native_ex
         )
     monkeypatch.setattr(member_repo, "get", AsyncMock(return_value=None))
     with pytest.raises(NotFoundError):
-        await service.native_pi_key(
+        await service.native_runtime_key(
             organization_id=context.organization_id,
             user_id=context.user_id,
             secret_id=row.id,
@@ -171,7 +171,7 @@ async def test_native_selection_loads_the_current_key_and_requires_a_binding(
 
     monkeypatch.setattr("app.agents.capabilities.external_acp._keys.get_db_context", database)
     load = AsyncMock(return_value=key())
-    monkeypatch.setattr(OrganizationSecretService, "native_pi_key", load)
+    monkeypatch.setattr(OrganizationSecretService, "native_runtime_key", load)
     secret_id = uuid4()
     assert await selected_key(context, "deepseek", secret_id) == key()
     assert load.call_args.kwargs["user_id"] == person
@@ -192,7 +192,7 @@ async def test_a_native_provider_acknowledgement_is_required_before_any_prompt()
             pi_key=key(),
             pi_model="deepseek/native-model",
         )
-        with pytest.raises(AcpError, match="exact Pi vault-key provider"):
+        with pytest.raises(AcpError, match="exact vault-key provider"):
             await pipe.open()
         assert device.calls[-1][0] == "agent.close"
         assert device.calls[0][1]["pi_key"] == key().native_payload("deepseek/native-model")
@@ -200,6 +200,57 @@ async def test_a_native_provider_acknowledgement_is_required_before_any_prompt()
     await DevicePipe(
         device, "custom", custom_agent_id="pi-key", pi_key=key(), pi_model="deepseek/native-model"
     ).open()
+
+
+async def test_a_gemini_vault_key_needs_desktops_acknowledgement_and_no_pi_payload() -> None:
+    gemini = NativeRuntimeKey(provider="gemini", api_key="AIza-private-key", revision="c" * 64)
+    assert gemini.pi_provider is None and key().pi_provider == "deepseek"
+    refused = FakeDevice([], opened={"id": "one", "protocol": "acp"})
+    with pytest.raises(AcpError, match="exact vault-key provider"):
+        await DevicePipe(refused, "custom", custom_agent_id="agy-key", pi_key=gemini).open()
+    assert refused.calls[0][1]["gemini_key"] == "AIza-private-key"
+    assert "pi_key" not in refused.calls[0][1] and refused.calls[-1][0] == "agent.close"
+    device = FakeDevice([], opened={"id": "one", "protocol": "acp", "gemini_key": True})
+    await DevicePipe(device, "custom", custom_agent_id="agy-key", pi_key=gemini).open()
+
+
+def test_a_gemini_key_lane_needs_no_model_but_keeps_the_program_login() -> None:
+    config = ExternalAcpConfig.model_validate({"agent_id": "agy-key", "api_provider": "gemini"})
+    assert config.api_provider == "gemini" and config.model_id is None
+    with pytest.raises(ValidationError, match="program setting"):
+        ExternalAcpConfig.model_validate(
+            {"agent_id": "agy-key", "api_provider": "gemini", "auth_method": "oauth-personal"}
+        )
+
+
+async def test_a_gemini_export_accepts_google_or_custom_keys_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = secret_context()
+    row = _row(context, ApiKeySecret(api_key=SecretStr("AIza-private-key")))
+    monkeypatch.setattr(member_repo, "get", AsyncMock(return_value=AsyncMock(role="member")))
+    monkeypatch.setattr(organization_secret_repo, "get", AsyncMock(return_value=row))
+    monkeypatch.setattr(
+        "app.services.organization_secret.resolve_access", AsyncMock(return_value=True)
+    )
+    service = OrganizationSecretService(_db())
+    for purpose in ("google", "custom"):
+        row.purpose = purpose
+        exported = await service.native_runtime_key(
+            organization_id=context.organization_id,
+            user_id=context.user_id,
+            secret_id=row.id,
+            provider="gemini",
+        )
+        assert exported.provider == "gemini"
+    row.purpose = "gemini"
+    with pytest.raises(BadRequestError):
+        await service.native_runtime_key(
+            organization_id=context.organization_id,
+            user_id=context.user_id,
+            secret_id=row.id,
+            provider="gemini",
+        )
 
 
 async def test_selected_model_must_be_acknowledged_by_pi_before_inference() -> None:

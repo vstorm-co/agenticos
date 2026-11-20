@@ -60,6 +60,7 @@ class NativeModelSpec(ModelRequestSpec):
         return NativeConversationModel(
             harness=self.target.harness,
             registration_id=self.target.registration_id,
+            secret_id=self.target.secret_id,
             epoch=str(self.target.session_epoch),
             access=self.target.access,
             native_model=self.target.model_id,

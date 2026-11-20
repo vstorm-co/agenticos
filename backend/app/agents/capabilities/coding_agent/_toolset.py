@@ -89,7 +89,7 @@ from app.agents.capabilities.sandbox._project import ProjectWorkspacePort
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.deps import AgentDeps
 from app.agents.model_context import check_model_context
-from app.agents.pi_keys import PiRuntimeKey
+from app.agents.pi_keys import NativeRuntimeKey
 from app.agents.runtime_questions import RuntimeQuestionRequest, RuntimeQuestionResponse
 from app.core.exceptions import AppException, BadRequestError
 from app.db.session import get_db_context
@@ -677,7 +677,7 @@ async def run_local_task(
     custom_agent_id: str | None = None,
     auth_method: str | None = None,
     credential_probe: CredentialProbe | None = None,
-    pi_key: PiRuntimeKey | None = None,
+    pi_key: NativeRuntimeKey | None = None,
     platform_tools: bool = False,
 ) -> str:
     """The task on the person's computer, in the folder they chose, over ACP.
@@ -803,7 +803,7 @@ async def run_local_task(
                         effort=effort,
                         remember=pipe.remember,
                         runtime_questions=questions if redactions else ctx.deps.runtime_questions,
-                        key_provider=pi_key.provider if pi_key is not None else None,
+                        key_provider=pi_key.pi_provider if pi_key is not None else None,
                         platform_tools=native_tools,
                     )
                 else:

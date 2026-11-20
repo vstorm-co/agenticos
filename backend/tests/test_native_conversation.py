@@ -2,7 +2,7 @@
 
 import json
 from typing import Literal
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -48,8 +48,9 @@ async def test_primary_streaming_resumes_the_exact_native_receipt_and_sends_only
             platform_tools: bool,
             custom_agent_id: str | None,
             state_scope: str | None,
+            pi_key: object,
         ) -> None:
-            assert platform_tools and state_scope is not None
+            assert platform_tools and state_scope is not None and pi_key is None
             assert (acp_harness, custom_agent_id) == (launched, registration)
             self.scope = resume_key
             self.session_id = None
@@ -342,6 +343,8 @@ def test_only_an_external_runtime_names_a_registration_and_it_never_claims_read_
     with pytest.raises(ValidationError, match="choose edit"):
         NativeConversationTarget(harness="external", session_epoch=epoch, registration_id="agy")
     with pytest.raises(ValidationError, match="Only an external runtime"):
+        NativeConversationTarget(harness="codex", session_epoch=epoch, secret_id=uuid4())
+    with pytest.raises(ValidationError, match="Only an external runtime"):
         NativeConversationTarget(harness="codex", session_epoch=epoch, registration_id="agy")
     with pytest.raises(ValidationError):
         NativeConversationTarget(
@@ -353,3 +356,150 @@ def test_only_an_external_runtime_names_a_registration_and_it_never_claims_read_
         NativeConversationModel(
             harness="codex", epoch=str(epoch), access="edit", registration_id="agy"
         )
+
+
+async def test_a_vault_gemini_key_reaches_only_the_launch_and_never_the_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The key crosses to Desktop once; split chunks cannot leak it into the chat."""
+    from app.agents.audience import RunAudience
+    from app.agents.pi_keys import NativeRuntimeKey
+
+    context = _ctx(_local_workspace(), [])
+    context.deps.run_person = context.workspace.backend.owner_id
+    context.deps.user_id = str(context.deps.run_person)
+    context.deps.audience = RunAudience(user_id=context.deps.run_person)
+    tools, _calls = await bridge()
+    context.tool_manager = tools._ctx.tool_manager
+    secret = uuid4()
+    key = NativeRuntimeKey(provider="gemini", api_key="AIza-secret-value", revision="a" * 64)
+    requested: list[tuple[str | None, object]] = []
+
+    async def selected(_ctx, provider, secret_id):
+        requested.append((provider, secret_id))
+        return key if secret_id is not None else None
+
+    launched: list[object] = []
+
+    class Pipe:
+        def __init__(self, *_args, pi_key: object, **_kwargs) -> None:
+            launched.append(pi_key)
+            self.session_id = None
+            self.auth_method = "gemini-api-key"
+            self.configuration_policy = "session"
+            self.model_prefix = None
+            self.protocol = "acp"
+
+        async def open(self) -> None:
+            pass
+
+        async def remember(self, identifier: str) -> None:
+            pass
+
+        async def close(self) -> None:
+            pass
+
+    async def run(pipe, **options) -> CodingReport:
+        await options["shown"]([Said("Key AIza-sec"), Said("ret-value is set")])
+        return CodingReport(
+            harness="custom", access="edit", outcome="completed", answer="", session_id="s1"
+        )
+
+    monkeypatch.setattr(native, "selected_key", selected)
+    monkeypatch.setattr(native, "DevicePipe", Pipe)
+    monkeypatch.setattr(native, "run_task", run)
+    model = NativeConversationModel(
+        harness="external",
+        epoch=str(uuid4()),
+        access="edit",
+        registration_id="agy-key",
+        secret_id=secret,
+    )
+    async with model.request_stream(
+        [ModelRequest.user_text_prompt("hello")], None, ModelRequestParameters(), context
+    ) as stream:
+        events = [event async for event in stream]
+        response = stream.get()
+    assert requested == [("gemini", secret)] and launched == [key]
+    assert response.parts == [TextPart("Key [redacted] is set")]
+    assert "secret-value" not in repr(events)
+    with pytest.raises(native.AcpError, match="vault key"):
+        NativeConversationModel(
+            harness="codex", epoch=str(uuid4()), access="edit", secret_id=secret
+        )
+
+
+async def test_a_keyed_runtime_refuses_a_question_carrying_the_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.agents.audience import RunAudience
+    from app.agents.pi_keys import NativeRuntimeKey
+
+    context = _ctx(_local_workspace(), [])
+    context.deps.run_person = context.workspace.backend.owner_id
+    context.deps.user_id = str(context.deps.run_person)
+    context.deps.audience = RunAudience(user_id=context.deps.run_person)
+    asked = AsyncMock()
+    context.deps.runtime_questions = asked
+    tools, _calls = await bridge()
+    context.tool_manager = tools._ctx.tool_manager
+    key = NativeRuntimeKey(provider="gemini", api_key="AIza-secret-value", revision="b" * 64)
+
+    async def selected(_ctx, _provider, _secret_id):
+        return key
+
+    class Pipe:
+        def __init__(self, *_args, **_kwargs) -> None:
+            self.session_id = None
+            self.auth_method = "gemini-api-key"
+            self.configuration_policy = "session"
+            self.model_prefix = None
+            self.protocol = "acp"
+
+        async def open(self) -> None:
+            pass
+
+        async def remember(self, identifier: str) -> None:
+            pass
+
+        async def close(self) -> None:
+            pass
+
+    seen: list[str] = []
+
+    async def run(pipe, **options) -> CodingReport:
+        request = MagicMock()
+        request.model_dump_json.return_value = '{"title": "AIza-secret-value"}'
+        try:
+            await options["runtime_questions"](request)
+        except native.AcpError as refused:
+            seen.append(refused.message)
+        clean = MagicMock()
+        clean.model_dump_json.return_value = '{"title": "Continue?"}'
+        await options["runtime_questions"](clean)
+        await options["shown"]([Said("done")])
+        return CodingReport(
+            harness="custom", access="edit", outcome="completed", answer="done", session_id="s"
+        )
+
+    monkeypatch.setattr(native, "selected_key", selected)
+    monkeypatch.setattr(native, "DevicePipe", Pipe)
+    monkeypatch.setattr(native, "run_task", run)
+    model = NativeConversationModel(
+        harness="external",
+        epoch=str(uuid4()),
+        access="edit",
+        registration_id="k",
+        secret_id=uuid4(),
+    )
+    async with model.request_stream(
+        [ModelRequest.user_text_prompt("hello")], None, ModelRequestParameters(), context
+    ) as stream:
+        _ = [event async for event in stream]
+    assert seen and "credential material" in seen[0]
+    asked.assert_awaited_once()
+    context.deps.runtime_questions = None
+    async with model.request_stream(
+        [ModelRequest.user_text_prompt("again")], None, ModelRequestParameters(), context
+    ) as stream:
+        _ = [event async for event in stream]

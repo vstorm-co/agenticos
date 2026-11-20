@@ -1,5 +1,5 @@
 ---
-source_sha: "540b1f4e65db"
+source_sha: "9887014f4046"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -806,7 +806,7 @@ permiten solo el argumento `acp` y ninguna copia archivos de tokens.
 | Plantilla | Inicio de sesión | Facturación |
 | --- | --- | --- |
 | **Antigravity** | Inicio de sesión personal de Google (`oauth-personal`). Ejecuta antes `agy acp --login`. Se eliminan las claves de Gemini API heredadas y los selectores de API/Vertex. | Tu plan de Google AI |
-| **Antigravity · clave de Gemini API** | `gemini-api-key`, usando solo la `GEMINI_API_KEY` heredada por Desktop. Sin clave, el inicio se rechaza; nunca se usa en su lugar el inicio de sesión de Google guardado. AgenticOS no guarda ninguna clave. | Precios y condiciones de Gemini API |
+| **Antigravity · clave de Gemini API** | `gemini-api-key`, con una clave de Gemini elegida de la bóveda para la ejecución (propósito Google Gemini o Custom) o, si no, la `GEMINI_API_KEY` heredada por Desktop. Una clave de la bóveda requiere tu propio acceso de lectura y solo llega a tu chat privado en tu propio ordenador. Sin clave, el inicio se rechaza; nunca se usa en su lugar el inicio de sesión de Google guardado. | Precios y condiciones de Gemini API |
 
 La primera plantilla conlleva un riesgo para tu cuenta de Google. La sección 6 de
 las [condiciones adicionales de Antigravity](https://antigravity.google/terms)
@@ -1043,7 +1043,7 @@ El acceso requiere una cuenta Muse desconectada sin clave API prioritaria. La pl
 
 ## Pi con una clave API elegida de la bóveda { #pi-vault-key }
 
-Registra **Pi · Inception**, **Pi · DeepSeek** o **Pi · OpenRouter** con la ruta absoluta a Pi CLI **1.5.2**. En External ACP agent elige el mismo **proveedor Pi con clave de bóveda**, su clave API y una **External model ID** exacta con prefijo del proveedor, por ejemplo `deepseek/<model-id>`. Estos modos de clave API son distintos de las cuentas guardadas de Pi y de los proveedores directos de Pydantic AI.
+Registra **Pi · Inception**, **Pi · DeepSeek** o **Pi · OpenRouter** con la ruta absoluta a Pi CLI **1.5.2**. En External ACP agent elige el mismo **proveedor con clave de bóveda**, su clave API y una **External model ID** exacta con prefijo del proveedor, por ejemplo `deepseek/<model-id>`. Estos modos de clave API son distintos de las cuentas guardadas de Pi y de los proveedores directos de Pydantic AI.
 
 Solo el ordenador privado de la persona que inicia la tarea, aprobado con acceso completo, puede recibir la clave. Poder ejecutar el agente no basta: se comprueban membresía actual y visibilidad independiente de esa clave antes de cada inicio o inspección. Ejecuciones anónimas, de sala compartida o por suplantación no pueden exportarla. El registro nativo debe confirmar el mismo proveedor antes de enviar un prompt. Rotar la clave cambia el ámbito de continuación.
 

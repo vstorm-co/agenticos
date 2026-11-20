@@ -387,6 +387,8 @@ export interface LocalTarget {
     model_id?: string | null;
     /** The Desktop ACP registration an external runtime launches; builtin harnesses have none. */
     registration_id?: string | null;
+    /** A vault Gemini key for an Antigravity key registration; empty uses Desktop's own key. */
+    secret_id?: string | null;
   } | null;
   model_service?: string | null;
   mcp_services?: string[];

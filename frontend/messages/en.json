@@ -1443,6 +1443,9 @@
         "externalModelsRetry": "Read models again",
         "externalHelp": "Uses the agent's own login and settings in its CLI; no other login or billing mode is substituted. Its own tools run with local access. A listed model is not proof of entitlement or remaining quota.",
         "externalCliModels": "This agent chooses its model in its own settings.",
+        "geminiVaultKey": "Gemini API key",
+        "geminiDesktopKey": "Key inherited by Desktop (GEMINI_API_KEY)",
+        "geminiVaultUnavailable": "Your vault keys could not be listed here; the key inherited by Desktop is used.",
         "primaryRuntimeTerms": "You use your own account with this CLI. Its provider's terms may restrict use through third-party apps, and the provider may limit or suspend the account; that risk is yours.",
         "antigravityPersonalRisk": "This registration uses your Google personal sign-in. Google may limit or suspend accounts used through third-party tools; you accepted this risk when you registered it."
       },
@@ -10854,7 +10857,7 @@
         "custom": "Custom ACP program",
         "antigravityHelp": "Use the absolute agy path and the acp argument. Google personal sign-in is enforced; Gemini API keys inherited from the app environment are removed. Run agy acp --login first. In the Builder, use this ID in External ACP agent; inspect_acp_agent reads this account’s model choices. This is delegated execution. Real-account eligibility and plan limits still need verification.",
         "antigravityApi": "Antigravity · Gemini API key",
-        "antigravityKeyHelp": "Use the absolute agy path and the acp argument. Only the GEMINI_API_KEY inherited by Desktop is used, with the gemini-api-key login; a missing key refuses launch and never falls back to the saved Google sign-in. AgenticOS stores no key. Gemini API pricing and terms apply, not a Google AI subscription; usage stays unpriced in AgenticOS.",
+        "antigravityKeyHelp": "Use the absolute agy path and the acp argument. A run uses the Gemini key chosen from the vault, otherwise the GEMINI_API_KEY inherited by Desktop, with the gemini-api-key login; a missing key refuses launch and never falls back to the saved Google sign-in. Gemini API pricing and terms apply, not a Google AI subscription; usage stays unpriced in AgenticOS.",
         "antigravityRisk": "Google's Additional Terms (section 6) restrict using consumer sign-in through third-party tools, and Google may limit or suspend accounts it considers in breach. Using this template with AgenticOS agents is at your own risk; the Gemini API key template avoids it.",
         "antigravityRiskAccept": "I understand that my Google account may be limited or suspended, and I accept this risk.",
         "opencodeHelp": "Register the installed opencode executable with acp. Connect providers using opencode auth login or /connect in its TUI. inspect_acp_agent reads the current model snapshot, including delayed updates. Configure custom endpoints in OpenCode itself; AgenticOS does not copy vault keys or overwrite its files. Models may use free access, a subscription or an API balance.",

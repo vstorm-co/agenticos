@@ -305,12 +305,16 @@ fn antigravity_environment(
 pub(crate) fn provider_environment(
     command: &mut tokio::process::Command,
     provider: crate::external_agents::Provider,
+    gemini_key: Option<&GeminiKey>,
 ) -> Result<(), Refusal> {
     if matches!(
         provider,
         crate::external_agents::Provider::Antigravity | crate::external_agents::Provider::AntigravityApiKey
     ) {
-        let key = std::env::var_os("GEMINI_API_KEY");
+        // A run's selected vault key takes precedence over the key Desktop inherited.
+        let key = gemini_key
+            .map(|selected| std::ffi::OsString::from(&selected.0))
+            .or_else(|| std::env::var_os("GEMINI_API_KEY"));
         antigravity_environment(
             command,
             provider == crate::external_agents::Provider::AntigravityApiKey,
@@ -345,6 +349,35 @@ pub(crate) fn provider_environment(
         cursor_account_environment(command);
     }
     Ok(())
+}
+
+/// Vault credentials for one launch; a template accepts at most one of them.
+#[derive(Clone, Copy, Default)]
+struct Keys<'a> {
+    pi: Option<&'a pi_keys::Prepared>,
+    gemini: Option<&'a GeminiKey>,
+}
+
+/// A vault Gemini key the server exported for one Antigravity key-template launch.
+#[derive(Deserialize)]
+#[serde(try_from = "String")]
+pub(crate) struct GeminiKey(String);
+
+impl TryFrom<String> for GeminiKey {
+    type Error = &'static str;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if (8..=16384).contains(&value.len()) && value.bytes().all(|byte| (33..=126).contains(&byte)) {
+            Ok(Self(value))
+        } else {
+            Err("a printable API key")
+        }
+    }
+}
+
+impl std::fmt::Debug for GeminiKey {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("GeminiKey([redacted])")
+    }
 }
 
 /// The ACP login each template enforces before a session; `None` keeps the CLI's own choice.
@@ -406,7 +439,18 @@ fn spawn_with_pi(
     provider: crate::external_agents::Provider,
     selected: Option<&pi_keys::Prepared>,
 ) -> Result<Session, Refusal> {
-    spawn_with_bridge(program, args, cwd, path_env, provider, selected, None)
+    spawn_with_bridge(
+        program,
+        args,
+        cwd,
+        path_env,
+        provider,
+        Keys {
+            pi: selected,
+            gemini: None,
+        },
+        None,
+    )
 }
 
 fn spawn_with_bridge(
@@ -415,7 +459,7 @@ fn spawn_with_bridge(
     cwd: &Path,
     path_env: Option<String>,
     provider: crate::external_agents::Provider,
-    selected: Option<&pi_keys::Prepared>,
+    keys: Keys<'_>,
     bridge: Option<&crate::coding_runtime::Runtime>,
 ) -> Result<Session, Refusal> {
     let mut command = if let Some(runtime) = bridge {
@@ -446,14 +490,14 @@ fn spawn_with_bridge(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    provider_environment(&mut command, provider)?;
+    provider_environment(&mut command, provider, keys.gemini)?;
     if let Some(path_env) = path_env {
         command.env("PATH", path_env);
     }
-    if let Some(selected) = selected {
+    if let Some(selected) = keys.pi {
         selected.apply(&mut command);
     }
-    let cleanup = selected.map(|selected| selected.agent_dir.clone());
+    let cleanup = keys.pi.map(|selected| selected.agent_dir.clone());
     let mut child = local_work::spawn_tree(command)?;
     let stdin = child.0.stdin().take().expect("piped");
     let stdout = child.0.stdout().take().expect("piped");
@@ -560,6 +604,8 @@ struct OpenArgs {
     accepted_protocols: Vec<String>,
     #[serde(default)]
     pi_key: Option<pi_keys::SelectedKey>,
+    #[serde(default)]
+    gemini_key: Option<GeminiKey>,
     #[serde(default)]
     platform_tools: bool,
     #[serde(default)]
@@ -717,6 +763,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         supports_configuration_policy,
         accepted_protocols,
         pi_key,
+        gemini_key,
         platform_tools,
         state_scope,
         root,
@@ -861,6 +908,16 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
             "A Pi vault-key launch requires the matching native provider template and a selected vault key.",
         ));
     }
+    if gemini_key.is_some()
+        && !external
+            .as_ref()
+            .is_some_and(|item| item.provider == crate::external_agents::Provider::AntigravityApiKey)
+    {
+        return Err(Refusal::new(
+            "denied",
+            "A Gemini vault key requires the Antigravity Gemini API key template.",
+        ));
+    }
     let runtime = if agent.builtin().is_some()
         || needs_muse
         || platform_tools
@@ -953,7 +1010,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
                 &runtime.directory,
                 path_with(Path::new(&external.program)),
                 external.provider,
-                None,
+                Keys::default(),
                 platform_tools.then_some(runtime),
             )?
         } else {
@@ -981,7 +1038,10 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
                     &root,
                     path_with(Path::new(&external.program)),
                     external.provider,
-                    Some(&prepared),
+                    Keys {
+                        pi: Some(&prepared),
+                        gemini: None,
+                    },
                     runtime.as_ref().filter(|_| platform_tools),
                 );
                 if spawned.is_err() {
@@ -1010,7 +1070,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
                     &root,
                     path_with(&runtime.node),
                     external.provider,
-                    None,
+                    Keys::default(),
                     platform_tools.then_some(runtime),
                 )?
             } else {
@@ -1020,7 +1080,10 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
                     &root,
                     path_with(Path::new(&external.program)),
                     external.provider,
-                    None,
+                    Keys {
+                        pi: None,
+                        gemini: gemini_key.as_ref(),
+                    },
                     runtime.as_ref().filter(|_| platform_tools),
                 )?
             }
@@ -1032,7 +1095,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
             &runtime.directory,
             path_with(&runtime.node),
             crate::external_agents::Provider::Custom,
-            None,
+            Keys::default(),
             platform_tools.then_some(runtime),
         )?
     } else {
@@ -1075,7 +1138,7 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
         )
     });
     Ok(object(
-        serde_json::json!({ "id": id, "session_id": resumed, "auth_method": auth_method, "runtime_name": runtime_name, "model_prefix": model_prefix, "refresh_catalog": refresh_catalog, "configuration_policy": configuration_policy, "protocol": protocol, "pi_provider": pi_provider, "platform_tools_version": if platform_tools { 1 } else { 0 } }),
+        serde_json::json!({ "id": id, "session_id": resumed, "auth_method": auth_method, "runtime_name": runtime_name, "model_prefix": model_prefix, "refresh_catalog": refresh_catalog, "configuration_policy": configuration_policy, "protocol": protocol, "pi_provider": pi_provider, "gemini_key": gemini_key.is_some(), "platform_tools_version": if platform_tools { 1 } else { 0 } }),
     ))
 }
 
@@ -1596,6 +1659,31 @@ mod tests {
             Some(&Some(OsStr::new("true")))
         );
         assert!(!environment.contains_key(OsStr::new("MISTRAL_API_KEY")));
+    }
+
+    #[test]
+    fn a_vault_gemini_key_is_validated_redacted_and_wins_over_the_inherited_key() {
+        use std::ffi::OsStr;
+        assert!(serde_json::from_value::<GeminiKey>(serde_json::json!("short")).is_err());
+        assert!(serde_json::from_value::<GeminiKey>(serde_json::json!("has space-1234")).is_err());
+        let key: GeminiKey = serde_json::from_value(serde_json::json!("AIza-vault-key")).unwrap();
+        assert_eq!(format!("{key:?}"), "GeminiKey([redacted])");
+        let mut keyed = tokio::process::Command::new("agy");
+        provider_environment(
+            &mut keyed,
+            crate::external_agents::Provider::AntigravityApiKey,
+            Some(&key),
+        )
+        .unwrap();
+        let environment: std::collections::BTreeMap<_, _> = keyed.as_std().get_envs().collect();
+        assert_eq!(
+            environment.get(OsStr::new("GEMINI_API_KEY")),
+            Some(&Some(OsStr::new("AIza-vault-key")))
+        );
+        let mut account = tokio::process::Command::new("agy");
+        provider_environment(&mut account, crate::external_agents::Provider::Antigravity, Some(&key)).unwrap();
+        let environment: std::collections::BTreeMap<_, _> = account.as_std().get_envs().collect();
+        assert_eq!(environment.get(OsStr::new("GEMINI_API_KEY")), Some(&None));
     }
 
     #[test]

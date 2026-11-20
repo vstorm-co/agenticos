@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.agents.capabilities._registry import CapabilityBuildContext, CapabilityToolInfo, register
 from app.agents.capabilities.external_acp._capability import ExternalAcp
 from app.agents.capabilities.external_acp._toolset import INSPECT_DESCRIPTION, RUN_DESCRIPTION
-from app.agents.pi_keys import PiKeyProvider
+from app.agents.pi_keys import NativeKeyProvider
 from app.core.secret_kinds import PurposesByValue, SecretCondition, SecretKind, SecretRequirement
 
 
@@ -41,23 +41,20 @@ class ExternalAcpConfig(BaseModel):
         max_length=256,
         pattern=r"^\S+$",
     )
-    api_provider: PiKeyProvider | None = Field(
+    api_provider: NativeKeyProvider | None = Field(
         default=None,
-        title="Pi vault-key provider",
-        description="Optional Pi API-key lane: Inception, DeepSeek or OpenRouter. Requires the matching native key template and the initiating member's independent vault visibility. It never imports Pi's saved credentials.",
+        title="Vault-key provider",
+        description="Optional vault API key for the native runtime: Inception, DeepSeek or OpenRouter through a Pi key template, or Gemini through the Antigravity Gemini API key template. Requires the matching native template and the initiating member's independent vault visibility. It never imports a CLI's saved credentials.",
     )
 
     @model_validator(mode="after")
     def selected_key_needs_model(self) -> ExternalAcpConfig:
-        if self.api_provider is not None and (
-            not self.model_id or self.auth_method != "configured"
-        ):
-            raise ValueError(
-                "A Pi vault-key lane requires an exact provider-qualified model ID and configured authentication"
-            )
-        if self.api_provider is not None and (
-            self.model_id is None
-            or not re.fullmatch(rf"{self.api_provider}/[A-Za-z0-9._:/@+\-]+", self.model_id)
+        if self.api_provider is not None and self.auth_method != "configured":
+            raise ValueError("A vault-key lane uses the program setting for authentication")
+        if self.api_provider is None or self.api_provider == "gemini":
+            return self
+        if not self.model_id or not re.fullmatch(
+            rf"{self.api_provider}/[A-Za-z0-9._:/@+\-]+", self.model_id
         ):
             raise ValueError("The Pi model ID must belong to the selected API-key provider")
         return self
@@ -91,10 +88,10 @@ class ExternalAcpConfig(BaseModel):
     side_effecting=True,
     voice="hand_off",
     secret=SecretRequirement(
-        description="The selected Pi API key, exported only to a member with independent vault visibility and native template consent.",
+        description="The selected provider API key, exported only to a member with independent vault visibility and native template consent.",
         kind=SecretKind.API_KEY,
         required_when=SecretCondition(
-            field="api_provider", equals=("inception", "deepseek", "openrouter")
+            field="api_provider", equals=("inception", "deepseek", "openrouter", "gemini")
         ),
         purposes_by=PurposesByValue(
             field="api_provider",
@@ -102,6 +99,7 @@ class ExternalAcpConfig(BaseModel):
                 "inception": ("custom",),
                 "deepseek": ("deepseek",),
                 "openrouter": ("openrouter",),
+                "gemini": ("google",),
             },
         ),
     ),

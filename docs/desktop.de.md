@@ -1,5 +1,5 @@
 ---
-source_sha: "540b1f4e65db"
+source_sha: "9887014f4046"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -816,7 +816,7 @@ erlauben nur das Argument `acp`, und keine kopiert Token-Dateien.
 | Vorlage | Anmeldung | Abrechnung |
 | --- | --- | --- |
 | **Antigravity** | Persönliche Google-Anmeldung (`oauth-personal`). Führe zuerst `agy acp --login` aus. Geerbte Gemini-API-Schlüssel und API-/Vertex-Selektoren werden entfernt. | Dein Google-AI-Abo |
-| **Antigravity · Gemini-API-Schlüssel** | `gemini-api-key`, nur mit dem von Desktop geerbten `GEMINI_API_KEY`. Ein fehlender Schlüssel verhindert den Start; die gespeicherte Google-Anmeldung wird nie ersatzweise verwendet. AgenticOS speichert keinen Schlüssel. | Preise und Bedingungen der Gemini API |
+| **Antigravity · Gemini-API-Schlüssel** | `gemini-api-key`, mit einem für den Lauf aus dem Tresor gewählten Gemini-Schlüssel (Zweck Google Gemini oder Custom), sonst mit dem von Desktop geerbten `GEMINI_API_KEY`. Ein Tresorschlüssel erfordert deinen eigenen Sichtzugriff und erreicht nur deinen privaten Chat auf deinem eigenen Computer. Ein fehlender Schlüssel verhindert den Start; die gespeicherte Google-Anmeldung wird nie ersatzweise verwendet. | Preise und Bedingungen der Gemini API |
 
 Die erste Vorlage birgt ein Risiko für dein Google-Konto. Abschnitt 6 der
 [Antigravity-Zusatzbedingungen](https://antigravity.google/terms) beschränkt die
@@ -1057,7 +1057,7 @@ Anmelden verlangt ein abgemeldetes Muse-Konto ohne vorrangigen API-Schlüssel. D
 
 ## Pi mit gewähltem Tresor-API-Schlüssel { #pi-vault-key }
 
-Registriere **Pi · Inception**, **Pi · DeepSeek** oder **Pi · OpenRouter** mit dem absoluten Pfad zur Pi-CLI **1.5.2**. Wähle in External ACP agent denselben **Pi-Anbieter mit Tresorschlüssel**, dessen API-Schlüssel und eine genaue **External model ID** mit Anbieterpräfix, etwa `deepseek/<model-id>`. Diese API-Schlüsselmodi bleiben von gespeicherten Pi-Konten und direkten Pydantic AI-Anbietern getrennt.
+Registriere **Pi · Inception**, **Pi · DeepSeek** oder **Pi · OpenRouter** mit dem absoluten Pfad zur Pi-CLI **1.5.2**. Wähle in External ACP agent denselben **Anbieter mit Tresorschlüssel**, dessen API-Schlüssel und eine genaue **External model ID** mit Anbieterpräfix, etwa `deepseek/<model-id>`. Diese API-Schlüsselmodi bleiben von gespeicherten Pi-Konten und direkten Pydantic AI-Anbietern getrennt.
 
 Nur der private, ausdrücklich mit Vollzugriff freigegebene Computer des startenden Mitglieds darf den Schlüssel erhalten. Agentenausführungsrechte reichen nicht: aktuelle Mitgliedschaft und eigener Tresorzugriff auf diesen Schlüssel werden vor jedem Start und jeder Inspektion geprüft. Anonyme, gemeinsame Raum- und Identitätswechsel-Durchläufe dürfen ihn nicht exportieren. Die native Registrierung muss vor dem Prompt denselben Anbieter bestätigen. Schlüsselrotation verändert den Fortsetzungsbereich.
 

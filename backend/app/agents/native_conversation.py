@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import anyio
 from anyio.abc import TaskStatus
@@ -43,10 +43,13 @@ from app.agents.capabilities.coding_agent._acp import (
 )
 from app.agents.capabilities.coding_agent._harness import Access, AcpHarness, LiveItem, Said
 from app.agents.capabilities.coding_agent._narration import Narration
+from app.agents.capabilities.coding_agent._redaction import redact_text
+from app.agents.capabilities.external_acp._keys import selected_key
 from app.agents.deps import AgentDeps
 from app.agents.isolation import ToolClass
 from app.agents.model_context import check_model_context
 from app.agents.native_model_spec import current_native_context
+from app.agents.runtime_questions import RuntimeQuestionRequest, RuntimeQuestionResponse
 from app.agents.runtime_tools import RuntimeTools
 from app.schemas.local_target import NativeHarness
 from app.services.device_hub import DeviceWorkspace
@@ -136,11 +139,15 @@ class NativeConversationModel(Model):
         readonly_tools: Mapping[str, ToolClass] | None = None,
         timeout_seconds: int = 900,
         registration_id: str | None = None,
+        secret_id: UUID | None = None,
     ) -> None:
         super().__init__()
         if (harness == "external") != (registration_id is not None):
             raise AcpError("Only an external runtime runs through a Desktop registration")
+        if secret_id is not None and registration_id is None:
+            raise AcpError("Only an external runtime receives a vault key")
         self.registration_id = registration_id
+        self.secret_id = secret_id
         self.harness = harness
         self.epoch = epoch
         self.access = access
@@ -275,6 +282,7 @@ class NativeConversationModel(Model):
                 self.access,
                 self.native_model,
                 self.registration_id,
+                str(self.secret_id) if self.secret_id is not None else None,
             ]
         )
         rows = history_rows(messages)
@@ -314,6 +322,8 @@ class NativeConversationModel(Model):
             ctx, readonly_tools=(self.readonly_tools or {}) if self.access == "read_only" else None
         )
         acp_harness: AcpHarness = "custom" if self.harness == "external" else self.harness
+        # Desktop admits a Gemini vault key only for the Antigravity key template.
+        key = await selected_key(ctx, "gemini" if self.secret_id else None, self.secret_id)
         pipe = DevicePipe(
             workspace,
             acp_harness,
@@ -322,10 +332,12 @@ class NativeConversationModel(Model):
             custom_agent_id=self.registration_id,
             # Hermes keeps one home per private conversation; other runtimes ignore it.
             state_scope=private_state_scope(deps),
+            pi_key=key,
         )
         narration = Narration.for_call(deps, f"primary-runtime-{uuid4()}", acp_harness)
         said: list[str] = []
         size = 0
+        redactions = (key.api_key.get_secret_value(),) if key is not None else ()
 
         async def shown(items: list[LiveItem]) -> None:
             nonlocal size
@@ -338,10 +350,26 @@ class NativeConversationModel(Model):
                             "The native conversation answer exceeded its retention limit"
                         )
                     said.append(item.text)
-                    await text(item.text)
+                    # A key can span chunks, so a keyed run shows only the redacted whole answer.
+                    if not redactions:
+                        await text(item.text)
                 else:
                     activity.append(item)
-            await narration.shown(activity)
+            if not redactions:
+                await narration.shown(activity)
+
+        async def questions(request: RuntimeQuestionRequest) -> RuntimeQuestionResponse:
+            dumped = request.model_dump_json()
+            if any(json.dumps(value)[1:-1] in dumped for value in redactions):
+                raise AcpError(
+                    "The runtime put credential material in a human-input request. No question was shown."
+                )
+            callback = deps.runtime_questions
+            return (
+                await callback(request)
+                if callback is not None
+                else RuntimeQuestionResponse(cancelled=True)
+            )
 
         await narration.started("Primary conversation runtime")
         settled = False
@@ -369,17 +397,17 @@ class NativeConversationModel(Model):
                 configuration_policy=pipe.configuration_policy,
                 model_prefix=pipe.model_prefix,
                 remember=pipe.remember,
-                runtime_questions=deps.runtime_questions,
+                runtime_questions=questions if redactions else deps.runtime_questions,
                 platform_tools=tools,
             )
             if report.outcome != "completed" or not report.session_id:
                 raise AcpError(
                     "The native conversation did not settle successfully; check effects before resetting or continuing"
                 )
-            answer = "".join(said) or report.answer
+            answer = redact_text("".join(said) or report.answer, redactions)
             if not answer:
                 raise AcpError("The native conversation settled without a text answer")
-            if not said:
+            if not said or redactions:
                 await text(answer)
             response = ModelResponse(
                 [TextPart(answer)],

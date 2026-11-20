@@ -10,6 +10,10 @@ const options = vi.hoisted(() => ({
   current: {} as Record<string, unknown>,
   requested: [] as (string | null)[],
 }));
+const vault = vi.hoisted(() => ({
+  current: { secrets: [] as Record<string, unknown>[], listError: null as unknown },
+}));
+vi.mock("@/hooks/use-secrets", () => ({ useSecrets: () => vault.current }));
 vi.mock("@/hooks/use-desktop", () => ({
   useExternalAgentOptions: (id: string | null) => {
     options.requested.push(id);
@@ -372,5 +376,81 @@ describe("native primary conversation choice", () => {
       "agy",
       "cursor",
     ]);
+  });
+
+  it("runs an Antigravity key registration on a chosen Gemini vault key or Desktop's own", () => {
+    options.current = signedIn;
+    vault.current = {
+      secrets: [
+        { id: "g", name: "Team Gemini", kind: "api_key", purpose: "google" },
+        { id: "c", name: "Custom key", kind: "api_key", purpose: "custom" },
+        { id: "o", name: "OpenAI", kind: "api_key", purpose: "openai" },
+        { id: "s", name: "Service account", kind: "service_account", purpose: "google" },
+      ],
+      listError: null,
+    };
+    const changed = vi.fn<(target: LocalTarget) => void>();
+    render(
+      <NativeConversationControl
+        claudeEnabled
+        codexEnabled
+        externalEnabled
+        registrations={[
+          { ...agy("agy-key", "Antigravity key"), provider: "antigravity_api_key" },
+          agy("agy", "Antigravity"),
+        ]}
+        target={{
+          ...base,
+          conversation_runtime: {
+            harness: "external",
+            session_epoch: "original",
+            access: "edit",
+            registration_id: "agy-key",
+          },
+        }}
+        onChange={changed}
+      />,
+    );
+    const picker = screen.getByRole("combobox", { name: "Gemini API key" });
+    expect(Array.from((picker as HTMLSelectElement).options).map((option) => option.value)).toEqual(
+      ["", "g", "c"],
+    );
+    expect(screen.queryByText(/uses your Google personal sign-in/)).toBeNull();
+    fireEvent.change(picker, { target: { value: "g" } });
+    const picked = changed.mock.lastCall?.[0].conversation_runtime;
+    expect(picked).toMatchObject({ secret_id: "g" });
+    expect(picked?.session_epoch).not.toBe("original");
+    fireEvent.change(picker, { target: { value: "" } });
+    expect(changed.mock.lastCall?.[0].conversation_runtime?.secret_id).toBeNull();
+    fireEvent.change(screen.getByRole("combobox", { name: "Agent" }), {
+      target: { value: "agy" },
+    });
+    expect(changed.mock.lastCall?.[0].conversation_runtime).toMatchObject({
+      registration_id: "agy",
+      secret_id: null,
+    });
+  });
+
+  it("falls back to Desktop's key when the vault cannot be listed", () => {
+    vault.current = { secrets: [], listError: new Error("403") };
+    render(
+      <NativeConversationControl
+        claudeEnabled
+        codexEnabled
+        externalEnabled
+        registrations={[{ ...agy("agy-key", "Antigravity key"), provider: "antigravity_api_key" }]}
+        target={{
+          ...base,
+          conversation_runtime: {
+            harness: "external",
+            session_epoch: "original",
+            access: "edit",
+            registration_id: "agy-key",
+          },
+        }}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/key inherited by Desktop is used/)).toBeVisible();
   });
 });

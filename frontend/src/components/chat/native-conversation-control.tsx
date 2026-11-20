@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useExternalAgentOptions } from "@/hooks/use-desktop";
+import { useSecrets } from "@/hooks/use-secrets";
 import type { ExternalAgent, LocalTarget } from "@/lib/desktop/commands";
 
 type Runtime = NonNullable<LocalTarget["conversation_runtime"]>;
@@ -196,7 +197,12 @@ function ExternalChoices({
             className="mt-1"
             value={runtime.registration_id ?? ""}
             onChange={(event) =>
-              onChange({ ...runtime, registration_id: event.target.value, model_id: null })
+              onChange({
+                ...runtime,
+                registration_id: event.target.value,
+                model_id: null,
+                secret_id: null,
+              })
             }
           >
             {registrations.map((registration) => (
@@ -206,6 +212,9 @@ function ExternalChoices({
             ))}
           </NativeSelect>
         </label>
+      )}
+      {selected?.provider === "antigravity_api_key" && (
+        <VaultKeyChoice runtime={runtime} onChange={onChange} />
       )}
       {listed ? (
         <ExternalModels runtime={runtime} onChange={onChange} />
@@ -267,6 +276,45 @@ function ExternalModels({
           </Button>
         </div>
       )}
+    </>
+  );
+}
+
+/** A Gemini key from the vault for this run, or the key Desktop inherited. */
+function VaultKeyChoice({
+  runtime,
+  onChange,
+}: {
+  runtime: Runtime;
+  onChange: (runtime: Runtime) => void;
+}) {
+  const t = useTranslations("chat.controls.workOn");
+  const { secrets, listError } = useSecrets();
+  const keys = secrets.filter(
+    (secret) =>
+      secret.kind === "api_key" && (secret.purpose === "google" || secret.purpose === "custom"),
+  );
+  return (
+    <>
+      <label className="block text-xs">
+        {t("geminiVaultKey")}
+        <NativeSelect
+          aria-label={t("geminiVaultKey")}
+          className="mt-1"
+          value={runtime.secret_id ?? ""}
+          onChange={(event) => onChange({ ...runtime, secret_id: event.target.value || null })}
+        >
+          <option value="">{t("geminiDesktopKey")}</option>
+          {keys.map((secret) => (
+            <option key={secret.id} value={secret.id}>
+              {secret.name}
+            </option>
+          ))}
+        </NativeSelect>
+      </label>
+      {listError ? (
+        <p className="text-muted-foreground text-xs">{t("geminiVaultUnavailable")}</p>
+      ) : null}
     </>
   );
 }

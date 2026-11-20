@@ -269,7 +269,7 @@ async fn probe(target: Target<'_>, directory: &Path) -> Result<Options, String> 
             let mut command = tokio::process::Command::new(program);
             command.args(&registration.args);
             // The catalog must describe the same credential a session of this registration uses.
-            crate::agent_session::provider_environment(&mut command, registration.provider)
+            crate::agent_session::provider_environment(&mut command, registration.provider, None)
                 .map_err(|refusal| refusal.message)?;
             if let Some(path) = crate::agent_session::path_with(program) {
                 command.env("PATH", path);

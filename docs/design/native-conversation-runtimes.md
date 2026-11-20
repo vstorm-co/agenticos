@@ -104,7 +104,7 @@ Other clients, including T3 Code, offer the same sign-in. The account and its
 risk belong to the person, so the console states the restriction and requires an
 explicit risk acceptance before registering the personal template, and the chat
 picker repeats it. The separate Gemini API key template
-(`gemini-api-key`, Desktop-inherited `GEMINI_API_KEY`, no sign-in fallback) avoids
+(`gemini-api-key`, a vault key exported under the Pi key rules or the Desktop-inherited `GEMINI_API_KEY`, no sign-in fallback) avoids
 the restriction. Neither the switch nor the acceptance is evidence of Google's
 permission.
 

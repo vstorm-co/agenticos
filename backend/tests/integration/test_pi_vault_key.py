@@ -36,13 +36,13 @@ async def test_only_a_current_member_with_private_key_visibility_can_export_it_t
         purpose="deepseek",
         visibility=Visibility.PRIVATE,
     )
-    selected = await service.native_pi_key(
+    selected = await service.native_runtime_key(
         organization_id=organization.id, user_id=owner.id, secret_id=secret.id, provider="deepseek"
     )
     assert selected.api_key.get_secret_value() == "selected-private-key"
     for organization_id, user_id in [(organization.id, other.id), (foreign.id, foreign_owner.id)]:
         with pytest.raises(NotFoundError):
-            await service.native_pi_key(
+            await service.native_runtime_key(
                 organization_id=organization_id,
                 user_id=user_id,
                 secret_id=secret.id,
@@ -54,7 +54,7 @@ async def test_only_a_current_member_with_private_key_visibility_can_export_it_t
     await db.delete(member)
     await db.flush()
     with pytest.raises(NotFoundError):
-        await service.native_pi_key(
+        await service.native_runtime_key(
             organization_id=organization.id,
             user_id=owner.id,
             secret_id=secret.id,

@@ -42,7 +42,7 @@ from app.agents.capabilities.coding_agent._harness import (
 )
 from app.agents.deps import AgentDeps
 from app.agents.model_context import check_model_context
-from app.agents.pi_keys import PiRuntimeKey
+from app.agents.pi_keys import NativeRuntimeKey
 from app.agents.runtime_questions import RuntimeQuestionsCallback
 from app.agents.runtime_tools import RuntimeTools
 from app.agents.steering import SteeringInbox, screen_steer
@@ -166,7 +166,7 @@ class DevicePipe:
         fresh_session: bool = False,
         root: str | None = None,
         custom_agent_id: str | None = None,
-        pi_key: PiRuntimeKey | None = None,
+        pi_key: NativeRuntimeKey | None = None,
         pi_model: str | None = None,
         platform_tools: bool = False,
     ) -> None:
@@ -202,7 +202,10 @@ class DevicePipe:
             args["supports_auth_modes"] = True
             args["supports_model_constraints"] = True
             args["supports_configuration_policy"] = True
-        if self._pi_key is not None:
+        if self._pi_key is not None and self._pi_key.pi_provider is None:
+            # Desktop sets it as GEMINI_API_KEY for the Antigravity key template only.
+            args["gemini_key"] = self._pi_key.api_key.get_secret_value()
+        elif self._pi_key is not None:
             if self._pi_model is None:
                 raise AcpError("A Pi selected-key launch requires an exact model ID.")
             args["pi_key"] = self._pi_key.native_payload(self._pi_model)
@@ -232,11 +235,15 @@ class DevicePipe:
             raise AcpError("The Desktop app requires an unsupported runtime protocol.")
         self.protocol = protocol
         if self._pi_key is not None and (
-            protocol != "pi_rpc" or opened.get("pi_provider") != self._pi_key.provider
+            (self._pi_key.pi_provider is None and opened.get("gemini_key") is not True)
+            or (
+                self._pi_key.pi_provider is not None
+                and (protocol != "pi_rpc" or opened.get("pi_provider") != self._pi_key.provider)
+            )
         ):
             await self.close()
             raise AcpError(
-                "The Desktop registration did not admit this exact Pi vault-key provider. No prompt was sent."
+                "The Desktop registration did not admit this exact vault-key provider. No prompt was sent."
             )
 
         label = opened.get("runtime_name")
