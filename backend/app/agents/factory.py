@@ -22,7 +22,7 @@ from uuid import UUID
 
 from jsonschema import validators
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai import ModelRetry, StructuredDict
+from pydantic_ai import ModelRetry, StructuredDict, ToolOutput
 from pydantic_ai.capabilities import (
     AbstractCapability,
     HandleDeferredToolCalls,
@@ -848,13 +848,85 @@ def _spend_limits(
 
 
 def _output_type(schema: dict[str, Any] | None) -> OutputSpec[AgentOutput]:
-    """Text, or an object of `schema` handed back as one tool call's arguments."""
+    """Text, or an object of `schema` handed back as one tool call's arguments.
+
+    A schema a strict grammar can express keeps the provider's default, so Gemini
+    still validates every call in the request. Any other is sent non-strict:
+    Anthropic compiles a strict tool into a grammar and rejects the whole request
+    over a node it cannot express. The schema is enforced either way, because
+    `_fits_schema` sends a misshapen answer back.
+    """
     if schema is None:
         return [str, DeferredToolRequests]
     return [
-        StructuredDict(schema, name="answer", description="The answer, in the shape asked for"),
+        ToolOutput(
+            StructuredDict(schema, name="answer", description="The answer, in the shape asked for"),
+            strict=None if _grammar_expresses(schema) else False,
+        ),
         DeferredToolRequests,
     ]
+
+
+_TYPED = frozenset({"type", "$ref", "enum", "const", "anyOf", "oneOf", "allOf"})
+_GRAMMAR_KEYS = frozenset(
+    {
+        "type",
+        "$ref",
+        "enum",
+        "const",
+        "anyOf",
+        "oneOf",
+        "allOf",
+        "properties",
+        "required",
+        "additionalProperties",
+        "items",
+        "prefixItems",
+        "$defs",
+        "minItems",
+        "title",
+        "description",
+        "default",
+        "examples",
+        "deprecated",
+        "readOnly",
+        "writeOnly",
+        "$schema",
+        "$id",
+        "$anchor",
+        "$comment",
+    }
+)
+
+
+def _grammar_expresses(node: object) -> bool:
+    """Whether a provider's strict-mode grammar accepts `node` and every schema under it.
+
+    It cannot express a free JSON value (`{}`, no type at all), numeric or length
+    bounds, or `minItems` above one. Unknown keywords take the locally validated
+    non-strict path rather than hiding an unvisited child schema.
+    """
+    if not isinstance(node, dict):
+        # Draft-07 tuple-form items are outside the strict compatibility contract.
+        return node is not True and not isinstance(node, list)
+    if not _TYPED & node.keys() or node.keys() - _GRAMMAR_KEYS or node.get("minItems", 0) > 1:
+        return False
+    declared = node.get("type")
+    array = declared == "array" or (isinstance(declared, list) and "array" in declared)
+    object_ = declared == "object" or (isinstance(declared, list) and "object" in declared)
+    children: list[object] = [
+        *node.get("properties", {}).values(),
+        *node.get("$defs", {}).values(),
+        *node.get("prefixItems", []),
+        *node.get("anyOf", []),
+        *node.get("oneOf", []),
+        *node.get("allOf", []),
+        node.get("items", True) if array or "items" in node or "prefixItems" in node else None,
+        node.get("additionalProperties", True)
+        if object_ or "properties" in node or "additionalProperties" in node
+        else None,
+    ]
+    return all(_grammar_expresses(child) for child in children)
 
 
 def _fits_schema(schema: dict[str, Any]) -> Callable[[AgentOutput], AgentOutput]:

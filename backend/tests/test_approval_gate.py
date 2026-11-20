@@ -54,7 +54,7 @@ from app.agents.capabilities.approval import (
 )
 from app.agents.deps import AgentDeps
 from app.agents.factory import build_agent
-from app.agents.mcp import ACCOUNT, NEEDS_APPROVAL
+from app.agents.mcp import ACCOUNT, ALWAYS_ASKS, NEEDS_APPROVAL
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError, BadRequestError
@@ -1049,6 +1049,44 @@ class TestTheFrameThatCarriesTheMode:
         a run they think is running."""
         with pytest.raises(BadRequestError):
             requested_approval_mode({"approval_mode": "yolo"})
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("marked", [True, False])
+@pytest.mark.parametrize(
+    "tool_name",
+    ["invite_member", "update_proactivity_settings", "change_organization", "change_deployment"],
+)
+async def test_an_mcp_tool_marked_always_asks_is_asked_about_on_every_call(
+    marked: bool, tool_name: str
+) -> None:
+    """Its request is `always_asks`, so neither "approve all" nor a remembered answer runs it.
+
+    A routine's standing consent cannot release it either.
+    """
+    from app.agents.routine_actions import RoutineToolDecision
+
+    callback = AsyncMock(return_value=ApprovalPending())
+    ctx = _ctx(None)
+    ctx.deps.request_approval = callback
+    definition = _tool_def(None, name=f"agenticos_{tool_name}")
+    definition.metadata = {ALWAYS_ASKS: marked}
+    person = uuid.uuid4()
+    gate = ApprovalGate(
+        routine_policy=AsyncMock(
+            return_value=RoutineToolDecision(required=True, consented_by=person)
+        )
+    )
+    tool = _Recorder()
+    with pytest.raises(ApprovalRequired):
+        await gate.wrap_tool_execute(
+            ctx, call=_call({}), tool_def=definition, args={}, handler=tool
+        )
+    asked = callback.await_args.args[0]
+    assert asked.always_asks is marked
+    assert asked.routine_consented_by == (None if marked else person)
+    assert tool.calls == []
 
 
 @pytest.mark.anyio

@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
+from pydantic_ai import ToolOutput
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models import ModelRequestContext, ModelRequestParameters
@@ -38,6 +39,7 @@ from app.agents.factory import (
     _AUDIENCE_AWARE,
     DEFAULT_MAX_STEPS,
     BuiltAgent,
+    OutputSchemaRetry,
     _fits_schema,
     answer_text,
     build_agent,
@@ -167,14 +169,23 @@ class TestSpecContract:
         assert AgentSpec.from_yaml(spec.to_yaml()) == spec
 
     @pytest.mark.security
-    def test_the_platform_server_takes_no_approval_per_tool(self):
-        """Its calls act with the asker's own authority and never drop below
-        `writes`; a tool's `never` would be the way under that floor."""
-        with pytest.raises(ValueError, match="tool_approval"):
-            AgentSpec(
-                name="x",
-                mcp_servers=[{"account": "platform", "tool_approval": {"publish_agent": "never"}}],
-            )
+    def test_the_platform_server_releases_only_the_tools_it_names(self):
+        """Its calls act with the asker's own authority: `none` is held to `writes`
+        when the run attaches it, and a change runs unasked only where the spec
+        names that one tool `never`."""
+        spec = AgentSpec(
+            name="x",
+            mcp_servers=[
+                {
+                    "account": "platform",
+                    "approval": "none",
+                    "tool_approval": {"add_virtual_table_record": "never"},
+                }
+            ],
+        )
+
+        (platform,) = spec.mcp_servers
+        assert platform.tool_approval == {"add_virtual_table_record": "never"}
 
     def test_a_tool_cannot_be_bound_twice(self):
         """A duplicate would silently shadow itself in the toolset."""
@@ -1318,6 +1329,10 @@ _SCORE = {
 }
 
 
+def _shaped(field: dict[str, object]) -> dict[str, object]:
+    return {"type": "object", "properties": {"field": field}, "additionalProperties": False}
+
+
 class TestAStructuredAnswer:
     def test_a_spec_from_before_answers_in_text(self):
         """A verbatim stored document with no `output_schema` still loads, as prose."""
@@ -1382,6 +1397,142 @@ class TestAStructuredAnswer:
         assert result.output == {"score": 91, "tier": "hot"}
         assert result.usage.requests == 2
         assert any("score" in text for text in seen), seen
+
+    @pytest.mark.anyio
+    async def test_the_answer_tool_is_not_strict_so_a_free_json_value_is_offered(self):
+        """A strict tool's grammar refuses a schema node with no type, and the provider the request."""
+        schema = {
+            "type": "object",
+            "properties": {"path": {"type": "string"}, "value": {}},
+            "required": ["path", "value"],
+        }
+        offered = []
+
+        def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            offered.extend(info.output_tools)
+            answer = {"path": "capabilities", "value": {"id": "clock", "config": {}}}
+            return ModelResponse(
+                parts=[ToolCallPart(tool_name=info.output_tools[0].name, args=answer)]
+            )
+
+        built = build_agent(
+            AgentSpec(name="Proposer", output_schema=schema),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+        with built.agent.override(model=FunctionModel(respond)):
+            result = await built.agent.run("Propose a change", deps=built.deps)
+
+        assert [tool.strict for tool in offered] == [False]
+        assert offered[0].parameters_json_schema["properties"]["value"] == {}
+        assert result.output == {"path": "capabilities", "value": {"id": "clock", "config": {}}}
+
+    @pytest.mark.parametrize(
+        ("schema", "strict"),
+        [
+            (_SCORE, None),
+            (
+                {
+                    "$schema": "http://json-schema.org/draft-07/schema#",
+                    **_shaped(
+                        {
+                            "type": "array",
+                            "items": [{"type": "integer"}, {"type": "string", "maxLength": 2}],
+                        }
+                    ),
+                },
+                False,
+            ),
+            (
+                {
+                    "$schema": "http://json-schema.org/draft-07/schema#",
+                    **_shaped(
+                        {"type": "array", "items": [{"type": "integer"}, {"type": "string"}]}
+                    ),
+                },
+                False,
+            ),
+            (
+                _shaped(
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "patternProperties": {"^x": {"type": "string", "maxLength": 2}},
+                    }
+                ),
+                False,
+            ),
+            (
+                _shaped(
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "dependentSchemas": {"x": {"not": {"type": "string"}}},
+                    }
+                ),
+                False,
+            ),
+            (
+                _shaped(
+                    {
+                        "type": "string",
+                        "if": {"const": "x"},
+                        "then": {"maxLength": 1},
+                        "else": {"minLength": 2},
+                    }
+                ),
+                False,
+            ),
+            (_shaped({"type": "string", "not": {"const": "x"}}), False),
+            (
+                _shaped(
+                    {"type": "array", "items": {"type": "string"}, "contains": {"maxLength": 2}}
+                ),
+                False,
+            ),
+            ({"type": "object"}, False),
+            (_shaped({"type": "array"}), False),
+            (_shaped({"type": ["array", "null"]}), False),
+            (_shaped({"type": ["object", "null"]}), False),
+            (_shaped({"type": "object", "additionalProperties": True}), False),
+            (_shaped({"type": "array", "items": True}), False),
+            (_shaped({"type": "object", "additionalProperties": False}), None),
+            (_shaped({"type": "array", "items": {"type": "string"}, "minItems": 1}), None),
+            (_shaped({"type": "array", "minItems": 3}), False),
+            (_shaped({"type": "integer", "maximum": 5}), False),
+            ({"type": "object", "$defs": {"Free": {"description": "anything"}}}, False),
+            (_shaped({"anyOf": [{"type": "string"}, {"additionalProperties": {}}]}), False),
+            (
+                _shaped({"type": "array", "prefixItems": [{"type": "string", "maxLength": 9}]}),
+                False,
+            ),
+        ],
+    )
+    def test_only_a_schema_a_strict_grammar_cannot_express_turns_strict_off(self, schema, strict):
+        """Left alone, a provider validating strict tools - Gemini - checks every call."""
+        built = build_agent(
+            AgentSpec(name="Shaped", output_schema=schema),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+        answer = built.agent.output_type[0]
+        assert isinstance(answer, ToolOutput)
+        assert answer.strict is strict
+
+    def test_a_non_strict_draft7_tuple_is_still_validated_locally(self):
+        schema = {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            **_shaped(
+                {
+                    "type": "array",
+                    "items": [{"type": "integer"}, {"type": "string", "maxLength": 2}],
+                }
+            ),
+        }
+        validate = _fits_schema(schema)
+        assert validate({"field": [1, "ab"]}) == {"field": [1, "ab"]}
+        with pytest.raises(OutputSchemaRetry, match="field/1"):
+            validate({"field": [1, "too long"]})
 
     def test_a_parked_run_passes_the_schema_check_untouched(self):
         """What a parked run ends with is not an answer, and is handed on untouched."""

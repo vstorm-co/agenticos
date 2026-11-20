@@ -1,6 +1,21 @@
 """Schemas for the permission catalog and a member's effective permissions."""
 
+from uuid import UUID
+
 from app.schemas.base import BaseSchema
+
+
+class PlatformContextRead(BaseSchema):
+    """Connection metadata only; no bearer, session cookie or credential value."""
+
+    server_version: str
+    mcp_contract_version: int
+    organization_id: UUID
+    user_id: UUID | None
+    authentication: str
+    granted_scopes: list[str] | None
+    features: list[str]
+    deployment_admin: bool = False
 
 
 class PermissionEntry(BaseSchema):

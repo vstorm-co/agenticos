@@ -1,5 +1,5 @@
 ---
-source_sha: "9bc0bd6a3c5a"
+source_sha: "54b551bbe389"
 ---
 
 # Skills { #skills }
@@ -345,6 +345,13 @@ andere Fragen hinzuzufügen sind.
 - Mindestens ein Agent muss **besser** werden.
 - Ein Unterschied, den die Prüfung nicht bestätigen konnte, liegt **im
   Rauschen**: eine Warnung, keine Sperre.
+- Ein Agent, bei dem keine ganze Frage gekippt ist, aber erneutes Fragen ein
+  Kriterium als besser und keines als schlechter bestätigt hat, ist **besser bei
+  Kriterien**; einer mit einem als schlechter bestätigten Kriterium ist
+  **schlechter bei Kriterien**. Keines davon ändert die Regel oben, die ganze
+  Fragen betrifft: Im Balken zählen sie zu den besseren und den schlechteren
+  Agents, und die Details des Agents nennen jedes Kriterium mit seinen Treffern
+  vorher und nachher.
 - Ein Agent, der nicht geprüft werden konnte - keine Fragen, Fragen, die nichts
   bewerten kann oder die alle aus den Unterhaltungen der Änderung selbst stammen,
   kein Zugriff, kein Budget mehr, keine veröffentlichte Version, ein
@@ -923,7 +930,8 @@ gezählt.
 
 Das Ergebnis beginnt mit einem Balken, der die Agents zählt, die besser,
 unverändert, schlechter oder unbekannt herauskamen. Darunter steht eine Zeile pro
-Agent: besser, unverändert, im Rauschen, schlechter oder unbekannt, die wichtigsten
+Agent: besser, besser bei Kriterien, unverändert, im Rauschen, schlechter bei
+Kriterien, schlechter oder unbekannt, die wichtigsten
 zuerst. Jede Zeile hat einen kleinen Balken der behobenen gegen die
 verschlechterten Fragen.
 

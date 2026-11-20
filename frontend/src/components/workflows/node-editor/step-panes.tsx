@@ -19,7 +19,11 @@ import {
 } from "@/components/ui";
 import { NodeTile } from "@/components/workflows/node-tile";
 import { StartRunDialog } from "@/components/workflows/runs/start-run-dialog";
-import { availableSourceNodes, validateGraph } from "@/components/workflows/validation";
+import {
+  availableSourceNodes,
+  validateGraph,
+  withTableDrift,
+} from "@/components/workflows/validation";
 import { useWorkflowRuns, useWorkflowTable } from "@/hooks";
 import {
   MAX_PINNED_BYTES,
@@ -250,6 +254,7 @@ export function OutputPane({
 }) {
   const t = useTranslations("workflows");
   const tp = useTranslations("pages.workflows");
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
   const stepData = useWorkflowEditorStore((state) => state.stepData);
   const iterationData = useWorkflowEditorStore((state) => state.iterationData);
   const iteration = useWorkflowEditorStore((state) => state.editingIteration);
@@ -270,8 +275,13 @@ export function OutputPane({
   const branch = useMemo(() => testEntryGraph(graph, node.id), [graph, node.id]);
 
   const problems = useMemo(
-    () => validateGraph(graph, { items: catalog, total: catalog.length }, t),
-    [graph, catalog, t],
+    () =>
+      withTableDrift(
+        validateGraph(graph, { items: catalog, total: catalog.length }, t),
+        tableDrift,
+        t,
+      ),
+    [graph, catalog, t, tableDrift],
   );
   const data = stepDataAt(stepData, iterationData, node.id, iteration);
   const pinned = readOnly ? null : (node.pinned_output ?? null);

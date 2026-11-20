@@ -31,13 +31,15 @@ import hashlib
 import json
 import logging
 from collections import defaultdict
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import AsyncGenerator, Collection, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from itertools import batched
 from typing import Literal
 from uuid import UUID
 
+from anyio import from_thread, to_thread
 from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -92,6 +94,7 @@ from app.schemas.eval_run import (
     ArmSummaryRead,
     CaseFlipRead,
     ComparisonSide,
+    CriterionMoveRead,
     EfficiencyRead,
     EvalAttemptRead,
     EvalCallRead,
@@ -128,11 +131,16 @@ from app.services.eval_comparison import (
     ArmSummary,
     Attempt,
     CaseState,
+    Criterion,
+    CriterionComparison,
     Flip,
     Outcome,
     PairedCase,
+    PairedGrades,
+    compare_criteria,
     efficiency,
     flips_by_tag,
+    grades,
     quality_verdict,
     settle,
     summarize,
@@ -1243,7 +1251,30 @@ class EvalRunService:
                 }
             )
         estimate = self._knowledge_cost(await self._estimate(ctx, plan), proposal_check)
+        proposal_check = self._priced_check(proposal_check, estimate)
         return estimate.model_copy(update={"proposal_check": proposal_check})
+
+    @staticmethod
+    def _priced_check(
+        record: ProposalCheckRecord | None, estimate: EvalRunEstimate
+    ) -> ProposalCheckRecord | None:
+        """Freeze each arm's replacement price, including its share of judge work."""
+        if record is None:
+            return None
+        fresh = sum(arm.basis != "cached" for arm in estimate.arms)
+        judge = (
+            estimate.judge_usd / (estimate.cases * fresh)
+            if fresh and estimate.cases
+            else Decimal(0)
+        )
+        return record.model_copy(
+            update={
+                "answer_estimates_usd": [
+                    arm.cost_per_case_usd + judge if arm.basis != "cached" else Decimal(0)
+                    for arm in estimate.arms
+                ]
+            }
+        )
 
     @staticmethod
     def _knowledge_cost(
@@ -1608,6 +1639,7 @@ class EvalRunService:
                 }
             )
         estimate = self._knowledge_cost(await self._estimate(ctx, plan), proposal_check)
+        proposal_check = self._priced_check(proposal_check, estimate)
         if not estimate.affordable:
             raise PaymentRequiredError(
                 message=(
@@ -2566,6 +2598,68 @@ class EvalRunService:
             for case_id, first in firsts.items()
         }
 
+    async def _criterion_outcomes(
+        self, ctx: AuthContext, own: Sequence[EvalRunCase]
+    ) -> dict[UUID, tuple[dict[Criterion, Outcome], tuple[dict[Criterion, Outcome], ...]]]:
+        """Each case's first criterion outcomes on an arm, and its reruns' - the scorers'
+        own grades, which a person's verdict on the whole case leaves as they were."""
+        scores = await self._scores(ctx, own)
+        firsts: dict[UUID, dict[Criterion, Outcome]] = {}
+        reruns: dict[UUID, list[dict[Criterion, Outcome]]] = defaultdict(list)
+        for attempt in sorted(own, key=lambda a: a.attempt):
+            score = scores.get(attempt.case_score_id)
+            graded = grades(score.results) if score is not None else {}
+            if attempt.attempt == 0:
+                firsts[attempt.case_id] = graded
+            else:
+                reruns[attempt.case_id].append(graded)
+        return {case_id: (first, tuple(reruns[case_id])) for case_id, first in firsts.items()}
+
+    async def criterion_batches(
+        self,
+        ctx: AuthContext,
+        candidate: EvalRunArm,
+        candidate_attempts: Sequence[EvalRunCase],
+        baseline: EvalRunArm,
+        baseline_attempts: Sequence[EvalRunCase],
+        *,
+        case_ids: Sequence[UUID],
+        confirmed_here: bool = True,
+        drift: bool = False,
+    ) -> AsyncGenerator[list[tuple[UUID, PairedGrades]]]:
+        """Paired criteria in batches of 50 cases, including reused first answers.
+
+        Only attempt metadata is indexed across the run. Score JSON and grade
+        dictionaries are read and released one batch at a time on both arms.
+        """
+        mine: dict[UUID, list[EvalRunCase]] = defaultdict(list)
+        theirs: dict[UUID, list[EvalRunCase]] = defaultdict(list)
+        for attempt in await self._arm_attempts(ctx, candidate, candidate_attempts):
+            mine[attempt.case_id].append(attempt)
+        for attempt in await self._arm_attempts(ctx, baseline, baseline_attempts):
+            theirs[attempt.case_id].append(attempt)
+        for ids in batched(case_ids, 50, strict=False):
+            my_grades = await self._criterion_outcomes(
+                ctx, [attempt for case_id in ids for attempt in mine.get(case_id, ())]
+            )
+            their_grades = await self._criterion_outcomes(
+                ctx, [attempt for case_id in ids for attempt in theirs.get(case_id, ())]
+            )
+            yield [
+                (
+                    case_id,
+                    PairedGrades(
+                        baseline=their_grades[case_id][0],
+                        candidate=my_grades[case_id][0],
+                        baseline_reruns=their_grades[case_id][1] if confirmed_here else (),
+                        candidate_reruns=my_grades[case_id][1],
+                        drift=drift,
+                    ),
+                )
+                for case_id in ids
+                if case_id in my_grades and case_id in their_grades
+            ]
+
     async def compare(
         self,
         ctx: AuthContext,
@@ -2575,6 +2669,8 @@ class EvalRunService:
         baseline_run_id: UUID | None = None,
         measurement_only: bool = True,
         holdout_minimum: bool = True,
+        training_only: bool = False,
+        include_criteria: bool = True,
     ) -> EvalComparisonRead:
         """One candidate arm against its baseline.
 
@@ -2583,6 +2679,10 @@ class EvalRunService:
         of the default; it must be a run of the same agent and dataset.
         `holdout_minimum` False leaves a measured run's held-out minimum to the
         caller, which pools several runs' held-out questions into one result.
+        `training_only` compares the questions a measured run did not keep aside
+        instead, so nothing about its held-out questions is read.
+        `include_criteria` False omits criterion-grade reads for internal callers
+        that only consume whole-question outcomes.
         """
         run = await self._readable(ctx, run_id)
         return await self._comparison(
@@ -2590,8 +2690,10 @@ class EvalRunService:
             run,
             arm_id=arm_id,
             baseline_run_id=baseline_run_id,
-            measurement_only=measurement_only,
+            measurement_only=measurement_only and not training_only,
             holdout_minimum=holdout_minimum,
+            training_only=training_only,
+            include_criteria=include_criteria,
         )
 
     @staticmethod
@@ -2663,7 +2765,14 @@ class EvalRunService:
         baseline_run_id: UUID | None = None,
         measurement_only: bool = True,
         holdout_minimum: bool = True,
+        training_only: bool = False,
+        include_criteria: bool = False,
     ) -> EvalComparisonRead:
+        """Whole-question results, with criterion detail only for explicit comparisons.
+
+        Run reads, suite verdicts and review queues need no criterion-grade batches
+        or scratch aggregation. Only compare() opts into that additional work.
+        """
         arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
         candidates = [a for a in arms if a.role == ArmRole.CANDIDATE.value]
         candidate = (
@@ -2685,6 +2794,11 @@ class EvalRunService:
         candidate_attempts = await self._first_attempts(ctx, candidate, attempts)
         measured = self._measurement(run) if measurement_only else None
         allowed = None if measured is None else set(measured.holdout_case_ids)
+        if training_only:
+            kept_aside = self._measurement(run)
+            allowed = {attempt.case_id for attempt in attempts} - set(
+                () if kept_aside is None else kept_aside.holdout_case_ids
+            )
         if allowed is not None:
             mine = {key: value for key, value in mine.items() if key in allowed}
             candidate_attempts = [case for case in candidate_attempts if case.case_id in allowed]
@@ -2712,19 +2826,16 @@ class EvalRunService:
                 cases=[],
                 flips_by_tag={},
             )
-        theirs = (
-            await self.outcomes(ctx, baseline.here, attempts, overturned_by_majority=by_majority)
-            if baseline.here is not None
-            else await self.outcomes(
-                ctx,
-                baseline.arm,
-                attempts
-                if baseline.run.id == run.id
-                else await eval_run_repo.list_cases(
-                    self.db, baseline.run.id, organization_id=ctx.organization_id
-                ),
-                overturned_by_majority=by_majority,
+        their_arm = baseline.here or baseline.arm
+        their_attempts = (
+            attempts
+            if baseline.here is not None or baseline.run.id == run.id
+            else await eval_run_repo.list_cases(
+                self.db, baseline.run.id, organization_id=ctx.organization_id
             )
+        )
+        theirs = await self.outcomes(
+            ctx, their_arm, their_attempts, overturned_by_majority=by_majority
         )
         drift = drifts(run, candidate, baseline)
         confirmed_here = baseline.paired or (baseline.here is not None and not drift)
@@ -2781,6 +2892,29 @@ class EvalRunService:
             and any(case.candidate is None or case.baseline is None for case in paired_cases)
         ):
             invalid_reason = "Held-out questions remain ungraded or incomplete"
+        criteria_comparison = CriterionComparison(moves=[], change=0.0)
+        if invalid_reason is None and include_criteria:
+            batches = self.criterion_batches(
+                ctx,
+                candidate,
+                attempts,
+                their_arm,
+                their_attempts,
+                case_ids=common,
+                confirmed_here=confirmed_here,
+                drift=drift,
+            )
+
+            def paired_grades() -> Iterator[PairedGrades]:
+                # The worker owns scratch I/O; database reads resume on this event
+                # loop one bounded batch at a time, never on the SQLite thread.
+                while (batch := from_thread.run(anext, batches, None)) is not None:
+                    yield from (pair for _, pair in batch)
+
+            try:
+                criteria_comparison = await to_thread.run_sync(compare_criteria, paired_grades())
+            finally:
+                await batches.aclose()
         quality = quality_verdict(
             paired_cases, alpha=settings.EVAL_SIGNIFICANCE, invalid=invalid_reason is not None
         )
@@ -2860,6 +2994,21 @@ class EvalRunService:
                 tag: {flip.value: n for flip, n in counts.items()}
                 for tag, counts in flips_by_tag(paired_cases).items()
             },
+            criteria=[
+                CriterionMoveRead(
+                    scorer=move.scorer,
+                    name=move.name,
+                    graded=move.graded,
+                    baseline_passed=move.baseline_passed,
+                    candidate_passed=move.candidate_passed,
+                    fixed_confirmed=move.fixed_confirmed,
+                    broken_confirmed=move.broken_confirmed,
+                    fixed_unconfirmed=move.fixed_unconfirmed,
+                    broken_unconfirmed=move.broken_unconfirmed,
+                )
+                for move in criteria_comparison.moves
+            ],
+            criterion_change=criteria_comparison.change,
         )
 
     async def _first_attempts(

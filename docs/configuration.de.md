@@ -1,5 +1,5 @@
 ---
-source_sha: "56518dc39bab"
+source_sha: "e0cd056f3fa1"
 ---
 
 # Konfiguration { #configuration }
@@ -102,18 +102,19 @@ Hinter einer Session ist das kaum ein Risiko; auf
 `POST /api/v1/embed/{key}/files`, das eine fremde Person mit einem Link erreichen
 kann, schon.
 
-Eine Anfrage, die eine `Content-Length` größer als `MAX_UPLOAD_SIZE_MB` plus
-5 MiB Zuschlag für den Multipart-Umschlag angibt, wird deshalb mit **413**
-beantwortet, bevor ihr Body gelesen wird. Es gibt keine Einstellung dafür: Sie
-folgt `MAX_UPLOAD_SIZE_MB`, weil eine zweite Zahl, die mit der ersten Schritt
-halten muss, eine Zahl ist, die irgendwann darunter liegt.
+Eine Anfrage mit einer `Content-Length` über dem größten Wert aus
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` und
+`ML_MAX_UPLOAD_SIZE_MB` plus 5 MiB für den Multipart-Rahmen erhält **413**, bevor
+ihr Body gelesen wird. Diese Grenze folgt den Upload-Einstellungen automatisch.
 
-**Es ist die billige Hälfte der Antwort, nicht die ganze.** `Content-Length`
-setzt die aufrufende Seite, und eine Chunked-Anfrage gibt gar keine an — die
-werden durchgelassen und durch die Caps je Route begrenzt, die echte Bytes
-messen. Ein Deployment, das die Garantie statt der Höflichkeit will, setzt
-`client_max_body_size` (nginx) oder das Äquivalent an dem, was seine Verbindungen
-terminiert; die Compose-Dateien starten uvicorn ohne eine eigene solche Grenze.
+`Content-Length` stammt vom Client; Chunked-Anfragen geben keine Länge an und
+unterliegen den Grenzen der jeweiligen Route, die tatsächliche Bytes messen.
+Setzen Sie zusätzlich eine Body-Grenze im Reverse Proxy. Bei Nginx ist das auch
+nötig, um Uploads über dem Standard von 1 MiB zu erlauben: Die Vorlage setzt
+`client_max_body_size 55m;` auf dem API-Host und für Multipart-Upload-Locations
+der Konsole. Konsolenseiten, Authentifizierung und gewöhnliches JSON behalten
+die Grenze von 1 MiB. Erhöhen Sie beide Upload-Grenzen mit dem größten Upload-Limit. Siehe [Nginx-Deployment](deploy.md#option-b-nginx).
+Die Compose-Dateien starten uvicorn ohne eigene Body-Grenze.
 
 ## Authentifizierung { #authentication }
 

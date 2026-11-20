@@ -49,7 +49,8 @@ import {
   resourcePin,
 } from "@/components/workflows/canvas/node-resource";
 import { usePanelStore } from "@/components/workflows/property-panel/store-bridge";
-import { validateGraph } from "@/components/workflows/validation";
+import { validateGraph, withTableDrift } from "@/components/workflows/validation";
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { DIALOG_COLUMN, DIALOG_FORM, DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import { canSwitchOff } from "@/lib/workflows/switch-off";
@@ -91,6 +92,7 @@ export function NodeEditorDialog({
 }: NodeEditorDialogProps) {
   const t = useTranslations("workflows");
   const store = usePanelStore();
+  const tableDrift = useWorkflowEditorStore((state) => state.tableDrift);
   const graph = store.graph;
   const node = graph?.nodes.find((candidate) => candidate.id === store.editingNodeId) ?? null;
   const catalogIndex: NodeCatalog = useMemo(
@@ -98,8 +100,9 @@ export function NodeEditorDialog({
     [catalog],
   );
   const problems = useMemo(
-    () => (graph === null ? [] : validateGraph(graph, catalogIndex, t)),
-    [graph, catalogIndex, t],
+    () =>
+      graph === null ? [] : withTableDrift(validateGraph(graph, catalogIndex, t), tableDrift, t),
+    [graph, catalogIndex, t, tableDrift],
   );
 
   const [tab, setTab] = useState("parameters");

@@ -1,5 +1,5 @@
 ---
-source_sha: "56518dc39bab"
+source_sha: "e0cd056f3fa1"
 ---
 
 # Configuración { #configuration }
@@ -102,18 +102,21 @@ cuerpo ya se ha volcado a un archivo temporal y se ha leído en memoria. Detrás
 una sesión eso no es gran riesgo; en `POST /api/v1/embed/{key}/files`, que puede
 alcanzar un desconocido con un enlace, sí lo es.
 
-Por eso una petición que declara un `Content-Length` mayor que
-`MAX_UPLOAD_SIZE_MB` más un margen de 5 MiB para el sobre multipart se responde con
-**413** antes de leer su cuerpo. No hay ajuste: sigue a `MAX_UPLOAD_SIZE_MB`,
-porque un segundo número que hay que mantener a la par del primero es un número que
-acaba por debajo de él.
+Una petición con `Content-Length` superior al mayor de
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` y
+`ML_MAX_UPLOAD_SIZE_MB`, más 5 MiB para el formato multipart, recibe **413** antes
+de leer su cuerpo. Este límite sigue automáticamente los ajustes de carga.
 
-**Es la mitad barata de la respuesta, no la respuesta entera.** El `Content-Length`
-lo pone quien llama, y una petición chunked no declara ninguno — esas pasan y
-quedan acotadas por los topes por ruta, que miden bytes reales. Un despliegue que
-quiera la garantía y no la cortesía fija `client_max_body_size` (nginx) o el
-equivalente en lo que termine sus conexiones; los archivos compose ejecutan uvicorn
-sin un límite propio.
+El cliente proporciona `Content-Length`; las peticiones chunked no declaran
+longitud y quedan sujetas a los límites por ruta que miden los bytes reales.
+Fija también un límite en el proxy para esas peticiones. En Nginx es necesario
+además para permitir cargas por encima del valor predeterminado de 1 MiB:
+la plantilla fija `client_max_body_size 55m;` en el host de la API y las rutas
+multipart de la consola. Las páginas de la consola, la autenticación y el JSON
+ordinario conservan el límite de 1 MiB. Sube ambos límites de carga al aumentar
+el mayor ajuste. Consulta el
+[despliegue con Nginx](deploy.md#option-b-nginx). Compose ejecuta uvicorn sin
+un límite de cuerpo propio.
 
 ## Autenticación { #authentication }
 

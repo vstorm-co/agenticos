@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.agents.model_resolver import PROVIDERS, ModelApi, is_decision_api
 from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require
-from app.api.public_api import PUBLIC
+from app.api.public_api import ASSISTANT, PUBLIC
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.field_errors import refused_field
 from app.core.permissions import Perm
@@ -66,7 +66,7 @@ router = APIRouter()
 @router.get(
     "/catalog",
     response_model=ProviderCatalog,
-    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+    dependencies=[ASSISTANT, Depends(require(Perm.AGENTS_VIEW))],
 )
 async def list_provider_catalog() -> Any:
     """Every provider a credential can be stored for, and what it needs.
@@ -114,7 +114,7 @@ async def list_model_profiles(service: ModelProfileSvc, ctx: Auth) -> Any:
     "/model-profiles",
     response_model=ModelProfileRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+    dependencies=[ASSISTANT, Depends(require(Perm.CONNECTIONS_MANAGE))],
 )
 async def create_model_profile(
     data: ModelProfileCreate, service: ModelProfileSvc, ctx: Auth
@@ -137,7 +137,7 @@ async def create_model_profile(
 @router.patch(
     "/model-profiles/{profile_id}",
     response_model=ModelProfileRead,
-    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+    dependencies=[ASSISTANT, Depends(require(Perm.CONNECTIONS_MANAGE))],
 )
 async def update_model_profile(
     profile_id: UUID, data: ModelProfileUpdate, service: ModelProfileSvc, ctx: Auth

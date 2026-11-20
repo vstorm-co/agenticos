@@ -21,7 +21,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 from pydantic import JsonValue
 from sqlalchemy import (
@@ -155,12 +155,21 @@ class StopReason(StrEnum):
     EXPIRED = "expired"
     """Nobody took the next step or decided for seven days."""
 
+    CRITERIA_WORSE = "criteria_worse"
+    """No question broke, but a criterion the check confirmed got worse."""
+
 
 class ImprovementVerdict(StrEnum):
     """How a round's candidate compared with the base on the pinned dataset."""
 
     BETTER = "better"
+    CRITERIA_BETTER = "criteria_better"
+    """No question flipped, and criteria the check confirmed got better while none got worse."""
+
     NO_CHANGE = "no_change"
+    CRITERIA_WORSE = "criteria_worse"
+    """No question broke, and a criterion the check confirmed got worse."""
+
     REGRESSION = "regression"
     INCONCLUSIVE = "inconclusive"
 
@@ -182,10 +191,26 @@ class DroppedHunk(TypedDict):
     reason: str
 
 
+class CriterionDetail(TypedDict):
+    """One criterion's counts on a round's held-out questions, and who it was put down to."""
+
+    scorer: str
+    name: str
+    graded: int
+    before: int
+    after: int
+    fixed: int
+    broken: int
+    skill: NotRequired[str]
+    skill_id: NotRequired[str]
+    """The skill the session's improver put a criterion that still fails down to."""
+
+
 class VerdictDetail(TypedDict, total=False):
     """The counts behind a round's verdict - never a question's or an answer's text."""
 
     fixed: int | None
+    criterion_change: float
     crashed: int
     gradable_holdout: int
     held_out: int | None
@@ -198,6 +223,7 @@ class VerdictDetail(TypedDict, total=False):
     baseline_pass_rate: float | None
     suite: str | None
     reason: str | None
+    criteria: list[CriterionDetail]
 
 
 class ImprovementRun(Base):

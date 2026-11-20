@@ -43,6 +43,7 @@ from sqlalchemy import (
     or_,
     select,
     text,
+    true,
     tuple_,
     union_all,
     update,
@@ -331,11 +332,14 @@ async def get_schema_version(
 
 
 async def list_schema_versions(
-    db: AsyncSession, *, table_id: UUID
+    db: AsyncSession, *, table_id: UUID, version: int | None = None
 ) -> list[VirtualTableSchemaVersion]:
     result = await db.execute(
         select(VirtualTableSchemaVersion)
-        .where(VirtualTableSchemaVersion.table_id == table_id)
+        .where(
+            VirtualTableSchemaVersion.table_id == table_id,
+            VirtualTableSchemaVersion.version == version if version is not None else true(),
+        )
         .order_by(VirtualTableSchemaVersion.version.asc())
     )
     return list(result.scalars().all())

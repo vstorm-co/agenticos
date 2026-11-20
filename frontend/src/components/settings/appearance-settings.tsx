@@ -49,9 +49,8 @@ function Setting({
  * How the console looks and moves for this person: the theme, the style, the
  * voice glow, Motion preference and how workflow steps are drawn, side by side.
  *
- * All four are kept in this browser rather than on the account, like the
- * theme always was, so each applies the moment it is picked and there is
- * nothing to save. Gated on `useMounted` for the reason the account menu's
+ * Theme and style synchronize with the account; voice glow, Motion and node
+ * style remain local to this browser. Every choice applies immediately. Gated on `useMounted` for the reason the account menu's
  * Appearance submenu is: the stored values are unknown on the server, so
  * before hydration nothing is shown as checked.
  *

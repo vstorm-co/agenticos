@@ -1241,10 +1241,10 @@
     "autosaveSaved": "Kaydedildi",
     "autosaveConflict": "Taslak başka yerde değiştirildi",
     "autosaveError": "Kaydedilemedi — yeniden denenecek",
-    "conflictTitle": "Bu taslak başka yerde değiştirildi",
-    "conflictBody": "Siz açtıktan sonra biri bu workflow’u düzenledi. Üzerine yazarsanız değişiklikleriniz korunur; yeniden yüklerseniz en son kaydedilen taslakla değiştirilir.",
-    "conflictOverwrite": "Üzerine yaz",
-    "conflictReload": "Yeniden yükle",
+    "conflictTitle": "Bu workflow’u başka biri de düzenledi",
+    "conflictBody": "Siz düzenlerken değişiklikler kaydedildi. Değişikliklerinizi koruyun ya da diğer sürümü yükleyip kaydedilmemiş düzenlemelerinizi bırakın.",
+    "conflictOverwrite": "Değişikliklerimi koru",
+    "conflictReload": "Diğer sürümü yükle",
     "publish": "Yayımla",
     "publishDescription": "Geçerli taslağı çalıştırılabilir, değişmez bir sürüm olarak sabitler.",
     "publishNoteLabel": "Sürüm notu",
@@ -1361,8 +1361,9 @@
     "pickerColumnsLabel": "Sütunlar",
     "pickerColumnsLoading": "Sütunlar yükleniyor…",
     "pickerColumnsAll": "Tüm sütunlar",
-    "pickerSchemaChanged": "Bu tabloya bağlandığınızdan beri şeması değişti.",
-    "pickerRebind": "Geçerli şemaya yeniden bağla",
+    "pickerSchemaChanged": "Bu tabloya bağlandığınızdan beri şeması değişti. Güncelleme seçtiğiniz sütunları korur.",
+    "pickerRebind": "Geçerli şemaya güncelle",
+    "pickerRebindDropped": "{count, plural, one {Seçilen # sütun artık yok ve kaldırılacak.} other {Seçilen # sütun artık yok ve kaldırılacak.}}",
     "pickerSecretLabel": "Secret",
     "pickerSecretPlaceholder": "Bir secret seçin",
     "pickerSecretsEmpty": "Henüz secret saklanmamış.",
@@ -1483,6 +1484,8 @@
     "toolbarAddStep": "Adım ekle",
     "toolbarReady": "Sorun yok",
     "toolbarProblemsHint": "İlgili adımı açmak için bir sorun seçin.",
+    "toolbarTablesChanged": "{count, plural, one {# adım sütunları değişen bir tabloyu okuyor.} other {# adım sütunları değişen tabloları okuyor.}} Güncelleme, hâlâ var olan tüm seçili sütunları korur.",
+    "toolbarRebindTables": "Geçerli şemaya güncelle",
     "nodeEditorDelete": "Adımı sil",
     "nodeEditorDone": "Bitti",
     "menuOpenSettings": "Ayarları aç",
@@ -1675,7 +1678,9 @@
     "notificationInApp": "Uygulama içi bildirim",
     "notificationEmail": "E-posta",
     "notificationChannelHint": "Her kişinin bildirim tercihleri geçerliliğini korur.",
-    "fileBindingHint": "Data ile önceki bir adımdan dosya seçin. Türü ve boyutu otomatik eklenir. Yapıştırılan metni dönüştürmek için önce Text to file adımı ekleyin."
+    "fileBindingHint": "Data ile önceki bir adımdan dosya seçin. Türü ve boyutu otomatik eklenir. Yapıştırılan metni dönüştürmek için önce Text to file adımı ekleyin.",
+    "problemTableSchemaChanged": "Bu tablo adım kurulduktan sonra değişti: okuduğu bir sütun kaldırıldı ya da türü değişti. Geçerli şemaya güncelleyin ve bu adımı neyin okuduğunu kontrol edin.",
+    "problemTableDependenciesChanged": "Tablo şemasını güncellemeden önce bu adımdaki değişen filtreleri, sıralamayı ve değer bağlamalarını kaldırın veya değiştirin."
   },
   "tables": {
     "cells": {
@@ -2469,7 +2474,9 @@
     "disconnected": "Uygulamanın bağlantısı kesildi",
     "couldNotLoad": "Bağlı uygulamalar yüklenemedi",
     "emptyTitle": "Bağlı uygulama yok",
-    "emptyWhy": "AgenticOS'u Claude Code'a veya başka bir MCP client'a ekleyip oturum açın; burada görünür."
+    "emptyWhy": "AgenticOS'u Claude Code'a veya başka bir MCP client'a ekleyip oturum açın; burada görünür.",
+    "deploymentAdminTitle": "Tüm kurulumu yönet",
+    "deploymentAdminHint": "Seçilen kuruluşun ötesindeki kurulum ayarlarına ve güncellemelere izin verir. deployment:admin kapsamını yalnızca uygulama yöneticisi verebilir; kuruluş profillerine dahil edilmez."
   },
   "pages": {
     "retention": {
@@ -4184,6 +4191,8 @@
       "exposureManualDescription": "Bir kişi editörde Run düğmesiyle veya run sayfasında Start a run seçeneğiyle başlatır.",
       "runDraft": "Taslağı test et",
       "runHint": "Yayımlanmış sürüm yerine taslağı çalıştırır (Ctrl veya Cmd + Enter)",
+      "runPinnedCount": "{count, plural, one {# adım sabitlendi} other {# adım sabitlendi}}",
+      "runPinnedHint": "Bu adımlar testte çalışmaz; bunun yerine sabitlenmiş test verilerini aktarır. {steps}",
       "runNeedsSteps": "Önce bir adım ekleyin",
       "runBlockedByProblems": "{count, plural, one {Önce # sorunu çözün} other {Önce # sorunu çözün}}",
       "liveRunTitle": "Deneme run'ı",
@@ -6214,7 +6223,8 @@
     "comparing": "Karşılaştırılıyor",
     "configurationSchema": "Yapılandırma şeması",
     "advancedSettings": "Gelişmiş ayarlar",
-    "connectedOnly": "Yalnızca bağlı olanlar",
+    "connectedOnly": "Kuruluş bağlantıları",
+    "boundToAgentOnly": "Bu agent'a bağlı",
     "connectionNoLongerAllows": "Bu bağlantı artık <code>{runtime}</code> runtime'ına izin vermiyor. İzin verilen bir runtime seçin; yoksa Agent ilk tool çağrısında başarısız olur.",
     "connectionSDefault": "Bağlantının varsayılanı",
     "connectionSDefaultIs": "Bağlantının varsayılanı - {alias}",
@@ -6788,6 +6798,8 @@
     "loadTools": "Tool'larını yükle",
     "toolsAfterConnecting": "{name} hesabı bağlandığında tool'ları listelenir.",
     "toolsSearch": "Tool'larda ara",
+    "toolsAddNew": "Sunucunun sonradan eklediği tool'ları ekle",
+    "toolsAddNewHint": "{state, select, on {Sunucunun sonradan eklediği bir tool bu agent'a kendiliğinden ulaşır.} narrowed {Agent yalnızca burada seçilen tool'ları tutar. Bunu açmak için tüm tool'ları seçin.} other {Agent yalnızca burada listelenen tool'ları tutar; sonradan eklenen bir tool dışarıda kalır.}}",
     "eachPersonsOwnAccountShort": "Herkes kendi hesabını bağlar; API key'leri, widget veya rutinler için uygun değildir.",
     "connectYours": "Kendi hesabınızı bağlayın",
     "cardOrganizationsAccount": "Kuruluşun hesabı · {name}",
@@ -6856,11 +6868,9 @@
     "platformAsWhoeverAsks": "İstekte bulunan kişi olarak işlem yapar",
     "platformActsAsWhoeverAsks": "Her tool, Agent'ın adına çalıştığı kişinin tam olarak kendi izinleriyle işlem yapar. Yeni izin verilmez: kişinin console'da yapamadığını Agent da burada yapamaz.",
     "platformUseIt": "Bu Agent'ta kullan",
-    "platformApproval": "Onay",
-    "platformWritesHint": "Okuma ücretsizdir; oluşturma, çalıştırma veya değiştirme için kişinin onayı beklenir.",
-    "platformAllHint": "Okuma dahil her çağrı onay bekler.",
-    "platformTools": "Bu Agent'ın çağırabileceği tool'lar",
-    "platformWritesBadge": "değişiklik yapar",
+    "toolChangesSomething": "Değişiklik yapar",
+    "platformSomeRunFreely": "Bazı araçlar sormadan çalışır",
+    "platformToolGroup": "{group, select, tables {Tablolar} tasks {Görevler ve Inbox} workflows {Workflow'lar} agents {Agent'lar} knowledge {Bilgi tabanları ve bağlam} skills {Skill'ler} projects {Projeler} automations {Rutinler ve izlemeler} apps {Uygulamalar} runs {Run'lar, konuşmalar ve harcama} connections {Bağlantılar} account {Organizasyon ve hesap} administration {Yönetim} other {Diğer}}",
     "platformRemove": "Bu Agent'tan kaldır",
     "voiceTitle": "Voice",
     "voiceDescription": "İnsanların bu Agent'la konuşma yolları: canlı voice call veya konuşmayı metne çeviren dikte. Agent yayınlandığında etkinleşir.",
@@ -7009,8 +7019,8 @@
     "newStarter": "Yeni ilk mesaj",
     "newStarterPlaceholder": "Size nasıl yardımcı olabilirim?",
     "addStarter": "Ekle",
+    "platformAlwaysAsksBadge": "her zaman sorar: burada kimin yetkisi olduğunu değiştirir",
     "platformUngatedBadge": "kendi ayarınız, onay istemez",
-    "platformHeldBadge": "önceki konuşmaları okur, önce sorar",
     "noKeyForEndpoint": "Key yok - endpoint gerektirmiyor",
     "notAChatModel": "chat modeli değil",
     "notAChatModelHint": "{model} chat modeli değildir; metinden konuşma, transkripsiyon, görsel veya embedding içindir ve Agent bununla çalışamaz. Yayınlamadan önce chat modeli seçin.",
@@ -11119,25 +11129,33 @@
       "title": "Eylem izni",
       "description": "Rutin eylemleri varsayılan olarak onay ister. Yalnızca listelenen eylemlere sormadan çalışma izni verin. İzin, bu yayımlanmış sürüm ve rutin yapılandırması için geçerlidir; agent tarafından zorunlu tutulan onaylar geçerlidir. Her MCP eylemi yalnızca belirtilen hesaba uygulanır.",
       "retry": "Yeniden dene",
-      "notAllowed": "Onay yetkileriniz ve organizasyonun kalıcı izin ayarı istisnalara izin vermelidir. Tüm izinleri yine de iptal edebilirsiniz.",
+      "notAllowedPermission": "Onayları karara bağlama izniniz olmadığından bu rutine kalıcı onay veremezsiniz. Bir kuruluş yöneticisine başvurun. Tüm onayları yine de iptal edebilirsiniz.",
+      "notAllowedOrganization": "Kuruluşunuz kalıcı onayı kapattığı için bu rutin onayları atlayamaz. Budget ve approvals bölümünden açılabilir. Tüm onayları yine de iptal edebilirsiniz.",
+      "openApprovalSettings": "Onay ayarlarını aç",
       "empty": "Bu sürümde burada yetkilendirilebilecek eylem yok.",
-      "required": "Agent onayı gerekli",
       "revokeAll": "Tümünü iptal et",
       "save": "İzni kaydet",
       "search": "Eylemleri ara",
-      "selectAll": "İzin verilebilir tüm eylemleri seç",
-      "bulkScope": "Toplu seçim, aramada gizlenenler dahil tüm grubu veya listeyi kapsar. Zorunlu onaylar geçerliliğini korur.",
       "selectGroup": "{name} içindeki izin verilebilir eylemleri seç",
       "noMatches": "Aramayla eşleşen eylem yok.",
       "reselectPrevious": "Daha önce incelenen eylemleri yeniden seç",
-      "selected": "{count, plural, =1 {1 eylem seçildi} other {# eylem seçildi}} · sınır {limit}",
       "tooMany": "{count} eylem seçildi; sınır {limit}. Kaydetmeden önce bazı eylemlerin seçimini kaldırın.",
       "changed": {
         "version": "Yayımlanan agent sürümü değişti. Eylemlerini yeniden inceleyin.",
         "intent": "Rutinin işi veya hedefi değişti. Eylemleri yeniden inceleyin.",
         "instructions": "Skill, context veya proje talimatları değişti. Eylemleri yeniden inceleyin.",
         "actions": "Önceden seçilen bazı eylemler kullanılamıyor, onay gerektiriyor veya hesap yetkilendirmesi değişmiş. Bunlar yeniden seçilmez."
-      }
+      },
+      "capabilitiesSection": "Capabilities",
+      "groupCount": "{selected} / {total}",
+      "useAgent": "Agent ayarlarını kullan",
+      "useAgentHint": "Bu agent'ın sohbette zaten sormadan çalıştırdığı eylemleri tam olarak seçer ve mevcut seçimin yerine koyar. Buradaki onay yalnızca agent ayarlarının izin verdiğini daraltabilir, asla genişletmez: agent'ın önce sorduğu bir eylem sunulmaz. Onayı kaydet seçilene kadar hiçbir şey kaydedilmez.",
+      "allowHeading": "Bu eylemlerin onay istemeden çalışmasına izin ver"
+    },
+    "sourceConsents": {
+      "kind": "{kind, select, capability {Capabilities} skill {Skill'ler} context {Bağlam dosyaları} knowledge {Bilgi tabanları} table {Tablolar} delegate {Delege agent'lar} remote_agent {Uzak agent'lar} platform {Platform} mcp_account {MCP hesapları} chat_connection {Sohbet bağlantıları} phone {Telefon} terminal_account {Terminal hesapları} terminal_credential {Terminal kimlik bilgileri} event_source {Olay kaynağı} other {Diğer}}",
+      "kindCount": "{name} ({count})",
+      "unnamed": "Artık kullanılamıyor"
     }
   },
   "teams": {
@@ -12919,7 +12937,7 @@
     "needsModel": "Henüz modeli yok; bu nedenle yanıt veremez. Agent Builder’daki Model bölümünden bir model seçin."
   },
   "appearance": {
-    "description": "Konsolun sizin için nasıl görünüp davrandığı. Bu tarayıcıda saklanır ve hemen uygulanır.",
+    "description": "Tema, stil ve dil hesabını takip eder. Hareket ve efektler bu tarayıcıda kalır; seçimler hemen uygulanır.",
     "theme": "Tema",
     "voiceGlowHint": "Dikte sırasında sohbet kutusunun sesinize nasıl tepki vereceği",
     "motion": "Hareket",
@@ -16712,7 +16730,10 @@
     "failedSignals": "Değerlendirilmemiş başarısız çalıştırmalar",
     "reviewedSignals": "Diğer incelenmiş test yanıtları",
     "noLearningExamples": "Henüz öğrenilecek bir şey yok: son 30 günde okunabilir kaynak örneği bulunmuyor. Bir yanıtı değerlendirin veya test sorularını çalıştırıp inceleyin.",
-    "sessionQuote": "{answers, plural, one {# seçili kaynak örneğini} other {# seçili kaynak örneğini}} sıralamak için en fazla {cost} (tahmini). Sonraki her deneme yaklaşık {minutes, plural, one {# dakika} other {# dakika}} sürer ve yaklaşık {perRound} tutar; başlamadan önce yeniden fiyatlandırılır. {limit} sınırı tüm oturum içindir."
+    "sessionQuote": "{answers, plural, one {# seçili kaynak örneğini} other {# seçili kaynak örneğini}} sıralamak için en fazla {cost} (tahmini). Sonraki her deneme yaklaşık {minutes, plural, one {# dakika} other {# dakika}} sürer ve yaklaşık {perRound} tutar; başlamadan önce yeniden fiyatlandırılır. {limit} sınırı tüm oturum içindir.",
+    "resultDecision": {
+      "criteriaBetter": "Deneme {number}, {agent} için bazı değerlendirme ölçütlerini iyileştirdi; hiçbir sorunun genel sonucu değişmedi."
+    }
   },
   "personalModelKeys": {
     "copilot": {

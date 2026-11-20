@@ -140,3 +140,44 @@ async def test_review_lookup_is_tenant_scoped_and_ignores_unrelated_checks(db):
         )
         == []
     )
+
+
+@pytest.mark.security
+async def test_eval_verdict_admission_precedes_writes_and_preserves_dataset_grants(db):
+    from app.core.exceptions import RateLimitError
+    from app.core.permissions import OrgRoleName
+    from app.db.models.resource_grant import GrantLevel
+    from app.repositories import resource_grant_repo
+    from app.services import rate_limit
+    from app.services.access import DATASET
+    from tests.integration.test_authoring import _member
+
+    ctx, _, ready = await _ready_proposal(db)
+    check_id = ready.iterations[0].eval_run_ids[-1]
+    score = next(score for role, _, score in await _scores(db, check_id) if role == "candidate")
+    before = score.human_passed
+    child = await db.get(EvalRun, check_id)
+    cached = child.outcome
+    service = ScoringService(db)
+    async with rate_limit.eval_computation(ctx):
+        with pytest.raises(RateLimitError):
+            await service.set_verdict(ctx, ready.dataset_id, score.id, CaseVerdict(passed=False))
+        await db.refresh(score)
+        await db.refresh(child)
+        assert score.human_passed is before and child.outcome == cached
+    member = await _member(db, ctx, OrgRoleName.MEMBER)
+    await resource_grant_repo.upsert(
+        db,
+        organization_id=ctx.organization_id,
+        subject_user_id=member.user_id,
+        resource_type=DATASET.key,
+        resource_id=ready.dataset_id,
+        level=GrantLevel.EDIT,
+        created_by_user_id=ctx.user_id,
+    )
+    changed = await service.set_verdict(
+        member, ready.dataset_id, score.id, CaseVerdict(passed=False)
+    )
+    assert changed.human_passed is False and changed.answer is None
+    await db.refresh(score)
+    assert score.human_passed is False

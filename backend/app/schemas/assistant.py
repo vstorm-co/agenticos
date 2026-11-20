@@ -47,6 +47,15 @@ class AssistantRead(BaseSchema):
     can_configure: bool = Field(description="Whether the caller may change its settings")
 
 
+class AssistantConfigurationRead(BaseSchema):
+    """Configuration only; reading it never installs or refreshes shipped agents."""
+
+    installed: bool
+    agent_id: UUID | None = None
+    enabled: bool | None = None
+    greeting: str | None = None
+
+
 class AssistantUpdate(BaseSchema):
     """What the organization decides about its assistant that is not the agent's own.
 

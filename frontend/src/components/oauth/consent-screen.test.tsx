@@ -70,7 +70,7 @@ describe("ConsentScreen", () => {
     expect(screen.getByText(/127\.0\.0\.1:33418/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Allow" }));
 
-    expect(current.approve.mutateAsync).toHaveBeenCalledWith(["agents:view"]);
+    expect(current.approve.mutateAsync).toHaveBeenCalledWith({ scopes: ["agents:view"] });
     expect(assign).toHaveBeenCalledWith("http://cb?code=x");
   });
 
@@ -134,4 +134,47 @@ it("freezes organization and chosen permissions during an answer and retains the
   rerender(<ConsentScreen requestId="r1" />);
   expect(screen.getByLabelText("Organization")).toBeEnabled();
   expect(screen.getByRole("checkbox", { name: "agents:view" })).toBeChecked();
+});
+
+it("keeps deployment authority separate and unselected until an app admin explicitly grants it", async () => {
+  const current = state({ request: { ...REQUEST, deployment_admin_available: true } });
+  useConsentRequestMock.mockReturnValue(current);
+  render(<ConsentScreen requestId="r1" />);
+  const global = screen.getByRole("checkbox", { name: "Administer the entire installation" });
+  expect(global).not.toBeChecked();
+  await userEvent.click(global);
+  await userEvent.click(screen.getByRole("button", { name: "Allow" }));
+  expect(current.approve.mutateAsync).toHaveBeenCalledWith({
+    scopes: ["agents:view"],
+    deployment_admin: true,
+  });
+});
+
+it("never offers deployment authority to an organization administrator without the app flag", () => {
+  useConsentRequestMock.mockReturnValue(state());
+  render(<ConsentScreen requestId="r1" />);
+  expect(
+    screen.queryByRole("checkbox", { name: "Administer the entire installation" }),
+  ).not.toBeInTheDocument();
+});
+
+it("permits a global-only grant and drops an old global selection when availability is withdrawn", async () => {
+  const current = state({
+    request: { ...REQUEST, deployment_admin_available: true, catalog: { scopes: [], presets: [] } },
+  });
+  useConsentRequestMock.mockReturnValue(current);
+  const { rerender } = render(<ConsentScreen requestId="r1" />);
+  expect(screen.getByRole("button", { name: "Allow" })).toBeDisabled();
+  await userEvent.click(
+    screen.getByRole("checkbox", { name: "Administer the entire installation" }),
+  );
+  expect(screen.getByRole("button", { name: "Allow" })).not.toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Allow" }));
+  expect(current.approve.mutateAsync).toHaveBeenCalledWith({ scopes: [], deployment_admin: true });
+  useConsentRequestMock.mockReturnValue({
+    ...current,
+    request: { ...current.request, deployment_admin_available: false },
+  });
+  rerender(<ConsentScreen requestId="r1" />);
+  expect(screen.getByRole("button", { name: "Allow" })).toBeDisabled();
 });

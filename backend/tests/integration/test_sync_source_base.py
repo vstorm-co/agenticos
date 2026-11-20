@@ -1033,3 +1033,30 @@ async def test_base_deletion_clears_private_status_before_making_its_source_unas
     assert source.knowledge_base_id is None and source.collection_name is None
     assert source.sync_state is None and source.last_error is None
     assert source.last_sync_at is None and source.last_sync_status is None
+
+
+@pytest.mark.security
+async def test_history_pages_and_count_share_the_same_immutable_source_scope(
+    db: AsyncSession, history_targets: _HistoryTargets
+) -> None:
+    estate = history_targets
+    scope = await CollectionAccessService(db).readable_sync_log_scope(estate.reader, None)
+    total = await sync_log_repo.count_all(db, scope=scope, sync_source_id=estate.source.id)
+    assert total == 2
+    first = await sync_log_repo.get_all(
+        db, scope=scope, sync_source_id=estate.source.id, limit=1, skip=0
+    )
+    second = await sync_log_repo.get_all(
+        db, scope=scope, sync_source_id=estate.source.id, limit=1, skip=1
+    )
+    assert {row.id for row in first + second} == {estate.shared_log.id, estate.legacy_log.id}
+    assert first[0].id != second[0].id
+    assert (
+        await sync_log_repo.get_all(
+            db, scope=scope, sync_source_id=estate.source.id, limit=1, skip=2
+        )
+        == []
+    )
+    assert await sync_log_repo.count_all(db, scope=scope, sync_source_id=uuid.uuid4()) == 0
+    response = await SyncSourceService(db).list_logs(estate.source.id, scope=scope, limit=1, skip=1)
+    assert response.total == 2 and len(response.items) == 1

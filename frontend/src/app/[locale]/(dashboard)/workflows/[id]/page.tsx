@@ -54,6 +54,7 @@ import {
   useWorkflow,
   useWorkflowActions,
   useWorkflowExport,
+  useWorkflowTableDrift,
 } from "@/hooks";
 import { TagsEditor } from "@/components/workflows/tags-editor";
 import { ActiveSwitch } from "@/components/workflows/editor/active-switch";
@@ -122,6 +123,8 @@ export default function WorkflowEditorPage({ params }: PageProps) {
   // An editor can look without touching: the read-only editor a reader gets.
   const [viewing, setViewing] = useState(false);
   const editing = canEdit && !viewing;
+  // A table whose schema moved on is settled here, before a run or a publish is refused for it.
+  useWorkflowTableDrift(editing);
   const load = useWorkflowEditorStore((state) => state.load);
   const seedGraph = useWorkflowEditorStore((state) => state.seedGraph);
   const draft = useWorkflowEditorStore((state) => state.graph);

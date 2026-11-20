@@ -330,7 +330,25 @@ describe("McpServerPicker", () => {
       }),
     );
 
-    await userEvent.click(screen.getByRole("checkbox", { name: "Connected only" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Organization connections" }));
+
+    expect(screen.getByText("GitHub")).toBeInTheDocument();
+    expect(screen.queryByText("Linear")).toBeNull();
+  });
+
+  it("narrows to the servers this agent is bound to when asked", async () => {
+    // The organization may hold many connections; the agent uses a few of them.
+    const linear = entry({ key: "linear", name: "Linear" });
+    const github = connection({ catalog_key: "github" });
+    render(
+      picker({
+        connections: [github, connection({ id: "c-linear", catalog_key: "linear" })],
+        catalog: [...CATALOG, linear],
+        value: [bound(github.id)],
+      }),
+    );
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Connected to this agent" }));
 
     expect(screen.getByText("GitHub")).toBeInTheDocument();
     expect(screen.queryByText("Linear")).toBeNull();
@@ -900,7 +918,7 @@ describe("which of a server's tools this agent may call", () => {
     expect(onChange).toHaveBeenLastCalledWith([bound("c1", ["search", "create_issue"])]);
   });
 
-  it("selects every tool again, which means every tool rather than a list", async () => {
+  it("selects every tool again as today's tools, leaving later ones to the switch", async () => {
     const onChange = vi.fn();
     render(
       picker({
@@ -913,7 +931,8 @@ describe("which of a server's tools this agent may call", () => {
 
     expect(screen.getByText("1 of 3")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("checkbox", { name: "Every tool in Tools" }));
-    expect(onChange).toHaveBeenLastCalledWith([bound("c1")]);
+    const today = TOOLS.map((tool) => tool.name);
+    expect(onChange).toHaveBeenLastCalledWith([bound("c1", today)]);
   });
 
   it("asks the caller to load the tools of an account never checked", async () => {

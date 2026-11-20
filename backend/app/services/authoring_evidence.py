@@ -467,8 +467,11 @@ class EvidenceService:
                         if result.status == "fail"
                         else None
                     )
-            if row.arm.eval_run_id not in flips:
-                comparison = await service.compare(ctx, row.arm.eval_run_id, measurement_only=False)
+            compared = row.arm.role == "candidate"
+            if compared and row.arm.eval_run_id not in flips:
+                comparison = await service.compare(
+                    ctx, row.arm.eval_run_id, measurement_only=False, include_criteria=False
+                )
                 flips[row.arm.eval_run_id] = {
                     case.case_id: case.flip
                     for case in comparison.cases
@@ -487,14 +490,16 @@ class EvidenceService:
                     and attempt.attempt == 0
                     and attempt.answer is not None
                 }
-            flip = flips[row.arm.eval_run_id].get(row.case.case_id)
+            flip = flips[row.arm.eval_run_id].get(row.case.case_id) if compared else None
             fixed += flip == "fixed"
             broken += flip == "regression"
             note = None if row.score is None else row.score.human_note
             if settled is not False and not note and flip != "regression":
                 continue
             comments = [f"Review note: {_clip(note, _TURN_CHARS)}"] if note else []
-            baseline_answer = before[row.arm.eval_run_id].get(row.case.case_id)
+            baseline_answer = (
+                before[row.arm.eval_run_id].get(row.case.case_id) if compared else None
+            )
             if baseline_answer is not None:
                 comments.append(f"Baseline answer: {_clip(baseline_answer, _TURN_CHARS)}")
             if flip in {"fixed", "regression"}:
@@ -541,7 +546,8 @@ class EvidenceService:
             if not rows
             else (
                 "# Train-part feedback only; held-out results are not shown\n"
-                "From at most 200 recent candidate training answers, using the latest answer per case.\n"
+                "From at most 200 recent training answers the agent itself gave, using the latest "
+                "answer per case.\n"
                 f"Confirmed newly fixed: {fixed}; newly broken: {broken}.\n"
                 f"Pass rate by tag:\n{rates(by_tag)}\nJudge criterion pass rate:\n{rates(by_criterion)}"
             )
