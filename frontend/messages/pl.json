@@ -16535,6 +16535,7 @@
       "cancelled": "Anulowano",
       "stale": "Punkt wyjścia się zmienił",
       "accepted": "Zachowano w wersji roboczej",
+      "skillAccepted": "{outcome, select, applied {Zastosowana} applied_pinned {Zastosowana} forked {Utworzono fork} caught_up {Nadrobiono main} returned_to_main {Przeniesiono do main} other {Przyjęta}}",
       "published": "Opublikowano",
       "rejected": "Odrzucono",
       "waiting": "Czeka na Ciebie",
@@ -17678,6 +17679,7 @@
       },
       "fixedBroken": "{fixed, plural, one {Naprawia # pytanie} few {Naprawia # pytania} many {Naprawia # pytań} other {Naprawia # pytania}}, {broken, plural, one {psuje #} few {psuje #} many {psuje #} other {psuje #}}.",
       "fixedBrokenUnconfirmed": "Przy pierwszej próbie {fixed, plural, one {# pytanie wyglądało na naprawione} few {# pytania wyglądały na naprawione} many {# pytań wyglądało na naprawione} other {# pytania wyglądało na naprawione}}, a {broken, plural, one {# na zepsute} few {# na zepsute} many {# na zepsute} other {# na zepsute}}, ale ponowne zapytania tego nie potwierdziły, więc agent liczy się jako bez zmian.",
+      "tooFewGroup": "Za mało pytań, by mieć pewność: każdy agent poniżej dostał mniej odłożonych pytań, niż potrzeba do wyniku.",
       "unknown": {
         "no_questions": "Nie sprawdzono: nie ma pytań testowych tam, gdzie wczytał skill, a skill nie ma własnych.",
         "no_access": "Nie sprawdzono: nie możesz uruchamiać tego agenta.",

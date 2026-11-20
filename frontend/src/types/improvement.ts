@@ -144,6 +144,8 @@ export interface Improvement {
   agent_id: string;
   /** Set on a skill's session, which improves the skill rather than `agent_id`. */
   skill_id?: string | null;
+  /** A skill's session: what accepting it did to the skill. */
+  outcome?: string | null;
   created_by_user_id: string | null;
   improver_agent_id: string | null;
   status: ImprovementStatus;
