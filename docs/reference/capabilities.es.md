@@ -1,5 +1,5 @@
 ---
-source_sha: "97749d8a04f5"
+source_sha: "d5775040d7b6"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -720,7 +720,9 @@ scope aparte.
 
 ## Leer páginas web { #web-fetch }
 
-`web_fetch` — _Lee la página completa de una URL, como Markdown._
+`web_fetch` — *Lee el contenido de una URL como Markdown.*
+
+La lectura local de páginas largas acepta una posición de carácter `offset` y un límite `limit`. Empieza en cero y continúa en `next_offset`. Si la lectura alcanza el límite antes del final de la fuente, la respuesta incluye `reached_limit`.
 
 | Configuración | Valor por defecto | Valores |
 | --- | --- | --- |

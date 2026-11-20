@@ -21,8 +21,8 @@ from app.services.agent_defaults import (
     digest,
     fingerprint,
     legacy_defaults,
+    matches_previous,
     merge_defaults,
-    previous_fingerprint,
     shipped_capabilities,
     template_release,
 )
@@ -167,8 +167,8 @@ class ShippedAgentService:
             protected = {
                 field
                 for field in FIELDS
-                if fingerprint(draft, field) != previous_fingerprint(previous, field)
-                or fingerprint(published, field) != previous_fingerprint(previous, field)
+                if not matches_previous(draft, field, previous)
+                or not matches_previous(published, field, previous)
             }
             new_draft = AgentSpec.model_validate(
                 {

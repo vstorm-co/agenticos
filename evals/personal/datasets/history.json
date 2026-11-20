@@ -1,4 +1,10 @@
 {
+  "mattermost-room-recall": [
+    {"role": "user", "content": "Masz link do tej drugiej pozycji?"}
+  ],
+  "slack-room-recall": [
+    {"role": "user", "content": "Podeślesz link do pierwszej propozycji?"}
+  ],
   "weekly-report": [
     {
       "role": "user",

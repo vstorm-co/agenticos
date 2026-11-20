@@ -33,6 +33,7 @@ import {
 import { hasKey, modelName, runsAgents, usableForAgents } from "@/lib/model-profiles";
 import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
+import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
 interface ChatModelPickerProps {
@@ -122,6 +123,12 @@ export function ChatModelPicker({
   const providerKeys = secrets.filter((secret) => secret.purpose === providerId);
   const explicitKey = providerKeys.find((secret) => secret.id === pickedKey);
   const inheritedProfile = currentProfile?.provider === providerId ? currentProfile : undefined;
+  const effectiveKey =
+    explicitKey ??
+    providerKeys.find((key) => key.id === inheritedProfile?.secret_id) ??
+    providerKeys[0];
+  const matchesKey = (profile: ModelProfile) =>
+    !effectiveKey || profile.secret_id === effectiveKey.id;
   const endpoint = inheritedProfile?.base_url ?? null;
   const providers = purposes.filter((entry) => entry.category === "model_provider");
   const provider = providers.find((entry) => entry.id === providerId);
@@ -135,7 +142,7 @@ export function ChatModelPicker({
   } = useProviderModels(
     providerId,
     providerId === "openrouter" ? (endpoint ?? undefined) : undefined,
-    explicitKey?.id,
+    effectiveKey?.id,
   );
   // An override profile and the agent's published model both carry
   // provider/model/label, so one summary renders whichever is current.
@@ -147,7 +154,7 @@ export function ChatModelPicker({
       (!endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "")),
   );
   const hasCustomEndpoint = matching.some(
-    (profile) => !!profile.base_url && usableForAgents(profile),
+    (profile) => matchesKey(profile) && !!profile.base_url && usableForAgents(profile),
   );
 
   const canApply =
@@ -175,13 +182,18 @@ export function ChatModelPicker({
         profile.model === modelId &&
         (!endpoint || profile.base_url?.replace(/\/+$/, "") === endpoint.replace(/\/+$/, "")),
     );
-    if (loadingModels && !matching.some((profile) => profile.base_url && usableForAgents(profile)))
+    if (
+      loadingModels &&
+      !matching.some(
+        (profile) => matchesKey(profile) && profile.base_url && usableForAgents(profile),
+      )
+    )
       return;
     setFailure(null);
     if (
       current?.provider === provider.id &&
       current.model === modelId &&
-      (!explicitKey || currentProfile?.secret_id === explicitKey.id) &&
+      (!currentProfile || matchesKey(currentProfile)) &&
       (currentProfile === undefined || usableForAgents(currentProfile))
     ) {
       onChange(value);
@@ -195,7 +207,7 @@ export function ChatModelPicker({
     const listingRefuses = refused.includes(modelId);
     const existing = matching.find(
       (profile) =>
-        (!explicitKey || profile.secret_id === explicitKey.id) &&
+        matchesKey(profile) &&
         usableForAgents(profile) &&
         (!!profile.base_url || (!loadingModels && !listingRefuses)),
     );
@@ -205,21 +217,20 @@ export function ChatModelPicker({
     }
     // The organization has this model, but its key was deleted (#2478). A second
     // profile under the same name is refused, and the fix is a key for this one.
-    if (!listingRefuses && matching.some((profile) => runsAgents(profile) && !hasKey(profile))) {
+    if (
+      providerKeys.length <= 1 &&
+      !listingRefuses &&
+      matching.some((profile) => runsAgents(profile) && !hasKey(profile))
+    ) {
       setFailure(t("modelHasNoKey", { model: modelId }));
       return;
     }
-    if ((!explicitKey && matching.length > 0) || listingRefuses) {
+    if (matching.some(matchesKey) || listingRefuses) {
       setFailure(t("notAChatModel", { model: modelId }));
       return;
     }
 
-    const key =
-      explicitKey ??
-      secrets.find(
-        (secret) => secret.id === inheritedProfile?.secret_id && secret.purpose === provider.id,
-      ) ??
-      secrets.find((secret) => secret.purpose === provider.id);
+    const key = effectiveKey;
     if (key === undefined) {
       // The form below offers to add one, so this says what is missing rather than
       // sending somebody to another page for it.
@@ -229,9 +240,10 @@ export function ChatModelPicker({
 
     try {
       const profile = await createProfile.mutateAsync({
-        label: explicitKey
-          ? `${`${provider.label} · ${modelId}`.slice(0, 108)} · ${key.id.slice(0, 8)}`
-          : `${provider.label} · ${modelId}`,
+        label:
+          providerKeys.length > 1
+            ? `${`${provider.label} · ${modelId}`.slice(0, 108)} · ${key.id.slice(0, 8)}`
+            : `${provider.label} · ${modelId}`,
         provider: provider.id,
         model: modelId,
         secret_id: key.id,
@@ -314,14 +326,7 @@ export function ChatModelPicker({
           providerKeys.length > 1 && (
             <div className="grid gap-1.5">
               <Label htmlFor="chat-model-key">{tRoot("vault.key")}</Label>
-              <Select
-                value={
-                  explicitKey?.id ??
-                  providerKeys.find((key) => key.id === inheritedProfile?.secret_id)?.id ??
-                  providerKeys[0]?.id
-                }
-                onValueChange={setPickedKey}
-              >
+              <Select value={effectiveKey?.id} onValueChange={setPickedKey}>
                 <SelectTrigger id="chat-model-key">
                   <SelectValue />
                 </SelectTrigger>
@@ -337,22 +342,17 @@ export function ChatModelPicker({
           )
         }
         model={
-          current?.provider === providerId &&
-          (!explicitKey || currentProfile?.secret_id === explicitKey.id)
+          current?.provider === providerId && (!currentProfile || matchesKey(currentProfile))
             ? current.model
             : ""
         }
         profileId={
-          currentProfile?.provider === providerId &&
-          (!explicitKey || currentProfile.secret_id === explicitKey.id)
+          currentProfile?.provider === providerId && matchesKey(currentProfile)
             ? currentProfile.id
             : undefined
         }
         models={suggestions}
-        profiles={profiles.filter(
-          (profile) =>
-            usableForAgents(profile) && (!explicitKey || profile.secret_id === explicitKey.id),
-        )}
+        profiles={profiles.filter((profile) => usableForAgents(profile) && matchesKey(profile))}
         loading={(loadingModels && !hasCachedListing) || loadingProfiles}
         catalogRefreshing={loadingModels}
         applying={createProfile.isPending}

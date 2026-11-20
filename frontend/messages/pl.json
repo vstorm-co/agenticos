@@ -1584,11 +1584,7 @@
       }
     },
     "backgroundTasks": {
-      "heading": "Tematy w tle · aktywne: {count}",
       "empty": "Poproś agenta z funkcją Tematy w tle o delegowanie zadania i kontynuuj rozmowę.",
-      "retry": "Wczytaj tematy w tle ponownie",
-      "unavailable": "Tematy w tle są niedostępne",
-      "loadFailed": "Nie udało się odświeżyć tematów w tle. Możesz dalej rozmawiać.",
       "stop": "Zatrzymaj: {title}",
       "returnInterrupted": "Przerwano przekazanie wyniku",
       "status": {
@@ -7664,10 +7660,6 @@
       "chat-coding-settings": {
         "title": "Model i poziom myślenia",
         "body": "Wybierz model i poziom myślenia dostępny w zainstalowanym agencie kodującym. Ustawienia dotyczą tej rozmowy; puste pola zachowują ustawienia agenta."
-      },
-      "chat-background-tasks": {
-        "title": "Tematy w tle",
-        "body": "Niezależne zadanie otwiera nowy temat w tym projekcie. Kontynuuj rozmowę tutaj; agent wróci z wynikiem. Z tego paska otworzysz lub zatrzymasz zadanie."
       },
       "project-graph": {
         "title": "Poznaj powiązane notatki",

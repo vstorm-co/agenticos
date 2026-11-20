@@ -2579,11 +2579,7 @@
       }
     },
     "backgroundTasks": {
-      "heading": "Background topics · {count} active",
       "empty": "Ask an agent with Background topics to delegate work while you keep talking.",
-      "retry": "Reload background topics",
-      "unavailable": "Background topics unavailable",
-      "loadFailed": "Could not refresh background topics. You can keep chatting.",
       "stop": "Stop {title}",
       "returnInterrupted": "Result delivery interrupted",
       "status": {
@@ -6037,10 +6033,6 @@
       "chat-coding-settings": {
         "title": "Coding model and reasoning",
         "body": "Choose a model and reasoning level from the installed coding agent. Choices belong to this conversation; leaving them unset keeps the coding agent’s own settings."
-      },
-      "chat-background-tasks": {
-        "title": "Background topics",
-        "body": "Independent work opens a fresh topic in this project. Keep talking here; the agent returns with the result. Open or stop each task from this strip."
       },
       "memory-views": {
         "title": "Two ways agents remember",

@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -810,6 +811,7 @@ async def test_named_personal_sessions_keep_files_and_source_revision_without_sh
             await db.commit()
 
     monkeypatch.setattr(coding_module, "get_db_context", connection)
+    monkeypatch.setattr(coding_module, "MAX_RETAINED_SESSIONS_PER_ACCOUNT", 2)
     source = tmp_path / "source"
     source.mkdir()
     (source / "app.py").write_text("original")
@@ -899,6 +901,13 @@ async def test_named_personal_sessions_keep_files_and_source_revision_without_sh
         assert await task.workspace.read_bytes("app.py") == b"new root source"
         assert not await task.workspace.exists("native-history")
     assert namespaces[0] == namespaces[1] != namespaces[2]
+    with pytest.raises(BadRequestError, match="saved session limit"):
+        async with factory.session(run, harness="claude_code", timeout_seconds=60, session="extra"):
+            pytest.fail("A new retained session was admitted past the limit")
+    async with factory.session(
+        run, harness="claude_code", timeout_seconds=60, session="api"
+    ) as task:
+        assert task.resumed
     async with connection() as db:
         rows = await workspace_repo.list_personal_coding(
             db, organization_id=org.id, user_id=owner.id
@@ -956,7 +965,9 @@ async def test_personal_session_constraints_refuse_cross_tenant_or_shared_rows(
             await db.flush()
 
 
-@pytest.mark.parametrize("operation", ["disconnect", "agent_delete", "discard"])
+@pytest.mark.parametrize(
+    "operation", ["disconnect", "agent_delete", "discard", "chat_retention", "workspace_retention"]
+)
 async def test_deletion_keeps_remote_cleanup_in_the_same_rollback_boundary(
     engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, operation: str
 ) -> None:
@@ -985,7 +996,12 @@ async def test_deletion_keeps_remote_cleanup_in_the_same_rollback_boundary(
         org = await organization(db, owner)
         auth = context(owner, org)
         account = await CodingAccountService(db).create(auth, request(enabled=True))
-        conversation = Conversation(organization_id=org.id, user_id=owner.id, title="Private")
+        conversation = Conversation(
+            organization_id=org.id,
+            user_id=owner.id,
+            title="Private",
+            updated_at=datetime.now(UTC) - timedelta(days=60),
+        )
         remote = SandboxConnection(organization_id=org.id, name="Offline", kind="opensandbox")
         agent = Agent(
             organization_id=org.id,
@@ -1007,10 +1023,16 @@ async def test_deletion_keeps_remote_cleanup_in_the_same_rollback_boundary(
             agent_id=agent.id,
             connection_id=remote.id,
             session_id="personal-session-to-destroy",
+            last_used_at=datetime.now(UTC) - timedelta(days=60),
         )
         db.add(workspace)
         await db.flush()
-        account_id, workspace_id, agent_id = account.id, workspace.id, agent.id
+        organization_id, account_id, workspace_id, agent_id = (
+            org.id,
+            account.id,
+            workspace.id,
+            agent.id,
+        )
 
         async def remove(db: AsyncSession) -> None:
             if operation == "agent_delete":
@@ -1021,6 +1043,17 @@ async def test_deletion_keeps_remote_cleanup_in_the_same_rollback_boundary(
                 held = await db.get(AgentWorkspace, workspace_id)
                 assert held is not None
                 await SandboxWorkspaceService(db).discard_personal_coding(auth, held)
+            elif operation in {"chat_retention", "workspace_retention"}:
+                from app.services.retention import RetentionService
+
+                assert (
+                    await RetentionService(db)._purge_batch(
+                        "conversations" if operation == "chat_retention" else "workspaces",
+                        organization_id=organization_id,
+                        cutoff=datetime.now(UTC),
+                    )
+                    == 1
+                )
             else:
                 await CodingAccountService(db).disconnect(auth, account_id)
 

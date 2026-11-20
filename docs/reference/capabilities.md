@@ -672,7 +672,9 @@ scope.
 
 ## Read web pages { #web-fetch }
 
-`web_fetch` — *Read the full page at a URL, as Markdown.*
+`web_fetch` — *Read the content of a URL as Markdown.*
+
+Local fetch accepts a character `offset` and `limit` for long pages. Start at zero and continue at `next_offset`. When the scan reaches its ceiling before the source ends, the result sets `reached_limit`.
 
 | Config | Default | Values |
 |---|---|---|

@@ -1,10 +1,10 @@
 # AgenticOS local evaluations
 
-The three suites contain **210 synthetic multi-turn conversations** in [datasets/](datasets/). Run them from the CLI with the repository's locked dependencies. The runner creates no entries in the platform's Datasets or Evals views.
+The three suites contain **214 synthetic multi-turn conversations** in [datasets/](datasets/). Run them from the CLI with the repository's locked dependencies. The runner creates no entries in the platform's Datasets or Evals views.
 
 | Suite | Cases | Path exercised |
 | --- | ---: | --- |
-| AgenticOS | 110 | Published shipped starter, conversation history, scope, tool routing and arguments, answers |
+| AgenticOS | 114 | Published shipped starter, conversation history, scope, tool routing and arguments, answers |
 | Memory | 50 | Production extraction model, durable facts, corrections, provenance, duplicate intent |
 | Briefing and suggestions | 50 | Production nightly reading model, recurring intent, connected sources and existing or dismissed proposals |
 
@@ -52,7 +52,7 @@ JOIN users u ON u.id = m.user_id
 WHERE o.slug = 'agenticos-local-eval-deepseek-baseline' AND u.email = 'admin@example.com'"
 ```
 
-Without `--max-usd`, the command only checks the published AgenticOS and selected model. Omit `--limit` to select all 110 cases. Use `--limit 50` to reproduce the original case selection. This example checks three cases without making model calls:
+Without `--max-usd`, the command only checks the published AgenticOS and selected model. Omit `--limit` to select every case. This example checks three cases without making model calls:
 
 ```sh
 evals/personal/stack.sh run --rm --no-deps -T app sh -c '
@@ -62,7 +62,7 @@ evals/personal/stack.sh run --rm --no-deps -T app sh -c '
 '
 ```
 
-### Run all 110 AgenticOS cases
+### Run all AgenticOS cases
 
 ```sh
 mkdir -p evals/personal/results
@@ -86,6 +86,8 @@ The trace runner starts each case in a fresh private test chat with the authored
 The 60 appended cases cover product choices, exact resource reads, approval boundaries, and ordinary requests. A synthetic resource ID tests routing to the correct reader and an honest unavailable result. Populate a matching resource separately to test a successful read against real state. The arguments column accepts a JSON object when a check needs numbers, booleans, arrays or nested values.
 
 `table-query-exact` creates a private scratch table with six pending vendors and one approved vendor. The runner substitutes the real table ID into the conversation and checks the equality filter and five-record first page. It archives the table after the case.
+
+`mattermost-room-recall` and `slack-room-recall` simulate two named participants and a previous tool-backed turn. They exercise the production channel history path against persisted synthetic messages and tool records. They require no channel account or external message delivery. The two research follow-up cases cover full-paper reading and source-based vendor pricing.
 
 ## Background replay
 
@@ -129,7 +131,7 @@ From the repository root, after inspecting the deterministic report, keep the `r
 ```sh
 uv run --directory backend --env-file ../evals/personal/.env sh -c '
   exec python ../evals/personal/run.py --judge-model "$AGENTICOS_EVAL_JUDGE_MODEL" \
-    --judge-report "$1" --limit 110
+    --judge-report "$1" --limit 114
 ' sh "../$report" > "${report%.jsonl}-judge.jsonl"
 ```
 

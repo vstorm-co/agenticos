@@ -1,5 +1,5 @@
 ---
-source_sha: "97749d8a04f5"
+source_sha: "d5775040d7b6"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -741,7 +741,9 @@ eigenen Scope.
 
 ## Webseiten lesen { #web-fetch }
 
-`web_fetch` — _Liest die vollständige Seite unter einer URL, als Markdown._
+`web_fetch` — *Liest den Inhalt einer URL als Markdown.*
+
+Für lange Seiten akzeptiert der lokale Abruf die Zeichenposition `offset` und das Limit `limit`. Beginnen Sie bei null und setzen Sie bei `next_offset` fort. Erreicht der Abruf vor dem Ende der Quelle seine Obergrenze, enthält das Ergebnis `reached_limit`.
 
 | Konfiguration | Standard | Werte |
 | --- | --- | --- |

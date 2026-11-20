@@ -74,11 +74,14 @@ def test_author_reference_ids_are_validated() -> None:
             _history_author(ModelRequest(parts=[], metadata={CHANNEL_AUTHOR_ID: bad}))
 
 
-async def test_history_uses_opaque_refs_and_resolves_names_only_for_the_model() -> None:
+@pytest.mark.parametrize("platform", ["mattermost", "slack"])
+async def test_history_uses_opaque_refs_and_resolves_names_only_for_the_model(
+    platform: str,
+) -> None:
     identity_id = uuid4()
     identity = ChannelIdentity(
         id=identity_id,
-        platform="slack",
+        platform=platform,
         platform_user_id="U-PRIVATE",
         platform_username="alice@example.com",
         platform_display_name="Secret Name",
@@ -118,6 +121,7 @@ async def test_history_uses_opaque_refs_and_resolves_names_only_for_the_model() 
         if isinstance(part, ChannelReferencePart)
     ]
     assert references
+    assert any("Author of the following channel message" in content for content in references)
     assert all("Message:\n" not in content for content in references)
     kept = json.dumps(as_payload(recorder), default=str)
     for private in ["U-PRIVATE", "Secret Name", "alice@example.com", "classified"]:

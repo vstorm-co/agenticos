@@ -42,3 +42,4 @@ the chat. For a paper, load `document-production` for source, build and visual
 checks. Say what you could not verify rather than presenting a polished guess.
 
 Read `references/coverage.md` when this task needs worked examples or acceptance checks.
+For a full-paper read or a replication budget, use its coverage and costing checks before answering.

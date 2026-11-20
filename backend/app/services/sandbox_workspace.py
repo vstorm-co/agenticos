@@ -1656,7 +1656,7 @@ class SandboxWorkspaceService:
             include_personal_coding=True,
         )
         for row in rows:
-            if row.backend != "state" and row.session_id:
+            if row.backend != "state" and (row.session_id or row.coding_account_id is not None):
                 await self._purge_remote(ctx, row)
             await workspace_repo.delete(self.db, workspace=row)
         return len(rows)

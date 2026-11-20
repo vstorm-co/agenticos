@@ -432,6 +432,20 @@ async def list_personal_coding(
     return list((await db.execute(query)).scalars().all())
 
 
+async def count_personal_coding(
+    db: AsyncSession, *, organization_id: UUID, account_id: UUID
+) -> int:
+    result = await db.execute(
+        select(func.count())
+        .select_from(AgentWorkspace)
+        .where(
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.coding_account_id == account_id,
+        )
+    )
+    return result.scalar_one()
+
+
 async def bind_personal_coding(
     db: AsyncSession,
     *,

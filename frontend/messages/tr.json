@@ -2965,16 +2965,16 @@
       "noRecordedAction": "Kayıtlı işlem yok"
     },
     "admin": {
-    "activeSessions": "Etkin oturumlar",
-    "passwordReset": "Parolayı sıfırla",
-    "passwordResetHint": "{email} adresine sıfırlama e-postası gönder veya bağlantıyı kopyalayıp doğrudan paylaş. Bağlantı bir saat geçerlidir ve tek kullanımlıktır.",
-    "copyPasswordResetLink": "Sıfırlama bağlantısını kopyala",
-    "sendPasswordResetEmail": "Sıfırlama e-postası gönder",
-    "passwordResetLink": "Parola sıfırlama bağlantısı",
-    "passwordResetLinkCopied": "Sıfırlama bağlantısı kopyalandı",
-    "passwordResetEmailSent": "Sıfırlama e-postası gönderildi",
-    "passwordResetFailed": "Parola sıfırlama başlatılamadı.",
-    "close": "Kapat",
+      "activeSessions": "Etkin oturumlar",
+      "passwordReset": "Parolayı sıfırla",
+      "passwordResetHint": "{email} adresine sıfırlama e-postası gönder veya bağlantıyı kopyalayıp doğrudan paylaş. Bağlantı bir saat geçerlidir ve tek kullanımlıktır.",
+      "copyPasswordResetLink": "Sıfırlama bağlantısını kopyala",
+      "sendPasswordResetEmail": "Sıfırlama e-postası gönder",
+      "passwordResetLink": "Parola sıfırlama bağlantısı",
+      "passwordResetLinkCopied": "Sıfırlama bağlantısı kopyalandı",
+      "passwordResetEmailSent": "Sıfırlama e-postası gönderildi",
+      "passwordResetFailed": "Parola sıfırlama başlatılamadı.",
+      "close": "Kapat",
       "active": "Etkin",
       "active24h": "Son 24 saatte etkin",
       "agents": "Agentlar",
@@ -8861,10 +8861,6 @@
         "title": "Tek panele odaklanın",
         "body": "Telefonda etkin panele yer açmak için adım ayarları, girdi veya çıktı görünümünü seçin. Paneller arasında geçiş yaparken taslağınız korunur."
       },
-      "chat-background-tasks": {
-        "body": "Bağımsız çalışma bu Project’te yeni bir konu açar. Siz burada konuşmaya devam edin; agent sonuçla geri döner. Her görevi bu şeritten açabilir veya durdurabilirsiniz.",
-        "title": "Arka plan konuları"
-      },
       "chat-coding-settings": {
         "body": "Yüklü kodlama agent’ından bir model ve akıl yürütme düzeyi seçin. Seçimler bu konuşmaya özeldir; boş bırakırsanız kodlama agent’ının kendi ayarları kullanılır.",
         "title": "Kodlama modeli ve akıl yürütme"
@@ -10173,10 +10169,6 @@
     "backgroundTasks": {
       "empty": "Arka plan konuları özelliği olan bir agent’tan, siz konuşmaya devam ederken işi devretmesini isteyin.",
       "emptyTitle": "Siz konuşmaya devam ederken işi devredin",
-      "heading": "Arka plan konuları · {count} etkin",
-      "retry": "Arka plan konularını yeniden yükle",
-      "unavailable": "Arka plan konuları kullanılamıyor",
-      "loadFailed": "Arka plan konuları yenilenemedi. Sohbete devam edebilirsiniz.",
       "returnInterrupted": "Sonucun iletilmesi kesildi",
       "status": {
         "awaiting_answer": "Yanıtınız bekleniyor",

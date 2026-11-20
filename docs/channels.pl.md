@@ -1,5 +1,5 @@
 ---
-source_sha: "2f0c04055b6b"
+source_sha: "17a1b5a9ba2f"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2294,6 +2294,8 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
 Pełna historia pokoju pozostaje dostępna, także wiadomości innych uczestników. Run freely pozwala więc również na wywołania narzędzi pod wpływem tego kontekstu; wybieraj je dla zaufanych narzędzi i pokoi, a Ask first, gdy każdy zapis wymaga potwierdzenia.
 
 Wiadomości kanałowe zapisują wyłącznie tekst nadawcy. Etykiety autora są odczytywane z tożsamości kanałowych tuż przed wysłaniem zapytania do modelu, poza instrukcjami systemowymi. Konsola oraz kopiowanie, przypinanie i skróty otrzymują samą treść. Zapisana historia i wstrzymane runy przechowują niejawne odwołania do tożsamości, a manifesty pomijają dopisane części kontekstu kanałowego. Usunięcie konta usuwa jego tożsamości, więc kolejne zapytania nie odczytają etykiet tej osoby; treść wspólnych wiadomości zostaje.
+
+Konsola i kanały komunikacji korzystają z tej samej historii rozmów. We współdzielonej historii każda odpowiedź agenta zachowuje nazwy i statusy wywołanych narzędzi w kolejności. Argumenty i wyniki mogą zależeć od uprawnień pierwotnego nadawcy. Gdy kolejna odpowiedź wymaga tych danych, agent może je odczytać ponownie z uprawnieniami osoby pytającej.
 
 Edytowalne nazwy kanałów, tematy, opisy i etykiety autora przechodzą skonfigurowane kontrole wejścia przed dotarciem do modelu. Wartości po redakcji zastępują oryginały; zablokowane wartości kontekstu są ukrywane, a dozwolone pytanie może być wykonane. Stała składnia metryki, identyfikatory platformy i typ rozmowy nie są sprawdzane jako treść pytania.
 

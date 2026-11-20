@@ -37,6 +37,7 @@ from app.services.project_workspace_guard import project_for_workspace
 from app.services.sandbox_workspace import SandboxWorkspaceService
 
 logger = logging.getLogger(__name__)
+MAX_RETAINED_SESSIONS_PER_ACCOUNT = 10
 
 
 @dataclass(frozen=True)
@@ -196,6 +197,23 @@ class PersonalCodingSessionFactory:
         )
         private_spec = self.spec.model_copy(update={"capabilities": bindings})
         async with get_db_context() as db:
+            # Serialize capacity checks and binding with account changes. Opening
+            # the workspace below resolves its key, but its remote backend is lazy.
+            locked_account = await account_repo.get(
+                db,
+                organization_id=self.ctx.organization_id,
+                user_id=owner,
+                account_id=account.id,
+                locked=True,
+            )
+            if (
+                locked_account is None
+                or not locked_account.enabled
+                or locked_account.generation != account.generation
+            ):
+                raise AuthorizationError(
+                    message="Permission to use this coding account was revoked"
+                )
             workspaces = SandboxWorkspaceService(db)
             opened = await workspaces.open(
                 private_spec,
@@ -229,6 +247,16 @@ class PersonalCodingSessionFactory:
                     raise RuntimeError("The personal coding workspace has inconsistent ownership")
                 if row.coding_account_id not in (None, account.id):
                     raise RuntimeError("The personal coding workspace belongs to another account")
+                if row.coding_account_id is None:
+                    retained = await workspace_repo.count_personal_coding(
+                        db, organization_id=self.ctx.organization_id, account_id=account.id
+                    )
+                    if retained >= MAX_RETAINED_SESSIONS_PER_ACCOUNT:
+                        raise BadRequestError(
+                            message="This coding account has reached its saved session limit. "
+                            "Reuse a named session or delete an obsolete session's conversation.",
+                            details={"limit": MAX_RETAINED_SESSIONS_PER_ACCOUNT},
+                        )
                 await workspace_repo.bind_personal_coding(
                     db,
                     workspace=row,

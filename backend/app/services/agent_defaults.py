@@ -68,12 +68,20 @@ def previous_fingerprint(previous: dict[str, str], field: DefaultField) -> str |
     return previous.get(field, digest([]) if field in {"subagents", "context_ids"} else None)
 
 
+def matches_previous(spec: AgentSpec, field: DefaultField, previous: dict[str, str]) -> bool:
+    """Accept the legacy capabilities hash, which included the thinking binding."""
+    saved = previous_fingerprint(previous, field)
+    if fingerprint(spec, field) == saved:
+        return True
+    return field == "capabilities" and digest(spec.model_dump(mode="json")[field]) == saved
+
+
 def merge_defaults(spec: AgentSpec, target: AgentSpec, previous: dict[str, str]) -> AgentSpec:
     """Refresh each untouched field; a custom prompt does not authorize changing it."""
     update = {
         field: target.model_dump()[field]
         for field in FIELDS
-        if fingerprint(spec, field) == previous_fingerprint(previous, field)
+        if matches_previous(spec, field, previous)
     }
     if "capabilities" in update:
         update["capabilities"] = shipped_capabilities(spec, target)

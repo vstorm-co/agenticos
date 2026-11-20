@@ -2579,11 +2579,7 @@
       }
     },
     "backgroundTasks": {
-      "heading": "Hintergrundthemen · {count} aktiv",
       "empty": "Bitte einen Agenten mit Hintergrundthemen um eine Delegation und setze das Gespräch fort.",
-      "retry": "Hintergrundthemen erneut laden",
-      "unavailable": "Hintergrundthemen nicht verfügbar",
-      "loadFailed": "Hintergrundthemen konnten nicht aktualisiert werden. Du kannst weiter chatten.",
       "stop": "{title} stoppen",
       "returnInterrupted": "Ergebnisübermittlung unterbrochen",
       "status": {
@@ -5908,10 +5904,6 @@
       "chat-coding-settings": {
         "title": "Modell und Denktiefe",
         "body": "Wähle Modell und Denktiefe des installierten Coding-Agenten. Die Auswahl gilt für dieses Gespräch; leere Felder behalten die eigenen Einstellungen des Agenten bei."
-      },
-      "chat-background-tasks": {
-        "title": "Hintergrundthemen",
-        "body": "Unabhängige Arbeit öffnet ein neues Thema in diesem Projekt. Sprich hier weiter; der Agent meldet sich mit dem Ergebnis. Öffne oder stoppe Aufgaben über diese Leiste."
       },
       "project-graph": {
         "title": "Verknüpfte Notizen erkunden",

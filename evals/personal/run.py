@@ -45,6 +45,8 @@ from app.core.cron import cron_has_next, cron_next
 from app.core.exceptions import RunFailedError
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunStatus, RunSurface
+from app.db.models.channel_identity import ChannelIdentity
+from app.db.models.conversation import Message, ToolCall
 from app.db.session import get_db_context
 from app.repositories import agent_repo, agent_run_repo, credential_repo, intercepted_tool_call_repo
 from app.schemas.agent import AgentRunResult
@@ -62,11 +64,14 @@ from app.schemas.virtual_table import (
 )
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
+from app.services.channels.base import IncomingMessage
+from app.services.channels.formatting import authored_prompt
+from app.services.channels.router import ChannelMessageRouter
 from app.services.conversation import ConversationService
 from app.services.dataset_files import parse
 from app.services.eval_run_worker import trajectory
 from app.services.memory import extraction
-from app.services.message_history import HistoryMessage, build_message_history
+from app.services.message_history import HistoryMessage, ModelHistory, build_message_history
 from app.services.proactive import _nightly as nightly
 from app.services.role_packs import PACKS
 from app.services.shipped_agents import ShippedAgentService
@@ -76,7 +81,11 @@ from app.services.virtual_tables.facade import VirtualTableService
 DATASETS = Path(__file__).resolve().parent / "datasets"
 Suite = Literal["memory", "briefing", "agenticos"]
 SUITES: tuple[Suite, ...] = ("memory", "briefing", "agenticos")
-CASE_COUNTS: dict[Suite, int] = {"memory": 50, "briefing": 50, "agenticos": 110}
+CASE_COUNTS: dict[Suite, int] = {"memory": 50, "briefing": 50, "agenticos": 114}
+CHANNEL_REPLAYS = {
+    "mattermost-room-recall": RunSurface.MATTERMOST,
+    "slack-room-recall": RunSurface.SLACK,
+}
 BASE_DATE = date(2026, 11, 16)
 LIVE_CASES = (
     "sandbox-file",
@@ -124,6 +133,7 @@ def tool_name(name: str) -> str:
         "delegate",
         "task",
         "read_skill",
+        "read_web_page",
         "read_memory",
         "execute",
         "draw",
@@ -211,9 +221,10 @@ def load(suite: Suite) -> list[Scenario]:
                     **kwargs,
                     "input": prompt,
                     "history": [
-                        *history,
+                        *(history if key not in CHANNEL_REPLAYS else []),
                         message("user", first),
                         message("assistant", answer),
+                        *(history if key in CHANNEL_REPLAYS else []),
                     ],
                     "reference_answer": reference,
                     "tags": [suite, key],
@@ -321,10 +332,15 @@ def response_cost(messages: Iterable[object]) -> Decimal | None:
 
 
 def public_source_evidence(case_id: str, calls: list[RecordedToolCall]) -> list[dict[str, str]]:
-    """Keep a bounded extract of the official release listing for the live-date criterion."""
-    if case_id != "python-release":
+    """Keep bounded official excerpts for time-dependent judge criteria."""
+    sources = {
+        "python-release": ({"www.python.org", "python.org"}, "/downloads/"),
+        "research-vendor-cost-followup": ({"www.runpod.io", "runpod.io"}, "/pricing"),
+    }
+    if case_id not in sources:
         return []
-    releases: list[dict[str, str]] = []
+    hosts, path = sources[case_id]
+    evidence: list[dict[str, str]] = []
     for call in calls:
         if call.tool_name != "web_fetch" or not call.result:
             continue
@@ -343,21 +359,29 @@ def public_source_evidence(case_id: str, calls: list[RecordedToolCall]) -> list[
             continue
         if (
             origin.scheme != "https"
-            or origin.netloc not in {"www.python.org", "python.org"}
-            or not origin.path.startswith("/downloads/")
+            or origin.netloc not in hosts
+            or not origin.path.startswith(path)
         ):
             continue
-        matching = [line for line in content.splitlines() if re.search(r"Python 3\.\d+\.\d+", line)]
+        if case_id == "python-release":
+            matching = [
+                line for line in content.splitlines() if re.search(r"Python 3\.\d+\.\d+", line)
+            ]
+        else:
+            matching = [
+                content[max(0, match.start() - 60) : match.end() + 320]
+                for match in re.finditer(r"H100\s+PCIe", content, re.IGNORECASE)
+            ]
         if matching:
-            releases.append(
+            evidence.append(
                 {
                     "url": origin._replace(query="", fragment="").geturl(),
                     "excerpt": "\n".join(matching[:6])[:1400],
                 }
             )
-            if len(releases) == 2:
+            if len(evidence) == 2:
                 break
-    return releases
+    return evidence
 
 
 def sandbox_csv_attempt(calls: list[EvalCallRead]) -> bool:
@@ -389,6 +413,11 @@ def trace_errors(
         f"forbidden call: {name}"
         for name in sorted({call.tool for call in calls} & set(scenario.forbidden))
     ]
+    if scenario.id in CHANNEL_REPLAYS:
+        if not all(nickname in answer.casefold() for nickname in ("mira", "teo")):
+            errors.append("missing channel author attribution")
+        if "private_channel_fixture" in answer.casefold():
+            errors.append("private tool data appeared in a channel answer")
     for expected in scenario.case.expected_tool_calls or []:
         if (
             scenario.id == "sandbox-file"
@@ -860,6 +889,79 @@ async def open_eval_conversation(ctx: AuthContext, case_id: str) -> UUID:
         return conversation.id
 
 
+async def channel_replay_fixture(
+    item: Scenario, conversation_id: UUID, surface: RunSurface
+) -> tuple[ModelHistory, str]:
+    """Drive the channel's real history adapter without a workspace or bot token."""
+    started = datetime.now(UTC)
+    mira, teo = [
+        ChannelIdentity(
+            platform=surface.value,
+            platform_user_id=f"eval-{uuid4()}",
+            platform_username=nick,
+            platform_display_name=nick.capitalize(),
+        )
+        for nick in ("mira", "teo")
+    ]
+    async with get_db_context() as db:
+        db.add_all([mira, teo])
+        await db.flush()
+        first, answer, followup = item.case.history
+        tools = [
+            ToolCall(
+                tool_call_id=f"eval-{index}",
+                tool_name=name,
+                status="completed",
+                started_at=started,
+                args={"synthetic_private_argument": "PRIVATE_CHANNEL_FIXTURE"},
+                result="PRIVATE_CHANNEL_FIXTURE",
+            )
+            for index, name in enumerate(
+                [
+                    "query_virtual_table",
+                    "update_virtual_table_record",
+                    "update_virtual_table_record",
+                ]
+            )
+        ]
+        db.add_all(
+            [
+                Message(
+                    conversation_id=conversation_id,
+                    role="user",
+                    content=first.content,
+                    channel_identity_id=mira.id,
+                ),
+                Message(
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=answer.content,
+                    parts=[{"type": "tool", "tool_call_id": tool.tool_call_id} for tool in tools],
+                    tool_calls=tools,
+                ),
+                Message(
+                    conversation_id=conversation_id,
+                    role="user",
+                    content=followup.content,
+                    channel_identity_id=teo.id,
+                ),
+            ]
+        )
+        await db.flush()
+        history = await ChannelMessageRouter._load_history(db, conversation_id, chat_type="group")
+        incoming = IncomingMessage(
+            platform=surface.value,
+            bot_id="eval-bot",
+            platform_user_id=teo.platform_user_id,
+            platform_chat_id=str(conversation_id),
+            chat_type="group",
+            text=item.case.input,
+            platform_username=teo.platform_username,
+            platform_display_name=teo.platform_display_name,
+        )
+        return history, authored_prompt("", incoming)
+
+
 @asynccontextmanager
 async def pending_vendors_fixture(
     ctx: AuthContext, item: Scenario
@@ -940,13 +1042,20 @@ async def evaluate_agenticos(
                     item, table_status_column = await fixtures.enter_async_context(
                         pending_vendors_fixture(ctx, item)
                     )
-                history = build_message_history(
-                    [
-                        HistoryMessage(role=turn.role, content=turn.content)
-                        for turn in item.case.history
-                    ]
-                )
                 conversation_id = await open_eval_conversation(ctx, item.id)
+                surface = CHANNEL_REPLAYS.get(item.id, RunSurface.WEB)
+                channel_author_context = ""
+                if surface == RunSurface.WEB:
+                    history = build_message_history(
+                        [
+                            HistoryMessage(role=turn.role, content=turn.content)
+                            for turn in item.case.history
+                        ]
+                    )
+                else:
+                    history, channel_author_context = await channel_replay_fixture(
+                        item, conversation_id, surface
+                    )
                 failure: RunFailedError | None = None
                 try:
                     async with get_db_context() as db:
@@ -954,7 +1063,8 @@ async def evaluate_agenticos(
                             ctx,
                             agent_id,
                             item.case.input,
-                            surface=RunSurface.WEB,
+                            surface=surface,
+                            channel_author_context=channel_author_context,
                             conversation_id=conversation_id,
                             acts_for_sender=True,
                             version_id=version_id,

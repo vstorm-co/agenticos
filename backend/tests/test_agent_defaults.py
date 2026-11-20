@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from app.agents.spec import AgentSpec, BudgetSpec
-from app.services.agent_defaults import STARTER, baseline, legacy_defaults, merge_defaults
+from app.services.agent_defaults import STARTER, baseline, digest, legacy_defaults, merge_defaults
 
 
 @pytest.mark.security
@@ -101,3 +101,18 @@ def test_refresh_removes_shipped_planning_without_changing_a_personal_model() ->
         updated = merge_defaults(current, target, baseline(key, shipped))
         assert [binding.id for binding in updated.capabilities] == ["memory_files"]
         assert updated.model_profile_id == model
+
+
+def test_refresh_recognizes_a_legacy_capabilities_hash_including_thinking() -> None:
+    shipped = AgentSpec(name="Assistant", capabilities=[{"id": "thinking"}, {"id": "planning"}])
+    previous = baseline(STARTER, shipped)
+    previous["capabilities"] = digest(shipped.model_dump(mode="json")["capabilities"])
+    target = AgentSpec(name="Assistant", capabilities=[{"id": "clock"}])
+
+    updated = merge_defaults(shipped, target, previous)
+    assert [binding.id for binding in updated.capabilities] == ["clock", "thinking"]
+
+    customized = AgentSpec(
+        name="Assistant", capabilities=[{"id": "thinking"}, {"id": "memory_files"}]
+    )
+    assert merge_defaults(customized, target, previous).capabilities == customized.capabilities

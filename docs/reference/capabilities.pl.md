@@ -1,5 +1,5 @@
 ---
-source_sha: "97749d8a04f5"
+source_sha: "d5775040d7b6"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -703,7 +703,9 @@ zakresem.
 
 ## Czytanie stron { #web-fetch }
 
-`web_fetch` — _Read the full page at a URL, as Markdown._
+`web_fetch` — *Odczytuje treść spod adresu URL jako Markdown.*
+
+Lokalny odczyt długich stron przyjmuje pozycję znaku `offset` i limit `limit`. Zacznij od zera i kontynuuj od pozycji `next_offset`. Gdy odczyt dotrze do limitu przed końcem źródła, wynik zawiera `reached_limit`.
 
 | Konfiguracja | Domyślnie | Wartości |
 | --- | --- | --- |
