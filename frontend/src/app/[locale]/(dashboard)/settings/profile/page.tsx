@@ -2,6 +2,7 @@
 import { ProfileIdentitySettings } from "@/components/settings/profile-identity-settings";
 import { AppearanceSettings } from "@/components/settings/appearance-settings";
 import { CodingAccounts } from "@/components/settings/coding-accounts";
+import { PersonalModelKeys } from "@/components/settings/personal-model-keys";
 import { ChatAccounts } from "@/components/settings/chat-accounts";
 import { ForgetMe } from "@/components/memory/forget-me";
 import { useAuth } from "@/hooks";
@@ -20,6 +21,7 @@ export default function ProfileSettingsPage() {
       <div className="bg-card min-w-0 rounded-2xl border px-5 pb-2 sm:px-6">
         <AppearanceSettings />
       </div>
+      <PersonalModelKeys />
       <div>
         <ForgetMe userId={user.id} />
       </div>

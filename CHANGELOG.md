@@ -42,6 +42,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Keep Back and the primary action in a shared onboarding footer as users move through organization and member setup.
+
+- Default personal Codex connections to the shared ChatGPT sign-in form and name coding accounts automatically.
+
+- Align question cards with the chat composer, use catalog model names, and rename conversations in a dialog with explicit save. Share links use the same copy field as Apps and settings open at the top.
+
+- Show personal memories and longer notes together. With Memory enabled, private conversations get a bounded overview automatically, with a separate switch in the Builder.
+
+- Review changes to customized AgenticOS and Architect defaults before applying them. Bundled Context updates use the existing Context proposal review.
+
 - Give AgenticOS a shorter default prompt with better guidance for full source reading, personal memory, Skills, Context and routines. Delegate only on request or when the user accepts a specific offer.
 
 - Keep Discuss visible on Inbox items and put secondary actions in a menu. Highlight links to console resources and inline code in chat, and show compact approval cards aligned with the composer, including after reload.

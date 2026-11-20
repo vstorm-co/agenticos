@@ -24,12 +24,14 @@ export function ProfileIdentitySettings({
   onContinue,
   saveLabel,
   secondaryAction,
+  renderActions,
   section = "all",
   unifiedSave = false,
 }: {
   onContinue?: () => void;
   saveLabel?: string;
   secondaryAction?: ReactNode;
+  renderActions?: (actions: ReactNode) => ReactNode;
   section?: "all" | "identity" | "context";
   unifiedSave?: boolean;
 }) {
@@ -157,6 +159,21 @@ export function ProfileIdentitySettings({
 
   const avatarSrc = `/api/users/avatar/${user.id}?v=${avatarVersion}`;
 
+  const identityActions = (
+    <>
+      {secondaryAction}
+      <Button
+        type="submit"
+        form={sharedFormId}
+        loading={saving}
+        disabled={busy || (!onContinue && !profileChanged)}
+        className={renderActions ? undefined : "w-full sm:w-auto"}
+      >
+        {saveLabel ?? t("saveChanges")}
+      </Button>
+    </>
+  );
+
   return (
     <div
       className={cn(
@@ -170,6 +187,7 @@ export function ProfileIdentitySettings({
           description={t("visibleTeammatesSharedOrganizations")}
         >
           <IdentityContainer
+            id={unifiedSave ? undefined : sharedFormId}
             aria-label={t("personalInfo")}
             onSubmit={async (event) => {
               event.preventDefault();
@@ -301,22 +319,17 @@ export function ProfileIdentitySettings({
                   />
                 </FormField>
               </div>
-              {!unifiedSave && (
-                <div
-                  data-profile-actions
-                  className="flex flex-wrap items-center justify-end gap-3 border-t pt-4"
-                >
-                  <Button
-                    type="submit"
-                    loading={saving}
-                    disabled={busy || (!onContinue && !profileChanged)}
-                    className="w-full sm:w-auto"
+              {!unifiedSave &&
+                (renderActions ? (
+                  renderActions(identityActions)
+                ) : (
+                  <div
+                    data-profile-actions
+                    className="flex flex-wrap items-center justify-end gap-3 border-t pt-4"
                   >
-                    {saveLabel ?? t("saveChanges")}
-                  </Button>
-                  {secondaryAction}
-                </div>
-              )}
+                    {identityActions}
+                  </div>
+                ))}
             </fieldset>
           </IdentityContainer>
         </SectionCard>
@@ -333,6 +346,7 @@ export function ProfileIdentitySettings({
           onSaved={onContinue}
           saveLabel={saveLabel}
           secondaryAction={secondaryAction}
+          renderActions={renderActions}
         />
       )}
     </div>

@@ -534,7 +534,7 @@ describe("what the sidebar says about the list", () => {
     expect(useConversationStore.getState().currentConversationId).toBeNull();
   });
 
-  it("renames from the menu, with the focus left in the title's field", async () => {
+  it("renames from the menu, only when the dialog is submitted", async () => {
     serve([conversation("c-1", "Quarterly numbers")]);
     vi.mocked(apiClient.patch).mockResolvedValue({});
     mount();
@@ -542,10 +542,20 @@ describe("what the sidebar says about the list", () => {
 
     await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
-    const field = within(list()).getByDisplayValue("Quarterly numbers");
+    const dialog = screen.getByRole("dialog", { name: "Rename" });
+    const field = within(dialog).getByDisplayValue("Quarterly numbers");
     await waitFor(() => expect(field).toHaveFocus());
     await userEvent.clear(field);
-    await userEvent.type(field, "Q3 numbers{Enter}");
+    await userEvent.type(field, "Discard this title");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(apiClient.patch).not.toHaveBeenCalled();
+    await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    const reopened = screen.getByRole("dialog", { name: "Rename" });
+    const title = within(reopened).getByDisplayValue("Quarterly numbers");
+    await userEvent.clear(title);
+    await userEvent.type(title, "Q3 numbers");
+    await userEvent.click(within(reopened).getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { title: "Q3 numbers" }),

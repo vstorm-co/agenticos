@@ -31,6 +31,11 @@ def installed(monkeypatch: pytest.MonkeyPatch):
         "can_provide",
         AsyncMock(return_value=bool(agent_templates.settings.SANDBOXD_TOKEN)),
     )
+    monkeypatch.setattr(
+        shipped_agents.ContextProposalService,
+        "bundled_product_context",
+        AsyncMock(return_value=None),
+    )
     ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
     spec = AgentSpec(name="AgenticOS", instructions="Old guidance")
     agent = SimpleNamespace(

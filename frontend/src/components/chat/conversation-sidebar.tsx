@@ -17,6 +17,12 @@ import { useAgents, useConversations } from "@/hooks";
 import { ConversationSearchDialog } from "@/components/chat/conversation-search-dialog";
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -109,6 +115,7 @@ function ConversationItem({
 }: ConversationItemProps) {
   const t = useTranslations("chat");
   const tTime = useTranslations("time");
+  const common = useTranslations("common");
   const locale = useLocale();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(conversation.title || "");
@@ -177,11 +184,8 @@ function ConversationItem({
   }, [handedOff, listed, conversation.id, settleWorking]);
   const agentLabel = useConversationAgentLabel(agents, conversation.coding_agents ?? []);
 
-  // Rename moves the focus into the title's field once the menu has closed: the
-  // open menu holds the focus, and a field focused under it would blur at once,
-  // which saves the rename and closes the field.
   const renaming = useRef(false);
-  const titleField = useRef<HTMLInputElement>(null);
+  const actionsButton = useRef<HTMLButtonElement>(null);
 
   const favouriteItem = (
     <DropdownMenuItem onSelect={() => onFavourite(conversation.is_favourite !== true)}>
@@ -200,14 +204,12 @@ function ConversationItem({
       )}
       onClick={onSelect}
     >
-      {!isEditing && (
-        <button
-          type="button"
-          aria-label={displayTitle}
-          aria-current={isActive ? "page" : undefined}
-          className="focus-visible:outline-ring absolute inset-0 rounded-xl outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
-        />
-      )}
+      <button
+        type="button"
+        aria-label={displayTitle}
+        aria-current={isActive ? "page" : undefined}
+        className="focus-visible:outline-ring absolute inset-0 rounded-xl outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+      />
       {/* Agent faces identify who took part; the title leads the text. */}
       <span className="relative shrink-0">
         {agents.length > 0 || conversation.coding_agents?.length ? (
@@ -234,82 +236,66 @@ function ConversationItem({
           />
         )}
       </span>
-      {isEditing ? (
-        <input
-          type="text"
-          aria-label={t("rename")}
-          value={editTitle}
-          onChange={(e) => setEditTitle(e.target.value)}
-          onBlur={handleRename}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleRename();
-            if (e.key === "Escape") setIsEditing(false);
-          }}
-          ref={titleField}
-          className="text-foreground focus-visible:outline-foreground/60 relative min-w-0 flex-1 rounded bg-transparent text-base font-medium focus-visible:outline-2 focus-visible:outline-offset-2 md:text-[13px]"
-          onClick={(e) => e.stopPropagation()}
-        />
-      ) : (
-        // Titles lead scanning; identity and activity share the quieter second line.
-        <div className="pointer-events-none relative min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5">
-            {/* A fork keeps its source's title and agent, so without this the
+      {/* Titles lead scanning; identity and activity share the quieter second line. */}
+      <div className="pointer-events-none relative min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {/* A fork keeps its source's title and agent, so without this the
                 two rows differ only in their time. */}
-            {conversation.forked_from && (
-              <span
-                role="img"
-                aria-label={t("sidebar.forkOf", {
-                  title: conversation.forked_from.title || t("untitledFork"),
-                })}
-                title={t("sidebar.forkOf", {
-                  title: conversation.forked_from.title || t("untitledFork"),
-                })}
-                className="text-muted-foreground shrink-0"
-              >
-                <GitBranch className="h-3 w-3" aria-hidden />
-              </span>
-            )}
-            {/* Medium, and semibold only while it holds something unread - the
-                weight is the second half of the mark, as in a mail client. */}
+          {conversation.forked_from && (
             <span
-              className={cn(
-                "line-clamp-2 text-[13px] leading-5",
-                unread ? "text-foreground font-semibold" : "font-medium",
-                !unread && (isActive ? "text-foreground" : "text-foreground/80"),
-              )}
+              role="img"
+              aria-label={t("sidebar.forkOf", {
+                title: conversation.forked_from.title || t("untitledFork"),
+              })}
+              title={t("sidebar.forkOf", {
+                title: conversation.forked_from.title || t("untitledFork"),
+              })}
+              className="text-muted-foreground shrink-0"
             >
-              {displayTitle}
+              <GitBranch className="h-3 w-3" aria-hidden />
             </span>
-            {/* Opened by a script through an API key, not typed here (#2122). */}
-            {conversation.origin === "api" && (
-              <span className="border-border text-muted-foreground shrink-0 rounded border px-1 font-mono text-[10px] leading-4">
-                {t("sidebar.apiBadge")}
-              </span>
+          )}
+          {/* Medium, and semibold only while it holds something unread - the
+                weight is the second half of the mark, as in a mail client. */}
+          <span
+            className={cn(
+              "line-clamp-2 text-[13px] leading-5",
+              unread ? "text-foreground font-semibold" : "font-medium",
+              !unread && (isActive ? "text-foreground" : "text-foreground/80"),
             )}
-          </div>
-          <p className="text-muted-foreground mt-0.5 truncate text-xs leading-4">
-            {/* At work, the line says so and for how long, in place of who and
+          >
+            {displayTitle}
+          </span>
+          {/* Opened by a script through an API key, not typed here (#2122). */}
+          {conversation.origin === "api" && (
+            <span className="border-border text-muted-foreground shrink-0 rounded border px-1 font-mono text-[10px] leading-4">
+              {t("sidebar.apiBadge")}
+            </span>
+          )}
+        </div>
+        <p className="text-muted-foreground mt-0.5 truncate text-xs leading-4">
+          {/* At work, the line says so and for how long, in place of who and
                 when: beside the agent's name it was cut to nothing. The face
                 still says who. */}
-            {waiting ? (
-              tTools("toolState", { status: waiting })
-            ) : runningSince ? (
-              <RunningFor key={runningSince} since={runningSince} />
-            ) : (
-              <>
-                {agentLabel && <>{agentLabel} · </>}
-                {timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)}
-              </>
-            )}
-          </p>
-        </div>
-      )}
+          {waiting ? (
+            tTools("toolState", { status: waiting })
+          ) : runningSince ? (
+            <RunningFor key={runningSince} since={runningSince} />
+          ) : (
+            <>
+              {agentLabel && <>{agentLabel} · </>}
+              {timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)}
+            </>
+          )}
+        </p>
+      </div>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
+            ref={actionsButton}
             aria-label={t("conversationActions")}
             className={cn(
               // Reserve the action slot so revealing it never reflows the title,
@@ -333,7 +319,6 @@ function ConversationItem({
             if (!renaming.current) return;
             renaming.current = false;
             e.preventDefault();
-            titleField.current?.focus();
           }}
         >
           {/* Somebody else's thread: renaming, sharing, archiving and
@@ -354,6 +339,7 @@ function ConversationItem({
               <DropdownMenuItem
                 onSelect={() => {
                   renaming.current = true;
+                  setEditTitle(conversation.title ?? "");
                   setIsEditing(true);
                 }}
               >
@@ -393,6 +379,44 @@ function ConversationItem({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <Dialog open={isEditing} onOpenChange={setIsEditing}>
+        <DialogContent
+          className="sm:max-w-sm"
+          aria-describedby={undefined}
+          onClick={(event) => event.stopPropagation()}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            actionsButton.current?.focus();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t("rename")}</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleRename();
+            }}
+          >
+            <Input
+              aria-label={t("rename")}
+              value={editTitle}
+              onChange={(event) => setEditTitle(event.target.value)}
+              maxLength={255}
+              required
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
+                {common("cancel")}
+              </Button>
+              <Button type="submit" disabled={!editTitle.trim()}>
+                {common("save")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

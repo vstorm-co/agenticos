@@ -7,7 +7,7 @@ import "./chat-layout.css";
 import { ChevronDown, SlidersHorizontal, ShieldCheck, SquareTerminal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
-import { useModelProviders, usePermissions } from "@/hooks";
+import { useModelProviders, usePermissions, useProviderModels } from "@/hooks";
 import { useAgentSelectionStore } from "@/stores";
 import { useAgents } from "@/hooks/use-agents";
 import { ModelIcon } from "@/components/icons/model-icon";
@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Skeleton } from "@/components/ui/skeleton";
 import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
 import { Perm } from "@/types/permissions";
+import { modelName } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import { ChatModelPicker } from "./chat-model-picker";
 import { PersonalModelConnection } from "./personal-model-connection";
@@ -53,7 +54,10 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
     update({ modelProfileId: id });
     onChange?.(id);
   };
-  const caption = model?.model.split("/").at(-1) || t("modelSection");
+  const { models } = useProviderModels(model && can(Perm.agentsView) ? model.provider : "");
+  const caption = model
+    ? modelName(model, models.find((entry) => entry.id === model.model)?.name)
+    : t("modelSection");
   const library = !agent?.personal_model_key && (permissionsLoading || can(Perm.connectionsManage));
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -62,7 +66,7 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
           type="button"
           aria-label={t("modelSection")}
           data-chat-model
-          title={model?.label ?? t("modelSection")}
+          title={caption}
           className="group/model focus-visible:ring-ring hover:bg-muted inline-flex h-9 max-w-52 min-w-0 items-center gap-2 rounded-full px-2.5 text-xs outline-none focus-visible:ring-2"
         >
           {model && <ModelIcon model={model.model} provider={model.provider} />}

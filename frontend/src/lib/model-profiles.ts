@@ -25,6 +25,16 @@ export function modelDetail(
   return saysIt ? null : `${profile.provider} · ${profile.model}`;
 }
 
+/** Match the picker’s catalog spelling while respecting a saved custom label. */
+export function modelName(
+  profile: Pick<ModelProfile, "label" | "provider" | "model">,
+  catalogName?: string,
+): string {
+  if (profile.label && profile.label !== profile.model && modelDetail(profile) !== null)
+    return profile.label;
+  return catalogName?.split(":").pop()?.trim() || profile.model.split("/").at(-1) || profile.model;
+}
+
 /**
  * Whether an agent - or a conversation - can run on this profile (#2487).
  *

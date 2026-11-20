@@ -151,6 +151,7 @@ export const qk = {
     ceiling: () => ["agents", "ceiling"] as const,
     create: () => ["agents", "create"] as const,
     detail: (id: string) => ["agents", id] as const,
+    shippedUpdate: (id: string) => ["agents", id, "shipped-update"] as const,
     templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
     // answers, and caching one as another shows the wrong decade of the timeline.

@@ -2511,8 +2511,7 @@
       "restore": "Bu notu yeniden kullan",
       "delete": "Bu notu sil",
       "browser": {
-        "editNoteHint": "Agent’ın sizin hakkınızda hatırladıklarını düzeltin. Düzenlemeleriniz ilk agent kaydından ayrı tutulur.",
-        "noteContent": "Not içeriği"
+        "editNoteHint": "Agent’ın sizin hakkınızda hatırladıklarını düzeltin. Düzenlemeleriniz ilk agent kaydından ayrı tutulur."
       }
     },
     "agentDetail": {
@@ -3265,6 +3264,15 @@
       }
     },
     "agents": {
+      "shippedUpdate": {
+        "review": "Yerleşik güncellemeyi incele",
+        "description": "Yerleşik talimatları, araçları, becerileri ve bağlamı uygular. Model, düşünme ve başlangıç mesajı ayarları korunur. Yayımlanmış güncelleme hemen etkinleşir.",
+        "current": "Yerleşik varsayılanlar zaten kullanılıyor.",
+        "apply": "Yerleşik güncellemeyi uygula",
+        "reload": "Farkları yeniden yükle",
+        "draft": "Taslak",
+        "published": "Yayımlanan"
+      },
       "voiceUnreportedTokenUsage": "Bu sağlayıcı token ücretlerini bildirmez. Harcama bütçesi olan aramalar başlatılamaz; kaydedilen ses maliyeti bir alt sınırdır.",
       "agentAposSBehaviour": "Agentın davranış talimatları kodda değil, burada bulunur. Ne yapması, neyi reddetmesi ve nasıl kaynak göstermesi gerektiğini açıkça belirtin. Markdown kullanın; model yapıyı okur. Uzun bir promptun izlenebilmesi için başlıklar ve listeler önemlidir; önizleme de bu yapıyı görüntüleyebilmenizi sağlar.",
       "agentAposSOwn": "Bu agentın kendi aylık harcama sınırı. Kuruluşun sınırı ayrıca geçerlidir; agent bu sınırı düşürebilir ama yükseltemez. Adım sınırı başka türden kontrolsüz çalışmayı yakalar: çağrı başına ucuz olan ama hiç bitmeyen araç döngüsü.",
@@ -5517,6 +5525,10 @@
       "allow_personal": {
         "title": "Kişi başına özel not tut",
         "description": "Agent'ın konuştuğu her kişi için özel not tutup tutmayacağı; notlar yalnızca o kişiyle baş başayken okunabilir. Uyumluluk veya gizlilik için kapatmak bu depoyu tümüyle devre dışı bırakır; grup sohbetlerinde tutulan notlar kalır."
+      },
+      "inject_context": {
+        "title": "Belleği otomatik ekle",
+        "description": "Özel konuşmalarda kişisel anıların ve notların kısa bir özetini gösterir. Araçlar ve arka plan bakımı kullanılabilir kalır."
       }
     },
     "memory_mem0": {
@@ -13463,10 +13475,6 @@
     "label": "Hesap etiketi",
     "apiKey": "API anahtarı",
     "chatGPT": "ChatGPT oturumu",
-    "oauthHelp": "Tarayıcıda yeni bir oturum aç ve localhost geri dönüş adresinin tamamını buraya yapıştır. CLI auth.json dosyasını içe aktarma.",
-    "continueOpenAI": "OpenAI ile devam et",
-    "startSignIn": "Oturum açmayı başlat",
-    "callback": "Geri dönüş adresi",
     "credential": "API anahtarı veya Claude kurulum belirteci",
     "keyHelp": "Claude Code, Anthropic API anahtarı veya kurulum belirteci; Codex ise OpenAI API anahtarı kabul eder. Kişisel hesaplar doğrudan sağlayıcılarına bağlanır.",
     "consent": "Bu kuruluştaki ajanlar başlattığım kodlama görevleri için bu hesabı kullanabilsin.",
@@ -13557,9 +13565,7 @@
       "context": "Bağlamınız",
       "contextTitle": "Ajanlarınız sizin hakkınızda ne bilmeli?",
       "contextHint": "Rolünüz, işiniz ve saat diliminiz ajanların ihtiyaçlarınızı anlamasına yardımcı olur.",
-      "backStep": "Geri",
       "createInstead": "Yeni organizasyon oluştur",
-      "chooseExisting": "Mevcut organizasyonu seç",
       "identityBenefitTitle": "Organizasyonunuz. Kimliğiniz.",
       "identityBenefitBody": "Logonuz, ekibinizin sohbetlerde ve ortak kaynaklarda doğru organizasyonu tanımasına yardımcı olur.",
       "identityProfileTitle": "Profilini kişiselleştir",

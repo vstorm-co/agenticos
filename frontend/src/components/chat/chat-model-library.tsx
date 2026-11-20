@@ -11,7 +11,7 @@ import { COMMAND_ITEM_FOCUS, CONTROL_FOCUS } from "@/components/ui/control-style
 import type { ProviderModel } from "@/hooks/use-model-providers";
 import type { ModelProfile } from "@/types/providers";
 import { modelIdIsWellFormed } from "@/components/agents/add-model";
-import { modelDetail } from "@/lib/model-profiles";
+import { modelName } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 
 interface LibraryProvider {
@@ -221,15 +221,7 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
                         row(
                           entry.id,
                           entry.model,
-                          modelDetail(entry) === null
-                            ? props.models
-                                .find((model) => model.id === entry.model)
-                                ?.name.split(":")
-                                .pop()
-                                ?.trim() ||
-                                entry.model.split("/").pop() ||
-                                entry.model
-                            : entry.label,
+                          modelName(entry, catalog.get(entry.model)?.name),
                           props.profileId === entry.id,
                           () => props.onProfileChange(entry),
                           entry.context_length,

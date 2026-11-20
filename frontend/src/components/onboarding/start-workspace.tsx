@@ -7,6 +7,7 @@ import { Button } from "@/components/ui";
 import { CreateOrgForm } from "@/components/teams/create-org-form";
 import { EntityAvatar } from "@/components/ui/entity-avatar";
 import type { Organization } from "@/types";
+import { StartActions, StartBack } from "./start-navigation";
 import { StartWorkspacePreview } from "./start-workspace-preview";
 import styles from "./administration.module.css";
 
@@ -31,19 +32,26 @@ export function StartWorkspace({
           <Building2 size={24} aria-hidden className={styles.stageIcon} />
           <h3>{t("createCompany")}</h3>
           <p>{t("createCompanyHint")}</p>
-          <CreateOrgForm onCreated={onSelect} onNameChange={setName} />
-          {organizations.length > 0 && (
-            <Button
-              className="mt-3"
-              variant="ghost"
-              onClick={() => {
-                setName("");
-                setCreateNew(false);
-              }}
-            >
-              {t("chooseExisting")}
-            </Button>
-          )}
+          <CreateOrgForm
+            onCreated={onSelect}
+            onNameChange={setName}
+            renderActions={(actions) => (
+              <StartActions
+                back={
+                  organizations.length > 0 && (
+                    <StartBack
+                      onClick={() => {
+                        setName("");
+                        setCreateNew(false);
+                      }}
+                    />
+                  )
+                }
+              >
+                {actions}
+              </StartActions>
+            )}
+          />
         </section>
       ) : (
         <section className={styles.createWorkspace}>

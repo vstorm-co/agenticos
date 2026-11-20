@@ -100,6 +100,7 @@ import { MetadataEditor } from "@/components/agents/metadata-editor";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
 import { VoiceCard } from "@/components/agents/voice-card";
+import { ShippedUpdateDialog } from "@/components/agents/shipped-update-dialog";
 import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishRefusal } from "@/components/agents/publish-refusal";
 import { PublishState } from "@/components/agents/publish-state";
@@ -369,6 +370,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [fixing, setFixing] = useState(false);
   const [confirming, setConfirming] = useState<"archive" | "delete" | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [shippedUpdateOpen, setShippedUpdateOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   // In the address, so a reload or a shared link lands on the same tab.
@@ -1280,6 +1282,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     <UserPlus className="size-4" />
                     {tSharing("share")}
                   </DropdownMenuItem>
+                  {agent.can_review_shipped_update && (
+                    <DropdownMenuItem
+                      disabled={isDirty || saveDraft.isPending}
+                      onSelect={() => setShippedUpdateOpen(true)}
+                    >
+                      <History className="h-4 w-4" />
+                      {t("shippedUpdate.review")}
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild className={DESCRIBED_ITEM}>
                     <a href={`/api/agents/${id}/spec.yaml`} download>
@@ -1517,6 +1528,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
           }}
         />
 
+        {shippedUpdateOpen && (
+          <ShippedUpdateDialog agentId={id} onClose={() => setShippedUpdateOpen(false)} />
+        )}
         <PublishDialog
           open={publishOpen}
           onOpenChange={setPublishOpen}

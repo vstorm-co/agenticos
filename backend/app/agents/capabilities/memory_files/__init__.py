@@ -1,4 +1,4 @@
-"""Memory files - an agent's own notes, indexed by a `MEMORY.md` it maintains."""
+"""Scoped short memories and durable notes."""
 
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
@@ -31,12 +31,9 @@ MEMORY_FILES_CAPABILITY_ID = "memory_files"
     name="Memory",
     category="knowledge",
     description=(
-        "Let the agent keep its own notes across conversations, indexed by a "
-        f"`{INDEX_NAME}` it maintains and is shown to it at the start of every "
-        "request. A note goes where the conversation goes: one to one it is that "
-        "person's and nobody else reads it, in a group chat it is the chat's and "
-        "everyone in the chat reads it. Nothing an agent writes here is shared "
-        "across people - standing knowledge you author belongs in context files."
+        "Keep facts, preferences, decisions and longer notes across conversations. "
+        "In private conversations, a short overview is available before the first tool call. "
+        "A shared conversation can use its own permitted memories and notes."
     ),
     tools=(
         CapabilityToolInfo(
@@ -101,4 +98,4 @@ def _build(ctx: CapabilityBuildContext) -> MemoryFiles:
     An agent that wants no notes does not bind it.
     """
     config = ctx.config if isinstance(ctx.config, MemoryFilesConfig) else MemoryFilesConfig()
-    return MemoryFiles(allow_personal=config.allow_personal)
+    return MemoryFiles(allow_personal=config.allow_personal, inject_context=config.inject_context)

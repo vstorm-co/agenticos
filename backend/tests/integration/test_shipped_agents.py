@@ -554,3 +554,78 @@ async def test_new_console_agent_gets_common_work_tools_without_agenticos_only_a
     assert "conversation_search" not in bindings
     assert not {"platform-tables", "agenticos-guide"} & names
     assert "ask_user_question" in spec.instructions
+
+
+async def test_review_applies_shipped_instructions_and_preserves_user_settings(
+    db: AsyncSession,
+) -> None:
+    from app.core.exceptions import ConcurrentChangeError
+
+    ctx = await _owner(db)
+    await AssistantService(db).state(ctx)
+    agent = (await _agents(db, ctx))["AgenticOS"]
+    registry = AgentRegistryService(db)
+    service = ShippedAgentService(db)
+    original = AgentSpec.model_validate(agent.draft_spec)
+    custom = original.model_copy(
+        update={"instructions": "Customer runbook", "show_starters": False}
+    )
+    await registry.save_draft(ctx, agent.id, custom)
+    preview = await service.review_update(ctx, agent.id)
+    assert any(change.before == custom.instructions for change in preview.changes)
+    await registry.save_draft(
+        ctx, agent.id, custom.model_copy(update={"instructions": "Second edit"})
+    )
+    with pytest.raises(ConcurrentChangeError):
+        await service.apply_update(ctx, agent.id, preview.revision)
+
+    preview = await service.review_update(ctx, agent.id)
+    await service.apply_update(ctx, agent.id, preview.revision)
+    saved = AgentSpec.model_validate(agent.draft_spec)
+    assert saved.instructions == original.instructions
+    assert saved.show_starters is False
+    assert not (await service.review_update(ctx, agent.id)).changes
+
+
+async def test_bundled_context_waits_as_a_proposal_and_is_not_duplicated(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+
+    from app.repositories import context_proposal_repo
+    from app.schemas.resource_usage import ProposalDecision
+    from app.services import skill_library
+    from app.services.context_proposal import ContextProposalService
+
+    ctx = await _owner(db)
+    await AssistantService(db).state(ctx)
+    service = ContextProposalService(db)
+    file = await service.bundled_product_context(ctx, synchronize=True)
+    assert file is not None and file.mode == "link"
+    existing = file.content
+    original_get = skill_library.get
+    bundled = original_get("platform-context")
+    assert bundled is not None
+    changed = replace(
+        bundled,
+        resources=tuple(
+            replace(resource, content=resource.content + "\nNew guidance.")
+            if resource.name == "references/product-map.md"
+            else resource
+            for resource in bundled.resources
+        ),
+    )
+    monkeypatch.setattr(
+        skill_library,
+        "get",
+        lambda key: changed if key == "platform-context" else original_get(key),
+    )
+    await service.bundled_product_context(ctx, synchronize=True)
+    await service.bundled_product_context(ctx, synchronize=True)
+    pending = await context_proposal_repo.list_for_organization(
+        db, organization_id=ctx.organization_id
+    )
+    assert len(pending) == 1
+    assert file.content == existing
+    await service.apply(ctx, pending[0].id, ProposalDecision(revision=pending[0].revision))
+    assert file.content.endswith("New guidance.")

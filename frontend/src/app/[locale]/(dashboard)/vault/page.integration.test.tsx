@@ -143,5 +143,3 @@ describe("vault inventory", () => {
     expect(screen.getByText("No credentials yet")).toBeVisible();
   });
 });
-
-vi.mock("@/components/vault/personal-model-keys", () => ({ PersonalModelKeys: () => null }));

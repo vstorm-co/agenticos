@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui";
+import { StartActions, StartBack } from "./start-navigation";
 import { StartGuide } from "./start-guide";
 import styles from "./guided-start.module.css";
 
@@ -46,13 +47,7 @@ export function StartQuestion({
           {title}
         </h2>
         <div className={styles.answer}>{children}</div>
-        <footer className={styles.actions}>
-          {onBack && (
-            <Button variant="ghost" disabled={pending} onClick={onBack}>
-              <ArrowLeft size={15} aria-hidden />
-              {t("back")}
-            </Button>
-          )}
+        <StartActions back={onBack && <StartBack onClick={onBack} disabled={pending} />}>
           {onSkip && (
             <Button variant="ghost" disabled={pending} onClick={onSkip}>
               {t("keepCurrent")}
@@ -62,7 +57,7 @@ export function StartQuestion({
             {pending ? t("saving") : t("continue")}
             <ArrowRight size={15} aria-hidden />
           </Button>
-        </footer>
+        </StartActions>
       </section>
     </div>
   );
@@ -80,18 +75,10 @@ export function StartStepPending({
   children: ReactNode;
   onBack?: () => void;
 }) {
-  const t = useTranslations("start.guided");
   return (
     <div>
       {children}
-      {onBack && (
-        <div className="flex justify-center">
-          <Button variant="ghost" onClick={onBack}>
-            <ArrowLeft size={15} aria-hidden />
-            {t("back")}
-          </Button>
-        </div>
-      )}
+      <StartActions back={onBack && <StartBack onClick={onBack} />} />
     </div>
   );
 }

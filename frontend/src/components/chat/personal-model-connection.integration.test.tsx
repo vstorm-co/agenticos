@@ -3,7 +3,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { PersonalModelConnection } from "./personal-model-connection";
-import { PersonalModelKeys } from "@/components/vault/personal-model-keys";
+import { PersonalModelKeys } from "@/components/settings/personal-model-keys";
 import { useAuthStore } from "@/stores";
 import * as api from "@/lib/personal-model-keys-api";
 import { ApiError } from "@/lib/api-error";

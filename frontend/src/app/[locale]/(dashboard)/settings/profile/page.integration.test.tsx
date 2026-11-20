@@ -15,6 +15,7 @@ vi.mock("@/components/dashboard/active-sessions", () => ({ ActiveSessions: () =>
 vi.mock("@/components/settings/appearance-settings", () => ({
   AppearanceSettings: () => <h2>Appearance</h2>,
 }));
+vi.mock("@/components/settings/personal-model-keys", () => ({ PersonalModelKeys: () => null }));
 vi.mock("@/components/settings/coding-accounts", () => ({
   CodingAccounts: () => <h2>Coding accounts</h2>,
 }));

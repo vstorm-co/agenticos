@@ -326,6 +326,7 @@ describe("the chat container - answering a durable question", () => {
     });
     const answer = screen.getByRole("button", { name: /Casual/ });
     expect(answer).toBeDisabled();
+    expect(answer.closest(".chat-composer-width")).toBeInTheDocument();
     act(() => {
       socket.isConnected = true;
       useChatStore.setState({ messages: [...useChatStore.getState().messages] });

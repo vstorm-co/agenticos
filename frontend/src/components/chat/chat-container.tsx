@@ -1695,12 +1695,19 @@ function ChatUI({
               </div>
             )}
             {pendingQuestions && pendingQuestions.length > 0 && onAnswerQuestions && (
-              <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
-                <QuestionPrompt
-                  questions={pendingQuestions}
-                  disabled={readOnly || !isConnected || isStopping}
-                  onComplete={onAnswerQuestions}
-                />
+              <div
+                className={cn(
+                  "pointer-events-auto mx-auto w-full pb-2",
+                  compact ? "px-3" : "max-w-5xl px-2 sm:px-4",
+                )}
+              >
+                <div className="chat-composer-width">
+                  <QuestionPrompt
+                    questions={pendingQuestions}
+                    disabled={readOnly || !isConnected || isStopping}
+                    onComplete={onAnswerQuestions}
+                  />
+                </div>
               </div>
             )}
             <div

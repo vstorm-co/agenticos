@@ -648,6 +648,7 @@ export interface Agent {
 }
 
 export interface AgentDetail extends Agent {
+  can_review_shipped_update?: boolean;
   draft_spec: AgentSpec;
   draft_revision: string;
 }

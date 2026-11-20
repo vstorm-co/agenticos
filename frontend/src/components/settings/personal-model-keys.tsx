@@ -9,6 +9,7 @@ export function PersonalModelKeys() {
   const t = useTranslations("personalModelKeys");
   const errors = useTranslations("errors");
   const { keys, remove } = usePersonalModelKeys();
+  if (!keys.error && !keys.data?.items.length) return null;
   return (
     <section aria-label={t("title")} className="bg-card space-y-3 rounded-xl border p-5">
       <h2 className="text-sm font-medium">{t("title")}</h2>

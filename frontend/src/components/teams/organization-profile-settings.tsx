@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
@@ -18,11 +18,13 @@ export function OrganizationProfileSettings({
   org,
   onContinue,
   saveLabel,
+  renderActions,
   inDialog = false,
 }: {
   org: Organization;
   onContinue?: () => void;
   saveLabel?: string;
+  renderActions?: (actions: ReactNode) => ReactNode;
   inDialog?: boolean;
 }) {
   const t = useTranslations("pages.orgs");
@@ -104,6 +106,17 @@ export function OrganizationProfileSettings({
     </div>
   );
 
+  const continueAction = onContinue && (
+    <Button
+      data-continue
+      disabled={savingName || avatarUploading || !name.trim()}
+      onClick={async () => {
+        if (await handleSaveName()) onContinue();
+      }}
+    >
+      {saveLabel ?? tc("save")}
+    </Button>
+  );
   return (
     <section
       data-tour="org-profile"
@@ -199,17 +212,7 @@ export function OrganizationProfileSettings({
         </div>
         {!canManage && <p className="text-muted-foreground text-xs">{t("onlyOwnersAdminsCan")}</p>}
         {!onContinue && colors}
-        {onContinue && (
-          <Button
-            data-continue
-            disabled={savingName || avatarUploading || !name.trim()}
-            onClick={async () => {
-              if (await handleSaveName()) onContinue();
-            }}
-          >
-            {saveLabel ?? tc("save")}
-          </Button>
-        )}
+        {renderActions ? renderActions(continueAction) : continueAction}
       </div>
     </section>
   );

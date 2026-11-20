@@ -377,12 +377,31 @@ class AgentDetail(AgentRead):
     """An agent plus the spec currently being edited."""
 
     draft_spec: AgentSpec
+    can_review_shipped_update: bool = False
 
     @computed_field
     @property
     def draft_revision(self) -> str:
         """Opaque revision to send as expected_revision when saving this draft."""
         return agent_draft_revision(self.draft_spec)
+
+
+class ShippedAgentChange(BaseSchema):
+    """One field replaced in the saved draft or the version serving live traffic."""
+
+    version: Literal["draft", "published"]
+    field: str
+    before: str
+    after: str
+
+
+class ShippedAgentUpdate(BaseSchema):
+    revision: str
+    changes: list[ShippedAgentChange]
+
+
+class ApplyShippedAgentUpdate(BaseSchema):
+    expected_revision: str = Field(min_length=64, max_length=64)
 
 
 class AgentCeiling(BaseSchema):

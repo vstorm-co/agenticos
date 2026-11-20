@@ -2235,7 +2235,6 @@
           "other": "Wspomnienie"
         },
         "editNoteHint": "Popraw to, co agent pamięta o Tobie. Twoje korekty są rejestrowane osobno od pierwotnego zapisu agenta.",
-        "noteContent": "Treść notatki",
         "noteDetails": "Szczegóły pamięci"
       }
     },
@@ -2403,6 +2402,15 @@
       "perMonth": "${amount} miesięcznie"
     },
     "agents": {
+      "shippedUpdate": {
+        "review": "Przejrzyj wbudowaną aktualizację",
+        "description": "Wgraj wbudowane instrukcje, narzędzia, skille i Context. Model, thinking i wiadomości startowe zostają. Aktualizacja opublikowanej wersji od razu zacznie działać.",
+        "current": "Agent korzysta już z wbudowanych ustawień.",
+        "apply": "Zastosuj wbudowaną aktualizację",
+        "reload": "Pobierz aktualne różnice",
+        "draft": "Draft",
+        "published": "Opublikowana wersja"
+      },
       "draftChanged": "Ta wersja robocza zmieniła się w innym miejscu. Twoje wpisy nadal tu są, ale zapis został wstrzymany. Skopiuj to, co chcesz zachować, a potem wczytaj najnowszą wersję roboczą.",
       "reloadDraft": "Wczytaj najnowszą wersję roboczą",
       "voiceUnreportedTokenUsage": "Ten provider nie raportuje kosztów tokenów. Rozmowy nie mogą startować z limitem wydatków; zapisany koszt audio jest dolną granicą.",
@@ -10608,6 +10616,10 @@
       "allow_personal": {
         "title": "Prywatne notatki dla każdej osoby",
         "description": "Czy agent prowadzi prywatne notatki o każdej osobie, z którą rozmawia, czytelne tylko w rozmowie sam na sam z nią. Wyłączone usuwa ten magazyn całkowicie, ze względów zgodności lub prywatności; notatki z czatów grupowych zostają."
+      },
+      "inject_context": {
+        "title": "Automatycznie dołączaj pamięć",
+        "description": "Pokazuj krótki przegląd wspomnień i notatek w prywatnych rozmowach. Wyłączenie zostawia narzędzia pamięci i pracę w tle."
       }
     },
     "planning": {
@@ -17264,10 +17276,6 @@
     "label": "Nazwa konta",
     "apiKey": "Klucz API",
     "chatGPT": "Logowanie ChatGPT",
-    "oauthHelp": "Rozpocznij nowe logowanie, dokończ je w przeglądarce i wklej pełny adres zwrotny localhost. Nie importuj pliku auth.json z CLI.",
-    "continueOpenAI": "Kontynuuj w OpenAI",
-    "startSignIn": "Rozpocznij logowanie",
-    "callback": "Adres zwrotny",
     "credential": "Klucz API lub token Claude",
     "keyHelp": "Claude Code obsługuje klucz Anthropic lub token setup; Codex obsługuje klucz OpenAI. Konta osobiste łączą się bezpośrednio z dostawcą.",
     "consent": "Zezwól agentom w tej organizacji na używanie tego konta do zadań programistycznych, które uruchamiam.",
@@ -17384,9 +17392,7 @@
       "context": "Twój kontekst",
       "contextTitle": "Co agenci powinni o Tobie wiedzieć?",
       "contextHint": "Rola, bieżąca praca i strefa czasowa pomogą agentom lepiej rozumieć Twoje potrzeby.",
-      "backStep": "Wstecz",
       "createInstead": "Utwórz nową organizację",
-      "chooseExisting": "Wybierz istniejącą organizację",
       "identityBenefitTitle": "Twoja organizacja. Twój znak.",
       "identityBenefitBody": "Logo pozwoli zespołowi rozpoznać właściwą organizację w czatach i przy wspólnych zasobach.",
       "identityProfileTitle": "Pokaż, że to Ty",

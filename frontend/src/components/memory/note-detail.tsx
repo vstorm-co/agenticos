@@ -14,10 +14,8 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  MarkdownEditor,
-  MarkdownModeToggle,
-  type MarkdownMode,
 } from "@/components/ui";
+import { FileEditor } from "@/components/files/file-editor";
 import { DIALOG_WIDE, DIALOG_COLUMN, DIALOG_BODY } from "@/lib/dialog-sizes";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
@@ -43,7 +41,6 @@ export function NoteDetail({
   const format = useFormatter();
   const unsavedId = useId();
   const [original] = useState(note);
-  const [mode, setMode] = useState<MarkdownMode>("preview");
   const [content, setContent] = useState(note.content);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -85,15 +82,16 @@ export function NoteDetail({
             {note.description && (
               <p className="text-muted-foreground text-sm">{note.description}</p>
             )}
-            <MarkdownEditor
-              mode={mode}
-              toolbar={<MarkdownModeToggle mode={mode} onChange={setMode} />}
-              label={view("noteContent")}
-              value={content}
-              onChange={setContent}
-              rows={18}
-              maxLength={100_000}
-              disabled={busy}
+            <FileEditor
+              name={note.name.endsWith(".md") ? note.name : `${note.name}.md`}
+              label={note.name}
+              content={content}
+              canEdit={!busy}
+              onChange={(value) => {
+                if (value.length <= 100_000) setContent(value);
+              }}
+              initialMode="preview"
+              className="h-[min(25rem,50dvh)]"
             />
           </div>
           <DialogFooter className="flex-wrap sm:justify-between">
