@@ -408,6 +408,14 @@ Each value is looked for in the answer:
   one language and decimals in another: write the value the way the document
   shows it.
 
+In the console, a saved case with a saved reference answer offers **List keys
+from the reference answer** beside its checks. The key extractor, a system
+agent, reads the answer in a job, as the person who asked, metered and in
+Activity, and lists the facts it states. Only a value the answer holds as
+written is kept. **Use these keys** fills the case's keys check for you to
+review and save; nothing is saved by itself, and the draft is deleted once
+used or dismissed.
+
 Every check takes an optional `family` (at most 80 characters): the thing it tests
 across the dataset, such as `total including VAT` on each case's regex for its own
 amount. A comparison counts the checks of one family together, case by case, so a

@@ -1,5 +1,5 @@
 ---
-source_sha: "491ffeeb06c4"
+source_sha: "c70172afaa9d"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -431,6 +431,14 @@ Cada valor se busca en la respuesta:
   `1 234` se encuentran;
 - con la coma y el punto tal como están, porque en un idioma separan los miles
   y en otro los decimales: escriba el valor como lo muestra el documento.
+
+En la consola, un caso guardado con una respuesta de referencia guardada ofrece
+**List keys from the reference answer** junto a sus comprobaciones. El key
+extractor, un agent de sistema, lee la respuesta en un job, como la persona que
+lo pidió, con su coste medido y en Activity, y enumera los datos que contiene.
+Solo se conserva un valor que la respuesta contiene tal cual. **Use these keys**
+rellena la comprobación de claves del caso para que la revise y la guarde; nada
+se guarda solo, y el borrador se elimina al usarse o descartarse.
 
 Cada comprobación admite un `family` opcional (como máximo 80 caracteres): lo que
 prueba en todo el dataset, como `total including VAT` en la regex de cada caso

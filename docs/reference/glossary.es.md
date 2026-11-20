@@ -1,5 +1,5 @@
 ---
-source_sha: "38183986d0d8"
+source_sha: "ddf3cb19ef8e"
 ---
 
 # Glosario { #glossary }
@@ -92,6 +92,7 @@ tal como se ven en pantalla.
 | Noise | Respuestas calificadas de otra manera al preguntar de nuevo sin que nada haya cambiado; un resultado que eso podría explicar queda dentro del ruido, y **Ask each question twice** lo mide | `measurement_noise`, `purpose: stability` |
 | Review | Puntuaciones que esperan a que una persona las confirme o las cambie | `review_state` |
 | Case generator | El agent de sistema que redacta casos a partir de un agent, su conocimiento, chats reales y red teaming | `kind: generator` |
+| Key extractor | El agent de sistema que enumera los datos de la respuesta de referencia de un caso para su comprobación de claves | `kind: extractor` |
 | Proposed case | Un caso redactado que espera en **Generated** hasta que una persona lo acepta o lo descarta | `case_proposal` |
 | Red teaming | Casos que comprueban que un agent rechaza lo que debe rechazar | etiqueta `red-team` |
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "491ffeeb06c4"
+source_sha: "c70172afaa9d"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -452,6 +452,15 @@ Jeder Wert wird in der Antwort gesucht:
 - mit Komma und Punkt, wie sie sind, weil sie in einer Sprache Tausender und in
   einer anderen Dezimalstellen trennen: Schreiben Sie den Wert so, wie das
   Dokument ihn zeigt.
+
+In der Konsole bietet ein gespeicherter Fall mit gespeicherter Referenzantwort
+neben seinen Prüfungen **Schlüssel aus der Referenzantwort auflisten** an. Der
+Schlüssel-Extraktor, ein System-Agent, liest die Antwort in einem Job, als die
+Person, die gefragt hat, abgerechnet und in der Aktivität, und listet die Fakten
+auf, die sie nennt. Nur ein Wert, den die Antwort wörtlich enthält, bleibt.
+**Diese Schlüssel verwenden** füllt die Schlüssel-Prüfung des Falls, damit Sie sie
+prüfen und speichern; nichts wird von selbst gespeichert, und der Entwurf wird
+gelöscht, sobald er verwendet oder verworfen wird.
 
 Jede Prüfung nimmt ein optionales `family` (höchstens 80 Zeichen): die Sache, die
 sie über das ganze Dataset hinweg prüft, etwa `total including VAT` an der Regex
