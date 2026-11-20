@@ -1623,6 +1623,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "personal-subscription-accounts",
+    page: SETTINGS_DETAIL,
+    target: "personal-subscription-accounts",
+    optional: true,
+  },
+  {
     id: "desktop-local-agents",
     page: SETTINGS_DETAIL,
     target: "desktop-local-agents",

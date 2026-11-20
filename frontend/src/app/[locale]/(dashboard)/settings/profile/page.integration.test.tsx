@@ -19,6 +19,9 @@ vi.mock("@/components/settings/personal-model-keys", () => ({ PersonalModelKeys:
 vi.mock("@/components/settings/coding-accounts", () => ({
   CodingAccounts: () => <h2>Coding accounts</h2>,
 }));
+vi.mock("@/components/settings/subscription-accounts", () => ({
+  SubscriptionAccounts: () => <h2>Subscription accounts</h2>,
+}));
 vi.mock("@/components/settings/chat-accounts", () => ({
   ChatAccounts: () => <h2>Connected accounts</h2>,
 }));
@@ -107,5 +110,8 @@ it("places connected accounts before appearance in reading and keyboard order", 
     .getAllByRole("heading", { level: 2 })
     .map((heading) => heading.textContent);
   expect(headings.indexOf("Connected accounts")).toBeLessThan(headings.indexOf("Coding accounts"));
-  expect(headings.indexOf("Coding accounts")).toBeLessThan(headings.indexOf("Appearance"));
+  expect(headings.indexOf("Coding accounts")).toBeLessThan(
+    headings.indexOf("Subscription accounts"),
+  );
+  expect(headings.indexOf("Subscription accounts")).toBeLessThan(headings.indexOf("Appearance"));
 });

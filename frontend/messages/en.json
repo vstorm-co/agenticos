@@ -1151,7 +1151,8 @@
     "observationAuthorityHint": "The decision model has no tools. Automatic replies use the published agent’s main model and bound organization MCP accounts, with their normal approval rules. Personal accounts and other action tools require someone to mention the bot in the thread. Calls needing approval are not executed automatically. Both model costs appear in Activity.",
     "observationRequired": "Select the model that decides whether the agent should join.",
     "observationSaveFailed": "Could not save. Your edits remain in this form; try again.",
-    "observationSave": "Save participation settings"
+    "observationSave": "Save participation settings",
+    "subscriptionAccountsNote": "Each person runs these models on their own accounts. Connect yours in <link>Settings → Profile</link>."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -6084,6 +6085,10 @@
       "personal-coding-accounts": {
         "title": "Coding accounts",
         "body": "Connect your coding account and explicitly allow its use here. Private cloud tasks return a diff and result archive without automatically changing shared project files."
+      },
+      "personal-subscription-accounts": {
+        "title": "Subscription accounts",
+        "body": "Sign in to your own AI subscriptions. Models on \"Subscription accounts\" run on them only in your own chats."
       },
       "chat-coding-accounts": {
         "title": "Your coding accounts",
@@ -17719,6 +17724,39 @@
     "baseRevision": "Workspace snapshot: {revision}",
     "chatTitle": "Your {name} account",
     "chatHelp": "This agent runs coding tasks as a private cloud task on your own account. Other members cannot use it."
+  },
+  "subscriptionAccounts": {
+    "title": "Subscription accounts",
+    "description": "Sign in to your own Claude, ChatGPT, Antigravity, Grok, Kimi and other subscriptions. Models on the \"Subscription accounts\" provider then run on your accounts whenever you are the one chatting - never on anybody else's, and never in background work.",
+    "risk": "Providers may limit how a subscription is used outside their own apps and can suspend an account for it. You connect at your own risk.",
+    "notConnected": "Not connected",
+    "unavailable": "Unavailable",
+    "connect": "Connect",
+    "connectAnother": "Add account",
+    "disconnect": "Disconnect",
+    "loadFailed": "Your subscription accounts could not be loaded",
+    "retry": "Retry",
+    "dialogTitle": "Connect {name}",
+    "deviceHelp": "Open the sign-in page, enter this code and approve. This window finishes on its own.",
+    "browserHelp": "Open the sign-in page and approve. Your browser then lands on an address that does not load - copy that whole address here.",
+    "starting": "Starting the sign-in…",
+    "copyCode": "Copy the code",
+    "openSignIn": "Open {name} sign-in",
+    "redirectLabel": "Address your browser ended on",
+    "waiting": "Waiting for the provider to confirm…",
+    "refused": "The provider refused the sign-in. Close this window and try again.",
+    "finish": "Finish",
+    "connected": "{name} is connected",
+    "providers": {
+      "claude": "Claude (Pro, Max)",
+      "codex": "ChatGPT (Codex)",
+      "antigravity": "Google Antigravity",
+      "xai": "Grok (xAI)",
+      "kimi": "Kimi Code (Moonshot)",
+      "kimi-ai": "Kimi (kimi.com)",
+      "devin": "Devin",
+      "meta": "Meta AI"
+    }
   },
   "mirage": {
     "folders": "Folders",

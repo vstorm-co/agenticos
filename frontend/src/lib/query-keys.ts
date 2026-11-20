@@ -38,6 +38,11 @@ export const qk = {
     all: () => ["coding-accounts"] as const,
     mine: (scope: string) => ["coding-accounts", scope] as const,
   },
+  subscriptionAccounts: {
+    mine: (scope: string) => ["subscription-accounts", scope] as const,
+    signIn: (scope: string, state: string) =>
+      ["subscription-accounts", scope, "sign-in", state] as const,
+  },
   durableTasks: {
     root: () => ["durable-tasks"] as const,
     all: (scope: string) => ["durable-tasks", scope] as const,

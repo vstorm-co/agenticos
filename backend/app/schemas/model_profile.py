@@ -61,6 +61,13 @@ class ProviderInfo(BaseSchema):
             "only for Stav.ai, whose listing states it per model (`apis` on each model)."
         ),
     )
+    personal_gateway: bool = Field(
+        default=False,
+        description=(
+            "Whether models run on each person's own subscription accounts, signed in under "
+            "Settings. A profile takes no key and no endpoint; only a person's own run uses it."
+        ),
+    )
     regions: list[ModelRegion] = Field(
         default_factory=list,
         description=(

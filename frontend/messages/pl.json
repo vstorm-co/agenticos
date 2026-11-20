@@ -2444,7 +2444,7 @@
         "current": "Agent korzysta już z wbudowanych ustawień.",
         "apply": "Zastosuj wbudowaną aktualizację",
         "reload": "Pobierz aktualne różnice",
-        "draft": "Draft",
+        "draft": "Wersja robocza",
         "published": "Opublikowana wersja"
       },
       "draftChanged": "Ta wersja robocza zmieniła się w innym miejscu. Twoje wpisy nadal tu są, ale zapis został wstrzymany. Skopiuj to, co chcesz zachować, a potem wczytaj najnowszą wersję roboczą.",
@@ -7726,6 +7726,10 @@
         "title": "Konta do programowania",
         "body": "Podłącz własne konto do kodowania i jawnie zezwól na jego użycie. Prywatne zadania w chmurze zwracają diff i archiwum wyników bez automatycznej zmiany wspólnych plików projektu."
       },
+      "personal-subscription-accounts": {
+        "title": "Konta subskrypcyjne",
+        "body": "Zaloguj się do swoich subskrypcji AI. Modele „Subscription accounts” korzystają z nich tylko w Twoich własnych rozmowach."
+      },
       "chat-coding-accounts": {
         "title": "Twoje konta coding",
         "body": "Podłącz Codex lub Claude Code bez wychodzenia z chatu. To Twoje prywatne konta do zadań w chmurze; lokalne narzędzia desktopowe mają osobne logowanie."
@@ -10411,7 +10415,8 @@
     "observationAuthorityHint": "Model decyzyjny nie ma narzędzi. Automatyczne odpowiedzi korzystają z głównego modelu agenta i przypiętych kont MCP organizacji, z ich zwykłymi zasadami akceptacji. Konta prywatne i pozostałe narzędzia wymagają oznaczenia bota przez osobę w wątku. Wywołania wymagające akceptacji nie wykonają się automatycznie. Koszt obu modeli widać w Aktywność.",
     "observationRequired": "Wybierz model podejmujący decyzję o dołączeniu do rozmowy.",
     "observationSaveFailed": "Nie udało się zapisać. Zmiany pozostały w formularzu; spróbuj ponownie.",
-    "observationSave": "Zapisz ustawienia uczestnictwa"
+    "observationSave": "Zapisz ustawienia uczestnictwa",
+    "subscriptionAccountsNote": "Każda osoba uruchamia te modele na własnych kontach. Połącz swoje w <link>Ustawienia → Profil</link>."
   },
   "steps": {
     "skills-gallery": {
@@ -17492,6 +17497,39 @@
     "baseRevision": "Snapshot workspace: {revision}",
     "chatTitle": "Twoje konto {name}",
     "chatHelp": "Ten agent wykonuje zadania coding jako prywatne zadanie w chmurze na Twoim własnym koncie. Inni członkowie nie mogą z niego korzystać."
+  },
+  "subscriptionAccounts": {
+    "title": "Konta subskrypcyjne",
+    "description": "Zaloguj się do swoich subskrypcji Claude, ChatGPT, Antigravity, Grok, Kimi i innych. Modele dostawcy „Subscription accounts” działają wtedy na Twoich kontach, gdy to Ty rozmawiasz - nigdy na cudzych i nigdy w pracy w tle.",
+    "risk": "Dostawcy mogą ograniczać używanie subskrypcji poza własnymi aplikacjami i zawiesić za to konto. Łączysz na własne ryzyko.",
+    "notConnected": "Niepołączone",
+    "unavailable": "Niedostępne",
+    "connect": "Połącz",
+    "connectAnother": "Dodaj konto",
+    "disconnect": "Odłącz",
+    "loadFailed": "Nie udało się wczytać Twoich kont subskrypcyjnych",
+    "retry": "Spróbuj ponownie",
+    "dialogTitle": "Połącz: {name}",
+    "deviceHelp": "Otwórz stronę logowania, wpisz ten kod i zatwierdź. To okno zamknie się samo.",
+    "browserHelp": "Otwórz stronę logowania i zatwierdź. Przeglądarka trafi potem na adres, który się nie wczyta - skopiuj tutaj cały ten adres.",
+    "starting": "Rozpoczynanie logowania…",
+    "copyCode": "Skopiuj kod",
+    "openSignIn": "Otwórz logowanie: {name}",
+    "redirectLabel": "Adres, na którym skończyła przeglądarka",
+    "waiting": "Czekam na potwierdzenie od dostawcy…",
+    "refused": "Dostawca odrzucił logowanie. Zamknij to okno i spróbuj ponownie.",
+    "finish": "Zakończ",
+    "connected": "Połączono: {name}",
+    "providers": {
+      "claude": "Claude (Pro, Max)",
+      "codex": "ChatGPT (Codex)",
+      "antigravity": "Google Antigravity",
+      "xai": "Grok (xAI)",
+      "kimi": "Kimi Code (Moonshot)",
+      "kimi-ai": "Kimi (kimi.com)",
+      "devin": "Devin",
+      "meta": "Meta AI"
+    }
   },
   "mirage": {
     "folders": "Foldery",

@@ -1,0 +1,214 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, expect, it, vi } from "vitest";
+import { SubscriptionAccounts } from "./subscription-accounts";
+import { apiClient } from "@/lib/api-client";
+import { toast } from "sonner";
+
+vi.mock("@/lib/api-client", () => ({
+  apiClient: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
+}));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/hooks/use-organizations", () => ({
+  useTenantId: () => "org-1",
+  useTenantGuard: () => () => true,
+}));
+vi.mock("@/stores", () => {
+  const state = { user: { id: "user-1" } };
+  return {
+    useAuthStore: Object.assign((selector: (value: typeof state) => unknown) => selector(state), {
+      getState: () => state,
+    }),
+  };
+});
+
+const ACCOUNT = {
+  name: "antigravity-me.json",
+  provider: "antigravity",
+  label: null,
+  email: "me@example.com",
+  status: "active",
+  disabled: false,
+  unavailable: false,
+};
+
+let signInStatus = "wait";
+
+function mount() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <SubscriptionAccounts />
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  signInStatus = "wait";
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path.startsWith("/subscription-accounts/sign-ins/")
+      ? { status: signInStatus, error: null }
+      : { enabled: true, items: [ACCOUNT] },
+  );
+  vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+});
+
+async function rowOf(name: string) {
+  const title = await screen.findByText(name);
+  const row = title.closest("li");
+  if (!row) throw new Error(`No row for ${name}`);
+  return within(row);
+}
+
+it("lists each sign-in with the accounts filed under it, and the risk", async () => {
+  mount();
+  const antigravity = await rowOf("Google Antigravity");
+  expect(await antigravity.findByText("me@example.com")).toBeInTheDocument();
+  expect(antigravity.getByRole("button", { name: "Add account" })).toBeInTheDocument();
+  const claude = await rowOf("Claude (Pro, Max)");
+  expect(claude.getByText("Not connected")).toBeInTheDocument();
+  expect(screen.getByRole("note")).toHaveTextContent("at your own risk");
+});
+
+it("renders nothing where the deployment runs no gateway", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ enabled: false, items: [] });
+  const { container } = mount();
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+  await waitFor(() => expect(container).toBeEmptyDOMElement());
+});
+
+it("finishes a device sign-in on its own once the provider approves", async () => {
+  vi.mocked(apiClient.post).mockResolvedValue({
+    url: "https://auth.example/device",
+    state: "st-1",
+    flow: "device",
+    user_code: "ABCD-1234",
+    expires_in: 600,
+  });
+  mount();
+  const kimi = await rowOf("Kimi Code (Moonshot)");
+  await userEvent.click(kimi.getByRole("button", { name: "Connect" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(await within(dialog).findByText("ABCD-1234")).toBeInTheDocument();
+  expect(
+    within(dialog).getByRole("link", { name: /Open Kimi Code \(Moonshot\) sign-in/ }),
+  ).toHaveAttribute("href", "https://auth.example/device");
+  expect(within(dialog).queryByLabelText("Address your browser ended on")).toBeNull();
+  expect(apiClient.post).toHaveBeenCalledWith("/subscription-accounts/sign-ins", {
+    provider: "kimi",
+  });
+  signInStatus = "ok";
+  await waitFor(
+    () => expect(toast.success).toHaveBeenCalledWith("Kimi Code (Moonshot) is connected"),
+    {
+      timeout: 5000,
+    },
+  );
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+}, 10_000);
+
+it("finishes a browser sign-in with the pasted address, and cancels an abandoned one", async () => {
+  vi.mocked(apiClient.post).mockImplementation(async (path: string) =>
+    path === "/subscription-accounts/sign-ins"
+      ? { url: "https://claude.example/oauth", state: "st-2", flow: null, user_code: null }
+      : undefined,
+  );
+  mount();
+  const claude = await rowOf("Claude (Pro, Max)");
+  await userEvent.click(claude.getByRole("button", { name: "Connect" }));
+  const dialog = await screen.findByRole("dialog");
+  const field = await within(dialog).findByLabelText("Address your browser ended on");
+  await userEvent.type(field, "http://localhost:54545/callback?code=c&state=st-2");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Finish" }));
+  expect(apiClient.post).toHaveBeenCalledWith("/subscription-accounts/sign-ins/st-2/callback", {
+    redirect_url: "http://localhost:54545/callback?code=c&state=st-2",
+  });
+  await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  expect(apiClient.delete).toHaveBeenCalledWith("/subscription-accounts/sign-ins/st-2");
+});
+
+it("disconnects one account by its name", async () => {
+  mount();
+  const antigravity = await rowOf("Google Antigravity");
+  await userEvent.click(await antigravity.findByRole("button", { name: "Disconnect" }));
+  expect(apiClient.delete).toHaveBeenCalledWith("/subscription-accounts/antigravity-me.json");
+});
+
+it("closes the dialog with the reason when a sign-in cannot start", async () => {
+  vi.mocked(apiClient.post).mockRejectedValue(new Error("gateway down"));
+  mount();
+  const xai = await rowOf("Grok (xAI)");
+  await userEvent.click(xai.getByRole("button", { name: "Connect" }));
+  await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+});
+
+it("offers a retry when the accounts cannot be loaded", async () => {
+  vi.mocked(apiClient.get).mockRejectedValue(new Error("offline"));
+  mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Retry" }));
+  expect(apiClient.get).toHaveBeenCalledTimes(2);
+});
+
+it("says why a pasted address was refused, and copies a device code", async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+  vi.mocked(apiClient.post).mockImplementation(async (path: string) => {
+    if (path.endsWith("/callback")) throw new Error("refused");
+    return { url: "https://x.example", state: "st-3", flow: null, user_code: null };
+  });
+  mount();
+  const meta = await rowOf("Meta AI");
+  await userEvent.click(meta.getByRole("button", { name: "Connect" }));
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.type(
+    await within(dialog).findByLabelText("Address your browser ended on"),
+    "http://localhost/cb",
+  );
+  await userEvent.click(within(dialog).getByRole("button", { name: "Finish" }));
+  await waitFor(() => expect(toast.error).toHaveBeenCalled());
+
+  vi.mocked(apiClient.post).mockResolvedValue({
+    url: "https://x.example",
+    state: "st-4",
+    flow: "device",
+    user_code: "WXYZ",
+  });
+  await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  const devin = await rowOf("Devin");
+  await userEvent.click(devin.getByRole("button", { name: "Connect" }));
+  const second = await screen.findByRole("dialog");
+  await userEvent.click(await within(second).findByRole("button", { name: "Copy the code" }));
+  expect(writeText).toHaveBeenCalledWith("WXYZ");
+});
+
+it("cancels the sign-in when the dialog is dismissed with Escape", async () => {
+  vi.mocked(apiClient.post).mockResolvedValue({
+    url: "https://x.example",
+    state: "st-5",
+    flow: null,
+    user_code: null,
+  });
+  // An expired sign-in refuses the cancel; closing must not surface that.
+  vi.mocked(apiClient.delete).mockRejectedValueOnce(new Error("gone"));
+  mount();
+  const codex = await rowOf("ChatGPT (Codex)");
+  await userEvent.click(codex.getByRole("button", { name: "Connect" }));
+  await screen.findByLabelText("Address your browser ended on");
+  await userEvent.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(apiClient.delete).toHaveBeenCalledWith("/subscription-accounts/sign-ins/st-5");
+  expect(toast.error).not.toHaveBeenCalled();
+});
+
+it("says why an account could not be disconnected", async () => {
+  vi.mocked(apiClient.delete).mockRejectedValueOnce(new Error("gateway down"));
+  mount();
+  const antigravity = await rowOf("Google Antigravity");
+  await userEvent.click(await antigravity.findByRole("button", { name: "Disconnect" }));
+  await waitFor(() => expect(toast.error).toHaveBeenCalled());
+});

@@ -1151,7 +1151,8 @@
     "observationAuthorityHint": "Das Entscheidungsmodell hat keine Tools. Automatische Antworten nutzen das Hauptmodell und die gebundenen MCP-Organisationskonten mit ihren Freigaberegeln. Persönliche Konten und andere Aktionstools erfordern eine Erwähnung des Bots durch eine Person. Freigabepflichtige Aufrufe werden nicht automatisch ausgeführt. Beide Modellkosten erscheinen in Aktivität.",
     "observationRequired": "Wählen Sie das Modell für die Teilnahmeentscheidung.",
     "observationSaveFailed": "Speichern fehlgeschlagen. Ihre Änderungen bleiben im Formular erhalten.",
-    "observationSave": "Teilnahmeeinstellungen speichern"
+    "observationSave": "Teilnahmeeinstellungen speichern",
+    "subscriptionAccountsNote": "Jede Person nutzt diese Modelle mit ihren eigenen Konten. Verbinden Sie Ihre unter <link>Einstellungen → Profil</link>."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -5963,6 +5964,10 @@
       "personal-coding-accounts": {
         "title": "Coding-Konten",
         "body": "Verbinde dein Programmierkonto und erlaube seine Nutzung ausdrücklich. Private Cloud-Aufgaben liefern einen Diff und ein Ergebnisarchiv, ohne gemeinsame Projektdateien automatisch zu ändern."
+      },
+      "personal-subscription-accounts": {
+        "title": "Abonnement-Konten",
+        "body": "Melden Sie sich bei Ihren eigenen KI-Abonnements an. Modelle unter „Subscription accounts“ nutzen sie nur in Ihren eigenen Chats."
       },
       "chat-coding-accounts": {
         "title": "Deine Coding-Konten",
@@ -17405,6 +17410,39 @@
     "baseRevision": "Arbeitsbereich-Snapshot: {revision}",
     "chatTitle": "Dein {name}-Konto",
     "chatHelp": "Dieser Agent führt Coding-Aufgaben als private Cloud-Aufgabe mit deinem eigenen Konto aus. Andere Mitglieder können es nicht nutzen."
+  },
+  "subscriptionAccounts": {
+    "title": "Abonnement-Konten",
+    "description": "Melden Sie sich bei Ihren eigenen Abonnements für Claude, ChatGPT, Antigravity, Grok, Kimi und weitere an. Modelle des Anbieters „Subscription accounts“ laufen dann auf Ihren Konten, wenn Sie selbst chatten - nie auf denen anderer und nie in Hintergrundarbeit.",
+    "risk": "Anbieter können die Nutzung eines Abonnements außerhalb ihrer eigenen Apps einschränken und ein Konto dafür sperren. Sie verbinden auf eigenes Risiko.",
+    "notConnected": "Nicht verbunden",
+    "unavailable": "Nicht verfügbar",
+    "connect": "Verbinden",
+    "connectAnother": "Konto hinzufügen",
+    "disconnect": "Trennen",
+    "loadFailed": "Ihre Abonnement-Konten konnten nicht geladen werden",
+    "retry": "Erneut versuchen",
+    "dialogTitle": "{name} verbinden",
+    "deviceHelp": "Öffnen Sie die Anmeldeseite, geben Sie diesen Code ein und bestätigen Sie. Dieses Fenster schließt sich von selbst.",
+    "browserHelp": "Öffnen Sie die Anmeldeseite und bestätigen Sie. Ihr Browser landet danach auf einer Adresse, die nicht lädt - kopieren Sie diese ganze Adresse hierher.",
+    "starting": "Anmeldung wird gestartet…",
+    "copyCode": "Code kopieren",
+    "openSignIn": "Anmeldung bei {name} öffnen",
+    "redirectLabel": "Adresse, auf der Ihr Browser gelandet ist",
+    "waiting": "Warten auf die Bestätigung des Anbieters…",
+    "refused": "Der Anbieter hat die Anmeldung abgelehnt. Schließen Sie dieses Fenster und versuchen Sie es erneut.",
+    "finish": "Abschließen",
+    "connected": "{name} ist verbunden",
+    "providers": {
+      "claude": "Claude (Pro, Max)",
+      "codex": "ChatGPT (Codex)",
+      "antigravity": "Google Antigravity",
+      "xai": "Grok (xAI)",
+      "kimi": "Kimi Code (Moonshot)",
+      "kimi-ai": "Kimi (kimi.com)",
+      "devin": "Devin",
+      "meta": "Meta AI"
+    }
   },
   "mirage": {
     "folders": "Ordner",

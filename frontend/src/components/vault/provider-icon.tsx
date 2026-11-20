@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, KeyRound, TrainFront, type LucideIcon } from "lucide-react";
+import { Box, CircleUserRound, KeyRound, TrainFront, type LucideIcon } from "lucide-react";
 
 import { CustomMark, useCustomIcons } from "@/components/icons/custom-icons";
 import { GlyphIcon } from "@/components/icons/glyph";
@@ -24,6 +24,8 @@ const SERVICE_MARKS: Readonly<Record<string, LucideIcon>> = {
   e2b: Box,
   // No icon set carries LiteLLM; its own mark is the bullet-train emoji.
   litellm: TrainFront,
+  // Each person's own accounts, of several vendors: a person, not a brand.
+  subscription_accounts: CircleUserRound,
 };
 
 /**

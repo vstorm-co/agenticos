@@ -482,3 +482,19 @@ async def test_the_model_list_is_what_the_callers_accounts_serve(
     assert listed.json()["source"] == "live"
     assert off.json()["items"] == [] and off.json()["source"] == "unlisted"
     service.models.assert_awaited_once_with(caller)
+
+
+async def test_the_catalog_offers_subscription_accounts_only_with_a_gateway(
+    routes: tuple[AsyncMock, AuthContext],
+) -> None:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        with patch.object(client_module.settings, "SUBSCRIPTION_GATEWAY_URL", URL):
+            on = (await client.get("/api/v1/providers/catalog")).json()["items"]
+        with patch.object(client_module.settings, "SUBSCRIPTION_GATEWAY_URL", None):
+            off = (await client.get("/api/v1/providers/catalog")).json()["items"]
+    gateway_rows = [row for row in on if row["id"] == "subscription_accounts"]
+    assert len(gateway_rows) == 1 and gateway_rows[0]["personal_gateway"] is True
+    assert all(row["id"] != "subscription_accounts" for row in off)
+    assert all(
+        row["personal_gateway"] is False for row in on if row["id"] != "subscription_accounts"
+    )

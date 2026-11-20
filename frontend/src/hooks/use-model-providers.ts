@@ -281,7 +281,10 @@ function providerModelsQuery(
       ...(decision ? ["decisions"] : []),
     ],
     queryFn: () => apiClient.get<ProviderModelList>(`/providers/${providerId}/models${query}`),
-    staleTime: providerId === "openai_chatgpt" ? 0 : 60 * 60 * 1000,
+    // A sign-in's listing changes with the account behind it, so never cached.
+    staleTime: ["openai_chatgpt", "subscription_accounts"].includes(providerId)
+      ? 0
+      : 60 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     // An empty dropdown is the fallback the field is built for, so a provider
     // that cannot be reached must not retry three times behind an open form.

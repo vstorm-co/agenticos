@@ -88,8 +88,11 @@ async def list_provider_catalog() -> Any:
             native_api=spec.native_api,
             regions=list(spec.regions),
             api_from_model=spec.api_from_model,
+            personal_gateway=spec.personal_gateway,
         )
         for spec in provider_catalog()
+        # Offered only where the deployment runs the gateway.
+        if not spec.personal_gateway or configured_gateway() is not None
     ]
     return ProviderCatalog(
         items=items, total=len(items), native_runtimes=native_runtime_availability()

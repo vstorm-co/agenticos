@@ -7120,7 +7120,8 @@
     "observationAuthorityHint": "Karar modelinin araçları yoktur. Otomatik yanıtlar ana modeli ve bağlı kuruluş MCP hesaplarını normal onay kurallarıyla kullanır. Kişisel hesaplar ve diğer eylem araçları için birinin konuda bottan bahsetmesi gerekir. Onay gerektiren çağrılar otomatik yürütülmez. Her iki modelin maliyeti Activity içinde görünür.",
     "observationRequired": "Katılım kararını verecek modeli seçin.",
     "observationSaveFailed": "Kaydedilemedi. Değişiklikler formda duruyor; yeniden deneyin.",
-    "observationSave": "Katılım ayarlarını kaydet"
+    "observationSave": "Katılım ayarlarını kaydet",
+    "subscriptionAccountsNote": "Herkes bu modelleri kendi hesaplarıyla çalıştırır. Kendinizinkileri <link>Ayarlar → Profil</link> bölümünde bağlayın."
   },
   "dashboard": {
     "edit": {
@@ -8929,6 +8930,10 @@
       "personal-coding-accounts": {
         "title": "Kodlama hesapları",
         "body": "Kodlama hesabını bağla ve kullanımına açıkça izin ver. Özel bulut görevleri ortak proje dosyalarını otomatik değiştirmeden farkları ve sonuç arşivini döndürür."
+      },
+      "personal-subscription-accounts": {
+        "title": "Abonelik hesapları",
+        "body": "Kendi yapay zekâ aboneliklerinizde oturum açın. \"Subscription accounts\" modelleri bunları yalnızca kendi sohbetlerinizde kullanır."
       },
       "chat-coding-accounts": {
         "title": "Kodlama hesapların",
@@ -13662,6 +13667,39 @@
     "baseRevision": "Çalışma alanı anlık görüntüsü: {revision}",
     "chatTitle": "{name} hesabın",
     "chatHelp": "Bu agent kodlama görevlerini kendi hesabınla özel bir bulut görevi olarak çalıştırır. Diğer üyeler bu hesabı kullanamaz."
+  },
+  "subscriptionAccounts": {
+    "title": "Abonelik hesapları",
+    "description": "Kendi Claude, ChatGPT, Antigravity, Grok, Kimi ve diğer aboneliklerinizde oturum açın. \"Subscription accounts\" sağlayıcısındaki modeller, sohbet eden siz olduğunuzda hesaplarınızda çalışır - asla başkasınınkinde ve asla arka plan işlerinde değil.",
+    "risk": "Sağlayıcılar bir aboneliğin kendi uygulamaları dışında kullanımını kısıtlayabilir ve bu nedenle hesabı askıya alabilir. Bağlantı riski size aittir.",
+    "notConnected": "Bağlı değil",
+    "unavailable": "Kullanılamıyor",
+    "connect": "Bağla",
+    "connectAnother": "Hesap ekle",
+    "disconnect": "Bağlantıyı kes",
+    "loadFailed": "Abonelik hesaplarınız yüklenemedi",
+    "retry": "Yeniden dene",
+    "dialogTitle": "{name} bağla",
+    "deviceHelp": "Oturum açma sayfasını açın, bu kodu girin ve onaylayın. Bu pencere kendiliğinden tamamlanır.",
+    "browserHelp": "Oturum açma sayfasını açın ve onaylayın. Tarayıcınız ardından yüklenmeyen bir adrese gider - o adresin tamamını buraya kopyalayın.",
+    "starting": "Oturum açma başlatılıyor…",
+    "copyCode": "Kodu kopyala",
+    "openSignIn": "{name} oturum açmayı aç",
+    "redirectLabel": "Tarayıcınızın vardığı adres",
+    "waiting": "Sağlayıcının onayı bekleniyor…",
+    "refused": "Sağlayıcı oturum açmayı reddetti. Bu pencereyi kapatıp yeniden deneyin.",
+    "finish": "Tamamla",
+    "connected": "{name} bağlandı",
+    "providers": {
+      "claude": "Claude (Pro, Max)",
+      "codex": "ChatGPT (Codex)",
+      "antigravity": "Google Antigravity",
+      "xai": "Grok (xAI)",
+      "kimi": "Kimi Code (Moonshot)",
+      "kimi-ai": "Kimi (kimi.com)",
+      "devin": "Devin",
+      "meta": "Meta AI"
+    }
   },
   "start": {
     "administration": {
