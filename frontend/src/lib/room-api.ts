@@ -79,7 +79,9 @@ export function createRoomConversation(input: CreateRoomConversationInput): Prom
 }
 
 export function getRoomDirectory(skip = 0, limit = 50): Promise<ConversationListResponse> {
-  return apiClient.get("/conversations/rooms", { params: { skip, limit } });
+  return apiClient.get("/conversations/rooms", {
+    params: { skip: String(skip), limit: String(limit) },
+  });
 }
 
 export function joinPublicRoom(conversationId: string): Promise<Conversation> {
