@@ -1948,6 +1948,35 @@ class SkillImprovementService:
         )
         await self._move(run, rules.Transition(Status.READY, Stage.JUDGING))
 
+    async def recount_check_cost(self, organization_id: UUID, iteration_id: UUID) -> bool:
+        """Count the judge's gradings in an attempt that counted only its check's answers.
+
+        An attempt's cost was its checks' answers before the judge was counted. One
+        whose cost is still exactly that, for the checks it names now, takes their
+        gradings too; one that also paid for a check a retry replaced cannot be told
+        apart, and is left. True when the cost changed.
+        """
+        iteration = await skill_improvement_repo.get_iteration_by_id(
+            self.db, iteration_id, organization_id=organization_id
+        )
+        if iteration is None:
+            return False
+        parts = [
+            await skill_improvement_repo.check_cost_parts(
+                self.db, check_id, organization_id=organization_id
+            )
+            for check_id in (iteration.skill_check_id, iteration.main_alone_check_id)
+            if check_id is not None
+        ]
+        answers = sum((answer for answer, _ in parts), Decimal(0))
+        gradings = sum((graded for _, graded in parts), Decimal(0))
+        if not gradings or iteration.cost_usd != answers:
+            return False
+        await skill_improvement_repo.update_iteration(
+            self.db, iteration=iteration, values={"cost_usd": answers + gradings}
+        )
+        return True
+
     async def _stop_check(self, run: SkillImprovementRun) -> None:
         """Stop the checks of a session that stops while they run, and keep what they cost."""
         if run.stage != Stage.EVALUATING:

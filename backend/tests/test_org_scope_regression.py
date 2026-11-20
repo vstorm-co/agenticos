@@ -312,6 +312,7 @@ CROSS_TENANT_BY_DESIGN = [
     (skill_improvement_repo, "list_resting"),
     (promotion_gate_repo, "guarded_followers"),
     (skill_check_repo, "judged_before_families"),
+    (skill_improvement_repo, "checked_iterations"),
 ]
 
 

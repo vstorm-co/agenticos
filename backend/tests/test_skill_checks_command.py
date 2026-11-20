@@ -19,7 +19,7 @@ async def session():
 
 
 async def test_each_check_an_older_rule_judged_is_judged_again_from_its_runs(capsys) -> None:
-    org, first, second = uuid4(), uuid4(), uuid4()
+    org, first, second, attempt, counted = uuid4(), uuid4(), uuid4(), uuid4(), uuid4()
     runs = [uuid4(), uuid4()]
     found = [(org, first, runs), (org, second, runs[:1])]
     with (
@@ -27,27 +27,43 @@ async def test_each_check_an_older_rule_judged_is_judged_again_from_its_runs(cap
         patch(
             f"{PATH}.skill_check_repo.judged_before_families", AsyncMock(return_value=found)
         ) as listed,
+        patch(
+            f"{PATH}.skill_improvement_repo.checked_iterations",
+            AsyncMock(return_value=[(org, attempt), (org, counted)]),
+        ),
         patch(f"{PATH}.SkillCheckService.recompute_after_review", AsyncMock()) as judged,
+        patch(
+            f"{PATH}.SkillImprovementService.recount_check_cost",
+            AsyncMock(side_effect=[True, False]),
+        ) as recount,
     ):
         await _run([first])
 
     assert listed.call_args.kwargs == {"check_ids": [first]}
     assert [call.args for call in judged.call_args_list] == [(org, runs), (org, runs[:1])]
+    assert [call.args for call in recount.call_args_list] == [(org, attempt), (org, counted)]
     output = capsys.readouterr().out
     assert f"Judged check {first} again from 2 stage run(s)." in output
-    assert "2 check(s) judged again." in output
+    assert f"Counted the judge in session attempt {attempt}." in output
+    assert f"attempt {counted}" not in output
+    assert "2 check(s) judged again, 1 attempt(s) recounted." in output
 
 
 async def test_nothing_to_judge_again_says_so(capsys) -> None:
     with (
         patch(f"{PATH}.get_db_context", session),
         patch(f"{PATH}.skill_check_repo.judged_before_families", AsyncMock(return_value=[])),
+        patch(
+            f"{PATH}.skill_improvement_repo.checked_iterations",
+            AsyncMock(return_value=[(uuid4(), uuid4())]),
+        ),
         patch(f"{PATH}.SkillCheckService.recompute_after_review", AsyncMock()) as judged,
+        patch(f"{PATH}.SkillImprovementService.recount_check_cost", AsyncMock(return_value=False)),
     ):
         await _run([])
 
     judged.assert_not_called()
-    assert "No finished check" in capsys.readouterr().out
+    assert "No finished check or session attempt" in capsys.readouterr().out
 
 
 def test_the_command_passes_every_check_it_was_given() -> None:

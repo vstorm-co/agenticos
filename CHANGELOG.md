@@ -40,7 +40,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- **A skill's Improve session names what accepting it did.** Its status line read "Kept as draft", an agent session's label, for a change applied to the skill. It now says Applied, Made a fork, Caught up with main or Moved to main. A new `skill-checks-rejudge` command judges again, from their stored runs and with no model call, the agents of finished skill checks that an older rule judged: one kept before families shows them, and one kept before `too_few_questions` existed no longer says its run could not grade every answer. A decided check keeps its decision (#3189).
+- **A skill's Improve session names what accepting it did.** Its status line read "Kept as draft", an agent session's label, for a change applied to the skill. It now says Applied, Made a fork, Caught up with main or Moved to main. A new `skill-checks-rejudge` command judges again, from their stored runs and with no model call, the agents of finished skill checks that an older rule judged: one kept before families shows them, and one kept before `too_few_questions` existed no longer says its run could not grade every answer. It also counts the judge's gradings in a session attempt that counted only its check's answers, and a skill check's cost now counts them, so a session's spend and budget include its judge. A decided check keeps its decision, and the group of agents with too few questions says so once, without any agent's counts (#3189).
 
 ### Upgrading
 

@@ -1,6 +1,6 @@
 """Skill improvement sessions and their attempts."""
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -296,6 +296,14 @@ async def spent(db: AsyncSession, run_id: UUID, *, organization_id: UUID) -> Dec
 async def check_cost(db: AsyncSession, check_id: UUID, *, organization_id: UUID) -> Decimal:
     """What a check's eval runs cost, across every agent and stage it ran: every
     answer, and every grading the judge made of one."""
+    answers, gradings = await check_cost_parts(db, check_id, organization_id=organization_id)
+    return answers + gradings
+
+
+async def check_cost_parts(
+    db: AsyncSession, check_id: UUID, *, organization_id: UUID
+) -> tuple[Decimal, Decimal]:
+    """What a check's answers cost, and what the judge's gradings of them cost."""
     runs = (
         select(SkillCheckAgent.skill_set_run_id.label("run_id"))
         .where(
@@ -338,7 +346,43 @@ async def check_cost(db: AsyncSession, check_id: UUID, *, organization_id: UUID)
             cast(AgentRun.id, String).in_(gradings),
         )
     )
-    return Decimal(total or 0) + Decimal(judged or 0)
+    return Decimal(total or 0), Decimal(judged or 0)
+
+
+async def checked_iterations(
+    db: AsyncSession, *, check_ids: Collection[UUID] = ()
+) -> list[tuple[UUID, UUID]]:
+    """Each attempt that started a check, as (organization, attempt), narrowed to the
+    attempts of `check_ids` when given. Unscoped by organization: an operator's sweep."""
+    statement = select(
+        SkillImprovementIteration.organization_id, SkillImprovementIteration.id
+    ).where(
+        or_(
+            SkillImprovementIteration.skill_check_id.is_not(None),
+            SkillImprovementIteration.main_alone_check_id.is_not(None),
+        )
+    )
+    if check_ids:
+        statement = statement.where(
+            or_(
+                SkillImprovementIteration.skill_check_id.in_(list(check_ids)),
+                SkillImprovementIteration.main_alone_check_id.in_(list(check_ids)),
+            )
+        )
+    result = await db.execute(statement.order_by(SkillImprovementIteration.id))
+    return [(organization_id, iteration_id) for organization_id, iteration_id in result.all()]
+
+
+async def get_iteration_by_id(
+    db: AsyncSession, iteration_id: UUID, *, organization_id: UUID
+) -> SkillImprovementIteration | None:
+    result = await db.execute(
+        select(SkillImprovementIteration).where(
+            SkillImprovementIteration.organization_id == organization_id,
+            SkillImprovementIteration.id == iteration_id,
+        )
+    )
+    return result.scalar_one_or_none()
 
 
 async def timeline(

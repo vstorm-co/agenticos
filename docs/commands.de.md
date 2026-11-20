@@ -1,5 +1,5 @@
 ---
-source_sha: "afa67a2c7da1"
+source_sha: "242644bd64d5"
 ---
 
 # Befehle { #commands }
@@ -370,9 +370,11 @@ uv run agenticos cmd audit-skill-bindings
 # Bewertet die Agents abgeschlossener Skill-Checks, die eine ältere Regel bewertet
 # hat, aus ihren gespeicherten Runs neu: einer, der vor den Kriterienfamilien
 # gespeichert wurde, zeigt keine Familien, und einer von vor "zu wenige Fragen"
-# sagt, sein Run habe nicht jede Antwort bewerten können. Kein Modell wird
-# gefragt, und ein entschiedener Check behält seine Entscheidung. Ohne --check
-# geht er alle solchen Checks durch; --check wiederholen, um einzelne zu nennen.
+# sagt, sein Run habe nicht jede Antwort bewerten können. Er rechnet auch die
+# Bewertungen des Bewerters in einen Versuch einer Skill-Sitzung ein, der nur die
+# Antworten seines Checks gezählt hat. Kein Modell wird gefragt, und ein
+# entschiedener Check behält seine Entscheidung. Ohne --check geht er alle solchen
+# Checks und Versuche durch; --check wiederholen, um einzelne zu nennen.
 uv run agenticos cmd skill-checks-rejudge
 uv run agenticos cmd skill-checks-rejudge --check <check-id>
 

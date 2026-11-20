@@ -94,6 +94,7 @@ from app.services.model_profile import ModelProfileService
 from app.services.scorers import JUDGE_PROMPT_VERSION
 from app.services.scoring import ScoringService
 from app.services.skill_check import SkillCheckService
+from app.services.skill_improvement import SkillImprovementService
 from app.services.transcript import RecordedToolCall
 from tests.integration.test_skill_bindings import _skill as _a_skill
 
@@ -2394,6 +2395,75 @@ async def test_a_skill_checks_cost_counts_the_judges_gradings_beside_the_answers
     )
     assert cost == answers + Decimal("0.30")
     assert cost == (await EvalRunService(db).get(ctx, v7.id)).cost_usd
+
+
+async def test_a_session_attempt_counted_without_the_judge_is_counted_again_once(db) -> None:
+    """A skill session's spend reads its attempts' costs, which counted only the answers
+    before the judge's gradings were counted too."""
+    ctx = await _owner(db)
+    check, _, v7 = await _checked_run(db, ctx)
+    grading = AgentRun(
+        organization_id=ctx.organization_id,
+        agent_id=v7.agent_id,
+        surface=RunSurface.EVAL.value,
+        status="completed",
+        model_label="gpt-test",
+        cost_usd=Decimal("0.30"),
+        started_at=datetime.now(UTC),
+    )
+    db.add(grading)
+    await db.flush()
+    score = await db.scalar(select(CaseScore).where(CaseScore.eval_run_id == v7.id).limit(1))
+    assert score is not None
+    score.results = [
+        *score.results,
+        {"scorer": "judge", "name": "Tone", "status": "pass", "judge_run_id": str(grading.id)},
+    ]
+    await db.flush()
+    session = await skill_improvement_repo.create_run(
+        db,
+        organization_id=ctx.organization_id,
+        skill_id=check.skill_id,
+        fork_id=None,
+        base_version_id=check.base_version_id,
+        created_by_user_id=ctx.user_id,
+        created_by_api_key_id=None,
+        window_days=30,
+        max_iterations=1,
+        estimate_usd=Decimal(0),
+        budget_usd=Decimal(15),
+        seed=None,
+    )
+    attempt = await skill_improvement_repo.create_iteration(
+        db, organization_id=ctx.organization_id, run_id=session.id, number=1, note=None
+    )
+    answers, gradings = await skill_improvement_repo.check_cost_parts(
+        db, check.id, organization_id=ctx.organization_id
+    )
+    attempt.skill_check_id, attempt.cost_usd = check.id, answers
+    await db.flush()
+    service = SkillImprovementService(db)
+
+    assert await service.recount_check_cost(ctx.organization_id, attempt.id)
+    assert gradings == Decimal("0.30")
+    assert attempt.cost_usd == answers + gradings
+    assert not await service.recount_check_cost(ctx.organization_id, attempt.id)
+    # One that also paid for a check a retry replaced cannot be told apart, and is left.
+    attempt.cost_usd = answers + Decimal("0.50")
+    await db.flush()
+    assert not await service.recount_check_cost(ctx.organization_id, attempt.id)
+    assert attempt.cost_usd == answers + Decimal("0.50")
+    assert await skill_improvement_repo.checked_iterations(db, check_ids=[check.id]) == [
+        (ctx.organization_id, attempt.id)
+    ]
+    # With no check named, the sweep lists every attempt that started a check, and only those.
+    unchecked = await skill_improvement_repo.create_iteration(
+        db, organization_id=ctx.organization_id, run_id=session.id, number=2, note=None
+    )
+    swept = await skill_improvement_repo.checked_iterations(db)
+    assert (ctx.organization_id, attempt.id) in swept
+    assert (ctx.organization_id, unchecked.id) not in swept
+    assert not await service.recount_check_cost(ctx.organization_id, uuid.uuid4())
 
 
 async def test_a_skill_checks_regression_its_re_asks_confirmed_outlasts_a_verdict_on_one_answer(
