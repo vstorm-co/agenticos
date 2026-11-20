@@ -80,7 +80,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             await runner.run_agenticos(runner.argparse.Namespace(), [])
 
     async def test_pins_publication_and_runs_only_with_a_budget(self):
-        version_id, profile_id, run_id = uuid4(), uuid4(), uuid4()
+        version_id, profile_id, run_id, conversation_id = (uuid4() for _ in range(4))
         spec = runner.AgentSpec(name="Fixture", model_profile_id=profile_id)
         version = SimpleNamespace(id=version_id, spec=spec.model_dump(mode="json"))
         agent = SimpleNamespace(id=uuid4(), current_version_id=version.id)
@@ -124,6 +124,11 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             patch.object(runner, "get_db_context", session),
             patch.object(runner, "job_context", AsyncMock(return_value=ctx)),
             patch.object(runner, "serve_eval_mcp", serve),
+            patch.object(
+                runner.ConversationService,
+                "create_conversation",
+                AsyncMock(return_value=SimpleNamespace(id=conversation_id)),
+            ) as create_conversation,
             patch.object(runner.agent_repo, "get_shipped_starter", AsyncMock(return_value=agent)),
             patch.object(runner.agent_repo, "get_version", AsyncMock(return_value=version)),
             patch.object(runner.credential_repo, "get_profile", AsyncMock(return_value=profile)),
@@ -165,7 +170,14 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(call.args[0].user_id, ctx.user_id)
             self.assertEqual(call.args[2], scenario.case.input)
             self.assertEqual(len(call.kwargs["message_history"]), len(scenario.case.history))
-            self.assertEqual(call.kwargs["surface"], runner.RunSurface.EVAL)
+            self.assertEqual(call.kwargs["surface"], runner.RunSurface.WEB)
+            self.assertEqual(call.kwargs["conversation_id"], conversation_id)
+            self.assertTrue(call.kwargs["acts_for_sender"])
+            create_call = create_conversation.await_args
+            assert create_call is not None
+            conversation = create_call.args[0]
+            self.assertEqual(conversation.organization_id, ctx.organization_id)
+            self.assertEqual(conversation.user_id, ctx.user_id)
             self.assertEqual(call.kwargs["version_id"], version_id)
             self.assertEqual(call.kwargs["model_profile_id"], profile_id)
             self.assertEqual(call.kwargs["run_limit_usd"], Decimal("0.10"))

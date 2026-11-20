@@ -37,13 +37,14 @@ from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.session import get_db_context
 from app.repositories import agent_repo, credential_repo, intercepted_tool_call_repo
 from app.schemas.agent import AgentRunResult
-from app.schemas.conversation import MessageList, ToolCallRead
+from app.schemas.conversation import ConversationCreate, MessageList, ToolCallRead
 from app.schemas.dataset import CaseMessage, DatasetCaseContent
 from app.schemas.eval_run import EvalCallRead
 from app.schemas.memory import MemoryClaimList
 from app.schemas.scoring import ExpectedToolCall
 from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
+from app.services.conversation import ConversationService
 from app.services.dataset_files import parse
 from app.services.eval_run_worker import trajectory
 from app.services.memory import extraction
@@ -585,6 +586,19 @@ async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> 
         )
 
 
+async def open_eval_conversation(ctx: AuthContext, case_id: str) -> UUID:
+    # Commit first so the independently minted MCP credential can reference this chat.
+    async with get_db_context() as db:
+        conversation = await ConversationService(db).create_conversation(
+            ConversationCreate(
+                organization_id=ctx.organization_id,
+                user_id=ctx.subject_id,
+                title=f"Eval: {case_id}",
+            )
+        )
+        return conversation.id
+
+
 async def evaluate_agenticos(
     ctx: AuthContext,
     agent_id: UUID,
@@ -606,12 +620,15 @@ async def evaluate_agenticos(
         )
         started = perf_counter()
         with progress.case(item.id):
+            conversation_id = await open_eval_conversation(ctx, item.id)
             async with get_db_context() as db:
                 answer, run = await AgentRunnerService(db).execute(
                     ctx,
                     agent_id,
                     item.case.input,
-                    surface=RunSurface.EVAL,
+                    surface=RunSurface.WEB,
+                    conversation_id=conversation_id,
+                    acts_for_sender=True,
                     version_id=version_id,
                     model_profile_id=profile_id,
                     message_history=history,

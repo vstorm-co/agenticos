@@ -79,7 +79,7 @@ The terminal shows the current case, a heartbeat after each 15 seconds of waitin
 
 Use `--max-usd 0.25` with the preflight selection for a paid three-case smoke run. The runner passes the remaining budget into the production budget guard and stops when cost is incomplete. The platform uses its bundled price catalog when there is no verified provider cost. A provider key spend limit also covers pricing uncertainty and work outside this guard.
 
-The trace runner gives the production service the authored history and scores its recorded tools, argument subsets and forbidden attempts before any judge call. The production isolation guard holds side-effecting actions. Use live probes to verify effects. Seed synthetic Inbox items, task state and connections for positive-path cases that need them.
+The trace runner starts each case in a fresh private test chat with the authored history. It scores the recorded tools, argument subsets and forbidden attempts before any judge call. The production isolation guard holds side-effecting actions. Use live probes to verify effects. Seed synthetic Inbox items, task state and connections for positive-path cases that need them.
 
 ## Background replay
 
