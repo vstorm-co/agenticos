@@ -46,6 +46,26 @@ any custom toolkit auth configs, and callback identity verification. See the for
 [Composio setup guide](https://github.com/t3grp/agenticos/blob/t3/integrations/composio/README.md)
 for configuration, data handling, and required live acceptance checks.
 
+## Devices & networks { #tailscale-device-connections }
+
+Use **Connections → More → Devices & networks** to add a Tailscale connection for the current T3OS organization. Choose a personal record, visible only to you, or an organization record, visible in that organization. Creating a record does not sign in; choose **Connect** to start sign-in for that record.
+
+The sign-in URL is available only in the session that started it. Do not share it or ask someone else to finish sign-in. Tailscale may require an administrator to approve the new device. Each enrollment attempt expires after 10 minutes; choose **Connect** again if it expires.
+
+After enrollment, T3OS shows the connection's tailnet and a snapshot of its peers. Choose **Refresh** to request a new snapshot; it is not updated continuously.
+
+**Pause** stops the connection runtime and preserves its Tailscale identity for later use. **Revoke** immediately blocks T3OS from using the connection. After the runtime stops, T3OS clears the locally stored keys. If cleanup is marked **Manual**, remove the inactive node in Tailscale admin; T3OS cannot confirm that server-side removal.
+
+Connection records belong to a T3OS organization. The same person must enroll separately in each T3OS organization where they need a connection.
+
+- You can have one pending enrollment per person in an organization, with up to four pending enrollments across that organization.
+- Each creator can have up to 10 non-revoked connection records in an organization.
+- Enrollment expires after 10 minutes.
+
+The feature is off by default for each deployment. When it is disabled, **Devices & networks** explains that the feature is unavailable and does not offer connection creation.
+
+This feature manages enrollment and peer inventory only. It does not yet give agents or apps access to device traffic, terminals, browsers, or files over Tailscale.
+
 ## A connection
 
 One row pointing at a remote server. The transport — streamable HTTP or

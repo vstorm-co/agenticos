@@ -71,6 +71,16 @@ obligations = "None for the published image: the binary is copied into the build
 fulfilled_by = "Not distributed."
 
 [[component]]
+name = "golang (Docker Official Image, broker build stage only)"
+version = "1.27.4-bookworm"
+kind = "build tool and base image, not in the published image"
+license = "Go: BSD-3-Clause with its additional patent grant and bundled third-party notices. Debian base: each package under its own licence."
+source = "https://hub.docker.com/_/golang"
+status = "accepted"
+obligations = "The compiler and Debian build-stage packages are not copied into the final image. The linked Go runtime and standard library require their licence and applicable notices with the broker binary."
+fulfilled_by = "The build stage is not distributed. The separately recorded Tailscale broker runtime bundle includes the Go LICENSE, PATENTS and applicable vendored notices under /app/licenses/tailscale-broker/."
+
+[[component]]
 name = "debian (Docker Official Image)"
 version = "bookworm-slim"
 kind = "runtime image, browser"
@@ -110,7 +120,17 @@ status = "accepted"
 obligations = "OFL-1.1: the licence text travels with the fonts; the fonts are not sold on their own."
 fulfilled_by = "Debian's /usr/share/doc/fonts-*/copyright is in the image; installed as system fonts the browser renders pages with, never sold or redistributed apart from the image."
 
-# Bundled assets
+# Bundled executables and assets
+
+[[component]]
+name = "Tailscale lifecycle broker and linked Go dependencies"
+version = "tailscale.com v1.104.7; Go 1.27.4; transitive versions pinned in integrations/tailscale-broker/go.mod and go.sum"
+kind = "statically linked executable, backend image, opt-in network connections"
+license = "Mixed: Tailscale and Go use BSD-3-Clause with applicable patent notices; linked modules include Apache-2.0, MIT and BSD/ISC-family terms. Each component's own text is preserved in the target-specific bundle."
+source = "https://github.com/tailscale/tailscale/tree/v1.104.7; integrations/tailscale-broker/licenses/THIRD_PARTY_NOTICES.md"
+status = "accepted"
+obligations = "Ship the applicable copyright, licence and notice texts with the binary, including Apache-2.0 and patent notices. Preserve upstream notices verbatim."
+fulfilled_by = "The Go build stage generates an inventory and verbatim dependency/Go notices for the same GOOS, GOARCH and ts_omit_webclient build tag as the executable, then copies them into /app/licenses/tailscale-broker/. The repository carries the reviewed Linux/amd64 inventory with SHA-256 hashes, including recognized nested Tailscale notices. The unused Tailscale web UI is excluded from this build. This file inventory is not a complete legal audit; release review still checks the final image and its target-specific bundle."
 
 [[component]]
 name = "Inter, Bricolage Grotesque, Geist Mono (web fonts)"

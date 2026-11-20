@@ -1,5 +1,5 @@
 ---
-source_sha: "3da9f2a96156"
+source_sha: "3f414ebcdc35"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -52,6 +52,26 @@ Operator konfiguruje klucz projektu runtime, osobny klucz metadanych katalogu,
 niestandardowe konfiguracje uwierzytelniania toolkitów oraz weryfikację tożsamości
 callbacków. Konfigurację, przetwarzanie danych i wymagane testy odbiorcze na żywo
 opisuje [przewodnik konfiguracji Composio w forku](https://github.com/t3grp/agenticos/blob/t3/integrations/composio/README.md).
+
+## Urządzenia i sieci { #tailscale-device-connections }
+
+W **Connections → More → Devices & networks** możesz dodać połączenie Tailscale do bieżącej organizacji T3OS. Wybierz rekord osobisty, widoczny tylko dla Ciebie, albo organizacyjny, widoczny w tej organizacji. Utworzenie rekordu nie rozpoczyna logowania; wybierz **Connect**, aby rozpocząć logowanie dla tego rekordu.
+
+Adres logowania jest dostępny wyłącznie w sesji, która rozpoczęła proces. Nie udostępniaj go ani nie proś innej osoby o dokończenie logowania. Tailscale może wymagać zatwierdzenia nowego urządzenia przez administratora. Próba rejestracji wygasa po 10 minutach; po tym czasie wybierz ponownie **Connect**.
+
+Po rejestracji T3OS pokazuje tailnet połączenia i migawkę jego peerów. Wybierz **Refresh**, aby pobrać nową migawkę; nie jest ona aktualizowana na bieżąco.
+
+**Pause** zatrzymuje runtime połączenia i zachowuje jego tożsamość Tailscale do późniejszego użycia. **Revoke** natychmiast blokuje T3OS możliwość korzystania z połączenia. Gdy runtime się zatrzyma, T3OS usuwa lokalnie przechowywane klucze. Jeśli sprzątanie ma stan **Manual**, usuń nieaktywny węzeł w panelu administracyjnym Tailscale; T3OS nie potwierdza automatycznie usunięcia po stronie serwera.
+
+Rekordy połączeń należą do organizacji T3OS. Ta sama osoba musi osobno zarejestrować połączenie w każdej organizacji T3OS, w której ma z niego korzystać.
+
+- W organizacji można mieć jedną oczekującą rejestrację na osobę i maksymalnie cztery oczekujące rejestracje łącznie.
+- Każdy twórca może mieć w organizacji maksymalnie 10 nieodwołanych rekordów połączeń.
+- Rejestracja wygasa po 10 minutach.
+
+Ta funkcja jest domyślnie wyłączona w każdym wdrożeniu. Gdy jest wyłączona, **Devices & networks** wyjaśnia, że funkcja jest niedostępna, i nie pozwala tworzyć połączeń.
+
+Funkcja obsługuje tylko rejestrację i inwentarz peerów. Nie udostępnia jeszcze agentom ani aplikacjom ruchu urządzeń, terminali, przeglądarek ani plików przez Tailscale.
 
 ## Połączenie { #a-connection }
 

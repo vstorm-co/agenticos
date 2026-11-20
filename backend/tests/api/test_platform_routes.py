@@ -142,6 +142,7 @@ _SERVICE_DEPS = (
     deps.get_model_profile_service,
     deps.get_sharing_service,
     deps.get_mcp_connection_service,
+    deps.get_network_connection_service,
     deps.get_secret_service,
     deps.get_openai_codex_service,
     deps.get_knowledge_base_service,
@@ -255,6 +256,13 @@ _SPEC: dict[str, Any] = {"name": "Support"}
 # tests/test_agent_registry.py, tests/test_skills.py and the grant flows in
 # tests/integration/test_platform_flows.py.
 CALLS: tuple[Call, ...] = (
+    Call("GET", "/network-connections", Perm.NETWORKS_VIEW),
+    Call(
+        "POST",
+        "/network-connections",
+        Perm.NETWORKS_MANAGE,
+        body={"name": "My devices", "scope": "user"},
+    ),
     Call("GET", "/approvals/consents", Perm.APPROVALS_DECIDE),
     Call("DELETE", "/approvals/{approval_id}/consent", Perm.APPROVALS_DECIDE),
     Call("GET", "/api-keys/scopes", Perm.API_KEYS_CREATE),
@@ -989,6 +997,7 @@ _PLATFORM_PREFIXES = (
     # surface with a different owner and does not match this prefix, which is
     # the distinction this file is here to keep honest.
     "/mcp-connections",
+    "/network-connections",
     "/secrets",
     # Knowledge bases moved into the platform layer when their access rules
     # did: the service resolves scope and grants per row, so this sweep is
@@ -1100,6 +1109,7 @@ def _required_permissions(route: RouteContext) -> frozenset[Perm]:
 # authorized even without a `require()` gate - and *must* be, for anything
 # acting on a single resource.
 RESOURCE_AWARE_SERVICES = (
+    deps.get_network_connection_service,
     # Room routing rechecks the signed-in member's room, project-edit policy
     # authority and requester-only decisions before touching canonical Tasks.
     deps.get_room_routing_service,

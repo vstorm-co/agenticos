@@ -42,11 +42,13 @@ from app.db.models.coding_account import CodingAccount
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.diagnostics import DiagnosticsIdentity
 from app.db.models.mcp_connection import McpConnection
+from app.db.models.network_connection import NetworkConnection
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.personal_model_key import PersonalModelKey
 from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.session import get_db_context
 from app.services.mcp_connection import connection_scope
+from app.services.network_connections import connection_scope as network_connection_scope
 from app.worker.jobs import ChannelMessage
 
 
@@ -101,6 +103,7 @@ class SealedTable:
         OrganizationSecret
         | ChannelBot
         | McpConnection
+        | NetworkConnection
         | AgentEmbed
         | AgentTrigger
         | WorkflowExposure
@@ -116,6 +119,13 @@ class SealedTable:
 
 
 SEALED_TABLES: tuple[SealedTable, ...] = (
+    SealedTable(
+        label="network_connections",
+        model=NetworkConnection,
+        columns=("state_payload", "login_payload"),
+        version_attr="secret_key_version",
+        scope=network_connection_scope,
+    ),
     SealedTable(
         label="organization_secrets",
         model=OrganizationSecret,

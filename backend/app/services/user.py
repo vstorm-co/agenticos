@@ -63,6 +63,7 @@ from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.file_storage import avatar_filename, delete_files_best_effort, get_file_storage
 from app.services.generated_media import GeneratedMediaService
+from app.services.network_connections import NetworkConnectionService
 from app.services.organization import OrganizationService
 from app.services.personal_data import PersonalDataService
 from app.services.signup_policy import check_may_register
@@ -743,6 +744,7 @@ class UserService:
         """`delete`, once `_lock_account` holds what the deletion locks."""
         user = locked.user
         user_id = user.id
+        await NetworkConnectionService(self.db).prepare_user_deletion(user_id)
         await self._release_owned_rows(user_id, locked_heirs=locked.heirs)
         # Read before the row goes. `chat_files` cascades from `users`, so the
         # rows naming each upload disappear with the account and the bytes stay

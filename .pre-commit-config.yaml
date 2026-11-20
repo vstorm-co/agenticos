@@ -52,7 +52,10 @@ repos:
         exclude: ^(\.vscode/|.*tsconfig.*\.json$)
       - id: check-merge-conflict
       - id: end-of-file-fixer
+        # Preserve upstream notice bytes recorded in the broker license inventory.
+        exclude: ^integrations/tailscale-broker/licenses/
       - id: trailing-whitespace
+        exclude: ^integrations/tailscale-broker/licenses/
       # 1 MB catches an accidental binary. The one deliberate exception is the
       # MCP registry snapshot: 5,703 servers at four fields each, and every
       # field is read. It is bundled rather than fetched so a first

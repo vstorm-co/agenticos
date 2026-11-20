@@ -63,6 +63,7 @@ class VaultScopeKind(StrEnum):
     USER = "user"
     DEPLOYMENT = "deployment"
     BROWSER_MEMBER = "browser_member"
+    NETWORK_CONNECTION = "network_connection"
 
 
 @dataclass(frozen=True)
@@ -103,6 +104,16 @@ class VaultScope:
         """The installation itself, for the few secrets no tenant owns - the Web
         Push signing key (#2097). One deployment per database, so one subject."""
         return cls(kind=VaultScopeKind.DEPLOYMENT, subject_id=UUID(int=0))
+
+    @classmethod
+    def network_connection(
+        cls, *, organization_id: UUID, connection_id: UUID, owner_user_id: UUID | None
+    ) -> VaultScope:
+        """A node identity cannot move between connections, members or organizations."""
+        return cls(
+            kind=VaultScopeKind.NETWORK_CONNECTION,
+            subject_id=uuid5(organization_id, f"{connection_id}:{owner_user_id or 'org'}"),
+        )
 
     def __str__(self) -> str:
         return f"{self.kind.value}:{self.subject_id}"

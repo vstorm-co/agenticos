@@ -19,6 +19,7 @@ import { useOrganizationList } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSkills } from "@/hooks/use-skills";
 import { useTables } from "@/hooks/use-tables";
+import { useNetworkConnections } from "@/hooks/use-network-connections";
 import { stripLocale } from "@/lib/active-route";
 import { usableForAgents } from "@/lib/model-profiles";
 import {
@@ -80,6 +81,7 @@ const DEFAULT_STATE: OrgState = {
   hasOrgMcp: false,
   hasPublishedAgent: false,
   hasRunnableAgent: false,
+  hasNetworkRuntime: false,
   // No agents, so room for one - the same "nothing yet" as the rest.
   hasRoomForAgent: true,
 };
@@ -112,7 +114,7 @@ function settled(loading: boolean, fetching: boolean, count: number): MaybeCount
  * while a flow is live, because the coach that calls this hook is mounted only
  * then.
  */
-function useOrgSnapshot(): {
+function useOrgSnapshot(flowId: FlowId | null): {
   counts: Record<FlowResource, MaybeCount>;
   liveState: OrgState | null;
   agentLimitReached: boolean;
@@ -143,6 +145,9 @@ function useOrgSnapshot(): {
   // stale one, and freezing it can strand the flow either way - a revoked grant
   // waits on buttons the refresh hides, a fresh grant reads as inert.
   const anyRunnable = useCanCreateTriggerQuery();
+  const networkConnections = useNetworkConnections({
+    enabled: flowId === "connect-tailscale" && can(Perm.networksView),
+  });
   const stateSettled =
     !agents.isLoading &&
     !models.isLoading &&
@@ -153,7 +158,9 @@ function useOrgSnapshot(): {
     !personalMcp.isLoading &&
     !anyRunnable.isLoading &&
     !anyRunnable.isFetching &&
-    agentCeiling.known;
+    agentCeiling.known &&
+    (flowId !== "connect-tailscale" ||
+      (!networkConnections.isLoading && !networkConnections.isFetching));
   return {
     agentLimitReached: isAtAgentLimit(agentCeiling.ceiling),
     counts: {
@@ -183,6 +190,11 @@ function useOrgSnapshot(): {
         recentDatasets.isFetching,
         recentDatasets.datasets.reduce((sum, dataset) => sum + dataset.case_count, 0),
       ),
+      networkConnection: settled(
+        networkConnections.isLoading,
+        networkConnections.isFetching,
+        networkConnections.total,
+      ),
     },
     // A profile is runnable when it is keyed by a vault secret, or self-hosted at
     // a `base_url` with no key — the same rule the model resolver enforces — and
@@ -202,6 +214,7 @@ function useOrgSnapshot(): {
           hasPublishedAgent: agents.agents.some((agent) => agent.status === "published"),
           hasRunnableAgent: anyRunnable.canCreate,
           hasRoomForAgent: !isAtAgentLimit(agentCeiling.ceiling),
+          hasNetworkRuntime: networkConnections.available === true,
         }
       : null,
   };
@@ -252,7 +265,7 @@ export function useOnboardingFlow(): OnboardingFlowState {
   const flowAgentId = useOnboardingStore((state) => state.flowAgentId);
   const setFlowAgentId = useOnboardingStore((state) => state.setFlowAgentId);
   const { can } = usePermissions();
-  const { counts, liveState, agentLimitReached } = useOrgSnapshot();
+  const { counts, liveState, agentLimitReached } = useOrgSnapshot(flowId);
   // The live draft of the agent this flow built, for the steps that gate on its
   // state rather than a list: the model step waits for its draft to gain a model,
   // the publish step for it to gain a published version. Disabled until an id is

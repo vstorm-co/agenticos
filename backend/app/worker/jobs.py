@@ -34,6 +34,8 @@ class Pool(enum.StrEnum):
     """Sweeps, cleanups and reports: short, and nearly always idle."""
     WORKFLOW = "workflow"
     """Workflow nodes: HTTP, file and sandbox steps, mostly waiting, some holding a large file."""
+    NETWORK = "network"
+    """Isolated node lifecycles, bounded separately while people complete device sign-in."""
 
 
 class Priority(enum.IntEnum):
@@ -54,6 +56,14 @@ class WakeTask(Payload):
     organization_id: UUID
     task_id: UUID
     revision: int = Field(ge=1)
+
+
+class RunNetworkConnection(Payload):
+    organization_id: UUID
+    connection_id: UUID
+    enrollment_id: UUID | None
+    policy_generation: int = Field(ge=1)
+    mode: Literal["enroll", "status", "logout"]
 
 
 class RevertCodingTask(Payload):
@@ -868,6 +878,7 @@ DISPATCH_DUE_SYNCS = _sweep("dispatch-due-syncs")
 RETRY_SANDBOX_DESTROYS = _sweep("retry-sandbox-destroys")
 SWEEP_SANDBOX_OPERATIONS = _sweep("sweep-sandbox-operations")
 SWEEP_MCP_CONNECTIONS = _sweep("sweep-mcp-connections")
+SWEEP_NETWORK_CONNECTIONS = _sweep("sweep-network-connections")
 SYNC_DISCORD_ROLES = _sweep("sync-discord-roles")
 EXPIRE_APPROVALS = _sweep("expire-approvals")
 EXPIRE_INVITATIONS = _sweep("expire-invitations")
@@ -1016,9 +1027,21 @@ DELIVER_CHANNEL_HANDBACK = Task(
     priority=Priority.INTERACTIVE,
 )
 
+RUN_NETWORK_CONNECTION = Task(
+    kind="run-network-connection",
+    payload_type=RunNetworkConnection,
+    pool=Pool.NETWORK,
+    max_attempts=1,
+    timeout=timedelta(minutes=11),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Reconnect from Devices & networks so the current person and session can be checked again",
+)
+
+
 TASKS: dict[str, TaskKind] = {
     task.kind: task
     for task in (
+        RUN_NETWORK_CONNECTION,
         PROCESS_CHANNEL_CONTROL,
         PROCESS_CHANNEL_MESSAGE,
         PROCESS_CHANNEL_DELIVERY,
@@ -1072,6 +1095,7 @@ TASKS: dict[str, TaskKind] = {
         RETRY_SANDBOX_DESTROYS,
         SWEEP_SANDBOX_OPERATIONS,
         SWEEP_MCP_CONNECTIONS,
+        SWEEP_NETWORK_CONNECTIONS,
         SYNC_DISCORD_ROLES,
         EXPIRE_APPROVALS,
         EXPIRE_INVITATIONS,

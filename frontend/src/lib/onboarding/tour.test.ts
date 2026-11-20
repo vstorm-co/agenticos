@@ -650,7 +650,11 @@ describe("stepsForPage", () => {
   });
 
   it("deepens the MCP page component by component", () => {
-    expect(stepsForPage(ROUTES.MCP_SERVERS, () => true).map((step) => step.id)).toEqual([
+    expect(
+      stepsForPage(ROUTES.MCP_SERVERS, () => true, false, { networks: false }).map(
+        (step) => step.id,
+      ),
+    ).toEqual([
       "app-connections",
       "mcp-catalog",
       "mcp-filter",
@@ -658,6 +662,21 @@ describe("stepsForPage", () => {
       "mcp-connect",
       "connections-more",
     ]);
+  });
+
+  it("shows the networks stops only while the deployment offers them", () => {
+    const networkIds = (networks: boolean) =>
+      [
+        ...visibleTourSteps(() => true, { networks }),
+        ...stepsForPage(ROUTES.MCP_SERVERS, () => true, false, { networks }),
+        ...stepsForPage(ROUTES.CONNECTOR_DEVICES, () => true, false, { networks }),
+      ]
+        .map((step) => step.id)
+        .filter((id) => id.startsWith("network-") || id === "connectors-devices");
+    expect(networkIds(false)).toEqual([]);
+    expect(networkIds(true)).toEqual(
+      expect.arrayContaining(["network-connections", "connectors-devices", "network-add"]),
+    );
   });
 
   it("is empty for a page the tour does not cover", () => {

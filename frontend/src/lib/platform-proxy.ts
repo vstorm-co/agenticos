@@ -105,15 +105,6 @@ function describingHeaders(source: Headers): Headers {
   return headers;
 }
 
-/** Whether `Accept-Encoding` lists gzip with a quality above zero. */
-function acceptsGzip(header: string | null): boolean {
-  return (header ?? "").split(",").some((entry) => {
-    const [coding, ...params] = entry.split(";").map((part) => part.trim().toLowerCase());
-    const quality = params.find((param) => param.startsWith("q="));
-    return coding === "gzip" && (quality === undefined || Number(quality.slice(2)) > 0);
-  });
-}
-
 /**
  * Handlers forwarding `/api/<path>` to `/api/v1/<path>`, unchanged.
  *
@@ -167,18 +158,15 @@ export function platformProxy(): ProxyHandlers {
     // is how `detail` goes missing from a refusal and time-to-first-byte becomes
     // the whole transfer.
     const headers = describingHeaders(response.headers);
-    let body = response.body;
-    // The backend compressed this, so it is worth compressing again for the
-    // browser: `fetch` decoded it, and Next does not compress a route handler's
-    // answer.
-    if (body && response.headers.has("content-encoding")) {
+    // The backend compressed this: `fetch` already decoded it, so the body is
+    // plain bytes and carries no `Content-Encoding` or `Content-Length`. It is
+    // never compressed again here - a second gzip on top of the edge's own left
+    // the client with gzip bytes where JSON was expected (#194). Compression for
+    // the browser is the edge's job; `Vary` keeps caches honest about it.
+    if (response.headers.has("content-encoding")) {
       headers.set("vary", "Accept-Encoding");
-      if (acceptsGzip(request.headers.get("accept-encoding"))) {
-        body = body.pipeThrough(new CompressionStream("gzip"));
-        headers.set("content-encoding", "gzip");
-      }
     }
-    return new NextResponse(body, { status: response.status, headers });
+    return new NextResponse(response.body, { status: response.status, headers });
   };
 
   return { GET: forward, POST: forward, PUT: forward, PATCH: forward, DELETE: forward };

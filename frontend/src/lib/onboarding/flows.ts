@@ -42,6 +42,7 @@ export type FlowId =
   | "create-kb"
   | "create-mcp"
   | "connect-app"
+  | "connect-tailscale"
   | "create-org"
   | "create-group"
   | "create-project-tracker"
@@ -84,7 +85,8 @@ export type FlowResource =
   | "routine"
   | "table"
   | "dataset"
-  | "case";
+  | "case"
+  | "networkConnection";
 
 /**
  * How a step knows it is finished. Five shapes.
@@ -149,6 +151,7 @@ export interface OrgState {
   hasOrgMcp: boolean;
   hasPublishedAgent: boolean;
   hasRunnableAgent: boolean;
+  hasNetworkRuntime: boolean;
   /** Below the organization's agent limit, or no limit: New agent is enabled. */
   hasRoomForAgent: boolean;
 }
@@ -931,6 +934,59 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       },
     ],
   },
+  "connect-tailscale": {
+    id: "connect-tailscale",
+    permission: Perm.networksManage,
+    steps: [
+      {
+        id: "flow-tailscale-add",
+        page: ROUTES.CONNECTOR_DEVICES,
+        target: "tailscale-add",
+        permission: Perm.networksManage,
+        signal: { kind: "opened" },
+      },
+      {
+        id: "flow-tailscale-name",
+        page: ROUTES.CONNECTOR_DEVICES,
+        target: "tailscale-name",
+        permission: Perm.networksManage,
+        inOverlay: true,
+      },
+      {
+        id: "flow-tailscale-create",
+        page: ROUTES.CONNECTOR_DEVICES,
+        target: "tailscale-create-submit",
+        permission: Perm.networksManage,
+        inOverlay: true,
+        signal: { kind: "created", resource: "networkConnection" },
+      },
+      {
+        id: "flow-tailscale-connect",
+        page: ROUTES.CONNECTOR_DEVICES,
+        target: "tailscale-connect",
+        permission: Perm.networksManage,
+        include: (state) => state.hasNetworkRuntime,
+        signal: { kind: "opened" },
+      },
+      {
+        id: "flow-tailscale-enrollment",
+        page: ROUTES.CONNECTOR_DEVICES,
+        target: "tailscale-enrollment-status",
+        permission: Perm.networksManage,
+        include: (state) => state.hasNetworkRuntime,
+        inOverlay: true,
+      },
+      {
+        id: "flow-tailscale-login",
+        page: ROUTES.CONNECTOR_DEVICES,
+        target: "tailscale-login",
+        permission: Perm.networksManage,
+        include: (state) => state.hasNetworkRuntime,
+        optional: true,
+        inOverlay: true,
+      },
+    ],
+  },
   "create-mcp": {
     id: "create-mcp",
     permission: Perm.connectionsManage,
@@ -1452,6 +1508,8 @@ export function flowForPage(pageId: string, systemAgent = false): FlowId | null 
       return "create-table";
     case ROUTES.MCP_SERVERS:
       return "connect-app";
+    case ROUTES.CONNECTOR_DEVICES:
+      return "connect-tailscale";
     case PROJECT_DETAIL:
       return "create-project-tracker";
     case ROUTES.ROUTINES:

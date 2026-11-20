@@ -13,6 +13,7 @@ from app.api.routes.v1 import (
     admin_updates,
     health,
     mcp_oauth,
+    network_connections,
     public_openapi,
 )
 from app.api.routes.v1 import admin_users, auth, users
@@ -390,6 +391,10 @@ v1_router.include_router(me_onboarding.router, prefix="/me/onboarding", tags=["m
 
 
 from app.api.routes.v1 import personal_model_keys
+
+v1_router.include_router(
+    network_connections.router, prefix="/network-connections", tags=["network-connections"]
+)
 
 v1_router.include_router(
     personal_model_keys.router, prefix="/personal-model-keys", tags=["personal-model-keys"]

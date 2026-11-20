@@ -72,6 +72,7 @@ def production() -> Handlers:
         knowledge_gap_tasks,
         mcp_tasks,
         memory_tasks,
+        network_tasks,
         notification_tasks,
         proactive_tasks,
         rag_tasks,
@@ -90,6 +91,8 @@ def production() -> Handlers:
     return by_kind(
         [
             *ingest().values(),
+            Handler(jobs.RUN_NETWORK_CONNECTION, network_tasks.run_connection),
+            Handler(jobs.SWEEP_NETWORK_CONNECTIONS, _each_tick(network_tasks.sweep_connections)),
             Handler(jobs.PROCESS_CHANNEL_CONTROL, channel_tasks.process_channel_message),
             Handler(jobs.PROCESS_CHANNEL_MESSAGE, channel_tasks.process_channel_message),
             Handler(jobs.PROCESS_CHANNEL_DELIVERY, channel_tasks.process_channel_delivery),
@@ -217,12 +220,16 @@ def _settlers() -> dict[str, Settler]:
         case_generation_tasks,
         conversation_tasks,
         eval_tasks,
+        network_tasks,
         project_tasks,
         rag_tasks,
         room_tasks,
     )
 
     return {
+        jobs.RUN_NETWORK_CONNECTION.kind: _settler(
+            jobs.RUN_NETWORK_CONNECTION, network_tasks.settle_connection
+        ),
         jobs.RUN_ROOM_REQUEST.kind: _settler(jobs.RUN_ROOM_REQUEST, room_tasks.settle_lost_request),
         jobs.RUN_CONVERSATION_TASK.kind: _settler(
             jobs.RUN_CONVERSATION_TASK, conversation_tasks.settle_lost_task
