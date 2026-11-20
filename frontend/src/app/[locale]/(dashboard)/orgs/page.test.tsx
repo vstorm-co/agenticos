@@ -7,6 +7,11 @@ const state = vi.hoisted(() => ({
   fetchOrgs: vi.fn().mockResolvedValue(undefined),
   switchOrg: vi.fn(),
   push: vi.fn(),
+  listFailed: false,
+  orgs: [
+    { id: "personal", name: "Personal", slug: "jordan", is_personal: true },
+    { id: "company", name: "Northwind Labs", slug: "northwind", is_personal: false },
+  ],
 }));
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
@@ -18,14 +23,33 @@ vi.mock("@/hooks", () => ({
   useOrganizations: () => ({
     ...state,
     activeOrgId: "personal",
-    orgs: [
-      { id: "personal", name: "Personal", slug: "jordan", is_personal: true },
-      { id: "company", name: "Northwind Labs", slug: "northwind", is_personal: false },
-    ],
   }),
 }));
 vi.mock("@/components/teams", () => ({ CreateOrgDialog: () => null }));
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  state.listFailed = false;
+});
+
+it("lists both organizations an owner belongs to", async () => {
+  render(<OrgsPage />);
+  expect(await screen.findByText("2 organizations")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Open Personal" })).toBeVisible();
+  expect(screen.getByRole("link", { name: "Open Northwind Labs" })).toBeVisible();
+});
+
+it("shows a failed load as an error with a retry, never as zero organizations", async () => {
+  state.listFailed = true;
+  const orgs = state.orgs;
+  state.orgs = [];
+  render(<OrgsPage />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Organizations could not be loaded.");
+  expect(screen.queryByText("No organizations yet")).toBeNull();
+  expect(screen.queryByText("0 organizations")).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(state.fetchOrgs).toHaveBeenCalledTimes(2);
+  state.orgs = orgs;
+});
 
 it("filters memberships by name or slug without requesting other organizations", async () => {
   render(<OrgsPage />);

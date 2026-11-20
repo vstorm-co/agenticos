@@ -23,10 +23,12 @@ export function OrganizationSwitcher({
   onNavigate?: () => void;
 }) {
   const t = useTranslations("teams");
-  const { activeOrg } = useOrganizations();
+  const { activeOrg, listFailed } = useOrganizations();
   const label = activeOrg
     ? t("organizationSwitcher", { name: activeOrg.name })
-    : t("selectOrganization");
+    : listFailed
+      ? t("organizationsNotLoaded")
+      : t("selectOrganization");
 
   return (
     <DropdownMenu>
@@ -60,7 +62,8 @@ export function OrganizationSwitcher({
               <span className="min-w-0 flex-1">
                 <span className="sr-only">{t("organizationLabel")}</span>
                 <span className="block truncate text-sm font-medium">
-                  {activeOrg?.name ?? t("selectOrganization")}
+                  {activeOrg?.name ??
+                    (listFailed ? t("organizationsNotLoaded") : t("selectOrganization"))}
                 </span>
               </span>
               <ChevronsUpDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
