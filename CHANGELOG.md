@@ -27,7 +27,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Show the same approval cards in Inbox and Activity, with details and inline approval and rejection.
 
-- Let agent authors hide suggested first messages. The new-chat Inbox uses the extra space to show more items.
+- Let agent authors hide suggested first messages. Keep the new-chat Inbox preview bounded to four rows, with urgent items first.
 
 - Search readable chat message text as well as conversation titles, with highlighted excerpts, matching-message counts and keyboard navigation. Reuse the existing full-text index and transcript access checks.
 
@@ -76,7 +76,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Tighten the chat greeting, MCP cards and model library. Keep history groups visible as the chat list grows, give nested fields a complete focus outline and let chat choose among a provider's available key profiles.
 
-- Show the active agent’s opening prompts above the new-chat composer and add the selected prompt to the draft. Show Daily briefing below the composer with priority items, a pending approval count and a link to Inbox. Keep the animated welcome avatar responsive to reduced motion.
+- Show the active agent’s opening prompts above the new-chat composer and add the selected prompt to the draft. Show Daily briefing above the composer with priority items, a pending approval count and a link to Inbox. Keep the animated welcome avatar responsive to reduced motion.
 
 - Share larger resource gallery cards across agents, tables, workflows, knowledge bases, projects, datasets, MCP, skills, context, Apps and groups. Use matching cards for the agent Builder settings, with Thinking and Answer format inside Model settings, visible default first messages, and Voice deep links.
 
@@ -98,7 +98,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Apply `0342_personal_coding_sessions.py` and update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
+- Run `alembic upgrade head` to apply `0342_personal_coding_sessions.py`, `0343_bundled_context.py` and the merge revisions through `0346_merge_console_matrix.py`. Update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
+
+- Password reset links issued before this upgrade are invalidated. Request a new recovery email or have a deployment administrator issue a new link; new links are single-use and also expire after a password change.
 
 ## [1.87.0] - 2026-11-20
 
