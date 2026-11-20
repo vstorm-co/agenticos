@@ -1,5 +1,5 @@
 ---
-source_sha: "890e2a5a2a7a"
+source_sha: "491ffeeb06c4"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -443,6 +443,8 @@ Begründung nennt die fehlenden Bezeichnungen.
 Jeder Wert wird in der Antwort gesucht:
 
 - als ganzes Token: `12` wird in `120` nicht gefunden, `INV-1` nicht in `INV-10`;
+- nicht innerhalb einer längeren Zahl: `12` wird in `12,50` nicht gefunden, `234`
+  nicht in `1 234` und `1 234` nicht in `1 234 567`;
 - ohne Rücksicht auf Groß- und Kleinschreibung, Folgen von Leerraum und
   Unicode-Formen wie eine Ligatur oder ein geschütztes Leerzeichen;
 - mit einem Leerzeichen, das die Tausender einer Zahl gruppieren darf, sodass

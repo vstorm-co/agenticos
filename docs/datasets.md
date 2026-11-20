@@ -398,6 +398,8 @@ carries, and its reason names the labels it is missing.
 Each value is looked for in the answer:
 
 - as a whole token: `12` is not found in `120`, nor `INV-1` in `INV-10`;
+- not inside a longer number: `12` is not found in `12,50`, nor `234` in `1 234`,
+  nor `1 234` in `1 234 567`;
 - ignoring letter case, runs of whitespace and Unicode forms such as a ligature
   or a no-break space;
 - with a space allowed to group the thousands of a number, so `1234` and

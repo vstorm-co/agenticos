@@ -1,5 +1,5 @@
 ---
-source_sha: "890e2a5a2a7a"
+source_sha: "491ffeeb06c4"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -417,6 +417,8 @@ tych, które zawiera, a uzasadnienie wymienia brakujące etykiety.
 Każdej wartości szuka się w odpowiedzi:
 
 - jako całego tokenu: `12` nie zostanie znalezione w `120`, a `INV-1` w `INV-10`;
+- nie wewnątrz dłuższej liczby: `12` nie zostanie znalezione w `12,50`, `234` w
+  `1 234`, a `1 234` w `1 234 567`;
 - bez względu na wielkość liter, ciągi białych znaków i formy Unicode, takie jak
   ligatura czy twarda spacja;
 - z dopuszczeniem spacji grupującej tysiące w liczbie, więc `1234` i `1 234` się

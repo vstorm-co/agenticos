@@ -1235,8 +1235,17 @@ class TestKeysCheck:
             ("1.5", "A rate of 1.55", False),
             ("1234567", "Paid 1 234 567 in full", True),
             ("1 234 567,89", "Paid 1234567,89 in full", True),
-            ("913.68", "Invoice INV-7 913.68", True),
+            ("913.68", "Invoice INV-7, total 913.68", True),
+            ("12", "Rooms 5 12", True),
             ("£913.68", "Total: £913.68.", True),
+            ("234", "Total: 1 234 PLN", False),
+            ("1 234", "Total 1 234 567", False),
+            ("234 567", "Total 1 234 567", False),
+            ("12", "Amount 12,50", False),
+            ("1,234", "A total of 1,234.", True),
+            ("12", "Pay 12 PLN", True),
+            ("13", "Rooms 12, 13 and 14", True),
+            ("12", "Rooms 12, 13 and 14", True),
             ("ACME  Ltd", "Billed to acme ltd today", True),
             ("\ufb01le 7", "the file 7 attached", True),
         ],
@@ -1256,7 +1265,9 @@ class TestKeysCheck:
         assert result.reason == "Missing 1 of 3 keys: Due"
 
     def test_every_key_carried_passes(self) -> None:
-        result = _check(_keys(("Invoice", "INV-7"), ("Total", "913.68")), _answer("INV-7 913.68"))
+        result = _check(
+            _keys(("Invoice", "INV-7"), ("Total", "913.68")), _answer("INV-7, total 913.68")
+        )
         assert (result.status, result.score, result.reason) == ("pass", 1.0, "Carries all 2 keys")
 
     def test_the_reason_names_at_most_twenty_missing_keys(self) -> None:

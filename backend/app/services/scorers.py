@@ -264,6 +264,7 @@ def _ceiling_check(check: CeilingCheck, answer: ScoredAnswer, *, required: bool)
 # one locale groups thousands with them, another marks decimals.
 _THOUSANDS_GAP = re.compile(r"(?<=\d) (?=\d{3}(?!\d))")
 _DIGIT_RUN = re.compile(r"\d+")
+_THOUSANDS_GROUP = re.compile(r"\d{3}(?!\d)")
 _SPACES = re.compile(r"\s+")
 _WORD = re.compile(r"\w")
 MAX_MISSING_NAMED = 20
@@ -286,7 +287,8 @@ def _carries(haystack: str, value: str) -> bool:
     The answer is only normalised; the value becomes the pattern, so `1234` and
     `1 234` find each other without two numbers in the answer running together.
     """
-    needle = _THOUSANDS_GAP.sub("", _normalised(value))
+    written = _normalised(value)
+    needle = _THOUSANDS_GAP.sub("", written)
     pattern = ""
     at = 0
     for run in _DIGIT_RUN.finditer(needle):
@@ -295,6 +297,14 @@ def _carries(haystack: str, value: str) -> bool:
     pattern += re.escape(needle[at:])
     before = r"(?<!\w)" if _WORD.match(needle[:1]) else ""
     after = r"(?!\w)" if _WORD.match(needle[-1:]) else ""
+    # A number continues past a separator: `234` is part of `1 234`, `12` of `12,50`.
+    # Past a space only into a group of three digits, the way thousands are grouped.
+    if needle[:1].isdigit():
+        before += r"(?<!\d[.,])"
+        if _THOUSANDS_GROUP.match(written):
+            before += r"(?<!\d )"
+    if needle[-1:].isdigit():
+        after += r"(?! \d{3}(?!\d))(?![.,]\d)"
     return re.search(before + pattern + after, haystack) is not None
 
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "890e2a5a2a7a"
+source_sha: "491ffeeb06c4"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -423,6 +423,8 @@ motivo nombra las etiquetas que faltan.
 Cada valor se busca en la respuesta:
 
 - como un token completo: `12` no se encuentra en `120`, ni `INV-1` en `INV-10`;
+- no dentro de un número más largo: `12` no se encuentra en `12,50`, ni `234` en
+  `1 234`, ni `1 234` en `1 234 567`;
 - sin tener en cuenta las mayúsculas, las secuencias de espacios en blanco ni
   las formas Unicode, como una ligadura o un espacio de no separación;
 - con un espacio que puede agrupar los miles de un número, así que `1234` y
