@@ -502,6 +502,8 @@ ARTIFACT_LIBRARY: dict[str, str] = {
     "agenticos-2.js": "text/javascript; charset=utf-8",
     "agenticos-3.css": "text/css; charset=utf-8",
     "agenticos-3.js": "text/javascript; charset=utf-8",
+    "agenticos-4.css": "text/css; charset=utf-8",
+    "agenticos-4.js": "text/javascript; charset=utf-8",
     "mermaid-12.1.0.min.js": "text/javascript; charset=utf-8",
     "idiomorph-0.8.0.min.js": "text/javascript; charset=utf-8",
     # three.js is an ES module that imports its core by a relative path, so the

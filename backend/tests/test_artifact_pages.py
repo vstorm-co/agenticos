@@ -1141,6 +1141,54 @@ class TestTheLibrarySet:
         assert calls(script_2) < calls(script_3)
         assert calls(script_3) - calls(script_2) == {"onData", "onRun", "records", "run"}
 
+    async def test_kit_4_keeps_every_class_and_call_of_kit_3(self) -> None:
+        assert "agenticos-4.css" in artifacts.ARTIFACT_LIBRARY
+        assert "agenticos-4.js" in artifacts.ARTIFACT_LIBRARY
+        assert KIT_CLASSES[3] < KIT_CLASSES[4]
+        sheet_3, _ = await artifacts.library_file("agenticos-3.css")
+        sheet_4, _ = await artifacts.library_file("agenticos-4.css")
+        script_3, _ = await artifacts.library_file("agenticos-3.js")
+        script_4, _ = await artifacts.library_file("agenticos-4.js")
+
+        # Every custom property a v3 page can name still resolves.
+        def properties(sheet: bytes) -> set[str]:
+            return set(re.findall(r"(--ao-[\w-]+)\s*:", sheet.decode()))
+
+        assert properties(sheet_3) <= properties(sheet_4)
+
+        def calls(script: bytes) -> set[str]:
+            text = script.decode()
+            exported = text[text.rindex("window.AO = {") :]
+            return set(re.findall(r"^\s+(\w+):", exported, re.M))
+
+        assert calls(script_3) < calls(script_4)
+        assert calls(script_4) - calls(script_3) == {"initials"}
+
+    async def test_kit_4_adds_the_t3_components(self) -> None:
+        assert {
+            "ao-button-ghost",
+            "ao-button-danger",
+            "ao-button-sm",
+            "ao-button-icon",
+            "ao-tabs-line",
+            "ao-stat-tile",
+            "ao-stat-icon",
+            "ao-table-scroll",
+            "ao-badge-accent",
+            "ao-chip",
+            "ao-chip-dot",
+            "ao-progress-success",
+            "ao-progress-label",
+            "ao-initials",
+            "ao-initials-1",
+        } <= KIT_CLASSES[4] - KIT_CLASSES[3]
+        sheet, _ = await artifacts.library_file("agenticos-4.css")
+        text = sheet.decode()
+        assert "position: sticky" in text  # the table header
+        assert ":focus-visible" in text  # a visible keyboard ring
+        assert "prefers-color-scheme: dark" in text
+        assert all(f"--ao-series-{n}:" in text for n in range(1, 10))  # the chart palette
+
 
 _SCRIPT = artifacts.base_platform_script()
 """What the placement tests put in: where it goes does not depend on what it is."""
@@ -1461,7 +1509,10 @@ class TestTheBundledSkill:
         from app.agents.capabilities.artifacts._toolset import build_artifacts_toolset
 
         tool = build_artifacts_toolset(table_grants={}).tools["publish_artifact"]
-        for name in set(artifacts.ARTIFACT_LIBRARY) - artifacts.FRAME_ONLY_LIBRARY:
+        # The contract moves to agenticos-4 in the follow-up (#201, 2/2); until then
+        # the tool text names the kit it still points agents at.
+        served = set(artifacts.ARTIFACT_LIBRARY) - artifacts.FRAME_ONLY_LIBRARY
+        for name in served - {"agenticos-4.css", "agenticos-4.js"}:
             assert f"lib/{name}" in (tool.description or "")
 
 
