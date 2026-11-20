@@ -151,7 +151,7 @@ class HistoryQuery(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
     query: str = Field(default="", max_length=200)
-    author_id: str | None = Field(default=None, max_length=128)
+    author_id: str | None = Field(default=None, max_length=255)
     after: AwareDatetime | None = None
     before: AwareDatetime | None = None
     cursor: str | None = Field(default=None, max_length=4096)
