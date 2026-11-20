@@ -84,6 +84,9 @@ MAX_RENDERS = 2
 browser's CPU is not, and a page may spin."""
 MAX_NOTES = 10
 """How many of each kind of problem a render keeps."""
+MAX_EVENTS = 2048
+MAX_PENDING_EVENTS = 256
+"""Per render: total admitted CDP events and events waiting for the pump."""
 _NOTE_CHARS = 300
 
 NOT_CONFIGURED = "ARTIFACT_RENDER_CDP_URL is not set, so this deployment has no page renderer."
@@ -237,7 +240,7 @@ async def render(request: RenderRequest, *, connect: Connector | None = None) ->
         ConfigurationError: No renderer on this deployment - unset, malformed,
             or the `browser` extra missing.
         ExternalServiceError: The browser did not answer, refused a command, or
-            every renderer stayed busy.
+            every renderer stayed busy, or the page exceeded its browser-event limit.
     """
     endpoint = configured_endpoint()
     gate = _gate()
@@ -318,7 +321,11 @@ class _Render:
         self.target_id: str | None = None
         self.page: str | None = None
         self.loaded = asyncio.Event()
-        self.heard: asyncio.Queue[tuple[str, CdpPayload, str | None]] = asyncio.Queue()
+        self.heard: asyncio.Queue[tuple[str, CdpPayload, str | None]] = asyncio.Queue(
+            MAX_PENDING_EVENTS
+        )
+        self.admitted_events = 0
+        self.overflow: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         self.frames: list[tuple[str | None, int]] = []
         """The default execution context of every frame but the host's, newest last."""
 
@@ -326,21 +333,38 @@ class _Render:
         for method in _EVENTS:
             self.connection.on(method, self._listener(method))
         drawing = asyncio.create_task(self._draw())
-        tasks = [drawing, asyncio.create_task(self._pump())]
+        tasks: list[asyncio.Future[None]] = [
+            drawing,
+            asyncio.create_task(self._pump()),
+            self.overflow,
+        ]
         try:
             # An event-pump failure must reach the caller, rather than leave the
             # page waiting for a response until the overall render deadline.
             finished, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            if self.overflow.done():
+                raise ExternalServiceError(
+                    message="The preview exceeded its browser-event limit. Reduce repeated logging or requests and try again.",
+                    details={"max_events": MAX_EVENTS, "max_pending_events": MAX_PENDING_EVENTS},
+                )
             for task in finished:
                 task.result()
         finally:
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
+            while not self.heard.empty():
+                self.heard.get_nowait()
 
     def _listener(self, method: str) -> CdpHandler:
         def heard(params: CdpPayload, session_id: str | None) -> None:
+            if self.overflow.done():
+                return
+            if self.admitted_events >= MAX_EVENTS or self.heard.full():
+                self.overflow.set_result(None)
+                return
             self.heard.put_nowait((method, params, session_id))
+            self.admitted_events += 1
 
         return heard
 
@@ -368,11 +392,6 @@ class _Render:
         self.page = attached.get("sessionId")
         await self._watch(self.page)
         await self._viewport(FIRST_HEIGHT)
-        await connection.send(
-            "Emulation.setEmulatedMedia",
-            {"features": [{"name": "prefers-color-scheme", "value": self.request.appearance}]},
-            session_id=self.page,
-        )
         await connection.send("Page.navigate", {"url": self.shell}, session_id=self.page)
         await self.loaded.wait()
         await asyncio.sleep(SETTLE_SECONDS)
@@ -458,13 +477,18 @@ class _Render:
         self.found.pdf = await asyncio.to_thread(_checked_pdf, bytes(content))
 
     async def _watch(self, session_id: str | None) -> None:
-        """Hold every request of a target, and hear what it says."""
+        """Hold every request, set the target's appearance and hear what it says."""
         connection = self.connection
         await connection.send(
             "Fetch.enable", {"patterns": [{"urlPattern": "*"}]}, session_id=session_id
         )
         for domain in ("Runtime", "Log", "Page"):
             await connection.send(f"{domain}.enable", session_id=session_id)
+        await connection.send(
+            "Emulation.setEmulatedMedia",
+            {"features": [{"name": "prefers-color-scheme", "value": self.request.appearance}]},
+            session_id=session_id,
+        )
         # Flat, and paused at start: an out-of-process frame's first request would
         # otherwise go out before its own `Fetch.enable` arrived.
         await connection.send(

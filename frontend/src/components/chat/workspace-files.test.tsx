@@ -1032,6 +1032,66 @@ it("lists the granted desktop folder rather than the server workspace", async ()
   }
 });
 
+it.each([
+  { conversationId: "c1", from: null, to: "/approved" },
+  { conversationId: "c1", from: "/approved", to: "/another" },
+  { conversationId: "c1", from: "/approved", to: null },
+  { conversationId: null, from: "/approved", to: "/another" },
+])(
+  "clears an open file reader when Work on changes from $from to $to",
+  async ({ conversationId, from, to }) => {
+    window.__AGENTICOS_SHELL__ = {
+      platform: "macos",
+      version: "0.2.0",
+      window: "main",
+      vibrancy: true,
+    };
+    const file = { path: "/report.csv", size: 30, is_dir: false, modified_at: null };
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.includes("/workspace/file?")
+        ? { content: "location,value\ncloud,1", truncated: false }
+        : workspace({ items: [file] }),
+    );
+    localInvoke.mockImplementation(async (command: string) =>
+      command === "local_files" ? [{ ...file, modified: null }] : btoa("location,value\nlocal,2"),
+    );
+    const choose = (folder: string | null) =>
+      useWorkOnStore
+        .getState()
+        .set(conversationId, folder === null ? null : { folder, mode: "read_only" }, false);
+    choose(from);
+    try {
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId={conversationId}
+          attachments={[]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+      await userEvent.click(await screen.findByRole("button", { name: /report.csv/ }));
+      expect(await screen.findByRole("heading", { name: "report.csv" })).toBeVisible();
+      expect(await screen.findByRole("columnheader", { name: "location" })).toBeVisible();
+
+      act(() => choose(to));
+
+      expect(screen.queryByRole("heading", { name: "report.csv" })).toBeNull();
+      expect(await screen.findByRole("button", { name: /report.csv/ })).toBeVisible();
+      await userEvent.click(screen.getByRole("button", { name: /report.csv/ }));
+      expect(await screen.findByRole("heading", { name: "report.csv" })).toBeVisible();
+      if (to === null) expect(await screen.findByRole("cell", { name: "cloud" })).toBeVisible();
+      else {
+        expect(await screen.findByRole("cell", { name: "local" })).toBeVisible();
+        expect(localInvoke).toHaveBeenCalledWith("local_file", { root: to, path: "/report.csv" });
+      }
+    } finally {
+      delete window.__AGENTICOS_SHELL__;
+      useWorkOnStore.setState({ byConversation: {}, draft: null });
+    }
+  },
+);
+
 it("groups duplicate file names under their actual folders and opens the full path", async () => {
   const entries = ["index.html", "site/index.html", "site/style.css"].map((path) => ({
     path,

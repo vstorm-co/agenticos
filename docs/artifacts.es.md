@@ -1,5 +1,5 @@
 ---
-source_sha: "8b9149ab95f2"
+source_sha: "6aaffd461f61"
 ---
 
 # Aplicaciones { #artifacts }
@@ -898,6 +898,12 @@ seguridad de la página, las peticiones rechazadas, los diálogos y los avisos d
 publicación de arriba. La imagen mide como máximo 2400 píxeles de alto; una
 página más larga dice cuánto mide. Si sigue ejecutándose a los 15 segundos, se
 notifica así, sin imagen.
+
+Cada render admite como máximo 2048 eventos del navegador, incluidas peticiones
+y mensajes de consola, con un máximo de 256 pendientes de procesar. Superar
+cualquiera de los límites detiene el render, elimina su contexto del navegador
+y no devuelve captura ni PDF. El error pide reducir los mensajes o las
+peticiones repetidos antes de reintentar.
 
 Los datos se leen como la persona por la que actúa el run, exactamente como la
 consola los leería para ella, y cuentan contra su cupo de lecturas de datos. En un chat

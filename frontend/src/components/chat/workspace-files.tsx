@@ -93,10 +93,15 @@ export function WorkspaceFiles({
   const panelId = `${host.id}-panel-files`;
   const toggle = useRef<HTMLButtonElement>(null);
   const [reading, setReading] = useState<Selection | null>(null);
-  const [previousConversation, setPreviousConversation] = useState(conversationId);
-  if (previousConversation !== conversationId) {
-    setPreviousConversation(conversationId);
-    if (previousConversation !== null) setReading(null);
+  const [previousLocation, setPreviousLocation] = useState({ conversationId, localRoot });
+  if (
+    previousLocation.conversationId !== conversationId ||
+    previousLocation.localRoot !== localRoot
+  ) {
+    setPreviousLocation({ conversationId, localRoot });
+    if (previousLocation.conversationId !== null || previousLocation.localRoot !== localRoot) {
+      setReading(null);
+    }
   }
   const [consumedAttachment, setConsumedAttachment] = useState(-1);
   if (consumedAttachment !== attachmentRequest && attachmentId !== null) {

@@ -72,3 +72,9 @@ Screenshots stop at 2400 pixels and report clipping. Diagnostics name uncaught
 errors, console warnings/errors, policy refusals, blocked requests and dismissed
 dialogs; each list has at most ten entries. A timeout or missing renderer is
 explicit, and `preview_screenshot: false` keeps diagnostics for text-only models.
+
+The renderer admits at most 2,048 browser events per preview and queues at most
+256. Admission stops before enqueueing an excess event. Overflow aborts the
+render, cancels its tasks, drops queued payloads and disposes the context; the
+tool returns the limit message without an image. Draining the queue does not
+reset the total budget, and later renders have independent counters.

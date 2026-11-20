@@ -1,5 +1,5 @@
 ---
-source_sha: "8b9149ab95f2"
+source_sha: "6aaffd461f61"
 ---
 
 # Apps { #artifacts }
@@ -989,6 +989,13 @@ die Sicherheitsrichtlinie der Seite abgelehnt hat, abgelehnte Anfragen, Dialoge
 und die Warnungen beim Veröffentlichen von oben. Das Bild ist höchstens 2400 Pixel
 hoch; eine längere Seite sagt, wie hoch sie ist. Eine Seite, die nach 15 Sekunden
 noch läuft, wird als solche gemeldet, ohne Bild.
+
+Jeder Render lässt höchstens 2.048 Browser-Ereignisse zu, darunter Anfragen und
+Konsolenmeldungen; höchstens 256 dürfen auf Verarbeitung warten. Wird einer
+dieser Grenzwerte überschritten, bricht der Renderer ab, verwirft den
+Browserkontext und liefert weder Screenshot noch PDF. Die Fehlermeldung fordert
+dazu auf, wiederholte Protokollausgaben oder Anfragen vor einem neuen Versuch zu
+reduzieren.
 
 Die Daten werden als die Person gelesen, für die der Run handelt, genau so, wie
 die Konsole sie für sie lesen würde, und zählen gegen deren Kontingent für

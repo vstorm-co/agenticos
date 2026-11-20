@@ -366,8 +366,13 @@ class TestTheRender:
         assert f"background: {background};" in shell
         assert "color-scheme:" not in shell
         assert browser.commands("Emulation.setEmulatedMedia") == [
-            ({"features": [{"name": "prefers-color-scheme", "value": appearance}]}, "PAGE")
+            ({"features": [{"name": "prefers-color-scheme", "value": appearance}]}, "PAGE"),
+            ({"features": [{"name": "prefers-color-scheme", "value": appearance}]}, "FRAME"),
         ]
+        commands = [(name, session) for name, _, session in browser.sent]
+        assert commands.index(("Emulation.setEmulatedMedia", "FRAME")) < commands.index(
+            ("Runtime.runIfWaitingForDebugger", "FRAME")
+        )
 
     async def test_visual_previews_use_the_requested_width_and_color_scheme(self) -> None:
         browser = FakeBrowser()
@@ -378,7 +383,8 @@ class TestTheRender:
             for params, _ in browser.commands("Emulation.setDeviceMetricsOverride")
         )
         assert browser.commands("Emulation.setEmulatedMedia") == [
-            ({"features": [{"name": "prefers-color-scheme", "value": "dark"}]}, "PAGE")
+            ({"features": [{"name": "prefers-color-scheme", "value": "dark"}]}, "PAGE"),
+            ({"features": [{"name": "prefers-color-scheme", "value": "dark"}]}, "FRAME"),
         ]
 
     async def test_it_reports_what_the_page_did(self) -> None:
@@ -472,6 +478,98 @@ class TestTheRender:
 
 
 class TestEveryRenderEnds:
+    @pytest.mark.security
+    @pytest.mark.parametrize("hang_on", [None, "Fetch.fulfillRequest"])
+    async def test_a_console_burst_aborts_and_disposes_instead_of_growing_the_queue(
+        self, hang_on: str | None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(renderer, "MAX_PENDING_EVENTS", 4)
+        monkeypatch.setattr(renderer, "DEADLINE_SECONDS", 1)
+        events = [
+            (
+                "Runtime.consoleAPICalled",
+                {"type": "warning", "args": [{"value": f"log {i}"}]},
+                "PAGE",
+            )
+            for i in range(10)
+        ]
+        browser = FakeBrowser(
+            events=[
+                ("Fetch.requestPaused", _paused("page", PAGE_URL), "PAGE"),
+                *events,
+                ("Page.loadEventFired", {}, "PAGE"),
+            ],
+            hang_on=hang_on,
+        )
+
+        with pytest.raises(ExternalServiceError, match="browser-event limit"):
+            await _render(browser)
+
+        assert browser.closed
+        assert browser.commands("Target.disposeBrowserContext") == [
+            ({"browserContextId": "CTX"}, None)
+        ]
+
+    @pytest.mark.security
+    async def test_draining_browser_events_does_not_reset_the_total_budget(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(renderer, "MAX_EVENTS", 4)
+        browser = FakeBrowser(
+            events=[
+                ("Fetch.requestPaused", _paused("chain-0", "https://blocked.example/0"), "PAGE")
+            ]
+        )
+        send = browser.send
+
+        async def following_request(
+            method: str, params: CdpPayload | None = None, *, session_id: str | None = None
+        ) -> CdpPayload:
+            result = await send(method, params, session_id=session_id)
+            if method == "Fetch.failRequest" and params:
+                index = int(str(params["requestId"]).removeprefix("chain-")) + 1
+                if index == 10:
+                    browser.handlers["Page.loadEventFired"]({}, "PAGE")
+                else:
+                    browser.handlers["Fetch.requestPaused"](
+                        _paused(f"chain-{index}", f"https://blocked.example/{index}"), "PAGE"
+                    )
+            return result
+
+        monkeypatch.setattr(browser, "send", following_request)
+
+        with pytest.raises(ExternalServiceError, match="browser-event limit"):
+            await _render(browser)
+
+        assert len(browser.commands("Fetch.failRequest")) == 4
+        assert browser.closed and browser.commands("Target.disposeBrowserContext")
+        healthy = FakeBrowser(events=[("Page.loadEventFired", {}, "PAGE")])
+        assert (await _render(healthy)).image == b"jpeg-bytes"
+
+    @pytest.mark.security
+    async def test_overflow_wins_even_when_the_screenshot_completes_at_the_same_time(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(renderer, "MAX_PENDING_EVENTS", 4)
+        browser = FakeBrowser(events=[("Page.loadEventFired", {}, "PAGE")])
+        send = browser.send
+
+        async def overflowing_capture(
+            method: str, params: CdpPayload | None = None, *, session_id: str | None = None
+        ) -> CdpPayload:
+            if method == "Page.captureScreenshot":
+                for _ in range(10):
+                    browser.handlers["Runtime.consoleAPICalled"]({"type": "warning"}, "PAGE")
+            return await send(method, params, session_id=session_id)
+
+        monkeypatch.setattr(browser, "send", overflowing_capture)
+
+        with pytest.raises(ExternalServiceError, match="browser-event limit"):
+            await _render(browser)
+
+        assert browser.commands("Page.captureScreenshot")
+        assert browser.closed and browser.commands("Target.disposeBrowserContext")
+
     async def test_a_page_that_never_loads_runs_into_the_deadline_and_is_disposed(
         self,
     ) -> None:

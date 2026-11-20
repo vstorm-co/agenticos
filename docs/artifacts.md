@@ -865,6 +865,11 @@ refused, dialogs, and the publish warnings above. The picture is at most 2400
 pixels tall; a longer page says how tall it is. A page still running after 15
 seconds is reported as such, without a picture.
 
+Each render admits at most 2,048 browser events, with at most 256 waiting to be
+processed, including requests and console messages. Exceeding either limit
+aborts the render, disposes its browser context and returns no screenshot or
+PDF. The error asks you to reduce repeated logging or requests before retrying.
+
 The data is read as the person the run is for, exactly as the console would
 read it for them, and counts against that person's data allowance. In a group chat
 only an organization-wide page can be previewed, the same pages the list shows

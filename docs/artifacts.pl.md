@@ -1,5 +1,5 @@
 ---
-source_sha: "8b9149ab95f2"
+source_sha: "6aaffd461f61"
 ---
 
 # Aplikacje { #artifacts }
@@ -893,6 +893,12 @@ błędy i ostrzeżenia konsoli, co odrzuciła polityka bezpieczeństwa strony,
 odrzucone żądania, okna dialogowe i opisane wyżej ostrzeżenia przy publikacji.
 Obraz ma najwyżej 2400 pikseli wysokości; dłuższa strona mówi, jak jest wysoka.
 Strona, która po 15 sekundach nadal działa, jest tak zgłaszana, bez obrazu.
+
+Każdy render przyjmuje najwyżej 2048 zdarzeń przeglądarki, z których najwyżej
+256 może czekać na przetworzenie, w tym żądań i komunikatów konsoli.
+Przekroczenie któregokolwiek limitu przerywa render, usuwa kontekst przeglądarki
+i nie zwraca zrzutu ekranu ani PDF. Komunikat prosi o ograniczenie powtarzanych
+logów lub żądań przed ponowną próbą.
 
 Dane są czytane jako osoba, dla której działa run, dokładnie tak, jak konsola
 czytałaby je dla niej, i wliczają się do jej limitu odczytów danych. W czacie

@@ -785,7 +785,7 @@ class TestPreviewVisual:
         addresses = [f"{visual_render.artifacts.tile_source()}6/0/{i}" for i in range(3)]
         browser = FakeBrowser(
             events=[
-                *_page_events(),
+                *(event for event in _page_events() if event[0] != "Page.loadEventFired"),
                 (
                     "Fetch.requestPaused",
                     _paused(
@@ -798,6 +798,7 @@ class TestPreviewVisual:
                     ("Fetch.requestPaused", _paused(f"tile-{i}", url), "FRAME")
                     for i, url in enumerate(addresses)
                 ),
+                ("Page.loadEventFired", {}, "PAGE"),
             ]
         )
         monkeypatch.setattr(

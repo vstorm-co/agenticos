@@ -79,6 +79,26 @@ async def test_real_pdf_uses_a_separate_context_and_closes_the_stream(
 
 
 @pytest.mark.security
+async def test_event_overflow_aborts_a_pdf_and_disposes_the_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(renderer.settings, "ARTIFACT_RENDER_CDP_URL", "http://renderer:9222")
+    monkeypatch.setattr(renderer, "MAX_PENDING_EVENTS", 3)
+    browser = PrintBrowser(pdf())
+    browser.events.extend(
+        ("Runtime.consoleAPICalled", {"type": "warning"}, "PAGE") for _ in range(10)
+    )
+
+    with pytest.raises(ExternalServiceError, match="browser-event limit"):
+        await renderer.render(
+            RenderRequest(document=b"<h1>Report</h1>", nonce="n", bindings=None, output="pdf"),
+            connect=AsyncMock(return_value=browser),
+        )
+
+    assert browser.closed and browser.commands("Target.disposeBrowserContext")
+
+
+@pytest.mark.security
 @pytest.mark.parametrize("bindings", [None, {}, _preview().bindings])
 async def test_pdf_exports_cannot_send_content_through_map_tiles(
     bindings: dict[str, AnyBindingData] | None,
