@@ -1,5 +1,5 @@
 ---
-source_sha: "3da9f2a96156"
+source_sha: "3f414ebcdc35"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -55,6 +55,26 @@ Katalog-Metadatenschlüssel, benutzerdefinierte Toolkit-Auth-Konfigurationen und
 die Identitätsprüfung für Callback-Aufrufe. Konfiguration, Datenverarbeitung und
 erforderliche Live-Abnahmetests stehen in der [Composio-Einrichtungsanleitung des
 Forks](https://github.com/t3grp/agenticos/blob/t3/integrations/composio/README.md).
+
+## Geräte und Netzwerke { #tailscale-device-connections }
+
+Unter **Connections → More → Devices & networks** kannst du eine Tailscale-Verbindung für die aktuelle T3OS-Organisation anlegen. Wähle einen persönlichen Eintrag, der nur für dich sichtbar ist, oder einen Organisationseintrag, der in dieser Organisation sichtbar ist. Das Anlegen startet keine Anmeldung; wähle **Connect**, um die Anmeldung für diesen Eintrag zu starten.
+
+Der Anmeldelink ist nur in der Sitzung verfügbar, die den Vorgang gestartet hat. Teile ihn nicht und bitte niemanden, die Anmeldung abzuschließen. Tailscale kann eine Administratorfreigabe für das neue Gerät verlangen. Jeder Anmeldeversuch läuft nach 10 Minuten ab; wähle danach erneut **Connect**.
+
+Nach der Anmeldung zeigt T3OS das Tailnet der Verbindung und eine Momentaufnahme der Peers. Wähle **Refresh**, um eine neue Momentaufnahme abzurufen; sie wird nicht laufend aktualisiert.
+
+**Pause** stoppt die Laufzeit der Verbindung und bewahrt ihre Tailscale-Identität für später. **Revoke** sperrt die Nutzung der Verbindung durch T3OS sofort. Sobald die Laufzeit beendet ist, löscht T3OS die lokal gespeicherten Schlüssel. Wenn die Bereinigung als **Manual** markiert ist, entferne den inaktiven Knoten in der Tailscale-Verwaltung; T3OS kann die serverseitige Entfernung nicht bestätigen.
+
+Verbindungseinträge gehören zu einer T3OS-Organisation. Dieselbe Person muss sich in jeder T3OS-Organisation, in der sie eine Verbindung benötigt, separat anmelden.
+
+- Pro Person ist eine ausstehende Anmeldung je Organisation möglich, insgesamt höchstens vier pro Organisation.
+- Jede erstellende Person kann bis zu 10 nicht widerrufene Verbindungseinträge in einer Organisation haben.
+- Eine Anmeldung läuft nach 10 Minuten ab.
+
+Die Funktion ist in jeder Bereitstellung standardmäßig deaktiviert. Ist sie ausgeschaltet, erklärt **Devices & networks**, dass die Funktion nicht verfügbar ist, und bietet keine Möglichkeit, Verbindungen anzulegen.
+
+Die Funktion verwaltet nur Anmeldungen und Peer-Bestände. Sie gibt Agents oder Apps noch keinen Zugriff auf Geräteverkehr, Terminals, Browser oder Dateien über Tailscale.
 
 ## Eine Connection { #a-connection }
 

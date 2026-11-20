@@ -34,8 +34,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0351_room_thread_context"
-down_revision: str | None = "0350_room_thread_state"
+revision: str = "0352_room_thread_context"
+down_revision: str | None = "0351_room_thread_state"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

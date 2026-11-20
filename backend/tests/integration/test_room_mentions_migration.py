@@ -1,4 +1,4 @@
-"""0348 preserves legacy queue evidence and refuses a lossy downgrade."""
+"""0349 preserves legacy queue evidence and refuses a lossy downgrade."""
 
 import importlib.util
 from pathlib import Path
@@ -15,7 +15,7 @@ from tests.integration.test_room_submissions import post, seed
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
-_PATH = Path(__file__).parents[2] / "alembic" / "versions" / "0348_room_mention_requests.py"
+_PATH = Path(__file__).parents[2] / "alembic" / "versions" / "0349_room_mention_requests.py"
 _SPEC = importlib.util.spec_from_file_location("room_mentions_migration", _PATH)
 assert _SPEC is not None and _SPEC.loader is not None
 _MIGRATION = importlib.util.module_from_spec(_SPEC)

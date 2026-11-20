@@ -2825,3 +2825,13 @@ def get_personal_model_key_service(db: DBSession) -> PersonalModelKeyService:
 
 
 PersonalModelKeySvc = Annotated[PersonalModelKeyService, Depends(get_personal_model_key_service)]
+
+
+from app.services.network_connections import NetworkConnectionService
+
+
+def get_network_connection_service(db: DBSession) -> NetworkConnectionService:
+    return NetworkConnectionService(db)
+
+
+NetworkConnectionSvc = Annotated[NetworkConnectionService, Depends(get_network_connection_service)]

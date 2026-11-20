@@ -77,6 +77,11 @@ PROJECT = ResourceType(key="project", view=Perm.PROJECTS_VIEW, edit=Perm.PROJECT
 # A connection may be selected without handing over its credentials, endpoint
 # settings or sharing. Existing use grants remain usable; administration needs edit.
 MCP_CONNECTION = ResourceType(key="mcp_connection", view=Perm.MCP_USE, edit=Perm.MCP_MANAGE)
+# Network rows have distinct read, management and use grants. ResourceType keeps
+# the read/manage pair; NETWORKS_USE is resolved with its own USE grant below.
+NETWORK_CONNECTION = ResourceType(
+    key="network_connection", view=Perm.NETWORKS_VIEW, edit=Perm.NETWORKS_MANAGE
+)
 
 
 # The grant level a member needs before a scope-based check is even consulted.
@@ -116,6 +121,9 @@ _PERM_MIN_GRANT: dict[Perm, GrantLevel] = {
     Perm.PROJECTS_EDIT: GrantLevel.EDIT,
     Perm.MCP_USE: GrantLevel.USE,
     Perm.MCP_MANAGE: GrantLevel.EDIT,
+    Perm.NETWORKS_VIEW: GrantLevel.READ,
+    Perm.NETWORKS_USE: GrantLevel.USE,
+    Perm.NETWORKS_MANAGE: GrantLevel.EDIT,
 }
 
 

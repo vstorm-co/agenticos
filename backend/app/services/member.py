@@ -27,6 +27,7 @@ from app.repositories import (
 )
 from app.repositories import coding_account as coding_account_repo
 from app.repositories import telephony as telephony_repo
+from app.services.network_connections import NetworkConnectionService
 from app.services.organization import OrganizationService
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,9 @@ async def end_membership(
     at = datetime.now(UTC)
     organization_id, user_id = membership.organization_id, membership.user_id
     role = membership.role
+    networks_revoked = await NetworkConnectionService(db).revoke_member(
+        organization_id=organization_id, user_id=user_id
+    )
     await group_repo.delete_memberships_in_org(db, organization_id=organization_id, user_id=user_id)
     await oauth_repo.revoke_grants_for_member(
         db, organization_id=organization_id, user_id=user_id, at=at
@@ -107,6 +111,8 @@ async def end_membership(
     audit_details = dict(details) if details is not None else {"role": role}
     if sessions_revoked:
         audit_details["sessions_revoked"] = sessions_revoked
+    if networks_revoked:
+        audit_details["networks_revoked"] = networks_revoked
     if exposures_paused:
         audit_details["exposures_paused"] = exposures_paused
     if embeds_paused:

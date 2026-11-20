@@ -38,6 +38,7 @@ from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.invitation_admission import admits
 from app.services.model_outputs import model_outputs, not_chat_refusal
+from app.services.network_connections import NetworkConnectionService
 from app.services.proactive import ProactiveService
 from app.services.skills import SkillService
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
@@ -831,6 +832,7 @@ class OrganizationService:
             held.add(collection)
 
         await organization_repo.get_by_id_for_update(self.db, org.id)
+        await NetworkConnectionService(self.db).prepare_organization_deletion(org.id)
         from app.repositories import telephony as phone_repo
 
         # The org row lock fences new call intents through their foreign key.

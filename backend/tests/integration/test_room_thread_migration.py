@@ -17,7 +17,7 @@ from tests.integration.test_room_submissions import seed
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
-_PATH = Path(__file__).parents[2] / "alembic" / "versions" / "0350_room_thread_state.py"
+_PATH = Path(__file__).parents[2] / "alembic" / "versions" / "0351_room_thread_state.py"
 _SPEC = importlib.util.spec_from_file_location("room_thread_migration", _PATH)
 assert _SPEC is not None and _SPEC.loader is not None
 _MIGRATION = importlib.util.module_from_spec(_SPEC)

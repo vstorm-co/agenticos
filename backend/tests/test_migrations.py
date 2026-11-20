@@ -2196,7 +2196,7 @@ def test_published_thread_chain_preserves_saved_profiles_and_matches_models(prev
         assert upgraded.returncode == 0, upgraded.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0351_room_thread_context"
+                "0352_room_thread_context"
             ]
             row = connection.execute(
                 text(
@@ -2276,7 +2276,7 @@ class TestRoomThreadMigration:
         continuation = script.get_revision("0345_credential_continuations")
         assert continuation is not None
         assert continuation.down_revision == "0344_browser_procedure_teaching"
-        assert script.get_heads() == ["0351_room_thread_context"]
+        assert script.get_heads() == ["0352_room_thread_context"]
 
     def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
         reset = _alembic("downgrade", "base")
@@ -2304,7 +2304,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0351_room_thread_context"]
+                ).all() == ["0352_room_thread_context"]
                 rows = connection.execute(
                     text(
                         "SELECT id,reply_to_message_id,thread_root_message_id FROM messages "
@@ -2374,7 +2374,7 @@ class TestRoomThreadMigration:
             with engine.begin() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0351_room_thread_context"]
+                ).all() == ["0352_room_thread_context"]
                 assert (
                     connection.scalar(
                         text("SELECT thread_root_message_id FROM messages WHERE id=:id"),
@@ -2403,7 +2403,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0351_room_thread_context"]
+                ).all() == ["0352_room_thread_context"]
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
         finally:
@@ -2606,7 +2606,7 @@ class TestRoomThreadMigration:
         assert resumed.returncode == 0, resumed.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0351_room_thread_context"
+                "0352_room_thread_context"
             ]
             assert connection.execute(
                 text("SELECT content, thread_root_message_id FROM messages WHERE id = :id"),
@@ -3101,9 +3101,9 @@ def test_opensandbox_upgrade_and_guarded_downgrade_preserve_connection_settings(
 
 def test_room_message_reactions_migration_rehearses_upgrade_and_guarded_rollback() -> None:
     """The reaction table upgrades cleanly and refuses a lossy rollback."""
-    prior = _alembic("upgrade", "0348_room_mention_requests")
+    prior = _alembic("upgrade", "0349_room_mention_requests")
     assert prior.returncode == 0, prior.stderr
-    upgraded = _alembic("upgrade", "0349_room_message_reactions")
+    upgraded = _alembic("upgrade", "0350_room_message_reactions")
     assert upgraded.returncode == 0, upgraded.stderr
 
     engine = create_engine(_url(MIGRATION_DATABASE))
@@ -3154,7 +3154,7 @@ def test_room_message_reactions_migration_rehearses_upgrade_and_guarded_rollback
                 },
             )
 
-        refused = _alembic("downgrade", "0348_room_mention_requests")
+        refused = _alembic("downgrade", "0349_room_mention_requests")
         assert refused.returncode != 0
         assert "reaction evidence exists" in refused.stderr
         with engine.connect() as connection:
@@ -3169,7 +3169,7 @@ def test_room_message_reactions_migration_rehearses_upgrade_and_guarded_rollback
             connection.execute(
                 text("DELETE FROM room_message_reactions WHERE id = :id"), {"id": row_id}
             )
-        downgraded = _alembic("downgrade", "0348_room_mention_requests")
+        downgraded = _alembic("downgrade", "0349_room_mention_requests")
         assert downgraded.returncode == 0, downgraded.stderr
         with engine.connect() as connection:
             assert (

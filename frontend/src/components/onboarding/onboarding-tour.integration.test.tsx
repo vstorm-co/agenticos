@@ -75,9 +75,11 @@ const OWNER = Object.values(Perm);
 
 // The walkthrough lengths are derived, not hard-coded, so adding a stop moves
 // the progress text with the registry rather than reddening this file.
-const OWNER_LAUNCH = visibleTourSteps(() => true).length;
+const OWNER_LAUNCH = visibleTourSteps(() => true, { networks: false }).length;
 const VIEWER_HELD = new Set<Permission>(VIEWER);
-const VIEWER_LAUNCH = visibleTourSteps((permission) => VIEWER_HELD.has(permission)).length;
+const VIEWER_LAUNCH = visibleTourSteps((permission) => VIEWER_HELD.has(permission), {
+  networks: false,
+}).length;
 
 function user(overrides: Partial<User> = {}): User {
   return {

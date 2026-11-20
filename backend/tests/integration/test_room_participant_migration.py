@@ -15,7 +15,7 @@ from tests.integration.test_room_routing import room as room
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
-_PATH = Path(__file__).parents[2] / "alembic" / "versions" / "0347_room_participants.py"
+_PATH = Path(__file__).parents[2] / "alembic" / "versions" / "0348_room_participants.py"
 _SPEC = importlib.util.spec_from_file_location("room_participant_migration", _PATH)
 assert _SPEC is not None and _SPEC.loader is not None
 _MIGRATION = importlib.util.module_from_spec(_SPEC)

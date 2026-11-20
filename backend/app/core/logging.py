@@ -123,6 +123,9 @@ _DISCORD_CDN_QUERY = re.compile(
     r"\?[^\s\"'<>]+",
     re.IGNORECASE,
 )
+_TAILSCALE_LOGIN = re.compile(
+    r"(https://login\.tailscale\.com(?::443)?/a/)[^\s\"'<>]+", re.IGNORECASE
+)
 
 
 def redact_secret_paths(value: str) -> str:
@@ -137,6 +140,7 @@ def redact_secret_paths(value: str) -> str:
     """
     value = _SECRET_PATH.sub(rf"\1{SECRET_PATH_MARKER}", value)
     value = _DISCORD_CDN_QUERY.sub(rf"\1?{SECRET_PATH_MARKER}", value)
+    value = _TAILSCALE_LOGIN.sub(rf"\1{SECRET_PATH_MARKER}", value)
     return _SECRET_QUERY.sub(rf"\1{SECRET_PATH_MARKER}", value)
 
 
@@ -168,6 +172,7 @@ class PiiRedactionFilter(logging.Filter):
         # First, so a secret-bearing address reads the same whatever its token looks like.
         (_SECRET_PATH, rf"\1{SECRET_PATH_MARKER}"),
         (_DISCORD_CDN_QUERY, rf"\1?{SECRET_PATH_MARKER}"),
+        (_TAILSCALE_LOGIN, rf"\1{SECRET_PATH_MARKER}"),
         (_SECRET_QUERY, rf"\1{SECRET_PATH_MARKER}"),
         (re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"), "[EMAIL_REDACTED]"),
         # JWT tokens (header.payload.signature)

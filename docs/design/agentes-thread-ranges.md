@@ -159,7 +159,7 @@ clear stale selection; mutation refreshes remove returned stubs.
 
 ## Migration and validation
 
-Revision `0351_room_thread_context` follows `0350_room_thread_state`.
+Revision `0352_room_thread_context` follows `0351_room_thread_state`.
 Add nullable context fields and backfill accepted request scope before enabling
 the new behavior. The downgrade refuses to discard used context, moved ranges
 or accepted/display scope divergence. Release the additive schema before API,

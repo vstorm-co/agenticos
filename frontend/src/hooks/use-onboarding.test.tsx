@@ -12,8 +12,8 @@ import type { User } from "@/types";
 
 // The curated walkthrough for a caller who holds everything (served below), and
 // for one whose organization is refused so `can()` answers false throughout.
-const LAUNCH_ALL = visibleTourSteps(() => true).length;
-const LAUNCH_NONE = visibleTourSteps(() => false).length;
+const LAUNCH_ALL = visibleTourSteps(() => true, { networks: false }).length;
+const LAUNCH_NONE = visibleTourSteps(() => false, { networks: false }).length;
 
 const nav = vi.hoisted(() => ({ pathname: "/dashboard" }));
 vi.mock("next/navigation", () => ({

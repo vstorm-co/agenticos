@@ -34,6 +34,7 @@ export const ROUTES = {
   CONNECTORS: "/connectors",
   MCP_SERVERS: "/connectors",
   CHANNELS: "/connectors/channels",
+  CONNECTOR_DEVICES: "/connectors/devices",
   RAG: "/rag",
   RAG_DETAIL: (id: string) => `/rag/${id}`,
   RAG_SEARCH: "/rag?tab=search",

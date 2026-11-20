@@ -36,6 +36,7 @@ const EMPTY: OrgState = {
   hasOrgMcp: false,
   hasPublishedAgent: false,
   hasRunnableAgent: false,
+  hasNetworkRuntime: false,
   hasRoomForAgent: true,
 };
 const HAS_MODEL: OrgState = {
@@ -45,6 +46,7 @@ const HAS_MODEL: OrgState = {
   hasOrgMcp: false,
   hasPublishedAgent: false,
   hasRunnableAgent: false,
+  hasNetworkRuntime: false,
   hasRoomForAgent: true,
 };
 const STOCKED: OrgState = {
@@ -54,6 +56,7 @@ const STOCKED: OrgState = {
   hasOrgMcp: true,
   hasPublishedAgent: true,
   hasRunnableAgent: true,
+  hasNetworkRuntime: true,
   hasRoomForAgent: true,
 };
 const NO_CHOICES: Record<string, "yes" | "skip"> = {};
@@ -238,6 +241,37 @@ describe("FLOWS", () => {
       signal: { kind: "created", resource: "group" },
     });
     expect(canOfferFlow(flow, deny)).toBe(false);
+  });
+});
+
+describe("connect-tailscale", () => {
+  it("requires management permission before offering creation or enrollment", () => {
+    const flow = FLOWS["connect-tailscale"];
+    expect(flowForPage(ROUTES.CONNECTOR_DEVICES)).toBe("connect-tailscale");
+    const readOnly = (permission: Permission) => permission === Perm.networksView;
+    expect(canOfferFlow(flow, readOnly)).toBe(false);
+    expect(stepsForFlow(flow, STOCKED, readOnly, NO_CHOICES)).toEqual([]);
+    expect(canOfferFlow(flow, allow)).toBe(true);
+  });
+
+  it("guides record creation while runtime is unavailable and adds enrollment only when available", () => {
+    const flow = FLOWS["connect-tailscale"];
+    const unavailable = stepsForFlow(flow, EMPTY, allow, NO_CHOICES);
+    expect(unavailable.map((step) => step.id)).toEqual([
+      "flow-tailscale-add",
+      "flow-tailscale-name",
+      "flow-tailscale-create",
+    ]);
+    expect(unavailable.at(-1)?.signal).toEqual({
+      kind: "created",
+      resource: "networkConnection",
+    });
+    const available = stepsForFlow(flow, STOCKED, allow, NO_CHOICES);
+    expect(available.slice(unavailable.length).map((step) => step.id)).toEqual([
+      "flow-tailscale-connect",
+      "flow-tailscale-enrollment",
+      "flow-tailscale-login",
+    ]);
   });
 });
 

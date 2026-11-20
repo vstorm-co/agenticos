@@ -106,6 +106,9 @@ class Perm(StrEnum):
     # credentials, sharing or tool ceiling.
     MCP_USE = "mcp:use"
     MCP_MANAGE = "mcp:manage"
+    NETWORKS_VIEW = "networks:view"
+    NETWORKS_MANAGE = "networks:manage"
+    NETWORKS_USE = "networks:use"
     CHANNELS_MANAGE = "channels:manage"
     # Who is in the organization: names, emails, roles. Every role holds it - any
     # member may see who they work with - and it exists so an API key reads the
@@ -169,6 +172,9 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         # groups that use it (#2072): Finance's ledger server is Finance's.
         Perm.MCP_USE,
         Perm.MCP_MANAGE,
+        Perm.NETWORKS_VIEW,
+        Perm.NETWORKS_MANAGE,
+        Perm.NETWORKS_USE,
     }
 )
 
@@ -284,6 +290,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.PROJECTS_EDIT: Scope.ALL,
         Perm.MCP_USE: Scope.ALL,
         Perm.MCP_MANAGE: Scope.ALL,
+        Perm.NETWORKS_VIEW: Scope.ALL,
+        Perm.NETWORKS_MANAGE: Scope.ALL,
+        Perm.NETWORKS_USE: Scope.ALL,
     },
     # Admin runs the org day to day but cannot delete it.
     OrgRoleName.ADMIN: {
@@ -315,6 +324,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.PROJECTS_EDIT: Scope.ALL,
         Perm.MCP_USE: Scope.ALL,
         Perm.MCP_MANAGE: Scope.ALL,
+        Perm.NETWORKS_VIEW: Scope.SHARED,
+        Perm.NETWORKS_MANAGE: Scope.SHARED,
+        Perm.NETWORKS_USE: Scope.SHARED,
     },
     # Builder sees the whole org to learn from it, but edits only what is theirs
     # or was shared with them - so one builder cannot rewrite another's agent.
@@ -352,6 +364,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         # not a department's server narrowed to somebody else's group.
         Perm.MCP_USE: Scope.SHARED,
         Perm.MCP_MANAGE: Scope.SHARED,
+        Perm.NETWORKS_VIEW: Scope.SHARED,
+        Perm.NETWORKS_MANAGE: Scope.SHARED,
+        Perm.NETWORKS_USE: Scope.SHARED,
         # Both halves, spelled out. Nothing in this catalog models one permission
         # implying another - `agents:edit` does not carry `agents:view` either -
         # so a role that manages connections is given the read as well, or it
@@ -388,6 +403,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.APPROVALS_DECIDE: Scope.ALL,
         Perm.CONNECTIONS_VIEW: Scope.ALL,
+        Perm.NETWORKS_VIEW: Scope.SHARED,
+        Perm.NETWORKS_USE: Scope.SHARED,
         Perm.RUNS_VIEW: Scope.ALL,
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
@@ -429,6 +446,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.PERSONAL_CONSENT: Scope.ALL,
         Perm.MCP_PERSONAL_USE: Scope.ALL,
         Perm.MEMBERS_VIEW: Scope.ALL,
+        Perm.NETWORKS_VIEW: Scope.OWN,
+        Perm.NETWORKS_MANAGE: Scope.OWN,
+        Perm.NETWORKS_USE: Scope.OWN,
     },
     OrgRoleName.VIEWER: {
         Perm.AGENTS_VIEW: Scope.SHARED,
