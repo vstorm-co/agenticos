@@ -176,3 +176,13 @@ POST /api/v1/mcp-connections/oauth/start   declared above /{id} — that route p
 assertions are the refusals: a personal connection is not bindable by a spec, a
 connection from another organization is unreachable, and a prefix collision drops the
 second server rather than aborting the turn.
+
+
+## Platform administration
+
+Use `list_administration_actions` and `get_administration_schema` for bounded
+on-demand discovery; `read_administration` must never install or publish resources.
+Writes are separated into `change_organization` and `change_deployment`. Global
+administration is external OAuth only, with a distinct unchecked consent option
+and live app-admin checks. Keep internal run credentials organization-scoped.
+Both change tools retain the platform's mandatory write-approval floor.

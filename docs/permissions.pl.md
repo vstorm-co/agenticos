@@ -1,5 +1,5 @@
 ---
-source_sha: "0ec0a9a4159f"
+source_sha: "758431de6963"
 ---
 
 # Uprawnienia { #permissions }
@@ -679,3 +679,5 @@ ignorujący te API nic na tym nie zyskuje.
 ::: app.core.permissions.Scope
 
 ::: app.core.permissions.AuthContext
+
+Administracja instalacją przez MCP wymaga bieżącej flagi administratora aplikacji oraz osobno zatwierdzonego zakresu OAuth `deployment:admin`. Nie jest to `Perm`, uprawnienie roli ani zestaw uprawnień. Administrator organizacji nie może go nadać. Otrzymuje go wyłącznie jawnie autoryzowany klient zewnętrzny; wewnętrzni agenci, rutyny i zwykłe klucze API go nie dziedziczą. Istniejące połączenie wymaga ponownej autoryzacji. Zobacz [administrację przez MCP](mcp.pl.md#administration-through-mcp).

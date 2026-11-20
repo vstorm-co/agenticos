@@ -1,7 +1,7 @@
 """The organization's AI Architect, as the console's widget and settings read it (#2063).
 
-Console-only: the assistant is how a person in the console gets help, and an
-integration that wants to operate the platform calls the public API or `/mcp`.
+The legacy widget read installs defaults. MCP uses the side-effect-free
+configuration read and explicit installation instead.
 """
 
 from typing import Any
@@ -9,8 +9,14 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from app.api.deps import AssistantSvc, Auth, require
+from app.api.public_api import ASSISTANT
 from app.core.permissions import Perm
-from app.schemas.assistant import AssistantRead, AssistantSignals, AssistantUpdate
+from app.schemas.assistant import (
+    AssistantConfigurationRead,
+    AssistantRead,
+    AssistantSignals,
+    AssistantUpdate,
+)
 
 router = APIRouter()
 
@@ -18,6 +24,26 @@ router = APIRouter()
 @router.get("", response_model=AssistantRead)
 async def get_assistant(service: AssistantSvc, ctx: Auth) -> Any:
     """The assistant every member of the organization can talk to, installed on first look."""
+    return await service.state(ctx)
+
+
+@router.get(
+    "/configuration",
+    response_model=AssistantConfigurationRead,
+    dependencies=[ASSISTANT, Depends(require(Perm.ORG_SETTINGS))],
+)
+async def read_assistant_configuration(service: AssistantSvc, ctx: Auth) -> Any:
+    """Read current configuration without installing or publishing agents."""
+    return await service.configuration(ctx)
+
+
+@router.post(
+    "/install",
+    response_model=AssistantRead,
+    dependencies=[ASSISTANT, Depends(require(Perm.ORG_SETTINGS))],
+)
+async def install_assistant(service: AssistantSvc, ctx: Auth) -> Any:
+    """Explicitly install/refresh shipped assistants; ready defaults may be published."""
     return await service.state(ctx)
 
 
@@ -30,7 +56,7 @@ async def get_assistant_signals(service: AssistantSvc, ctx: Auth) -> Any:
 @router.patch(
     "",
     response_model=AssistantRead,
-    dependencies=[Depends(require(Perm.ORG_SETTINGS))],
+    dependencies=[ASSISTANT, Depends(require(Perm.ORG_SETTINGS))],
 )
 async def update_assistant(data: AssistantUpdate, service: AssistantSvc, ctx: Auth) -> Any:
     """Change its greeting, or switch it off. Everything else is its agent's, in the Builder."""

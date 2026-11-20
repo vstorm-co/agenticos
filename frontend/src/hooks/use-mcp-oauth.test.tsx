@@ -32,7 +32,7 @@ describe("useConsentRequest", () => {
     const { result } = renderHook(() => useConsentRequest("r1"), { wrapper });
     await waitFor(() => expect(result.current.request).not.toBeNull());
 
-    await act(() => result.current.approve.mutateAsync(["agents:view"]));
+    await act(() => result.current.approve.mutateAsync({ scopes: ["agents:view"] }));
     await act(() => result.current.deny.mutateAsync());
 
     expect(apiClient.get).toHaveBeenCalledWith("/mcp-oauth/requests/r1");

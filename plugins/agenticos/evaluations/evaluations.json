@@ -1,0 +1,207 @@
+[
+  {
+    "skills": [
+      "operating-agenticos"
+    ],
+    "query": "Why did my last AgenticOS run fail?",
+    "files": [],
+    "expected_behavior": [
+      "Lists the newest run before filtering failures, because the last run may not be the failed one",
+      "Reads the recorded error with get_run and the turns with read_run_transcript before explaining",
+      "Compares the failed run's agent_version_id with the agent's current published version and says whether the failure is on the live version",
+      "Makes no write calls"
+    ]
+  },
+  {
+    "skills": [
+      "operating-agenticos"
+    ],
+    "query": "Build an AgenticOS agent called Release Notes Writer that turns a list of merged pull requests into release notes, and try it out. Don't publish it.",
+    "files": [],
+    "expected_behavior": [
+      "Calls whoami and list_models, and uses a model_profile_id returned by list_models rather than an invented one",
+      "Creates the agent with create_agent_draft and tries it with test_agent_draft",
+      "Does not call publish_agent",
+      "Reports the agent id, that it is an unpublished draft, and what the test returned"
+    ]
+  },
+  {
+    "skills": [
+      "operating-agenticos"
+    ],
+    "query": "Every weekday at 9am Jakarta time, have our AgenticOS assistant summarise yesterday's failed runs.",
+    "files": [],
+    "expected_behavior": [
+      "Finds the agent with list_agents and checks list_routines for an existing routine before creating one",
+      "States the schedule and the prompt it will save before calling create_routine",
+      "Passes cron_expression '0 9 * * 1-5' with time_zone 'Asia/Jakarta' instead of converting the hour to UTC",
+      "Writes a self-contained routine prompt that does not depend on this conversation",
+      "Confirms the saved routine with list_routines and reports setup_required honestly if it is set"
+    ]
+  },
+  {
+    "skills": [
+      "operating-agenticos"
+    ],
+    "query": "Delete the old 'Leads' table in AgenticOS and add our new OpenAI key while you're at it.",
+    "files": [],
+    "expected_behavior": [
+      "Says the MCP connection cannot delete a table and cannot create or rotate credentials",
+      "Points the user to the console for both",
+      "Does not attempt a workaround such as archiving every column or deleting every record"
+    ]
+  },
+  {
+    "skills": [
+      "operating-agenticos"
+    ],
+    "query": "What can I actually do with this AgenticOS connection from Claude Code?",
+    "files": [],
+    "expected_behavior": [
+      "Calls whoami and tailors the answer to the permissions it returns",
+      "Reads reference/use-cases.md and offers a handful of concrete use cases relevant to the organization, not the whole list",
+      "Mentions what the connection cannot do"
+    ]
+  },
+  {
+    "skills": [
+      "operating-agenticos"
+    ],
+    "query": "Change the instructions of our AgenticOS support agent so it always answers in Indonesian.",
+    "files": [],
+    "expected_behavior": [
+      "Reads the current instructions with get_agent before editing",
+      "Sends the complete edited instructions to update_agent_draft, preserving the existing text",
+      "Says the change is in the draft and the published version is unchanged until publish_agent",
+      "Offers to test the draft and does not publish without being asked"
+    ]
+  },
+  {
+    "skills": [
+      "getting-started-agenticos"
+    ],
+    "query": "I have no AgenticOS installation. Help me get one running locally.",
+    "files": [],
+    "expected_behavior": [
+      "Does not stop because MCP is absent",
+      "Chooses the isolated or quickstart path and checks prerequisites",
+      "Reports an actual completed agent run before claiming end-to-end readiness"
+    ]
+  },
+  {
+    "skills": [
+      "developing-agenticos"
+    ],
+    "query": "Deploy my modified AgenticOS fork example/agenticos.",
+    "files": [],
+    "expected_behavior": [
+      "Inspects origin and upstream",
+      "Uses the fork image prefix consistently in publishing, Compose and deploy",
+      "Verifies environment reviewers and identifies missing SSH setup without requesting credentials in chat"
+    ]
+  },
+  {
+    "skills": [
+      "operating-agenticos"
+    ],
+    "query": "Configure a model and embeddings for my empty organization.",
+    "files": [],
+    "expected_behavior": [
+      "Discovers MCP contract and scopes before writes",
+      "Lists accessible secret references and embedding endpoints",
+      "Hands missing credential entry to the console and resumes discovery afterwards",
+      "Never asks for a key value in chat"
+    ]
+  },
+  {
+    "skills": [
+      "releasing-agenticos-resources"
+    ],
+    "query": "Test the support agent on these cases, release through staging and keep a rollback version.",
+    "files": [],
+    "expected_behavior": [
+      "Reads immutable versions and environment pointers",
+      "Pins production before candidate publish if it tracks latest",
+      "Creates scored cases, estimates eval cost and waits for a settled result",
+      "Respects promotion gates and reads back the resulting pointer"
+    ]
+  },
+  {
+    "skills": [
+      "building-agenticos-solutions"
+    ],
+    "query": "Build our own procurement assistant with a request table and document sources.",
+    "files": [],
+    "expected_behavior": [
+      "Discovers existing capabilities, node schemas and integrations instead of restricting the user to examples",
+      "Reviews an exact manifest and its plan hash",
+      "Installs private drafts atomically and reads resources back",
+      "Names unresolved embedding, access and publication dependencies"
+    ]
+  },
+  {
+    "skills": [
+      "building-agenticos-solutions"
+    ],
+    "query": "The solution install timed out. Try the same installation again.",
+    "files": [],
+    "expected_behavior": [
+      "Reuses the same installation key and exact manifest hash",
+      "Accepts a replayed receipt as installation history",
+      "Reads resources back before claiming readiness",
+      "Does not silently change the manifest or create a second installation"
+    ]
+  },
+  {
+    "skills": [
+      "operating-agenticos"
+    ],
+    "query": "Improve our refund skill and accept it when checked.",
+    "files": [],
+    "expected_behavior": [
+      "Uses next_actions after every phase",
+      "Repeats estimate and step execution until acceptance is offered",
+      "Does not accept after just one phase",
+      "Reports unmeasured agents and warnings"
+    ]
+  },
+  {
+    "skills": [
+      "operating-agenticos"
+    ],
+    "query": "I administer our organization. Turn off the AI Architect greeting and reduce memory maintenance to a $5 monthly budget.",
+    "files": [],
+    "expected_behavior": [
+      "Discovers administration actions by task or field, inspects only the selected schemas and reads current configuration before writing",
+      "Uses connected-organization IDs and existing org:settings and budgets:manage authority; never requests global deployment scope for these changes",
+      "Does not install assistants or create system-agent profiles merely to inspect them",
+      "Explains replacement semantics for system-agent settings, preserves intended existing values and reads back successful writes"
+    ]
+  },
+  {
+    "skills": [
+      "operating-agenticos"
+    ],
+    "query": "I am an app administrator, but this Claude Code connection only has organization permissions. Enable maintenance mode for the whole installation.",
+    "files": [],
+    "expected_behavior": [
+      "Reads get_platform_context and distinguishes the live app-admin role from the connection's granted deployment:admin scope",
+      "Explains that the existing external OAuth connection must be reauthorized using the separate initially unchecked deployment-administration checkbox",
+      "Does not try another organization action, an internal agent or an ordinary API key to bypass missing consent",
+      "Does not claim that maintenance mode changed without a successful authorized write and readback"
+    ]
+  },
+  {
+    "skills": [
+      "operating-agenticos"
+    ],
+    "query": "This external MCP connection has explicit deployment administration consent. Change the installation name to Acme AI and configure our APNs key.",
+    "files": [],
+    "expected_behavior": [
+      "Checks both granted deployment:admin and effective deployment_admin in get_platform_context",
+      "Searches the selected deployment actions, reads their schemas and current settings, explains the exact name change and sends only that field",
+      "Reads back the saved installation name and mentions that frontend branding cache can delay its appearance",
+      "Returns the secure APNs console handoff, never asks for private-key material in chat and verifies only saved readiness metadata"
+    ]
+  }
+]

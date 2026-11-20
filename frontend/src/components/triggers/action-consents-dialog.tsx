@@ -129,7 +129,7 @@ export function ActionConsentsDialog({
                     {t("checkConnections", { names: data.unavailable_sources.join(", ") })}
                   </p>
                 )}
-                {data.items.length === 0 && (
+                {!data.items.some((item) => item.waivable) && (
                   <p className="text-muted-foreground text-sm">{t("empty")}</p>
                 )}
                 {data.review_changes?.map((change) => (
@@ -159,12 +159,11 @@ export function ActionConsentsDialog({
                     {t("reselectPrevious")}
                   </Button>
                 )}
-                <p role={overLimit ? "alert" : "status"} className="text-sm">
-                  {t(overLimit ? "tooMany" : "selected", {
-                    count: selected.size,
-                    limit: maxActions,
-                  })}
-                </p>
+                {overLimit && (
+                  <p role="alert" className="text-sm">
+                    {t("tooMany", { count: selected.size, limit: maxActions })}
+                  </p>
+                )}
                 <ActionSelection
                   items={data.items}
                   selected={selected}
