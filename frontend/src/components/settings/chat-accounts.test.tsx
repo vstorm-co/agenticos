@@ -187,6 +187,7 @@ it("distinguishes identical Matrix accounts linked on different homeservers", as
   render(<ChatAccounts />);
   expect(await screen.findByText("https://a.example.org")).toBeVisible();
   expect(screen.getByText("https://b.example.org")).toBeVisible();
+  expect(screen.getAllByText("@ada:domain")).toHaveLength(2);
   await userEvent.click(
     screen.getByRole("button", { name: "Disconnect @ada:domain · https://b.example.org" }),
   );

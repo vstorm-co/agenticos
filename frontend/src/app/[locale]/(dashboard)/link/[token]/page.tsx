@@ -125,6 +125,11 @@ export default function ChannelLinkPage({ params }: { params: Promise<{ token: s
               />
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{account}</p>
+                {request.platform_username && request.platform_username !== account && (
+                  <p className="text-muted-foreground font-mono text-xs [overflow-wrap:anywhere]">
+                    {request.platform_username}
+                  </p>
+                )}
                 <p className="text-muted-foreground text-xs">
                   {PLATFORM_LABEL[request.platform] ?? request.platform}
                 </p>

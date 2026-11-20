@@ -100,6 +100,13 @@ export function ChatAccounts() {
                 <p className="text-sm [overflow-wrap:anywhere]">
                   {account.platform_display_name ?? account.platform_username ?? account.id}
                 </p>
+                {account.platform_display_name &&
+                  account.platform_username &&
+                  account.platform_display_name !== account.platform_username && (
+                    <p className="text-muted-foreground font-mono text-xs [overflow-wrap:anywhere]">
+                      {account.platform_username}
+                    </p>
+                  )}
                 <p className="text-muted-foreground text-xs">
                   {PLATFORM_LABEL[account.platform] ?? account.platform}
                 </p>

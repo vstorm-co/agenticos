@@ -36,6 +36,7 @@ it("shows the asserting Matrix homeserver before account consent", async () => {
   });
   expect(await screen.findByText("https://homeserver.example.org/tenant")).toBeVisible();
   expect(screen.getByText("Matrix")).toBeVisible();
+  expect(screen.getByText("@ada:example.org")).toBeVisible();
   expect(confirmChannelLink).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Connect this account" }));
   expect(confirmChannelLink).toHaveBeenCalledWith("matrix-link");
