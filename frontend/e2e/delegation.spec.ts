@@ -242,6 +242,7 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   await page.getByRole("tab", { name: "Runs", exact: true }).click();
   await page.getByRole("button", { name: "Columns", exact: true }).click();
   await page.getByRole("menuitemcheckbox", { name: "Model", exact: true }).check();
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("row").filter({ hasText: modelLabel })).toHaveCount(1);
 
   // 7. cleaning up
