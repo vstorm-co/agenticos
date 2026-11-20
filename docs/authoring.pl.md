@@ -1,5 +1,5 @@
 ---
-source_sha: "1897e92263bc"
+source_sha: "fb6f5341f260"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -278,9 +278,7 @@ zmianie skilla tak samo jak przy pliku.
 
 ## Opisanie nowego agenta { #describing-a-new-agent }
 
-Dialog tworzenia pozwala opisać agenta zamiast wypełniać formularz. Opis trafia
-do [Architekta](console.md#the-assistant), który tworzy wersje robocze agentów i
-pyta, zanim którąś utworzy; wynikiem jest zwykła wersja robocza.
+Przycisk **Utwórz z Architect** w stopce dialogu otwiera widget [Architekta](console.md#the-assistant), bez wysyłania promptu i tworzenia agenta. Opisz potrzeby w tej rozmowie; Architekt pyta przed utworzeniem zwykłej wersji roboczej.
 
 ## Koszt i budżet { #cost-and-budget }
 

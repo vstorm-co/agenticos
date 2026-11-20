@@ -113,6 +113,7 @@ export function useSecrets() {
      * first, or it states as fact something it was never told.
      */
     listError: secrets.error,
+    refetch: secrets.refetch,
     create,
     rotate,
     remove,

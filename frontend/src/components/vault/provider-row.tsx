@@ -1,5 +1,6 @@
 "use client";
 
+import { PickerMark } from "@/components/icons/picker-mark";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 
 interface ProviderRowProps {
@@ -24,6 +25,7 @@ interface ProviderRowProps {
   hint?: string;
   /** The mark the catalog named, for an id that is not itself a glyph key. */
   brand?: string;
+  wrap?: boolean;
 }
 
 /**
@@ -48,11 +50,15 @@ interface ProviderRowProps {
  * `text-embedding-3-large` answers to `openroutertext-embedding-3-large` and
  * typing `t` finds nothing. `provider-row.test.tsx` holds the case.
  */
-export function ProviderRow({ provider, name, hint, brand }: ProviderRowProps) {
+export function ProviderRow({ provider, name, hint, brand, wrap = false }: ProviderRowProps) {
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <ProviderIcon provider={provider} brand={brand} />
-      <span className="truncate">{name}</span>
+      <PickerMark>
+        <ProviderIcon provider={provider} brand={brand} />
+      </PickerMark>
+      <span className={wrap ? "leading-tight [overflow-wrap:anywhere] break-words" : "truncate"}>
+        {name}
+      </span>
       {hint && <span className="text-muted-foreground shrink-0 font-mono">····{hint}</span>}
     </span>
   );

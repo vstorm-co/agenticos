@@ -244,10 +244,15 @@ describe("TableKanbanView", () => {
       { wrapper },
     );
 
-    const card = await screen.findByText("Record r1");
+    const card = await screen.findByRole("button", { name: "Record r1" });
+    expect(card.closest("div[draggable]")).toHaveClass("relative");
     await user.click(card);
+    expect(onOpenRecord).toHaveBeenCalledExactlyOnceWith(record("r1", "o1"));
 
-    expect(onOpenRecord).toHaveBeenCalledWith(record("r1", "o1"));
+    onOpenRecord.mockClear();
+    card.focus();
+    await user.keyboard("{Enter}");
+    expect(onOpenRecord).toHaveBeenCalledExactlyOnceWith(record("r1", "o1"));
   });
 
   it("moves a card via the keyboard-reachable Move to menu", async () => {

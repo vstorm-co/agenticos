@@ -200,6 +200,7 @@ export function CreateContextDialog({
                 <Label htmlFor="new-context-name">{t("name")}</Label>
                 <Input
                   id="new-context-name"
+                  data-initial-focus
                   value={name}
                   onChange={(event) => edit("name", event.target.value)}
                   placeholder={t("namePlaceholder")}

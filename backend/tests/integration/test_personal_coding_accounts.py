@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -38,6 +39,7 @@ from app.core.vault import VaultScope
 from app.db.models.coding_account import CodingAccount
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
+from app.repositories import agent_workspace as workspace_repo
 from app.repositories import coding_account as account_repo
 from app.schemas.coding_account import CodingAccountCreate, CodingAccountRead, CodingAccountUpdate
 from app.services import personal_codex as codex_module
@@ -243,6 +245,12 @@ async def test_codex_refresh_preserves_owner_identity_and_checks_the_written_pai
         "cleanup",
         "failure_cleanup",
         "missing_workspace",
+        "missing_row_id",
+        "missing_row",
+        "wrong_owner",
+        "wrong_account",
+        "expired",
+        "partial_source",
         "wait",
     ],
 )
@@ -262,13 +270,16 @@ async def test_private_task_lifecycle_copies_results_and_always_closes(
     (shared / "app.py").write_text("old")
     parent = Workspace(LocalWorkspaceBackend(shared))
     private = Workspace(LocalWorkspaceBackend(isolated))
-    opened = OpenWorkspace(private, "service", "run", "private-task", None)
+    opened = OpenWorkspace(private, "service", "user", "private-task", None)
     closed: list[OpenWorkspace] = []
     identifiers: list[UUID] = []
 
     class Workspaces:
         def __init__(self, db: AsyncSession) -> None:
-            pass
+            self.db = db
+
+        async def discard_personal_coding(self, ctx, row) -> None:
+            await workspace_repo.delete(self.db, workspace=row)
 
         async def open(
             self,
@@ -278,10 +289,42 @@ async def test_private_task_lifecycle_copies_results_and_always_closes(
             identity: WorkspaceIdentity,
             scope_override: str,
         ) -> OpenWorkspace | None:
-            assert scope_override == "run" and identity.project_id is None
+            assert scope_override == "user" and identity.project_id is None
+            assert identity.namespace is not None
             assert identity.run_id is not None and identity.run_id != run.deps.run_id
             identifiers.append(identity.run_id)
-            return None if ending == "missing_workspace" else opened
+            if ending == "missing_workspace":
+                return None
+            row = await workspace_repo.create(
+                self.db,
+                organization_id=ctx.organization_id,
+                agent_id=None,
+                scope="user",
+                scope_key=str(identity.namespace),
+                backend="service",
+                owner_ref=str(ctx.user_id),
+            )
+            opened.row_id = None if ending == "missing_row_id" else row.id
+            if ending == "missing_row":
+                await workspace_repo.delete(self.db, workspace=row)
+            elif ending == "wrong_owner":
+                row.owner_ref = str(uuid4())
+            elif ending == "wrong_account":
+                other = await CodingAccountService(self.db).save(
+                    ctx,
+                    harness="codex",
+                    label="Other",
+                    secret=ApiKeySecret(api_key=SecretStr(KEY)),
+                    enabled=True,
+                )
+                row.coding_account_id = other.id
+                row.conversation_id = run.deps.conversation_id
+            elif ending == "expired":
+                row.coding_source_revision = "a" * 64
+            elif ending == "partial_source":
+                row.session_id = "interrupted-initial-copy"
+            await self.db.flush()
+            return opened
 
         async def close(self, workspace: OpenWorkspace) -> WorkspaceFlushFailure | None:
             closed.append(workspace)
@@ -425,6 +468,12 @@ async def test_private_task_lifecycle_copies_results_and_always_closes(
             "cleanup",
             "failure_cleanup",
             "missing_workspace",
+            "missing_row_id",
+            "missing_row",
+            "wrong_owner",
+            "wrong_account",
+            "expired",
+            "partial_source",
         ):
             error = (
                 AuthorizationError
@@ -439,6 +488,8 @@ async def test_private_task_lifecycle_copies_results_and_always_closes(
                 )
                 else ExternalServiceError
                 if ending == "cleanup"
+                else BadRequestError
+                if ending in ("expired", "partial_source")
                 else RuntimeError
             )
             with pytest.raises(error):
@@ -748,3 +799,284 @@ async def test_publication_authority_locks_serialize_concurrent_revocation(
             await finished.wait()
     async with AsyncSession(engine, expire_on_commit=False) as db:
         assert not await factory._active_in(db, account.id, account.generation, lock=True)
+
+
+async def test_named_personal_sessions_keep_files_and_source_revision_without_sharing_them(
+    engine: AsyncEngine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    @asynccontextmanager
+    async def connection() -> AsyncGenerator[AsyncSession]:
+        async with AsyncSession(engine, expire_on_commit=False) as db:
+            yield db
+            await db.commit()
+
+    monkeypatch.setattr(coding_module, "get_db_context", connection)
+    monkeypatch.setattr(coding_module, "MAX_RETAINED_SESSIONS_PER_ACCOUNT", 2)
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "app.py").write_text("original")
+    parent = Workspace(LocalWorkspaceBackend(source))
+    namespaces: list[UUID] = []
+
+    class Workspaces:
+        def __init__(self, db: AsyncSession) -> None:
+            self.db = db
+
+        async def open(self, spec, *, ctx, identity, scope_override):
+            assert scope_override == "user" and identity.namespace is not None
+            namespaces.append(identity.namespace)
+            folder = tmp_path / str(identity.namespace)
+            folder.mkdir(exist_ok=True)
+            row = await workspace_repo.create(
+                self.db,
+                organization_id=ctx.organization_id,
+                agent_id=None,
+                scope="user",
+                scope_key=str(identity.namespace),
+                backend="service",
+                owner_ref=str(ctx.user_id),
+            )
+            return OpenWorkspace(
+                Workspace(LocalWorkspaceBackend(folder)), "service", "user", row.scope_key, row.id
+            )
+
+        async def close(self, opened):
+            row = await self.db.get(coding_module.workspace_repo.AgentWorkspace, opened.row_id)
+            assert row is not None
+            row.session_id = str(row.id)
+            await self.db.flush()
+            return
+
+    monkeypatch.setattr(coding_module, "SandboxWorkspaceService", Workspaces)
+    from app.db.models.conversation import Conversation
+    from app.services.sandbox_workspace import SandboxWorkspaceService
+
+    async with connection() as db:
+        owner, other = await person(db), await person(db)
+        org = await organization(db, owner)
+        auth = context(owner, org)
+        db.add(OrganizationMember(organization_id=org.id, user_id=other.id, role="owner"))
+        await CodingAccountService(db).create(auth, request(enabled=True))
+        conversation = Conversation(
+            organization_id=org.id, user_id=owner.id, title="Named sessions"
+        )
+        db.add(conversation)
+        await db.flush()
+    factory = PersonalCodingSessionFactory(
+        auth, AgentSpec(name="Test"), SandboxConfig(backend="service"), uuid4(), redis=MemoryRedis()
+    )
+    run = RunContext(
+        deps=AgentDeps(
+            organization_id=org.id,
+            user_id=str(owner.id),
+            conversation_id=conversation.id,
+            run_id=uuid4(),
+        ),
+        model=TestModel(),
+        usage=RunUsage(),
+        prompt="Task",
+        workspace=parent,
+    )
+    async with factory.session(
+        run, harness="claude_code", timeout_seconds=60, session="api"
+    ) as task:
+        first_revision = task.base_revision
+        assert not task.resumed
+        assert await task.workspace.read_bytes("app.py") == b"original"
+        await task.workspace.write_bytes("app.py", b"modified in api")
+        await task.workspace.write_bytes("native-history", b"remembered")
+    (source / "app.py").write_text("new root source")
+    async with factory.session(
+        run, harness="claude_code", timeout_seconds=60, session="api"
+    ) as task:
+        assert task.base_revision == first_revision
+        assert task.resumed
+        assert await task.workspace.read_bytes("app.py") == b"modified in api"
+        assert await task.workspace.read_bytes("native-history") == b"remembered"
+    async with factory.session(
+        run, harness="claude_code", timeout_seconds=60, session="ui"
+    ) as task:
+        assert task.base_revision != first_revision
+        assert not task.resumed
+        assert await task.workspace.read_bytes("app.py") == b"new root source"
+        assert not await task.workspace.exists("native-history")
+    assert namespaces[0] == namespaces[1] != namespaces[2]
+    with pytest.raises(BadRequestError, match="saved session limit"):
+        async with factory.session(run, harness="claude_code", timeout_seconds=60, session="extra"):
+            pytest.fail("A new retained session was admitted past the limit")
+    async with factory.session(
+        run, harness="claude_code", timeout_seconds=60, session="api"
+    ) as task:
+        assert task.resumed
+    async with connection() as db:
+        rows = await workspace_repo.list_personal_coding(
+            db, organization_id=org.id, user_id=owner.id
+        )
+        assert len(rows) == 2
+        assert not await workspace_repo.list_for_conversation(
+            db, organization_id=org.id, conversation_id=conversation.id
+        )
+        service = SandboxWorkspaceService(db)
+        assert await service._may_read(auth, rows[0])
+        assert not await service._may_read(context(other, org), rows[0])
+        assert not await workspace_repo.list_for_reader(
+            db, organization_id=org.id, user_id=other.id, see_all=True
+        )
+        assert (
+            len(
+                await workspace_repo.list_for_reader(
+                    db, organization_id=org.id, user_id=owner.id, see_all=True
+                )
+            )
+            == 2
+        )
+    assert (source / "app.py").read_text() == "new root source"
+
+
+@pytest.mark.parametrize("failure", ["tenant", "shared_scope"])
+async def test_personal_session_constraints_refuse_cross_tenant_or_shared_rows(
+    db: AsyncSession, failure: str
+) -> None:
+    from sqlalchemy.exc import IntegrityError
+
+    from app.db.models.agent_workspace import AgentWorkspace
+    from app.db.models.conversation import Conversation
+
+    owner = await person(db)
+    org = await organization(db, owner)
+    elsewhere = await organization(db, owner)
+    account = await CodingAccountService(db).create(context(owner, org), request(enabled=True))
+    conversation = Conversation(organization_id=org.id, user_id=owner.id, title="Private")
+    db.add(conversation)
+    await db.flush()
+    with pytest.raises(IntegrityError):
+        async with db.begin_nested():
+            db.add(
+                AgentWorkspace(
+                    organization_id=elsewhere.id if failure == "tenant" else org.id,
+                    conversation_id=conversation.id,
+                    owner_ref=str(owner.id),
+                    scope="agent" if failure == "shared_scope" else "user",
+                    scope_key=uuid4().hex,
+                    backend="service",
+                    coding_account_id=account.id,
+                )
+            )
+            await db.flush()
+
+
+@pytest.mark.parametrize(
+    "operation", ["disconnect", "agent_delete", "discard", "chat_retention", "workspace_retention"]
+)
+async def test_deletion_keeps_remote_cleanup_in_the_same_rollback_boundary(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from pydantic_ai.workspaces import WorkspaceUnavailableError
+    from sqlalchemy import select
+
+    from app.db.models.agent import Agent
+    from app.db.models.agent_workspace import AgentWorkspace
+    from app.db.models.conversation import Conversation
+    from app.db.models.pending_sandbox_destroy import PendingSandboxDestroy
+    from app.db.models.sandbox_connection import SandboxConnection
+    from app.services.agent_registry import AgentRegistryService
+    from app.services.sandbox_connection import SandboxConnectionService
+
+    monkeypatch.setattr(
+        SandboxConnectionService,
+        "resolve_for_teardown",
+        AsyncMock(
+            side_effect=WorkspaceUnavailableError("Offline provider"),
+        ),
+    )
+    async with AsyncSession(engine, expire_on_commit=False) as db:
+        owner = await person(db)
+        org = await organization(db, owner)
+        auth = context(owner, org)
+        account = await CodingAccountService(db).create(auth, request(enabled=True))
+        conversation = Conversation(
+            organization_id=org.id,
+            user_id=owner.id,
+            title="Private",
+            updated_at=datetime.now(UTC) - timedelta(days=60),
+        )
+        remote = SandboxConnection(organization_id=org.id, name="Offline", kind="opensandbox")
+        agent = Agent(
+            organization_id=org.id,
+            owner_user_id=owner.id,
+            name="Private coding agent",
+            slug=uuid4().hex,
+            draft_spec=AgentSpec(name="Private coding agent").model_dump(mode="json"),
+        )
+        db.add_all([conversation, remote, agent])
+        await db.flush()
+        workspace = AgentWorkspace(
+            organization_id=org.id,
+            conversation_id=conversation.id,
+            owner_ref=str(owner.id),
+            scope="user",
+            scope_key=uuid4().hex,
+            backend="service",
+            coding_account_id=account.id,
+            agent_id=agent.id,
+            connection_id=remote.id,
+            session_id="personal-session-to-destroy",
+            last_used_at=datetime.now(UTC) - timedelta(days=60),
+        )
+        db.add(workspace)
+        await db.flush()
+        organization_id, account_id, workspace_id, agent_id = (
+            org.id,
+            account.id,
+            workspace.id,
+            agent.id,
+        )
+
+        async def remove(db: AsyncSession) -> None:
+            if operation == "agent_delete":
+                await AgentRegistryService(db).delete(auth, agent_id)
+            elif operation == "discard":
+                from app.services.sandbox_workspace import SandboxWorkspaceService
+
+                held = await db.get(AgentWorkspace, workspace_id)
+                assert held is not None
+                await SandboxWorkspaceService(db).discard_personal_coding(auth, held)
+            elif operation in {"chat_retention", "workspace_retention"}:
+                from app.services.retention import RetentionService
+
+                assert (
+                    await RetentionService(db)._purge_batch(
+                        "conversations" if operation == "chat_retention" else "workspaces",
+                        organization_id=organization_id,
+                        cutoff=datetime.now(UTC),
+                    )
+                    == 1
+                )
+            else:
+                await CodingAccountService(db).disconnect(auth, account_id)
+
+        await db.commit()
+        await remove(db)
+        assert (
+            await db.scalar(select(AgentWorkspace.id).where(AgentWorkspace.id == workspace_id))
+            is None
+        )
+        assert (
+            await db.scalars(select(PendingSandboxDestroy))
+        ).one().ref_id == "personal-session-to-destroy"
+        await db.rollback()
+    async with AsyncSession(engine, expire_on_commit=False) as db:
+        assert await db.get(AgentWorkspace, workspace_id) is not None
+        assert await db.get(CodingAccount, account_id) is not None
+        assert not (await db.scalars(select(PendingSandboxDestroy))).all()
+        await remove(db)
+        await db.commit()
+    async with AsyncSession(engine, expire_on_commit=False) as db:
+        assert await db.get(AgentWorkspace, workspace_id) is None
+        assert (await db.get(CodingAccount, account_id) is None) == (operation == "disconnect")
+        assert (await db.get(Agent, agent_id) is None) == (operation == "agent_delete")
+        assert (
+            await db.scalars(select(PendingSandboxDestroy))
+        ).one().ref_id == "personal-session-to-destroy"

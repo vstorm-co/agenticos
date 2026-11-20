@@ -70,6 +70,35 @@ async def _fetch(capability: WebFetch[object], url: str, *, last_attempt: bool =
     return await _local_tool(capability).function(ctx, url=url)
 
 
+async def test_local_pagination_continues_past_the_per_call_content_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = "a" * 1000 + "b" * 1000 + "The last section."
+
+    async def download(url: str, **kwargs: object) -> httpx2.Response:
+        assert kwargs["allow_local"] is False
+        assert kwargs["allowed_domains"] == ["example.com"]
+        return httpx2.Response(200, text=document, headers={"content-type": "text/markdown"})
+
+    monkeypatch.setattr(web_fetch_module, "safe_download", download)
+    tool = _local_tool(_built(max_content_chars=1000, allowed_domains=["example.com"]))
+    url = "https://example.com/paper"
+    for offset, expected, next_offset in (
+        (0, "a" * 1000, 1000),
+        (1000, "b" * 1000, 2000),
+        (2000, "The last section.", None),
+    ):
+        result = await tool.function(_context(), url=url, offset=offset)
+        assert result == {
+            "url": url,
+            "title": "",
+            "content": expected,
+            "offset": offset,
+            "next_offset": next_offset,
+            "reached_limit": False,
+        }
+
+
 class TestTheRefusal:
     """What the guard has to stop, and how the model hears about it.
 

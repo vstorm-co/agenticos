@@ -1,5 +1,5 @@
 ---
-source_sha: "1897e92263bc"
+source_sha: "fb6f5341f260"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -293,10 +293,7 @@ sich seitdem geändert hat - bei einer Skill-Änderung wie bei einer Datei.
 
 ## Einen neuen Agent beschreiben { #describing-a-new-agent }
 
-Der Dialog zum Anlegen bietet an, den Agent zu beschreiben, statt das Formular
-auszufüllen. Die Beschreibung geht an den [Architekten](console.md#the-assistant),
-der Agents entwirft und fragt, bevor er einen anlegt; das Ergebnis ist ein
-gewöhnlicher Entwurf.
+Die Aktion **Mit Architect erstellen** im Dialog öffnet das [Architekt](console.md#the-assistant)-Widget, ohne einen Prompt zu senden oder einen Agent anzulegen. Beschreiben Sie dort Ihren Bedarf; der Architekt fragt, bevor er einen gewöhnlichen Entwurf anlegt.
 
 ## Kosten und Budget { #cost-and-budget }
 

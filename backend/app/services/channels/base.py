@@ -631,7 +631,12 @@ class ChannelAdapter(ABC):
         raise ChannelDirectoryUnsupported("This platform does not support agent-chosen reactions")
 
     async def acknowledge_message(  # noqa: B027 - a no-op where the platform has no reactions
-        self, bot_token: str, incoming: IncomingMessage, reaction: str
+        self,
+        bot_token: str,
+        incoming: IncomingMessage,
+        reaction: str,
+        *,
+        api_base_url: str | None = None,
     ) -> None:
         """React to a question the moment it arrives, so the asker sees it was heard."""
 

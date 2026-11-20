@@ -2231,6 +2231,8 @@ The full room history remains available, including messages from other participa
 
 Channel messages store only the sender’s text. Author labels are resolved from channel identities immediately before model dispatch, outside system instructions. The console and copy, pin and shortcut actions receive the plain body. Persisted histories and paused runs keep opaque identity references, and manifests omit the injected channel reference parts. Deleting an account removes its channel identities, so future requests cannot resolve that person’s platform labels; shared message bodies remain.
 
+The console and messaging channels use the same conversation history. When history is shared, each assistant turn retains the recorded tool names and statuses in order. Arguments and results can depend on the original sender’s permissions. To answer a follow-up that needs those data, the agent can make a fresh, authorized read.
+
 Editable channel names, topics, purposes and author labels pass the configured input checks before reaching the model. Redacted values replace the originals; blocked reference values are withheld while an otherwise allowed question can continue. Fixed envelope syntax, platform identifiers and chat-type enums are not screened as question text.
 
 Author reference data is supplied separately from the current message, so input guardrails screen the actual question.

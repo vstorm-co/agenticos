@@ -19,6 +19,9 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
   Badge,
   Button,
   Dialog,
@@ -42,6 +45,7 @@ import { useCapabilityGuide } from "@/hooks/use-capability-guide";
 import { useMcpCatalog } from "@/hooks/use-mcp-servers";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { AgentLimitNotice, isAtAgentLimit } from "@/components/agents/agent-limit-notice";
+import { AvatarFace } from "@/components/ui/avatar-face";
 import type { AgentCeiling } from "@/types/agents";
 import type { AgentTemplate, TemplateIndustry } from "@/types/providers";
 
@@ -214,7 +218,17 @@ function TemplateRow({
   const { servers } = useMcpCatalog();
 
   return (
-    <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-2 rounded-xl border p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-4">
+      <Avatar className="size-9 shrink-0 ring-0" aria-hidden>
+        {template.avatar_url && <AvatarImage src={template.avatar_url} alt="" />}
+        <AvatarFallback className="bg-transparent" delayMs={template.avatar_url ? 600 : undefined}>
+          <AvatarFace
+            seed={template.slug ?? template.key}
+            background={false}
+            className="scale-110"
+          />
+        </AvatarFallback>
+      </Avatar>
       <div className="min-w-0 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{template.name}</span>
@@ -260,7 +274,7 @@ function TemplateRow({
       </div>
 
       {template.installed ? (
-        <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-sm">
+        <span className="text-muted-foreground col-start-2 flex shrink-0 items-center gap-1.5 text-sm sm:col-start-auto">
           <Check className="size-4" />
           {t("alreadyInstalled")}
         </span>
@@ -268,7 +282,7 @@ function TemplateRow({
         <Button
           variant="outline"
           size="sm"
-          className="shrink-0"
+          className="col-start-2 w-fit shrink-0 sm:col-start-auto"
           disabled={disabled}
           onClick={onInstall}
         >

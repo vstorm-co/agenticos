@@ -21,9 +21,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Apply `0345_personal_model_generations.py` before running this version. It adds credential-free connection revisions that prevent an older OAuth sign-in from recreating a deleted personal connection.
+- Apply `0346_personal_model_generations.py` before running this version. It adds credential-free connection revisions that prevent an older OAuth sign-in from recreating a deleted personal connection.
 
-- Apply `0346_chatgpt_registrations.py` for durable official ChatGPT application registrations. Official plan usage remains disabled until the operator verifies deployment eligibility and configures a stable host UUID.
+- Apply `0347_chatgpt_registrations.py` for durable official ChatGPT application registrations. Official plan usage remains disabled until the operator verifies deployment eligibility and configures a stable host UUID.
+
+- Apply `0342_personal_coding_sessions.py` and update API/workers together before using retained personal coding sessions. Existing workspace rows are unchanged. Sessions remain subject to provider idle expiry; failed tasks without confirmed safe retention are discarded.
 
 ### Added
 
@@ -82,9 +84,109 @@ Two things are versioned separately from this file and worth knowing about:
 - MiniMax models accept vault API or M Plan keys through a separate OpenAI-compatible provider identity, with explicit regional endpoints and tool calling.
 - Z.AI model profiles accept explicit GLM Coding Plan endpoints, with authenticated model catalogs isolated from the ordinary API and other accounts.
 
+- Let deployment administrators send account recovery emails or copy a one-hour, single-use password reset link from the user inspector. Show users' last activity and active session counts.
+
+- Open an Inbox item in a new private chat with an editable question. The assistant can read the signed-in person's findings and suggestions and link back to them.
+
+- Show the same approval cards in Inbox and Activity, with details and inline approval and rejection.
+
+- Let agent authors hide suggested first messages. The new-chat Inbox uses the extra space to show more items.
+
+- Search readable chat message text as well as conversation titles, with highlighted excerpts, matching-message counts and keyboard navigation. Reuse the existing full-text index and transcript access checks.
+
+- Use a compact main-chat composer with files beside the agent, direct model and permission controls, icon-only context usage and matching dictation/call panels. Preview Inbox topics in new chats with their MCP source marks.
+
+- Show model-maker icons in the model field and searchable catalog, independently of the routing provider. Use a neutral mark for unknown makers.
+
+- Show the accessible published-agent toggle beside Delegates and enable it in AgenticOS. Keep delegation to explicit user requests in its default instructions, and disable dynamic specialist creation. Existing permissions and unattended-routine restrictions still apply.
+
+- Default AgenticOS to Built in browsing with 100 steps per call and Docker / Sandbox Computer use. Include workbench coding and document tools in the desktop runtime. Missing browser configuration or an unavailable browser container does not block the rest of an agent.
+
+- Keep named private cloud coding sessions with native CLI history and separate files. Queue tasks using the same personal account, allow Claude Code and Codex through different accounts concurrently, and show whether a session is new or continued. Clean up retained containers when account consent or ownership ends.
+- Let private cloud coding tasks choose Claude Code or Codex per task through one agent, using the initiating person’s own enabled account and an isolated container. Show both account connections in chat while preserving per-account exclusivity, read-only policy and organization-sandbox credentials.
+
+### Changed
+
+- Preview agent avatars in the template catalog, including the artwork installed with bundled agents.
+
+- Lighten file editors and file selection in the light theme. Show Model by default in Activity, put background job lists behind paginated disclosures, and align Sandboxes and Channels with the Vault tables.
+
+- Render conversations shared by link as read-only chat transcripts with formatted answers, readable message widths, and inline visuals.
+
+- Move credential selection to a Key tab in the chat model picker and use single-line model labels across shared selectors.
+
+- Simplify Agent Builder section headers and open Variables, Voice, and First messages by default. Move name, description, categories, and tags to the Details dialog in the agent actions menu. Use the standard card surface for MCP servers in both the catalog and Builder.
+
+- Keep Back and the primary action in a shared onboarding footer as users move through organization and member setup.
+
+- Default personal Codex connections to the shared ChatGPT sign-in form and name coding accounts automatically.
+
+- Align question cards with the chat composer, use catalog model names, and rename conversations in a dialog with explicit save. Share links use the same copy field as Apps and settings open at the top.
+
+- Give short personal memories and longer notes separate tabs. With Memory enabled, private conversations get a bounded overview automatically, with a separate switch in the Builder.
+
+- Show the agent's avatar beside its name in personal memory lists and details.
+
+- Review changes to customized AgenticOS and Architect defaults before applying them. Bundled Context updates use the existing Context proposal review.
+
+- Give AgenticOS a shorter default prompt with better guidance for full source reading, personal memory, Skills, Context and routines. Delegate only on request or when the user accepts a specific offer.
+
+- Keep Discuss visible on Inbox items and put secondary actions in a menu. Highlight links to console resources and inline code in chat, and show compact approval cards aligned with the composer, including after reload.
+
+- Ground automatic memory updates in the user's words and give the daily briefing current memory and previous decisions. Check evidence for recurring suggestions and suppress repeats across suggestion types.
+
+- Guide the shipped AgenticOS assistant to check live task and Inbox evidence for planning questions and to use the installed platform's tools and official references when helping build agents and workflows.
+
+- Tighten the chat greeting, MCP cards and model library. Keep history groups visible as the chat list grows, give nested fields a complete focus outline and let chat choose among a provider's available key profiles.
+
+- Show the active agent’s opening prompts above the new-chat composer and add the selected prompt to the draft. Show Daily briefing below the composer with priority items, a pending approval count and a link to Inbox. Keep the animated welcome avatar responsive to reduced motion.
+
+- Share larger resource gallery cards across agents, tables, workflows, knowledge bases, projects, datasets, MCP, skills, context, Apps and groups. Use matching cards for the agent Builder settings, with Thinking and Answer format inside Model settings, visible default first messages, and Voice deep links.
+
+- Keep disclosure headers and capability artwork still while pressed, improve variable contrast in light mode, simplify conversation filters and open the Architect from the new-agent dialog footer without submitting a prompt.
+
+- Group consecutive tool calls and reasoning under a work summary while keeping all prose visible in order. Place dictation controls inside the composer and animate one primary action between dictation and sending in chat and Architect. Default Activity to include Asked by and open the MCP tab in API & MCP.
+- Use a provider library in main chat, with connected providers first, separate saved models, direct model selection and Vault credential forms available inside the picker.
+- Keep chat attachment previews inside the composer, contain background-topic retry errors, and glide shared tab and segmented selection markers between options.
+
+- Unify fields, menus, model and resource pickers, tabs, settings and native disclosures across the console using the accepted compact chat presentation. Preserve native keyboard behavior, reduced motion, touch targets, form drafts and hidden-field validation.
+
+- Keep the greeting, date, summary space and primary action consistent across personal, organization, group and deployment dashboards. Keep scope navigation aligned with its filters, retain navigation on empty layouts and animate scope changes.
+
+- Ease tab content into place across shared console tabs, draft versions, authoring comparisons, delegate details, browser previews and desktop Quick Ask. Respect reduced motion and keep the tab strip stationary.
+
+- Align the shipped AgenticOS toolbox with the selected toolbox, including container Computer use, add Context and default personal cloud coding without a shared account. Include code-review and context-design skills; preserve customized agent specs during normal default refreshes. Cloud coding stays disabled on deployments that cannot provide a container.
+
+- Refine the default AgenticOS assistant’s guidance for economical specialist delegation, safe tool-error recovery, editable drafts and artifact verification. Keep media generation tied to available configured tools and preserve personal model, budget and prompt choices during normal default refreshes.
+
 ### Fixed
 
 - Refuse external model overrides for CLIs that persist session picker changes as user defaults, including safe behavior with older Mistral Vibe Desktop replies (#3108).
+
+- Keep the model library and its anchor stable while a new chat loads. Teach the shipped AgenticOS to reuse existing automations, choose the right monitoring mode and ask about responsibilities when they affect priorities.
+
+- Keep prompt variable text readable when the console theme differs from the operating system theme. Apply editor token colors from the selected console theme and preserve a high-contrast fallback.
+
+- Exclude internal workflow transcripts from personal conversation search, even when their parent project is readable.
+
+- Fill unused chat-sidebar height by opening older date groups automatically; preserve manual date and project folds, including across active-conversation changes.
+
+- Keep model selectors and popup anchors stationary when pressed; reserve scale feedback for action buttons so opening a list does not shrink its field or move its anchor.
+
+- Send Mattermost acknowledgement reactions from durable workers using the bot’s current server URL and token instead of relying on a stream process’s in-memory cache.
+- Keep streamed chat steps and expanded work details mounted after their first visit, so folding earlier activity no longer discards in-progress input. Animate disclosures with an intrinsic-size transition and a CSS-grid fallback, while preserving keyboard focus and hiding collapsed content from assistive technology.
+- Show the requested action, a readable subject and the requesting agent in Inbox approvals instead of serialized MCP requests or opaque record IDs. Preserve redacted approval boundaries.
+- Give chat drafts a dedicated action row, readable field spacing and stable version selection when streamed revisions change.
+- Apply consistent press feedback, restrained overlay entrances, grouped tooltip delays and direction-aware wizard transitions across the console. Suppress component transitions during theme changes and honor live reduced-motion preferences in dashboard tips and mobile gestures.
+- Move browser cursors and progress fills with transforms, and return interrupted mobile swipes and pull-to-refresh indicators with velocity-aware springs. Preserve native horizontal scrolling and its platform inertia.
+- Associate rejected sign-in credentials with the password field and provide repeatable motion feedback without clearing input. Server failures do not mark credentials invalid, and reduced motion keeps the inline error without shaking.
+
+- Mount a writable `/app/.next/server/route-cache` in the Helm chart's frontend
+  (chart 0.1.2). Next.js copies each prerendered page there on its first request,
+  which failed on a read-only root filesystem such as OpenShift's `restricted-v2`.
+- Log why an OIDC sign-in was refused: the failed condition and the names of the
+  claims received, never their values. Document the Entra ID optional claims
+  (`email`, `xms_edov` on the ID token) that its UserInfo endpoint does not return.
 
 ## [1.86.1] - 2026-11-20
 

@@ -16,14 +16,17 @@ export async function generateMetadata({
   const { locale } = await params;
   const t = await getTranslations("pages.meta");
   const { appName } = await readBranding();
-  return pageMetadata({
-    brand: appName,
-    title: t("resetPasswordTitle"),
-    description: t("resetPasswordDescription"),
-    path: "/reset-password",
-    locale,
-    noindex: true,
-  });
+  return {
+    ...pageMetadata({
+      brand: appName,
+      title: t("resetPasswordTitle"),
+      description: t("resetPasswordDescription"),
+      path: "/reset-password",
+      locale,
+      noindex: true,
+    }),
+    referrer: "no-referrer",
+  };
 }
 
 interface PageProps {

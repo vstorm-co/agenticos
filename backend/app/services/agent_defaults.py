@@ -8,10 +8,16 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, JsonValue
 
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec
 
 type DefaultField = Literal[
-    "instructions", "capabilities", "mcp_servers", "skill_ids", "starters", "subagents"
+    "instructions",
+    "capabilities",
+    "mcp_servers",
+    "skill_ids",
+    "starters",
+    "subagents",
+    "context_ids",
 ]
 FIELDS: tuple[DefaultField, ...] = (
     "instructions",
@@ -20,6 +26,7 @@ FIELDS: tuple[DefaultField, ...] = (
     "skill_ids",
     "starters",
     "subagents",
+    "context_ids",
 )
 ARCHITECT = "general/platform-assistant"
 STARTER = "general/agenticos"
@@ -29,8 +36,24 @@ def digest(value: JsonValue) -> str:
     return sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
+def shipped_capabilities(spec: AgentSpec, target: AgentSpec) -> list[CapabilityBindingSpec]:
+    """Restore shipped tools and retain the agent's independent thinking settings."""
+    settings = [binding for binding in spec.capabilities if binding.id == "thinking"]
+    if not settings:
+        return target.capabilities
+    return [*[binding for binding in target.capabilities if binding.id != "thinking"], *settings]
+
+
 def fingerprint(spec: AgentSpec, field: DefaultField) -> str:
     value = spec.model_dump(mode="json")[field]
+    if field == "capabilities":
+        return digest(
+            [
+                binding.model_dump(mode="json")
+                for binding in spec.capabilities
+                if binding.id != "thinking"
+            ]
+        )
     if field == "instructions":
         return sha256(spec.instructions.strip().encode()).hexdigest()
     return digest(value)
@@ -42,7 +65,15 @@ def baseline(key: str, spec: AgentSpec) -> dict[str, str]:
 
 def previous_fingerprint(previous: dict[str, str], field: DefaultField) -> str | None:
     # Older tracked releases had no shipped delegate pins; custom pins stay protected.
-    return previous.get(field, digest([]) if field == "subagents" else None)
+    return previous.get(field, digest([]) if field in {"subagents", "context_ids"} else None)
+
+
+def matches_previous(spec: AgentSpec, field: DefaultField, previous: dict[str, str]) -> bool:
+    """Accept the legacy capabilities hash, which included the thinking binding."""
+    saved = previous_fingerprint(previous, field)
+    if fingerprint(spec, field) == saved:
+        return True
+    return field == "capabilities" and digest(spec.model_dump(mode="json")[field]) == saved
 
 
 def merge_defaults(spec: AgentSpec, target: AgentSpec, previous: dict[str, str]) -> AgentSpec:
@@ -50,8 +81,10 @@ def merge_defaults(spec: AgentSpec, target: AgentSpec, previous: dict[str, str])
     update = {
         field: target.model_dump()[field]
         for field in FIELDS
-        if fingerprint(spec, field) == previous_fingerprint(previous, field)
+        if matches_previous(spec, field, previous)
     }
+    if "capabilities" in update:
+        update["capabilities"] = shipped_capabilities(spec, target)
     return AgentSpec.model_validate({**spec.model_dump(), **update})
 
 
@@ -96,6 +129,7 @@ def template_release(key: str, deployment: str) -> str:
                 agent_templates.TEMPLATES_ROOT / key / agent_templates.MANIFEST
             ).read_text(),
             "deployment": deployment,
+            "managed_context": "agenticos-product-map",
             "skills": skills,
             "library": {entry.key: entry.fingerprint for entry in skill_library.library()},
         }

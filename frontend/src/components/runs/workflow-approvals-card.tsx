@@ -53,7 +53,7 @@ export function WorkflowApprovalsCard() {
  * approval: the queue is read again every half minute, and a refetch must never
  * overwrite what the approver is typing.
  */
-function StepApprovalRow({
+export function StepApprovalRow({
   approval,
   deciding,
   onDecide,

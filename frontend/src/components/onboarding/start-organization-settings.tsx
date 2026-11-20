@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
@@ -71,16 +73,16 @@ export function StartOrganizationSettings({
       <p className={`${styles.hint} my-6`}>{t("advancedOptional")}</p>
       <div className={styles.stack}>
         {(can(Perm.approvalsDecide) || can(Perm.orgSettings)) && (
-          <details className={styles.details}>
+          <NativeDisclosure className={styles.details}>
             <summary>{t("advancedSafety")}</summary>
             <div>
               {can(Perm.approvalsDecide) && <OrgApprovalWaiver org={org} />}
               {can(Perm.orgSettings) && <OrgPublicLiveData org={org} />}
             </div>
-          </details>
+          </NativeDisclosure>
         )}
         {(can(Perm.orgSettings) || can(Perm.budgetsManage)) && (
-          <details className={styles.details}>
+          <NativeDisclosure className={styles.details}>
             <summary>{t("advancedAssistants")}</summary>
             <div>
               {can(Perm.orgSettings) && <OrgAssistant orgId={org.id} />}
@@ -91,15 +93,15 @@ export function StartOrganizationSettings({
                 </>
               )}
             </div>
-          </details>
+          </NativeDisclosure>
         )}
         {can(Perm.orgSettings) && (
-          <details className={styles.details}>
+          <NativeDisclosure className={styles.details}>
             <summary>{t("advancedVoice")}</summary>
             <div>
               <OrgVoiceSettings org={org} />
             </div>
-          </details>
+          </NativeDisclosure>
         )}
         <Link
           href={`/orgs/${org.id}/members`}

@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useSecrets } from "@/hooks";
@@ -76,7 +77,10 @@ export function ObservabilityCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("tracing")}</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <McpServerIcon icon={null} name="Logfire" url="https://logfire-us.pydantic.dev" />
+          {t("tracing")}
+        </CardTitle>
         <CardDescription>{t("everyRunAlreadyTraced")}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 sm:grid-cols-3">

@@ -182,11 +182,14 @@ class TestForThisDeployment:
             {"id": "clock"},
         ]
 
-    def test_without_them_the_browser_is_left_out_and_the_workspace_keeps_files(self, monkeypatch):
-        """Either would refuse at publish, and the starter is every new agent's default."""
+    def test_without_them_the_browser_stays_available_and_the_workspace_keeps_files(
+        self, monkeypatch
+    ):
+        """An unavailable browser is a tool failure, not an unavailable agent."""
         monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "")
 
         assert agent_templates.for_this_deployment(self.BINDINGS, container_workspace=False) == [
+            {"id": "browser_use", "config": {"max_steps": 20, "cdp_url": ""}},
             {"id": "sandbox", "config": {"backend": "state"}},
             {"id": "clock"},
         ]
@@ -335,6 +338,23 @@ class TestTheShippedAgenticOSAgent:
         assert template is not None
         assert template.instructions.startswith("You are {{agent_name}}")
 
+    def test_starter_guides_live_work_and_platform_authoring(self):
+        template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
+        assert template is not None
+        for text in (
+            "Co dziś robimy?",
+            "list_task_boards",
+            "list_tasks",
+            "list_inbox_cases",
+            "Monitor and inform",
+            'result_mode="inbox"',
+            "correct_memory",
+            "check_workflow_draft",
+            "test_workflow_draft",
+            "https://github.com/vstorm-co/agenticos/blob/main/CHANGELOG.md",
+        ):
+            assert text in template.instructions
+
 
 def _instruction_texts(value: object) -> list[str]:
     """Every `instructions` string under a template's bindings, at any depth."""
@@ -417,21 +437,27 @@ def test_shipped_agents_have_async_work_and_bounded_search_defaults() -> None:
             "background_tasks",
             "background_tools",
             "tool_search",
-            "conversation_search",
             "subagents",
         } <= bindings.keys()
         assert bindings["tool_search"]["config"] == {
             "strategy": "local_bm25",
             "max_results": 5,
             "defer_capabilities": True,
-            "exclude_capabilities": ["ask_user", "sandbox"],
+            "exclude_capabilities": ["ask_user", "sandbox", "web_research", "web_fetch"]
+            if key == "general/agenticos"
+            else ["ask_user", "sandbox"],
         }
-        assert bindings["conversation_search"]["config"]["max_results"] == 5
+        if key == "general/platform-assistant":
+            assert bindings["conversation_search"]["config"]["max_results"] == 5
         config = bindings["subagents"]["config"]
-        assert config["allow_dynamic"] and config["mode"] == "auto"
+        assert config["mode"] == "auto"
+        assert config["allow_dynamic"] is (key != "general/agenticos")
+        if key == "general/agenticos":
+            assert config["allow_any_agent"] is True
         assert {entry["name"] for entry in config["inline"]} == {"research", "explore", "review"}
         if key == "general/agenticos":
-            assert {"computer_use", "coding_agent", "browser_use"} <= bindings.keys()
+            assert {"coding_agent", "browser_use", "context"} <= bindings.keys()
+            assert bindings["computer_use"]["config"]["desktop"] == "sandbox"
         else:
             assert not (bindings.keys() & agent_templates.AGENTICOS_ONLY)
     assert not (agent_templates.starter_capabilities().keys() & agent_templates.AGENTICOS_ONLY)
@@ -451,3 +477,98 @@ def test_shipped_agents_and_new_agent_defaults_do_not_offer_planning_tools() -> 
         assert "write_plan" not in template.instructions
         assert "planning tool" not in template.instructions
     assert "planning" not in agent_templates.starter_capabilities()
+
+
+def test_agenticos_ships_the_requested_tools_without_a_shared_coding_account() -> None:
+    template = agent_templates.get("general/agenticos")
+    assert template is not None
+    bindings = {binding["id"]: binding for binding in template.capabilities}
+    assert set(bindings) == {
+        "charts",
+        "coding_agent",
+        "computer_use",
+        "sandbox",
+        "visuals",
+        "monitor",
+        "context",
+        "memory_files",
+        "skills",
+        "background_tasks",
+        "subagents",
+        "background_tools",
+        "web_fetch",
+        "browser_use",
+        "web_research",
+        "artifacts",
+        "ask_user",
+        "clock",
+        "drafts",
+        "tool_search",
+        "tool_output_limits",
+        "media",
+        "compaction",
+    }
+    assert all(binding.get("enabled", True) for binding in bindings.values())
+    assert all(binding.get("secret_id") is None for binding in bindings.values())
+    assert bindings["coding_agent"]["config"]["runs_on"] == "personal_sandbox"
+    assert bindings["sandbox"]["config"] == {
+        "backend": "service",
+        "runtime": "desktop",
+        "include_execute": True,
+    }
+    assert bindings["browser_use"]["config"] == {"connection": "built_in", "max_steps": 100}
+
+
+def test_personal_coding_waits_for_a_container_without_switching_accounts_or_execution_mode() -> (
+    None
+):
+    bindings = ({"id": "coding_agent", "config": {"runs_on": "personal_sandbox"}},)
+    assert agent_templates.for_this_deployment(bindings, container_workspace=True) == list(bindings)
+    assert agent_templates.for_this_deployment(bindings, container_workspace=False) == [
+        {**bindings[0], "enabled": False}
+    ]
+    assert "enabled" not in bindings[0]
+
+
+def test_a_missing_container_disables_the_desktop_without_losing_other_tools(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "")
+    template = agent_templates.get("general/agenticos")
+    assert template is not None
+    bindings = {
+        binding["id"]: binding
+        for binding in agent_templates.for_this_deployment(
+            template.capabilities, container_workspace=False
+        )
+    }
+    assert not bindings["computer_use"]["enabled"]
+    assert bindings["browser_use"].get("enabled", True)
+    assert bindings["sandbox"]["config"] == {"backend": "state"}
+    common = agent_templates.starter_capabilities(container_workspace=True)
+    assert "computer_use" not in common
+    assert "runtime" not in common["sandbox"]["config"]
+
+
+def test_agenticos_delegates_only_at_the_users_explicit_request() -> None:
+    template = agent_templates.get("general/agenticos")
+    assert template is not None
+    assert "Use subagents only when the user explicitly asks" in template.instructions
+    assert "research or review alone is not a request for subagents" in template.instructions
+
+
+def test_agenticos_authoring_skills_ship_their_worked_references() -> None:
+    from app.services import skill_library
+
+    template = agent_templates.get(agent_templates.STARTER_TEMPLATE)
+    assert template is not None
+    for key, resource in {
+        "platform-automation": "references/recurrence.md",
+        "platform-context": "references/scopes.md",
+        "platform-skills": "references/authoring.md",
+        "research-and-evidence": "references/coverage.md",
+    }.items():
+        assert key in template.skills
+        skill = skill_library.get(key)
+        assert skill is not None
+        assert resource in skill.content
+        assert resource in {file.name for file in skill.resources}
+    assert "accepts your offer naming the specialist and scope" in template.instructions

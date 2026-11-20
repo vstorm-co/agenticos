@@ -1,11 +1,12 @@
 "use client";
 
-import { ShieldCheck, ShieldAlert, ChevronDown } from "lucide-react";
+import { ShieldCheck, ShieldAlert, ShieldQuestionMark, ChevronDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useOrganizationList, usePermissions } from "@/hooks";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { useOrgStore } from "@/stores/org-store";
 import type { ApprovalMode } from "@/stores/chat-controls-store";
+import { cn } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import {
   DropdownMenu,
@@ -24,9 +25,11 @@ function isMode(value: string): value is ApprovalMode {
 export function ChatApprovalSelector({
   onChange,
   disabled = false,
+  iconOnly = false,
 }: {
   onChange?: (mode: ApprovalMode) => void;
   disabled?: boolean;
+  iconOnly?: boolean;
 }) {
   const t = useTranslations("chat.controls");
   const { can } = usePermissions();
@@ -36,24 +39,40 @@ export function ChatApprovalSelector({
   const mayDecide = can(Perm.approvalsDecide);
   const mayWaive = mayDecide && org?.chat_may_waive_approvals === true;
   const { approvalMode, update } = useSavedChatControls(mayWaive);
-  const Icon = approvalMode === "approve_all" ? ShieldAlert : ShieldCheck;
+  const Icon =
+    approvalMode === "approve_all"
+      ? ShieldAlert
+      : approvalMode === "ask_all"
+        ? ShieldQuestionMark
+        : ShieldCheck;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           data-chat-permission-mode
+          data-icon-only={iconOnly}
+          data-approval-mode={approvalMode}
           title={t("activeApprovalMode", { mode: t(`mode.${approvalMode}`) })}
           disabled={disabled}
           aria-label={t("activeApprovalMode", { mode: t(`mode.${approvalMode}`) })}
-          className="group/approval text-muted-foreground hover:bg-muted hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground focus-visible:ring-ring touch:min-h-11 inline-flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-lg px-2 text-xs transition-colors outline-none focus-visible:ring-2 disabled:opacity-50"
+          className={cn(
+            "group/approval text-muted-foreground hover:bg-muted hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground focus-visible:ring-ring touch:min-h-11 inline-flex h-8 max-w-full min-w-0 items-center gap-1.5 rounded-lg px-2 text-xs transition-colors outline-none focus-visible:ring-2 disabled:opacity-50",
+            iconOnly && "size-9 shrink-0 justify-center px-0",
+            iconOnly && approvalMode === "approve_all" && "text-warning",
+            iconOnly && approvalMode === "ask_all" && "text-foreground",
+          )}
         >
           <Icon className="size-3.5 shrink-0" aria-hidden />
-          <span className="truncate">{t(`compactMode.${approvalMode}`)}</span>
-          <ChevronDown
-            className="size-3 shrink-0 transition-transform group-data-[state=open]/approval:rotate-180 motion-reduce:transition-none"
-            aria-hidden
-          />
+          {!iconOnly && (
+            <>
+              <span className="truncate">{t(`compactMode.${approvalMode}`)}</span>
+              <ChevronDown
+                className="size-3 shrink-0 transition-transform group-data-[state=open]/approval:rotate-180 motion-reduce:transition-none"
+                aria-hidden
+              />
+            </>
+          )}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="end" className="w-80 max-w-[calc(100vw-2rem)]">

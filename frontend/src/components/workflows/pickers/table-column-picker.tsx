@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { AlertTriangle, Check, ChevronDown, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -266,7 +268,10 @@ export function TableColumnPicker({
             </div>
           )}
           {table !== null && !schemaChanged && (pinsColumns || value.column_ids !== null) && (
-            <details open={value.column_ids !== null} className="group rounded-lg border px-3 py-2">
+            <NativeDisclosure
+              open={value.column_ids !== null}
+              className="group rounded-lg border px-3 py-2"
+            >
               <summary className="text-muted-foreground flex cursor-pointer list-none items-center gap-2 text-xs [&::-webkit-details-marker]:hidden">
                 <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" />
                 <span>{t("pickerColumnsLabel")}</span>
@@ -282,7 +287,7 @@ export function TableColumnPicker({
                   disabled={disabled}
                 />
               </div>
-            </details>
+            </NativeDisclosure>
           )}
         </div>
       )}

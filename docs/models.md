@@ -648,11 +648,13 @@ a typo or a retired model is caught rather than shipped as a dropdown the provid
 answers 404 to. A model the snapshot knows but does not price simply has no window,
 which is the null described below.
 
+The subscription picker reads the deployment’s curated list when opened. It has no live account-specific catalog. GPT-6.2 entries were checked against the Codex app server and leave context blank until the pricing snapshot records it.
+
 | Provider | Curated ids |
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
-| `openai_codex` | the same four as `openai` |
+| `openai_codex` | GPT-6.2 Sol and Astra, GPT-6.1 Sol and Terra, GPT-6 Sol, Astra and Luna, and the earlier Codex IDs |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |

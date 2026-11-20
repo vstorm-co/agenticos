@@ -63,7 +63,7 @@ function mount(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <MyClaims />
+      <MyClaims agents={[{ id: "a", slug: "researcher", name: "Researcher" }]} />
     </QueryClientProvider>,
   );
 }
@@ -241,8 +241,11 @@ it.each([null, "Researcher"])(
         }),
       ],
     });
-    await userEvent.click(screen.getByRole("button", { name: /Prefers short answers/ }));
+    const row = screen.getByRole("button", { name: /Prefers short answers/ });
+    expect(row.querySelector('[data-agent-avatar="a"]')).toBeVisible();
+    await userEvent.click(row);
     expect(screen.getByRole("dialog")).toHaveTextContent(`scopeAgent:${agentName ?? "anAgent"}`);
+    expect(screen.getByRole("dialog").querySelector('[data-agent-avatar="a"]')).toBeVisible();
     expect(screen.getByRole("dialog")).toHaveTextContent("drawnFrom:2");
   },
 );

@@ -240,7 +240,10 @@ class TestCuratedFallbacksAreData:
             if priced_model(provider, entry.id) is None
         ]
 
-        assert unknown == []
+        # Verified through the Codex app-server model list. Subscription access
+        # can precede the public pricing snapshot, so these show no context size.
+        verified_codex_models = {"openai_codex:gpt-6.2-sol", "openai_codex:gpt-6.2-astra"}
+        assert set(unknown) <= verified_codex_models
 
     def test_a_model_the_snapshot_knows_without_a_window_is_not_a_failure(self):
         # Two of the curated ids are exactly this today - `gemini-3.1-pro-preview`

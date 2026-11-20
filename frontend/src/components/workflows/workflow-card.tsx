@@ -3,6 +3,12 @@
 import { ResourceIcon } from "@/components/ui/resource-icon";
 
 import Link from "next/link";
+import {
+  ResourceCard,
+  ResourceCardHeader,
+  ResourceCardDescription,
+  ResourceCardFooter,
+} from "@/components/ui/resource-card";
 import { useState } from "react";
 import {
   Activity,
@@ -78,81 +84,68 @@ export function WorkflowCard({
 
   return (
     <div className="h-full rounded-xl">
-      <div
-        className={cn(
-          "border-foreground/8 bg-card relative flex h-full flex-col rounded-xl border p-4 transition-colors",
-          "hover:border-foreground/25",
-          archived && "opacity-70",
-          busy && "pointer-events-none opacity-50",
-        )}
+      <ResourceCard
+        className={cn(archived && "opacity-70", busy && "pointer-events-none opacity-50")}
       >
         <Link
           href={ROUTES.WORKFLOW_DETAIL(workflow.id)}
           className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
           aria-label={tc("openNamed", { name: workflow.name })}
         />
-        <div className="pointer-events-none relative mb-3 flex items-start gap-3">
+        <ResourceCardHeader className="pointer-events-none">
           <ResourceIcon kind="workflow" icon={workflow.icon} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-foreground truncate font-medium">{workflow.name}</p>
-                <p className="text-muted-foreground truncate text-xs">
-                  {startsFrom === null
-                    ? t("cardSteps", { count: workflow.step_count })
-                    : t("cardStartsFrom", { trigger: startsFrom, count: workflow.step_count })}
-                </p>
-              </div>
-              <Badge
-                variant="outline"
-                className="text-muted-foreground shrink-0 gap-1.5 font-normal"
-              >
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "size-1.5 rounded-full",
-                    archived ? "bg-muted-foreground/50" : live ? "bg-success" : "bg-warning",
-                  )}
-                />
-                {archived ? t("statusArchived") : live ? t("statusLive") : t("statusDraft")}
-              </Badge>
-            </div>
-            <p className="text-muted-foreground mt-2 line-clamp-2 min-h-10 text-sm">
-              {workflow.description || t("cardNoDescription")}
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <p className="text-foreground line-clamp-2 font-semibold break-words">
+              {workflow.name}
             </p>
-            <div className="mt-2 flex min-h-5 flex-wrap items-center gap-1.5">
-              <Badge variant="outline" className="text-muted-foreground gap-1 font-normal">
-                {" "}
-                <span
-                  role="img"
-                  aria-label={t(`visibility.${visibility}`)}
-                  title={t(`visibility.${visibility}`)}
-                  className="pointer-events-auto inline-flex shrink-0 items-center gap-1"
-                >
-                  <VisibilityIcon className="h-3.5 w-3.5" aria-hidden />
-                  <span>{t(`visibility.${visibility}`)}</span>
-                </span>
-              </Badge>
-              {showsTrigger && (
-                <Badge variant="outline" className="text-muted-foreground gap-1.5 font-normal">
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "size-1.5 rounded-full",
-                      workflow.trigger_active ? "bg-success" : "bg-muted-foreground/40",
-                    )}
-                  />
-                  {workflow.trigger_active ? t("activeOn") : t("activeOff")}
-                </Badge>
-              )}
-              {workflow.tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="font-normal">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
+            <span
+              role="img"
+              aria-label={t(`visibility.${visibility}`)}
+              title={t(`visibility.${visibility}`)}
+              className="text-muted-foreground flex items-center gap-1.5 text-xs"
+            >
+              <VisibilityIcon className="size-3 shrink-0" aria-hidden />
+              <span>{t(`visibility.${visibility}`)}</span>
+            </span>
           </div>
-        </div>
+        </ResourceCardHeader>
+        <ResourceCardDescription className="pointer-events-none">
+          {workflow.description || t("cardNoDescription")}
+        </ResourceCardDescription>
+        <ResourceCardFooter className="pointer-events-none">
+          <Badge variant="outline" className="text-muted-foreground shrink-0 gap-1.5 font-normal">
+            <span
+              aria-hidden="true"
+              className={cn(
+                "size-1.5 rounded-full",
+                archived ? "bg-muted-foreground/50" : live ? "bg-success" : "bg-warning",
+              )}
+            />
+            {archived ? t("statusArchived") : live ? t("statusLive") : t("statusDraft")}
+          </Badge>
+          <span className="text-muted-foreground text-xs">
+            {startsFrom === null
+              ? t("cardSteps", { count: workflow.step_count })
+              : t("cardStartsFrom", { trigger: startsFrom, count: workflow.step_count })}
+          </span>
+          {showsTrigger && (
+            <Badge variant="outline" className="text-muted-foreground gap-1.5 font-normal">
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "size-1.5 rounded-full",
+                  workflow.trigger_active ? "bg-success" : "bg-muted-foreground/40",
+                )}
+              />
+              {workflow.trigger_active ? t("activeOn") : t("activeOff")}
+            </Badge>
+          )}
+          {workflow.tags.map((tag) => (
+            <Badge key={tag} variant="secondary" className="font-normal">
+              {tag}
+            </Badge>
+          ))}
+        </ResourceCardFooter>
         <div className="relative mt-auto flex items-center justify-between gap-x-2 gap-y-1 pt-3">
           <span className="text-muted-foreground pointer-events-none flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
             {workflow.last_run !== null ? (
@@ -221,7 +214,7 @@ export function WorkflowCard({
             )}
           </div>
         </div>
-      </div>
+      </ResourceCard>
       <ConfirmDialog
         open={deleting}
         onOpenChange={setDeleting}

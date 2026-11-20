@@ -261,6 +261,17 @@ describe("the Architect widget", () => {
     expect(chat()).toHaveAttribute("data-prompt", "And another");
   });
 
+  it("opens from agent creation without sending or replacing an existing draft", () => {
+    useArchitectAskStore.setState({ request: null });
+    render(<AssistantWidget />);
+    act(() => useArchitectAskStore.getState().ask("Keep this draft", { draft: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Close", expanded: true }));
+    act(() => useArchitectAskStore.getState().open());
+    expect(screen.getByRole("dialog", { name: "Architect" })).not.toHaveClass("hidden");
+    expect(chat()).toHaveAttribute("data-draft", "Keep this draft");
+    expect(chat()).toHaveAttribute("data-prompt", "");
+  });
+
   it("writes a draft ask into the message box for the reader to send, sending nothing", () => {
     useArchitectAskStore.setState({ request: null });
     render(<AssistantWidget />);

@@ -97,19 +97,13 @@ export function ToolApprovalDialog({
     );
 
   return (
-    // A batch uses the full card width, with decisions below the scrolling
-    // list: its scrollbar must not look like a divider beside the buttons.
-    // For one call, the answers sit beside the question: under it, a
-    // folded Details left a band of empty card between what was asked and the
-    // buttons that answer it.
-    // Laid out by the card's own width, not the window's: in the Architect's
-    // widget the window is wide and the card is not, and buttons beside the
-    // question squeezed what was asked into a column a third of the card.
+    // Keep batch decisions below the scrollable requests. A single request has
+    // room for decisions beside it whenever the card itself is wide enough.
     <div className="@container" role="group" aria-label={t("toolApprovalRequired")}>
       <div
         className={cn(
-          "border-border bg-card flex flex-col gap-3 rounded-xl border p-3 shadow-sm",
-          !batch && "@xl:flex-row @xl:items-start",
+          "border-border bg-card flex flex-col gap-2 rounded-xl border px-3 py-2 shadow-sm",
+          !batch && "@md:flex-row @md:items-start",
         )}
       >
         <ul
@@ -131,15 +125,12 @@ export function ToolApprovalDialog({
                   callSummary(args))
                 : null;
             return (
-              <li key={action.id} className="flex gap-3">
-                <ToolMark toolName={action.tool_name} />
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <p className="text-muted-foreground text-xs font-medium">
-                    {t("toolApprovalRequired")}
-                  </p>
+              <li key={action.id} className="flex gap-2.5">
+                <ToolMark toolName={action.tool_name} className="size-7" />
+                <div className="min-w-0 flex-1 space-y-0.5">
                   {/* The question, in the words the step above it uses - "Allow
                     Search in Notion?" - rather than `notion_notion-search`. */}
-                  <p className="text-foreground text-sm font-medium">
+                  <p className="text-foreground pt-1 text-sm leading-5 font-medium">
                     {draft !== null
                       ? t("draftProposalTitle")
                       : t("approvalAsk", { action: phrase(action.tool_name) })}
@@ -155,8 +146,8 @@ export function ToolApprovalDialog({
                   {summary !== null && (
                     <p
                       className={cn(
-                        "text-foreground/80 line-clamp-2 text-sm break-words",
-                        ("command" in args || "cmd" in args) && "font-mono text-xs",
+                        "text-muted-foreground line-clamp-2 text-xs break-words",
+                        ("command" in args || "cmd" in args) && "font-mono",
                       )}
                       title={summary}
                     >
@@ -175,7 +166,7 @@ export function ToolApprovalDialog({
         </ul>
 
         {mayDecide ? (
-          <div className={cn("flex shrink-0 justify-end gap-2", !batch && "@xl:pt-4")}>
+          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
             <Button
               size="sm"
               variant="ghost"
@@ -220,7 +211,7 @@ export function ToolApprovalDialog({
             </div>
           </div>
         ) : (
-          <p className="text-muted-foreground max-w-56 shrink-0 text-xs @xl:pt-4">
+          <p className="text-muted-foreground max-w-56 shrink-0 text-xs @md:pt-1">
             {t("decidingNeedsPermission")}
           </p>
         )}

@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ChatWelcome, WelcomeIcon } from "./chat-welcome";
 
 describe("ChatWelcome", () => {
-  it("puts suggestions below the composer without first rendering them in the greeting", () => {
+  it("puts suggestions into the composer slot without first drawing them in the greeting", () => {
     const target = document.createElement("div");
     document.body.append(target);
     const props = {
@@ -74,4 +74,28 @@ describe("ChatWelcome", () => {
     expect(onRemove).toHaveBeenCalledOnce();
     expect(onPick).not.toHaveBeenCalled();
   });
+});
+
+it("keeps the quiet starter's icon, title and description on view", () => {
+  const { container } = render(
+    <ChatWelcome
+      quiet
+      mark={<span />}
+      title="Welcome"
+      lead="Ready"
+      suggestions={[
+        {
+          key: "draft",
+          icon: Ban,
+          title: "A starter",
+          description: "A short description",
+          prompt: "The full prompt",
+        },
+      ]}
+      onPick={vi.fn()}
+    />,
+  );
+  expect(screen.getByText("A short description")).not.toHaveClass("sr-only");
+  expect(container.querySelector(".lucide-ban")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /A starter\s*A short description/ })).toBeVisible();
 });

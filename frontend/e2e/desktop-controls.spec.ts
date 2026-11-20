@@ -292,6 +292,11 @@ test.describe("desktop pointer controls", () => {
     }
     const id = listingText(conversation.id);
     try {
+      // Files are intentionally disabled until a conversation has its first turn.
+      const message = await page.request.post(`/api/conversations/${id}/messages`, {
+        data: { role: "user", content: "Workspace scroll fixture" },
+      });
+      expect(message.ok()).toBe(true);
       await page.route(`**/api/conversations/${id}/workspace`, (route) =>
         route.fulfill({
           json: {

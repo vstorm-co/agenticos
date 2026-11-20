@@ -928,6 +928,7 @@ def platform_spec(
         approval=approval,
         tool_approval=own,
         in_process=True,
+        trust_read_only_hints=True,
         ungated=PLATFORM_UNGATED_TOOLS,
         always_asks=PLATFORM_ALWAYS_ASK_TOOLS,
     )

@@ -61,6 +61,7 @@ beforeEach(() => {
 
 /**
  * The panel beside the transcript.
+ * Main-chat callers can disable it until their first message; embedded callers retain access.
  *
  * Two properties carry it. It is always reachable - one icon among the composer's controls,
  * because hiding it until a workspace row exists made it unreachable for the whole
@@ -75,6 +76,40 @@ beforeEach(() => {
  * has a copy of is one file rather than two.
  */
 describe("the workspace panel", () => {
+  it("does not open or fetch files before the first message", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+          beforeFirstMessage
+        />
+      </QueryClientProvider>,
+    );
+    const button = screen.getByRole("button", { name: /^Show the files/ });
+    expect(button).toBeDisabled();
+    await userEvent.click(button);
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+    expect(apiClient.get).not.toHaveBeenCalled();
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+          beforeFirstMessage={false}
+        />
+      </QueryClientProvider>,
+    );
+    expect(button).toBeEnabled();
+    await openPanel();
+    expect(await screen.findByText("report.csv")).toBeVisible();
+  });
+
   it("draws its button only once the composer has a place for it", () => {
     draw(<WorkspaceFiles buttonSlot={null} conversationId="c1" attachments={[]} revision={0} />);
 

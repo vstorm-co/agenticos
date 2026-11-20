@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, ExternalLink, MessageSquare } from "lucide-react";
+import { Check, Clock, ExternalLink, MessageSquare, MoreHorizontal } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import {
@@ -11,6 +11,12 @@ import {
   useSuggestionSource,
 } from "@/components/chat/suggestion-actions";
 import { Badge, Button, Skeleton } from "@/components/ui";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { Suggestion } from "@/lib/suggestions-api";
 import { cn, timeAgo } from "@/lib/utils";
 
@@ -52,6 +58,13 @@ export function SuggestionRows({
               : null;
           const url =
             tableUrl ?? (suggestion.kind === "finding" ? findingUrl(suggestion.payload.url) : null);
+          const workingChat = suggestion.payload.conversation_id;
+          const workingChatUrl =
+            suggestion.kind === "finding" &&
+            typeof workingChat === "string" &&
+            /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(workingChat)
+              ? `/chat?id=${encodeURIComponent(workingChat)}`
+              : null;
           const server = sourceOf(suggestion);
           const source = server?.name ?? tInbox(`source.${suggestion.kind}`);
           const waitingSource =
@@ -139,39 +152,79 @@ export function SuggestionRows({
                     : "md:col-start-3 md:row-start-1 md:self-center",
                 )}
               >
-                {suggestion.kind === "finding" &&
-                  typeof suggestion.payload.conversation_id === "string" &&
-                  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                    suggestion.payload.conversation_id,
-                  ) && (
-                    <Button asChild size="sm" variant="secondary" className="h-8">
+                {dense ? (
+                  <>
+                    {workingChatUrl && (
+                      <Button asChild size="sm" variant="secondary" className="h-8">
+                        <Link href={workingChatUrl}>
+                          <MessageSquare className="size-3.5" aria-hidden />
+                          {tInbox("openWorkingChat")}
+                        </Link>
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="h-8"
+                      onClick={() => take(suggestion)}
+                    >
+                      {suggestion.kind === "finding" && <Check className="size-3.5" aria-hidden />}
+                      {t(`take.${suggestion.kind}`)}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground h-8"
+                      onClick={() => notNow(suggestion)}
+                    >
+                      <Clock className="size-3.5" aria-hidden />
+                      {t("notNow")}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button asChild size="sm" variant="ghost" className="h-8">
                       <Link
-                        href={`/chat?id=${encodeURIComponent(suggestion.payload.conversation_id)}`}
+                        href={`/chat?new=inbox-${suggestion.id}&discuss=${suggestion.id}&answerer=agenticos`}
                       >
                         <MessageSquare className="size-3.5" aria-hidden />
-                        {tInbox("openWorkingChat")}
+                        {tInbox("discuss")}
                       </Link>
                     </Button>
-                  )}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="h-8"
-                  onClick={() => take(suggestion)}
-                >
-                  {suggestion.kind === "finding" && <Check className="size-3.5" aria-hidden />}
-                  {t(`take.${suggestion.kind}`)}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="text-muted-foreground h-8"
-                  onClick={() => notNow(suggestion)}
-                >
-                  {t("notNow")}
-                </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="text-muted-foreground size-8"
+                          aria-label={tInbox("moreActions", { title: suggestion.title })}
+                        >
+                          <MoreHorizontal className="size-4" aria-hidden />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {workingChatUrl && (
+                          <DropdownMenuItem asChild>
+                            <Link href={workingChatUrl}>{tInbox("openWorkingChat")}</Link>
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onSelect={() => take(suggestion)}>
+                          {suggestion.kind === "finding" && (
+                            <Check className="size-4" aria-hidden />
+                          )}
+                          {t(`take.${suggestion.kind}`)}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => notNow(suggestion)}>
+                          <Clock className="size-3.5" aria-hidden />
+                          {t("notNow")}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
+                )}
               </div>
             </li>
           );

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MessageItem } from "./message-item";
+import { MainChatContext } from "./main-chat-context";
 import { draftsAsText, draftsOf } from "@/lib/drafts";
 import * as motion from "@/lib/motion";
 import { foldWork, runsOf, TurnParts } from "./turn-parts";
@@ -1209,6 +1210,46 @@ describe("the step a reopened turn leaves open", () => {
     toolCall: { id: `tc-${id}`, name: "ls", args: {}, status: "completed" as const },
   });
 
+  it("shows individual tool calls directly inside the main chat work summary", () => {
+    const { container } = render(
+      <MainChatContext.Provider value={true}>
+        <MessageItem message={message({ parts: [toolPart("a"), toolPart("b")] })} />
+      </MainChatContext.Provider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Worked · 2 steps" }));
+    expect(screen.getByTestId("tool-tc-a")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-b")).toBeVisible();
+    expect(container.querySelector("[data-chat-work-steps] summary")).toBeNull();
+  });
+
+  it("keeps visible prose between chronological work groups when both are folded", () => {
+    render(
+      <MainChatContext.Provider value={true}>
+        <MessageItem
+          message={message({
+            parts: [
+              { id: "intro", type: "text", content: "I will check both sources." },
+              toolPart("a"),
+              { id: "update", type: "text", content: "The first source has a match." },
+              toolPart("b"),
+              { id: "answer", type: "text", content: "Both sources confirm it." },
+            ],
+          })}
+        />
+      </MainChatContext.Provider>,
+    );
+    const folds = screen.getAllByRole("button", { name: /Worked.*1 step/ });
+    expect(folds).toHaveLength(2);
+    for (const fold of folds) expect(fold).toHaveAttribute("aria-expanded", "false");
+    const intro = screen.getByText("I will check both sources.");
+    const update = screen.getByText("The first source has a match.");
+    const answer = screen.getByText("Both sources confirm it.");
+    for (const line of [intro, update, answer]) expect(line).toBeVisible();
+    expect(intro.compareDocumentPosition(folds[0]!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(folds[0]!.compareDocumentPosition(update)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(update.compareDocumentPosition(folds[1]!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
   it("opens the run's last step and leaves the ones before it closed", () => {
     render(
       <MessageItem message={message({ parts: [toolPart("a"), toolPart("b")] })} openLastStep />,
@@ -1577,12 +1618,15 @@ describe("the work before an answer", () => {
 
     view.rerender(<MessageItem message={message({ parts, isStreaming: false })} />);
     expect(screen.getByText("Here is the final comparison.")).toBeVisible();
-    expect(screen.queryByText("I will check Poland first.")).toBeNull();
+    expect(screen.getByText("I will check Poland first.")).toBe(first);
+    expect(first.closest("[inert]")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("region")).toBeNull();
     const toggle = screen.getByRole("button", { name: /Worked/ });
     expect(screen.getAllByRole("button", { name: /Worked/ })).toHaveLength(1);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(toggle);
-    expect(screen.getByText("I will check Poland first.")).toBeVisible();
+    expect(screen.getByText("I will check Poland first.")).toBe(first);
+    expect(first).toBeVisible();
     expect(screen.getByTestId("tool-tc-poland")).toBeVisible();
     expect(screen.getByText("Here is the final comparison.").closest('[role="region"]')).toBeNull();
   });

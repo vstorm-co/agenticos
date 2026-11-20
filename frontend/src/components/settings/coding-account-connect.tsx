@@ -1,4 +1,7 @@
 "use client";
+import { cn } from "@/lib/utils";
+
+import { NATIVE_CHOICE } from "@/components/ui/control-styles";
 
 import { useState, useEffect, useId, type FormEvent } from "react";
 import { BrandIcon } from "@/components/icons/brand-icon";
@@ -8,12 +11,14 @@ import {
   Button,
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   FormField,
   Input,
 } from "@/components/ui";
-import { CodexDeviceCode } from "@/components/vault/chatgpt-sign-in";
+import { ChatGPTCallbackSteps } from "@/components/vault/chatgpt-sign-in";
 import { getErrorMessage } from "@/lib/api-error";
 import type { CodingHarness } from "@/lib/coding-accounts-api";
 import type { useCodingAccounts } from "@/hooks/use-coding-accounts";
@@ -43,11 +48,11 @@ export function CodingAccountConnect({
   const formId = useId();
   const t = useTranslations("codingAccounts");
   const errors = useTranslations("errors");
-  const [label, setLabel] = useState("");
+  const common = useTranslations("common");
+  const label = t(harness);
   const [credential, setCredential] = useState("");
   const [enabled, setEnabled] = useState(false);
-  const [oauth, setOAuth] = useState(false);
-  const [authorization, setAuthorization] = useState<string | null>(null);
+  const [oauth, setOAuth] = useState(harness === "codex");
   const [deviceState, setDeviceState] = useState<string | null>(null);
   const pending =
     actions.connect.isPending || actions.complete.isPending || actions.start.isPending;
@@ -59,7 +64,7 @@ export function CodingAccountConnect({
         await actions.complete.mutateAsync(
           deviceState !== null
             ? { label, device_state: deviceState, enabled }
-            : { label, callback_url: credential, enabled },
+            : { label, callback_url: credential.trim(), enabled },
         );
       else await actions.connect.mutateAsync({ harness, label, api_key: credential, enabled });
       setCredential("");
@@ -67,7 +72,6 @@ export function CodingAccountConnect({
       actions.complete.reset();
       onClose();
     } catch (error) {
-      if (oauth) setAuthorization(null);
       failure(error);
     }
   };
@@ -75,31 +79,40 @@ export function CodingAccountConnect({
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open && !pending) onClose();
       }}
     >
-      <DialogContent className="sm:max-w-lg" data-coding-account-connect>
+      <DialogContent dismissible={!pending} className="sm:max-w-lg" data-coding-account-connect>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BrandIcon name={harness} className="size-5" />
             {t("connectNamed", { name: t(harness) })}
           </DialogTitle>
+          <DialogDescription>{t("sharing")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={(event) => void submit(event)} className="space-y-4">
-          <FormField label={t("label")} htmlFor={`${formId}-label`}>
-            <Input
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-              maxLength={120}
-              required
-            />
-          </FormField>
           {harness === "codex" && (
             <div className="flex gap-2">
               <Button
                 type="button"
-                variant={oauth ? "outline" : "default"}
+                variant={oauth ? "default" : "outline"}
+                aria-pressed={oauth}
+                disabled={pending}
                 onClick={() => {
+                  if (oauth) return;
+                  setOAuth(true);
+                  setCredential("");
+                }}
+              >
+                {t("chatGPT")}
+              </Button>
+              <Button
+                type="button"
+                variant={oauth ? "outline" : "default"}
+                aria-pressed={!oauth}
+                disabled={pending}
+                onClick={() => {
+                  if (!oauth) return;
                   setOAuth(false);
                   setCredential("");
                   setDeviceState(null);
@@ -107,64 +120,25 @@ export function CodingAccountConnect({
               >
                 {t("apiKey")}
               </Button>
-              <Button
-                type="button"
-                variant={oauth ? "default" : "outline"}
-                onClick={() => {
-                  setOAuth(true);
-                  setCredential("");
-                }}
-              >
-                {t("chatGPT")}
-              </Button>
             </div>
           )}
           {oauth ? (
-            <div className="space-y-3 text-sm">
-              <CodexDeviceCode
-                endpoint="/coding-accounts/codex/device"
-                onAuthorized={setDeviceState}
-                disabled={pending}
-              />
-              <details className="text-xs">
-                <summary className="text-muted-foreground hover:text-foreground cursor-pointer">
-                  {t("pasteInstead")}
-                </summary>
-                <div className="space-y-2 pt-3 text-sm">
-                  <p className="text-muted-foreground">{t("oauthHelp")}</p>
-                  {authorization ? (
-                    <a href={authorization} target="_blank" rel="noreferrer" className="underline">
-                      {t("continueOpenAI")}
-                    </a>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={pending}
-                      onClick={() =>
-                        void actions.start
-                          .mutateAsync()
-                          .then((result) => setAuthorization(result.authorization_url))
-                          .catch(failure)
-                      }
-                    >
-                      {t("startSignIn")}
-                    </Button>
-                  )}
-                  <FormField label={t("callback")} htmlFor={`${formId}-credential`}>
-                    <Input
-                      type="password"
-                      autoComplete="off"
-                      value={credential}
-                      onChange={(event) => setCredential(event.target.value)}
-                      maxLength={8192}
-                    />
-                  </FormField>
-                </div>
-              </details>
-            </div>
+            <ChatGPTCallbackSteps
+              deviceEndpoint="/coding-accounts/codex/device"
+              onDeviceAuthorized={setDeviceState}
+              callbackUrl={credential}
+              onCallbackUrlChange={setCredential}
+              startSignIn={actions.start.mutateAsync}
+              starting={actions.start.isPending}
+              disabled={pending}
+              idPrefix={formId}
+            />
           ) : (
-            <FormField label={t("credential")} htmlFor={`${formId}-credential`}>
+            <FormField
+              label={harness === "codex" ? t("apiKey") : t("credential")}
+              htmlFor={`${formId}-credential`}
+              description={t("keyHelp")}
+            >
               <Input
                 type="password"
                 autoComplete="off"
@@ -173,26 +147,31 @@ export function CodingAccountConnect({
                 required
                 minLength={8}
                 maxLength={8192}
+                disabled={pending}
               />
             </FormField>
           )}
-          {!oauth && <p className="text-muted-foreground text-xs">{t("keyHelp")}</p>}
           <label className="flex items-start gap-2 text-sm">
             <input
               type="checkbox"
               checked={enabled}
+              disabled={pending}
               onChange={(event) => setEnabled(event.target.checked)}
-              className="mt-1"
+              className={cn(NATIVE_CHOICE, "mt-1")}
             />
             {t("consent")}
           </label>
-          <p className="text-muted-foreground text-xs">{t("sharing")}</p>
-          <Button
-            type="submit"
-            disabled={pending || !label.trim() || (!credential && !(oauth && deviceState))}
-          >
-            {pending ? t("connecting") : t("connect")}
-          </Button>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={pending} onClick={onClose}>
+              {common("cancel")}
+            </Button>
+            <Button
+              type="submit"
+              disabled={pending || (!credential.trim() && !(oauth && deviceState !== null))}
+            >
+              {pending ? t("connecting") : t("connect")}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

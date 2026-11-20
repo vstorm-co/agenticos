@@ -10,7 +10,7 @@ import { AutoConsentSetting } from "@/components/artifacts/auto-consent-setting"
 import { PublicDataControl } from "@/components/artifacts/public-data-control";
 import { PublicLinkCard } from "@/components/artifacts/public-link-card";
 import { EmbedSnippet, PublicLinkSettings } from "@/components/artifacts/public-link-settings";
-import { CopyButton } from "@/components/chat/copy-button";
+import { ShareLinkField } from "@/components/sharing/share-link-field";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import {
   Alert,
@@ -21,8 +21,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  Input,
-  Label,
 } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
@@ -84,16 +82,7 @@ function PageLinkField({ artifactId }: { artifactId: string }) {
   const pageUrl = `${window.location.origin}${ROUTES.ARTIFACT_DETAIL(artifactId)}${org}`;
   return (
     <div className="space-y-2">
-      <Label htmlFor="artifact-page-link">{t("pageLink")}</Label>
-      <div className="flex items-center gap-2">
-        <Input
-          id="artifact-page-link"
-          readOnly
-          value={pageUrl}
-          className="font-mono text-base md:text-xs"
-        />
-        <CopyButton text={pageUrl} className="h-8 w-8 opacity-100" />
-      </div>
+      <ShareLinkField label={t("pageLink")} url={pageUrl} />
       <p className="text-muted-foreground text-sm">{t("pageLinkWhy")}</p>
     </div>
   );

@@ -1,5 +1,9 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
+import { NATIVE_CHOICE } from "@/components/ui/control-styles";
+
 import { NativeSelect } from "@/components/ui/native-select";
 import { MobileConversationNotifications } from "@/components/mobile/notification-preferences";
 import { ConversationNotificationToggle } from "@/components/desktop/notification-settings";
@@ -280,7 +284,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
   };
 
   return (
-    <details className="group border-foreground/8 border-b py-3">
+    <NativeDisclosure className="group border-foreground/8 border-b py-3">
       <summary className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-medium [&::-webkit-details-marker]:hidden">
         <FolderOpen className="text-muted-foreground size-4" aria-hidden />
         <span>{t("title")}</span>
@@ -488,6 +492,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                     <label key={service.id} className="flex min-h-10 items-center gap-2 text-xs">
                       <input
                         type="checkbox"
+                        className={NATIVE_CHOICE}
                         checked={(target.mcp_services ?? []).includes(service.id)}
                         disabled={
                           (target.mcp_services?.length ?? 0) >= 8 &&
@@ -553,6 +558,6 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
           </div>
         )}
       </div>
-    </details>
+    </NativeDisclosure>
   );
 }

@@ -1,17 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Brain, CheckCircle2, GitBranch, SlidersHorizontal, UsersRound, Bot } from "lucide-react";
+import { Brain, CheckCircle2, GitBranch, SlidersHorizontal, UsersRound } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Badge, ListCard, ListCardEmpty, SearchInput } from "@/components/ui";
 import { useMyClaims } from "@/hooks/use-my-claims";
 import { CLAIMS_PAGE_SIZE, type MemoryClaimFilters } from "@/lib/memory-api";
+import type { AgentUsage } from "@/types/agents";
 import { ClaimDetail } from "./claim-detail";
 import { ClaimFilters, type Kind, type Scope } from "./claim-filters";
 import { MemoryPager, MemoryRow } from "./memory-list";
+import { MemoryAgentAvatar } from "./memory-agent-avatar";
 
-export function MyClaims() {
+export function MyClaims({ agents }: { agents: readonly AgentUsage[] }) {
   const t = useTranslations("pages.memory.claims");
   const view = useTranslations("pages.memory.browser");
   const [q, setQ] = useState("");
@@ -36,7 +38,6 @@ export function MyClaims() {
     <ListCard
       title={view("memories")}
       namedByPage
-      fill
       counted={isLoading || !page ? null : view("count", { count: page.total })}
       contentClassName="p-0"
       headerTour="my-claims"
@@ -99,7 +100,7 @@ export function MyClaims() {
                 {item.scope === "profile" ? (
                   <UsersRound className="size-3" aria-hidden />
                 ) : (
-                  <Bot className="size-3" aria-hidden />
+                  <MemoryAgentAvatar agent={agents.find((agent) => agent.id === item.agent_id)} />
                 )}
                 {item.scope === "profile" ? t("scopeProfile") : (item.agent_name ?? t("anAgent"))}
               </span>
@@ -125,6 +126,7 @@ export function MyClaims() {
         <ClaimDetail
           key={claim.id}
           claim={claim}
+          agent={agents.find((agent) => agent.id === claim.agent_id)}
           correct={correct}
           retract={retract}
           onClose={() => setSelected(null)}

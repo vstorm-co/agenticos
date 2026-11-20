@@ -83,7 +83,11 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 
 For production channel pictures, set `VISUAL_RENDER_CDP_URL=http://visual-render:9222` and `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` in `backend/.env`. `scripts/deploy.sh` then enables the `visuals` profile in `docker-compose-prod.yml`; for a manual start, add `--profile visuals`.
 
-Interactive public browsing needs a separate browser: set `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` and `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Deployment enables the `browser` profile. Configure each agent's `browser_use.cdp_url` as `http://browser:9222` and publish its draft. The interactive browser has only proxy egress; Squid refuses private and metadata destinations. Keep `VISUAL_RENDER_CDP_URL=http://visual-render:9222` for isolated drawing. A missing agent domain restriction permits public sites; an explicit domain list still applies.
+Interactive public browsing needs a separate browser: set `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` and `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Deployment enables the `browser` profile. Agents using **Built in** inherit `BROWSER_SIGN_IN_CDP_URL` when their own `cdp_url` is empty. The interactive browser has only proxy egress; Squid refuses private and metadata destinations. Keep `VISUAL_RENDER_CDP_URL=http://visual-render:9222` for isolated drawing. A missing agent domain restriction permits public sites; an explicit domain list still applies.
+
+The default AgenticOS uses **Built in** browsing with up to 100 steps per call and **Computer use → Docker / Sandbox** on the `desktop` runtime. That runtime includes the workbench coding and document tools. Without a container connection, desktop and personal cloud coding stay disabled. A missing browser endpoint or unavailable browser container affects browser calls only; it does not prevent the agent from being published or answering with its other tools. Configured endpoints still require the operator allowlist.
+
+AgenticOS works directly unless the user explicitly asks for subagents or parallel agent work. Its Delegates settings enable all accessible published agents in the current organization; permissions still apply, explicit pins retain their versions, and unattended routines do not gain this catalog. Dynamic specialist creation is off.
 
 The renderer has no published port or internet route, is shared by the API and worker, and is capped at 1 CPU and 1 GiB RAM. Published backend images include the `browser` extra; a custom image needs `EXTRAS="--extra browser"`. If rendering fails, the channel reply explicitly says the picture could not be attached. Each render permits at most 256 requests and 32 pending responses; map tiles also share `RATE_LIMIT_MAP_TILES_PER_MINUTE` across renderers.
 
@@ -216,7 +220,7 @@ Where each issuer lives, and what to register:
 
 | Provider | Issuer | Register the redirect URI as |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | A **Web** platform redirect URI on the app registration. Grant `openid`, `email`, `profile` under API permissions |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | A **Web** platform redirect URI on the app registration. Grant `openid`, `email`, `profile` under API permissions. Under **Token configuration**, add the optional claims `email` and `xms_edov` to the **ID** token |
 | **Okta** | `https://<org>.okta.com` (or a custom authorization server's `/oauth2/<id>`) | A sign-in redirect URI on a **Web** application |
 | **Keycloak** | `https://<host>/realms/<realm>` | A valid redirect URI on a confidential client with standard flow enabled |
 
@@ -231,6 +235,13 @@ Two things the platform requires of whatever provider it is pointed at:
     unconfirmed address means anybody at that provider can claim anybody's work
     address, and the domain allow-list below is built on an address meaning
     something.
+  On Entra the claim has to be on the **ID token**: its UserInfo endpoint
+  returns only `sub`, `name`, `family_name`, `given_name`, `picture` and
+  `email`. `OIDC_VERIFIED_CLAIM` has to name a claim whose *value* is true for a
+  confirmed address; naming one every token carries, such as `sub`, confirms
+  nothing and is not accepted. A refused sign-in logs
+  `oauth_callback_claims_rejected` with the failed condition (`reason`) and the
+  names, never the values, of the claims received.
 - **A stable `sub`.** The account is keyed on it, not on the address, so a
   person who changes their name or whose domain is bought keeps their history -
   and the next holder of a freed address does not inherit it. It is stored

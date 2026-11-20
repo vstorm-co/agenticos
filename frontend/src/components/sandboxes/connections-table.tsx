@@ -183,7 +183,6 @@ export function ConnectionsTable({
       loading={loading}
       skeletonRows={3}
       stackOnNarrow
-      fillHeight
       getRowKey={(connection) => connection.id}
       className="rounded-none border-0 bg-transparent"
     />

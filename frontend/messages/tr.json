@@ -2523,8 +2523,7 @@
       "restore": "Bu notu yeniden kullan",
       "delete": "Bu notu sil",
       "browser": {
-        "editNoteHint": "Agent’ın sizin hakkınızda hatırladıklarını düzeltin. Düzenlemeleriniz ilk agent kaydından ayrı tutulur.",
-        "noteContent": "Not içeriği"
+        "editNoteHint": "Agent’ın sizin hakkınızda hatırladıklarını düzeltin. Düzenlemeleriniz ilk agent kaydından ayrı tutulur."
       }
     },
     "agentDetail": {
@@ -2625,8 +2624,8 @@
       "shareLinkExpired": "Bu paylaşım bağlantısının süresi dolmuş veya bağlantı iptal edilmiş olabilir.",
       "shareLinkNotFound": "Paylaşım bağlantısı bulunamadı",
       "sharedConversation": "Paylaşılan konuşma",
-      "sharedConversationReadOnly": "Paylaşılan konuşma · salt okunur",
-      "sharedConversationViewEdit": "Paylaşılan konuşma · görüntüleme ve düzenleme",
+      "sharedConversationReadOnly": "Salt okunur",
+      "sharedConversationUser": "Kullanıcı",
       "signInFailedRedirecting": "Oturum açılamadı. Yönlendiriliyor…",
       "somethingWentWrong": "Bir şeyler ters gitti",
       "tryAgain": "Yeniden dene",
@@ -2663,6 +2662,7 @@
       "title": "Tarayıcı oturumları"
     },
     "backgroundJobs": {
+      "noSchedules": "Zamanlama yok.",
       "status": {
         "queued": "Sırada",
         "running": "Çalışıyor",
@@ -2977,6 +2977,16 @@
       "noRecordedAction": "Kayıtlı işlem yok"
     },
     "admin": {
+      "activeSessions": "Etkin oturumlar",
+      "passwordReset": "Parolayı sıfırla",
+      "passwordResetHint": "{email} adresine sıfırlama e-postası gönder veya bağlantıyı kopyalayıp doğrudan paylaş. Bağlantı bir saat geçerlidir ve tek kullanımlıktır.",
+      "copyPasswordResetLink": "Sıfırlama bağlantısını kopyala",
+      "sendPasswordResetEmail": "Sıfırlama e-postası gönder",
+      "passwordResetLink": "Parola sıfırlama bağlantısı",
+      "passwordResetLinkCopied": "Sıfırlama bağlantısı kopyalandı",
+      "passwordResetEmailSent": "Sıfırlama e-postası gönderildi",
+      "passwordResetFailed": "Parola sıfırlama başlatılamadı.",
+      "close": "Kapat",
       "active": "Etkin",
       "active24h": "Son 24 saatte etkin",
       "agents": "Agentlar",
@@ -3277,6 +3287,15 @@
       }
     },
     "agents": {
+      "shippedUpdate": {
+        "review": "Yerleşik güncellemeyi incele",
+        "description": "Yerleşik talimatları, araçları, becerileri ve bağlamı uygular. Model, düşünme ve başlangıç mesajı ayarları korunur. Yayımlanmış güncelleme hemen etkinleşir.",
+        "current": "Yerleşik varsayılanlar zaten kullanılıyor.",
+        "apply": "Yerleşik güncellemeyi uygula",
+        "reload": "Farkları yeniden yükle",
+        "draft": "Taslak",
+        "published": "Yayımlanan"
+      },
       "voiceUnreportedTokenUsage": "Bu sağlayıcı token ücretlerini bildirmez. Harcama bütçesi olan aramalar başlatılamaz; kaydedilen ses maliyeti bir alt sınırdır.",
       "agentAposSBehaviour": "Agentın davranış talimatları kodda değil, burada bulunur. Ne yapması, neyi reddetmesi ve nasıl kaynak göstermesi gerektiğini açıkça belirtin. Markdown kullanın; model yapıyı okur. Uzun bir promptun izlenebilmesi için başlıklar ve listeler önemlidir; önizleme de bu yapıyı görüntüleyebilmenizi sağlar.",
       "agentAposSOwn": "Bu agentın kendi aylık harcama sınırı. Kuruluşun sınırı ayrıca geçerlidir; agent bu sınırı düşürebilir ama yükseltemez. Adım sınırı başka türden kontrolsüz çalışmayı yakalar: çağrı başına ucuz olan ama hiç bitmeyen araç döngüsü.",
@@ -4130,6 +4149,12 @@
           "description": "Editörden veya run sayfasındaki Run düğmesiyle kendiniz başlatın."
         },
         "chat": {
+          "layoutPreview": {
+            "label": "Sohbet düzeni önizlemeleri",
+            "minimal": "Minimal",
+            "workbench": "Workbench",
+            "compact": "Compact"
+          },
           "name": "Sohbet mesajı",
           "description": "Üyeler workflowu sohbette seçer; her mesaj orada yanıt veren bir run başlatır."
         },
@@ -5525,6 +5550,10 @@
       "allow_personal": {
         "title": "Kişi başına özel not tut",
         "description": "Agent'ın konuştuğu her kişi için özel not tutup tutmayacağı; notlar yalnızca o kişiyle baş başayken okunabilir. Uyumluluk veya gizlilik için kapatmak bu depoyu tümüyle devre dışı bırakır; grup sohbetlerinde tutulan notlar kalır."
+      },
+      "inject_context": {
+        "title": "Belleği otomatik ekle",
+        "description": "Özel konuşmalarda kişisel anıların ve notların kısa bir özetini gösterir. Araçlar ve arka plan bakımı kullanılabilir kalır."
       }
     },
     "memory_mem0": {
@@ -5653,8 +5682,8 @@
     },
     "coding_agent": {
       "harness": {
-        "title": "Kodlama Agent'ı",
-        "description": "İşi hangi kodlama Agent'ının yapacağı: Anthropic key'i veya Claude abonelik token'ı kullanan Claude Code ya da OpenAI key'i veya ChatGPT oturumu kullanan Codex."
+        "title": "Varsayılan kodlama ajanı",
+        "description": "Görev Claude Code veya Codex seçmediğinde kullanılan varsayılan. Kişisel bulut ve masaüstü görevleri seçilen kodlama ajanı için kişinin kendi hesabını kullanır. Kuruluş sanal alanı yalnızca yapılandırılmış kodlama ajanını ve anahtarını kullanır."
       },
       "access": {
         "title": "Neler yapabilir?",
@@ -5662,7 +5691,7 @@
       },
       "model": {
         "title": "Model",
-        "description": "Kodlama Agent'ının çalıştırdığı model: Claude Code için Claude, Codex için OpenAI modeli. Boş bırakılırsa kodlama Agent'ının kendi varsayılanı kullanılır. Kendi ayarını kullandığı bu bilgisayarda kullanılamaz."
+        "description": "Varsayılan kodlama ajanının modeli: Claude Code için Claude, Codex için OpenAI. Boş bırakılırsa kendi varsayılanı kullanılır. Görev için diğer kodlama ajanı seçildiğinde onun varsayılan modeli kullanılır. Masaüstü görevleri yerel ayarı kullanır."
       },
       "base_url": {
         "title": "Anthropic uyumlu endpoint",
@@ -5676,10 +5705,20 @@
         "title": "Nerede çalışır",
         "description": "Burada saklanan key ile Agent'ın kendi sandbox'ında ya da kişinin desktop app'te kendi bilgisayarından seçtiği klasörde çalışır. İkinci durumda Claude Code ve Codex mevcut oturum açma bilgilerini kullanır, key gerekmez.",
         "options": {
+          "sandbox": {
+            "label": "Ajanın korumalı alanında",
+            "description": "Kabuk erişimi olan bir korumalı alan gerekir. Görevler burada ayarlanan kodlama ajanını ve aynı çalışma alanını kullanır.",
+            "summary": "Kuruluşun kimlik bilgilerini kullanarak doğrudan ajanın çalışma alanında çalışır."
+          },
           "personal_sandbox": {
             "label": "Hesabımla özel bulut görevi",
-            "description": "Profil hesabını yalıtılmış bir konteynerde kullanır. İncelenecek fark ve sonuç arşivi döndürür; paylaşılan dosyalar değişmez.",
-            "summary": "Profil hesabını yalıtılmış bir konteynerde kullanır. İncelenecek fark ve sonuç arşivi döndürür; paylaşılan dosyalar değişmez."
+            "description": "Her oturum kendi dosya kopyasında çalışır ve inceleme için değişiklikleri ve bir arşivi döndürür.",
+            "summary": "Claude Code ve Codex'i bağlı hesaplarınızla ayrı konteynerlerde paralel çalıştırın."
+          },
+          "this_computer": {
+            "label": "Bu bilgisayarda",
+            "description": "Görevler yerel oturumları kullanır ve masaüstü uygulamasında onayladığınız klasörlerde çalışır.",
+            "summary": "Claude Code ve Codex'i masaüstü uygulamasında ayrı oturumlarda paralel çalıştırın."
           }
         }
       }
@@ -6255,6 +6294,8 @@
     "delegateUnreachable": "Göremediğiniz bir Agent",
     "delegateUnreachableDetail": "Bu kuruluşta artık bulunmuyor veya onu göremiyor olabilirsiniz. Her iki durumda da yayınlama reddedilir - kaldırın veya erişim isteyin.",
     "delegatesDetail": "Bu Agent'ın işi devredebileceği yayınlanmış Agent'lar; her biri belirli bir sürüme sabitlenmiştir.",
+    "allPublishedDelegates": "Erişilebilir tüm yayımlanmış agentlar",
+    "allPublishedDelegatesDetail": "Bu kişinin kuruluşta çalıştırabileceği yayımlanmış agentları tek tek seçmeden sunar. Aşağıda seçilen delegeler sabitlenmiş sürümlerini korur. Gözetimsiz rutinler yalnızca açıkça seçilen delegeleri kullanır.",
     "delegatesHeading": "Delegate'ler",
     "delegatingNeedsRunPermission": "Delegation için burada sahip olmadığınız Agent çalıştırma izni gerekir. Yayınlama her delegate'i yayınlayanın kendi erişimine göre denetler; bu nedenle aynı engelle karşılaşırsınız, yalnızca daha erken.",
     "delegation": "Subagent'lar",
@@ -7013,11 +7054,11 @@
     "speechFormat": "Dosya biçimi",
     "speechFormatDetail": "Bu provider'ın döndürdüğü biçimler. mp3 daha küçüktür, wav sıkıştırılmamıştır.",
     "startersTitle": "İlk mesajlar",
-    "startersHint": "Bu Agent'ı ilk kez açan kişiye chat'in sunduğu seçenekler; tıklamak mesajı gönderir. En fazla {max}; hiç eklenmezse chat kendi seçeneklerini gösterir.",
+    "startersHint": "En fazla {max} ilk mesaj seçin. Öneriler açıkken özel mesaj yoksa sohbet varsayılan önerileri gösterir.",
+    "showStarters": "Önerilen istemleri göster",
     "starterNumber": "{number}. ilk mesaj",
     "removeStarter": "{number}. ilk mesajı kaldır",
     "newStarter": "Yeni ilk mesaj",
-    "newStarterPlaceholder": "Size nasıl yardımcı olabilirim?",
     "addStarter": "Ekle",
     "platformAlwaysAsksBadge": "her zaman sorar: burada kimin yetkisi olduğunu değiştirir",
     "platformUngatedBadge": "kendi ayarınız, onay istemez",
@@ -7200,6 +7241,8 @@
       }
     },
     "greeting": {
+      "night": "Merhaba",
+      "nightNamed": "Merhaba, {name}",
       "morning": "Günaydın",
       "afternoon": "İyi günler",
       "evening": "İyi akşamlar",
@@ -8697,7 +8740,7 @@
       },
       "agent-identity": {
         "title": "Kolay tanınan bir ad verin",
-        "body": "Sohbette seçilen ve katalogda bulunan ad budur. Kopya, kaynak agent’ın adının sonuna bir ek alarak başlar; burada yeniden adlandırabilirsiniz. Diğer agent’ların kullandığı handle değişmez."
+        "body": "Adı, açıklamayı, kategorileri ve etiketleri düzenlemek için üç nokta menüsünden Ayrıntılar’ı seçin. Adı değiştirmek, diğer agent’ların kullandığı tanıtıcıyı değiştirmez."
       },
       "projects-new": {
         "title": "Bir proje başlatın",
@@ -8866,10 +8909,6 @@
       "workflow-step-view": {
         "title": "Tek panele odaklanın",
         "body": "Telefonda etkin panele yer açmak için adım ayarları, girdi veya çıktı görünümünü seçin. Paneller arasında geçiş yaparken taslağınız korunur."
-      },
-      "chat-background-tasks": {
-        "body": "Bağımsız çalışma bu Project’te yeni bir konu açar. Siz burada konuşmaya devam edin; agent sonuçla geri döner. Her görevi bu şeritten açabilir veya durdurabilirsiniz.",
-        "title": "Arka plan konuları"
       },
       "chat-coding-settings": {
         "body": "Yüklü kodlama agent’ından bir model ve akıl yürütme düzeyi seçin. Seçimler bu konuşmaya özeldir; boş bırakırsanız kodlama agent’ının kendi ayarları kullanılır.",
@@ -9114,7 +9153,8 @@
         "follow_agent": "Agent kuralları",
         "approve_all": "Tümünü onayla",
         "ask_all": "Her zaman sor"
-      }
+      },
+      "afterFirstMessage": "İlk mesajdan sonra kullanılabilir."
     },
     "conversationArchived": "Bu konuşma arşivlendi",
     "conversationDeleted": "Konuşma silindi",
@@ -9286,6 +9326,18 @@
     "loading": "Yükleniyor…",
     "membersCouldNotBeRead": "Bu kuruluştaki kişiler okunamadı.",
     "modelPicker": {
+      "noMatchingModels": "Eşleşen model yok.",
+      "noSavedModels": "Bu sağlayıcı için kayıtlı model yok.",
+      "allModels": "Modeller",
+      "applyingModel": "Model seçiliyor…",
+      "selected": "Seçildi",
+      "connectedProviders": "Bağlı",
+      "providersWithoutKey": "Bağlı değil",
+      "searchModels": "Model ara…",
+      "loadingModels": "Modeller yükleniyor…",
+      "savedModels": "Kayıtlı modeller",
+      "customModel": "Model kimliğini kullan: {model}",
+      "searchOrType": "Katalogda arayın veya model kimliği girin.",
       "agentModel": "Agent'ın modeli",
       "chooseProvider": "Provider seçin",
       "model": "Model",
@@ -9384,7 +9436,7 @@
         "older": "Daha eski"
       },
       "searchLabel": "Konuşmalarda ara",
-      "searchHint": "Konuşmalarınızı başlığa göre aramak için yazın.",
+      "searchHint": "Konuşma başlıklarında ve mesajlarda arayın.",
       "searching": "Aranıyor…",
       "noSearchResults": "Eşleşen konuşma yok.",
       "untitled": "Başlıksız",
@@ -9395,7 +9447,10 @@
       "sharedHeading": "Sizinle paylaşılanlar",
       "sharedLoading": "Paylaşılan konuşmalar yükleniyor…",
       "sharedFailed": "Paylaşılan konuşmalar yüklenemedi.",
-      "retryShared": "Paylaşılan konuşmaları yeniden yükle"
+      "retryShared": "Paylaşılan konuşmaları yeniden yükle",
+      "searchFailed": "Konuşmalar aranamadı.",
+      "searchMatches": "{count, plural, one {# eşleşen mesaj} other {# eşleşen mesaj}}",
+      "searchKeys": "↑ ↓ gezin · Enter aç · Esc kapat"
     },
     "skipComment": "Yorumu atla",
     "sourceCount": "{count, plural, =1 {1 kaynak} other {# kaynak}}",
@@ -9962,13 +10017,11 @@
         "rateLimitedBody": "Bir dakikada çok fazla dikte isteği yapıldı.",
         "keptBody": "{duration} uzunluğundaki kaydınız yeniden deneyene veya silene kadar saklanır.",
         "notSetUpTitle": "Dikte ayarlanmamış.",
-        "notSetUpBody": "Bu Agent'ın speech-to-text provider'ında artık kullanılabilir key yok.",
-        "browserOff": "<strong>Bu Agent için dikte açılmamış,</strong> bu nedenle söylediklerinizi browser metne çeviriyor. Speech-to-text provider'ı kullanmak için dikteyi açın."
+        "notSetUpBody": "Bu Agent'ın speech-to-text provider'ında artık kullanılabilir key yok."
       },
       "pill": "Dikte",
       "listening": "Dinleniyor",
-      "done": "Dikte tamamlandı",
-      "openBuilder": "Agent Builder'da aç"
+      "done": "Dikte tamamlandı"
     },
     "voice": {
       "start": "Voice call başlat",
@@ -10195,8 +10248,6 @@
     "backgroundTasks": {
       "empty": "Arka plan konuları özelliği olan bir agent’tan, siz konuşmaya devam ederken işi devretmesini isteyin.",
       "emptyTitle": "Siz konuşmaya devam ederken işi devredin",
-      "heading": "Arka plan konuları · {count} etkin",
-      "retry": "Arka plan konularını yeniden yükle",
       "returnInterrupted": "Sonucun iletilmesi kesildi",
       "status": {
         "awaiting_answer": "Yanıtınız bekleniyor",
@@ -10283,7 +10334,17 @@
       "contact": "Yöneticinle iletişime geç"
     },
     "runFailedTitle": "Çalıştırma tamamlanmadı",
-    "runFailedHint": "Nihai yanıt üretilmedi. Yukarıdaki çalışmayı inceleyebilirsiniz."
+    "runFailedHint": "Nihai yanıt üretilmedi. Yukarıdaki çalışmayı inceleyebilirsiniz.",
+    "homeInbox": {
+      "title": "Günlük brifing",
+      "openInbox": "Gelen kutusunu aç",
+      "urgent": "Öncelikli",
+      "approvalsLabel": "Onaylar",
+      "approvals": "{count, plural, one {# onay kararını bekliyor} other {# onay kararını bekliyor}}",
+      "empty": "Her şey güncel. Yeni bulgular ve önemli konular burada görünecek.",
+      "failed": "Gelen kutun yüklenemedi.",
+      "refreshFailed": "Gelen kutunuz yenilenemedi. Son yüklenen öğeler gösteriliyor."
+    }
   },
   "admin": {
     "actions": "Eylemler",
@@ -13233,16 +13294,15 @@
       "role_pack": "Routine paketi",
       "finding": "Rutin"
     },
+    "discuss": "Ajanla konuş",
+    "moreActions": "{title} için diğer işlemler",
+    "discussPrompt": "Inbox öğesi {id} için bir şey yapmam gerekiyor mu?",
     "openWorkingChat": "Sohbeti aç",
     "preferences": "Gelen kutusu tercihleri",
     "preferencesDescription": "Gelen kutuna hangi otomatik önerilerin ulaşacağını seç.",
     "approvals": {
       "title": "Onay bekleyenler",
-      "open": "Onayları aç",
-      "fromWorkflow": "Workflow {workflow}",
-      "fromAgent": "Agent {agent}",
-      "anAgent": "Bir agent",
-      "actionBy": "{source} · {action}"
+      "open": "Onayları aç"
     }
   },
   "agentLimit": {
@@ -13579,10 +13639,6 @@
     "label": "Hesap etiketi",
     "apiKey": "API anahtarı",
     "chatGPT": "ChatGPT oturumu",
-    "oauthHelp": "Tarayıcıda yeni bir oturum aç ve localhost geri dönüş adresinin tamamını buraya yapıştır. CLI auth.json dosyasını içe aktarma.",
-    "continueOpenAI": "OpenAI ile devam et",
-    "startSignIn": "Oturum açmayı başlat",
-    "callback": "Geri dönüş adresi",
     "credential": "API anahtarı veya Claude kurulum belirteci",
     "keyHelp": "Claude Code, Anthropic API anahtarı veya kurulum belirteci; Codex ise OpenAI API anahtarı kabul eder. Kişisel hesaplar doğrudan sağlayıcılarına bağlanır.",
     "consent": "Bu kuruluştaki ajanlar başlattığım kodlama görevleri için bu hesabı kullanabilsin.",
@@ -13600,10 +13656,12 @@
     "localHelp": "Profilini kullanmak için Coding agent aracında Hesabımla özel bulut görevi seçeneğini seç. Bu bilgisayarda seçeneği yerel CLI oturumunu ve onayladığın klasörü kullanır; yerel kimlik bilgileri bilgisayarında kalır.",
     "disconnectHelp": "Bağlantıyı kesmek AgenticOS kopyasını kaldırır ve görevlerini durdurur. ChatGPT yetkisini OpenAI ChatGPT Ayarlarından iptal et. Zamanlanmış ve kanal görevleri bu hesapları kullanmaz.",
     "personalAccount": "Kişisel hesap: {label}",
+    "continuedSession": "Oturum: {name} · devam ediyor",
+    "newSession": "Oturum: {name} · yeni",
+    "sessionName": "Oturum: {name}",
     "baseRevision": "Çalışma alanı anlık görüntüsü: {revision}",
     "chatTitle": "{name} hesabın",
-    "chatHelp": "Bu agent kodlama görevlerini kendi hesabınla özel bir bulut görevi olarak çalıştırır. Diğer üyeler bu hesabı kullanamaz.",
-    "pasteInstead": "Bunun yerine adres yapıştır"
+    "chatHelp": "Bu agent kodlama görevlerini kendi hesabınla özel bir bulut görevi olarak çalıştırır. Diğer üyeler bu hesabı kullanamaz."
   },
   "start": {
     "administration": {
@@ -13619,16 +13677,11 @@
       "organization": "Organizasyon ayarları",
       "task": "İlk agent",
       "workspaceTitle": "Ekibiniz nerede çalışacak?",
-      "workspaceHint": "Bir şirket organizasyonu oluşturun veya üyesi olduğunuz birini seçin. Kişisel organizasyon isteğe bağlıdır.",
-      "createCompany": "Şirket organizasyonu oluştur",
-      "createCompanyHint": "Şirket veya ekip adını girin. Sahibi olursunuz ve hemen kişileri davet edebilirsiniz.",
-      "existingCompany": "Mevcut şirket organizasyonunu kullan",
-      "existingCompanyHint": "Organizasyonlarınızdan birinin kurulumuna devam edin.",
-      "personalExplanation": "Personal, hesabınız için oluşturulan bir organizasyondur. Şirket için kullanmanız gerekmez. Yeni hesapların kişisel organizasyon alıp almayacağını uygulama yöneticisi belirler.",
-      "usePersonal": "Kişisel organizasyon kullanmak istiyorum",
-      "personalChoice": "Kişisel organizasyon",
-      "selectWorkspace": "Organizasyon seçin",
-      "continuePersonal": "Bu organizasyonla devam et",
+      "workspaceHint": "Üyesi olduğunuz bir organizasyonu seçin veya yeni bir organizasyon oluşturun.",
+      "createCompany": "Organizasyon oluşturun",
+      "createCompanyHint": "Bir ad seçin. Tek başınıza çalışabilir veya daha sonra başkalarını davet edebilirsiniz.",
+      "existingCompany": "Mevcut bir organizasyonu kullanın",
+      "existingCompanyHint": "Kuruluma devam etmek için bir organizasyon seçin veya yeni bir organizasyon oluşturun.",
       "teamTitle": "Ekibinizi davet edin",
       "teamIntro": "Davetler ve roller {workspace} için geçerlidir. Model veya agent yapılandırmadan önce kişileri davet edebilirsiniz.",
       "reachableAddress": "Bu kurulum yerel bir adreste açık. Davet bağlantıları başka bilgisayarlarda çalışmaz. Davet göndermeden önce ekibin erişebildiği bir sunucu adresi kullanın.",
@@ -13676,9 +13729,7 @@
       "context": "Bağlamınız",
       "contextTitle": "Ajanlarınız sizin hakkınızda ne bilmeli?",
       "contextHint": "Rolünüz, işiniz ve saat diliminiz ajanların ihtiyaçlarınızı anlamasına yardımcı olur.",
-      "backStep": "Geri",
       "createInstead": "Yeni organizasyon oluştur",
-      "chooseExisting": "Mevcut organizasyonu seç",
       "identityBenefitTitle": "Organizasyonunuz. Kimliğiniz.",
       "identityBenefitBody": "Logonuz, ekibinizin sohbetlerde ve ortak kaynaklarda doğru organizasyonu tanımasına yardımcı olur.",
       "identityProfileTitle": "Profilini kişiselleştir",
@@ -13840,7 +13891,7 @@
       "loadFailed": "Ayarlar yüklenemedi",
       "retry": "Tekrar dene",
       "saveFailed": "Değişiklikler kaydedilmedi. Burada kalıp tekrar dene.",
-      "workspaceGuide": "Ekibin için bir yer hazırlayalım. Bir organizasyon seç veya şirketin için yeni bir tane oluştur.",
+      "workspaceGuide": "Kurmak istediğiniz organizasyonu seçin veya yeni bir tane oluşturun.",
       "identityGuide": "Logo, doğru organizasyonu tanımayı kolaylaştırır. Şimdi ekle veya mevcut görünümle devam et.",
       "profileGuide": "Şimdi sıra sende. Fotoğrafın ve adın, ekibinin seni tanımasına yardımcı olur. Profilin tüm organizasyonlarda geçerlidir.",
       "contextGuide": "İşinden biraz bahset. Ajanların bu bağlamı görüşme başında okur. Buradaki her alan isteğe bağlıdır.",
@@ -16778,6 +16829,11 @@
       "reconnect": "GitHub ile yeniden bağlan",
       "connect": "GitHub ile giriş yap",
       "retained": "Yeni bağlantı doğrulanana kadar mevcut bağlantınız etkin kalır."
+    }
+  },
+  "authoring": {
+    "describe": {
+      "open": "{name} ile oluştur"
     }
   }
 }

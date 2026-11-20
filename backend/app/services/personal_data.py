@@ -524,6 +524,9 @@ class PersonalDataService:
         await personal_data_repo.purge_routine_authority(self.db, user_id)
         notes = await personal_data_repo.purge_memory_about(self.db, person_owner_key(user_id))
         await personal_data_repo.forget_all_system_runs_of(self.db, user_id)
+        from app.services.sandbox_workspace import SandboxWorkspaceService
+
+        await SandboxWorkspaceService(self.db).purge_personal_coding(user_id=user_id)
         workspaces = await personal_data_repo.purge_workspaces_of(
             self.db, person_owner_key(user_id)
         )

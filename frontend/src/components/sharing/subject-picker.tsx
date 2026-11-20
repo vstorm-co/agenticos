@@ -1,6 +1,6 @@
 "use client";
 
-import { COMMAND_ITEM_FOCUS } from "@/components/ui/control-styles";
+import { COMMAND_ITEM_FOCUS, MENU_ROW } from "@/components/ui/control-styles";
 
 import { useState } from "react";
 import { Command } from "cmdk";
@@ -22,10 +22,7 @@ const SUBJECT_LIST_HEIGHT =
 const HEADINGS =
   "[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:tracking-wide [&_[cmdk-group-heading]]:uppercase";
 
-const ROW = cn(
-  COMMAND_ITEM_FOCUS,
-  "flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm",
-);
+const ROW = cn(COMMAND_ITEM_FOCUS, MENU_ROW, "cursor-pointer");
 
 interface SubjectPickerProps {
   id: string;

@@ -800,6 +800,10 @@ EVAL_ARGS ?=
 eval-retrieval:
 	@uv run --directory backend python ../evals/retrieval/run.py $(EVAL_ARGS)
 
+.PHONY: eval-personal
+eval-personal:
+	@uv run --directory backend python ../evals/personal/run.py $(EVAL_ARGS)
+
 # Every CI job, in the order the workflow declares them, with the exceptions
 # named below. This is the one claim in this file that has to be exactly true:
 # a command advertised as CI that runs less than CI prints "All checks passed"
@@ -1146,6 +1150,7 @@ help:
 	@echo "  make load-test        Offer the workload and print the report"
 	@echo ""
 	@echo "Retrieval evaluation (billed model calls - see docs/retrieval-eval.md):"
+	@echo "  make eval-personal    Validate the personal assistant corpus; EVAL_ARGS= passes options"
 	@echo "  make eval-retrieval   Measure knowledge retrieval on the docs; EVAL_ARGS= passes options"
 	@echo ""
 	@echo "Database:"

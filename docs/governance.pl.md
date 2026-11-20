@@ -1,5 +1,5 @@
 ---
-source_sha: "753163fbbe69"
+source_sha: "967cfe084fed"
 ---
 
 # Governance { #governance }
@@ -934,6 +934,8 @@ miesiącu i ostatnimi wykonaniami.
 | --- | --- | --- |
 | `daily_briefing` | Nocne spojrzenie na tydzień każdej osoby i zbudowany z niego briefing | W zakładce Proaktywność: ten sam model i limit, tutaj tylko do odczytu |
 | `memory_maintenance` | Czyta zakończoną dopuszczoną turę raz i zapisuje trwałe fakty, preferencje i decyzje jako [claimy](reference/capabilities.md#memory-claims) | Tutaj: przełącznik, model i własny budżet miesięczny |
+
+Daily briefing czyta aktualną pamięć profilu i pamięć danej osoby z domyślnym agentem oraz starsze notatki. Propozycje rutyn i agentów wymagają dowodów z osobnych wątków lub dni i są porównywane z wcześniejszymi sugestiami oraz istniejącymi rutynami. Memory maintenance porównuje aktualne wpisy w zakresie rozmowy i wymaga cytatu z wypowiedzi użytkownika przed zapisem.
 
 Utrzymanie pamięci nie wymaga startowego agenta AgenticOS. Przebieg zachowuje agenta źródłowego jako referencję zapisu i jest rozliczany jako `memory_maintenance`; wykonują się wyłącznie platformowe instrukcje ekstrakcji na modelu wybranym dla roli. Usunięcie lub wycofanie publikacji agenta startowego nie wyłącza ekstrakcji innych opublikowanych agentów.
 

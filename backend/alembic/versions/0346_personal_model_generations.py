@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0345_personal_model_generations"
-down_revision: str = "0344_user_appearance"
+revision: str = "0346_personal_model_generations"
+down_revision: str = "0345_merge_mcp_and_personal"
 branch_labels: None = None
 depends_on: None = None
 

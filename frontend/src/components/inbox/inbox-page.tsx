@@ -184,7 +184,7 @@ export function InboxPage() {
           </>
         }
       >
-        {showsApprovals && <ApprovalsWaiting />}
+        {showsApprovals && <ApprovalsWaiting tools={pending.tools} steps={pending.steps} />}
         {filter === "done" ? (
           <Decided />
         ) : isLoading ? (

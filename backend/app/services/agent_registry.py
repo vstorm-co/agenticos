@@ -15,6 +15,7 @@ moving a pointer backwards - would make run history lie about what was live.
 import contextlib
 import logging
 import re
+from base64 import b64encode
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -1191,7 +1192,7 @@ def _local_coding_agent(binding: PublishedCodingAgent | None) -> LocalCodingAgen
 def _personal_coding_harness(
     binding: PublishedCodingAgent | None,
 ) -> Literal["claude_code", "codex"] | None:
-    """The harness a version runs as a private cloud task on the person's account."""
+    """The default harness for a version that offers personal cloud coding."""
     if binding is None or binding.runs_on != "personal_sandbox":
         return None
     return binding.harness
@@ -1554,6 +1555,9 @@ class AgentRegistryService:
         version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
         budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
         starters = await agent_repo.published_starters(self.db, version_ids=version_ids)
+        hidden_starters = await agent_repo.published_hidden_starters(
+            self.db, version_ids=version_ids
+        )
         starter_icons = await agent_repo.published_starter_icons(self.db, version_ids=version_ids)
         starter_titles = await agent_repo.published_starter_titles(self.db, version_ids=version_ids)
         published_capabilities = await agent_repo.published_capabilities(
@@ -1667,6 +1671,7 @@ class AgentRegistryService:
                 starters=(
                     starters.get(agent.current_version_id, []) if agent.current_version_id else []
                 ),
+                show_starters=agent.current_version_id not in hidden_starters,
                 starter_titles=(
                     starter_titles.get(agent.current_version_id, {})
                     if agent.current_version_id
@@ -1740,6 +1745,13 @@ class AgentRegistryService:
                         AgentTemplateRead(
                             key=template.key,
                             name=template.name,
+                            slug=slugify(template.name),
+                            avatar_url=(
+                                "data:image/png;base64,"
+                                + b64encode(template.avatar.read_bytes()).decode("ascii")
+                                if template.avatar is not None
+                                else None
+                            ),
                             description=template.description,
                             capabilities=[binding["id"] for binding in template.capabilities],
                             skills=list(template.skills),
@@ -1847,7 +1859,7 @@ class AgentRegistryService:
 
             await ShippedAgentService(self.db).ensure_skills(ctx.organization_id)
             update["skill_ids"] = [row.id for row in await self.template_skills(ctx, template)]
-        if not spec.starters:
+        if spec.show_starters and not spec.starters:
             update["starters"] = list(template.starters)
         if spec.budget is None and template.budget_usd is not None:
             update["budget"] = {"monthly_usd": template.budget_usd}
@@ -4290,6 +4302,7 @@ class AgentRegistryService:
         # so the provider side is swept first, best-effort. Imported locally:
         # the trigger service imports this module at module scope.
         from app.services.agent_trigger import AgentTriggerService
+        from app.services.sandbox_workspace import SandboxWorkspaceService
         from app.services.tasks import TaskService
 
         await agent_repo.fence_deletion(self.db, agent.id, organization_id=ctx.organization_id)
@@ -4305,6 +4318,9 @@ class AgentRegistryService:
             organization_id=ctx.organization_id,
             resource_type=AGENT.key,
             resource_id=agent.id,
+        )
+        await SandboxWorkspaceService(self.db).purge_personal_coding(
+            organization_id=ctx.organization_id, agent_id=agent.id
         )
         await agent_repo.delete(self.db, agent)
         await record_audit(

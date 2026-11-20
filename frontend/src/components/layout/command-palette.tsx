@@ -1,5 +1,7 @@
 "use client";
 
+import { COMMAND_ITEM_FOCUS, MENU_ROW } from "@/components/ui/control-styles";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -288,7 +290,7 @@ function PaletteItem({
   return (
     <Command.Item
       onSelect={onSelect}
-      className="text-foreground/85 hover:bg-foreground/5 data-[selected=true]:bg-foreground/8 data-[selected=true]:text-foreground touch:min-h-11 group flex min-h-10 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors"
+      className={cn(COMMAND_ITEM_FOCUS, MENU_ROW, "group cursor-pointer")}
     >
       <Icon className="h-4 w-4 shrink-0 opacity-70" />
       <span className="flex-1 truncate">{label}</span>

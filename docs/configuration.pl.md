@@ -1,5 +1,5 @@
 ---
-source_sha: "e0cd056f3fa1"
+source_sha: "950747e821e4"
 ---
 
 # Konfiguracja { #configuration }
@@ -87,7 +87,11 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 
 Aby wysyłać grafiki na kanały w produkcji, ustaw `VISUAL_RENDER_CDP_URL=http://visual-render:9222` i `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` w `backend/.env`. `scripts/deploy.sh` włącza wtedy profil `visuals` w `docker-compose-prod.yml`; przy ręcznym uruchomieniu dodaj `--profile visuals`.
 
-Przeglądanie publicznych stron wymaga osobnej przeglądarki: ustaw `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` i `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Wdrożenie włącza profil `browser`. Ustaw `browser_use.cdp_url` agenta na `http://browser:9222` i opublikuj jego szkic. Przeglądarka ma wyjście wyłącznie przez proxy; Squid odrzuca prywatne adresy i metadane. Do izolowanego rysowania zachowaj `VISUAL_RENDER_CDP_URL=http://visual-render:9222`. Brak ograniczenia domen agenta pozwala na publiczne strony; jawna lista domen nadal obowiązuje.
+Przeglądanie publicznych stron wymaga osobnej przeglądarki: ustaw `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` i `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Wdrożenie włącza profil `browser`. Agenci z opcją **Built in** korzystają z `BROWSER_SIGN_IN_CDP_URL`, gdy ich własne `cdp_url` jest puste. Przeglądarka ma wyjście wyłącznie przez proxy; Squid odrzuca prywatne adresy i metadane. Do izolowanego rysowania zachowaj `VISUAL_RENDER_CDP_URL=http://visual-render:9222`. Brak ograniczenia domen agenta pozwala na publiczne strony; jawna lista domen nadal obowiązuje.
+
+Domyślny AgenticOS używa przeglądarki **Built in**, z limitem 100 kroków na wywołanie, oraz **Computer use → Docker / Sandbox** w środowisku `desktop`. To środowisko zawiera również narzędzia workbench do kodu i dokumentów. Bez połączenia z kontenerem pulpit i osobiste narzędzia codingowe w chmurze pozostają wyłączone. Brak adresu przeglądarki lub niedostępny kontener przeglądarki powoduje błąd tylko jej wywołań; agent nadal może zostać opublikowany i odpowiadać za pomocą pozostałych narzędzi. Skonfigurowane adresy nadal wymagają listy dozwolonych hostów operatora.
+
+AgenticOS pracuje samodzielnie, chyba że użytkownik wyraźnie poprosi o subagentów lub równoległą pracę agentów. W ustawieniach Delegates ma włączony dostęp do wszystkich dostępnych opublikowanych agentów w bieżącej organizacji. Nadal obowiązują uprawnienia, jawne przypięcia zachowują swoje wersje, a rutyny bez użytkownika nie otrzymują tego katalogu. Tworzenie dynamicznych specjalistów jest wyłączone.
 
 Renderer nie publikuje portu i nie ma dostępu do internetu, obsługuje API i worker oraz ma limit 1 CPU i 1 GiB RAM. Publikowane obrazy backendu zawierają dodatek `browser`; własny obraz wymaga `EXTRAS="--extra browser"`. Jeżeli renderowanie zawiedzie, odpowiedź na kanale wyraźnie informuje, że nie udało się dołączyć grafiki. Każde renderowanie dopuszcza najwyżej 256 żądań i 32 oczekujące odpowiedzi; kafelki map podlegają też wspólnemu limitowi `RATE_LIMIT_MAP_TILES_PER_MINUTE`.
 
@@ -218,7 +222,7 @@ Gdzie mieszka który issuer i co zarejestrować:
 
 | Dostawca | Issuer | Redirect URI rejestruj jako |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect URI platformy **Web** w rejestracji aplikacji. Nadaj `openid`, `email`, `profile` w API permissions |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect URI platformy **Web** w rejestracji aplikacji. Nadaj `openid`, `email`, `profile` w API permissions. W **Token configuration** dodaj opcjonalne claimy `email` i `xms_edov` do tokenu **ID** |
 | **Okta** | `https://<org>.okta.com` (albo `/oauth2/<id>` własnego serwera autoryzacji) | Sign-in redirect URI w aplikacji typu **Web** |
 | **Keycloak** | `https://<host>/realms/<realm>` | Valid redirect URI w kliencie confidential z włączonym standard flow |
 
@@ -233,6 +237,13 @@ Dwie rzeczy, których platforma wymaga od dowolnego dostawcy, na którego ją sk
   potwierdzenia: niepotwierdzony adres oznacza, że ktokolwiek u tego dostawcy może
   zgłosić czyjś służbowy adres, a lista dozwolonych domen niżej stoi na tym, że
   adres coś znaczy.
+  W Entra claim musi być w **ID tokenie**: jego endpoint UserInfo zwraca tylko
+  `sub`, `name`, `family_name`, `given_name`, `picture` i `email`.
+  `OIDC_VERIFIED_CLAIM` musi wskazywać claim, którego *wartość* jest prawdą dla
+  potwierdzonego adresu; claim obecny w każdym tokenie, jak `sub`, niczego nie
+  potwierdza i nie jest akceptowany. Odrzucone logowanie zapisuje w logu
+  `oauth_callback_claims_rejected` z warunkiem, który nie przeszedł (`reason`),
+  oraz nazwami, nigdy wartościami, otrzymanych claimów.
 - **Stabilny `sub`.** Konto jest kluczowane po nim, nie po adresie, więc osoba,
   która zmieni nazwisko albo której domenę ktoś wykupi, zachowuje swoją historię
   — a kolejny właściciel zwolnionego adresu jej nie dziedziczy. Zapisywany jest

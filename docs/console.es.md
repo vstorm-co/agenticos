@@ -1,8 +1,12 @@
 ---
-source_sha: "79ff311d2516"
+source_sha: "f125b322eb40"
 ---
 
 # La consola { #the-console }
+
+Los catálogos de recursos usan tarjetas más grandes con icono, título, descripción y un pie separado para estado y acciones. Agentes, tablas, workflows, bases de conocimiento, proyectos, datasets, servidores MCP, skills, archivos de contexto, Apps y grupos comparten el marco y conservan sus propias acciones. En el Builder, los ajustes desde Model aparecen en tarjetas desplegables coherentes. Thinking y Answer format están en Model settings. First messages muestra las sugerencias integradas cuando no hay mensajes personalizados. Model comienza abierto; cerrar una sección conserva sus editores y los enlaces de Voice abren la sección correspondiente.
+
+En Build, First messages muestra tarjetas con icono, título y mensaje. Abre una tarjeta para editarla. Al guardar un ejemplo editado, los demás ejemplos se conservan en el borrador. Skills, Context y Knowledge search en Toolbox usan listas seleccionables. Un modelo de chat guardado sigue visible en Models y Saved models. Desactiva las sugerencias para ver más elementos de Inbox en el chat nuevo.
 
 Organizaciones permite buscar nombres y slugs de las membresías, con el número de coincidencias en la misma barra. Borrar la búsqueda restaura la lista completa de membresías.
 
@@ -90,6 +94,8 @@ Los ajustes personales usan pestañas horizontales desplazables en escritorio y 
 
 Los títulos encabezan la lista de chats, con los nombres de los agentes y la actividad debajo. Búsqueda, filtros y Nuevo chat comparten la cabecera. Los filtros de la cabecera se abren debajo del botón; los de la barra contraída, a su lado. Las ilustraciones decorativas cambian sin controles de reproducción y respetan la preferencia de movimiento reducido.
 
+Si queda espacio en la lista de conversaciones, se abren grupos de fechas anteriores hasta llenar el panel. Los grupos de proyectos también respetan las decisiones guardadas: un grupo contraído manualmente permanece cerrado hasta que lo abras, incluso al cambiar la conversación activa.
+
 Los campos del perfil comparten fila cuando hay espacio; **Guardar cambios** solo está disponible tras editar. Cada tarjeta de capacidad tiene una zona para abrir los ajustes y un interruptor independiente para activarla. Los ejemplos aparecen detrás del icono de información en los ajustes, sin repetir la ilustración de la galería.
 
 Los diálogos de categorías de plantillas se ajustan al contenido; elegir un sector de agentes o habilidades abre la biblioteca más amplia. En el teléfono, los estilos se muestran en filas compactas con miniaturas.
@@ -123,6 +129,15 @@ El botón compacto bajo una respuesta abre Sources junto a la conversación y oc
 Los enlaces web de las respuestas usan la misma política de favicon, sin depender de conexiones MCP. Los iconos de sitios desconocidos pasan por el proxy del mismo origen de la consola y el servicio fijo de iconos de DuckDuckGo. Este solo recibe el nombre de host, nunca las cookies o la dirección IP del lector, la ruta ni los parámetros de URL. El proxy rechaza redirecciones, contenido no rasterizado e iconos de más de 64 KiB; el tiempo límite es de tres segundos. Si falta el icono o no está disponible, aparece un globo. Las vistas inertes de transcripciones no cargan imágenes remotas ni iconos de sitios desconocidos.
 
 Una ejecución fallida muestra el error separado de la respuesta y fuera de las herramientas plegadas, incluso después de recargar la conversación. El filtro de contenido del proveedor tiene una explicación explícita; las respuestas originales del proveedor y los errores históricos desconocidos no se copian a transcripciones compartidas. El trabajo parcial sigue disponible y no se presenta como terminado.
+
+
+Los adjuntos permanecen dentro del cuadro de mensaje en una fila desplazable. Las imágenes seguras muestran una miniatura local durante la carga; un indicador giratorio señala las cargas pendientes sin inventar porcentajes. Los subrayados de pestañas y las selecciones segmentadas se deslizan entre opciones; con movimiento reducido, cambian de inmediato.
+
+Los chats nuevos muestran hasta cuatro sugerencias del agente activo encima del editor. En un panel ancho se organizan en dos columnas. Al seleccionar una, se añade al borrador editable. El resumen diario debajo del editor muestra hasta cuatro elementos de la bandeja de entrada, con un enlace a las aprobaciones pendientes. Al desactivar las sugerencias en Builder, muestra hasta ocho elementos. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
+
+El chat principal tiene un cuadro de mensaje ancho. La biblioteca muestra primero los proveedores conectados, con logotipos y nombres que empiezan en mayúscula, y separa el catálogo de los modelos guardados. Pulsar un modelo lo selecciona directamente. Las credenciales que falten se añaden mediante los formularios existentes de Vault dentro del selector, incluidas las credenciales de varios campos. Se conservan los permisos y la validación de modelos. El micrófono y el envío cambian suavemente al escribir.
+
+La búsqueda de conversaciones revisa títulos y texto indexado de mensajes, incluidos los chats archivados que puedes leer. Los resultados muestran fragmentos de texto, coincidencias resaltadas y el número de mensajes coincidentes. Usa las flechas y Enter para abrir un resultado. Los errores ofrecen reintentar en lugar de simular una lista vacía.
 
 ## El dashboard { #the-dashboard }
 
@@ -242,7 +257,11 @@ los mismos avatares que en el chat.
 
 Las tarjetas del panel usan filas compactas coherentes, símbolos de servicios y etiquetas de estado. Las cifras y los gráficos se adaptan al ancho de la tarjeta, también en diseños personalizados. Los indicadores de carga reflejan el tipo de contenido; un resumen no disponible permite reintentar en vez de afirmar que no hay propuestas.
 
-El chat vacío saluda según la hora local y muestra primero el campo de mensaje, seguido de hasta cuatro sugerencias. Tienen prioridad los mensajes publicados del agente; AgenticOS puede usar sugerencias personales, guardadas durante cinco minutos en la caché de la sesión actual de la cuenta. Los marcadores reservan espacio hasta conocer la fuente. La bienvenida no muestra vistas previas de la bandeja, trabajo en segundo plano ni atajos de teclado; abre Inbox o Background work desde la navegación.
+Un chat nuevo saluda según la hora local y muestra un editor compacto. Los archivos están junto al agente; los ajustes y el escudo de permisos, junto al modelo. El uso de contexto permanece como icono hasta abrirlo. El resumen diario debajo del editor muestra temas de Inbox, primero los urgentes, con marcas de origen del catálogo MCP; el contador de aprobaciones enlaza a su cola. Abrir una vista previa no aprueba ni descarta nada. La carga, los errores y la lista vacía tienen estados distintos. El dictado y las llamadas usan la misma superficie ligera que el editor. El widget de Architect comparte el botón principal y los controles de dictado.
+
+Antes del primer mensaje, Archivos y uso de contexto permanecen visibles pero desactivados. El menú de adjuntos muestra directamente sus acciones disponibles. Los ajustes del chat usan secciones compactas para conexiones y aprobaciones recordadas; la vista previa de Inbox muestra origen y prioridad.
+
+Los campos, las filas de menú, los selectores, las pestañas y las secciones de ajustes comparten el mismo estilo compacto en toda la consola. Al plegar un formulario opcional se conserva el borrador; un campo obligatorio no válido puede volver a abrir su sección. Los desplegables nativos comparten espaciado y se animan donde se admiten tamaños intrínsecos; en los demás navegadores se abren de forma nativa sin animación. Se mantienen el movimiento reducido y las áreas táctiles más grandes.
 
 Los chats guardados muestran directamente marcadores del historial, sin destellos de bienvenida; la barra lateral y el historial cargan de forma independiente. Los envíos manuales desplazan suavemente el mensaje hacia arriba; la cola no mueve al lector. El desplazamiento, el tacto y el teclado cancelan el movimiento. Los menús y diálogos compartidos usan transiciones pequeñas y suaves; la preferencia Motion desactiva el movimiento.
 
@@ -570,7 +589,7 @@ El historial en vivo sigue el flujo de la página; el historial terminado y desp
 
 Las escrituras MCP confirmadas muestran tarjetas enlazadas de proyectos, tablas, tareas, registros, agentes, workflows, skills y Context. Los errores no generan tarjetas de éxito. Los mensajes enviados aparecen cerca del borde superior con espacio para la respuesta; el desplazamiento manual conserva tu posición. Las listas Person y Agent se desplazan dentro del diálogo del registro. Las preguntas siguen funcionando tras las continuaciones HTTP aprobadas.
 
-Los avisos de resultados también están junto al editor. Mientras hay un panel de decisión visible o el chat está trabajando, se ocultan los avisos de aprobación incluso de ejecuciones anteriores. En los demás casos, enlazan a la cola de aprobaciones. Nunca ofrecen Visto, Hecho ni No volver a preguntar: solo aprobar o rechazar la solicitud real decide la operación. Inbox y la campana conservan sus notificaciones.
+Los avisos de resultados aparecen junto al editor. Al volver a abrir o actualizar una conversación, las aprobaciones de herramientas pendientes aparecen como tarjetas con detalles y los botones Aprobar y Rechazar para quienes pueden decidir. Inbox y la campana también muestran notificaciones de aprobación. Una solicitud individual aparece en una barra compacta con detalles desplegables. En Inbox queda visible la acción para hablar con el agente y las demás están en el menú de la fila. En el chat se resaltan los enlaces a recursos de la consola y el código en línea tiene un fondo neutro.
 
 **Debajo de una respuesta.** Un agent con
 [Follow-ups](reference/capabilities.md#follow-ups) ofrece debajo de su respuesta
@@ -728,22 +747,20 @@ la pestaña Dictado de [su tarjeta Voice](#an-agents-voice-card):
   [Dictado en el chat](ml-services.md#dictation-in-chat).
 - Apagado, o sin clave con la que enviarla — el reconocimiento de voz del propio
   navegador, así que el audio va al fabricante del navegador (Google, Apple) y no
-  cuesta nada. Firefox no tiene: su micrófono lo dice al pulsarlo. Mientras
-  escucha, una nota sobre el compositor dice que el Dictado del agent está
-  apagado, y enlaza a su pestaña Dictado para quien puede editar el agent.
+  cuesta nada.
+  Firefox no cuenta con reconocimiento de voz integrado. El editor avisa si el micrófono o el reconocimiento no están disponibles.
 
-Con un provider, al pulsar el micrófono flota sobre el compositor, que no
-cambia, una **píldora de grabación**: Cancel, el nivel, un temporizador y Stop.
+Con un proveedor, el chat principal muestra los controles de cancelación, nivel de audio, temporizador y parada dentro del editor.
 **Enter** detiene y transcribe, **Escape** cancela, y nada de lo que se escriba
 o pulse mientras una grabación está en curso o transcribiéndose se envía. La
 grabación se detiene sola en el dictado más largo de la organización y se
 transcribe, y un micrófono desconectado a mitad la termina igual, en vez de
 descartarla. Si la subida tarda más de un segundo, la píldora muestra cuánto se
-ha subido; después dice **Transcribing** hasta que llega el texto. El
-reconocimiento del navegador tiene su propia píldora, con **Done dictating**.
+ha subido; después dice **Transcribing** hasta que llega el texto.
 
-Todo lo que el dictado tiene que decir aparece en una franja sobre el
-compositor, junto a la píldora: la petición de permiso, un micrófono bloqueado o
+El reconocimiento del navegador muestra **Listening** y **Done dictating**. Escribir o enviar pone fin al dictado. El botón principal cambia a Enviar cuando hay un borrador.
+
+Los avisos del dictado aparecen sobre el editor: la petición de permiso, un micrófono bloqueado o
 ausente, los últimos 30 segundos, cinco segundos sin sonido, una grabación de
 menos de un segundo (no se envía), una grabación detenida en el límite y cada
 fallo. Cuántas palabras se insertaron se anuncia al lector de pantalla en lugar
@@ -917,7 +934,7 @@ Una conversación con una lista de tareas guardada solo puede bifurcarse en su �
 
 Activa **Temas en segundo plano** en un agente publicado y pide, por ejemplo: «Investiga el error de exportación en otro tema mientras seguimos planificando la versión» o «Que el agente financiero revise estas cifras mientras comentamos la propuesta». Puede usar su propia versión fijada o un delegado publicado fijado en su especificación. Empieza desde una conversación propia; el tema nuevo pertenece al mismo proyecto e incluye el encargo del agente y un enlace al origen, sin copiar la transcripción original.
 
-La barra **Temas en segundo plano**, encima del cuadro de mensaje, muestra tareas en cola, en marcha y pendientes. Abre el tema independiente para revisar el trabajo o responder a una aprobación o pregunta habitual. **Detener** cancela el trabajo posterior; no revierte cambios de archivos ni acciones externas ya realizadas. El panel muestra las mismas tareas. Cada persona puede tener cuatro tareas activas; una tarea y su respuesta de resultado no pueden crear más temas en segundo plano.
+Abre **Trabajo en segundo plano** en la barra lateral para ver las tareas activas y anteriores. Abre el tema independiente para revisar el trabajo o responder a una aprobación o pregunta habitual. **Detener** cancela el trabajo posterior; no revierte cambios de archivos ni acciones externas ya realizadas. El panel también tiene un widget de trabajo en segundo plano. Cada persona puede tener cuatro tareas activas; una tarea y su respuesta de resultado no pueden crear más temas en segundo plano.
 
 Al terminar, el agente original responde con el historial actual de la conversación. Espera a que terminen las respuestas en curso y resume sin herramientas: el resultado de una tarea no concede permiso para otra acción.
 
@@ -1093,7 +1110,7 @@ Los pies de lista permanecen en el borde inferior del panel, con espaciado unifo
 
 El directorio de organizaciones de administración muestra la imagen cargada o las iniciales en el color elegido si no hay imagen. El acceso a las imágenes en esta vista se limita a administradores del despliegue; el endpoint normal de avatares sigue requiriendo pertenencia a la organización.
 
-**Chat controls → Tools & files** muestra la cuenta de coding que necesita un agente cuando su Coding agent se ejecuta como **Private cloud task with my account**: solo ese harness, con su logotipo y el estado del consentimiento. Conéctala o gestiónala sin salir del chat; todas las cuentas aparecen en **Settings → Profile**. Conectar no cambia el modo de ejecución del agente: las tareas privadas en la nube siguen necesitando **Private cloud task with my account**, mientras que el coding de escritorio utiliza su propio inicio de sesión local.
+**Chat controls → Tools & files** muestra las conexiones de Claude Code y Codex cuando un agente usa **Private cloud task with my account**, cada una con su logotipo y estado de consentimiento. Puedes gestionar ambas sin salir del chat; todas las cuentas aparecen en **Settings → Profile**. Cada tarea usa solo la cuenta habilitada de quien la inicia para el harness elegido. El harness predeterminado es una opción inicial, no un proveedor exclusivo. Conectar no cambia el modo de ejecución; el coding de escritorio sigue usando inicios de sesión locales separados.
 
 ## Tu primera tarea { #your-first-task }
 
@@ -1203,6 +1220,6 @@ Ajustes ofrece pestañas horizontales desplazables en escritorio y teléfono. La
 
 Los grupos de la barra lateral se expanden y contraen con suavidad. Los destinos ocultos no reciben el foco y, al contraer la barra, el destino actual sigue visible. Las animaciones respetan los ajustes de apariencia; el movimiento reducido mantiene estos controles estáticos.
 
-Los ajustes conservan pestañas horizontales. Claves API y clientes MCP comparten **API y MCP**, con controles de acceso separados y las URL existentes; la vista interna se guarda en la URL. La configuración móvil se enlaza desde **Cuenta**. El perfil coloca identidad y contexto de agentes en paralelo en pantallas amplias, con tarjetas de apariencia y cuentas conectadas. Las listas ocupan la altura disponible. Organizaciones y grupos se abren desde **Gestionar organizaciones** en el selector de espacio. Las páginas, listas y tablas vacías comparten ilustración. Directory espera permisos y datos antes de mostrar una única acción para crear una asignación.
+Los ajustes conservan pestañas horizontales. Claves API y clientes MCP comparten **API y MCP**, con controles de acceso separados y las URL existentes; MCP se abre de forma predeterminada y la URL puede seleccionar cualquiera de las pestañas. La configuración móvil se enlaza desde **Cuenta**. El perfil coloca identidad y contexto de agentes en paralelo en pantallas amplias, con tarjetas de apariencia y cuentas conectadas. Las listas ocupan la altura disponible. Organizaciones y grupos se abren desde **Gestionar organizaciones** en el selector de espacio. Las páginas, listas y tablas vacías comparten ilustración. Directory espera permisos y datos antes de mostrar una única acción para crear una asignación.
 
 Los ajustes personales ya no tienen una pestaña Assistant independiente. Los consejos de página están en **Account**; la antigua URL `/settings/assistant` redirige allí. **Inbox preferences** contiene el interruptor personal para recibir sugerencias nocturnas; el historial y la restauración permanecen en Inbox. Los modelos, presupuestos, mantenimiento de memoria y Voice de la organización permanecen en **AI & services**. Las etiquetas de formulario comparten una altura mínima, incluida la ayuda contextual. Los campos y selectores estándar tienen la misma altura, con objetivos táctiles mayores en dispositivos de puntero impreciso. Los filtros compactos conservan su tamaño. La configuración MCP utiliza su propio marco sin un segundo contenedor con borde.

@@ -18,7 +18,10 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isMemory = pathname.endsWith("/settings/memory");
   const start = useRef<HTMLDivElement>(null);
+  const previousPath = useRef(pathname);
   useEffect(() => {
+    if (previousPath.current === pathname) return;
+    previousPath.current = pathname;
     if (start.current) scrollWithin(start.current, "start", glideOrJump());
   }, [pathname]);
   return (

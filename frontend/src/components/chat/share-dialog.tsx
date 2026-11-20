@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Copy, Link2, Loader2, Lock, X } from "lucide-react";
+import { Globe, Loader2, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -25,7 +25,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useConversationShares, useMembers } from "@/hooks";
-import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
+import { ShareLinkField } from "@/components/sharing/share-link-field";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getErrorMessage } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
@@ -119,8 +120,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
   const { members, error: membersError, fetchMembers } = useMembers(activeOrgId ?? "");
   const [picked, setPicked] = useState<string | null>(null);
   const [permission, setPermission] = useState<Permission>("view");
-  const [shareLink, setShareLink] = useState<string | null>(null);
-  const { copy, copied } = useCopyToClipboard();
+  const [generatedLink, setGeneratedLink] = useState<ConversationShare | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -167,21 +167,13 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
         permission: "view",
       });
       if (share?.share_token) {
-        const url = `${window.location.origin}/shared/${share.share_token}`;
-        setShareLink(url);
+        setGeneratedLink(share);
         toast.success(t("linkGenerated"));
       }
     } catch (err) {
       toast.error(getErrorMessage(err, tErrors, t("failedToGenerateLink")));
     } finally {
       setIsGeneratingLink(false);
-    }
-  };
-
-  const handleCopyLink = async () => {
-    if (shareLink) {
-      await copy(shareLink);
-      toast.success(t("copyLink"));
     }
   };
 
@@ -203,6 +195,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
     setRevokingId(share.id);
     try {
       await revokeShare(conversationId, share.id);
+      if (share.id === generatedLink?.id) setGeneratedLink(null);
       toast.success(t("accessRevoked"));
     } catch (err) {
       toast.error(getErrorMessage(err, tErrors, t("failedToRevoke")));
@@ -222,10 +215,10 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
     const person = sharedPerson(share, members);
     return person ? [{ share, person }] : [];
   });
-  const linkShare = shares.find((share) => share.share_token);
-  const link =
-    shareLink ??
-    (linkShare?.share_token ? `${window.location.origin}/shared/${linkShare.share_token}` : null);
+  const linkShare = shares.find((share) => share.share_token) ?? generatedLink;
+  const link = linkShare?.share_token
+    ? `${window.location.origin}/shared/${linkShare.share_token}`
+    : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -360,57 +353,43 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
             </ul>
           </section>
 
-          <section className="space-y-2">
-            <h3 className="text-sm font-medium">{tSharing("generalAccess")}</h3>
-            <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 sm:flex sm:items-center">
-              <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
-                {link === null ? (
-                  <Lock className="h-4 w-4" aria-hidden />
-                ) : (
-                  <Link2 className="h-4 w-4" aria-hidden />
-                )}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">
-                  {link === null ? t("restricted") : t("anyoneWithLink")}
-                </p>
-                {/* A link is read-only whatever the level above says. */}
-                <p className={cn("text-muted-foreground text-xs", link !== null && "truncate")}>
-                  {link === null ? t("restrictedHint") : copied ? t("copied") : link}
-                </p>
-              </div>
-              {link === null ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Globe className="size-4" aria-hidden />
+                {link ? t("anyoneWithLink") : t("restricted")}
+              </CardTitle>
+              {!link && <CardDescription>{t("restrictedHint")}</CardDescription>}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {link && linkShare ? (
+                <>
+                  <ShareLinkField
+                    label={tSharing("generalAccess")}
+                    url={link}
+                    copyLabel={t("copyShareLink")}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleRevoke(linkShare)}
+                    disabled={changingId !== null || revokingId !== null}
+                  >
+                    {t("revokeAccess")}
+                  </Button>
+                </>
+              ) : (
                 <Button
-                  variant="outline"
                   size="sm"
+                  loading={isGeneratingLink}
+                  disabled={isLoading}
                   onClick={handleGenerateLink}
-                  disabled={isLoading || isGeneratingLink}
-                  className="col-start-2 justify-self-start sm:shrink-0"
                 >
-                  {isGeneratingLink && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
                   {t("generateShareLink")}
                 </Button>
-              ) : (
-                <div className="col-start-2 flex items-center gap-1 sm:shrink-0">
-                  <Button variant="outline" size="sm" onClick={handleCopyLink}>
-                    <Copy className="h-3.5 w-3.5" aria-hidden />
-                    {t("copyShareLink")}
-                  </Button>
-                  {linkShare !== undefined && (
-                    <IconButton
-                      size="icon"
-                      onClick={() => handleRevoke(linkShare)}
-                      disabled={changingId !== null || revokingId !== null}
-                      className="text-muted-foreground hover:text-destructive h-8 w-8"
-                      aria-label={t("revokeAccess")}
-                    >
-                      <X />
-                    </IconButton>
-                  )}
-                </div>
               )}
-            </div>
-          </section>
+            </CardContent>
+          </Card>
         </div>
       </DialogContent>
     </Dialog>

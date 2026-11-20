@@ -26,6 +26,62 @@
 @custom-variant motion-reduce (&:where([data-motion="reduce"], [data-motion="reduce"] *));
 @custom-variant motion-safe (&:where(:root:not([data-motion="reduce"]) *));
 
+:root {
+  interpolate-size: allow-keywords;
+}
+
+/* Theme changes replace a palette; component color fades must not trail it. */
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
+/* Grid is the cross-browser fallback; intrinsic sizing enhances supporting engines. */
+.disclosure-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.disclosure-content[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+@supports (interpolate-size: allow-keywords) {
+  .disclosure-content {
+    display: block;
+    block-size: 0;
+    overflow: clip;
+  }
+  .disclosure-content[data-open="true"] {
+    block-size: auto;
+  }
+}
+:root:not([data-motion="reduce"]) .disclosure-content {
+  transition:
+    grid-template-rows var(--duration-base) var(--ease-out),
+    block-size var(--duration-base) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out),
+    visibility 0s var(--duration-base);
+}
+:root:not([data-motion="reduce"]) .disclosure-content[data-open="true"] {
+  transition-delay: 0s;
+}
+
+@starting-style {
+  :root:not([data-motion="reduce"]) .disclosure-content[data-open="true"] {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+@supports (interpolate-size: allow-keywords) {
+  @starting-style {
+    :root:not([data-motion="reduce"]) .disclosure-content[data-open="true"] {
+      block-size: 0;
+    }
+  }
+}
+
 /* =========================================================================
    Design tokens.
 
@@ -246,7 +302,8 @@
      the shadow only lifts the surface off the page - and a heavier one for
      things that float (menus, dialogs). */
   --shadow-card: 0 1px 2px 0 oklch(0% 0 0 / 0.05), 0 1px 3px 0 oklch(0% 0 0 / 0.03);
-  --shadow-float: 0 1px 2px 0 oklch(0% 0 0 / 0.05), 0 8px 24px -4px oklch(0% 0 0 / 0.1);
+  --shadow-float: 0 8px 28px oklch(0% 0 0 / 0.05), 0 1px 4px oklch(0% 0 0 / 0.025);
+  --shadow-dialog: 0 20px 60px -20px oklch(0% 0 0 / 0.3), 0 2px 8px oklch(0% 0 0 / 0.08);
 
   /* Typography */
   --font-display: var(--font-display), "Bricolage Grotesque", system-ui, sans-serif;
@@ -257,6 +314,7 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --duration-fast: 150ms;
+  --duration-panel: 180ms;
   --duration-base: 220ms;
   --duration-slow: 400ms;
 }
@@ -775,15 +833,15 @@
    ========================================================================= */
 
 @layer utilities {
-  /* Tiny fade+scale entrance for popovers / dropdowns. */
+  /* Short entrance for popovers and dropdowns. */
   @keyframes lsFadeIn {
     from {
       opacity: 0;
-      transform: translateY(-4px) scale(0.97);
+      transform: translateY(-4px);
     }
     to {
       opacity: 1;
-      transform: translateY(0) scale(1);
+      transform: translateY(0);
     }
   }
 
@@ -867,11 +925,6 @@
         0 14px 34px -18px oklch(0% 0 0 / 0.28);
     }
   }
-  @media (hover: hover) {
-    :root:not([data-motion="reduce"]) .dash-editable:hover {
-      transform: scale(1.012);
-    }
-  }
   /* The card being dragged: dimmed and held in place while the drop target is
      ringed, so nothing shuffles under the cursor. The reorder is applied on
      drop, where FLIP glides every moved card to its new place at once. */
@@ -885,7 +938,6 @@
   @keyframes dash-pop {
     from {
       opacity: 0;
-      transform: scale(0.94);
     }
     to {
       opacity: 1;
@@ -1059,14 +1111,14 @@
 @keyframes step-card-in {
   0% {
     opacity: 0;
-    transform: translateY(10px) scale(0.94);
+    transform: translateY(6px);
   }
   60% {
     opacity: 1;
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
@@ -1110,7 +1162,7 @@
 @keyframes bubble-rise {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.98);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -1238,7 +1290,6 @@
 @keyframes pop-in {
   from {
     opacity: 0;
-    transform: scale(0.6);
   }
   to {
     opacity: 1;
@@ -1253,7 +1304,7 @@
 @keyframes map-tile-in {
   from {
     opacity: 0;
-    transform: translateY(3px) scale(0.97);
+    transform: translateY(3px);
   }
   to {
     opacity: 1;
@@ -2116,30 +2167,15 @@ body .tour-spotlight {
      that is what it is now - a class called `glass` that is not glass is the
      kind of name this codebase spends its comments avoiding. */
   .panel {
-    border: 1px solid color-mix(in oklab, var(--color-foreground) 8%, transparent);
+    border: 1px solid var(--color-border);
     background: var(--color-popover);
-    box-shadow:
-      0 1px 2px 0 rgb(0 0 0 / 0.08),
-      0 12px 40px -12px rgb(0 0 0 / 0.3);
+    box-shadow: var(--shadow-float);
   }
   /* Keep the typing surface opaque so scrolling text cannot compete with a draft. */
   .panel.composer-box {
     background: var(--color-card);
     border-color: color-mix(in oklab, var(--color-foreground) 10%, transparent);
     box-shadow: 0 4px 20px -8px rgb(0 0 0 / 0.12);
-  }
-  /* Menus, popovers and select lists: open for a moment and closed again, so
-     the blur the .panel note retired from everything costs a frame or two here,
-     not every scroll. Mostly opaque, so they read the same where a browser does
-     not draw the blur - a screenshot, a throttled tab. Declared after .panel. */
-  .panel-glass {
-    background: color-mix(in oklab, var(--color-popover) 88%, transparent);
-    -webkit-backdrop-filter: blur(16px) saturate(1.6);
-    backdrop-filter: blur(16px) saturate(1.6);
-    border-color: color-mix(in oklab, var(--color-foreground) 10%, transparent);
-    box-shadow:
-      0 1px 2px 0 rgb(0 0 0 / 0.06),
-      0 16px 48px -12px rgb(0 0 0 / 0.32);
   }
   .panel-strong {
     border: 1px solid var(--color-border);
@@ -2550,7 +2586,7 @@ body .tour-spotlight {
 @keyframes wizard-step-in {
   from {
     opacity: 0;
-    transform: translateX(10px);
+    transform: translateX(var(--wizard-step-offset, 10px));
   }
   to {
     opacity: 1;
@@ -2558,13 +2594,16 @@ body .tour-spotlight {
   }
 }
 .wizard-step-in {
-  animation: wizard-step-in 320ms var(--ease-out) both;
+  animation: wizard-step-in var(--duration-base) var(--ease-out) both;
+}
+.wizard-step-in[data-direction="backward"] {
+  --wizard-step-offset: -10px;
 }
 
 /* =========================================================================
    Enter and exit motion for overlays - dialogs, menus, selects, popovers,
    sheets. The primitives were written against the `tw-animate-css` class
-   vocabulary (`data-[state=open]:animate-in fade-in-0 zoom-in-95 …`), and that
+   vocabulary (`data-[state=open]:animate-in fade-in-0 …`), and that
    plugin was never installed, so every one of those classes compiled to
    nothing: a dialog, a dropdown and a select all appeared in a single frame
    and vanished in one. These are the same names, so the ten call sites need
@@ -2577,15 +2616,13 @@ body .tour-spotlight {
 @keyframes overlay-enter {
   from {
     opacity: var(--tw-enter-opacity, 1);
-    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0)
-      scale(var(--tw-enter-scale, 1));
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0);
   }
 }
 @keyframes overlay-exit {
   to {
     opacity: var(--tw-exit-opacity, 1);
-    transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0)
-      scale(var(--tw-exit-scale, 1));
+    transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0);
   }
 }
 
@@ -2601,12 +2638,6 @@ body .tour-spotlight {
 }
 @utility fade-out-* {
   --tw-exit-opacity: calc(--value(integer) * 1%);
-}
-@utility zoom-in-* {
-  --tw-enter-scale: calc(--value(integer) * 1%);
-}
-@utility zoom-out-* {
-  --tw-exit-scale: calc(--value(integer) * 1%);
 }
 @utility slide-in-from-top-* {
   --tw-enter-translate-y: calc(var(--spacing) * --value(integer) * -1);
@@ -3079,44 +3110,237 @@ body .tour-spotlight {
 .pressable-icon:active {
   background-color: var(--color-control-active);
 }
-@media (prefers-reduced-motion: no-preference) {
-  :root:not([data-motion="reduce"]) {
-    .sidebar-width-motion {
-      transition: width var(--duration-base) var(--ease-out);
-    }
-    .sidebar-group-content {
-      transition:
-        grid-template-rows var(--duration-base) var(--ease-out),
-        visibility var(--duration-base);
-    }
-    .pressable-control:not(.pressable-icon) {
-      transition:
-        background-color var(--duration-fast),
-        border-color var(--duration-fast),
-        color var(--duration-fast),
-        box-shadow var(--duration-fast),
-        translate var(--duration-fast) var(--ease-out);
-    }
-    .pressable-control:not(.pressable-icon):not(:disabled):not([aria-disabled="true"]):not(
-        [data-loading="true"]
-      ):active {
-      translate: 0 1px;
-      transition-duration: 70ms;
-    }
-    .pressable-icon {
-      transition:
-        background-color var(--duration-fast),
-        color var(--duration-fast),
-        box-shadow var(--duration-fast),
-        scale var(--duration-fast) var(--ease-out);
-    }
-    .pressable-icon:active {
-      scale: 0.94;
-      transition-duration: 70ms;
-    }
+:root:not([data-motion="reduce"]) {
+  .sidebar-width-motion {
+    transition: width var(--duration-base) var(--ease-out);
+  }
+  .sidebar-group-content {
+    transition:
+      grid-template-rows var(--duration-base) var(--ease-out),
+      visibility var(--duration-base);
+  }
+  .pressable-control:not(.pressable-icon) {
+    transition:
+      background-color var(--duration-fast),
+      border-color var(--duration-fast),
+      color var(--duration-fast),
+      box-shadow var(--duration-fast);
+  }
+  .pressable-icon {
+    transition:
+      background-color var(--duration-fast),
+      color var(--duration-fast),
+      box-shadow var(--duration-fast);
   }
 }
 
 .console-toasts [data-sonner-toast][data-removed="true"] {
   transition-duration: 150ms;
+}
+
+/* Panels enter without moving their tab strip or changing retained form state. */
+@keyframes tab-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+:root:not([data-motion="reduce"]) .tab-panel[data-state="active"] {
+  animation: tab-panel-enter 160ms var(--ease-out);
+}
+
+/* Command palettes use the same surface on the main and embedded chats. */
+.chat-command-palette {
+  padding: 0.375rem;
+  border-radius: 1rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-popover);
+  box-shadow: var(--shadow-float);
+}
+.chat-command-palette-header {
+  padding: 0.5rem 0.625rem;
+  border: none;
+  font-family: inherit;
+  font-size: 0.6875rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.chat-command-palette-row {
+  min-height: 2.75rem;
+  border-radius: 0.75rem;
+  padding: 0.625rem;
+}
+.chat-command-palette-row p:first-child {
+  font-family: inherit;
+  font-weight: 500;
+  font-size: 0.8125rem;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .chat-command-palette {
+    animation: chat-panel-enter 180ms ease-out;
+    transform-origin: bottom left;
+  }
+  .chat-command-palette-row {
+    transition: background-color 120ms ease-out;
+  }
+}
+@keyframes chat-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+:root[data-motion="reduce"] :is(.chat-command-palette, .chat-command-palette-row) {
+  animation: none;
+  transition: none;
+}
+
+/* Native disclosures share trigger rhythm without replacing native keyboard,
+   find-in-page or persistent form behavior. Feature-local utilities can refine density. */
+:where(.native-disclosure > summary) {
+  min-block-size: 2.25rem;
+  padding-block: 0.375rem;
+  align-content: center;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+:where(.native-disclosure > summary)::marker {
+  color: var(--color-muted-foreground);
+  font-size: 0.625rem;
+}
+:where(.native-disclosure > summary):focus-visible {
+  outline: 2px solid var(--color-foreground);
+  outline-offset: 2px;
+}
+/* The enclosing build section draws the keyboard focus around its full frame. */
+.native-disclosure[data-focus-frame] > summary:focus-visible {
+  outline: none;
+}
+@media (pointer: coarse) {
+  :where(.native-disclosure > summary) {
+    min-block-size: 2.75rem;
+  }
+}
+/* Browsers without intrinsic-size transitions keep the working native disclosure. */
+@supports (interpolate-size: allow-keywords) and selector(details::details-content) {
+  .native-disclosure::details-content {
+    interpolate-size: allow-keywords;
+    overflow: clip;
+    contain: layout;
+  }
+  .native-disclosure:not([open])::details-content {
+    block-size: 0;
+  }
+  :root:not([data-motion="reduce"]) .native-disclosure::details-content {
+    transition-property: block-size, content-visibility, display;
+    transition-duration: var(--duration-base);
+    transition-timing-function: var(--ease-out);
+    transition-behavior: allow-discrete;
+  }
+}
+
+/* A single marker keeps selection continuous without changing tab semantics. */
+[data-tab-indicator] {
+  position: relative;
+  isolation: isolate;
+  anchor-scope: --selected-tab;
+}
+[data-tab-indicator]
+  > :is(
+    [aria-selected="true"],
+    [aria-current="page"],
+    [aria-checked="true"],
+    [aria-pressed="true"]
+  ) {
+  anchor-name: --selected-tab;
+}
+[data-tab-indicator][data-indicator-ready]
+  > :is(
+    [aria-selected="true"],
+    [aria-current="page"],
+    [aria-checked="true"],
+    [aria-pressed="true"]
+  ) {
+  border-bottom-color: transparent;
+  background-color: transparent;
+}
+[data-tab-indicator][data-indicator-ready]::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+  bottom: 0;
+  left: 0;
+  width: var(--tab-width);
+  transform: translateX(var(--tab-x));
+  border-bottom: 2px solid var(--color-foreground);
+}
+[data-tab-indicator="pill"][data-indicator-ready]::before {
+  top: 0;
+  bottom: auto;
+  height: var(--tab-height);
+  transform: translate(var(--tab-x), var(--tab-y));
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: var(--color-control-active);
+}
+@supports (position-anchor: --selected-tab) and (anchor-scope: --selected-tab) {
+  [data-tab-indicator][data-indicator-ready]::before {
+    position-anchor: --selected-tab;
+    left: anchor(left);
+    right: anchor(right);
+    width: auto;
+    transform: none;
+  }
+  [data-tab-indicator="pill"][data-indicator-ready]::before {
+    top: anchor(top);
+    bottom: anchor(bottom);
+    height: auto;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) [data-tab-indicator][data-indicator-ready]::before {
+    transition:
+      transform 220ms ease-out,
+      width 220ms ease-out,
+      height 220ms ease-out,
+      inset 220ms ease-out;
+  }
+}
+@media (forced-colors: active) {
+  [data-tab-indicator="pill"][data-indicator-ready]::before {
+    border-color: Highlight;
+  }
+}
+
+/* Disclosure headers and image cards retain their geometry while pressed. */
+button[aria-expanded]:not([data-press-feedback="quiet"]):active,
+button[data-press-feedback="surface"]:active {
+  background-color: var(--color-control-active);
+}
+
+/* The selected console theme owns editor ink, independently of the OS theme. */
+.code-area-variable {
+  color: var(--color-violet-950);
+  background-color: var(--color-violet-100);
+}
+:root.dark .code-area-variable {
+  color: var(--color-violet-200);
+  background-color: color-mix(in oklab, var(--color-violet-500) 20%, var(--color-card));
+}
+@media (forced-colors: active) {
+  .code-area-variable {
+    color: CanvasText;
+    background-color: Canvas;
+    border-bottom: 1px solid CanvasText;
+  }
 }
