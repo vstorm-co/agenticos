@@ -279,15 +279,20 @@ it("counts an unsettled family's confirmed flips and a settled one's every flip"
   expect([settled!.fixed, settled!.broken]).toEqual([1, 4]);
 });
 
-it("ends a criterion name cut at the stored length at its last whole word", () => {
-  const cut = "States that brochures take 7 working days of standard production plus 1 working ";
-  expect(cut.length).toBe(80);
-  expect(criterionName(cut)).toBe(
+it("marks a criterion name cut at the stored length, keeping its last word only when whole", () => {
+  // Cut at 80 on a space and trimmed: 79 characters, the last word whole.
+  const onSpace = "States that brochures take 7 working days of standard production plus 1 working";
+  expect(onSpace.length).toBe(79);
+  expect(criterionName(onSpace)).toBe(`${onSpace}…`);
+  // Cut at 80 inside a word: the last word may be partial, so it ends at the one before.
+  const midWord = `${onSpace} d`;
+  expect(midWord.length).toBe(81);
+  expect(criterionName(midWord.slice(0, 80))).toBe(
     "States that brochures take 7 working days of standard production plus 1 working…",
   );
-  expect(criterionName(`${cut.trimEnd()}d`)).toBe(
-    "States that brochures take 7 working days of standard production plus 1…",
-  );
   expect(criterionName("x".repeat(80))).toBe(`${"x".repeat(80)}…`);
+  expect(
+    criterionName(`${"A sentence written whole ".repeat(3)}and long enough to fill it.`),
+  ).toMatch(/fill it\.$/);
   expect(criterionName("total including VAT")).toBe("total including VAT");
 });

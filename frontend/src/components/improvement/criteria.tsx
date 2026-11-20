@@ -48,12 +48,21 @@ export function familiesOf(round: ImprovementIteration | undefined): VerdictFami
   return Array.isArray(kept) ? (kept as VerdictFamily[]) : [];
 }
 
-/** The longest name a grade keeps for a criterion: a case's own check is its text cut there. */
+/**
+ * The longest name a grade keeps for a criterion. A case's own judged check is named
+ * by its text cut there and trimmed, so a cut that fell on a space leaves one less.
+ */
 const NAME_CHARS = 80;
 
-/** A criterion's name as a reader sees it: one cut at the stored length ends at its last word. */
+/**
+ * A criterion's name as a reader sees it, an ellipsis where its text was cut. At the
+ * full length its last word may be cut, so it ends at the word before; one short of
+ * it, the cut fell on a space and the last word is whole. A name ending a sentence was
+ * written whole.
+ */
 export function criterionName(name: string): string {
-  if (name.length < NAME_CHARS) return name;
+  if (name.length < NAME_CHARS - 1 || /[.!?)]$/.test(name)) return name;
+  if (name.length < NAME_CHARS) return `${name}…`;
   const at = name.lastIndexOf(" ");
   return `${(at > 0 ? name.slice(0, at) : name).replace(/[\s,;:.-]+$/, "")}…`;
 }
