@@ -2,7 +2,7 @@
 
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import "./chat-layout.css";
 import { ChevronDown, SlidersHorizontal, ShieldCheck, SquareTerminal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Skeleton } from "@/components/ui/skeleton";
 import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
 import { Perm } from "@/types/permissions";
-import { modelName } from "@/lib/model-profiles";
+import { catalogModelName } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import { ChatModelPicker } from "./chat-model-picker";
 import { PersonalModelConnection } from "./personal-model-connection";
@@ -54,9 +54,13 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
     update({ modelProfileId: id });
     onChange?.(id);
   };
+  const captionId = useId();
   const { models } = useProviderModels(model && can(Perm.agentsView) ? model.provider : "");
   const caption = model
-    ? modelName(model, models.find((entry) => entry.id === model.model)?.name)
+    ? catalogModelName(
+        model.model,
+        models.find((entry) => entry.id === model.model)?.name ?? model.model.split("/").at(-1),
+      )
     : t("modelSection");
   const library = !agent?.personal_model_key && (permissionsLoading || can(Perm.connectionsManage));
   return (
@@ -65,12 +69,15 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
         <button
           type="button"
           aria-label={t("modelSection")}
+          aria-describedby={model ? captionId : undefined}
           data-chat-model
           title={caption}
           className="group/model focus-visible:ring-ring hover:bg-muted inline-flex h-9 max-w-52 min-w-0 items-center gap-2 rounded-full px-2.5 text-xs outline-none focus-visible:ring-2"
         >
           {model && <ModelIcon model={model.model} provider={model.provider} />}
-          <span className="truncate">{caption}</span>
+          <span id={captionId} className="truncate">
+            {caption}
+          </span>
           <ChevronDown
             className="text-muted-foreground size-3 shrink-0 transition-transform duration-150 group-data-[state=open]/model:rotate-180 motion-reduce:transition-none"
             aria-hidden

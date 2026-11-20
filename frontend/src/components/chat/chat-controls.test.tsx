@@ -18,6 +18,8 @@ const state = vi.hoisted(() => ({
     chat_capable?: boolean;
     missing_key?: boolean;
   }[],
+  publishedModel: null as { provider: string; model: string; label: string } | null,
+  catalog: [] as { id: string; name: string }[],
   conversationId: null as string | null,
   // Both halves of "may this session waive approvals": the caller's permission
   // and the organization's ceiling (#925).
@@ -57,7 +59,12 @@ vi.mock("@/hooks", () => ({
     profiles: state.profiles,
     createProfile: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProviderModels: () => ({ models: [], refused: [], source: "curated", isLoading: false }),
+  useProviderModels: () => ({
+    models: state.catalog,
+    refused: [],
+    source: "curated",
+    isLoading: false,
+  }),
   useSecretPurposes: () => ({ purposes: [], isLoading: false }),
   useSecrets: () => ({ secrets: [] }),
   usePermissions: () => ({ can: () => state.mayDecide, isLoading: state.permissionsLoading }),
@@ -81,6 +88,7 @@ vi.mock("@/hooks/use-agents", () => ({
         id: "agent-1",
         personal_coding_harness: state.personalHarness,
         personal_model_key: state.personalModel,
+        published_model: state.publishedModel,
       },
     ],
   }),
@@ -123,6 +131,8 @@ const trigger = () => screen.getByRole("button", { name: /Chat controls/ });
 
 beforeEach(() => {
   useChatControlsStore.setState({ byScope: {} });
+  state.publishedModel = null;
+  state.catalog = [];
   state.desktop = false;
   state.personalModel = false;
   useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
@@ -498,6 +508,33 @@ it("clears a saved model override when switching to a personal-key agent", async
 
 describe("main chat composition", () => {
   afterEach(() => vi.unstubAllEnvs());
+
+  it("names the active model without its provider or saved profile label", () => {
+    state.publishedModel = {
+      provider: "openai_codex",
+      model: "gpt-6.2-astra",
+      label: "ChatGPT (Codex subscription) · gpt-6.2-astra",
+    };
+    state.catalog = [{ id: "gpt-6.2-astra", name: "GPT-6.2 Astra" }];
+
+    const { rerender } = render(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    const control = screen.getByRole("button", { name: "Model" });
+    expect(control).toHaveTextContent(/^GPT-6.2 Astra$/);
+    expect(control).toHaveAccessibleDescription("GPT-6.2 Astra");
+
+    state.catalog = [];
+    rerender(
+      <ChatLayout>
+        <ChatControls />
+      </ChatLayout>,
+    );
+    expect(control).toHaveTextContent(/^gpt-6.2-astra$/);
+    expect(control).toHaveAttribute("title", "gpt-6.2-astra");
+  });
 
   it("offers one model control without repeated permission choices", async () => {
     vi.stubEnv("NODE_ENV", "development");
