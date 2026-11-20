@@ -44,6 +44,22 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Apply `0343_solution_installations.py` for atomic solution-installation receipts. Existing organization API keys retain their public API boundary; new assistant-only lifecycle tools require an OAuth connection with the corresponding scopes.
 
+## [1.85.1] - 2026-11-20
+
+### Fixed
+
+- The Nginx deployment template now forwards WebSocket upgrades on every API
+  path and accepts uploads up to the default 50 MiB file limit on both hosts.
+  Console authentication and ordinary JSON keep the 1 MiB limit. The deployment
+  guide states the Nginx 1.25.1 minimum and how to adapt 1.24.
+- The bundled Traefik now reads all static settings from Compose command arguments,
+  so the configured ACME email is used. A custom `TRAEFIK_NETWORK` also applies
+  to the proxy itself. Docker smoke tests cover both proxies and Compose variants.
+- Scripted deployments wait for the background worker to be healthy before
+  recording the release as healthy or advancing its rollback image pins.
+- Frontend image builds exclude every `.env.*` file except `.env.example`,
+  including `.env.production`, `.env.development` and `.env.test`.
+
 ## [1.85.0] - 2026-11-19
 
 ### Added
@@ -22188,7 +22204,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.85.1...HEAD
+[1.85.1]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...v1.85.1
 [1.85.0]: https://github.com/vstorm-co/agenticos/compare/v1.84.0...v1.85.0
 [1.84.0]: https://github.com/vstorm-co/agenticos/compare/v1.83.0...v1.84.0
 [1.83.0]: https://github.com/vstorm-co/agenticos/compare/v1.82.2...v1.83.0

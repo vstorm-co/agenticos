@@ -16,8 +16,8 @@
 #      there is no `.env.prod`. Work through the production checklist in
 #      `docs/configuration.md` first — VAULT_MASTER_KEY especially.
 #   2. A reverse proxy in front of this stack. `nginx/nginx.conf` is the
-#      template; it proxies to `backend:8000` and `frontend:3000`, and both
-#      names are provided as network aliases below.
+#      template for a host proxy, reaching 127.0.0.1:8000 and :3000.
+#      A container proxy on `edge` can use the aliases below instead.
 #
 # The frontend is `docker-compose-prod.frontend.yml`.
 #

@@ -1,4 +1,4 @@
-.PHONY: ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
+.PHONY: test-deployment ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -1197,3 +1197,7 @@ help:
 .PHONY: release-cut
 release-cut: ## Plan a release train cut (BUMP=patch|minor; CREATE_PR=1 opens it)
 	python3 scripts/release_cut.py $(BUMP) $(if $(filter 1,$(CREATE_PR)),--create-pr,)
+
+# Disposable proxy containers and synthetic Compose settings; no app/database.
+test-deployment: ## Test Nginx, Traefik and Compose with disposable containers
+	uv run --no-project --python "$$(cat backend/.python-version)" python scripts/deployment/test_proxies.py

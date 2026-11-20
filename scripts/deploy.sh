@@ -539,6 +539,7 @@ wait_healthy() {
 
 say "Waiting for health"
 wait_healthy app "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
+wait_healthy worker "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 wait_healthy frontend "${FRONTEND[@]}"
 if "$VISUAL_RENDERER"; then
   wait_healthy visual-render "${BACKEND[@]}" "${PROFILES[@]}"
