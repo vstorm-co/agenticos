@@ -1,5 +1,5 @@
 ---
-source_sha: "63c2e73abe39"
+source_sha: "bd914baac0af"
 ---
 
 # Die Konsole { #the-console }
@@ -133,7 +133,7 @@ Ein fehlgeschlagener Chat-Run zeigt seinen Fehler getrennt von der Antwort und a
 
 Anhänge bleiben innerhalb des Eingabefelds in einer horizontal scrollbaren Zeile. Sichere Bilder zeigen beim Hochladen eine lokale Vorschau; ein Spinner zeigt laufende Uploads ohne erfundene Prozentangabe. Tab-Unterstreichungen und Segmentmarkierungen gleiten zwischen Optionen; bei reduzierter Bewegung wechselt die Auswahl sofort.
 
-Neue Chats zeigen unter dem Eingabefeld bis zu vier Einstiege des aktiven Agenten. Sie stehen untereinander. Ein Klick fügt den gewählten Einstieg zum bearbeitbaren Entwurf hinzu. Die Zeitleiste über dem Eingabefeld zeigt bis zu vier Einträge aus dem Posteingang, einschließlich eines Links zu offenen Genehmigungen. Ohne vorgeschlagene Prompts im Builder zeigt es bis zu acht Einträge. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
+Neue Chats zeigen unter dem Eingabefeld bis zu vier Einstiege des aktiven Agenten. Sie stehen untereinander. Ein Klick fügt den gewählten Einstieg zum bearbeitbaren Entwurf hinzu. Die Zeitleiste über dem Eingabefeld zeigt bis zu vier Einträge aus dem Posteingang, einschließlich eines Links zu offenen Genehmigungen. Posteingang und Genehmigungen verwenden bei der Navigation sofort zwischengespeicherte Daten. Diese gelten 30 Sekunden als aktuell; ungenutzte Einträge bleiben 30 Minuten gespeichert. Bei Aktualisierungsfehlern bleiben vorhandene Einträge mit einem Hinweis sichtbar. Konto- und Organisationswechsel leeren weiterhin den Cache.
 
 Der Hauptchat bietet ein breites Eingabefeld. Die Modellbibliothek zeigt verbundene Anbieter zuerst, mit Logos und großgeschriebenen Namen, und trennt Katalog und gespeicherte Modelle. Ein Klick wählt das Modell direkt aus. Fehlende Zugangsdaten lassen sich über die bestehenden Vault-Formulare im Auswahlfenster hinzufügen, auch mehrteilige Anbieterzugangsdaten. Berechtigungen und Modellvalidierung bleiben wirksam. Mikrofon und Senden wechseln beim Schreiben fließend.
 
@@ -260,7 +260,7 @@ Dashboard-Karten verwenden einheitliche kompakte Zeilen, Dienstsymbole und Statu
 
 Ein neuer Chat begrüßt nach lokaler Tageszeit und zeigt ein kompaktes Eingabefeld. Dateien stehen neben dem Agenten, Chat-Einstellungen und Berechtigungsschild neben dem Modell. Die Kontextnutzung bleibt bis zum Öffnen ein Symbol.
 
-Die Zeitleiste über dem Eingabefeld zeigt die neuesten Posteingangseinträge mit kurzem Datum und Quelle. Klicke auf eine Zeile, um den Eintrag zu öffnen, oder auf das Chat-Symbol, um eine Frage dazu vorzubereiten. Der Genehmigungszähler führt zur Entscheidungswarteschlange. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
+Die Zeitleiste über dem Eingabefeld zeigt Einträge mit Priorität zuerst. Innerhalb jeder Gruppe stehen die neuesten Einträge oben. Jede Zeile zeigt ein kurzes Datum und die Quelle. Klicke auf eine Zeile, um den Eintrag zu öffnen, oder auf das Chat-Symbol, um eine Frage dazu vorzubereiten. Der Genehmigungszähler führt zur Entscheidungswarteschlange. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
 
 Vor der ersten Nachricht bleiben Dateien und Kontextnutzung sichtbar, aber deaktiviert. Das Anhangsmenü zeigt verfügbare Aktionen direkt. Die Chat-Einstellungen verwenden kompakte Abschnitte für Verbindungen und gespeicherte Freigaben; die Inbox-Vorschau zeigt Quelle und Priorität.
 

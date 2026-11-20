@@ -1,5 +1,5 @@
 ---
-source_sha: "63c2e73abe39"
+source_sha: "bd914baac0af"
 ---
 
 # La consola { #the-console }
@@ -133,7 +133,7 @@ Una ejecución fallida muestra el error separado de la respuesta y fuera de las 
 
 Los adjuntos permanecen dentro del cuadro de mensaje en una fila desplazable. Las imágenes seguras muestran una miniatura local durante la carga; un indicador giratorio señala las cargas pendientes sin inventar porcentajes. Los subrayados de pestañas y las selecciones segmentadas se deslizan entre opciones; con movimiento reducido, cambian de inmediato.
 
-Los chats nuevos muestran hasta cuatro sugerencias del agente activo debajo del editor. Se muestran en una sola lista. Al seleccionar una, se añade al borrador editable. La cronología encima del editor muestra hasta cuatro elementos de la bandeja de entrada, con un enlace a las aprobaciones pendientes. Al desactivar las sugerencias en Builder, muestra hasta ocho elementos. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
+Los chats nuevos muestran hasta cuatro sugerencias del agente activo debajo del editor. Se muestran en una sola lista. Al seleccionar una, se añade al borrador editable. La cronología encima del editor muestra hasta cuatro elementos de la bandeja de entrada, con un enlace a las aprobaciones pendientes. La bandeja y las aprobaciones reutilizan inmediatamente los datos almacenados en caché al navegar: se consideran recientes durante 30 segundos y se conservan durante 30 minutos sin uso. Si falla la actualización, los elementos guardados siguen visibles con un aviso. Cambiar de cuenta u organización sigue vaciando la caché.
 
 El chat principal tiene un cuadro de mensaje ancho. La biblioteca muestra primero los proveedores conectados, con logotipos y nombres que empiezan en mayúscula, y separa el catálogo de los modelos guardados. Pulsar un modelo lo selecciona directamente. Las credenciales que falten se añaden mediante los formularios existentes de Vault dentro del selector, incluidas las credenciales de varios campos. Se conservan los permisos y la validación de modelos. El micrófono y el envío cambian suavemente al escribir.
 
@@ -259,7 +259,7 @@ Las tarjetas del panel usan filas compactas coherentes, símbolos de servicios y
 
 Un chat nuevo saluda según la hora local y muestra un editor compacto. Los archivos están junto al agente; los ajustes y el escudo de permisos, junto al modelo. El uso de contexto permanece como icono hasta abrirlo.
 
-La cronología encima del editor muestra primero las entradas más recientes de Inbox, con su fecha y origen. Haz clic en una fila para abrir la entrada o en el icono de chat para preparar una pregunta sobre ella. El contador de aprobaciones enlaza a su cola. La carga, los errores y la lista vacía tienen estados distintos. El dictado y las llamadas usan la misma superficie ligera que el editor. El widget de Architect comparte el botón principal y los controles de dictado.
+La cronología encima del editor muestra primero las entradas prioritarias de Inbox. Dentro de cada grupo, las más recientes aparecen primero. Cada entrada muestra su fecha y origen. Haz clic en una fila para abrir la entrada o en el icono de chat para preparar una pregunta sobre ella. El contador de aprobaciones enlaza a su cola. La carga, los errores y la lista vacía tienen estados distintos. El dictado y las llamadas usan la misma superficie ligera que el editor. El widget de Architect comparte el botón principal y los controles de dictado.
 
 Antes del primer mensaje, Archivos y uso de contexto permanecen visibles pero desactivados. El menú de adjuntos muestra directamente sus acciones disponibles. Los ajustes del chat usan secciones compactas para conexiones y aprobaciones recordadas; la vista previa de Inbox muestra origen y prioridad.
 

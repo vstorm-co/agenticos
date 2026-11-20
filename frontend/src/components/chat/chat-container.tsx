@@ -1720,12 +1720,7 @@ function ChatUI({
                   : "max-w-5xl bg-[linear-gradient(to_bottom,transparent_30%,var(--color-background)_62%)] px-2 pb-2 sm:px-4 sm:pb-4",
               )}
             >
-              {showDailyBriefing && (
-                <ChatHomeInbox
-                  expanded={callAgent?.show_starters === false}
-                  onDiscuss={composeSuggestion}
-                />
-              )}
+              {showDailyBriefing && <ChatHomeInbox onDiscuss={composeSuggestion} />}
               <InterruptedNotice
                 interrupted={interrupted}
                 detached={detachedTurnPending}

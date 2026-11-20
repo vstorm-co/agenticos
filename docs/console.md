@@ -2,7 +2,7 @@
 
 Resource galleries share larger cards with an icon, title, description and a separate status/action footer. Agents, tables, workflows, knowledge bases, projects, datasets, MCP servers, skills, context files, Apps and groups use the same frame while retaining their own actions. In the agent Builder, settings use matching collapsible cards. Thinking and Answer format live within Model settings. First messages shows the built-in fallback suggestions when no custom messages are set. Model starts open; closing a section preserves its editors, and Voice links reveal the matching section.
 
-In Build, First messages previews cards with the icon, title and message. Open a card to edit it. Saving a built-in example as a custom message keeps the other examples in the draft. The Skills, Context and Knowledge search pickers in Toolbox use selectable rows. A saved chat model stays visible in Models as well as Saved models. Turn off Show suggested prompts to give the new chat more room for Inbox items.
+In Build, First messages previews cards with the icon, title and message. Open a card to edit it. Saving a built-in example as a custom message keeps the other examples in the draft. The Skills, Context and Knowledge search pickers in Toolbox use selectable rows. A saved chat model stays visible in Models as well as Saved models.
 
 Organizations has a search field for membership names and slugs, with the matching count in the same toolbar. Clearing the search restores the full membership list.
 
@@ -233,13 +233,13 @@ Dashboard cards use the same compact rows, service marks and status labels. Coun
 
 A new chat greets you by local time and shows a compact composer. Files sit beside the agent; chat settings and the permission shield sit beside the model. Context usage stays an icon until opened.
 
-Above the composer, an Inbox timeline shows the newest items first with short dates and source marks. Open a row to read the item or use its chat icon to draft a question about it. Approval counts link to the approval queue. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. The Architect widget shares the primary action and dictation controls.
+Above the composer, an Inbox timeline shows priority items first and sorts each group newest first, with short dates and source marks. Open a row to read the item or use its chat icon to draft a question about it. Approval counts link to the approval queue. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. The Architect widget shares the primary action and dictation controls.
 
 Before the first message, Files and context usage remain visible but disabled. The attachment menu shows its available actions directly. Chat controls use compact sections for connections and remembered approvals; Inbox previews show source and priority.
 
 Attachments stay inside the composer on one scrolling row. Safe images show a local thumbnail while uploading; pending uploads show an indeterminate spinner rather than an invented percentage. Tab underlines and segmented selections glide between choices, with immediate selection when motion is reduced.
 
-New chats show up to four opening prompts from the active agent below the composer. They appear in a single list. Selecting a prompt adds it to an editable draft. The timeline above it previews up to four Inbox entries, including a link to any pending approvals. Turning off suggested prompts in the Builder expands the briefing to eight entries. Inbox and approval reads reuse cached data immediately across navigation, treat reads as fresh for 30 seconds and retain unused entries for 30 minutes. Refresh failures keep cached items visible with a warning. Account and organization switches retain the existing cache-clearing behavior.
+New chats show up to four opening prompts from the active agent below the composer. They appear in a single list. Selecting a prompt adds it to an editable draft. The timeline above it previews up to four Inbox entries, including a link to any pending approvals. Inbox and approval reads reuse cached data immediately across navigation, treat reads as fresh for 30 seconds and retain unused entries for 30 minutes. Refresh failures keep cached items visible with a warning. Account and organization switches retain the existing cache-clearing behavior.
 
 Shared console fields, menu rows, pickers, tabs and settings sections use the same compact presentation. Folding an optional form preserves its draft; a required invalid field can reopen its section. Native disclosures share trigger spacing and animate where intrinsic sizing is supported, with ordinary native opening elsewhere. Reduced motion and larger touch targets remain available.
 
