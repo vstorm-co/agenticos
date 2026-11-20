@@ -1,5 +1,5 @@
 ---
-source_sha: "c70172afaa9d"
+source_sha: "be18b1f04a8d"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -432,7 +432,8 @@ kluczy, agent systemowy, czyta odpowiedź w jobie, jako osoba, która poprosiła
 z rozliczeniem kosztu i wpisem w Aktywności, i wypisuje podane w niej fakty.
 Zostaje tylko wartość, którą odpowiedź zawiera dosłownie. **Użyj tych kluczy**
 wypełnia sprawdzenie kluczy przypadku do przejrzenia i zapisania; nic nie zapisuje
-się samo, a szkic jest usuwany po użyciu albo odrzuceniu.
+się samo, a szkic jest usuwany po użyciu albo odrzuceniu,
+najpóźniej 7 dni po zleceniu.
 
 Każde sprawdzenie przyjmuje opcjonalne `family` (najwyżej 80 znaków): to, co
 sprawdza w całym datasecie, np. `total including VAT` przy regexie każdego

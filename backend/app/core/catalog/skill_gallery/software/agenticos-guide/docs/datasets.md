@@ -414,7 +414,7 @@ agent, reads the answer in a job, as the person who asked, metered and in
 Activity, and lists the facts it states. Only a value the answer holds as
 written is kept. **Use these keys** fills the case's keys check for you to
 review and save; nothing is saved by itself, and the draft is deleted once
-used or dismissed.
+used or dismissed, or 7 days after you asked for it.
 
 Every check takes an optional `family` (at most 80 characters): the thing it tests
 across the dataset, such as `total including VAT` on each case's regex for its own

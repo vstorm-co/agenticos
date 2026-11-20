@@ -95,3 +95,15 @@ async def delete_for_case(
     deleted = len(result.scalars().all())
     await db.flush()
     return deleted
+
+
+async def delete_expired(db: AsyncSession, *, created_before: datetime) -> int:
+    """Every organization's drafts requested before `created_before` - the daily expiry."""
+    result = await db.execute(
+        delete(CaseKeyDraft)
+        .where(CaseKeyDraft.created_at < created_before)
+        .returning(CaseKeyDraft.id)
+    )
+    deleted = len(result.scalars().all())
+    await db.flush()
+    return deleted

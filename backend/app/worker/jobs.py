@@ -834,6 +834,7 @@ SWEEP_MCP_CONNECTIONS = _sweep("sweep-mcp-connections")
 SYNC_DISCORD_ROLES = _sweep("sync-discord-roles")
 EXPIRE_APPROVALS = _sweep("expire-approvals")
 EXPIRE_INVITATIONS = _sweep("expire-invitations")
+EXPIRE_CASE_KEY_DRAFTS = _sweep("expire-case-key-drafts")
 REAP_STALE_RUNS = _sweep("reap-stale-runs")
 SWEEP_TEARDOWN_RESERVATIONS = _sweep("sweep-teardown-reservations")
 SWEEP_RAG_SCRATCH = _sweep("sweep-rag-scratch")
@@ -1004,6 +1005,7 @@ TASKS: dict[str, TaskKind] = {
         SYNC_DISCORD_ROLES,
         EXPIRE_APPROVALS,
         EXPIRE_INVITATIONS,
+        EXPIRE_CASE_KEY_DRAFTS,
         REAP_STALE_RUNS,
         SWEEP_TEARDOWN_RESERVATIONS,
         SWEEP_RAG_SCRATCH,

@@ -1,5 +1,5 @@
 ---
-source_sha: "c70172afaa9d"
+source_sha: "be18b1f04a8d"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -460,7 +460,8 @@ Person, die gefragt hat, abgerechnet und in der Aktivität, und listet die Fakte
 auf, die sie nennt. Nur ein Wert, den die Antwort wörtlich enthält, bleibt.
 **Diese Schlüssel verwenden** füllt die Schlüssel-Prüfung des Falls, damit Sie sie
 prüfen und speichern; nichts wird von selbst gespeichert, und der Entwurf wird
-gelöscht, sobald er verwendet oder verworfen wird.
+gelöscht, sobald er verwendet oder verworfen wird, spätestens 7 Tage nach der
+Anforderung.
 
 Jede Prüfung nimmt ein optionales `family` (höchstens 80 Zeichen): die Sache, die
 sie über das ganze Dataset hinweg prüft, etwa `total including VAT` an der Regex

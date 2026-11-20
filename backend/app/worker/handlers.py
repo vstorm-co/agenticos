@@ -107,6 +107,7 @@ def production() -> Handlers:
             Handler(jobs.DRAFT_TOPIC, knowledge_gap_tasks.draft_knowledge_gap),
             Handler(jobs.GENERATE_CASES, case_generation_tasks.generate_cases),
             Handler(jobs.EXTRACT_CASE_KEYS, case_key_tasks.extract_case_keys),
+            Handler(jobs.EXPIRE_CASE_KEY_DRAFTS, _each_tick(case_key_tasks.expire_case_key_drafts)),
             Handler(jobs.RUN_CONVERSATION_TASK, conversation_tasks.run_task),
             Handler(jobs.RETURN_CONVERSATION_TASK, conversation_tasks.return_task),
             Handler(

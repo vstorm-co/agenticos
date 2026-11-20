@@ -6,7 +6,8 @@ person takes the draft into the case's keys check and saves it.
 
 **A draft is short-lived.** Its values are copied from the reference answer, so
 it is deleted once it is used or dismissed, replaced by the next one for the same
-case, deleted with its dataset, and deleted when its case is anonymised.
+case, deleted with its dataset, and deleted when its case is anonymised. One
+nobody acts on is deleted `KEY_DRAFT_RETENTION_DAYS` after it was requested.
 """
 
 import uuid
@@ -20,6 +21,8 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+
+KEY_DRAFT_RETENTION_DAYS = 7
 
 
 class KeyDraftStatus(StrEnum):

@@ -6,11 +6,11 @@ runner's own to prove.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.core.exceptions import (
     AuthorizationError,
@@ -24,7 +24,7 @@ from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.background_job import BackgroundJob
-from app.db.models.case_key_draft import CaseKeyDraft
+from app.db.models.case_key_draft import KEY_DRAFT_RETENTION_DAYS, CaseKeyDraft
 from app.db.models.dataset import DatasetCase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
@@ -42,6 +42,7 @@ from app.services.case_key_draft import (
 )
 from app.services.dataset import DatasetService
 from app.services.system_agent_runner import SystemAgentResult, SystemAgentRunner
+from app.worker.tasks.case_key_tasks import expire_case_key_drafts
 
 pytestmark = pytest.mark.anyio
 
@@ -309,6 +310,27 @@ class TestTheJob:
         assert row is not None
         await db.refresh(row)
         assert (row.status, row.error) == ("failed", STOPPED)
+
+
+class TestExpiry:
+    async def test_a_draft_nobody_acted_on_expires_in_every_organization(self, db) -> None:
+        now = datetime.now(UTC)
+        drafts = []
+        for age in (KEY_DRAFT_RETENTION_DAYS + 1, KEY_DRAFT_RETENTION_DAYS + 1, 1):
+            _, _, draft = await _started(db, await _owner(db))
+            await db.execute(
+                update(CaseKeyDraft)
+                .where(CaseKeyDraft.id == draft.id)
+                .values(created_at=now - timedelta(days=age))
+            )
+            drafts.append(draft.id)
+        await db.commit()
+
+        assert await expire_case_key_drafts() == 2
+        assert await expire_case_key_drafts() == 0
+
+        left = await db.execute(select(CaseKeyDraft.id).execution_options(populate_existing=True))
+        assert left.scalars().all() == [drafts[2]]
 
 
 class TestReviewing:
