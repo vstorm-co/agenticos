@@ -2,13 +2,14 @@
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities import all_capabilities
 from app.agents.mcp import McpSourceIdentity, tool_prefix
 from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef, PlatformMcpServerRef
 from app.core.audit import current_impersonator, record_audit
@@ -17,12 +18,23 @@ from app.core.permissions import AuthContext
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.external_agent import ExternalAgent
 from app.db.models.project import Project
-from app.repositories import agent_repo, agent_trigger_repo, mcp_connection_repo, project_repo
+from app.repositories import (
+    agent_repo,
+    agent_trigger_repo,
+    context_repo,
+    knowledge_base_repo,
+    mcp_connection_repo,
+    organization_secret_repo,
+    project_repo,
+    skill_repo,
+    virtual_table_repo,
+)
 from app.repositories import external_agent as external_repo
 from app.schemas.mcp_connection import McpToolRead
 from app.schemas.routine_sources import (
     RoutineSourceAccount,
     RoutineSourceConsent,
+    RoutineSourceItem,
     RoutineSourcePolicy,
     RoutineSourceReview,
 )
@@ -260,6 +272,14 @@ def account_identities(policy: RoutineSourcePolicy) -> dict[UUID, McpSourceIdent
     }
 
 
+def _distinct(items: list[RoutineSourceItem]) -> list[RoutineSourceItem]:
+    """Each source once, grouped by kind and sorted by name, as the review lists them."""
+    unique = {(item.kind, item.id, item.detail): item for item in items}
+    return sorted(
+        unique.values(), key=lambda item: (item.kind, (item.name or "").lower(), item.id or "")
+    )
+
+
 @dataclass(frozen=True)
 class RoutineSourceSnapshot:
     policy: RoutineSourcePolicy
@@ -267,6 +287,7 @@ class RoutineSourceSnapshot:
     unavailable: list[str]
     resources: list[str]
     requires_creator_identity: bool = False
+    items: list[RoutineSourceItem] = field(default_factory=list)
 
     def token(self) -> str:
         content = self.policy.model_dump(mode="json", exclude={"id", "reviewed_at"})
@@ -312,6 +333,10 @@ class RoutineSourceService:
         specs = [spec]
         seen: set[UUID] = set()
         resources: set[str] = set()
+        # The same sources, named: the ids above stay the review's identity.
+        items: list[RoutineSourceItem] = []
+        delegates: list[UUID] = []
+        credentials: set[UUID] = set()
         for current in specs:
             resources.update(f"Knowledge · {identifier}" for identifier in current.collection_ids)
             resources.update(f"Context · {identifier}" for identifier in current.context_ids)
@@ -346,6 +371,7 @@ class RoutineSourceService:
                     raise RoutineSourcesRequired()
                 specs.append(AgentSpec.model_validate(child_version.spec))
                 resources.add(f"Delegate · {delegate.agent_id} · {delegate.agent_version_id}")
+                delegates.append(delegate.agent_id)
         from app.agents.capabilities.mirage import MirageConfig, OrganizationAccount
         from app.repositories import channel_bot_repo, organization_secret_repo
         from app.repositories import telephony as phone_repo
@@ -396,11 +422,19 @@ class RoutineSourceService:
                         mirage_accounts[account.id] = account.authorization_generation
                         secret_sources[client[1]] = client[2]
                         resources.add(f"Terminal account · {account.id}")
+                        items.append(
+                            RoutineSourceItem(
+                                kind="terminal_account",
+                                id=str(account.id),
+                                name=account.label or account.name,
+                            )
+                        )
                     for identifier in mount.secrets.values():
                         generation = await organization_secret_repo.authorization_generation(
                             self.db, identifier, organization_id=ctx.organization_id
                         )
                         resources.add(f"Terminal credential · {identifier}")
+                        credentials.add(identifier)
                         if generation is None:
                             unavailable.add(f"Terminal credential · {identifier}")
                         else:
@@ -424,6 +458,13 @@ class RoutineSourceService:
                     else None
                 )
                 resources.add(f"Telephone endpoint · {config.endpoint_id}")
+                items.append(
+                    RoutineSourceItem(
+                        kind="phone",
+                        id=str(config.endpoint_id),
+                        name=None if bot is None else bot.name,
+                    )
+                )
                 if (
                     endpoint is None
                     or not endpoint.enabled
@@ -444,11 +485,15 @@ class RoutineSourceService:
             else:
                 external_sources[remote.id] = await external_fingerprint(self.db, remote)
                 resources.add(f"Remote agent · {remote.name} · {remote.id}")
+                items.append(
+                    RoutineSourceItem(kind="remote_agent", id=str(remote.id), name=remote.name)
+                )
         if len(external_sources) > 100:
             raise RoutineSourcesRequired(message="A routine can review at most 100 remote agents")
         for ref in (ref for current in specs for ref in current.mcp_servers):
             if isinstance(ref, PlatformMcpServerRef):
                 resources.add("AgenticOS platform MCP")
+                items.append(RoutineSourceItem(kind="platform"))
                 if not trigger.runs_as_creator:
                     requires_creator_identity = True
                     unavailable.add(PlatformRoutineIdentityRequired.message)
@@ -485,6 +530,7 @@ class RoutineSourceService:
                     root_sources.add(account.id)
                 name = account.label or account.name
                 names.add(f"{name} · {account.id}")
+                items.append(RoutineSourceItem(kind="mcp_account", id=str(account.id), name=name))
                 if not account.is_enabled or account.last_tools is None:
                     unavailable.add(name)
                     continue
@@ -523,6 +569,9 @@ class RoutineSourceService:
             )
         ).values():
             resources.add(f"Chat connection · {bot.name}")
+            items.append(
+                RoutineSourceItem(kind="chat_connection", id=str(exposure.id), name=bot.name)
+            )
             channel_sources[exposure.id] = grant_fingerprint(exposure, bot)
         input_source = None
         if trigger.connection_id is not None:
@@ -541,6 +590,13 @@ class RoutineSourceService:
                     authorization_generation=connection.authorization_generation,
                 )
                 names.add(f"{connection.label or connection.name} · {connection.id}")
+                items.append(
+                    RoutineSourceItem(
+                        kind="event_source",
+                        id=str(connection.id),
+                        name=connection.label or connection.name,
+                    )
+                )
         if len(sources) > 100:
             raise RoutineSourcesRequired(message="A routine can review at most 100 source accounts")
         return RoutineSourceSnapshot(
@@ -567,7 +623,91 @@ class RoutineSourceService:
             unavailable=sorted(unavailable),
             resources=sorted(resources),
             requires_creator_identity=requires_creator_identity,
+            items=_distinct(
+                [
+                    *await self._named(
+                        ctx,
+                        specs,
+                        delegates=delegates,
+                        credentials=sorted(credentials),
+                    ),
+                    *items,
+                ]
+            ),
         )
+
+    async def _named(
+        self,
+        ctx: AuthContext,
+        specs: list[AgentSpec],
+        *,
+        delegates: list[UUID],
+        credentials: list[UUID],
+    ) -> list[RoutineSourceItem]:
+        """The agent's own sources and its delegates', by name, each read in one query.
+
+        A source that no longer exists, or that this organization cannot see,
+        keeps its id and has no name - never another organization's.
+        """
+        organization_id = ctx.organization_id
+        skill_ids = sorted({identifier for spec in specs for identifier in spec.skill_ids})
+        context_ids = sorted({identifier for spec in specs for identifier in spec.context_ids})
+        collection_ids = sorted(
+            {identifier for spec in specs for identifier in spec.collection_ids}
+        )
+        skills = await skill_repo.get_many(self.db, skill_ids, organization_id=organization_id)
+        contexts = await context_repo.get_many(
+            self.db, context_ids, organization_id=organization_id
+        )
+        collections = {
+            identifier: collection
+            for identifier, collection in (
+                await knowledge_base_repo.get_by_ids(self.db, collection_ids)
+            ).items()
+            if collection.organization_id == organization_id
+            or collection.owner_user_id == ctx.subject_id
+        }
+        agents = await agent_repo.get_many(self.db, delegates, organization_id=organization_id)
+        secrets = await organization_secret_repo.get_many(
+            self.db, credentials, organization_id=organization_id
+        )
+        # A capability this deployment no longer ships keeps its id and no name.
+        labels = {definition.id: definition.name for definition in all_capabilities()}
+        named: list[RoutineSourceItem] = []
+        for spec in specs:
+            named.extend(
+                RoutineSourceItem(kind="capability", id=binding.id, name=labels.get(binding.id))
+                for binding in spec.capabilities
+            )
+            for grant in spec.table_bindings:
+                table = await virtual_table_repo.get_table(
+                    self.db, grant.table_id, organization_id=organization_id
+                )
+                named.append(
+                    RoutineSourceItem(
+                        kind="table",
+                        id=str(grant.table_id),
+                        name=None if table is None else table.name,
+                        detail="/".join(operation.value for operation in grant.operations),
+                    )
+                )
+        for kind, identifiers, found in (
+            ("skill", skill_ids, skills),
+            ("context", context_ids, contexts),
+            ("knowledge", collection_ids, collections),
+            ("delegate", delegates, agents),
+            ("terminal_credential", credentials, secrets),
+        ):
+            for identifier in identifiers:
+                row = found.get(identifier)
+                named.append(
+                    RoutineSourceItem(
+                        kind=kind,
+                        id=str(identifier),
+                        name=None if row is None else row.name,
+                    )
+                )
+        return named
 
     async def initial(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourcePolicy:
         """Creating the responsibility freezes its configured sources, never new grants."""
@@ -607,6 +747,7 @@ class RoutineSourceService:
             accounts=review.accounts,
             resources=review.resources,
             unavailable_sources=review.unavailable,
+            items=review.items,
         )
 
     async def replace(

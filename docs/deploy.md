@@ -807,3 +807,18 @@ migration. Read it before assuming.
   required reviewers on the `production` environment, every merge deploys itself.
 - **Back up `postgres_data` and `backend/.env` together.** Either without the
   other is not a restore.
+
+## Fork images and local verification
+
+Compose and `scripts/deploy.sh` accept `AGENTICOS_IMAGE_PREFIX`, defaulting to
+`ghcr.io/vstorm-co/agenticos`. Set it to the fork's application image prefix and
+set `AGENTICOS_SOURCE_REPOSITORY` to its GitHub `owner/repository`. Backend,
+frontend and browser images use that prefix; the separately versioned sandbox
+daemon stays an upstream dependency. The Images workflow defaults to its own
+repository's lowercased GHCR prefix. A GitHub repository variable of the same
+name can override it; package permissions must cover that destination.
+
+Forking does not configure SSH secrets, environment reviewers or repository
+protections. Verify those before enabling release-triggered deployment.
+For the plugin and a disposable, published-image local check, see
+[Operate AgenticOS with an AI client](howto/operate-with-ai.md).

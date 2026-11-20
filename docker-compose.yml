@@ -39,7 +39,7 @@ services:
   # takes a second. `docker compose logs migrate` is where a failed migration
   # says why the API never started.
   migrate:
-    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend:${AGENTICOS_VERSION:-latest}
     command: agenticos db upgrade
     env_file:
       - path: ./.env
@@ -64,7 +64,7 @@ services:
     restart: "no"
 
   app:
-    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend:${AGENTICOS_VERSION:-latest}
     # Longer than background.drain()'s 30s timeout, or Docker's 10s default
     # SIGKILLs the container mid-drain and an upload stays `processing` (#11).
     stop_grace_period: 40s
@@ -205,7 +205,7 @@ services:
   # below this container's limit, so the watchdog - which says why - acts before
   # the kernel does. A second worker, here or on another host, shares the queue.
   worker:
-    image: ghcr.io/vstorm-co/agenticos-backend:${AGENTICOS_VERSION:-latest}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-backend:${AGENTICOS_VERSION:-latest}
     volumes:
       - media_data:/app/media
     command: python -m app.worker
@@ -263,7 +263,7 @@ services:
   # another name; then set them beside `FRONTEND_URL` and `CORS_ORIGINS`, which
   # are the backend's side of the same fact.
   frontend:
-    image: ghcr.io/vstorm-co/agenticos-frontend:${AGENTICOS_VERSION:-latest}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-frontend:${AGENTICOS_VERSION:-latest}
     environment:
       - NODE_ENV=production
       - BACKEND_URL=http://app:8000
@@ -405,7 +405,7 @@ services:
   # shell it refuses on sight (#2130). `TZ` and `BROWSER_LANG` are where and in
   # which language it says it is.
   browser:
-    image: ghcr.io/vstorm-co/agenticos-browser:${AGENTICOS_VERSION:-latest}
+    image: ${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-browser:${AGENTICOS_VERSION:-latest}
     profiles: [browser]
     environment:
       - TZ=${BROWSER_TZ:-UTC}

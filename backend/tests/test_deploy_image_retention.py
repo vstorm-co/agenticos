@@ -454,3 +454,33 @@ def test_a_symlink_stack_path_keeps_its_existing_compose_identity_and_rollback(h
     assert result.returncode == 0, result.stderr
     assert after.image(f"{BACKEND}:{pin('rollback', str(link))}").id == current.id
     assert after.image(f"{BACKEND}:{pin('current', str(link))}").id == target.id
+
+
+def test_fork_retention_removes_only_the_configured_namespace(host: Host) -> None:
+    prefix = "ghcr.io/example/custom-agenticos"
+    host.env["AGENTICOS_IMAGE_PREFIX"] = prefix
+    fork = prefix + "-backend"
+    state = Engine(images=[image(1, fork), image(2, fork), image(3, fork), image(4, BACKEND)])
+    result, after = host.run(state, f"prune_release_images sha-{TARGET[:7]}")
+    assert result.returncode == 0, result.stderr
+    assert {item.id for item in after.images} == {
+        state.images[1].id,
+        state.images[2].id,
+        state.images[3].id,
+    }
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        "ghcr.io/example/agenticos:latest",
+        "https://ghcr.io/example/agenticos",
+        "ghcr.io/Example/agenticos",
+    ],
+)
+def test_invalid_registry_prefix_is_refused_before_host_effects(host: Host, prefix: str) -> None:
+    host.env["AGENTICOS_IMAGE_PREFIX"] = prefix
+    result, after = host.run(Engine(), "", whole_script=True)
+    assert result.returncode == 1
+    assert "without a tag or URL scheme" in result.stderr
+    assert after.calls == []
