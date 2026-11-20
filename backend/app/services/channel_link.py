@@ -26,11 +26,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_link_request import ChannelLinkRequest
 from app.repositories import (
     agent_exposure_repo,
+    channel_bot_repo,
     channel_identity_repo,
     channel_link_request_repo,
     channel_session_repo,
@@ -43,6 +45,7 @@ from app.services.access import AGENT, resolve_access
 from app.services.channels.base import IncomingMessage
 from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
 from app.services.channels.discord_roles import DiscordRoleSync
+from app.services.channels.identity_scope import IdentityScope, identity_scope
 from app.services.impersonation import refuse_binding_while_impersonating
 
 REQUEST_TTL = timedelta(minutes=15)
@@ -105,10 +108,23 @@ class ChannelLinkService:
         the unlinked-first-message path does not catch this, so left to
         propagate it would answer a bot with a 500 and the sender with silence.
         """
+        scope: IdentityScope = {}
+        if incoming.platform == "matrix":
+            bot = await channel_bot_repo.get_for_inbound(self.db, UUID(incoming.bot_id))
+            if bot is None or bot.platform != "matrix":
+                raise NotFoundError(
+                    message="The Matrix bot is unavailable", details={"bot_id": incoming.bot_id}
+                )
+            scope = identity_scope(bot)
+            if incoming.raw.get("server_url") != scope.get("server_url"):
+                raise AuthorizationError(
+                    message="The Matrix message does not belong to this homeserver"
+                )
         await channel_link_request_repo.delete_for_identity(
             self.db,
             platform=incoming.platform,
             platform_user_id=incoming.platform_user_id,
+            **scope,
         )
         try:
             async with self.db.begin_nested():
@@ -120,12 +136,14 @@ class ChannelLinkService:
                     platform_username=incoming.platform_username,
                     platform_display_name=incoming.platform_display_name,
                     expires_at=datetime.now(UTC) + REQUEST_TTL,
+                    **scope,
                 )
         except IntegrityError:
             request = await channel_link_request_repo.get_for_identity(
                 self.db,
                 platform=incoming.platform,
                 platform_user_id=incoming.platform_user_id,
+                **scope,
             )
             if request is None:
                 raise
@@ -138,9 +156,12 @@ class ChannelLinkService:
         to trust a URL. Naming the chat account is what makes the answer theirs
         to give.
         """
-        return await channel_link_request_repo.get_valid(
+        request = await channel_link_request_repo.get_valid(
             self.db, token=token, now=datetime.now(UTC)
         )
+        if request is not None and request.platform == "matrix" and not request.server_url:
+            return None
+        return request
 
     async def confirm(self, token: str, user_id: UUID) -> ChannelLinkRequest | None:
         """Attach the chat account behind `token` to `user_id`.
@@ -169,6 +190,9 @@ class ChannelLinkService:
         # get_or_create, not get-then-create: a concurrent inbound message could
         # otherwise collide on the identity's unique key and 500 the confirm (#1113).
         # The upsert leaves an existing user_id alone, so the link is the update below.
+        scope: IdentityScope = (
+            {"server_url": request.server_url} if request.platform == "matrix" else {}
+        )
         identity = await channel_identity_repo.get_or_create(
             self.db,
             platform=request.platform,
@@ -176,6 +200,7 @@ class ChannelLinkService:
             platform_username=request.platform_username,
             platform_display_name=request.platform_display_name,
             user_id=user_id,
+            **scope,
         )
         if identity.user_id != user_id:
             previous = identity.user_id

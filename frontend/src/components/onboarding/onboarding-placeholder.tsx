@@ -2,6 +2,7 @@
 
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
+import { AccountAppearance } from "@/components/layout/account-appearance";
 import { AccountLocale } from "@/components/layout/account-locale";
 import { StartEntry } from "./start-entry";
 
@@ -11,6 +12,7 @@ export function OnboardingPlaceholder() {
     <AuthGuard>
       <ActiveOrgGuard />
       <AccountLocale />
+      <AccountAppearance />
       <main className="bg-background text-foreground min-h-dvh">
         <StartEntry />
       </main>

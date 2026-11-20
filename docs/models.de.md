@@ -1,5 +1,5 @@
 ---
-source_sha: "7b83980dd889"
+source_sha: "28fef18e676b"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -402,6 +402,7 @@ Standard-Provider verwenden die Modell- und Provider-Ableitung von Pydantic AI. 
 | GitHub Models | `github` | API-Key | |
 | Groq | `groq` | API-Key | |
 | Heroku AI | `heroku` | API-Key | ✓ |
+| LLMTR | `llmtr` | API-Key | |
 | Mistral | `mistral` | API-Key | |
 | Moonshot AI | `moonshotai` | API-Key | |
 | Nebius AI Studio | `nebius` | API-Key | |
@@ -414,6 +415,8 @@ Standard-Provider verwenden die Modell- und Provider-Ableitung von Pydantic AI. 
 | xAI (Grok) | `xai` | API-Key | ✓ (`api_host`) |
 | Cohere | `cohere` | API-Key | |
 | Hugging Face | `huggingface` | API-Key | ✓ |
+
+LLMTR zeigt nur Modelle mit `CHAT_COMPLETIONS`. Ein Modell ohne geprüften Preis im mitgelieferten Snapshot kann nur ohne aktive Dollargrenze ausgeführt werden; seine Kosten bleiben als unvollständig markiert. Bei aktiver Grenze werden weitere LLMTR-Aufrufe auch verweigert, wenn frühere Nutzung unbekannte Kosten hat.
 
 ### Selbst gehostet { #self-hosted }
 

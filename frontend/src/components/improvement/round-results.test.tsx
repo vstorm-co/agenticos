@@ -330,6 +330,46 @@ it("sums an attempt up by its change against its own baseline, and marks the bes
     /\+2 fixed · 0 broken(?! of)/,
   );
 });
+it("names an attempt better or worse on criteria in its row, and keeps the better one as best", () => {
+  const criterion = { scorer: "judge", name: "price break", graded: 40, before: 9, after: 40 };
+  const view = render(
+    <AttemptRow
+      session={SESSION}
+      round={{
+        ...ROUND,
+        verdict: "criteria_better",
+        verdict_detail: {
+          fixed: 0,
+          broken: 0,
+          held_out: 40,
+          criteria: [{ ...criterion, fixed: 31, broken: 0 }],
+        },
+      }}
+    />,
+  );
+  const row = screen.getByText("Attempt 1 of 3").closest("summary")!;
+  expect(screen.getByText("Better on criteria")).toHaveClass("bg-success/10");
+  expect(row).toHaveTextContent("+0 fixed · 0 broken of 40 kept aside");
+  expect(row).toHaveTextContent("1 criterion better");
+  expect(row).toHaveTextContent("Best attempt");
+  view.rerender(
+    <AttemptRow
+      session={SESSION}
+      round={{
+        ...ROUND,
+        verdict: "criteria_worse",
+        verdict_detail: {
+          fixed: 0,
+          broken: 0,
+          criteria: [{ ...criterion, before: 40, after: 30, fixed: 0, broken: 10 }],
+        },
+      }}
+    />,
+  );
+  expect(screen.getByText("Worse on criteria")).toHaveClass("bg-destructive/10");
+  expect(screen.getByText("1 criterion worse")).toBeInTheDocument();
+  expect(screen.queryByText("Best attempt")).toBeNull();
+});
 it("distinguishes a worse attempt from a mixed one", () => {
   const view = render(
     <AttemptRow

@@ -335,7 +335,8 @@ class WorkflowInlineStorageLimitError(AppException):
     code = "WORKFLOW_INLINE_STORAGE_LIMIT"
     status_code = 429
 
-    def __init__(self, *, scope: str) -> None:
+    def __init__(self, *, scope: str, can_fit_when_idle: bool = False) -> None:
+        self.can_fit_when_idle = can_fit_when_idle
         super().__init__(details={"scope": scope})
 
 

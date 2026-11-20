@@ -116,16 +116,16 @@ export const NAV_GROUPS: NavGroup[] = [
         dataTour: "nav-workflows",
       },
       {
-        labelKey: "eventSources",
-        href: ROUTES.EVENT_SOURCES,
-        icon: Plug,
-        permission: Perm.eventSourcesView,
-      },
-      {
         labelKey: "routines",
         href: ROUTES.ROUTINES,
         icon: TimerReset,
         permission: Perm.agentsView,
+      },
+      {
+        labelKey: "eventSources",
+        href: ROUTES.EVENT_SOURCES,
+        icon: Plug,
+        permission: Perm.eventSourcesView,
       },
       {
         labelKey: "datasets",

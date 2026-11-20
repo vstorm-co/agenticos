@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ExternalLink, KeyRound, Link2, Pause, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -10,6 +10,7 @@ import { Badge, Button, ConfirmDialog } from "@/components/ui";
 import { NodeTile } from "@/components/workflows/node-tile";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { useWorkflowExposure } from "@/hooks";
+import { useEventSource } from "@/hooks/use-event-sources";
 import { ROUTES } from "@/lib/constants";
 import { scheduleText } from "@/lib/trigger-format";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -240,6 +241,17 @@ function ExposureStatus({
   if (isLoading) return <LoadingState variant="pending" />;
   if (exposure === null) return null;
   const busy = setActive.isPending || rotate.isPending || renewLink.isPending;
+  const toggle = (
+    <Button
+      variant="ghost"
+      size="sm"
+      disabled={busy}
+      onClick={() => setActive.mutate({ id: exposure.id, active: !exposure.is_active })}
+    >
+      {exposure.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+      {exposure.is_active ? t("triggerPause") : t("triggerResume")}
+    </Button>
+  );
 
   return (
     <div className={cn("space-y-3 rounded-lg border p-3", !exposure.is_active && "bg-muted/30")}>
@@ -277,15 +289,11 @@ function ExposureStatus({
                 {t("formNewLink")}
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              onClick={() => setActive.mutate({ id: exposure.id, active: !exposure.is_active })}
-            >
-              {exposure.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              {exposure.is_active ? t("triggerPause") : t("triggerResume")}
-            </Button>
+            {!exposure.is_active && exposure.source_id ? (
+              <SharedSourceResume sourceId={exposure.source_id}>{toggle}</SharedSourceResume>
+            ) : (
+              toggle
+            )}
           </div>
         )}
       </div>
@@ -350,6 +358,11 @@ function ExposureStatus({
       )}
     </div>
   );
+}
+
+function SharedSourceResume({ sourceId, children }: { sourceId: string; children: ReactNode }) {
+  const source = useEventSource(sourceId);
+  return source.data?.can_use ? children : null;
 }
 
 function cadenceOf(exposure: WorkflowExposureRead) {

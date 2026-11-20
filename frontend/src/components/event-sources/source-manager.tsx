@@ -166,7 +166,8 @@ function SourceCard({ source, onEdit }: { source: EventSource; onEdit: () => voi
           <p>{t("usage", { count: usage.data?.total ?? 0 })}</p>
           {usage.data?.items.map((item) => (
             <p key={item.id} className="text-muted-foreground">
-              {item.name} · {t(item.kind)} · {item.is_active ? t("active") : t("paused")}
+              {item.name} · {t(item.kind)}
+              {item.is_active !== null && <> · {item.is_active ? t("active") : t("paused")}</>}
             </p>
           ))}
         </div>

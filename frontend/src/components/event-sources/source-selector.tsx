@@ -32,16 +32,17 @@ export function SourceSelector({
 }) {
   const t = useTranslations("eventSources");
   const { can } = usePermissions();
-  const sources = useEventSources();
+  const canViewSources = can(Perm.eventSourcesView);
+  const sources = useEventSources(canViewSources);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<EventSourceCreated | null>(null);
+  const available = canViewSources ? sources.data?.items : undefined;
   const selected =
-    sources.data?.items.find((source) => source.id === value) ??
-    (created?.id === value ? created : null);
+    available?.find((source) => source.id === value) ?? (created?.id === value ? created : null);
   return (
     <div className="space-y-3" data-tour="event-source-select">
       <Label htmlFor="event-source-select">{t("selectSource")}</Label>
-      {sources.error ? (
+      {canViewSources && sources.error ? (
         <ErrorState
           description={t("loadError")}
           cta={{ label: t("retry"), onClick: () => void sources.refetch() }}
@@ -52,7 +53,7 @@ export function SourceSelector({
           disabled={disabled || sources.isLoading}
           onValueChange={(id) => {
             setCreated(null);
-            onChange(sources.data?.items.find((source) => source.id === id) ?? null);
+            onChange(available?.find((source) => source.id === id) ?? null);
           }}
         >
           <SelectTrigger id="event-source-select">
@@ -62,8 +63,8 @@ export function SourceSelector({
             <SelectItem value="dedicated" disabled={!allowDedicated}>
               {allowDedicated ? t("dedicated") : t("chooseSource")}
             </SelectItem>
-            {sources.data?.items
-              .filter((source) => source.can_use || source.id === value)
+            {available
+              ?.filter((source) => source.can_use || source.id === value)
               .map((source) => (
                 <SelectItem key={source.id} value={source.id} disabled={!source.can_use}>
                   {source.name}

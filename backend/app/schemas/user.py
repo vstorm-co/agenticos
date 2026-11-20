@@ -5,13 +5,15 @@ from typing import Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import EmailStr, Field, field_validator, model_validator
+from pydantic import ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
 
 ConsoleLocale = Literal["en", "pl", "de", "tr"]
 """The languages the console is translated into - `frontend/src/lib/locales.ts`."""
 
+ConsoleTheme = Literal["light", "dark", "system"]
+ConsoleLook = Literal["standard", "glass", "graphite", "midnight", "paper"]
 
 _CLOCK = r"^([01]\d|2[0-3]):[0-5]\d$"
 
@@ -111,6 +113,8 @@ class UserUpdate(BaseSchema):
         default=None,
         description="Email me the weekly and monthly usage reports.",
     )
+    theme: ConsoleTheme | None = None
+    look: ConsoleLook | None = None
     locale: ConsoleLocale | None = Field(
         default=None,
         description="The console's language for me, on every device.",
@@ -175,6 +179,8 @@ class UserRead(UserBase, TimestampSchema):
     notify_budget_alerts: bool = True
     notify_approval_requests: bool = True
     notify_usage_reports: bool = True
+    theme: ConsoleTheme | None = None
+    look: ConsoleLook | None = None
     locale: ConsoleLocale | None = None
     time_zone: str | None = None
     job_title: str | None = None
@@ -193,6 +199,21 @@ class UserAgentContext(BaseSchema):
 
     job_title: str | None = Field(default=None, max_length=120)
     about: str | None = Field(default=None, max_length=500)
+
+
+class UserPreferences(BaseSchema):
+    """My console preferences; null preserves a device's default until I choose.
+
+    PATCH changes only supplied fields. Null clears the account override; each
+    device retains its local choice.
+    This contract deliberately excludes identity, permissions and agent context.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    theme: ConsoleTheme | None = None
+    look: ConsoleLook | None = None
+    locale: ConsoleLocale | None = None
 
 
 class UserLocale(BaseSchema):

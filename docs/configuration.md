@@ -96,17 +96,20 @@ spooled to a temporary file and read into memory. Behind a session that is not m
 of a risk; on `POST /api/v1/embed/{key}/files`, which a stranger holding a link may
 reach, it is.
 
-So a request declaring a `Content-Length` larger than `MAX_UPLOAD_SIZE_MB` plus a
-5 MiB allowance for the multipart envelope is answered **413** before its body is
-read. There is no setting: it follows `MAX_UPLOAD_SIZE_MB`, because a second number
-to keep in step with the first is a number that ends up below it.
+A request declaring a `Content-Length` larger than the largest of
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` and
+`ML_MAX_UPLOAD_SIZE_MB`, plus 5 MiB for multipart framing, receives **413** before
+its body is read. This ceiling follows the upload settings automatically.
 
-**It is the cheap half of the answer, not the whole one.** `Content-Length` is set
-by the caller, and a chunked request declares none at all — those are let through
-and bounded by the per-route caps, which measure real bytes. A deployment that wants
-the guarantee rather than the courtesy sets `client_max_body_size` (nginx) or the
-equivalent on whatever terminates its connections; the compose files run uvicorn
-with no such limit of its own.
+The caller supplies `Content-Length`; chunked requests declare none and remain
+subject to the per-route limits, which measure actual bytes. Set a body limit on
+the reverse proxy to bound those too. With Nginx this is also necessary to allow
+uploads above its default 1 MiB: the shipped template sets
+`client_max_body_size 55m;` on the API host and the console's multipart upload
+locations. Console pages, authentication and ordinary JSON keep a 1 MiB limit.
+Raise both upload allowances when raising
+the largest upload setting. See [Nginx deployment](deploy.md#option-b-nginx).
+The Compose files run uvicorn without its own body limit.
 
 ## Authentication
 
@@ -213,7 +216,7 @@ Where each issuer lives, and what to register:
 
 | Provider | Issuer | Register the redirect URI as |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | A **Web** platform redirect URI on the app registration. Grant `openid`, `email`, `profile` under API permissions |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | A **Web** platform redirect URI on the app registration. Grant `openid`, `email`, `profile` under API permissions. Under **Token configuration**, add the optional claims `email` and `xms_edov` to the **ID** token |
 | **Okta** | `https://<org>.okta.com` (or a custom authorization server's `/oauth2/<id>`) | A sign-in redirect URI on a **Web** application |
 | **Keycloak** | `https://<host>/realms/<realm>` | A valid redirect URI on a confidential client with standard flow enabled |
 
@@ -228,6 +231,13 @@ Two things the platform requires of whatever provider it is pointed at:
     unconfirmed address means anybody at that provider can claim anybody's work
     address, and the domain allow-list below is built on an address meaning
     something.
+  On Entra the claim has to be on the **ID token**: its UserInfo endpoint
+  returns only `sub`, `name`, `family_name`, `given_name`, `picture` and
+  `email`. `OIDC_VERIFIED_CLAIM` has to name a claim whose *value* is true for a
+  confirmed address; naming one every token carries, such as `sub`, confirms
+  nothing and is not accepted. A refused sign-in logs
+  `oauth_callback_claims_rejected` with the failed condition (`reason`) and the
+  names, never the values, of the claims received.
 - **A stable `sub`.** The account is keyed on it, not on the address, so a
   person who changes their name or whose domain is bought keeps their history -
   and the next holder of a freed address does not inherit it. It is stored

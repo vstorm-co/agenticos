@@ -201,10 +201,18 @@ def test_preset_delivery_ids_cannot_use_native_signatures(provider, header):
         )
 
 
-@pytest.mark.parametrize("key", ["invalid@@", "whsec_" + base64.b64encode(b"short").decode()])
+@pytest.mark.parametrize(
+    "key", ["invalid@@", *(base64.b64encode(b"x" * size).decode() for size in (23, 65))]
+)
 def test_standard_keys_are_validated_before_storage(key):
     with pytest.raises(BadRequestError):
         standard_key(key)
+
+
+@pytest.mark.parametrize("size", [24, 31, 64])
+def test_standard_webhooks_accepts_compliant_imported_key_lengths(size: int) -> None:
+    key = bytes(range(size))
+    assert standard_key("whsec_" + base64.b64encode(key).decode()) == key
 
 
 def test_basic_credentials_are_required_and_masked():

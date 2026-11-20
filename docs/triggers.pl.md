@@ -1,5 +1,5 @@
 ---
-source_sha: "d7696a54fcde"
+source_sha: "ed007f781d57"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -117,6 +117,8 @@ wymagają `runs:view` i po prostu ich nie ma bez tego uprawnienia.
 
 ## Źródła zdarzeń wielokrotnego użytku { #reusable-event-sources }
 
+Dodaj widżet **Źródła zdarzeń** do pulpitu, aby sprawdzić, ile widocznych dla Ciebie źródeł jest aktywnych lub wstrzymanych.
+
 Otwórz **Źródła zdarzeń** albo wybierz **Wybierz istniejące / Utwórz nowe** w edytorze webhooka rutyny lub workflow. Źródło przechowuje swój adres URL, poświadczenia i konfigurację dostawcy. Wiele rutyn i opublikowanych wejść workflow może subskrybować ten sam URL, zachowując własne filtry, tożsamość wykonania, uprawnienia, zgody i budżety.
 
 Domyślna widoczność to **Prywatne**. **Organizacja** udostępnia źródło zgodnie z uprawnieniami organizacji. Wyświetlanie, używanie i edycja to osobne uprawnienia. Podłączenie celu lub nasłuchiwanie wymaga prawa używania źródła i zarządzania celem. Dostęp do rutyny lub workflow nie daje dostępu do innych zdarzeń źródła. Worker sprawdza uprawnienia ponownie przed wykonaniem.
@@ -128,7 +130,7 @@ Wybierz GitHub, Linear, HubSpot lub Zendesk do weryfikacji właściwej dla dosta
 | Niestandardowy HMAC | SHA-256, nazwa nagłówka, opcjonalny prefiks podpisu i kodowanie hex, base64 lub base64url; dostępny jest również wcześniejszy format podpisywania znacznika czasu |
 | Basic Auth | Nazwa użytkownika i hasło |
 | Klucz API | Nazwa nagłówka, tajny klucz i opcjonalny prefiks |
-| Standard Webhooks | Symetryczne podpisy `v1` obejmujące ID, znacznik czasu i body; listy podpisów i pięć minut tolerancji czasu |
+| Standard Webhooks | Symetryczne podpisy `v1` obejmujące ID, znacznik czasu i body; listy podpisów, pięć minut tolerancji czasu i klucze o długości 24–64 bajtów kodowane w Base64 |
 
 Wyślij POST zawierający obiekt JSON; zachowana jest dotychczasowa adaptacja partii HubSpot. Poświadczenia są tylko do zapisu i trafiają do sejfu organizacji. Zmieniaj je w źródle, nigdy w definicji workflow ani przykładzie. Identyfikatory dostawcy lub skonfigurowany nagłówek ID dostawy rozpoznają ponowienia. Poświadczenia Basic Auth i klucze API nie są identyfikatorami zdarzeń. Bez ID zdarzenia ponowienia mogą uruchomić dodatkowe wykonania.
 

@@ -1,9 +1,9 @@
 ---
 name: channel-bot
-description: Work with messaging-channel bots — Telegram, Slack, Mattermost, Microsoft Teams or Discord. Register a bot, route inbound messages through an agent, choose webhook vs polling, handle an @slug mention, or add a new channel adapter. Use when wiring chat into a messaging platform or debugging bot delivery, identity linking or "the bot answered as itself".
+description: Work with messaging-channel bots — Telegram, Slack, Mattermost, Microsoft Teams, Discord or Matrix. Register a bot, route inbound messages through an agent, choose webhook vs polling, handle an @slug mention, or add a new channel adapter. Use when wiring chat into a messaging platform or debugging bot delivery, identity linking or "the bot answered as itself".
 ---
 
-# Channels — Telegram, Slack, Mattermost, Teams, Discord
+# Channels — Telegram, Slack, Mattermost, Teams, Discord, Matrix
 
 **Read `docs/channels.md`.** Code: `app/services/channels/` — a thick service with
 per-platform adapters plus a router that funnels inbound messages into the **same**
@@ -18,6 +18,7 @@ agent pipeline as the web chat.
 | `imessage.py`, `imessage_transport.py` | Company BlueBubbles Mac: bounded HTTP, separately authenticated webhook, text/files, optional tapbacks and numbered prompts; no polling |
 | `teams.py`, `teams_auth.py` | Microsoft Teams over the Bot Connector's HTTP protocol (#1985): JWT-verified activities, Adaptive Cards, conversation references in `teams_conversations` |
 | `discord.py`, `discord_protocol.py` | Discord over its Gateway and REST API, no library (#2079); the protocol module holds the pure payloads, chunking and the channel-visibility arithmetic |
+| `matrix.py`, `matrix_protocol.py` | Matrix over the Client-Server API, no library (#2081): a `/sync` long-poll, threaded replies, `m.replace` edits, numbered prompts; the protocol module holds the pure content, mention and media rules. Unencrypted rooms only |
 | `ingress.py` | Durable normalized admission, per-thread queue and same-sender additions at model boundaries |
 | `reply_receipts.py` | Terminal reply snapshot and single submission fence; never replay model/tool effects |
 | `router.py` | Inbound platform message → conversation/session → agent run → reply |
@@ -116,6 +117,11 @@ makes the *other* modes refuse in a channel too (#639).
   the service and `channel-webhook-register` refuse a webhook for it. An
   interaction must be acknowledged within three seconds, so the adapter defers
   first and does the work after.
+- **Matrix is stream only too** - a homeserver has no outgoing webhook; the bot
+  long-polls `/sync`. Its `next_batch` is kept in Redis per bot and account, and an
+  account's first sync skips the backlog. Room ids carry a colon, so the chat id is
+  `room_key(room_id)` (percent-encoded) and every adapter call decodes it with
+  `room_of` - never pass a raw room id to `split_thread`.
 
 ## Adding an adapter
 
@@ -182,3 +188,20 @@ Automatic context is thread-only. `_sync_thread_context` imports a bounded page 
 Personal service diagnostics report missing identity and connection separately. A personal source does not make a group destination private. Readiness is configuration-only, for the current caller; it must not refresh credentials or claim provider authorization was tested.
 
 Durable Mattermost edit admission checks the ignored-original Redis receipt once, then retains eligibility under a unique original-post edit key in PostgreSQL. Never re-check that expiring receipt after the thread queue wait. Resolve Telegram addressing before absorbing queued or in-process steering; slashless commands stay commands. Pending reply snapshots consume message retention quotas, and every terminal queue transition compacts duplicate reply bodies while keeping delivery identities and submission fences.
+
+
+## Matrix private destinations
+
+Matrix room keys are opaque: every native key retains the asserting homeserver; a private key retains the original recipient as well
+as the room, and the thread key retains the root. Pass the complete key through
+jobs, prompts, resumptions and file delivery; decode with `room_of` only at the
+Matrix API boundary. Never rebuild an outgoing private destination from the bare
+room ID. The adapter rechecks both original participants before sending private
+content, so a membership change cannot release a queued or resumed private reply
+into a group. Private and group turns use distinct conversation keys.
+
+Matrix identities and pending `/link` requests are keyed by canonical configured
+homeserver URL and native user ID. Always use `identity_scope(bot)` for identity
+queries, including backfill authors and prompt decisions. Retain the source
+server through durable ingress; reject old-server admission and resumptions after
+a bot changes endpoint. Show that URL before consent and on connected accounts.

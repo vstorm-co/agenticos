@@ -22,6 +22,8 @@ const hook = {
   renewLink: { mutate: vi.fn(), isPending: false },
 };
 vi.mock("@/hooks", () => ({ useWorkflowExposure: vi.fn(() => hook) }));
+const useEventSource = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/use-event-sources", () => ({ useEventSource }));
 
 function exposure(overrides: Partial<WorkflowExposureRead> = {}): WorkflowExposureRead {
   return {
@@ -245,6 +247,25 @@ describe("TriggerPanel", () => {
       screen.getByRole("link", { name: "Manage credentials in Event sources" }),
     ).toHaveAttribute("href", "/event-sources");
     expect(screen.getByRole("button", { name: "Pause" })).toBeEnabled();
+  });
+
+  it.each([false, true])("shows shared workflow Resume only when source use is %s", (canUse) => {
+    hook.exposure = exposure({
+      adapter: "webhook",
+      source_id: "shared-source",
+      is_active: false,
+    });
+    useEventSource.mockReturnValue({ data: { can_use: canUse } });
+    render(
+      <TriggerPanel
+        workflow={workflow("trigger.webhook")}
+        draft={null}
+        catalog={CATALOG}
+        canEdit
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Resume" }) !== null).toBe(canUse);
+    expect(useEventSource).toHaveBeenCalledWith("shared-source");
   });
 
   it("looks up each published webhook card independently of draft entries", () => {

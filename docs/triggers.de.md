@@ -1,5 +1,5 @@
 ---
-source_sha: "d7696a54fcde"
+source_sha: "ed007f781d57"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -123,6 +123,8 @@ jeder Zeile brauchen `runs:view` und fehlen ohne es schlicht.
 
 ## Wiederverwendbare Ereignisquellen { #reusable-event-sources }
 
+Fügen Sie Ihrem Dashboard das Widget **Ereignisquellen** hinzu. Es zeigt, wie viele der für Sie sichtbaren Quellen aktiv oder pausiert sind.
+
 Öffnen Sie **Ereignisquellen**, oder wählen Sie **Vorhandene auswählen / Neu erstellen** im Webhook-Editor einer Routine oder eines Workflows. Eine Quelle besitzt ihre Live-URL, Zugangsdaten und Provider-Konfiguration. Mehrere Routinen und veröffentlichte Workflow-Einstiege können dieselbe URL abonnieren; Filter, Ausführungsidentität, Berechtigungen, Einwilligungen und Budgets bleiben pro Ziel erhalten.
 
 Quellen sind standardmäßig **Privat**. **Organisation** stellt sie gemäß den Organisationsberechtigungen bereit. Anzeigen, Verwenden und Bearbeiten sind getrennte Berechtigungen. Das Verknüpfen eines Ziels oder das Empfangen eines Beispiels benötigt Quellen-Nutzungsrechte und die Verwaltungsrechte des Ziels. Zugriff auf eine Routine oder einen Workflow erlaubt keinen Zugriff auf andere Ereignisse der Quelle. Worker prüfen Rechte vor der Ausführung erneut.
@@ -134,7 +136,7 @@ Wählen Sie GitHub, Linear, HubSpot oder Zendesk für die jeweilige Provider-Pr�
 | Benutzerdefinierter HMAC | SHA-256, Headername, optionales Signaturpräfix und Hex-, Base64- oder Base64url-Kodierung; die bisherige Zeitstempelsignatur ist ebenfalls verfügbar |
 | Basic Auth | Benutzername und Passwort |
 | API-Schlüssel | Headername, geheimer Schlüssel und optionales Präfix |
-| Standard Webhooks | Symmetrische `v1`-Signaturen über ID, Zeitstempel und Body; Signaturlisten und fünf Minuten Zeitstempeltoleranz |
+| Standard Webhooks | Symmetrische `v1`-Signaturen über ID, Zeitstempel und Body; Signaturlisten, fünf Minuten Zeitstempeltoleranz und Base64-kodierte Schlüssel mit 24–64 Byte |
 
 Senden Sie per POST ein JSON-Objekt; die bisherige Anpassung für HubSpot-Stapel bleibt erhalten. Zugangsdaten werden nur geschrieben und im Organisations-Vault gespeichert. Ersetzen Sie sie an der Quelle, niemals in einer Workflow-Definition oder einem Beispiel. Provider-Zustellungs-IDs oder ein konfigurierter Zustellungs-ID-Header erkennen Wiederholungen. Basic-Auth- und API-Schlüssel-Zugangsdaten sind keine Ereignis-IDs. Ohne Ereignis-ID können Wiederholungen zusätzliche Läufe starten.
 

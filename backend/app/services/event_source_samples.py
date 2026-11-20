@@ -56,17 +56,26 @@ class EventSourceSampleService:
             else SourceCapture(state="expired")
         )
 
-    def capture_after_commit(self, source_id: UUID, *, body: JsonObject, delivery_id: str) -> None:
+    def capture_after_commit(
+        self, source_id: UUID, *, body: JsonObject, delivery_id: str, received_at: datetime
+    ) -> None:
         """Keep the optional Redis capture outside the delivery transaction."""
         spawn_after_commit(
             self.db,
-            capture_source_sample(self.redis, source_id, body=body, delivery_id=delivery_id),
+            capture_source_sample(
+                self.redis, source_id, body=body, delivery_id=delivery_id, received_at=received_at
+            ),
             name="event-source-sample",
         )
 
 
 async def capture_source_sample(
-    redis: RedisClient, source_id: UUID, *, body: JsonObject, delivery_id: str
+    redis: RedisClient,
+    source_id: UUID,
+    *,
+    body: JsonObject,
+    delivery_id: str,
+    received_at: datetime,
 ) -> None:
     """A cache outage or an oversized capture must never change live admission."""
     try:
@@ -83,17 +92,23 @@ async def capture_source_sample(
             sample = SourceCapture(state="caught", delivery=delivery)
         captured = sample.model_dump_json()
         now = datetime.now(UTC).timestamp()
+        received = received_at.timestamp()
+        finished: list[str] = []
         for token, expires in tokens.items():
-            if float(expires) <= now:
-                continue
-            await redis.replace_if_equal(
-                f"source:listener:{token}:state",
-                expected=_LISTENING,
-                value=captured,
-                ttl=KEEP_SECONDS,
+            deadline = float(expires)
+            if now >= deadline:
+                finished.append(token)
+            elif received >= deadline - LISTEN_SECONDS:
+                await redis.replace_if_equal(
+                    f"source:listener:{token}:state",
+                    expected=_LISTENING,
+                    value=captured,
+                    ttl=KEEP_SECONDS,
+                )
+                finished.append(token)
+        if finished:
+            await redis.update_mapping(
+                f"source:listeners:{source_id}", updates={}, remove=finished, ttl=LISTEN_SECONDS
             )
-        await redis.update_mapping(
-            f"source:listeners:{source_id}", updates={}, remove=list(tokens), ttl=LISTEN_SECONDS
-        )
     except RedisError, OSError, ValueError, RecursionError:
         logger.warning("event_source_sample_cache_unavailable")

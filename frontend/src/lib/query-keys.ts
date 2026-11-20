@@ -17,6 +17,7 @@ export const qk = {
     usage: (id: string) => ["event-sources", id, "usage"] as const,
     capture: (id: string, token: string) => ["event-sources", id, "capture", token] as const,
   },
+  accountPreferences: (userId: string | null) => ["account-preferences", userId] as const,
   personalModelKeys: {
     all: (scope: string) => ["personal-model-keys", scope] as const,
     agent: (scope: string, agentId: string | null) =>

@@ -1,9 +1,10 @@
 """Reusable source configuration and live capture; no sample operation executes a target."""
 
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 
 from app.api.deps import Auth, EventSourceSampleSvc, EventSourceSvc, limit_workflow_webhook, require
 from app.api.public_api import PUBLIC
@@ -28,8 +29,14 @@ public_router = APIRouter()
 @router.get(
     "", response_model=EventSourceList, dependencies=[Depends(require(Perm.EVENT_SOURCES_VIEW))]
 )
-async def list_sources(ctx: Auth, service: EventSourceSvc) -> Any:
-    return await service.list(ctx)
+async def list_sources(
+    ctx: Auth,
+    service: EventSourceSvc,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """List a page of sources visible to the caller."""
+    return await service.list(ctx, skip=skip, limit=limit)
 
 
 @router.post(
@@ -93,9 +100,13 @@ async def receive(
 ) -> Any:
     """Authenticate POST JSON once and acknowledge durable receipt, never wait for an agent."""
     body = await read_workflow_body(request.stream())
+    received_at = datetime.now(UTC)
     source, receipt, _ = await service.receive(source_id, body=body, headers=request.headers)
     assert receipt.body is not None
     samples.capture_after_commit(
-        source.id, body=receipt.body, delivery_id=receipt.external_id or str(receipt.id)
+        source.id,
+        body=receipt.body,
+        delivery_id=receipt.external_id or str(receipt.id),
+        received_at=received_at,
     )
     return Response(status_code=200 if source.provider == "linear" else 202)

@@ -109,6 +109,8 @@ see the agents sees their routines; the outcome and cost on each row need
 
 ## Reusable event sources { #reusable-event-sources }
 
+Add the **Event sources** widget to your dashboard to see how many of your visible sources are active or paused.
+
 Open **Event sources** to create a source, or choose **Select existing / Create new** in a routine or workflow's webhook editor. A source owns its live URL, credentials and provider configuration. Several routines and published workflow entries can subscribe to that URL, each retaining its own filters, execution identity, permissions, consent and budgets.
 
 Sources default to **Private**. Choose **Organization** to make one available according to organization permissions. Source view, use and edit are separate permissions: attaching a target or listening for an event requires source-use access as well as the target's management permissions. Seeing a routine or workflow does not grant access to unrelated events from its source. Workers recheck access before executing queued work.
@@ -120,7 +122,7 @@ Choose GitHub, Linear, HubSpot or Zendesk for provider verification, or **Custom
 | Custom HMAC | SHA-256, a header name, an optional signature prefix and hex, base64 or base64url encoding; legacy timestamp signing is also available |
 | Basic Auth | Username and password |
 | API Key | Header name, secret key and optional prefix |
-| Standard Webhooks | Symmetric `v1` signatures over ID, timestamp and body; signature lists and a five-minute timestamp tolerance |
+| Standard Webhooks | Symmetric `v1` signatures over ID, timestamp and body; signature lists, a five-minute timestamp tolerance and 24–64 byte base64-encoded keys |
 
 Send a POST containing a JSON object; HubSpot batches retain their existing adaptation. Credentials are write-only and stored in the organization's vault. Replace them on the source, never in a workflow definition or sample. Provider delivery IDs, or a configured delivery-ID header, identify retries. Basic Auth and API-key credentials are not event IDs. If the sender supplies no event ID, retries may start additional runs.
 

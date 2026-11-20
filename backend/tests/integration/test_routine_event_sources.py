@@ -90,13 +90,13 @@ async def test_rebinding_during_delivery_preserves_the_other_subscriber_and_reti
                 select(EventDispatch).where(EventDispatch.subscription_id == subscription.id)
             )
             assert dispatch is not None
-            queue_fire = AgentTriggerService.queue_fire
+            lock_dispatch_routine = source_repo.lock_dispatch_routine
 
-            async def move_before_routine_lock(service, trigger_id, **kwargs):
+            async def move_before_routine_lock(session, **kwargs):
                 await rebind()
-                return await queue_fire(service, trigger_id, **kwargs)
+                await lock_dispatch_routine(session, **kwargs)
 
-            race.setattr(AgentTriggerService, "queue_fire", move_before_routine_lock)
+            race.setattr(source_repo, "lock_dispatch_routine", move_before_routine_lock)
             await sources.dispatch(ctx.organization_id, dispatch.id)
     await db.commit()
     await db.refresh(subscription)

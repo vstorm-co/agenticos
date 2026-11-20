@@ -43,7 +43,12 @@ from app.repositories import (
     skill_repo,
 )
 from app.repositories.agent_run import RunFilters
-from app.schemas.assistant import AssistantRead, AssistantSignals, AssistantUpdate
+from app.schemas.assistant import (
+    AssistantConfigurationRead,
+    AssistantRead,
+    AssistantSignals,
+    AssistantUpdate,
+)
 from app.services import agent_templates, skill_library
 from app.services.agent_registry import AgentRegistryService, slugify
 from app.services.model_profile import choosable_for_others
@@ -80,6 +85,19 @@ class AssistantService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.registry = AgentRegistryService(db)
+
+    async def configuration(self, ctx: AuthContext) -> AssistantConfigurationRead:
+        """Read only an existing row; install and refresh are separate explicit changes."""
+        if not ctx.has(Perm.ORG_SETTINGS):
+            raise AuthorizationError(
+                message="Reading assistant configuration requires org:settings"
+            )
+        row = await organization_assistant_repo.get(self.db, ctx.organization_id)
+        if row is None:
+            return AssistantConfigurationRead(installed=False)
+        return AssistantConfigurationRead(
+            installed=True, agent_id=row.agent_id, enabled=row.enabled, greeting=row.greeting
+        )
 
     async def state(self, ctx: AuthContext) -> AssistantRead:
         """The organization's assistant as the widget needs it, installing it first.

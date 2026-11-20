@@ -22,7 +22,7 @@ from app.api.routes.v1.admin_users import update_user as admin_update_user
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import Perm
-from app.schemas.user import UserAgentContext, UserLocale, UserRead, UserUpdate
+from app.schemas.user import UserAgentContext, UserLocale, UserPreferences, UserRead, UserUpdate
 from app.services.email.service import get_email_service
 
 logger = logging.getLogger(__name__)
@@ -86,6 +86,35 @@ async def update_current_user(
         except Exception:
             logger.exception("email_change_mail_failed", extra={"user_id": str(updated.id)})
     return updated
+
+
+@router.get(
+    "/me/preferences",
+    response_model=UserPreferences,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
+async def read_current_user_preferences(current_user: CurrentUser) -> Any:
+    """Read my console theme, style and language, without exposing account details."""
+    return current_user
+
+
+@router.patch(
+    "/me/preferences",
+    response_model=UserPreferences,
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
+async def update_current_user_preferences(
+    data: UserPreferences,
+    current_user: CurrentUser,
+    user_service: UserSvc,
+) -> Any:
+    """Change my reversible console preferences, as Settings or my agent.
+
+    Only supplied fields change; no caller-selected user ID is accepted. Open
+    consoles synchronize theme/style and in-chat changes apply immediately.
+    """
+    changes = UserUpdate.model_validate(data.model_dump(exclude_unset=True))
+    return await user_service.update(current_user.id, changes)
 
 
 @router.put(

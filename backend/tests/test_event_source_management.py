@@ -68,7 +68,7 @@ def setup(monkeypatch, ctx, source):
     monkeypatch.setattr(module.repo, "get", AsyncMock(return_value=source))
     monkeypatch.setattr(module.repo, "credential", AsyncMock(return_value=credential))
     monkeypatch.setattr(module.repo, "save", AsyncMock(side_effect=save))
-    monkeypatch.setattr(module.repo, "list_sources", AsyncMock(return_value=[source]))
+    monkeypatch.setattr(module.repo, "list_sources", AsyncMock(return_value=([source], 1)))
     monkeypatch.setattr(module.repo, "subscriptions", AsyncMock(return_value=[]))
     monkeypatch.setattr(module.repo, "target_subscription", AsyncMock(return_value=None))
     monkeypatch.setattr(module.repo, "unbind", AsyncMock())
@@ -177,22 +177,19 @@ async def test_explicit_source_grants_widen_use_without_promoting_a_viewer(
     assert access.resource_grant_repo.get_level.await_args.kwargs["resource_type"] == "event_source"
 
 
-@pytest.mark.security
-async def test_source_listing_filters_private_and_foreign_rows_and_reports_effective_permissions(
-    ctx, source, setup
-):
+async def test_source_listing_reports_an_owned_source_as_usable_and_editable(ctx, source, setup):
     service, _, _ = setup
-    other_private = EventSource(
-        id=uuid4(), organization_id=ctx.organization_id, owner_user_id=uuid4(), visibility="private"
-    )
-    foreign = EventSource(
-        id=uuid4(), organization_id=uuid4(), owner_user_id=ctx.user_id, visibility="org"
-    )
-    module.repo.list_sources.return_value = [source, other_private, foreign]
     result = await service.list(ctx)
     assert result.total == 1
     assert result.items[0].id == source.id
     assert result.items[0].can_use and result.items[0].can_edit
+
+
+@pytest.mark.security
+async def test_source_listing_has_no_results_without_a_user(ctx, setup):
+    service, _, _ = setup
+    result = await service.list(replace(ctx, user_id=None))
+    assert result.total == 0 and result.items == []
 
 
 @pytest.mark.security
@@ -286,6 +283,8 @@ async def test_usage_does_not_disclose_a_private_target_name(ctx, source, setup,
     monkeypatch.setattr(module.agent_repo, "get", AsyncMock(return_value=target))
     result = await service.usage(ctx, source.id)
     assert result.items[0].name == "Private routine"
+    assert result.items[0].target_id is None
+    assert result.items[0].is_active is None
     assert "Private acquisition" not in result.model_dump_json()
 
 
@@ -326,13 +325,21 @@ async def test_invalid_source_update_is_a_domain_refusal_without_mutating_creden
 
 
 @pytest.mark.security
-async def test_update_rejects_the_existing_providers_signature_as_a_delivery_id(ctx, source, setup):
+@pytest.mark.parametrize("submit_auth", [False, True])
+async def test_update_rejects_the_existing_providers_signature_as_a_delivery_id(
+    ctx, source, setup, submit_auth: bool
+):
     service, _, saved = setup
     source.provider = "hubspot"
     source.auth = SourceAuth(method="provider").model_dump()
     with pytest.raises(BadRequestError) as refusal:
         await service.update(
-            ctx, source.id, EventSourceUpdate(delivery_id_header="X-HubSpot-Signature")
+            ctx,
+            source.id,
+            EventSourceUpdate(
+                delivery_id_header="X-HubSpot-Signature",
+                auth=SourceAuth(method="provider") if submit_auth else None,
+            ),
         )
     assert refusal.value.details["fields"][0]["field"] == "delivery_id_header"
     assert source.delivery_id_header == "x-event-id"
@@ -407,7 +414,8 @@ async def test_workflow_usage_reports_only_the_name_the_caller_can_view(
     assert result.total == 1
     assert result.items[0].kind == "workflow"
     assert result.items[0].name == ("Acquisition plans" if visible else "Private workflow")
-    assert not result.items[0].is_active
+    assert result.items[0].target_id == (workflow.id if visible else None)
+    assert result.items[0].is_active is (False if visible else None)
 
 
 @pytest.mark.security

@@ -1,5 +1,5 @@
 ---
-source_sha: "51a34ace781e"
+source_sha: "612ae89d3f02"
 ---
 
 # Workflows { #workflows }
@@ -440,9 +440,17 @@ krok nazywa realną rzecz, którą ma Twoja organizacja:
 Każde pole wyboru rozróżnia jednakowo nazwane wiersze przez kontekst i oznacza
 referencję, której cel zniknął. Pola wyboru **Agent** i **Secret** mają też link do
 utworzenia nowego — zawsze, nie tylko gdy lista jest pusta — natomiast pole wyboru
-**Table** nie ma żadnego. Tabela, której schemat zmienił się od czasu powiązania, mówi o tym i oferuje
-**Rebind to the current schema**, więc nieaktualny zestaw kolumn jest widoczną
-zachętą, a nie cichym pęknięciem.
+**Table** nie ma żadnego.
+
+Gdy schemat tabeli zmieni się po powiązaniu z nią kroku, edytor sam przenosi krok
+na nowy schemat, o ile każda kolumna, którą krok czyta, nadal istnieje i ma ten sam
+typ - dodana kolumna albo zmiana kolumny, której krok nie czyta, nie wymaga od
+ciebie niczego. Gdy czytana kolumna została usunięta albo zmieniła typ, krok
+pokazuje problem, a zarówno pole **Table** kroku, jak i lista problemów na pasku
+narzędzi oferują **Update to the current schema**, które zachowuje każdą wybraną
+kolumnę, która nadal istnieje. Potem sprawdź, co czyta ten krok.
+
+Edytor sprawdza też filtry, kolumny sortowania i powiązania wartości. Usuń lub zastąp zależne ustawienia używające zmienionych kolumn przed aktualizacją schematu tabeli; zbiorcza aktualizacja pozostawia takie kroki bez zmian. Powiązanie wartości całego rekordu również wymaga ręcznego przeglądu.
 
 ### Ewaluacje kroku z modelem { #evals-for-a-model-step }
 
@@ -662,12 +670,11 @@ gdy zapis oczekuje, **Saving…**, gdy trwa, **Saved**, gdy się dokona, i **Sav
 
 Każdy zapis jest zapisywany względem rewizji, którą otworzyłeś, więc draft edytowany
 w dwóch miejscach naraz nie może po cichu nadpisać. Gdy to się zdarza, edytor podnosi
-banner zatytułowany **This draft changed elsewhere**: *Someone edited this workflow
-since you opened it. Overwrite keeps your changes; reload replaces them with the
-latest saved draft.* Wybierasz:
+banner zatytułowany **Someone else also edited this workflow**: *They saved changes while you were editing. Keep your changes, or load
+their version and lose your unsaved edits.* Wybierasz:
 
-- **Overwrite** — zachowaj swoją wersję i zapisz ją nad tą zapisaną gdzie indziej.
-- **Reload** — odrzuć niezapisane zmiany i weź ostatnio zapisany draft.
+- **Keep my changes** — zachowaj swoją wersję i zapisz ją nad tą zapisaną gdzie indziej.
+- **Load their version** — odrzuć niezapisane zmiany i weź ostatnio zapisany draft.
 
 ## Publikowanie wersji i historia wersji { #publishing-a-version-and-version-history }
 
@@ -1458,8 +1465,8 @@ Galerie skills i kontekstu agenta w kroku pobierają wszystkie strony metadanych
   samym kształcie tworzy bindingi za Ciebie.
 - Parametr to **wartość albo dane z kroku** — **Data** czyta je z osiągalnego, zgodnego
   typem wyjścia wcześniejszego kroku albo wstawia je do tekstu.
-- Draft **zapisuje się sam**, a edycja z dwóch miejsc podnosi banner z **Overwrite**
-  lub **Reload**.
+- Draft **zapisuje się sam**, a edycja z dwóch miejsc podnosi banner z **Keep my changes**
+  lub **Load their version**.
 - **Publish** jest zablokowany, dopóki problem istnieje, i waliduje ponownie na
   serwerze; wcześniejsze wersje pozostają widoczne tylko do odczytu, a **Restore to
   draft** robi z jednej z nich z powrotem draft.

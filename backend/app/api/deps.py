@@ -13,7 +13,7 @@ is why every write in this API used to be acknowledged before it was durable
 """
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -1583,6 +1583,19 @@ async def limit_table_write(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many table writes in the last minute. Wait and try again.")
 
 
+async def limit_eval_comparison(ctx: Auth) -> AsyncGenerator[None]:
+    """Bound interactive comparisons per person and organization, including the console.
+
+    Thirty computations per person and sixty per organization per minute leave room for
+    the console's three-second polling. One comparison may execute per organization
+    at a time, so parallel requests cannot fill every worker with the same large run.
+    Shared Redis owns both controls; the established local floors apply on outage.
+    """
+    _refuse_missing(ctx, (Perm.RUNS_VIEW,))
+    async with rate_limit.eval_computation(ctx):
+        yield
+
+
 async def limit_coding_revert(ctx: Auth) -> None:
     """Bound queued file verification per person and organization, even without Redis."""
     for caller, attempts in (
@@ -1922,6 +1935,22 @@ async def _require_app_admin(user: CurrentUser) -> User:
     if not user.is_app_admin:
         raise AuthorizationError(message="App admin privileges required")
     return user
+
+
+async def require_deployment_mcp_scope(request: Request, user: CurrentUser) -> None:
+    """An MCP credential needs explicit global consent in addition to the live admin flag.
+
+    Session behavior is unchanged. Ordinary organization keys cannot reach
+    assistant-only routes, and org permissions never imply deployment authority.
+    """
+    caller = _key_caller(request)
+    if caller is not None and not user.is_app_admin:
+        raise AuthorizationError(message="App admin privileges required")
+    if caller is not None and (caller.surface != "mcp" or not caller.context.is_app_admin):
+        raise AuthorizationError(
+            message="This operation requires an external OAuth grant with deployment:admin",
+            details={"required_scope": "deployment:admin"},
+        )
 
 
 CurrentAppAdmin = Annotated[User, Depends(_require_app_admin)]
@@ -2520,3 +2549,13 @@ def get_personal_model_key_service(db: DBSession) -> PersonalModelKeyService:
 
 
 PersonalModelKeySvc = Annotated[PersonalModelKeyService, Depends(get_personal_model_key_service)]
+
+
+from app.services.solution import SolutionService
+
+
+def get_solution_service(db: DBSession) -> SolutionService:
+    return SolutionService(db)
+
+
+SolutionSvc = Annotated[SolutionService, Depends(get_solution_service)]

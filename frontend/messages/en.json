@@ -173,7 +173,8 @@
     "comparing": "Comparing",
     "configurationSchema": "Configuration schema",
     "advancedSettings": "Advanced settings",
-    "connectedOnly": "Connected only",
+    "connectedOnly": "Organization connections",
+    "boundToAgentOnly": "Connected to this agent",
     "connectionNoLongerAllows": "This connection no longer allows <code>{runtime}</code>. Pick one it does, or the agent fails on its first tool call.",
     "connectionSDefault": "The connection's default",
     "connectionSDefaultIs": "The connection's default - {alias}",
@@ -331,7 +332,7 @@
     "mattermostWebhookToken": "Webhook token (optional)",
     "mattermostWebhookTokenHint": "The token Mattermost shows for the outgoing webhook",
     "maxTokens": "Max tokens",
-    "mentionableOnBoundBots": "Slack, Microsoft Teams, Telegram, Mattermost and Discord bots that answer as this agent. It is mentionable by @handle only on the bots it is bound to.",
+    "mentionableOnBoundBots": "Slack, Microsoft Teams, Telegram, Mattermost, Discord and Matrix bots that answer as this agent. It is mentionable by @handle only on the bots it is bound to.",
     "modeAsync": "Async",
     "modeAuto": "Auto",
     "modeSync": "Sync",
@@ -746,6 +747,8 @@
     "loadTools": "Load its tools",
     "toolsAfterConnecting": "Its tools are listed once a {name} account is connected.",
     "toolsSearch": "Search tools",
+    "toolsAddNew": "Add tools the server gains later",
+    "toolsAddNewHint": "{state, select, on {A tool the server adds later reaches this agent on its own.} narrowed {The agent keeps only the tools chosen here. Choose every tool to turn this on.} other {The agent keeps only the tools listed here; a tool the server adds later is left out.}}",
     "eachPersonsOwnAccountShort": "Everyone connects their own; not for API keys, the widget or routines.",
     "connectYours": "Connect yours",
     "cardOrganizationsAccount": "The organization's · {name}",
@@ -814,11 +817,9 @@
     "platformAsWhoeverAsks": "Acts as whoever asks",
     "platformActsAsWhoeverAsks": "Every tool acts as the person the agent runs for, with exactly their permissions. Nothing new is granted: what they could not do in the console, the agent cannot do here either.",
     "platformUseIt": "Use it in this agent",
-    "platformApproval": "Approval",
-    "platformWritesHint": "Reading is free; creating, running or changing anything waits for the person to approve it.",
-    "platformAllHint": "Every call waits for approval, reading included.",
-    "platformTools": "Tools this agent may call",
-    "platformWritesBadge": "changes something",
+    "toolChangesSomething": "Changes something",
+    "platformSomeRunFreely": "Some tools run without asking",
+    "platformToolGroup": "{group, select, tables {Tables} tasks {Tasks and Inbox} workflows {Workflows} agents {Agents} knowledge {Knowledge bases and context} skills {Skills} projects {Projects} automations {Routines and watches} apps {Apps} runs {Runs, conversations and spend} connections {Connections} account {Organization and account} administration {Administration} other {Other}}",
     "platformRemove": "Remove from this agent",
     "voiceTitle": "Voice",
     "voiceDescription": "How people can talk to this agent: a live voice call, or dictation that turns speech into text. Takes effect when the agent is published.",
@@ -967,8 +968,8 @@
     "newStarter": "New first message",
     "newStarterPlaceholder": "What can you help me with?",
     "addStarter": "Add",
+    "platformAlwaysAsksBadge": "always asks: it changes who has authority here",
     "platformUngatedBadge": "your own setting, never asks",
-    "platformHeldBadge": "reads past conversations, asks first",
     "noKeyForEndpoint": "No key - the endpoint needs none",
     "notAChatModel": "not a chat model",
     "notAChatModelHint": "{model} is not a chat model - it is for text to speech, transcription, images or embeddings, and an agent cannot run on it. Choose a chat model before publishing.",
@@ -3174,6 +3175,13 @@
         "title": "Version to version",
         "description": "Whether a new agent version behaves better than the last."
       },
+      "event-sources": {
+        "title": "Event sources",
+        "description": "Check how many webhook sources are active or paused.",
+        "empty": "No event sources yet",
+        "active": "Active",
+        "paused": "Paused"
+      },
       "routines": {
         "title": "Routines",
         "description": "What runs with nobody at the keyboard, soonest first, and how the last one went.",
@@ -3210,7 +3218,8 @@
           "sms": "SMS",
           "email": "Email",
           "imessage": "iMessage",
-          "discord": "Discord"
+          "discord": "Discord",
+          "matrix": "Matrix"
         },
         "webhook": "listening",
         "polling": "polling",
@@ -3674,7 +3683,7 @@
         "agent": "The Architect builds one with you.",
         "publish": "So people can use it in chat and in channels.",
         "knowledge": "The documents it answers from.",
-        "channel": "Slack, Teams, Telegram, Mattermost or Discord."
+        "channel": "Slack, Teams, Telegram, Mattermost, Discord or Matrix."
       },
       "left": "{count, plural, =1 {1 step left} other {# steps left}}",
       "start": "Start",
@@ -6479,6 +6488,8 @@
       "exposureManualDescription": "A person starts it with Run in the editor or Start a run on its runs page.",
       "runDraft": "Test draft",
       "runHint": "Runs the draft, not the published version (Ctrl or Cmd + Enter)",
+      "runPinnedCount": "{count, plural, one {# step pinned} other {# steps pinned}}",
+      "runPinnedHint": "These steps won't run in a test: they hand on their pinned test data instead. {steps}",
       "runNeedsSteps": "Add a step first",
       "runBlockedByProblems": "{count, plural, one {Fix # problem first} other {Fix # problems first}}",
       "liveRunTitle": "Test run",
@@ -7347,6 +7358,8 @@
       "editChannelDescription": "Change what this bot is called, or replace one of its credentials. A credential is never read back, so a field left blank keeps the value already stored.",
       "mattermostServerUrl": "Server URL",
       "mattermostServerUrlHint": "The address you open Mattermost at in the browser, without a path",
+      "matrixHomeserverUrl": "Homeserver URL",
+      "matrixHomeserverUrlHint": "The client-server address of the homeserver the bot account is on, without a path",
       "mattermostWebhookToken": "Webhook token (optional)",
       "mattermostWebhookTokenHint": "The token Mattermost shows for the outgoing webhook",
       "name": "Name",
@@ -7413,7 +7426,7 @@
       "transcriptionInheritsFromOrg": "{pair}, from the organization",
       "transcriptionPair": "{provider} · {model}",
       "transcriptionEngine": "Provider",
-      "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} discord {Discord sends voice messages as Ogg/Opus} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
+      "transcriptionMistralFormat": "{platform, select, slack {Slack's desktop app records audio clips as WebM} discord {Discord sends voice messages as Ogg/Opus} matrix {Matrix clients send voice messages as Ogg/Opus} other {Telegram sends voice messages as Ogg/Opus}}, which Mistral does not list as a format it accepts. They may fail to transcribe; choose another provider for this bot if they do.",
       "transcriptionProviderNoKey": "{name} (no usable key)",
       "transcriptionInheritedNoKey": "No key is chosen where this pair comes from, so voice messages are not transcribed until one is.",
       "botTokenHintEmail": "The address the bot answers from, for example agent@mail.example.com. Replies go out through this deployment's e-mail provider.",
@@ -7430,6 +7443,7 @@
       "imessageWebhookRegistered": "iMessage webhook registered",
       "imessageReactionHint": "Optional. iMessage tapbacks require BlueBubbles Private API; leave this off when using AppleScript only.",
       "botTokenHintDiscord": "The token under Bot in the Discord Developer Portal. Switch on Message Content Intent and switch off Public Bot there, then invite the bot with the bot and applications.commands scopes.",
+      "botTokenHintMatrix": "The access token of the bot's Matrix account: a compatibility token from `mas-cli manage issue-compatibility-token` on a homeserver with MAS, or the token of a password login without it. Then invite the bot to each room it should answer in.",
       "mapDiscordRoles": "Discord roles for {bot}",
       "discordGuilds": "Approved Discord server IDs",
       "discordGuildsHint": "Enable Developer Mode in Discord and copy each approved server ID. Separate IDs with commas or spaces. An empty list permits DMs only; server messages stay blocked.",
@@ -7884,6 +7898,7 @@
       "surfaceA2a": "A2A",
       "surfaceTeams": "Microsoft Teams",
       "surfaceDiscord": "Discord",
+      "surfaceMatrix": "Matrix",
       "surfaceFollowUps": "Follow-ups",
       "surfaceSchedule": "Schedule",
       "surfaceWorkflow": "Workflow",
@@ -8093,7 +8108,7 @@
       "chatAccountNoAgentsHere": "No agent you can see answers on this bot.",
       "chatAccountNotUsedYet": "Not used anywhere yet. Send one of your organization's bots a message.",
       "chatAccounts": "Chat accounts",
-      "chatAccountsDescription": "Slack, Microsoft Teams, Telegram, Mattermost and Discord accounts connected to you. An agent reached from one of these answers as you, with your permissions and your budget.",
+      "chatAccountsDescription": "Slack, Microsoft Teams, Telegram, Mattermost, Discord and Matrix accounts connected to you. An agent reached from one of these answers as you, with your permissions and your budget.",
       "confirmNewPassword": "Confirm new password",
       "currentPassword": "Current password",
       "deleteAccount": "Delete account",
@@ -10420,25 +10435,28 @@
       "title": "Action consent",
       "description": "Routine actions ask for approval by default. Allow only the listed actions to run without asking. Consent applies to this published version and routine configuration; agent-required approvals still apply. Each MCP action applies only to the named account.",
       "retry": "Try again",
-      "notAllowed": "Your approval permissions and the organization’s standing-consent setting must allow exceptions. You can still revoke all consent.",
+      "notAllowedPermission": "You don't have permission to decide approvals, so you can't give this routine standing consent. Ask an organization administrator. You can still revoke all consent.",
+      "notAllowedOrganization": "Your organization has turned off standing consent, so this routine can't skip approvals. It can be turned on under Budget and approvals. You can still revoke all consent.",
+      "openApprovalSettings": "Open approval settings",
       "empty": "This version has no eligible actions to authorize here.",
-      "required": "Approval required by the agent",
       "revokeAll": "Revoke all",
       "save": "Save consent",
       "search": "Search actions",
-      "selectAll": "Select all eligible actions",
-      "bulkScope": "Bulk controls cover the whole group or inventory, including actions hidden by the search. Required approvals stay enforced.",
       "selectGroup": "Select eligible actions in {name}",
       "noMatches": "No actions match your search.",
       "reselectPrevious": "Reselect previously reviewed actions",
-      "selected": "{count, plural, =1 {1 action selected} other {# actions selected}} · limit {limit}",
       "tooMany": "{count} actions selected; the limit is {limit}. Deselect actions before saving.",
       "changed": {
         "version": "The published agent version changed. Review its actions again.",
         "intent": "The routine’s work or destination changed. Review its actions again.",
         "instructions": "The skill, context or project instructions changed. Review its actions again.",
         "actions": "Some previously selected actions are unavailable, require approval, or have different account authorization. They are not reselected."
-      }
+      },
+      "capabilitiesSection": "Capabilities",
+      "groupCount": "{selected} of {total}",
+      "useAgent": "Use the agent's settings",
+      "useAgentHint": "Selects exactly the actions this agent already runs without asking in a chat, replacing the current selection. Consent here can only narrow what the agent's settings grant, never widen it: an action the agent asks before is not offered. Nothing is saved until you choose Save consent.",
+      "allowHeading": "Allow these actions to run without asking for approval"
     },
     "sourceConsents": {
       "title": "Reviewed sources",
@@ -10448,7 +10466,10 @@
       "changed": "Review these sources before the next run.",
       "unavailable": "Reconnect or inspect these sources first: {names}",
       "accept": "Approve these sources",
-      "inspectAgent": "Inspect the agent’s connections"
+      "inspectAgent": "Inspect the agent’s connections",
+      "kind": "{kind, select, capability {Capabilities} skill {Skills} context {Context files} knowledge {Knowledge bases} table {Tables} delegate {Delegate agents} remote_agent {Remote agents} platform {Platform} mcp_account {MCP accounts} chat_connection {Chat connections} phone {Telephone} terminal_account {Terminal accounts} terminal_credential {Terminal credentials} event_source {Event source} other {Other}}",
+      "kindCount": "{name} ({count})",
+      "unnamed": "No longer available"
     },
     "advancedOptions": "Advanced options",
     "advancedOptionsHint": "Defaults: current published version, standard failure protection and your notification preferences.",
@@ -11166,7 +11187,9 @@
           "changes": "The changes for {agent} are ready to review, then press Next step to test them.",
           "blocked": "Your improvement of {agent} has changes, but too few test questions are left to check them: {needed, plural, one {# more is} other {# more are}} needed, and this session's questions are fixed. End it, add questions and start a new one."
         },
-        "attemptFinished": "Your improvement of {agent} finished an attempt."
+        "attemptFinished": "Your improvement of {agent} finished an attempt.",
+        "criteria": "{better, select, none {} other {Better on {better}. }}{worse, select, none {} other {Worse on {worse}. }}No whole question flipped.",
+        "criterion": "{name} {before}/{graded} → {after}/{graded}"
       },
       "test": {
         "completed": "Your test finished.",
@@ -11285,10 +11308,10 @@
     "autosaveSaved": "Saved",
     "autosaveConflict": "Draft changed elsewhere",
     "autosaveError": "Save failed — will retry",
-    "conflictTitle": "This draft changed elsewhere",
-    "conflictBody": "Someone edited this workflow since you opened it. Overwrite keeps your changes; reload replaces them with the latest saved draft.",
-    "conflictOverwrite": "Overwrite",
-    "conflictReload": "Reload",
+    "conflictTitle": "Someone else also edited this workflow",
+    "conflictBody": "They saved changes while you were editing. Keep your changes, or load their version and lose your unsaved edits.",
+    "conflictOverwrite": "Keep my changes",
+    "conflictReload": "Load their version",
     "publish": "Publish",
     "publishDescription": "Freeze the current draft as an immutable version that runs.",
     "publishNoteLabel": "Release note",
@@ -11405,8 +11428,9 @@
     "pickerColumnsLabel": "Columns",
     "pickerColumnsLoading": "Loading columns…",
     "pickerColumnsAll": "All columns",
-    "pickerSchemaChanged": "This table's schema changed since this was bound.",
-    "pickerRebind": "Rebind to the current schema",
+    "pickerSchemaChanged": "This table's schema changed since this was bound. Updating keeps the columns you chose.",
+    "pickerRebind": "Update to the current schema",
+    "pickerRebindDropped": "{count, plural, one {# chosen column no longer exists and will be dropped.} other {# chosen columns no longer exist and will be dropped.}}",
     "pickerSecretLabel": "Secret",
     "pickerSecretPlaceholder": "Choose a secret",
     "pickerSecretsEmpty": "No secrets stored yet.",
@@ -11650,6 +11674,8 @@
     "toolbarAddStep": "Add step",
     "toolbarReady": "No problems",
     "toolbarProblemsHint": "Choose one to open the step it is about.",
+    "toolbarTablesChanged": "{count, plural, one {# step reads a table whose columns changed.} other {# steps read tables whose columns changed.}} Updating keeps every chosen column that still exists.",
+    "toolbarRebindTables": "Update to the current schema",
     "nodeEditorDelete": "Delete step",
     "nodeEditorDone": "Done",
     "menuOpenSettings": "Open settings",
@@ -12121,7 +12147,9 @@
       "budget": "Maximum cost per draft (USD)"
     },
     "stepEditorView": "Step view",
-    "stepEditorSettings": "Step settings"
+    "stepEditorSettings": "Step settings",
+    "problemTableSchemaChanged": "This table changed since the step was set up: a column it reads was removed or changed type. Update it to the current schema and check what reads this step.",
+    "problemTableDependenciesChanged": "Remove or replace changed filter, sort and value bindings in this step before updating its table schema."
   },
   "artifacts": {
     "title": "Apps",
@@ -13173,7 +13201,9 @@
     "disconnected": "Application disconnected",
     "couldNotLoad": "Could not load connected applications",
     "emptyTitle": "No connected applications",
-    "emptyWhy": "Add AgenticOS to Claude Code or another MCP client and sign in; it appears here."
+    "emptyWhy": "Add AgenticOS to Claude Code or another MCP client and sign in; it appears here.",
+    "deploymentAdminTitle": "Administer the entire installation",
+    "deploymentAdminHint": "Allows deployment settings and updates beyond the selected organization. Only an application administrator can grant deployment:admin; it is never included in an organization preset."
   },
   "liveUpdates": {
     "changedElsewhere": "{actor} changed this {surface} while you were editing it. Reload to see their version, or keep your changes to save over it.",
@@ -14604,7 +14634,7 @@
     "reducedMotion": "Off while reduced motion is on"
   },
   "appearance": {
-    "description": "How the console looks and moves for you. Kept in this browser and applied at once.",
+    "description": "Theme, style and language follow your account. Motion and effects stay in this browser; choices apply immediately.",
     "theme": "Theme",
     "voiceGlowHint": "How the chat box reacts to your voice while dictating",
     "motion": "Motion",
@@ -16618,14 +16648,18 @@
     "round": "Attempt {number} of {max}",
     "attempt": {
       "better": "Better",
+      "criteria_better": "Better on criteria",
       "regression": "Mixed",
       "worse": "Worse",
+      "criteria_worse": "Worse on criteria",
       "no_change": "No change",
       "inconclusive": "Inconclusive",
       "unmeasured": "Not measured",
       "none": "No changes",
       "working": "Working",
       "delta": "{heldOut, select, unknown {+{fixed} fixed · {broken} broken} other {+{fixed} fixed · {broken} broken of {heldOut} kept aside}}",
+      "criteriaBetter": "{count, plural, one {# criterion better} other {# criteria better}}",
+      "criteriaWorse": "{count, plural, one {# criterion worse} other {# criteria worse}}",
       "best": "Best attempt",
       "chosen": "Chosen attempt",
       "cost": "writing + test: {cost}"
@@ -16672,7 +16706,8 @@
       "tryAgain": "Try again",
       "end": "End without changes",
       "newSession": "Start a new session",
-      "newSessionHint": "A new session has more to work with once you add test questions where {agent} answers badly."
+      "newSessionHint": "A new session has more to work with once you add test questions where {agent} answers badly.",
+      "criteriaBetter": "Attempt {number} improved some grading criteria for {agent}; no whole question changed."
     },
     "keep": {
       "title": "Which attempt to keep",
@@ -16680,7 +16715,28 @@
       "keep": "Keep attempt {number}",
       "keepAnyway": "Keep attempt {number} anyway",
       "broke": "Attempt {number} broke {broken, plural, one {# question} other {# questions}}. Accepting it will make {agent} worse on {broken, plural, one {that one} other {those}}.",
-      "notBetter": "Attempt {number} did not make {agent} better. Accepting it changes {agent} with no measured gain."
+      "notBetter": "Attempt {number} did not make {agent} better. Accepting it changes {agent} with no measured gain.",
+      "criteriaWorse": "Attempt {number} made {agent} worse on {count, plural, one {# criterion} other {# criteria}}, though no question broke. Accepting it keeps that loss."
+    },
+    "criteria": {
+      "item": "{name} {before}/{graded} → {after}/{graded}",
+      "failingSkill": "{name} (skill “{skill}”)",
+      "more": "{count, plural, one {# more} other {# more}}",
+      "better": "Attempt {number} made {agent} better on {count, plural, one {# criterion} other {# criteria}}: {list}.",
+      "stillFailing": "No additional question passes yet, because other criteria still fail: {list}.",
+      "worse": "Attempt {number} made {agent} worse on {count, plural, one {# criterion} other {# criteria}}, though no question broke: {list}.",
+      "worseBeside": "Attempt {number} also made {agent} worse on {count, plural, one {# criterion} other {# criteria}}: {list}.",
+      "title": "Criteria the answers are graded on",
+      "criterion": "Criterion",
+      "before": "Before",
+      "after": "After",
+      "moved": "Confirmed change",
+      "passed": "{passed} of {graded}",
+      "movedFixed": "+{count} fixed",
+      "movedBroken": "{count} broken",
+      "movedBoth": "+{fixed} fixed · {broken} broken",
+      "movedNone": "None",
+      "skill": "Put down to the skill “{skill}”"
     },
     "noise": {
       "headlineSpread": "The test can't tell a better version from a worse one: today's version of {agent} scored {low} and {high} on the questions its attempts shared.",
@@ -16716,7 +16772,9 @@
     },
     "verdict": {
       "better": "Better: fixes {fixed}, breaks nothing",
+      "criteria_better": "Better on criteria, no question flipped yet",
       "regression": "Mixed: fixes {fixed}, breaks {broken}",
+      "criteria_worse": "Worse on criteria, no question broke",
       "no_change": "No reproducible change",
       "inconclusive": "We could not measure a reliable result"
     },
@@ -16751,7 +16809,8 @@
       "superseded": "A newer set of suggestions replaced this one.",
       "knowledge_only": "Some topics are missing from the knowledge base. Draft the ones you want, check each draft and add it.",
       "draft": "Drafting knowledge failed.",
-      "expired": "Nobody took this session further for 7 days, so it closed. Start a new one to try again."
+      "expired": "Nobody took this session further for 7 days, so it closed. Start a new one to try again.",
+      "criteria_worse": "The changes made a criterion the answers are graded on worse, though no question broke."
     },
     "before": "Before",
     "after": "After",
@@ -16871,7 +16930,7 @@
     "acceptAgent": "In the agent: {version, plural, =0 {the new version} other {version #}} will fix {fixed, plural, one {# question} other {# questions}}, break {broken}{costKnown, select, yes {, cost {cost} per answer} other {}}. Tested on {total, plural, one {# question} other {# questions}}, {heldOut} of them not used to write the changes.",
     "guardedSwitch": "{environment} switches to version {version} after the automatic check passes, usually within a few minutes.",
     "noChangesFound": "We couldn't find a change that fits the current instructions. Here is what we tried:",
-    "triedAttempt": "Attempt {number}: {verdict, select, better {the changes made it better} regression {the changes broke questions that worked} no_change {no measurable change} inconclusive {the result could not be measured} unmeasured {changes proposed, not tested yet} other {no change was proposed}}{dropped, plural, =0 {} one {; # change did not fit the current instructions} other {; # changes did not fit the current instructions}}.",
+    "triedAttempt": "Attempt {number}: {verdict, select, better {the changes made it better} criteria_better {the changes made it better on some criteria, no question flipped yet} regression {the changes broke questions that worked} criteria_worse {the changes made some criteria worse} no_change {no measurable change} inconclusive {the result could not be measured} unmeasured {changes proposed, not tested yet} other {no change was proposed}}{dropped, plural, =0 {} one {; # change did not fit the current instructions} other {; # changes did not fit the current instructions}}.",
     "handledChange": "{before} → {after} of {total} questions handled well.",
     "newlyFixed": "Newly fixed",
     "newlyBroken": "Newly broken",
@@ -17858,7 +17917,9 @@
         "queued": "Waiting",
         "running": "Checking",
         "better": "Better",
+        "criteria_better": "Better on criteria",
         "no_change": "No change",
+        "criteria_worse": "Worse on criteria",
         "within_noise": "Within noise",
         "worse": "Worse",
         "unknown": "Unknown"
@@ -18496,7 +18557,7 @@
       },
       "trigger_webhook": {
         "name": "Webhook",
-        "description": "A signed HTTP delivery arrives at this workflow's own address."
+        "description": "An authenticated JSON event arrives at a reusable source or this workflow's address."
       },
       "trigger_workflow_call": {
         "name": "Called by a workflow",
@@ -20868,6 +20929,14 @@
           "filters__items__value": {
             "title": "Value",
             "description": "The operand. A list for `in`, a boolean for `is_null` (true means the cell is empty), otherwise a value of the column's type."
+          }
+        }
+      },
+      "trigger_webhook": {
+        "config": {
+          "source_id": {
+            "title": "Source Id",
+            "description": "A reusable event source to subscribe to when this workflow is published"
           }
         }
       },

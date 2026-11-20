@@ -159,26 +159,30 @@ describe("TriggerFormDialog custom-webhook event form", () => {
 
   function serveSharedSource(provider: SourceProvider) {
     const get = vi.mocked(apiClient.get).getMockImplementation()!;
-    vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
-      path === "/event-sources"
-        ? {
-            items: [
-              {
-                id: "shared-source",
-                name: "Shared incoming",
-                provider,
-                auth: { method: provider === "webhook" ? "hmac" : "provider" },
-                is_active: true,
-                visibility: "private",
-                can_use: true,
-                can_edit: false,
-                webhook_url: "https://example.test/api/v1/webhooks/sources/shared-source",
-              },
-            ],
-            total: 1,
-          }
-        : get(path, options),
-    );
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path === "/me/permissions") {
+        return { permissions: [{ permission: "event_sources:view", scope: "shared" }] };
+      }
+      if (path === "/event-sources") {
+        return {
+          items: [
+            {
+              id: "shared-source",
+              name: "Shared incoming",
+              provider,
+              auth: { method: provider === "webhook" ? "hmac" : "provider" },
+              is_active: true,
+              visibility: "private",
+              can_use: true,
+              can_edit: false,
+              webhook_url: "https://example.test/api/v1/webhooks/sources/shared-source",
+            },
+          ],
+          total: 1,
+        };
+      }
+      return get(path, options);
+    });
   }
 
   it.each([
@@ -244,6 +248,11 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     expect(dialog.queryByLabelText("Signing secret")).toBeNull();
     await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
     await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
+    expect(dialog.getByRole("combobox", { name: "Prompt mode" })).toHaveTextContent(
+      "Literal prompt",
+    );
+    await userEvent.click(dialog.getByRole("combobox", { name: "Prompt mode" }));
+    await userEvent.click(screen.getByRole("option", { name: "Prompt with payload fields" }));
     fireEvent.change(dialog.getByLabelText("Message"), {
       target: { value: "Triage {{issue.title}}" },
     });

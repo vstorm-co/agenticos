@@ -100,6 +100,32 @@ describe("event source management", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it("leaves the dedicated option available without requesting the source catalog", async () => {
+    permissions = [];
+    render(<SourceSelector value={null} onChange={vi.fn()} allowDedicated />, { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/permissions"));
+    expect(screen.getByRole("combobox", { name: "Event source" })).toBeEnabled();
+    expect(apiClient.get).not.toHaveBeenCalledWith("/event-sources");
+  });
+
+  it("offers sources beyond the first catalog page", async () => {
+    const get = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path === "/event-sources")
+        return {
+          items: options ? [{ ...source, id: "later", name: "Second page" }] : [source],
+          total: 2,
+        };
+      return get(path, options);
+    });
+    const onChange = vi.fn();
+    render(<SourceSelector value="later" onChange={onChange} allowDedicated />, { wrapper });
+    expect(await screen.findByText("Second page")).toBeVisible();
+    expect(apiClient.get).toHaveBeenCalledWith("/event-sources", {
+      params: { skip: "1", limit: "100" },
+    });
+  });
+
   it("pauses only the source and explains the subscribers blocking deletion", async () => {
     subscribers = 1;
     render(<SourceManager />, { wrapper });

@@ -64,6 +64,7 @@ from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
 from app.services.channels.discord_roles import DiscordRoleSync
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
+from app.services.channels.identity_scope import identity_scope
 from app.services.channels.live_reply import (
     WORKING,
     AnswerSink,
@@ -407,6 +408,10 @@ class ChannelMessageRouter:
             identity is None
             or identity.platform != incoming.platform
             or identity.platform_user_id != incoming.platform_user_id
+            or (
+                bot.platform == "matrix"
+                and identity.server_url != identity_scope(bot).get("server_url")
+            )
         ):
             return "identity"
         exposure = await agent_exposure_repo.get_for_bot(
@@ -1600,6 +1605,12 @@ class ChannelMessageRouter:
         a live message carries one, and a sender rebuilt from a run has none. A
         bot that approves no server refuses every server channel, id or not.
         """
+        if incoming.platform == "matrix":
+            server = identity_scope(bot).get("server_url")
+            if server is None or incoming.raw.get("server_url") != server:
+                raise AuthorizationError(
+                    message="The Matrix message does not belong to this homeserver"
+                )
         policy: dict[str, Any] = self._parse_policy(bot)
         mode: str = policy.get("mode", "open")
         server_unknown = False
@@ -1622,12 +1633,14 @@ class ChannelMessageRouter:
                 )
         elif mode == "group_only":
             allowed: list[str] = [str(x) for x in policy.get("allowed_groups", [])]
+            native_group = channel_key(incoming.platform_chat_id)
+            if incoming.platform == "matrix":
+                from app.services.channels.matrix_protocol import room_of
+
+                native_group = room_of(native_group)
             # The room as well as the conversation: a key that folds a thread in
             # (`channel:thread`) is not the id a group is listed under.
-            if (
-                str(incoming.platform_chat_id) not in allowed
-                and channel_key(incoming.platform_chat_id) not in allowed
-            ):
+            if str(incoming.platform_chat_id) not in allowed and native_group not in allowed:
                 raise AuthorizationError(
                     message=policy.get(
                         "denied_message", "This bot is only available in specific groups."
@@ -1934,6 +1947,7 @@ class ChannelMessageRouter:
             platform_username=incoming.platform_username,
             platform_display_name=incoming.platform_display_name,
             user_id=None,
+            **identity_scope(bot),
         )
         if identity.user_id is not None and self._sms_link_lapsed(incoming.platform, identity):
             # Dropped rather than refused: the person is asked to link again like any
@@ -2438,6 +2452,7 @@ class ChannelMessageRouter:
                     platform=incoming.platform,
                     platform_user_id=post.author_id,
                     platform_username=post.author if post.author != post.author_id else None,
+                    **identity_scope(bot),
                 )
                 if post.author_id
                 else None
@@ -2625,6 +2640,7 @@ class ChannelMessageRouter:
                 platform=incoming.platform,
                 platform_user_ids=author_ids,
                 organization_id=bot.organization_id,
+                **identity_scope(bot),
             )
             filters.append(
                 lambda post: (

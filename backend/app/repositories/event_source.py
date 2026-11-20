@@ -3,10 +3,12 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import String, cast, delete, exists, select, update
+from sqlalchemy import String, cast, delete, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.permissions import Scope
+from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.background_job import BackgroundJob
 from app.db.models.event_source import (
     EventDelivery,
@@ -28,16 +30,33 @@ async def get(
     return await db.scalar(query)
 
 
-async def list_sources(db: AsyncSession, *, organization_id: UUID) -> list[EventSource]:
-    return list(
-        (
-            await db.scalars(
-                select(EventSource)
-                .where(EventSource.organization_id == organization_id)
-                .order_by(EventSource.name, EventSource.id)
-            )
-        ).all()
+async def list_sources(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    scope: Scope,
+    shared_ids: list[UUID] | None,
+    skip: int,
+    limit: int,
+) -> tuple[list[EventSource], int]:
+    where = [EventSource.organization_id == organization_id]
+    if shared_ids is not None:
+        visible = [EventSource.id.in_(shared_ids)]
+        if scope in (Scope.OWN, Scope.TEAM, Scope.SHARED):
+            visible.append(EventSource.owner_user_id == user_id)
+        if scope in (Scope.SHARED, Scope.TEAM):
+            visible.append(EventSource.visibility == "org")
+        where.append(or_(*visible))
+    total = await db.scalar(select(func.count()).select_from(EventSource).where(*where))
+    result = await db.scalars(
+        select(EventSource)
+        .where(*where)
+        .order_by(EventSource.name, EventSource.id)
+        .offset(skip)
+        .limit(limit)
     )
+    return list(result.all()), total or 0
 
 
 async def save[R: EventSource | EventSourceCredential | EventSubscription | EventDispatch](
@@ -61,18 +80,16 @@ async def credential(
 
 
 async def subscriptions(
-    db: AsyncSession, source_id: UUID, *, organization_id: UUID
+    db: AsyncSession, source_id: UUID, *, organization_id: UUID, for_dispatch: bool = False
 ) -> list[EventSubscription]:
-    return list(
-        (
-            await db.scalars(
-                select(EventSubscription).where(
-                    EventSubscription.source_id == source_id,
-                    EventSubscription.organization_id == organization_id,
-                )
-            )
-        ).all()
+    query = select(EventSubscription).where(
+        EventSubscription.source_id == source_id,
+        EventSubscription.organization_id == organization_id,
     )
+    if for_dispatch:
+        # Keep the referenced rows through receipt commit while allowing non-key updates.
+        query = query.with_for_update(read=True, key_share=True)
+    return list((await db.scalars(query)).all())
 
 
 async def unbind(db: AsyncSession, *, exposure_id: UUID) -> None:
@@ -111,12 +128,27 @@ async def admit(db: AsyncSession, delivery: EventDelivery) -> bool:
 
 
 async def dispatch(
-    db: AsyncSession, dispatch_id: UUID, *, organization_id: UUID
+    db: AsyncSession, dispatch_id: UUID, *, organization_id: UUID, lock: bool = True
 ) -> EventDispatch | None:
-    return await db.scalar(
-        select(EventDispatch)
-        .where(EventDispatch.id == dispatch_id, EventDispatch.organization_id == organization_id)
-        .with_for_update()
+    query = select(EventDispatch).where(
+        EventDispatch.id == dispatch_id, EventDispatch.organization_id == organization_id
+    )
+    if lock:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    return await db.scalar(query)
+
+
+async def lock_dispatch_routine(
+    db: AsyncSession, *, subscription_id: UUID, organization_id: UUID
+) -> None:
+    await db.scalar(
+        select(AgentTrigger.id)
+        .join(EventSubscription, EventSubscription.trigger_id == AgentTrigger.id)
+        .where(
+            EventSubscription.id == subscription_id,
+            EventSubscription.organization_id == organization_id,
+        )
+        .with_for_update(of=AgentTrigger)
     )
 
 

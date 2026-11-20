@@ -1,5 +1,5 @@
 ---
-source_sha: "5e2155daf34a"
+source_sha: "870495bf0bf8"
 ---
 
 # Konfiguration { #configuration }
@@ -102,18 +102,19 @@ Hinter einer Session ist das kaum ein Risiko; auf
 `POST /api/v1/embed/{key}/files`, das eine fremde Person mit einem Link erreichen
 kann, schon.
 
-Eine Anfrage, die eine `Content-Length` größer als `MAX_UPLOAD_SIZE_MB` plus
-5 MiB Zuschlag für den Multipart-Umschlag angibt, wird deshalb mit **413**
-beantwortet, bevor ihr Body gelesen wird. Es gibt keine Einstellung dafür: Sie
-folgt `MAX_UPLOAD_SIZE_MB`, weil eine zweite Zahl, die mit der ersten Schritt
-halten muss, eine Zahl ist, die irgendwann darunter liegt.
+Eine Anfrage mit einer `Content-Length` über dem größten Wert aus
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` und
+`ML_MAX_UPLOAD_SIZE_MB` plus 5 MiB für den Multipart-Rahmen erhält **413**, bevor
+ihr Body gelesen wird. Diese Grenze folgt den Upload-Einstellungen automatisch.
 
-**Es ist die billige Hälfte der Antwort, nicht die ganze.** `Content-Length`
-setzt die aufrufende Seite, und eine Chunked-Anfrage gibt gar keine an — die
-werden durchgelassen und durch die Caps je Route begrenzt, die echte Bytes
-messen. Ein Deployment, das die Garantie statt der Höflichkeit will, setzt
-`client_max_body_size` (nginx) oder das Äquivalent an dem, was seine Verbindungen
-terminiert; die Compose-Dateien starten uvicorn ohne eine eigene solche Grenze.
+`Content-Length` stammt vom Client; Chunked-Anfragen geben keine Länge an und
+unterliegen den Grenzen der jeweiligen Route, die tatsächliche Bytes messen.
+Setzen Sie zusätzlich eine Body-Grenze im Reverse Proxy. Bei Nginx ist das auch
+nötig, um Uploads über dem Standard von 1 MiB zu erlauben: Die Vorlage setzt
+`client_max_body_size 55m;` auf dem API-Host und für Multipart-Upload-Locations
+der Konsole. Konsolenseiten, Authentifizierung und gewöhnliches JSON behalten
+die Grenze von 1 MiB. Erhöhen Sie beide Upload-Grenzen mit dem größten Upload-Limit. Siehe [Nginx-Deployment](deploy.md#option-b-nginx).
+Die Compose-Dateien starten uvicorn ohne eigene Body-Grenze.
 
 ## Authentifizierung { #authentication }
 
@@ -224,7 +225,7 @@ Wo welcher Issuer liegt, und was zu registrieren ist:
 
 | Anbieter | Issuer | Redirect-URI registrieren als |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect-URI der Plattform **Web** in der App-Registrierung. `openid`, `email`, `profile` unter API-Berechtigungen erteilen |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect-URI der Plattform **Web** in der App-Registrierung. `openid`, `email`, `profile` unter API-Berechtigungen erteilen. Unter **Token configuration** die optionalen Claims `email` und `xms_edov` zum **ID**-Token hinzufügen |
 | **Okta** | `https://<org>.okta.com` (oder `/oauth2/<id>` eines eigenen Authorization Servers) | Sign-in-Redirect-URI einer **Web**-Anwendung |
 | **Keycloak** | `https://<host>/realms/<realm>` | Valid Redirect URI eines vertraulichen Clients mit aktiviertem Standard Flow |
 
@@ -240,6 +241,13 @@ Zwei Dinge verlangt die Plattform von jedem Anbieter, auf den sie gerichtet wird
   unbestätigte Adresse heißt, dass bei diesem Anbieter jeder die Arbeitsadresse
   eines anderen beanspruchen kann — und die Domain-Erlaubnisliste unten steht
   darauf, dass eine Adresse etwas bedeutet.
+  Bei Entra muss der Claim im **ID-Token** stehen: sein UserInfo-Endpunkt
+  liefert nur `sub`, `name`, `family_name`, `given_name`, `picture` und
+  `email`. `OIDC_VERIFIED_CLAIM` muss einen Claim benennen, dessen *Wert* für eine
+  bestätigte Adresse wahr ist; einer, den jedes Token trägt, etwa `sub`, bestätigt
+  nichts und wird nicht akzeptiert. Eine abgewiesene Anmeldung protokolliert
+  `oauth_callback_claims_rejected` mit der gescheiterten Bedingung (`reason`) und
+  den Namen, nie den Werten, der erhaltenen Claims.
 - **Ein stabiles `sub`.** Das Konto hängt daran und nicht an der Adresse, sodass
   jemand, der heiratet oder dessen Domain gekauft wird, die eigene Historie
   behält — und der nächste Inhaber einer frei gewordenen Adresse sie nicht erbt.

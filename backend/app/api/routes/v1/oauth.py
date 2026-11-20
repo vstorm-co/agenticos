@@ -29,7 +29,9 @@ from app.core.oauth import (
     groups_claim,
     identity_key,
     redirect_uri_for,
+    refusal_reason,
     sign_in_client,
+    verification_claim_names,
     verified_identity,
 )
 from app.core.security import create_access_token, create_refresh_token
@@ -200,8 +202,18 @@ async def provider_callback(
             # One sentence for three refusals - no subject, no address, an
             # address the provider has not verified. Which one it was goes to
             # the log: a redirect a stranger can read is not the place to say
-            # that an address exists at this provider but is unconfirmed.
-            logger.warning("oauth_callback_claims_rejected", extra={"provider": provider})
+            # that an address exists at this provider but is unconfirmed. The
+            # claim names, never their values, show an operator which claim
+            # the provider has not been configured to send.
+            logger.warning(
+                "oauth_callback_claims_rejected",
+                extra={
+                    "provider": provider,
+                    "reason": refusal_reason(claims),
+                    "claim_names": sorted(claims or {}),
+                    "verification_claims": list(verification_claim_names()),
+                },
+            )
             params = urlencode({"error": "That account cannot be used to sign in here."})
             return RedirectResponse(url=f"{frontend}/login?{params}")
 

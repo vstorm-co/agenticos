@@ -57,7 +57,7 @@ from app.agents.capabilities._registry import (
 from app.agents.code_checkpoint import CodeApprovalPause
 from app.agents.deps import AgentDeps
 from app.agents.durable_code import active_code
-from app.agents.mcp import ACCOUNT, NEEDS_APPROVAL
+from app.agents.mcp import ACCOUNT, ALWAYS_ASKS, NEEDS_APPROVAL
 from app.agents.routine_actions import RoutineToolDecision, RoutineToolPolicy
 from app.core.exceptions import AuthorizationError
 
@@ -181,7 +181,9 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         that must not run on consent given in advance.
         """
         if tool_def.capability_id is None:
-            return False
+            # Only `ApprovalMarked` writes this key, and only for this
+            # deployment's own server: a server cannot claim it.
+            return (tool_def.metadata or {}).get(ALWAYS_ASKS) is True
         if tool_def.name in self.always_asking_tool_names:
             return True
         check = self.always_asking_checks.get(tool_def.name)

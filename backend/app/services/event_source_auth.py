@@ -19,8 +19,10 @@ def standard_key(secret: str) -> bytes:
         key = base64.b64decode(secret.removeprefix("whsec_"), validate=True)
     except (ValueError, binascii.Error) as exc:
         raise BadRequestError(message="Standard Webhooks requires a base64 symmetric key") from exc
-    if len(key) < 32:
-        raise BadRequestError(message="Standard Webhooks requires at least 32 random key bytes")
+    if not 24 <= len(key) <= 64:
+        raise BadRequestError(
+            message="Standard Webhooks requires between 24 and 64 random key bytes"
+        )
     return key
 
 

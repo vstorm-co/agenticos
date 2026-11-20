@@ -23,6 +23,7 @@ from app.core.exceptions import (
 from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, seal, unseal
+from app.db.locks import LockScope, hold_subject
 from app.db.models.event_source import (
     EventDelivery,
     EventDispatch,
@@ -50,10 +51,20 @@ from app.schemas.event_source import (
     SourceUsageList,
 )
 from app.services import trigger_events
-from app.services.access import AGENT, EVENT_SOURCE, WORKFLOW, accessible_ids, resolve_access
+from app.services.access import (
+    AGENT,
+    EVENT_SOURCE,
+    WORKFLOW,
+    accessible_ids,
+    resolve_access,
+    visible_resource_ids,
+)
 from app.services.background_jobs import enqueue
 from app.services.event_source_auth import standard_key, verify_source
-from app.services.workflow_execution.exceptions import WorkflowAdmissionQuotaError
+from app.services.workflow_execution.exceptions import (
+    WorkflowAdmissionQuotaError,
+    WorkflowInlineStorageLimitError,
+)
 from app.workflows.graph.model import jsonb_value_fits
 
 _BODY = TypeAdapter(JsonObject)
@@ -139,6 +150,17 @@ class EventSourceService:
         return await self.get(ctx, source_id, perm=Perm.EVENT_SOURCES_USE, lock=lock)
 
     async def read(self, ctx: AuthContext, source: EventSource) -> EventSourceRead:
+        return self._read(
+            source,
+            can_use=await resolve_access(
+                self.db, ctx, source, Perm.EVENT_SOURCES_USE, resource_type=EVENT_SOURCE
+            ),
+            can_edit=await resolve_access(
+                self.db, ctx, source, Perm.EVENT_SOURCES_EDIT, resource_type=EVENT_SOURCE
+            ),
+        )
+
+    def _read(self, source: EventSource, *, can_use: bool, can_edit: bool) -> EventSourceRead:
         return EventSourceRead(
             id=source.id,
             name=source.name,
@@ -149,21 +171,38 @@ class EventSourceService:
             owner_user_id=source.owner_user_id,
             is_active=source.is_active,
             webhook_url=self.webhook_url(source.id),
-            can_use=await resolve_access(
-                self.db, ctx, source, Perm.EVENT_SOURCES_USE, resource_type=EVENT_SOURCE
-            ),
-            can_edit=await resolve_access(
-                self.db, ctx, source, Perm.EVENT_SOURCES_EDIT, resource_type=EVENT_SOURCE
-            ),
+            can_use=can_use,
+            can_edit=can_edit,
         )
 
-    async def list(self, ctx: AuthContext) -> EventSourceList:
-        sources = await repo.list_sources(self.db, organization_id=ctx.organization_id)
-        visible = await accessible_ids(
-            self.db, ctx, sources, Perm.EVENT_SOURCES_VIEW, resource_type=EVENT_SOURCE
+    async def list(self, ctx: AuthContext, *, skip: int = 0, limit: int = 50) -> EventSourceList:
+        if ctx.user_id is None:
+            return EventSourceList(items=[], total=0)
+        shared = await visible_resource_ids(
+            self.db, ctx, resource_type=EVENT_SOURCE, perm=Perm.EVENT_SOURCES_VIEW
         )
-        items = [await self.read(ctx, source) for source in sources if source.id in visible]
-        return EventSourceList(items=items, total=len(items))
+        sources, total = await repo.list_sources(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            scope=ctx.scope_for(Perm.EVENT_SOURCES_VIEW),
+            shared_ids=shared,
+            skip=skip,
+            limit=limit,
+        )
+        usable = await accessible_ids(
+            self.db, ctx, sources, Perm.EVENT_SOURCES_USE, resource_type=EVENT_SOURCE
+        )
+        editable = await accessible_ids(
+            self.db, ctx, sources, Perm.EVENT_SOURCES_EDIT, resource_type=EVENT_SOURCE
+        )
+        return EventSourceList(
+            items=[
+                self._read(source, can_use=source.id in usable, can_edit=source.id in editable)
+                for source in sources
+            ],
+            total=total,
+        )
 
     async def create(self, ctx: AuthContext, data: EventSourceCreate) -> EventSourceCreated:
         credentials, reveal = prepare_credentials(data.auth, data.credentials, generate=True)
@@ -224,14 +263,13 @@ class EventSourceService:
                 credentials=data.credentials or current_credentials,
             )
         except ValidationError as exc:
+            fields = field_problems(exc.errors(include_input=False), root="")
+            for problem in fields:
+                if not problem["field"]:
+                    problem["field"] = "auth"
             raise BadRequestError(
                 message="The source authentication configuration is invalid",
-                details={
-                    "fields": field_problems(
-                        exc.errors(include_input=False),
-                        root="auth" if data.auth is not None else "delivery_id_header",
-                    )
-                },
+                details={"fields": fields},
             ) from exc
         credentials, _ = prepare_credentials(config.auth, config.credentials, generate=False)
         source.auth = config.auth.model_dump(mode="json")
@@ -292,9 +330,9 @@ class EventSourceService:
                         SourceUsage(
                             id=sub.id,
                             kind="routine",
-                            target_id=trigger.id,
+                            target_id=trigger.id if visible else None,
                             name=(trigger.name or "Routine") if visible else "Private routine",
-                            is_active=trigger.is_active,
+                            is_active=trigger.is_active if visible else None,
                         )
                     )
             else:
@@ -311,9 +349,9 @@ class EventSourceService:
                             SourceUsage(
                                 id=sub.id,
                                 kind="workflow",
-                                target_id=workflow.id,
+                                target_id=workflow.id if visible else None,
                                 name=workflow.name if visible else "Private workflow",
-                                is_active=exposure.is_active,
+                                is_active=exposure.is_active if visible else None,
                             )
                         )
         return SourceUsageList(items=items, total=len(items))
@@ -462,7 +500,7 @@ class EventSourceService:
         admitted = await repo.admit(self.db, receipt)
         if admitted and source.is_active:
             for sub in await repo.subscriptions(
-                self.db, source.id, organization_id=source.organization_id
+                self.db, source.id, organization_id=source.organization_id, for_dispatch=True
             ):
                 version_id = None
                 principal_id = None
@@ -511,6 +549,18 @@ class EventSourceService:
 
     async def dispatch(self, organization_id: UUID, dispatch_id: UUID) -> None:
         """A row lock and admission transaction make restart safe without coupling subscribers."""
+        pending = await repo.dispatch(
+            self.db, dispatch_id, organization_id=organization_id, lock=False
+        )
+        if pending is None or pending.status != "pending":
+            return
+        # Deletion and publication take the target lock before clearing the dispatch FK.
+        if pending.workflow_version_id is not None:
+            await hold_subject(self.db, LockScope.WORKFLOW_FILE_BYTES, organization_id)
+        elif pending.subscription_id is not None:
+            await repo.lock_dispatch_routine(
+                self.db, subscription_id=pending.subscription_id, organization_id=organization_id
+            )
         row = await repo.dispatch(self.db, dispatch_id, organization_id=organization_id)
         if row is None or row.status != "pending":
             return
@@ -574,7 +624,8 @@ class EventSourceService:
                         )
             except AppException as exc:
                 if isinstance(exc, RateLimitError) or (
-                    isinstance(exc, WorkflowAdmissionQuotaError) and exc.can_fit_when_idle
+                    isinstance(exc, (WorkflowAdmissionQuotaError, WorkflowInlineStorageLimitError))
+                    and exc.can_fit_when_idle
                 ):
                     await self._defer_dispatch(row)
                     return

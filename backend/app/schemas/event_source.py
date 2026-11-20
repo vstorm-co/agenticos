@@ -10,6 +10,7 @@ from pydantic import (
     Field,
     JsonValue,
     SecretStr,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -81,16 +82,27 @@ class EventSourceCreate(BaseModel):
     is_active: bool = True
     credentials: SourceCredentials = Field(default_factory=SourceCredentials)
 
+    @field_validator("delivery_id_header")
+    @classmethod
+    def valid_delivery_id_header(cls, value: str | None, info: ValidationInfo) -> str | None:
+        if value is None:
+            return None
+        auth = info.data.get("auth")
+        provider = info.data.get("provider")
+        if (
+            isinstance(auth, SourceAuth)
+            and provider is not None
+            and auth.reserves_header(provider, value)
+        ):
+            raise ValueError("Delivery IDs must not use a credential or signature header")
+        return value.lower()
+
     @model_validator(mode="after")
     def provider_auth(self) -> Self:
         if (self.provider == "webhook") == (self.auth.method == "provider"):
             raise ValueError(
                 "Choose provider verification for a preset, or custom authentication for Custom webhook"
             )
-        if self.delivery_id_header:
-            self.delivery_id_header = self.delivery_id_header.lower()
-            if self.auth.reserves_header(self.provider, self.delivery_id_header):
-                raise ValueError("Delivery IDs must not use a credential or signature header")
         return self
 
 
@@ -133,9 +145,9 @@ class EventSourceList(BaseModel):
 class SourceUsage(BaseModel):
     id: UUID
     kind: Literal["routine", "workflow"]
-    target_id: UUID
+    target_id: UUID | None
     name: str
-    is_active: bool
+    is_active: bool | None
 
 
 class SourceUsageList(BaseModel):

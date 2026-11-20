@@ -104,3 +104,65 @@ def test_retrieval_embeddings_and_repeats_are_visible_and_can_exhaust_the_budget
     assert not with_cost.affordable
     unlimited = estimate.model_copy(update={"agent_after_usd": None, "org_after_usd": None})
     assert EvalRunService._knowledge_cost(unlimited, record).affordable
+
+
+@pytest.mark.parametrize("cached", [False, True])
+def test_replacement_prices_freeze_each_model_and_its_judge_share(cached):
+    from app.schemas.eval_run import ArmEstimate, EvalRunEstimate, ProposalCheckRecord
+
+    prices = [Decimal("0.1"), Decimal("3.9")]
+    arms = [
+        ArmEstimate(
+            role=ArmRole.CANDIDATE,
+            source=ArmSource.EXPLICIT,
+            version_number=None,
+            model_profile_id=uuid4(),
+            model_label=str(price),
+            cost_per_case_usd=price,
+            cost_usd=price * 2,
+            basis="history",
+        )
+        for price in prices
+    ]
+    if cached:
+        arms.append(
+            arms[0].model_copy(
+                update={"basis": "cached", "cost_per_case_usd": Decimal(0), "cost_usd": Decimal(0)}
+            )
+        )
+    estimate = EvalRunEstimate(
+        cases=2,
+        arms=arms,
+        judge_usd=Decimal("0.8"),
+        total_usd=Decimal("8.8"),
+        rerun_ceiling_usd=Decimal(1),
+        agent_remaining_usd=None,
+        org_remaining_usd=None,
+        agent_after_usd=None,
+        org_after_usd=None,
+        affordable=True,
+    )
+    record = ProposalCheckRecord(kind="agent", base_version=None, suggestions=1)
+    assert not record.answer_estimates_usd
+    assert EvalRunService._priced_check(None, estimate) is None
+    priced = EvalRunService._priced_check(record, estimate)
+    assert priced is not None
+    assert priced.answer_estimates_usd == [
+        Decimal("0.3"),
+        Decimal("4.1"),
+        *([Decimal(0)] if cached else []),
+    ]
+    assert ProposalCheckRecord.model_validate_json(priced.model_dump_json()) == priced
+    empty = estimate.model_copy(update={"arms": [], "cases": 0})
+    assert EvalRunService._priced_check(record, empty) == record
+
+
+def test_stored_replacement_prices_cannot_be_negative():
+    from pydantic import ValidationError
+
+    from app.schemas.eval_run import ProposalCheckRecord
+
+    with pytest.raises(ValidationError):
+        ProposalCheckRecord(
+            kind="agent", base_version=None, suggestions=1, answer_estimates_usd=[Decimal("-1")]
+        )

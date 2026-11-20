@@ -46,6 +46,8 @@ const TIPS: readonly Tip[] = [
       { name: "mattermost", color: "#0058CC" },
       { name: "microsoftteams", color: "#6264A7" },
       { name: "discord", color: "#5865F2" },
+      // Matrix's mark is black; ink keeps it legible in the dark theme too.
+      { name: "matrix", color: "currentColor" },
     ],
   },
   { id: "browser", href: ROUTES.AGENTS, art: "browser_use", gate: Perm.agentsEdit },

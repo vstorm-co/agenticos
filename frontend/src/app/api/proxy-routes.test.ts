@@ -3,7 +3,7 @@
  *
  * Route handlers, in the environment they actually run in.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import * as adminBackgroundJobs from "./admin/background-jobs/[[...path]]/route";
 import * as adminConversations from "./admin/conversations/route";
@@ -108,6 +108,7 @@ import * as workflowLogs from "./workflow-logs/[[...path]]/route";
 import * as workflowRuns from "./workflow-runs/[[...path]]/route";
 import * as workflows from "./workflows/[[...path]]/route";
 import * as userLocale from "./users/me/locale/route";
+import * as userPreferences from "./users/me/preferences/route";
 import * as mySuggestions from "./me/suggestions/[[...path]]/route";
 import * as myOnboarding from "./me/onboarding/[[...path]]/route";
 import * as myWatches from "./me/watches/[[...path]]/route";
@@ -314,5 +315,47 @@ it("personal model keys require a signed-in session for every exposed verb", asy
       new NextRequest("http://localhost:3000/api/personal-model-keys", { method }),
     );
     expect(response.status).toBe(401);
+  }
+});
+
+it("mounts self-only preferences reads and edits behind the authenticated forwarder", async () => {
+  const { NextRequest } = await import("next/server");
+  const { ACCESS_TOKEN_COOKIE } = await import("@/lib/session-cookie");
+  expect(Object.keys(userPreferences).sort()).toEqual(["GET", "PATCH"]);
+  const fetch = vi.spyOn(globalThis, "fetch");
+  try {
+    for (const method of ["GET", "PATCH"] as const) {
+      const request = new NextRequest("http://localhost/api/users/me/preferences", {
+        method,
+        ...(method === "PATCH"
+          ? {
+              body: JSON.stringify({ theme: "dark" }),
+              headers: { "Content-Type": "application/json" },
+            }
+          : {}),
+      });
+      expect((await userPreferences[method](request)).status).toBe(401);
+      expect(fetch).not.toHaveBeenCalled();
+      request.cookies.set(ACCESS_TOKEN_COOKIE, "own-session");
+      fetch.mockResolvedValueOnce(Response.json({ theme: "dark", look: null, locale: "en" }));
+      const response = await userPreferences[method](request);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ theme: "dark", look: null, locale: "en" });
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringMatching(/\/api\/v1\/users\/me\/preferences$/),
+        expect.objectContaining({
+          method,
+          headers: expect.objectContaining({ Authorization: "Bearer own-session" }),
+        }),
+      );
+      if (method === "PATCH") {
+        expect(await new Response(fetch.mock.calls[0]?.[1]?.body).json()).toEqual({
+          theme: "dark",
+        });
+      }
+      fetch.mockClear();
+    }
+  } finally {
+    fetch.mockRestore();
   }
 });

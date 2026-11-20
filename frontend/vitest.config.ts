@@ -84,6 +84,7 @@ export default defineConfig({
         "src/components/dashboard/widgets/sandbox-*.tsx",
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
+        "src/components/dashboard/widgets/event-sources.tsx",
         "src/components/dashboard/widgets/background-tasks.tsx",
         // What the nightly look proposed (#2301).
         "src/components/dashboard/widgets/authoring-suggestions.tsx",
@@ -191,6 +192,7 @@ export default defineConfig({
         "src/components/ui/voice-glow.tsx",
         "src/components/layout/account-preferences.tsx",
         "src/components/layout/account-locale.tsx",
+        "src/components/layout/account-appearance.tsx",
         "src/components/layout/account-notices.tsx",
         "src/components/layout/account-time-zone.tsx",
         "src/components/settings/appearance-settings.tsx",

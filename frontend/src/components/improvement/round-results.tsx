@@ -7,6 +7,7 @@ import { usd } from "@/components/evals/format";
 import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
 import { IncomparableResult } from "./incomparable-result";
 import { ChangedAnswers } from "./changed-answers";
+import { CriteriaTable, GAINS, criteriaOf, movedCriteria } from "./criteria";
 import { BeforeAfter, Details, StateBadge } from "./widgets";
 import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement } from "@/hooks/use-improvements";
@@ -46,6 +47,7 @@ export function RoundResults({
           noise={session.measurement_noise}
         />
       )}
+      <CriteriaTable criteria={criteriaOf(round)} />
       <Details summary={t("showDetails")} onToggle={setDetailsOpen}>
         {latestCheck && <HowMeasured runId={latestCheck} />}
         {earlier.length > 0 && (
@@ -424,6 +426,7 @@ export function AttemptSummary({
   const heldOut = detail?.held_out;
   const verdict =
     round.verdict === "regression" && Number(fixed ?? 0) === 0 ? "worse" : round.verdict;
+  const moved = movedCriteria(round);
   return (
     <>
       <span className="font-medium">
@@ -431,9 +434,9 @@ export function AttemptSummary({
       </span>
       <StateBadge
         tone={
-          verdict === "better"
+          verdict === "better" || verdict === "criteria_better"
             ? "good"
-            : verdict === "worse"
+            : verdict === "worse" || verdict === "criteria_worse"
               ? "bad"
               : verdict === "regression"
                 ? "warn"
@@ -460,8 +463,18 @@ export function AttemptSummary({
           })}
         </span>
       )}
+      {moved.better.length > 0 && (
+        <span className="text-success-ink">
+          {t("attempt.criteriaBetter", { count: moved.better.length })}
+        </span>
+      )}
+      {moved.worse.length > 0 && (
+        <span className="text-destructive-ink">
+          {t("attempt.criteriaWorse", { count: moved.worse.length })}
+        </span>
+      )}
       {round.id === session.best_iteration_id &&
-        (round.verdict === "better" ? (
+        (GAINS.includes(round.verdict) ? (
           <StateBadge tone="good">{t("attempt.best")}</StateBadge>
         ) : (
           personChose(session) && <StateBadge tone="neutral">{t("attempt.chosen")}</StateBadge>

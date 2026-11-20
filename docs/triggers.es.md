@@ -1,5 +1,5 @@
 ---
-source_sha: "d7696a54fcde"
+source_sha: "ed007f781d57"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -121,6 +121,8 @@ cada fila necesitan `runs:view` y sin ese permiso sencillamente no aparecen.
 
 ## Fuentes de eventos reutilizables { #reusable-event-sources }
 
+Añade el widget **Fuentes de eventos** a tu panel para ver cuántas de las fuentes a las que tienes acceso están activas o pausadas.
+
 Abre **Fuentes de eventos** o elige **Seleccionar existente / Crear nueva** en el editor de webhooks de una rutina o un workflow. Una fuente conserva su URL activa, credenciales y configuración del proveedor. Varias rutinas y entradas publicadas de workflows pueden suscribirse a esa URL, cada una con sus filtros, identidad de ejecución, permisos, consentimientos y presupuestos.
 
 Las fuentes son **Privadas** de forma predeterminada. **Organización** las comparte según los permisos de la organización. Ver, usar y editar son permisos separados. Vincular un destino o escuchar eventos requiere permiso de uso de la fuente y de gestión del destino. Ver una rutina o workflow no permite acceder a otros eventos de su fuente. Los workers vuelven a comprobar los permisos antes de ejecutar el trabajo en cola.
@@ -132,7 +134,7 @@ Elige GitHub, Linear, HubSpot o Zendesk para la verificación del proveedor, o *
 | HMAC personalizado | SHA-256, nombre de cabecera, prefijo de firma opcional y codificación hex, base64 o base64url; también está disponible el formato anterior con marca de tiempo |
 | Basic Auth | Nombre de usuario y contraseña |
 | Clave API | Nombre de cabecera, clave secreta y prefijo opcional |
-| Standard Webhooks | Firmas simétricas `v1` sobre ID, marca de tiempo y cuerpo; listas de firmas y tolerancia de cinco minutos |
+| Standard Webhooks | Firmas simétricas `v1` sobre ID, marca de tiempo y cuerpo; listas de firmas, tolerancia de cinco minutos y claves de 24–64 bytes codificadas en Base64 |
 
 Envía un POST con un objeto JSON; se mantiene la adaptación existente de lotes de HubSpot. Las credenciales solo se escriben y se guardan en el almacén seguro de la organización. Sustitúyelas en la fuente, nunca en una definición de workflow ni en una muestra. Los ID de entrega del proveedor o una cabecera de ID configurada reconocen reintentos. Las credenciales Basic Auth y las claves API no son ID de eventos. Sin ID de evento, los reintentos pueden iniciar ejecuciones adicionales.
 

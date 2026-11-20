@@ -61,7 +61,7 @@ _PATH_PARAM = re.compile(r"\{[^}]+\}")
 
 
 def _url(path: str, query: str = "") -> str:
-    return f"{settings.API_V1_STR}{_PATH_PARAM.sub(str(_SOME_ID), path)}{query}"
+    return f"{settings.API_V1_STR}{_PATH_PARAM.sub(str(_SOME_ID), path.replace('{installation_key}', 'trial'))}{query}"
 
 
 # -- callers ------------------------------------------------------------------
@@ -152,6 +152,7 @@ _SERVICE_DEPS = (
     deps.get_ml_service,
     deps.get_workflow_registry_service,
     deps.get_voice_usage_service,
+    deps.get_solution_service,
 )
 
 Provider = Callable[[], object]
@@ -248,6 +249,42 @@ _SPEC: dict[str, Any] = {"name": "Support"}
 # tests/test_agent_registry.py, tests/test_skills.py and the grant flows in
 # tests/integration/test_platform_flows.py.
 CALLS: tuple[Call, ...] = (
+    Call(
+        "POST",
+        "/solutions/plan",
+        Perm.AGENTS_VIEW,
+        body={"name": "trial", "contexts": [{"key": "policy", "data": {"name": "Policy"}}]},
+    ),
+    Call(
+        "POST",
+        "/solutions/install",
+        Perm.AGENTS_EDIT,
+        body={
+            "installation_key": "trial",
+            "expected_manifest_hash": "0" * 64,
+            "manifest": {
+                "name": "trial",
+                "contexts": [{"key": "policy", "data": {"name": "Policy"}}],
+            },
+        },
+    ),
+    Call(
+        "POST",
+        "/solutions/prepare",
+        Perm.AGENTS_EDIT,
+        body={"name": "trial", "contexts": [{"key": "policy", "data": {"name": "Policy"}}]},
+    ),
+    Call(
+        "POST",
+        "/solutions/install-plan",
+        Perm.AGENTS_EDIT,
+        body={
+            "plan_id": "00000000-0000-4000-8000-000000000001",
+            "installation_key": "trial",
+            "expected_manifest_hash": "0" * 64,
+        },
+    ),
+    Call("GET", "/solutions/installations/{installation_key}", Perm.AGENTS_EDIT),
     Call("GET", "/approvals/consents", Perm.APPROVALS_DECIDE),
     Call("DELETE", "/approvals/{approval_id}/consent", Perm.APPROVALS_DECIDE),
     Call("GET", "/api-keys/scopes", Perm.API_KEYS_CREATE),
@@ -258,6 +295,8 @@ CALLS: tuple[Call, ...] = (
         body={"name": "ci", "scopes": ["agents:view"]},
     ),
     Call("PATCH", "/assistant", Perm.ORG_SETTINGS, body={"enabled": False}),
+    Call("GET", "/assistant/configuration", Perm.ORG_SETTINGS),
+    Call("POST", "/assistant/install", Perm.ORG_SETTINGS),
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
     Call("GET", "/agents/capabilities/mirage/backends", Perm.AGENTS_VIEW),
     Call("GET", "/agents/prompt-variables", Perm.AGENTS_VIEW),
@@ -576,6 +615,7 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/secrets/kinds", Perm.SECRETS_VIEW),
     Call("GET", "/secrets/purposes", Perm.SECRETS_VIEW),
     Call("GET", "/secrets", Perm.SECRETS_VIEW),
+    Call("GET", "/secrets/references", Perm.SECRETS_VIEW),
     Call(
         "POST",
         "/secrets",
@@ -686,7 +726,12 @@ CALLS: tuple[Call, ...] = (
     Call("POST", "/context-changes/{proposal_id}/discard", Perm.CONTEXT_EDIT, body={"revision": 1}),
 )
 
-WRITE_CALLS: tuple[Call, ...] = tuple(call for call in CALLS if call.method != "GET")
+# Planning validates caller-supplied content without reading resources or writing;
+# POST keeps the manifest out of query strings and access logs.
+_READ_ONLY_POSTS = frozenset({"/solutions/plan"})
+WRITE_CALLS: tuple[Call, ...] = tuple(
+    call for call in CALLS if call.method != "GET" and call.path not in _READ_ONLY_POSTS
+)
 
 
 class TestEachRouteDemandsItsOwnPermission:
@@ -950,6 +995,7 @@ _PLATFORM_PREFIXES = (
     # The trigger-templates catalog, the prompt counterpart of the portals
     # catalog above, gated the same way and needing its own prefix entry too.
     "/trigger-templates",
+    "/solutions",
     # Where an organization's embedding and OCR servers are, on the deployment's
     # own network - the rows a collection names instead of a vault key.
     "/local-services",
@@ -2462,3 +2508,15 @@ class TestAQuestionTheRunParkedOn:
 
         assert response.status_code == 422
         service.answer.assert_not_called()
+
+
+async def test_a_viewer_can_review_a_solution_manifest_without_installing(
+    as_role: ClientFactory,
+) -> None:
+    manifest = {"name": "trial", "contexts": [{"key": "policy", "data": {"name": "Policy"}}]}
+    async with as_role(OrgRoleName.VIEWER) as client:
+        response = await client.post(f"{settings.API_V1_STR}/solutions/plan", json=manifest)
+    assert response.status_code == 200
+    assert response.json()["publishes"] is False
+    assert response.json()["executes"] is False
+    assert response.json()["resources"] == ["policy"]

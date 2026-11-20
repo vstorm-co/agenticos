@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -10,6 +10,7 @@ import {
   node,
 } from "@/components/workflows/validation/fixtures";
 
+import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 import { NodeForm } from "./node-form";
 import type { Schema } from "./schema-model";
 
@@ -156,16 +157,19 @@ vi.mock("@/components/workflows/pickers", () => ({
     value,
     onChange,
     pinsColumns,
+    requiresReview,
   }: {
     value: unknown;
     onChange: (v: unknown) => void;
     pinsColumns: boolean;
+    requiresReview?: boolean;
   }) => (
     <div>
       {pinsColumns && <span>pins-columns</span>}
       <button
         type="button"
         aria-label="set-table"
+        data-requires-review={requiresReview}
         onClick={() =>
           onChange({ kind: "table", table_id: "t", column_ids: null, schema_version: 1 })
         }
@@ -487,8 +491,8 @@ describe("NodeForm sections", () => {
   });
 
   it("says how a trigger with nothing to set starts a run, in place of the empty message", () => {
-    renderForm({ definition: makeDefinition({ id: "trigger.webhook", category: "triggers" }) });
-    expect(screen.getByText(/its own address and signing secret/)).toBeVisible();
+    renderForm({ definition: makeDefinition({ id: "trigger.manual", category: "triggers" }) });
+    expect(screen.getByText(/Start it with Run/)).toBeVisible();
   });
 
   it("edits an agent step's answer shape as the Builder edits an agent's own", async () => {
@@ -1706,3 +1710,32 @@ it("uses group selection for an approval audience and saves group ids", () => {
   fireEvent.click(screen.getByRole("button", { name: "pick-approval-group" }));
   expect(updateNodeConfig).toHaveBeenCalledWith("N", { approver_group_ids: ["engineering"] });
 });
+
+it.each([
+  { nodeId: "N", binding: null, requiresReview: true, expected: true },
+  { nodeId: "other", binding: null, requiresReview: true, expected: false },
+  { nodeId: "N", binding: 0, requiresReview: true, expected: false },
+  { nodeId: "N", binding: null, requiresReview: false, expected: false },
+])(
+  "routes the matching config-table review to its picker: %j",
+  ({ nodeId, binding, requiresReview, expected }) => {
+    useWorkflowEditorStore.getState().setTableDrift([
+      {
+        nodeId,
+        field: binding === null ? null : "rows",
+        site: { nodeId, binding },
+        requiresReview,
+        rebound: { kind: "table", table_id: "t", column_ids: null, schema_version: 2 },
+      },
+    ]);
+    try {
+      renderForm({ config: { table: { table_id: "t", column_ids: null, schema_version: 1 } } });
+      expect(screen.getByRole("button", { name: "set-table" })).toHaveAttribute(
+        "data-requires-review",
+        String(expected),
+      );
+    } finally {
+      act(() => useWorkflowEditorStore.getState().setTableDrift([]));
+    }
+  },
+);

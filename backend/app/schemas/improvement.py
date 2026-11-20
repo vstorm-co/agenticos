@@ -67,6 +67,27 @@ class ImprovementEstimate(BaseSchema):
     reason: str | None = None
 
 
+class VerdictCriterion(BaseSchema):
+    """One criterion on an attempt's held-out questions: passed before and after, first
+    answers counted, and the flips the check confirmed by asking again."""
+
+    scorer: str
+    name: str
+    graded: int
+    before: int
+    after: int
+    fixed: int
+    broken: int
+    skill_id: UUID | None = Field(
+        default=None,
+        description="Original source identity, checked even when the optional display label is absent",
+    )
+    skill: str | None = Field(
+        default=None,
+        description="The skill the session's improver put this still-failing criterion down to",
+    )
+
+
 class ImprovementIterationRead(BaseSchema):
     id: UUID
     number: int
@@ -83,7 +104,7 @@ class ImprovementIterationRead(BaseSchema):
     dropped_hunk_ids: list[UUID]
     dropped: list[DroppedHunk] = Field(default_factory=list)
     verdict: ImprovementVerdict | None
-    verdict_detail: dict[str, int | float | str | None] | None
+    verdict_detail: dict[str, int | float | str | list[VerdictCriterion] | None] | None
     held_out: int | None = Field(
         default=None,
         description="How many questions the attempt is measured on - kept aside, and no copy "

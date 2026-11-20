@@ -229,7 +229,10 @@ export function TriggerFormDialog({
   // Only agents the caller may actually run: a published version to run, and a
   // `can_run` that resolves the caller's role scope plus any run grant. Seeding
   // the default from this set never points at an agent the create would refuse.
-  const runnable = agents.filter((agent) => agent.status === "published" && agent.can_run);
+  const runnable = agents.filter(
+    (agent) =>
+      agent.status === "published" && agent.can_run && (!reusableSourceOnly || agent.can_edit),
+  );
   const [pickedAgentId, setPickedAgentId] = useState("");
   // The user's starred default, or the first published agent, the moment the
   // list arrives - the same resolution the chat's own picker makes.
@@ -530,7 +533,6 @@ export function TriggerFormDialog({
       setExtraConfig({});
       setFilterA("");
       setFilterB("");
-      if (!trigger) setPromptMode("template");
     }
   }
 

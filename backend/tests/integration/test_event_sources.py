@@ -13,8 +13,10 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Scope
+from app.db.locks import LockScope, hold_subject
 from app.db.models.background_job import BackgroundJob
 from app.db.models.event_source import (
     EventDelivery,
@@ -97,6 +99,63 @@ async def _count(db, model):
     return await db.scalar(select(func.count()).select_from(model))
 
 
+@pytest.mark.security
+async def test_source_list_pages_only_visible_sources_and_reports_granted_permissions(
+    db: AsyncSession, source_world
+) -> None:
+    ctx, org, owner, hidden = source_world
+    viewer = await _user(db)
+    await _member(db, org=org, user=viewer, role="viewer")
+    service = EventSourceService(db)
+    shared = await service.create(ctx, EventSourceCreate(name="A grant"))
+    published = await service.create(
+        ctx, EventSourceCreate(name="B organization", visibility="org")
+    )
+    foreign = await _org(db, owner=owner)
+    await service.create(
+        _ctx(owner, foreign), EventSourceCreate(name="C foreign", visibility="org")
+    )
+    db.add(
+        ResourceGrant(
+            organization_id=org.id,
+            resource_type="event_source",
+            resource_id=shared.id,
+            subject_user_id=viewer.id,
+            level="use",
+        )
+    )
+    await db.flush()
+
+    reader = _ctx(viewer, org, role="viewer")
+    first = await service.list(reader, limit=1)
+    second = await service.list(reader, skip=1, limit=1)
+    assert first.total == second.total == 2
+    assert [item.id for item in first.items + second.items] == [shared.id, published.id]
+    assert first.items[0].can_use and not first.items[0].can_edit
+    assert all(item.id != hidden.id for item in first.items + second.items)
+    assert (await service.list(ctx)).total == 3
+    owned, total = await module.repo.list_sources(
+        db,
+        organization_id=org.id,
+        user_id=viewer.id,
+        scope=Scope.OWN,
+        shared_ids=[shared.id],
+        skip=0,
+        limit=50,
+    )
+    assert total == 1 and [item.id for item in owned] == [shared.id]
+    granted, total = await module.repo.list_sources(
+        db,
+        organization_id=org.id,
+        user_id=owner.id,
+        scope=Scope.NONE,
+        shared_ids=[shared.id],
+        skip=0,
+        limit=50,
+    )
+    assert total == 1 and [item.id for item in granted] == [shared.id]
+
+
 async def test_delivery_and_each_subscriber_survive_dispatch_restart_without_duplicate_runs(
     db, engine, source_world, monkeypatch
 ):
@@ -164,6 +223,136 @@ async def test_concurrent_duplicate_admission_persists_one_receipt_and_dispatch(
     assert sorted(admitted) == [False, True]
     assert await _count(db, EventDelivery) == 1
     assert await _count(db, EventDispatch) == 1
+
+
+async def test_detaching_one_workflow_during_receipt_keeps_the_other_dispatch(
+    db: AsyncSession, engine: AsyncEngine, source_world, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, _, _, source = source_world
+    _, removed = await _subscribed(db, source_world)
+    _, kept = await _subscribed(db, source_world)
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    reading_targets = anyio.Event()
+    removing = anyio.Event()
+    detached = anyio.Event()
+    get_exposure = module.exposure_repo.get_by_id
+
+    async def read_target(session: AsyncSession, exposure_id: UUID):
+        reading_targets.set()
+        await removing.wait()
+        with anyio.move_on_after(0.2):
+            await detached.wait()
+        return await get_exposure(session, exposure_id)
+
+    monkeypatch.setattr(module.exposure_repo, "get_by_id", read_target)
+
+    async def receive() -> None:
+        async with factory.begin() as session:
+            assert (await _receive(session, source.id))[2]
+
+    async def detach() -> None:
+        await reading_targets.wait()
+        async with factory.begin() as session:
+            removing.set()
+            await EventSourceService(session).unbind_workflow(removed.exposure.id)
+        detached.set()
+
+    with anyio.fail_after(8):
+        async with anyio.create_task_group() as group:
+            group.start_soon(receive)
+            group.start_soon(detach)
+
+    rows = (await db.scalars(select(EventDispatch))).all()
+    assert len(rows) == 2
+    assert sum(row.subscription_id is None for row in rows) == 1
+    for row in rows:
+        await EventSourceService(db).dispatch(ctx.organization_id, row.id)
+    assert [run.workflow_version_id for run in await db.scalars(select(WorkflowRun))] == [
+        kept.exposure.workflow_version_id
+    ]
+
+
+@pytest.mark.parametrize("detach_first", [True, False])
+async def test_waiting_workflow_dispatch_reads_state_after_the_workflow_lock(
+    db: AsyncSession,
+    engine: AsyncEngine,
+    source_world,
+    monkeypatch: pytest.MonkeyPatch,
+    detach_first: bool,
+) -> None:
+    ctx, _, _, source = source_world
+    _, published = await _subscribed(db, source_world)
+    await _receive(db, source.id)
+    dispatch_id = await db.scalar(select(EventDispatch.id))
+    assert dispatch_id is not None
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    entering_workflow_lock = anyio.Event()
+
+    async def track_lock(session: AsyncSession, scope: LockScope, subject_id: UUID) -> None:
+        entering_workflow_lock.set()
+        await hold_subject(session, scope, subject_id)
+
+    monkeypatch.setattr(module, "hold_subject", track_lock)
+    # The actual admission lock is the first attempt on the old, deadlocking path.
+    monkeypatch.setattr("app.services.workflow_execution.facade.hold_subject", track_lock)
+
+    async def dispatch() -> None:
+        async with factory.begin() as session:
+            await EventSourceService(session).dispatch(ctx.organization_id, dispatch_id)
+
+    with anyio.fail_after(8):
+        async with anyio.create_task_group() as group, factory.begin() as publishing:
+            await hold_subject(publishing, LockScope.WORKFLOW_FILE_BYTES, ctx.organization_id)
+            group.start_soon(dispatch)
+            await entering_workflow_lock.wait()
+            service = EventSourceService(publishing)
+            if detach_first:
+                await service.unbind_workflow(published.exposure.id)
+            else:
+                await service.dispatch(ctx.organization_id, dispatch_id)
+
+    row = await db.get(EventDispatch, dispatch_id, populate_existing=True)
+    assert row is not None
+    assert row.status == ("skipped" if detach_first else "admitted")
+    assert (row.subscription_id is None) == detach_first
+    assert await _count(db, WorkflowRun) == (0 if detach_first else 1)
+
+
+@pytest.mark.parametrize("fits_after_cleanup", [True, False])
+async def test_workflow_dispatch_only_retries_storage_refusals_that_can_clear(
+    db: AsyncSession, source_world, monkeypatch: pytest.MonkeyPatch, fits_after_cleanup: bool
+) -> None:
+    ctx, _, _, source = source_world
+    await _subscribed(db, source_world)
+    _, first, _ = await _receive(db, source.id, "first")
+    _, second, _ = await _receive(db, source.id, "later")
+    first_dispatch = await db.scalar(
+        select(EventDispatch).where(EventDispatch.delivery_id == first.id)
+    )
+    second_dispatch = await db.scalar(
+        select(EventDispatch).where(EventDispatch.delivery_id == second.id)
+    )
+    assert first_dispatch is not None and second_dispatch is not None
+    service = EventSourceService(db)
+    await service.dispatch(ctx.organization_id, first_dispatch.id)
+    running = await db.scalar(select(WorkflowRun))
+    assert running is not None and running.inline_result_bytes > 1
+    ceiling = running.inline_result_bytes - (0 if fits_after_cleanup else 1)
+    monkeypatch.setattr(settings, "WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES", ceiling)
+    await service.dispatch(ctx.organization_id, second_dispatch.id)
+    assert await _count(db, WorkflowRun) == 1
+    if fits_after_cleanup:
+        assert second_dispatch.status == "pending"
+        running.inline_result_bytes = 0
+        await db.flush()
+        await service.dispatch(ctx.organization_id, second_dispatch.id)
+        assert second_dispatch.status == "admitted"
+        assert await _count(db, WorkflowRun) == 2
+    else:
+        assert second_dispatch.status == "failed"
+        assert second_dispatch.error_code == "WORKFLOW_INLINE_STORAGE_LIMIT"
 
 
 @pytest.mark.parametrize(

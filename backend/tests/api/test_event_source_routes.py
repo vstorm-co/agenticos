@@ -3,7 +3,7 @@
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 from uuid import uuid4
 
 import anyio
@@ -13,9 +13,11 @@ from httpx import ASGITransport, AsyncClient
 from app.api import deps
 from app.core.background import drain
 from app.core.config import settings
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db import session
+from app.db.models.event_source import EventSource
 from app.main import app
+from app.repositories import event_source as source_repo
 from app.schemas.event_source import (
     EventSourceCreated,
     EventSourceList,
@@ -25,7 +27,7 @@ from app.schemas.event_source import (
     SourceListening,
     SourceUsageList,
 )
-from app.services import rate_limit
+from app.services import rate_limit, sharing
 
 pytestmark = pytest.mark.anyio
 CTX = AuthContext(organization_id=uuid4(), user_id=uuid4(), role="owner")
@@ -75,6 +77,9 @@ async def test_source_routes_use_consistent_response_shapes(wired):
     client, service, samples, source = wired
     base = f"/api/v1/event-sources/{source.id}"
     assert (await client.get("/api/v1/event-sources")).json()["total"] == 1
+    assert (await client.get("/api/v1/event-sources?skip=2&limit=3")).status_code == 200
+    service.list.assert_awaited_with(CTX, skip=2, limit=3)
+    assert (await client.get("/api/v1/event-sources?limit=101")).status_code == 422
     assert (await client.post("/api/v1/event-sources", json={"name": "Hook"})).status_code == 201
     assert (await client.get(base)).json()["id"] == str(source.id)
     assert (await client.patch(base, json={"is_active": False})).status_code == 200
@@ -104,6 +109,40 @@ async def test_viewer_cannot_create_a_source(wired):
     service.create.assert_not_called()
 
 
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "permission, same_tenant, status",
+    [
+        (Perm.EVENT_SOURCES_VIEW, True, 200),
+        (Perm.EVENT_SOURCES_EDIT, True, 200),
+        (Perm.EVENT_SOURCES_EDIT, False, 404),
+    ],
+)
+async def test_source_sharing_accepts_view_or_edit_scope_only_in_its_tenant(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    permission: Perm,
+    same_tenant: bool,
+    status: int,
+) -> None:
+    ctx = replace(CTX, key_scopes=frozenset({permission}))
+    app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+    row = EventSource(
+        id=uuid4(),
+        organization_id=ctx.organization_id if same_tenant else uuid4(),
+        owner_user_id=ctx.user_id,
+        visibility="private",
+    )
+    monkeypatch.setattr(source_repo, "get", AsyncMock(return_value=row))
+    monkeypatch.setattr(
+        sharing.resource_grant_repo, "list_for_resource", AsyncMock(return_value=[])
+    )
+    response = await client.get(f"/api/v1/event-sources/{row.id}/sharing")
+    assert response.status_code == status
+    if same_tenant:
+        assert response.json()["visibility"] == "private"
+
+
 @pytest.mark.parametrize("provider,status", [("webhook", 202), ("linear", 200)])
 async def test_live_ingress_returns_provider_success_and_captures_without_second_dispatch(
     wired, provider, status
@@ -114,7 +153,7 @@ async def test_live_ingress_returns_provider_success_and_captures_without_second
     assert response.status_code == status
     service.receive.assert_awaited_once()
     samples.capture_after_commit.assert_called_once_with(
-        source.id, body={"x": 1}, delivery_id="one"
+        source.id, body={"x": 1}, delivery_id="one", received_at=ANY
     )
 
 

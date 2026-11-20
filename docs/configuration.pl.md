@@ -1,5 +1,5 @@
 ---
-source_sha: "5e2155daf34a"
+source_sha: "870495bf0bf8"
 ---
 
 # Konfiguracja { #configuration }
@@ -100,18 +100,20 @@ jest już zbuforowana do pliku tymczasowego i wczytana do pamięci. Za sesją ni
 jest to duże ryzyko; na `POST /api/v1/embed/{key}/files`, do którego może sięgnąć
 obcy trzymający link, już jest.
 
-Dlatego żądanie deklarujące `Content-Length` większy niż `MAX_UPLOAD_SIZE_MB` plus
-5 MiB zapasu na kopertę multipart dostaje odpowiedź **413**, zanim jego treść
-zostanie odczytana. Nie ma tu ustawienia: wartość idzie za `MAX_UPLOAD_SIZE_MB`,
-bo druga liczba, którą trzeba trzymać w zgodzie z pierwszą, to liczba, która
-kończy poniżej niej.
+Żądanie deklarujące `Content-Length` większy niż największy z limitów
+`MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` i
+`ML_MAX_UPLOAD_SIZE_MB` plus 5 MiB na opakowanie multipart dostaje **413** przed
+odczytaniem treści. Limit całego żądania automatycznie podąża za tymi ustawieniami.
 
-**To tańsza połowa odpowiedzi, nie całość.** `Content-Length` ustawia wołający, a
-żądanie chunked nie deklaruje go wcale — te są przepuszczane i ograniczane
-limitami per trasa, które mierzą prawdziwe bajty. Wdrożenie, które chce gwarancji,
-a nie uprzejmości, ustawia `client_max_body_size` (nginx) albo odpowiednik na tym,
-co kończy jego połączenia; pliki compose uruchamiają uvicorna bez własnego takiego
-limitu.
+`Content-Length` podaje klient; żądania chunked go nie deklarują i podlegają
+limitom konkretnych tras mierzącym rzeczywiste bajty. Ustaw limit także na proxy,
+aby objąć nim te żądania. W Nginx jest to również konieczne, żeby przyjmować
+uploady powyżej domyślnego 1 MiB: szablon ma `client_max_body_size 55m;` na
+hoście API i w lokalizacjach uploadu multipart konsoli. Strony konsoli,
+uwierzytelnianie i zwykły JSON zachowują limit 1 MiB. Podnoś oba limity uploadu
+razem z największym ustawieniem.
+Zobacz [wdrożenie z Nginx](deploy.md#option-b-nginx). Pliki Compose uruchamiają
+uvicorn bez własnego limitu treści żądania.
 
 ## Uwierzytelnianie { #authentication }
 
@@ -216,7 +218,7 @@ Gdzie mieszka który issuer i co zarejestrować:
 
 | Dostawca | Issuer | Redirect URI rejestruj jako |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect URI platformy **Web** w rejestracji aplikacji. Nadaj `openid`, `email`, `profile` w API permissions |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect URI platformy **Web** w rejestracji aplikacji. Nadaj `openid`, `email`, `profile` w API permissions. W **Token configuration** dodaj opcjonalne claimy `email` i `xms_edov` do tokenu **ID** |
 | **Okta** | `https://<org>.okta.com` (albo `/oauth2/<id>` własnego serwera autoryzacji) | Sign-in redirect URI w aplikacji typu **Web** |
 | **Keycloak** | `https://<host>/realms/<realm>` | Valid redirect URI w kliencie confidential z włączonym standard flow |
 
@@ -231,6 +233,13 @@ Dwie rzeczy, których platforma wymaga od dowolnego dostawcy, na którego ją sk
   potwierdzenia: niepotwierdzony adres oznacza, że ktokolwiek u tego dostawcy może
   zgłosić czyjś służbowy adres, a lista dozwolonych domen niżej stoi na tym, że
   adres coś znaczy.
+  W Entra claim musi być w **ID tokenie**: jego endpoint UserInfo zwraca tylko
+  `sub`, `name`, `family_name`, `given_name`, `picture` i `email`.
+  `OIDC_VERIFIED_CLAIM` musi wskazywać claim, którego *wartość* jest prawdą dla
+  potwierdzonego adresu; claim obecny w każdym tokenie, jak `sub`, niczego nie
+  potwierdza i nie jest akceptowany. Odrzucone logowanie zapisuje w logu
+  `oauth_callback_claims_rejected` z warunkiem, który nie przeszedł (`reason`),
+  oraz nazwami, nigdy wartościami, otrzymanych claimów.
 - **Stabilny `sub`.** Konto jest kluczowane po nim, nie po adresie, więc osoba,
   która zmieni nazwisko albo której domenę ktoś wykupi, zachowuje swoją historię
   — a kolejny właściciel zwolnionego adresu jej nie dziedziczy. Zapisywany jest

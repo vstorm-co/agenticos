@@ -54,15 +54,29 @@ export interface SourceUsage {
   items: {
     id: string;
     kind: "routine" | "workflow";
-    target_id: string;
+    target_id: string | null;
     name: string;
-    is_active: boolean;
+    is_active: boolean | null;
   }[];
   total: number;
 }
 const base = "/event-sources";
+
+async function listEventSources(): Promise<{ items: EventSource[]; total: number }> {
+  const first = await apiClient.get<{ items: EventSource[]; total: number }>(base);
+  const items = [...first.items];
+  while (items.length < first.total) {
+    const page = await apiClient.get<{ items: EventSource[]; total: number }>(base, {
+      params: { skip: String(items.length), limit: "100" },
+    });
+    if (!page.items.length) break;
+    items.push(...page.items);
+  }
+  return { ...first, items };
+}
+
 export const eventSourcesApi = {
-  list: () => apiClient.get<{ items: EventSource[]; total: number }>(base),
+  list: listEventSources,
   get: (id: string) => apiClient.get<EventSource>(`${base}/${id}`),
   create: (input: EventSourceCreate) => apiClient.post<EventSourceCreated>(base, input),
   update: (

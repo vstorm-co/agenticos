@@ -1,5 +1,5 @@
 ---
-source_sha: "51a34ace781e"
+source_sha: "612ae89d3f02"
 ---
 
 # Workflows { #workflows }
@@ -452,9 +452,17 @@ que un paso nombre algo real que tu organización tiene:
 Cada selector desambigua filas con el mismo nombre mediante contexto y marca una
 referencia cuyo destino ha desaparecido. Los selectores **Agent** y **Secret**
 ofrecen además un enlace para crear uno nuevo — siempre, no solo cuando la lista
-está vacía — mientras que el selector **Table** no tiene ninguno. Una tabla cuyo esquema cambió desde que se vinculó lo dice y
-ofrece **Rebind to the current schema**, para que un conjunto de columnas obsoleto sea
-un aviso visible y no una ruptura silenciosa.
+está vacía — mientras que el selector **Table** no tiene ninguno.
+
+Cuando el esquema de una tabla cambia después de vincular un paso a ella, el editor
+mueve el paso al nuevo esquema por sí solo siempre que cada columna que el paso lee
+siga existiendo con el mismo tipo - una columna añadida, o un cambio en una que el
+paso no lee, no te pide nada. Cuando una columna que lee se eliminó o cambió de
+tipo, el paso muestra un problema, y tanto el campo **Table** del paso como la lista
+de problemas de la barra de herramientas ofrecen **Update to the current schema**,
+que conserva cada columna elegida que aún existe. Después, revisa lo que lee el paso.
+
+También se comprueban los filtros, las columnas de ordenación y los enlaces de valores. Elimina o sustituye los ajustes dependientes que usan columnas cambiadas antes de actualizar el esquema; la actualización conjunta deja esos pasos intactos. Un enlace de valores del registro completo también requiere esta revisión manual.
 
 ### Evals de un paso con modelo { #evals-for-a-model-step }
 
@@ -681,12 +689,11 @@ vez que aterriza, y **Save failed — will retry** si no lo hizo.
 
 Cada guardado se escribe contra la revisión que abriste, así que un draft editado en
 dos sitios a la vez no puede sobrescribir en silencio. Cuando eso ocurre, el editor
-levanta un banner titulado **This draft changed elsewhere**: *Someone edited this
-workflow since you opened it. Overwrite keeps your changes; reload replaces them with
-the latest saved draft.* Eliges:
+levanta un banner titulado **Someone else also edited this workflow**: *They saved changes while you were editing. Keep your changes, or load
+their version and lose your unsaved edits.* Eliges:
 
-- **Overwrite** — conserva tu versión y escríbela sobre la guardada en otro sitio.
-- **Reload** — descarta tus ediciones sin guardar y toma el último draft guardado.
+- **Keep my changes** — conserva tu versión y escríbela sobre la guardada en otro sitio.
+- **Load their version** — descarta tus ediciones sin guardar y toma el último draft guardado.
 
 ## Publicar una versión y el historial de versiones { #publishing-a-version-and-version-history }
 
@@ -1503,7 +1510,7 @@ Las galerías de skills y contexto del agente integrado cargan todas las página
 - Un parámetro es **un valor o datos de un paso** — **Data** los lee de una salida previa
   alcanzable y de tipo compatible, o los mete en un texto.
 - El draft **se guarda solo**, y una edición desde dos sitios levanta un banner con
-  **Overwrite** o **Reload**.
+  **Keep my changes** o **Load their version**.
 - **Publish** se bloquea mientras un problema persiste y vuelve a validar en el
   servidor; las versiones anteriores quedan visibles en solo lectura, y **Restore to
   draft** vuelve a convertir una de ellas en el draft.

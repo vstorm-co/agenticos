@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { PortalCatalog } from "@/components/triggers/portal-catalog";
 import { Dialog } from "@/components/ui";
 import { RoutineDialogFrame } from "./routine-dialog-frame";
-import { useCanCreateTrigger, usePermissions } from "@/hooks";
+import { useAgents, useCanCreateTrigger, usePermissions } from "@/hooks";
 import { Perm } from "@/types/permissions";
 
 interface NewEventTriggerDialogProps {
@@ -39,6 +39,12 @@ export function NewEventTriggerDialog({ open, onOpenChange }: NewEventTriggerDia
   const [sourceRoutine, setSourceRoutine] = useState(false);
   const { can } = usePermissions();
   const canCreate = useCanCreateTrigger();
+  const canViewSources = can(Perm.eventSourcesView);
+  const { agents } = useAgents({ enabled: open && canCreate && canViewSources });
+  const canAttachSource =
+    canCreate &&
+    canViewSources &&
+    agents.some((agent) => agent.status === "published" && agent.can_run && agent.can_edit);
 
   if (sourceRoutine)
     return (
@@ -47,14 +53,17 @@ export function NewEventTriggerDialog({ open, onOpenChange }: NewEventTriggerDia
         open={open}
         initialType="event"
         reusableSourceOnly
-        onOpenChange={onOpenChange}
+        onOpenChange={(next) => {
+          if (!next) setSourceRoutine(false);
+          onOpenChange(next);
+        }}
       />
     );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <RoutineDialogFrame title={t("newEventTitle")} description={t("newEventDescription")}>
-        {canCreate && (
+        {canAttachSource && (
           <Button variant="outline" onClick={() => setSourceRoutine(true)}>
             {ts("sourceRoutine")}
           </Button>

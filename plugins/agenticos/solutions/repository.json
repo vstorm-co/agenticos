@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "name": "repository",
+  "contexts": [
+    {
+      "key": "policy",
+      "data": {
+        "name": "repository-policy",
+        "content": "A release entry states the resulting behavior, verification and upgrade actions. Never claim tests ran without evidence.",
+        "mode": "inject",
+        "visibility": "private"
+      }
+    }
+  ],
+  "skills": [
+    {
+      "key": "procedure",
+      "data": {
+        "name": "repository-procedure",
+        "description": "Repository assistant procedure",
+        "content": "Read the diff and CI evidence. Draft release notes with sources and identify missing verification.",
+        "visibility": "private"
+      }
+    }
+  ],
+  "datasets": [
+    {
+      "key": "questions",
+      "data": {
+        "name": "Repository assistant questions",
+        "visibility": "private"
+      },
+      "cases": [
+        {
+          "input": "What must a release entry include?",
+          "reference_answer": "A release entry states the resulting behavior, verification and upgrade actions. Never claim tests ran without evidence.",
+          "checks": [
+            {
+              "type": "contains",
+              "value": "verification"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "agents": [
+    {
+      "key": "assistant",
+      "spec": {
+        "name": "Repository assistant",
+        "instructions": "Read the diff and CI evidence. Draft release notes with sources and identify missing verification.",
+        "capabilities": [
+          {
+            "id": "skills"
+          }
+        ]
+      },
+      "context_keys": [
+        "policy"
+      ],
+      "skill_keys": [
+        "procedure"
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "key": "intake",
+      "data": {
+        "name": "Repository assistant intake",
+        "graph": {
+          "entry_node_id": "4605b0be-0b5a-5f97-b647-eed47e8361e7",
+          "nodes": [
+            {
+              "id": "4605b0be-0b5a-5f97-b647-eed47e8361e7",
+              "definition_id": "trigger.manual",
+              "definition_version": 1,
+              "config": {
+                "input_schema": {
+                  "type": "object",
+                  "properties": {
+                    "external_id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "external_id",
+                    "title"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "layout": {
+                "x": 0,
+                "y": 0
+              },
+              "label": "Manual"
+            },
+            {
+              "id": "e3a0aebf-f8d0-54bb-bbb6-9dcf27cbe23b",
+              "definition_id": "table.record.upsert",
+              "definition_version": 1,
+              "config": {
+                "table": {
+                  "kind": "table",
+                  "table_id": "b7e107f4-4fd4-5de9-ba97-ce1991ab9b1e",
+                  "schema_version": 1
+                }
+              },
+              "layout": {
+                "x": 300,
+                "y": 0
+              },
+              "label": "Save"
+            },
+            {
+              "id": "676d2d0d-8c0d-503e-9765-a4bb037287c8",
+              "definition_id": "core.output",
+              "definition_version": 1,
+              "config": {},
+              "layout": {
+                "x": 600,
+                "y": 0
+              },
+              "label": "Output"
+            }
+          ],
+          "edges": [
+            {
+              "id": "79c12b33-f926-50a3-9e0c-351c840ebbf3",
+              "source_node_id": "4605b0be-0b5a-5f97-b647-eed47e8361e7",
+              "source_port": "out",
+              "target_node_id": "e3a0aebf-f8d0-54bb-bbb6-9dcf27cbe23b",
+              "target_port": "in"
+            },
+            {
+              "id": "9299a03e-fc59-5906-9a00-2586129f5e7d",
+              "source_node_id": "e3a0aebf-f8d0-54bb-bbb6-9dcf27cbe23b",
+              "source_port": "out",
+              "target_node_id": "676d2d0d-8c0d-503e-9765-a4bb037287c8",
+              "target_port": "in"
+            }
+          ],
+          "bindings": [
+            {
+              "target_node_id": "e3a0aebf-f8d0-54bb-bbb6-9dcf27cbe23b",
+              "target_field": "external_id",
+              "source": {
+                "kind": "node_output",
+                "node_id": "4605b0be-0b5a-5f97-b647-eed47e8361e7",
+                "port": "out",
+                "field_path": [
+                  "payload",
+                  "external_id"
+                ]
+              }
+            },
+            {
+              "target_node_id": "e3a0aebf-f8d0-54bb-bbb6-9dcf27cbe23b",
+              "target_field": "values/Title",
+              "source": {
+                "kind": "node_output",
+                "node_id": "4605b0be-0b5a-5f97-b647-eed47e8361e7",
+                "port": "out",
+                "field_path": [
+                  "payload",
+                  "title"
+                ]
+              }
+            }
+          ]
+        },
+        "table_placeholder_id": "b7e107f4-4fd4-5de9-ba97-ce1991ab9b1e",
+        "table": {
+          "name": "Repository assistant records",
+          "columns": [
+            {
+              "label": "Title",
+              "type": "text",
+              "nullable": false
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
