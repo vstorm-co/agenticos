@@ -472,6 +472,24 @@ describe("the dots on the tabs that hold what needs attention", () => {
     expect(screen.queryByTestId("evals-attention")).toBeNull();
   });
 
+  it("leaves a waiting Improve session out for a reader who may not continue it", async () => {
+    allowed = new Set([Perm.runsView]);
+    page.agent = { ...AGENT, can_edit: false, can_publish: false };
+    page.sessions = [{ id: "s1", status: "waiting", created_at: "2026-11-01T00:00:00Z" }];
+    const { unmount } = await mountAndReturn();
+    expect(await screen.findByRole("tab", { name: "Evals" })).not.toHaveAttribute(
+      "aria-describedby",
+    );
+    expect(screen.queryByTestId("evals-attention")).toBeNull();
+    unmount();
+
+    page.attention = [{ agent_id: "a1", rated_down: 1, failed_runs: 0 }];
+    await mount();
+    expect(await screen.findByRole("tab", { name: "Evals" })).toHaveAccessibleDescription(
+      "Needs attention: 1 answer rated down",
+    );
+  });
+
   it("marks Knowledge gaps with how many are open", async () => {
     allowed = new Set([Perm.runsView]);
     page.gaps = 3;

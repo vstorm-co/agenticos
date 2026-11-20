@@ -499,6 +499,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // Said by a description rather than a label: the tab keeps its own name.
   const tabAttention = useAgentTabAttention(id, {
     enabled: canViewRuns && agent !== undefined && !isSystem,
+    canEdit,
   });
   const evalsWhy = useId();
   const gapsWhy = useId();
