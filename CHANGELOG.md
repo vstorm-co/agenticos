@@ -21,6 +21,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Mount a writable `/app/.next/server/route-cache` in the Helm chart's frontend
+  (chart 0.1.2). Next.js copies each prerendered page there on its first request,
+  which failed on a read-only root filesystem such as OpenShift's `restricted-v2`.
+- Log why an OIDC sign-in was refused: the failed condition and the names of the
+  claims received, never their values. Document the Entra ID optional claims
+  (`email`, `xms_edov` on the ID token) that its UserInfo endpoint does not return.
 - Require a fresh decision for every platform MCP call marked as always asking,
   including organization administration. Session-wide and remembered approvals
   cannot release these calls. Routine source reviews reveal resource names only
