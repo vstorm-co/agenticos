@@ -7,6 +7,7 @@ and nothing run twice.
 """
 
 import importlib.util
+import json
 from collections import Counter
 from pathlib import Path
 
@@ -134,3 +135,89 @@ def test_an_empty_shard_fails_rather_than_running_everything(
 def test_the_wrong_number_of_arguments_prints_usage(capsys: pytest.CaptureFixture[str]) -> None:
     assert ci_backend_shard.main(["1/3"]) == 2
     assert "usage" in capsys.readouterr().err
+
+
+def test_recorded_times_balance_the_shards_better_than_test_counts(tmp_path: Path) -> None:
+    """One slow file outweighs many quick ones once its seconds are known (2026-11-21)."""
+    for name in ("slow", "quick_a", "quick_b", "quick_c"):
+        (tmp_path / f"test_{name}.py").write_text("def test_one(): ...\ndef test_two(): ...\n")
+    files = ci_backend_shard.test_files(tmp_path)
+    times = {str(tmp_path / "test_slow.py"): 90.0, **{str(tmp_path / f"test_quick_{x}.py"): 10.0 for x in "abc"}}
+
+    shards = [ci_backend_shard.select(files, i, 2, ci_backend_shard.recorded_weight(times)) for i in (1, 2)]
+
+    assert [str(tmp_path / "test_slow.py")] in shards
+
+
+def test_an_unrecorded_file_is_estimated_from_its_test_count(tmp_path: Path) -> None:
+    (tmp_path / "test_known.py").write_text("def test_one(): ...\ndef test_two(): ...\n")
+    (tmp_path / "test_new.py").write_text("def test_one(): ...\n" * 3)
+    weight = ci_backend_shard.recorded_weight({str(tmp_path / "test_known.py"): 8.0})
+
+    assert weight(str(tmp_path / "test_known.py")) == 8.0
+    assert weight(str(tmp_path / "test_new.py")) == 12.0
+
+
+@pytest.mark.parametrize("content", [None, "", "not json", "[1, 2]"])
+def test_missing_or_unreadable_times_mean_no_times(tmp_path: Path, content: str | None) -> None:
+    path = tmp_path / "times.json"
+    if content is not None:
+        path.write_text(content)
+
+    assert ci_backend_shard.load_times(str(path)) == {}
+
+
+def test_the_times_change_the_split_but_never_the_partition(
+    tree: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    files = ci_backend_shard.test_files(tree)
+    times = tmp_path / "times.json"
+    times.write_text(json.dumps({path: float(len(path)) for path in files}))
+    monkeypatch.setenv("BACKEND_SHARD_TIMES", str(times))
+    shards = []
+    for index in (1, 2, 3):
+        assert ci_backend_shard.main([f"{index}/3", str(tree)]) == 0
+        shards.append(capsys.readouterr().out.split())
+
+    assert ci_backend_shard.verify(files, shards) == []
+
+
+def test_verify_names_a_dropped_a_doubled_and_a_foreign_file() -> None:
+    problems = ci_backend_shard.verify(
+        ["tests/test_a.py", "tests/test_b.py", "tests/test_c.py"],
+        [["tests/test_a.py", "tests/test_x.py"], ["tests/test_a.py"]],
+    )
+
+    assert problems == [
+        "tests/test_b.py ran in no shard",
+        "tests/test_c.py ran in no shard",
+        "tests/test_a.py ran in 2 shards",
+        "tests/test_x.py is not a test file",
+    ]
+
+
+def test_the_verify_command_fails_on_a_broken_partition(tree: Path, tmp_path: Path) -> None:
+    files = ci_backend_shard.test_files(tree)
+    whole, short = tmp_path / "whole.txt", tmp_path / "short.txt"
+    whole.write_text("\n".join(files))
+    short.write_text("\n".join(files[1:]))
+
+    assert ci_backend_shard.main(["verify", str(tree), str(whole)]) == 0
+    assert ci_backend_shard.main(["verify", str(tree), str(short)]) == 1
+
+
+def test_junit_times_are_summed_per_file(tmp_path: Path) -> None:
+    report = tmp_path / "junit.xml"
+    report.write_text(
+        "<testsuites><testsuite>"
+        '<testcase classname="tests.api.test_routes" name="test_one" time="1.5"/>'
+        '<testcase classname="tests.test_a.TestThing" name="test_two" time="2.25"/>'
+        '<testcase classname="tests.test_a" name="test_three" time="1"/>'
+        '<testcase classname="tests.test_gone" name="test_four" time="9"/>'
+        "</testsuite></testsuites>"
+    )
+
+    assert ci_backend_shard.file_times([str(report)], ["tests/api/test_routes.py", "tests/test_a.py"]) == {
+        "tests/api/test_routes.py": 1.5,
+        "tests/test_a.py": 3.25,
+    }

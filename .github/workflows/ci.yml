@@ -152,6 +152,29 @@ jobs:
           python3 scripts/ci_changed_scope.py \
             "$RUNNER_TEMP/changed.txt" >> "$GITHUB_OUTPUT"
 
+      # The backend shards balance on the seconds per file that the last green
+      # full run recorded. One fetch here, handed to all three shards, so they all
+      # split the same way. With no record, the split falls back to test counts.
+      - name: Fetch the backend file times the last green run recorded
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          mkdir -p "$RUNNER_TEMP/times"
+          for id in $(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?status=success&per_page=10" \
+            --jq '.workflow_runs[].id'); do
+            gh run download "$id" -R "$GITHUB_REPOSITORY" -n backend-file-times -D "$RUNNER_TEMP/times" 2>/dev/null \
+              && echo "Backend file times from run $id" && break
+          done
+          test -s "$RUNNER_TEMP/times/backend-file-times.json" || echo '{}' > "$RUNNER_TEMP/times/backend-file-times.json"
+
+      - name: Hand the times to the shards
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-shard-times
+          path: ${{ runner.temp }}/times/backend-file-times.json
+          retention-days: 1
+
   lint:
     # Never gated. It is one billed minute, `make lint-spelling` reads every
     # tracked file rather than a subtree, and a suite that skips is only defensible
@@ -348,6 +371,12 @@ jobs:
       - name: Start the object store
         run: make docker-minio
 
+      - name: Get the recorded backend file times
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: backend-shard-times
+          path: backend/.shard-times
+
       - name: Run a third of the backend tests
         # `BACKEND_SHARD` makes `make test` run this shard's files and keep the
         # coverage data rather than gate it: a third of the suite never reaches
@@ -368,7 +397,21 @@ jobs:
         env:
           PYTEST_ADDOPTS: "-q -q --durations=25"
           BACKEND_SHARD: ${{ matrix.shard }}/3
+          BACKEND_SHARD_TIMES: .shard-times/backend-file-times.json
         run: make test
+
+      - name: Save the shard's file list and test times
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-shard-${{ matrix.shard }}
+          overwrite: true
+          path: |
+            backend/.shard${{ matrix.shard }}-files.txt
+            backend/junit-shard${{ matrix.shard }}.xml
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Save coverage data for the aggregate gate
         if: ${{ !cancelled() }}
@@ -421,6 +464,27 @@ jobs:
 
       - name: Require all shards' coverage data
         run: make test-backend-reports-check
+
+      - name: Download the shards' file lists and test times
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: backend-shard-[0-9]*
+          path: backend
+          merge-multiple: true
+
+      - name: Require the shards to have run every test file exactly once
+        run: make test-backend-partition-check
+
+      - name: Record the seconds each backend test file took
+        run: make backend-file-times
+
+      - name: Keep the file times for the next run's split
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backend-file-times
+          path: backend/backend-file-times.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Apply the coverage gate to the complete suite
         # The gate `make test` applies on a laptop, over the shards' data combined.

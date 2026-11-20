@@ -22,11 +22,26 @@ tests than another.
 
 Paths are sorted as POSIX strings so the order, and therefore the split, is the same
 on every platform.
+
+Recorded times (2026-11-21). Test counts left the shards at 1029 / 523 / 917 s of
+test time. When `BACKEND_SHARD_TIMES` names a JSON map of file -> seconds, recorded
+by the last green full run and handed to all three shards by the `changes` job,
+a file weighs its recorded seconds; a file with no record weighs its test count
+times the suite's mean seconds per test. Every shard reads the same file, so the
+split is still one deterministic function of the tree plus that one input, and
+`verify` (run by the aggregate `test` job) proves the shards together ran every
+file exactly once.
+
+    python ../scripts/ci_backend_shard.py times junit-shard*.xml > file-times.json
+    python ../scripts/ci_backend_shard.py verify tests shard1.txt shard2.txt shard3.txt
 """
 
+import json
+import os
 import re
 import sys
-from collections.abc import Callable
+import xml.etree.ElementTree as ElementTree
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 _TEST_FUNCTION = re.compile(r"^\s*(?:async\s+)?def\s+test", re.MULTILINE)
@@ -44,12 +59,12 @@ def test_count(path: str) -> int:
 
 
 def select(
-    paths: list[str], index: int, total: int, weight: Callable[[str], int] = lambda _: 1
+    paths: list[str], index: int, total: int, weight: Callable[[str], float] = lambda _: 1
 ) -> list[str]:
     """The paths shard `index` of `total` runs (1-based), sorted."""
     if total < 1 or not 1 <= index <= total:
         raise ValueError(f"shard {index}/{total} does not exist")
-    loads = [0] * total
+    loads = [0.0] * total
     chosen: list[str] = []
     for path in sorted(paths, key=lambda path: (-weight(path), path)):
         lightest = min(range(total), key=lambda shard: (loads[shard], shard))
@@ -57,6 +72,58 @@ def select(
         if lightest == index - 1:
             chosen.append(path)
     return sorted(chosen)
+
+
+def recorded_weight(times: Mapping[str, float]) -> Callable[[str], float]:
+    """A file's recorded seconds; an unrecorded file is estimated from its test count."""
+    counted = [path for path in times if Path(path).is_file()]
+    tests = sum(test_count(path) for path in counted)
+    per_test = sum(times[path] for path in counted) / tests if tests else 1.0
+
+    def weight(path: str) -> float:
+        if path in times:
+            return max(float(times[path]), 0.001)
+        return test_count(path) * per_test
+
+    return weight
+
+
+def load_times(path: str | None) -> dict[str, float]:
+    """The recorded times, or none at all when the file is absent, empty or unreadable."""
+    if not path or not Path(path).is_file():
+        return {}
+    try:
+        loaded = json.loads(Path(path).read_text(encoding="utf-8") or "{}")
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(loaded, dict):
+        return {}
+    return {str(key): float(value) for key, value in loaded.items() if isinstance(value, int | float)}
+
+
+def file_times(reports: list[str], files: list[str]) -> dict[str, float]:
+    """Seconds per test file, summed from JUnit reports' test cases."""
+    modules = {path.removesuffix(".py").replace("/", "."): path for path in files}
+    totals: dict[str, float] = {}
+    for report in reports:
+        for case in ElementTree.parse(report).iter("testcase"):
+            classname = case.get("classname", "")
+            parts = classname.split(".")
+            for end in range(len(parts), 0, -1):
+                path = modules.get(".".join(parts[:end]))
+                if path:
+                    totals[path] = totals.get(path, 0.0) + float(case.get("time") or 0)
+                    break
+    return {path: round(seconds, 3) for path, seconds in sorted(totals.items())}
+
+
+def verify(files: list[str], shards: list[list[str]]) -> list[str]:
+    """Every problem with `shards` as a partition of `files`; empty when it is one."""
+    ran = [path for shard in shards for path in shard]
+    problems = [f"{path} ran in no shard" for path in sorted(set(files) - set(ran))]
+    problems += [f"{path} ran in {ran.count(path)} shards" for path in sorted(set(ran)) if ran.count(path) > 1]
+    problems += [f"{path} is not a test file" for path in sorted(set(ran) - set(files))]
+    return problems
 
 
 def parse(spec: str) -> tuple[int, int]:
@@ -68,11 +135,22 @@ def parse(spec: str) -> tuple[int, int]:
 
 
 def main(argv: list[str]) -> int:
+    if argv[:1] == ["times"] and len(argv) > 1:
+        root = Path(os.environ.get("BACKEND_TESTS_DIR", "tests"))
+        print(json.dumps(file_times(argv[1:], test_files(root)), indent=1, sort_keys=True))
+        return 0
+    if argv[:1] == ["verify"] and len(argv) > 2:
+        lists = [Path(path).read_text(encoding="utf-8").split() for path in argv[2:]]
+        problems = verify(test_files(Path(argv[1])), lists)
+        print("\n".join(problems) or f"{sum(map(len, lists))} files, each in exactly one shard", file=sys.stderr)
+        return 1 if problems else 0
     if len(argv) != 2:
         print("usage: ci_backend_shard.py K/N TESTS_DIR", file=sys.stderr)
         return 2
     index, total = parse(argv[0])
-    chosen = select(test_files(Path(argv[1])), index, total, test_count)
+    times = load_times(os.environ.get("BACKEND_SHARD_TIMES"))
+    weight = recorded_weight(times) if times else test_count
+    chosen = select(test_files(Path(argv[1])), index, total, weight)
     if not chosen:
         # An empty list would make pytest collect the whole of `testpaths`, which
         # is the opposite of a shard.
