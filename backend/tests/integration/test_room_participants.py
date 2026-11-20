@@ -13,6 +13,7 @@ from app.db.models.conversation import Message
 from app.db.models.organization import OrganizationMember
 from app.db.models.user import User
 from app.repositories import room_participant as room_participant_repo
+from app.schemas.conversation import ConversationRead
 from app.schemas.room_participant import RoomCreate, RoomParticipantRef
 from app.services.room_participant import RoomParticipantService
 from app.services.room_submission import RoomSubmissionService
@@ -183,6 +184,14 @@ async def test_room_member_may_add_a_runnable_agent_but_not_a_person_or_draft(
         conversation_id=room.conversation.id,
         agent_id=draft.id,
     )
+
+
+async def test_a_created_room_serializes_without_further_database_io(db: AsyncSession):
+    room = await seed(db)
+    created = await RoomParticipantService(db).create_room(
+        room.ctx, RoomCreate(title="Launch planning", visibility="private")
+    )
+    assert ConversationRead.model_validate(created).title == "Launch planning"
 
 
 async def test_public_room_is_readable_before_join_but_write_requires_join(
