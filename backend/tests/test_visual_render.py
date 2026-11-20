@@ -43,13 +43,16 @@ class TestRenderRequestBudget:
 
 
 class TestVisualInspection:
+    @pytest.mark.parametrize("allow_tiles", [False, True])
     async def test_the_apps_renderer_gets_the_same_visual_document_and_requested_view(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, allow_tiles: bool, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         drawn = visual_render.artifact_render.Rendered(image=b"jpeg", width=390)
         render = AsyncMock(return_value=drawn)
         monkeypatch.setattr(visual_render.artifact_render, "render", render)
-        result = await visual_render.preview("svg", SVG, title="Flow", width=390, appearance="dark")
+        result = await visual_render.preview(
+            "svg", SVG, title="Flow", width=390, appearance="dark", allow_tiles=allow_tiles
+        )
         assert result is drawn
         request = render.await_args.args[0]
         assert (
@@ -58,6 +61,7 @@ class TestVisualInspection:
         assert request.width == 390
         assert request.appearance == "dark"
         assert request.bindings is None
+        assert request.allow_tiles is allow_tiles
         assert request.injected_lines > 0
 
     def test_an_unclipped_picture_and_clean_report(self) -> None:

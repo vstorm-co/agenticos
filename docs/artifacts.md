@@ -877,7 +877,11 @@ The renderer answers requests with the page, the
 [library set](#the-library-set) or a refusal. App previews and PDF exports with
 live-data bindings block map tiles, including when no records are available:
 page-selected tile coordinates could disclose those records to the tile provider.
-Unbound visuals can use the deployment's configured tile proxy.
+
+Visual previews containing stored images also block tiles: coordinates could
+disclose the inlined image bytes. Only image-free visuals without data bindings
+can use the deployment's configured tile proxy. Permitted tiles load concurrently
+through a bounded worker pool; excess queued requests are blocked and reported.
 
 The picture needs a browser the operator runs, named by
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), and the backend's

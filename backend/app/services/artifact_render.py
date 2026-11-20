@@ -20,8 +20,8 @@ text report alone.
 as it starts - and answered from this process: a host document at
 `FRONTEND_URL` that frames the page as the console does, the page at its real
 content address under its real `Content-Security-Policy`, and the library set
-from disk. Renders without live-data bindings can use configured map tiles
-through the bounded server-side tile proxy; bound renders block them.
+from disk. Image-free visuals may explicitly enable configured map tiles
+through the bounded server-side tile proxy; other renders block them.
 Anything else fails as blocked by the client and is reported. The
 browser should run with no egress as well: this is the first barrier, and that
 is the second.
@@ -83,6 +83,9 @@ _JPEG_QUALITY = 60
 MAX_RENDERS = 2
 """Renders one process runs at once. A browser context per render is cheap; the
 browser's CPU is not, and a page may spin."""
+TILE_WORKERS = 8
+MAX_QUEUED_TILES = 32
+"""Per render: concurrent tile fetches and requests waiting for a worker."""
 MAX_NOTES = 10
 """How many of each kind of problem a render keeps."""
 _NOTE_CHARS = 300
@@ -146,6 +149,8 @@ class RenderRequest:
     """Lines served before the page's own, taken off a line number reported in it."""
     width: int = WIDTH
     appearance: Literal["light", "dark"] = "light"
+    allow_tiles: bool = False
+    """Opt in only for image-free visuals; live-data bindings still block tiles."""
 
 
 @dataclass
@@ -320,18 +325,26 @@ class _Render:
         self.page: str | None = None
         self.loaded = asyncio.Event()
         self.heard: asyncio.Queue[tuple[str, CdpPayload, str | None]] = asyncio.Queue()
+        self.tiles: asyncio.Queue[tuple[CdpPayload, str | None]] = asyncio.Queue(MAX_QUEUED_TILES)
         self.frames: list[tuple[str | None, int]] = []
         """The default execution context of every frame but the host's, newest last."""
 
     async def run(self) -> None:
         for method in _EVENTS:
             self.connection.on(method, self._listener(method))
-        pump = asyncio.create_task(self._pump())
+        drawing = asyncio.create_task(self._draw())
+        tasks = [drawing, asyncio.create_task(self._pump())]
+        tasks.extend(asyncio.create_task(self._tile_worker()) for _ in range(TILE_WORKERS))
         try:
-            await self._draw()
+            # A worker failure must reach the caller, rather than leave the
+            # page waiting for a response until the overall render deadline.
+            finished, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            for task in finished:
+                task.result()
         finally:
-            pump.cancel()
-            await asyncio.gather(pump, return_exceptions=True)
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     def _listener(self, method: str) -> CdpHandler:
         def heard(params: CdpPayload, session_id: str | None) -> None:
@@ -348,6 +361,23 @@ class _Render:
                 # A frame went away under the command, or the browser refused it.
                 # What was lost shows in the picture, or runs into the deadline.
                 logger.debug("artifact_render_event_unanswered", extra={"method": method})
+
+    async def _tile_worker(self) -> None:
+        while True:
+            params, session_id = await self.tiles.get()
+            try:
+                await self._answer(params, session_id)
+            except CdpError:
+                logger.debug(
+                    "artifact_render_event_unanswered", extra={"method": "Fetch.requestPaused"}
+                )
+
+    def _allows_tile(self, url: str) -> bool:
+        return (
+            self.request.allow_tiles
+            and self.request.bindings is None
+            and url.startswith(tile_source())
+        )
 
     async def _draw(self) -> None:
         connection = self.connection
@@ -482,7 +512,15 @@ class _Render:
 
     async def _dispatch(self, method: str, params: CdpPayload, session_id: str | None) -> None:
         if method == "Fetch.requestPaused":
-            await self._answer(params, session_id)
+            request = params.get("request") or {}
+            url = str(request.get("url", ""))
+            if request.get("method") == "GET" and self._allows_tile(url):
+                try:
+                    self.tiles.put_nowait((params, session_id))
+                except asyncio.QueueFull:
+                    await self._refuse(params, session_id, url)
+            else:
+                await self._answer(params, session_id)
         elif method == "Target.attachedToTarget":
             await self._adopt(params)
         elif method == "Runtime.executionContextCreated":
@@ -510,12 +548,7 @@ class _Render:
         url = str(request.get("url", ""))
         response = await self.serve(url, str(request.get("method", "")))
         if response is None:
-            _note(self.found.blocked, url)
-            await self.connection.send(
-                "Fetch.failRequest",
-                {"requestId": params.get("requestId"), "errorReason": "BlockedByClient"},
-                session_id=session_id,
-            )
+            await self._refuse(params, session_id, url)
             return
         await self.connection.send(
             "Fetch.fulfillRequest",
@@ -527,6 +560,14 @@ class _Render:
                 ],
                 "body": base64.b64encode(response.body).decode("ascii"),
             },
+            session_id=session_id,
+        )
+
+    async def _refuse(self, params: CdpPayload, session_id: str | None, url: str) -> None:
+        _note(self.found.blocked, url)
+        await self.connection.send(
+            "Fetch.failRequest",
+            {"requestId": params.get("requestId"), "errorReason": "BlockedByClient"},
             session_id=session_id,
         )
 
@@ -581,10 +622,9 @@ class _Render:
                     "Cross-Origin-Resource-Policy": "cross-origin",
                 },
             )
-        if self.request.bindings is None and address.startswith(tile_source()):
-            # A bound page could encode its records in tile coordinates. Even a
-            # fixed provider would receive those values, so only unbound renders
-            # can use the administrator-configured tile proxy.
+        if self._allows_tile(address):
+            # Pages could encode private records or inlined images in tile
+            # coordinates. Only callers with image-free, unbound input opt in.
             from app.services.visual_render import answer
 
             tile = await answer(address, self.request.document)

@@ -1,5 +1,5 @@
 ---
-source_sha: "9279a94553fb"
+source_sha: "1733b0ef5881"
 ---
 
 # Apps { #artifacts }
@@ -1004,8 +1004,14 @@ Der Renderer beantwortet Anfragen mit der Seite, dem
 [Bibliothekssatz](#the-library-set) oder einer Ablehnung. App-Vorschauen und
 PDF-Exporte mit Live-Datenbindungen blockieren Kartenkacheln, auch wenn keine
 Datensätze verfügbar sind: Von der Seite gewählte Kachelkoordinaten könnten
-diese Datensätze an den Kartenanbieter weitergeben. Visuals ohne Datenbindungen
-können den konfigurierten Kachelproxy der Bereitstellung nutzen.
+diese Datensätze an den Kartenanbieter weitergeben.
+
+Visual-Vorschauen mit
+gespeicherten Bildern blockieren ebenfalls Kacheln: Koordinaten könnten die
+eingebetteten Bilddaten weitergeben. Nur Visuals ohne Bilder und Datenbindungen
+können den konfigurierten Kachelproxy nutzen. Erlaubte Kacheln werden parallel
+durch einen begrenzten Worker-Pool geladen; Anfragen über dem Warteschlangenlimit
+werden blockiert und im Bericht aufgeführt.
 
 Das Bild braucht einen Browser, den der Betreiber bereitstellt, benannt durch
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), und das Extra

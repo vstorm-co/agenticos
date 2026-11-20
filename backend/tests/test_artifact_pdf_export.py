@@ -97,7 +97,11 @@ async def test_pdf_exports_with_bound_records_cannot_send_them_through_map_tiles
     proxy = AsyncMock(return_value=visual_render.Answer(body=b"tile", content_type="image/png"))
     monkeypatch.setattr(visual_render, "answer", proxy)
     request = RenderRequest(
-        document=b"<h1>Report</h1>", nonce="n", bindings=_preview().bindings, output="pdf"
+        document=b"<h1>Report</h1>",
+        nonce="n",
+        bindings=_preview().bindings,
+        output="pdf",
+        allow_tiles=True,
     )
 
     found = await renderer.render(request, connect=AsyncMock(return_value=browser))

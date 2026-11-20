@@ -442,7 +442,12 @@ class VisualsToolset:
 
         try:
             drawn = await visual_render.preview(
-                visual.kind, content, title=visual.title, width=width, appearance=appearance
+                visual.kind,
+                content,
+                title=visual.title,
+                width=width,
+                appearance=appearance,
+                allow_tiles=not visual.images,
             )
         except (ConfigurationError, ExternalServiceError) as unavailable:
             return f"Preview unavailable: {unavailable.message} No screenshot was taken."

@@ -817,6 +817,7 @@ class TestPreviewVisual:
             "title": "Calculator",
             "width": 390,
             "appearance": "dark",
+            "allow_tiles": True,
         }
 
     async def test_a_revision_is_previewed_with_its_edits_applied(
@@ -845,6 +846,7 @@ class TestPreviewVisual:
         assert isinstance(result, ToolReturn)
         assert render.await_args.args == ("html", "<p>Monthly revenue</p>")
 
+    @pytest.mark.security
     async def test_pictures_are_loaded_only_from_this_runs_organization_and_conversation(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -866,6 +868,7 @@ class TestPreviewVisual:
 
         assert inline.await_args.args[1:] == (deps.organization_id, conversation)
         assert render.await_args.args[1] == '<img src="data:image/png;base64,cGlj">'
+        assert render.await_args.kwargs["allow_tiles"] is False
 
     @pytest.mark.security
     @pytest.mark.parametrize("organization", [True, False])

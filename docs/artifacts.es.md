@@ -1,5 +1,5 @@
 ---
-source_sha: "9279a94553fb"
+source_sha: "1733b0ef5881"
 ---
 
 # Aplicaciones { #artifacts }
@@ -913,7 +913,13 @@ El renderer responde a las peticiones con la página, el
 aplicaciones y las exportaciones PDF con enlaces a datos en vivo bloquean las
 teselas de mapas, incluso cuando no hay registros disponibles: las coordenadas
 elegidas por la página podrían revelar esos registros al proveedor de mapas.
-Las visualizaciones sin enlaces a datos pueden usar el proxy de teselas configurado en el despliegue.
+
+Las vistas previas de visualizaciones con imágenes almacenadas también bloquean
+las teselas: las coordenadas podrían revelar los bytes de las imágenes incrustadas.
+Solo las visualizaciones sin imágenes ni enlaces a datos pueden usar el proxy de
+teselas del despliegue. Las teselas permitidas se cargan en paralelo mediante un
+grupo limitado de tareas; las peticiones que superan el límite de la cola se
+bloquean y se incluyen en el informe.
 
 La imagen necesita un navegador que ejecute el operador, indicado por
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), y el extra

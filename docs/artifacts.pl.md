@@ -1,5 +1,5 @@
 ---
-source_sha: "9279a94553fb"
+source_sha: "1733b0ef5881"
 ---
 
 # Aplikacje { #artifacts }
@@ -907,7 +907,12 @@ Renderer odpowiada na żądania stroną, [zestawem bibliotek](#the-library-set)
 albo odmową. Podglądy aplikacji i eksporty PDF z powiązaniami danych na żywo
 blokują kafelki map, także gdy nie ma dostępnych rekordów: współrzędne kafelków
 wybrane przez stronę mogłyby ujawnić te rekordy dostawcy map.
-Wizualizacje bez powiązań danych mogą korzystać z proxy kafelków skonfigurowanego we wdrożeniu.
+
+Podglądy wizualizacji zawierających zapisane obrazy również blokują kafelki:
+współrzędne mogłyby ujawnić bajty osadzonych obrazów. Z proxy kafelków wdrożenia
+mogą korzystać tylko wizualizacje bez obrazów i powiązań danych. Dozwolone kafelki
+ładują się równolegle w ograniczonej puli zadań; żądania przekraczające limit
+kolejki są blokowane i uwzględniane w raporcie.
 
 Obraz wymaga przeglądarki uruchomionej przez operatora, wskazanej w
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), i dodatku
