@@ -533,12 +533,24 @@ async def run_background(model: str, scenarios: list[Scenario]) -> int:
 
 @asynccontextmanager
 async def serve_eval_mcp() -> AsyncIterator[None]:
+    from app.clients.redis import RedisClient
     from app.main import app
+    from app.services import rate_limit
     from app.services.platform_mcp import serve_platform_mcp
 
-    # The CLI process does not enter the API lifespan of the in-process transport.
-    async with serve_platform_mcp(app, app.state):
-        yield
+    # The CLI owns the services used by its in-process requests. The API
+    # container's lifespan cannot configure these process-local dependencies.
+    redis = RedisClient()
+    await redis.connect()
+    try:
+        if not await redis.ping():
+            raise SystemExit("The eval rate limiter could not reach Redis. Check the eval stack.")
+        rate_limit.configure(redis)
+        async with serve_platform_mcp(app, app.state):
+            yield
+    finally:
+        rate_limit.configure(None)
+        await redis.close()
 
 
 async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> int:
