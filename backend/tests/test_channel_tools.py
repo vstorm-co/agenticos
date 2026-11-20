@@ -36,6 +36,7 @@ from app.services.channels.directory import (
     supported_tools,
 )
 from app.services.channels.discord import DiscordAdapter
+from app.services.channels.matrix import MatrixAdapter
 from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.slack import SlackAdapter
 from app.services.channels.telegram import TelegramAdapter
@@ -389,6 +390,7 @@ class TestWhatEachPlatformCanActuallyAnswer:
             ("telegram", TelegramAdapter),
             ("mattermost", MattermostAdapter),
             ("discord", DiscordAdapter),
+            ("matrix", MatrixAdapter),
         ],
     )
     def test_the_offered_list_matches_what_the_adapter_implements(

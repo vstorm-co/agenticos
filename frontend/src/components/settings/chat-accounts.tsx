@@ -18,6 +18,7 @@ const PLATFORM_LABEL: Record<string, string> = {
   slack: "Slack",
   mattermost: "Mattermost",
   discord: "Discord",
+  matrix: "Matrix",
 };
 
 /**
@@ -99,16 +100,30 @@ export function ChatAccounts() {
                 <p className="text-sm [overflow-wrap:anywhere]">
                   {account.platform_display_name ?? account.platform_username ?? account.id}
                 </p>
+                {account.platform_display_name &&
+                  account.platform_username &&
+                  account.platform_display_name !== account.platform_username && (
+                    <p className="text-muted-foreground font-mono text-xs [overflow-wrap:anywhere]">
+                      {account.platform_username}
+                    </p>
+                  )}
                 <p className="text-muted-foreground text-xs">
                   {PLATFORM_LABEL[account.platform] ?? account.platform}
                 </p>
+                {account.server_url && (
+                  <p className="text-muted-foreground text-xs [overflow-wrap:anywhere]">
+                    {account.server_url}
+                  </p>
+                )}
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 disabled={busy !== null}
                 aria-label={t("disconnectAccount", {
-                  account: account.platform_username ?? account.platform,
+                  account: account.server_url
+                    ? `${account.platform_username ?? account.platform} · ${account.server_url}`
+                    : (account.platform_username ?? account.platform),
                 })}
                 onClick={() => void disconnect(account)}
               >
