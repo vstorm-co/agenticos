@@ -38,7 +38,7 @@ import contextlib
 import hashlib
 import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -229,6 +229,7 @@ class MatrixAdapter(ChannelAdapter):
         content: bytes | None = None,
         content_type: str | None = None,
         timeout: httpx.Timeout | None = None,
+        before_request: Callable[[], Awaitable[None]] | None = None,
     ) -> httpx.Response:
         """One request, waiting out the homeserver's rate limit a few times.
 
@@ -242,6 +243,8 @@ class MatrixAdapter(ChannelAdapter):
             headers["Content-Type"] = content_type
         attempt = 0
         while True:
+            if before_request is not None:
+                await before_request()
             response = await self._http.request(
                 method,
                 url,
@@ -256,6 +259,14 @@ class MatrixAdapter(ChannelAdapter):
             attempt += 1
             await asyncio.sleep(min(retry_after(response), _RATE_LIMIT_CEILING))
 
+    async def _require_plaintext(
+        self, base_url: str, token: str, room_id: str, audience_key: str
+    ) -> None:
+        """Recheck disclosure permission immediately before each attempt, including 429 retries."""
+        await self._require_recipient(base_url, token, room_id, audience_key)
+        if await self._encrypted(base_url, token, room_id):
+            raise ChannelDirectoryUnsupported(_ENCRYPTED_DECLINED)
+
     async def _send(
         self,
         base_url: str,
@@ -267,14 +278,12 @@ class MatrixAdapter(ChannelAdapter):
         audience_key: str,
     ) -> str:
         """Send one event and return its id. The transaction id makes a retry idempotent."""
-        await self._require_recipient(base_url, token, room_id, audience_key)
-        if await self._encrypted(base_url, token, room_id):
-            raise ChannelDirectoryUnsupported(_ENCRYPTED_DECLINED)
         response = await self._call(
             "PUT",
             f"{base_url}{CLIENT_API}/rooms/{_segment(room_id)}/send/{event_type}/{uuid4().hex}",
             token,
             body=content,
+            before_request=lambda: self._require_plaintext(base_url, token, room_id, audience_key),
         )
         response.raise_for_status()
         return str(response.json()["event_id"])
@@ -288,9 +297,6 @@ class MatrixAdapter(ChannelAdapter):
         *,
         audience_key: str,
     ) -> str:
-        await self._require_recipient(base_url, token, room_id, audience_key)
-        if await self._encrypted(base_url, token, room_id):
-            raise ChannelDirectoryUnsupported(_ENCRYPTED_DECLINED)
         response = await self._call(
             "POST",
             f"{base_url}{MEDIA_UPLOAD}",
@@ -298,6 +304,7 @@ class MatrixAdapter(ChannelAdapter):
             params={"filename": item.filename},
             content=item.content,
             content_type=item.mime_type,
+            before_request=lambda: self._require_plaintext(base_url, token, room_id, audience_key),
         )
         response.raise_for_status()
         return str(response.json()["content_uri"])

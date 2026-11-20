@@ -1488,3 +1488,56 @@ def test_an_old_sync_stream_cannot_assert_the_new_connections_authority(
         )
         is None
     )
+
+
+@pytest.mark.parametrize("upload", [False, True])
+@pytest.mark.parametrize("changed", ["members", "encryption"])
+async def test_rate_limit_retries_revalidate_private_disclosure(
+    adapter: MatrixAdapter, server: _Homeserver, upload: bool, changed: str
+) -> None:
+    transaction = uuid4()
+    server.answer("GET", f"{API}/account/whoami", httpx.Response(200, json={"user_id": OWN}))
+    server.answer(
+        "GET",
+        _room_path(ROOM, "joined_members"),
+        httpx.Response(200, json={"joined": {OWN: {}, USER: {}}}),
+        httpx.Response(
+            200,
+            json={
+                "joined": {
+                    OWN: {},
+                    USER: {},
+                    **({"@third:domain": {}} if changed == "members" else {}),
+                }
+            },
+        ),
+    )
+    server.answer(
+        "GET",
+        _room_path(ROOM, "state", "m.room.encryption", ""),
+        httpx.Response(404),
+        httpx.Response(200 if changed == "encryption" else 404, json={}),
+    )
+    path = (
+        "/_matrix/media/v3/upload"
+        if upload
+        else _room_path(ROOM, "send", "m.room.message", transaction.hex)
+    )
+    server.answer(
+        "POST" if upload else "PUT",
+        path,
+        httpx.Response(429, json={"retry_after_ms": 0}),
+        httpx.Response(
+            200, json={"event_id": "$must-not-send", "content_uri": "mxc://domain/must-not-upload"}
+        ),
+    )
+    key = room_key(ROOM, server_url=BASE, private_recipient=USER)
+    msg = _out("" if upload else "private result", f"{key}:$question")
+    if upload:
+        msg.attachments = [OutgoingAttachment("private.txt", b"private result")]
+    with (
+        patch.object(matrix, "uuid4", return_value=transaction),
+        pytest.raises(ChannelDirectoryUnsupported),
+    ):
+        await adapter.send_message("tok", msg)
+    assert len([method for method, _, _ in server.calls if method in {"PUT", "POST"}]) == 1
