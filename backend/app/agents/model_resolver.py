@@ -675,12 +675,16 @@ def _openrouter_model(spec: ProviderSpec, credential: ResolvedCredential, model:
     not permitted"), so the same agent failed or answered depending on where
     OpenRouter routed the request. `PROMPT_CACHE` asks for the provider's default
     retention, five minutes on every host, so leaving `ttl` out changes nothing but that.
+
+    A request the provider refuses over the reasoning sent back to it is sent once
+    more without it - see `app.agents.openrouter_model`.
     """
-    from pydantic_ai.models.openrouter import OpenRouterModel
     from pydantic_ai.providers.openrouter import OpenRouterModelProfile
 
+    from app.agents.openrouter_model import ReasoningResendOpenRouterModel
+
     # A partial profile, merged over the one OpenRouter resolves for the model.
-    return OpenRouterModel(
+    return ReasoningResendOpenRouterModel(
         model,
         provider=_build_provider(spec, credential),
         profile=OpenRouterModelProfile(openrouter_supports_cache_ttl=False),
