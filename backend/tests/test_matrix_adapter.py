@@ -1240,3 +1240,67 @@ class TestFailureBoundaries:
         with pytest.raises(ChannelDirectoryUnsupported, match="encrypted"):
             await adapter.send_message("tok", msg)
         assert not any(method == "POST" for method, _, _ in server.calls)
+
+    async def test_a_silent_third_member_invalidates_private_classification(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        server.answer(
+            "GET",
+            _room_path(DM, "joined_members"),
+            httpx.Response(200, json={"joined": {OWN: {}, USER: {}}}),
+            httpx.Response(200, json={"joined": {OWN: {}, USER: {}, "@third:example.org": {}}}),
+        )
+        assert await adapter._is_direct(BOT, "tok", BASE, DM)
+        assert not await adapter._is_direct(BOT, "tok", BASE, DM)
+        calls = len(server.calls)
+        assert not await adapter._is_direct(BOT, "tok", BASE, DM)
+        assert len(server.calls) == calls
+
+    async def test_an_invite_omitting_encryption_is_checked_after_join_and_left(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        server.answer(
+            "GET",
+            _room_path(ROOM, "state", "m.room.encryption", ""),
+            httpx.Response(200, json={"algorithm": "m.megolm.v1.aes-sha2"}),
+        )
+        invitation = {
+            "invite_state": {
+                "events": [
+                    {
+                        "type": "m.room.member",
+                        "state_key": OWN,
+                        "sender": USER,
+                        "content": {"membership": "invite"},
+                    }
+                ]
+            }
+        }
+        with patch("app.services.channels.ingress.invite_admitted", AsyncMock(return_value=True)):
+            await adapter._on_invite(BOT, "tok", BASE, adapter._accounts[BOT], ROOM, invitation)
+        calls = [(path, body) for method, path, body in server.calls if method == "POST"]
+        assert calls[0][0] == _room_path(ROOM, "join")
+        assert calls[1][0] == _room_path(ROOM, "leave")
+        assert "encrypted" in calls[1][1]["reason"]
+
+    @pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
+    @pytest.mark.parametrize(
+        "target",
+        [
+            "http://127.0.0.1/private",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://10.0.0.1/private",
+            "http://[::1]/private",
+            "https://cdn.example.org/file",
+        ],
+    )
+    async def test_media_redirects_are_refused_without_contacting_the_target(
+        self, adapter: MatrixAdapter, server: _Homeserver, status: int, target: str
+    ) -> None:
+        path = "/_matrix/client/v1/media/download/example.org/file"
+        server.answer("GET", path, httpx.Response(status, headers={"location": target}))
+        with pytest.raises(httpx.HTTPStatusError):
+            await adapter.download_attachment(
+                "tok", IncomingAttachment("file.txt", "text/plain", 0, BASE + path)
+            )
+        assert [(method, path) for method, path, _ in server.calls] == [("GET", path)]

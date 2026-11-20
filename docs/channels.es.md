@@ -1,5 +1,5 @@
 ---
-source_sha: "6481dd32cb29"
+source_sha: "0e8a53631478"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1821,6 +1821,8 @@ solo cuando se ha admitido todo el lote correctamente.
     segunda fase de #2081. El adaptador comprueba el cifrado actual antes de
     admitir mensajes y antes de enviar respuestas, ediciones o reacciones.
     Si no puede leer el estado, no envía texto sin cifrar.
+    Si la invitación omite el estado de cifrado, el bot lo comprueba tras
+    unirse y abandona la sala cuando está cifrada.
 
 1. Crea una cuenta para el bot en el homeserver, por ejemplo `@agent:example.org`.
 2. Consigue un **token de acceso** para ella:
@@ -1886,6 +1888,13 @@ sus propios comandos. `/help` abre la ayuda de Element y nunca llega al bot.
 Cualquier otro comando del bot, como `/new` o `/link`, abre el diálogo *Comando
 desconocido* de Element, donde **Enviar como mensaje** lo envía. Si el mensaje
 empieza por `//`, como `//help`, se envía directamente.
+
+Antes de clasificar cada mensaje como privado, el bot consulta los miembros
+actuales. Una tercera persona que se una sin hablar no conserva el acceso al
+contexto privado. La clasificación de grupo solo se guarda durante el lote actual.
+
+Las descargas de medios no siguen redirecciones. El homeserver debe servir los
+medios autenticados directamente; se rechazan las redirecciones a CDN.
 
 **Los archivos** que publica la gente se descargan por los medios autenticados
 del homeserver con el token del bot, hasta el límite de subida; los archivos y

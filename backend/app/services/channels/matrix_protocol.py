@@ -419,8 +419,8 @@ def display_names(events: list[dict[str, Any]]) -> dict[str, str]:
 def encrypted_invitation(events: list[dict[str, Any]]) -> bool:
     """Whether an invitation's stripped state says the room is end-to-end encrypted.
 
-    `m.room.encryption` is among the state a homeserver shows an invited user,
-    so the bot can tell before joining that it would read nothing there.
+    When present, `m.room.encryption` lets the bot decline without joining.
+    Stripped state may omit it; the adapter also checks live state after joining.
     """
     return any(event.get("type") == "m.room.encryption" for event in events)
 

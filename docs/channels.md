@@ -1734,6 +1734,8 @@ next is read; the cursor advances only after the whole batch succeeds.
     Encryption is the second stage of #2081. The adapter checks current room
     encryption before admitting messages and before posting replies, edits or
     reactions. If the state cannot be read, it sends no plaintext.
+    If the invitation omits encryption state, the bot checks after joining and
+    leaves when encryption is present.
 
 1. Create an account for the bot on the homeserver, for example `@agent:example.org`.
 2. Get an **access token** for it:
@@ -1796,6 +1798,13 @@ its own commands. `/help` opens Element's own help and never reaches the bot.
 Any other bot command, such as `/new` or `/link`, opens Element's *Unknown
 command* dialog, where **Send as message** sends it. Starting the message with
 `//`, as in `//help`, sends it straight away.
+
+Private-chat classification rechecks current joined members before every message,
+so a silent third joiner cannot retain private access. Group classifications
+are cached only within the current sync batch.
+
+Media downloads do not follow redirects. The homeserver must serve authenticated
+media directly; redirected CDN downloads are refused.
 
 **Files** people post are fetched over the homeserver's authenticated media with
 the bot's token, up to the upload limit; files and charts the agent sends are

@@ -1,5 +1,5 @@
 ---
-source_sha: "6481dd32cb29"
+source_sha: "0e8a53631478"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1913,6 +1913,8 @@ rückt erst nach erfolgreicher Annahme des gesamten Batches vor.
     Stufe von #2081. Der Adapter prüft den aktuellen Verschlüsselungsstatus
     vor der Annahme von Nachrichten und vor Antworten, Änderungen oder
     Reaktionen. Ist der Status nicht lesbar, sendet er keinen Klartext.
+    Fehlt der Verschlüsselungsstatus in der Einladung, prüft der Bot ihn nach
+    dem Beitritt und verlässt einen verschlüsselten Raum wieder.
 
 1. Legen Sie auf dem Homeserver ein Konto für den Bot an, zum Beispiel `@agent:example.org`.
 2. Besorgen Sie dafür ein **Access-Token**:
@@ -1983,6 +1985,13 @@ eigenen Befehl. `/help` öffnet die Hilfe von Element und erreicht den Bot nie.
 Jeder andere Bot-Befehl, etwa `/new` oder `/link`, öffnet den Dialog *Unbekannter
 Befehl* von Element, in dem **Als Nachricht senden** ihn sendet. Beginnt die
 Nachricht mit `//`, etwa `//help`, wird sie sofort gesendet.
+
+Vor jeder als privat eingestuften Nachricht prüft der Bot die aktuellen
+Mitglieder. Eine dritte Person, die still beitritt, erhält dadurch keinen
+privaten Kontext. Gruppeneinstufungen gelten nur für den aktuellen Sync-Batch.
+
+Mediendownloads folgen keinen Weiterleitungen. Der Homeserver muss
+authentifizierte Medien direkt ausliefern; CDN-Weiterleitungen werden abgelehnt.
 
 **Dateien**, die Leute posten, werden über die authentifizierten Medien des
 Homeservers mit dem Token des Bots geholt, bis zum Upload-Limit; Dateien und

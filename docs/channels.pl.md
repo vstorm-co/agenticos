@@ -1,5 +1,5 @@
 ---
-source_sha: "6481dd32cb29"
+source_sha: "0e8a53631478"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1782,6 +1782,8 @@ pomyślnym przyjęciu całego batcha.
     drugi etap #2081. Adapter sprawdza aktualny stan szyfrowania przed
     przyjęciem wiadomości i przed wysłaniem odpowiedzi, edycji lub reakcji.
     Jeśli nie może odczytać stanu, nie wysyła tekstu jawnego.
+    Jeśli zaproszenie pomija stan szyfrowania, bot sprawdza go po dołączeniu
+    i opuszcza pokój, gdy szyfrowanie jest włączone.
 
 1. Utwórz na homeserverze konto dla bota, na przykład `@agent:example.org`.
 2. Zdobądź dla niego **token dostępu** (access token):
@@ -1847,6 +1849,13 @@ własne polecenie. `/help` otwiera pomoc Element i nigdy nie trafia do bota.
 Każde inne polecenie bota, np. `/new` lub `/link`, otwiera okno *Nieznane
 polecenie* w Element, w którym **Wyślij jako wiadomość** je wysyła. Wiadomość
 zaczynająca się od `//`, np. `//help`, jest wysyłana od razu.
+
+Przed każdą wiadomością klasyfikowaną jako prywatna bot sprawdza aktualną listę
+uczestników. Ciche dołączenie trzeciej osoby nie zachowuje dostępu do prywatnego
+kontekstu. Wynik klasyfikacji grupy jest pamiętany tylko w bieżącym batchu `/sync`.
+
+Pobieranie mediów nie podąża za przekierowaniami. Homeserver musi udostępniać
+uwierzytelnione media bezpośrednio; przekierowania do CDN są odrzucane.
 
 **Pliki** wrzucane przez ludzi są pobierane przez uwierzytelnione media
 homeservera tokenem bota, do limitu wysyłania; pliki i wykresy, które wysyła

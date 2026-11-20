@@ -579,7 +579,7 @@ class MatrixAdapter(ChannelAdapter):
             "GET",
             attachment.handle,
             headers={"Authorization": f"Bearer {bot_token}"},
-            follow_redirects=True,
+            follow_redirects=False,
         ) as response:
             response.raise_for_status()
             async for part in response.aiter_bytes():
@@ -913,12 +913,9 @@ class MatrixAdapter(ChannelAdapter):
         for user, name in display_names([*state, *events]).items():
             self._names.put(f"{room_id}|{user}", name)
         key = f"{bot_id}:{room_id}"
-        if timeline.get("limited") or any(
-            event.get("type") == "m.room.member" for event in [*state, *events]
-        ):
-            # Somebody joined or left, or a gap may hide that they did: a room of
-            # two may no longer be one.
-            self._direct.pop(key)
+        # Cache group classifications only within this batch. Private rooms are
+        # always rechecked: lazy state can omit a silent membership change.
+        self._direct.pop(key)
         if backlog:
             return
         if await self._encrypted(base_url, token, room_id):
@@ -1013,14 +1010,17 @@ class MatrixAdapter(ChannelAdapter):
         """
         key = f"{bot_id}:{room_id}"
         known = self._direct.get(key)
-        if known is not None:
-            return known
+        if known is False:
+            return False
         try:
             direct = len(await self._joined(base_url, token, room_id)) == 2
         except httpx.HTTPError, ChannelDirectoryUnsupported:
             logger.warning("matrix_members_unread", extra={"bot_id": bot_id}, exc_info=True)
             return False
-        self._direct.put(key, direct)
+        # Lazy membership state can omit a silent third joiner. Revalidate every
+        # private classification; retaining only a group result is conservative.
+        if not direct:
+            self._direct.put(key, False)
         return direct
 
     async def _in_bot_thread(
@@ -1102,6 +1102,20 @@ class MatrixAdapter(ChannelAdapter):
         response = await self._call(
             "POST", f"{base_url}{CLIENT_API}/rooms/{_segment(room_id)}/{action}", token, body=body
         )
+        # Stripped invitation state may omit encryption. Only joined-room state
+        # can establish it, so leave an encrypted room immediately after joining.
+        if (
+            response.is_success
+            and action == "join"
+            and await self._encrypted(base_url, token, room_id)
+        ):
+            action = "leave"
+            response = await self._call(
+                "POST",
+                f"{base_url}{CLIENT_API}/rooms/{_segment(room_id)}/leave",
+                token,
+                body={"reason": _ENCRYPTED_DECLINED},
+            )
         if not response.is_success:
             logger.warning(
                 "matrix_invite_unanswered",
