@@ -82,6 +82,22 @@ it("shows up to eight entries in the expanded Inbox", () => {
   expect(screen.getByRole("link", { name: /Topic 7/ })).toBeVisible();
 });
 
+it("shows real Inbox entries in chronological order and composes a question about the picked item", async () => {
+  state.items = [
+    suggestion("urgent", true),
+    { ...suggestion("latest"), created_at: "2026-11-20T10:15:00Z" },
+  ];
+  const discuss = vi.fn();
+  render(<ChatHomeInbox variant="timeline" onDiscuss={discuss} />);
+  const [latest, older] = screen.getAllByRole("listitem");
+  if (!latest || !older) throw new Error("Expected two timeline entries");
+  expect(within(latest).getByRole("link")).toHaveAttribute("href", "/inbox#suggestion-latest");
+  expect(latest.querySelector("time")).toHaveAttribute("datetime", "2026-11-20T10:15:00Z");
+  expect(older).toHaveTextContent("Topic urgent");
+  await userEvent.click(within(latest).getByRole("button", { name: "Discuss with agent" }));
+  expect(discuss).toHaveBeenCalledExactlyOnceWith("Does Inbox item latest need my attention?");
+});
+
 it("does not turn a failed read into an empty inbox and retries both reads", async () => {
   state.pendingError = new Error("offline");
   render(<ChatHomeInbox />);

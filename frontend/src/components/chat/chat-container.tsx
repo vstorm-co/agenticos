@@ -32,6 +32,7 @@ import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { ChatControls } from "./chat-controls";
 import { useMainChat, useMinimalComposer } from "./main-chat-context";
 import { ChatHomeInbox } from "./chat-home-inbox";
+import type { ChatHomeVariant } from "./chat-home-variants";
 import { PersonalModelConnection } from "./personal-model-connection";
 import { SheetRow } from "./composer-sheet";
 import { ChatEmptyState } from "./chat-empty-state";
@@ -165,6 +166,7 @@ export interface ChatPrompt {
 
 interface ChatContainerProps {
   composerDraft?: ComposerDraft;
+  homeVariant?: ChatHomeVariant;
   /** Keep the welcome screen out of a saved conversation's initial load. */
   requestedConversationId?: string | null;
   /** Sent as soon as the socket is up, once per `id` (#2063). */
@@ -198,6 +200,7 @@ export interface PinnedPrompts {
 
 export function ChatContainer({
   composerDraft,
+  homeVariant,
   requestedConversationId = null,
   prompt = null,
   emptyState,
@@ -852,6 +855,7 @@ export function ChatContainer({
       <LocalAccessDialog />
       <ChatUI
         composerDraft={composerDraft}
+        homeVariant={homeVariant}
         hasEarlierMessages={hasEarlierMessages}
         isLoadingEarlier={isLoadingEarlier}
         loadEarlierMessages={loadEarlierMessages}
@@ -958,6 +962,7 @@ export function ChatContainer({
 
 interface ChatUIProps {
   composerDraft?: ComposerDraft;
+  homeVariant?: ChatHomeVariant;
   hasEarlierMessages: boolean;
   isLoadingEarlier: boolean;
   loadEarlierMessages: () => Promise<void>;
@@ -1162,8 +1167,11 @@ function ChatUI({
   testingDraft,
   incomingFiles,
   composerDraft,
+  homeVariant,
   onVisualReport,
 }: ChatUIProps) {
+  const [homeInboxOpen, setHomeInboxOpen] = useState(false);
+  const nav = useTranslations("nav");
   const composerFocusRequest = useConversationStore((state) => state.composerFocusRequest);
   const t = useTranslations("chat");
   const mainChat = useMainChat();
@@ -1457,6 +1465,17 @@ function ChatUI({
   const showWorkspaceHome =
     !compact && messages.length === 0 && voice.call.phase === "idle" && !isLoadingConversation;
   const showDailyBriefing = showWorkspaceHome && mainChat && !emptyState && !conversationId;
+  const variant = showDailyBriefing ? homeVariant : undefined;
+  const hintsAfter = variant === "calm" || variant === "shelf" || variant === "commands";
+  const inboxBefore = variant === "timeline" || variant === "briefing" || variant === "journal";
+  const composeSuggestion = (text: string) => setIncoming({ id: Date.now(), files: [], text });
+  const homeInbox = showDailyBriefing && (
+    <ChatHomeInbox
+      expanded={callAgent?.show_starters === false}
+      variant={variant}
+      onDiscuss={variant === "timeline" ? composeSuggestion : undefined}
+    />
+  );
   return (
     <div className="chat-surface @container/sources-layout relative flex h-full min-h-0 w-full overflow-hidden">
       <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
@@ -1469,6 +1488,7 @@ function ChatUI({
           centred transcript - not at a window width, which says nothing about
           a column narrowed by the sidebar and the conversation list. */}
         <div
+          data-chat-variant={variant}
           className={cn(
             "@container/chat relative flex h-full min-w-0 flex-1 flex-col",
             showWorkspaceHome && "chat-home-column overflow-y-auto",
@@ -1476,6 +1496,7 @@ function ChatUI({
         >
           {!compact && <TurnRail entries={railEntries} />}
           <BrowserPanelAutoOpen browses={browses} />
+          {variant === "dock" && <div className="chat-variant-dock-inbox">{homeInbox}</div>}
           <div
             ref={scrollContainerRef}
             data-chat-scroller
@@ -1523,11 +1544,13 @@ function ChatUI({
                     emptyState((picked) => sendMessage(picked))
                   ) : (
                     <ChatEmptyState
+                      showArt={
+                        variant === "timeline" || variant === "journal" || variant === "calm"
+                      }
+                      spotlight={variant === "spotlight"}
                       suggestionsSlot={!compact ? homeHintsSlot : undefined}
                       onPick={
-                        showDailyBriefing
-                          ? (text) => setIncoming({ id: Date.now(), files: [], text })
-                          : (picked) => sendMessage(picked)
+                        showDailyBriefing ? composeSuggestion : (picked) => sendMessage(picked)
                       }
                     />
                   )}
@@ -1710,6 +1733,7 @@ function ChatUI({
               </div>
             )}
             <div
+              data-home-inbox-open={variant === "tabs" && homeInboxOpen ? "" : undefined}
               className={cn(
                 "pointer-events-auto mx-auto w-full",
                 // Glass in the page: the answer scrolls on behind the composer,
@@ -1720,6 +1744,25 @@ function ChatUI({
                   : "max-w-5xl bg-[linear-gradient(to_bottom,transparent_30%,var(--color-background)_62%)] px-2 pb-2 sm:px-4 sm:pb-4",
               )}
             >
+              {variant === "tabs" && (
+                <div className="chat-variant-switch chat-composer-width mb-3 flex gap-1">
+                  <button
+                    type="button"
+                    aria-pressed={!homeInboxOpen}
+                    onClick={() => setHomeInboxOpen(false)}
+                  >
+                    {nav("chat")}
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={homeInboxOpen}
+                    onClick={() => setHomeInboxOpen(true)}
+                  >
+                    {nav("inbox")}
+                  </button>
+                </div>
+              )}
+              {inboxBefore && homeInbox}
               <InterruptedNotice
                 interrupted={interrupted}
                 detached={detachedTurnPending}
@@ -1745,15 +1788,18 @@ function ChatUI({
                 transcript because a plan is written in one turn and worked through
                 over the next several: as a step it scrolls away under the work it
                 describes, and what somebody wants is where the agent is now. */}
-              {showWorkspaceHome && !emptyState && (!mainChat || showDailyBriefing) && (
-                <div
-                  ref={setHomeHintsSlot}
-                  className={cn(
-                    "chat-home-starters chat-composer-suggestions mb-4 empty:hidden",
-                    showDailyBriefing && "chat-composer-width",
-                  )}
-                />
-              )}
+              {!hintsAfter &&
+                showWorkspaceHome &&
+                !emptyState &&
+                (!mainChat || showDailyBriefing) && (
+                  <div
+                    ref={setHomeHintsSlot}
+                    className={cn(
+                      "chat-home-starters chat-composer-suggestions mb-4 empty:hidden",
+                      showDailyBriefing && "chat-composer-width",
+                    )}
+                  />
+                )}
               <PlanStrip plan={plan} live={isProcessing} />
               {/* Right over the box the reply is written in, where a messenger says it. */}
               <TypingIndicator people={typing} />
@@ -2041,9 +2087,20 @@ function ChatUI({
                   <ComposerStatus isConnected={isConnected} />
                 </div>
               )}
-              {showDailyBriefing && <ChatHomeInbox expanded={callAgent?.show_starters === false} />}
+              {hintsAfter && (
+                <div
+                  ref={setHomeHintsSlot}
+                  className="chat-home-starters chat-composer-width mt-3 empty:hidden"
+                />
+              )}
+              {!inboxBefore &&
+                variant !== "desk" &&
+                variant !== "dock" &&
+                (variant !== "tabs" || homeInboxOpen) &&
+                homeInbox}
             </div>
           </div>
+          {variant === "desk" && <aside className="chat-variant-aside">{homeInbox}</aside>}
         </div>
         <FilePreviewDialog />
         {/* The browser shares the chat's width; a narrow chat opens it full screen. */}

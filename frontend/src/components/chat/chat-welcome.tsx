@@ -1,8 +1,8 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import type { ReactNode } from "react";
-import { ArrowUpRight, X, type LucideIcon } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { ArrowUpRight, ChevronLeft, ChevronRight, X, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { RotatingWorkspaceArt } from "@/components/illustrations/rotating-workspace-art";
@@ -33,6 +33,8 @@ interface ChatWelcomeProps {
   compact?: boolean;
   quiet?: boolean;
   loading?: boolean;
+  showArt?: boolean;
+  spotlight?: boolean;
   /** The main chat places hints in its home carousel. Undefined keeps them inline. */
   suggestionsSlot?: HTMLElement | null;
 }
@@ -54,9 +56,17 @@ export function ChatWelcome({
   compact = false,
   quiet = false,
   loading = false,
+  showArt = !quiet,
+  spotlight = false,
   suggestionsSlot,
 }: ChatWelcomeProps) {
   const t = useTranslations("chat.empty");
+  const common = useTranslations("common");
+  const [promptIndex, setPromptIndex] = useState(0);
+  const spotlightIndex = suggestions.length ? promptIndex % suggestions.length : 0;
+  const visibleSuggestions = spotlight
+    ? suggestions.slice(spotlightIndex, spotlightIndex + 1)
+    : suggestions;
   const docked = quiet && suggestionsSlot !== undefined;
   // The centered composer must stay put when agent metadata replaces skeletons.
   // Reserve four two-line suggestions and the same header slots in both states.
@@ -75,13 +85,13 @@ export function ChatWelcome({
         )}
       >
         {loading
-          ? Array.from({ length: 4 }, (_, index) => (
+          ? Array.from({ length: spotlight ? 1 : 4 }, (_, index) => (
               <div key={index} className="flex h-full min-h-9 items-center gap-3" aria-hidden>
                 <span className="bg-muted size-4 animate-pulse rounded" />
                 <span className="bg-muted h-3 w-48 animate-pulse rounded" />
               </div>
             ))
-          : suggestions.map((suggestion) => (
+          : visibleSuggestions.map((suggestion) => (
               <div key={suggestion.key} className="relative h-full">
                 <button
                   type="button"
@@ -163,6 +173,29 @@ export function ChatWelcome({
               </div>
             ))}
       </div>
+      {spotlight && !loading && suggestions.length > 1 && (
+        <div className="chat-variant-spotlight-controls">
+          <button
+            type="button"
+            aria-label={common("back")}
+            onClick={() =>
+              setPromptIndex((index) => (index + suggestions.length - 1) % suggestions.length)
+            }
+          >
+            <ChevronLeft className="size-4" aria-hidden />
+          </button>
+          <span aria-live="polite" className="tabular-nums">
+            {spotlightIndex + 1} / {suggestions.length}
+          </span>
+          <button
+            type="button"
+            aria-label={common("next")}
+            onClick={() => setPromptIndex((index) => (index + 1) % suggestions.length)}
+          >
+            <ChevronRight className="size-4" aria-hidden />
+          </button>
+        </div>
+      )}
 
       {footer && (
         // Keyboard hints, so not on a phone - where they also ran into the
@@ -183,10 +216,10 @@ export function ChatWelcome({
             compact
               ? "mb-3 justify-center"
               : "relative mb-4 min-h-36 w-full items-center justify-start",
-            quiet && !compact && "min-h-0",
+            quiet && !compact && !showArt && "min-h-0",
           )}
         >
-          {!compact && !quiet && <RotatingWorkspaceArt />}
+          {!compact && showArt && <RotatingWorkspaceArt />}
           <span className="relative" data-chat-welcome-avatar={quiet && !compact ? "" : undefined}>
             {mark}
           </span>
