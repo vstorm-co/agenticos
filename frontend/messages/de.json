@@ -15012,7 +15012,8 @@
       "max_cost_usd": "Kostet höchstens (USD)",
       "max_latency_ms": "Antwortet innerhalb (ms)",
       "judge": "Bewerter-Kriterium",
-      "length": "Hat eine Länge"
+      "length": "Hat eine Länge",
+      "keys": "Abgedeckte Schlüssel"
     },
     "checkPlaceholder": {
       "contains": "30 Tage",
@@ -15074,6 +15075,14 @@
       "maxPlaceholder": "Höchstens",
       "path": "Prüfung {number}: wo in einer JSON-Antwort",
       "pathPlaceholder": "Wo in einer JSON-Antwort (optional)"
+    },
+    "keysCheck": {
+      "key": "Schlüssel {row} von Check {number}",
+      "value": "Wert von Schlüssel {row} von Check {number}",
+      "remove": "Schlüssel {row} aus Check {number} entfernen",
+      "add": "Schlüssel hinzufügen",
+      "keyPlaceholder": "Rechnungsnummer",
+      "valuePlaceholder": "RE-2024-0042"
     },
     "visibility": {
       "private": "Privat",
@@ -15517,7 +15526,8 @@
           "judge": "Bewerter-Kriterium: {criterion}",
           "lengthAtMost": "{unit, select, words {Höchstens {count, plural, one {# Wort} other {# Wörter}}} other {Höchstens {count, plural, one {# Zeichen} other {# Zeichen}}}}",
           "lengthAtLeast": "{unit, select, words {Mindestens {count, plural, one {# Wort} other {# Wörter}}} other {Mindestens {count, plural, one {# Zeichen} other {# Zeichen}}}}",
-          "lengthBetween": "{unit, select, words {Zwischen {min} und {max} Wörtern} other {Zwischen {min} und {max} Zeichen}}"
+          "lengthBetween": "{unit, select, words {Zwischen {min} und {max} Wörtern} other {Zwischen {min} und {max} Zeichen}}",
+          "keys": "Enthält {count, plural, =1 {seinen 1 Schlüssel} other {alle # Schlüssel}}"
         }
       },
       "notGraded": "nicht bewertet: {reason}",
