@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Search many variants of an agent's instructions in Improve. **Search variants** in the start dialog (`mode: "search"`) has the helper write complete versions of the instructions a few at a time and grade each on the same draw of the attempt's training questions; held-out questions are never read. The best variant that beats the current instructions comes to **Changes**, and its check, result and acceptance are unchanged; another of the three best can be brought there instead (`PUT /{run_id}/search/choice`). The search has its own budget inside the session's limit and goes over it by at most the variant in flight, an optional cheaper or local grading model, and needs ten training questions (`422` below that). A session that finds nothing better stops with `no_variant`.
+
 - MCP administration with searchable actions and on-demand schemas for organization settings, AI Architect, system agents, retention, members and groups, plus installation settings and updates. Global access requires explicit external OAuth `deployment:admin` consent and live application-admin authority; internal agents and routines never inherit it. Configuration reads do not install resources; secret entry and binary branding use secure console handoffs.
 
 - Ship the AgenticOS Claude plugin with deployment, fork, organization-operation, release and custom-solution skills; a checked tool map and MCP contract discovery; secure dependency setup, datasets, evals and environment promotion tools; atomic draft-only solution bundles with retry receipts; three example solutions and a disposable published-image smoke check. Compose, image publishing and deployment support a fork's own application image prefix.
@@ -62,6 +64,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Apply `0343_solution_installations.py` for atomic solution-installation receipts. Existing organization API keys retain their public API boundary; new assistant-only lifecycle tools require an OAuth connection with the corresponding scopes.
 - Migration `backend/alembic/versions/0345_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
 - Migration `backend/alembic/versions/0346_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+- Migration `backend/alembic/versions/0350_improvement_search.py` adds `improvement_runs.mode` (existing sessions read `steps`), the `searching` stage, the `no_variant` stop reason, `improvement_iterations.search` and the `improvement_search_variants` table. Its downgrade drops them, reads a searching session as `proposing` and `no_variant` as `no_proposal`.
 
 ## [1.85.1] - 2026-11-20
 

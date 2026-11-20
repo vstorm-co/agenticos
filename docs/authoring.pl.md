@@ -1,5 +1,5 @@
 ---
-source_sha: "be66ab0d9f19"
+source_sha: "015b7d8838d5"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -497,6 +497,44 @@ każdy kolejny krok swoją cenę. Woła te same akcje co kreator, jako Ty, więc
 obowiązują te same sprawdzenia: zmieniony agent odmawia przyjęcia, chronione
 środowisko czeka na swój check, a dziennik audytu zapisuje Ciebie, z
 poświadczeniem Architekta obok.
+
+### Wyszukiwanie wielu wariantów { #searching-many-variants }
+
+Sesja może przeszukać wiele wersji instrukcji agenta, zamiast prosić o jedną
+propozycję na próbę. Wybierz **Szukaj wariantów** przy starcie Popraw albo wyślij
+`mode: "search"` z ustawieniami `search` do wyceny i do startu. Wyszukiwanie
+potrzebuje co najmniej dziesięciu pytań treningowych w datasecie. Przy mniejszej
+liczbie opcja jest wyłączona, a API odpowiada `422`.
+
+Po **Zrozumieniu** kolejny krok uruchamia wyszukiwanie. Pomocnik pisze naraz
+kilka pełnych wersji instrukcji. Każda wersja odpowiada na to samo losowanie
+pytań treningowych próby, a jej odpowiedzi są oceniane. Następne wersje pomocnik
+pisze na podstawie najlepszych i pytań, których wciąż nie przechodzą.
+Wyszukiwanie nigdy nie czyta pytań odłożonych do sprawdzenia.
+
+Wyszukiwanie kończy się na własnym budgecie, na limicie wariantów
+(`max_variants`, domyślnie 40) albo po rundach, które nie znalazły nic lepszego
+(`patience`, domyślnie 3). Najlepszy wariant, który wypada lepiej niż obecne
+instrukcje, trafia do **Zmian** jako zwykłe zmiany, a jego sprawdzenie, wynik i
+akceptacja działają jak w każdej próbie. Wynik z wyszukiwania to odsetek
+spełnionych wymaganych kryteriów na pytaniach treningowych, a nie werdykt. W
+**Zmianach**, przed sprawdzeniem, `PUT /{run_id}/search/choice` z `variant_id`
+przenosi zamiast niego inny z trzech najlepszych wariantów. Gdy żaden wariant
+nie wypada lepiej niż obecne instrukcje, sesja zatrzymuje się z `no_variant`.
+
+Wyszukiwanie ma własny budget, `search.budget_usd`, w ramach limitu sesji, a
+wycena startu dolicza do sumy ten budget i sprawdzenie znalezionego wariantu.
+Wariant startuje tylko wtedy, gdy jego wycena mieści się w tym, co zostało.
+Każda odpowiedź ma limit dwukrotności swojej części wyceny, więc wyszukiwanie
+może przekroczyć budget najwyżej o jeden oceniany wariant. Sesja pokazuje
+wydatki wyszukiwania osobno od reszty.
+
+Domyślnie warianty ocenia sędzia datasetu na własnym modelu;
+`grading_model_profile_id` ocenia je zamiast tego na tańszym albo lokalnym
+modelu. Sprawdzenie po **Zmianach** zawsze ocenia sędzia datasetu. Wyszukiwanie
+działa jako zadania w tle, każde z jednym wariantem albo jedną rundą propozycji,
+po jednym naraz w organizacji, obok jej ewaluacji. Wyszukiwanie treści skilla
+nie jest jeszcze dostępne.
 
 ### Propozycja nowego skilla { #proposing-a-new-skill }
 

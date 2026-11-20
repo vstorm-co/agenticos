@@ -1,5 +1,5 @@
 ---
-source_sha: "be66ab0d9f19"
+source_sha: "015b7d8838d5"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -510,6 +510,47 @@ sesión, y cada paso siguiente su propio precio. Llama a las mismas acciones que
 el asistente, como tú, así que se aplican las mismas comprobaciones: un agente
 cambiado rechaza la aceptación, un entorno protegido espera su comprobación y el
 registro de auditoría te anota a ti, con la credencial del Architect al lado.
+
+### Buscar muchas variantes { #searching-many-variants }
+
+Una sesión puede buscar entre muchas versiones de las instrucciones del agente en
+lugar de pedir una propuesta por intento. Elija **Search variants** al iniciar
+Improve, o envíe `mode: "search"` con los ajustes de `search` a la estimación y
+al inicio. La búsqueda necesita al menos diez preguntas de entrenamiento en el
+dataset. Con menos, la opción está desactivada y la API responde `422`.
+
+Después de **Understand**, el siguiente paso ejecuta la búsqueda. El asistente
+escribe a la vez unas pocas versiones completas de las instrucciones. Cada
+versión responde al mismo sorteo de preguntas de entrenamiento del intento, y se
+califican sus respuestas. Luego el asistente escribe las siguientes versiones a
+partir de las mejores y de las preguntas que todavía fallan. La búsqueda nunca
+lee las preguntas reservadas para la comprobación.
+
+La búsqueda termina en su propio budget, en su límite de variantes
+(`max_variants`, 40 por defecto) o tras rondas que no encuentran nada mejor
+(`patience`, 3 por defecto). La mejor variante que supera a las instrucciones
+actuales llega a **Changes** como cambios normales, y su comprobación, su
+resultado y su aceptación funcionan como en cualquier intento. Una puntuación de
+la búsqueda es la parte de criterios obligatorios cumplidos en preguntas de
+entrenamiento, no un veredicto. En **Changes**, antes de la comprobación,
+`PUT /{run_id}/search/choice` con `variant_id` trae en su lugar otra de las tres
+mejores variantes. Si ninguna variante supera a las instrucciones actuales, la
+sesión se detiene con `no_variant`.
+
+La búsqueda tiene su propio budget, `search.budget_usd`, dentro del límite de la
+sesión, y la estimación de inicio suma ese budget y la comprobación de la
+variante que encuentre. Una variante empieza solo mientras su estimación cabe en
+lo que queda. Cada respuesta tiene un tope del doble de su parte de esa
+estimación, así que la búsqueda puede superar su budget como mucho en la
+variante que estaba calificando. La sesión muestra lo que gastó la búsqueda
+aparte del resto.
+
+Por defecto, el juez del dataset califica las variantes con su propio modelo;
+`grading_model_profile_id` las califica en su lugar con un modelo más barato o
+local. La comprobación después de **Changes** siempre la califica el juez del
+dataset. La búsqueda se ejecuta como trabajos en segundo plano de una variante o
+una ronda de propuestas cada uno, de uno en uno por organización, junto a sus
+ejecuciones de eval. Buscar en el contenido de un skill aún no está disponible.
 
 ### Proponer un skill nuevo { #proposing-a-new-skill }
 
