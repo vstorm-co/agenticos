@@ -238,6 +238,10 @@ class McpServerSpec:
     # Tools, by the name the server gives them, that never wait for approval
     # whatever `approval` says. Only this deployment's own server names any.
     ungated: frozenset[str] = frozenset()
+    # Tools, by the name the server gives them, that wait for a person's answer
+    # to each call, past an "approve all" or a remembered decision. Only this
+    # deployment's own server names any.
+    always_asks: frozenset[str] = frozenset()
 
 
 MCP_ORIGIN = "agenticos_mcp_origin"
@@ -525,6 +529,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         in_process=spec.in_process,
         account=spec.account,
         ungated=frozenset(f"{prefix}_{name}" for name in spec.ungated),
+        always_asks=frozenset(fitted_tool_name(f"{prefix}_{name}") for name in spec.always_asks),
     )
 
 
@@ -591,6 +596,14 @@ there, so it cannot claim to be another account.
 PLATFORM_TOOL = "agenticos_platform_tool"
 """Set only by the in-process transport, never by a server-provided annotation."""
 
+ALWAYS_ASKS = "agenticos_always_asks"
+"""Set by `ApprovalMarked` on a tool only a person's answer to each call may release.
+
+Top-level in the metadata for the reason `NEEDS_APPROVAL` is, and read by
+`ApprovalGate` for a tool no capability owns: such a tool's approval request is
+then `always_asks`, so neither "approve all" nor a remembered decision runs it.
+"""
+
 NEEDS_APPROVAL = "agenticos_needs_approval"
 """The key `ApprovalMarked` sets on a tool's metadata, and `ApprovalGate` reads (#2060).
 
@@ -639,6 +652,7 @@ class ApprovalMarked(WrapperToolset[Any]):
     in_process: bool = False
     account: str | None = None
     ungated: frozenset[str] = frozenset()
+    always_asks: frozenset[str] = frozenset()
 
     async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
         tools = await super().get_tools(ctx)
@@ -651,9 +665,13 @@ class ApprovalMarked(WrapperToolset[Any]):
                     metadata={
                         **(tool.tool_def.metadata or {}),
                         PLATFORM_TOOL: self.in_process,
-                        NEEDS_APPROVAL: name not in self.ungated
-                        and needs_approval(
-                            tool.tool_def, self.policy, self.tool_approval.get(name, "default")
+                        ALWAYS_ASKS: name in self.always_asks,
+                        NEEDS_APPROVAL: name in self.always_asks
+                        or (
+                            name not in self.ungated
+                            and needs_approval(
+                                tool.tool_def, self.policy, self.tool_approval.get(name, "default")
+                            )
                         ),
                         **named,
                     },
@@ -906,6 +924,7 @@ def platform_spec(
         tool_approval=own,
         in_process=True,
         ungated=PLATFORM_UNGATED_TOOLS,
+        always_asks=PLATFORM_ALWAYS_ASK_TOOLS,
     )
 
 

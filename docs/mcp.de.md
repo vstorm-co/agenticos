@@ -1,5 +1,5 @@
 ---
-source_sha: "4842c6331c4f"
+source_sha: "2c3bc6261879"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1454,7 +1454,9 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
   und laufen mit den Rechten der Person, für die der Agent läuft, nicht seines
   Autors - ein von einem Builder veröffentlichter Agent kann also im Run eines
   Owners keinen Admin ohne Rückfrage einladen. Ihr Schild lässt sich nicht
-  ausschalten, und das Veröffentlichen lehnt `never` für beide ab.
+  ausschalten, und das Veröffentlichen lehnt `never` für beide ab. Jeder Aufruf
+  wartet auf eine eigene Antwort: Weder **Alles freigeben** noch eine gemerkte
+  Entscheidung lässt ihn laufen.
 
 Die Vorlage **AgenticOS** bindet ihn genau so, ebenso jeder von Grund auf
 angelegte Agent, sodass ein Agent die Plattform sofort nachschlagen kann - und eine

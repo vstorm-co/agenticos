@@ -611,6 +611,59 @@ class TestApprovalMarks:
             f"agenticos_{name}" for name in PLATFORM_UNGATED_TOOLS
         )
 
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_tool_that_always_asks_is_marked_so_whatever_its_binding_says(self):
+        """Only the platform's own server names any, and the mark survives a `never`."""
+        from pydantic_ai.toolsets.abstract import ToolsetTool
+
+        from app.agents.mcp import (
+            ALWAYS_ASKS,
+            NEEDS_APPROVAL,
+            PLATFORM_ALWAYS_ASK_TOOLS,
+            ApprovalMarked,
+            McpServerSpec,
+            _make_toolset,
+            platform_spec,
+        )
+
+        platform = platform_spec("aos_key", allowed_tools=None, approval="writes")
+        assert platform.always_asks == PLATFORM_ALWAYS_ASK_TOOLS
+        assert (
+            McpServerSpec(name="notion", url="https://mcp.notion.com/mcp").always_asks
+            == frozenset()
+        )
+        assert _make_toolset(platform).always_asks == frozenset(
+            f"agenticos_{name}" for name in PLATFORM_ALWAYS_ASK_TOOLS
+        )
+
+        inner = MagicMock()
+        inner.get_tools = AsyncMock(
+            return_value={
+                name: ToolsetTool(
+                    toolset=inner,
+                    tool_def=_mcp_tool(name, False),
+                    max_retries=1,
+                    args_validator=MagicMock(),
+                )
+                for name in ("agenticos_invite_member", "agenticos_add_virtual_table_record")
+            }
+        )
+        marked = await ApprovalMarked(
+            inner,
+            policy="writes",
+            tool_approval={
+                "agenticos_invite_member": "never",
+                "agenticos_add_virtual_table_record": "never",
+            },
+            always_asks=frozenset({"agenticos_invite_member"}),
+        ).get_tools(MagicMock())
+
+        invite = marked["agenticos_invite_member"].tool_def.metadata
+        assert invite[ALWAYS_ASKS] is True and invite[NEEDS_APPROVAL] is True
+        record = marked["agenticos_add_virtual_table_record"].tool_def.metadata
+        assert record[ALWAYS_ASKS] is False and record[NEEDS_APPROVAL] is False
+
     @pytest.mark.security
     def test_a_platform_tool_s_own_approval_is_read_by_the_name_the_model_calls(self):
         from app.agents.mcp import _make_toolset, platform_spec
