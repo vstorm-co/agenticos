@@ -195,3 +195,19 @@ async def test_hidden_action_fields_are_never_put_into_a_native_review_card(
     questions.assert_not_awaited()
     service.decide.assert_not_awaited()
     service.expire_now.assert_awaited_once()
+
+
+def test_the_live_approval_window_ends_before_desktops_bridge_gives_up() -> None:
+    """A slow but valid answer must still leave the action time to run."""
+    import re
+    from pathlib import Path
+
+    from app.services.runtime_tool_approvals import LIVE_APPROVAL_SECONDS
+
+    bridge = (
+        Path(__file__).resolve().parents[2] / "desktop" / "runtime" / "platform-bridge.mts"
+    ).read_text()
+    timer = re.search(r"_agenticos/cancel_request[\s\S]*?\}, (\d+)\);", bridge)
+    assert timer is not None
+    abandon_ms = int(timer.group(1))
+    assert 60 <= LIVE_APPROVAL_SECONDS < abandon_ms / 1000

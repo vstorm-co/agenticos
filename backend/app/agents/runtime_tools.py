@@ -225,11 +225,13 @@ class RuntimeTools:
             return self._error(
                 "The action's result exceeded the native bridge limit. Do not repeat the action automatically."
             )
-        result = {"content": [{"type": "text", "text": text}], "isError": False}
-        checked = _JSON.validate_python(result)
-        self._screen(checked)
+        result: dict[str, JsonValue] = {
+            "content": [{"type": "text", "text": text}],
+            "isError": False,
+        }
+        self._screen(_JSON.validate_python(result))
         await check_model_context()
-        return {"content": [{"type": "text", "text": text}], "isError": False}
+        return result
 
     @staticmethod
     def _error(message: str) -> dict[str, JsonValue]:

@@ -31,6 +31,14 @@ if TYPE_CHECKING:
     from app.services.agent_runner import ApprovalChannel
 
 
+LIVE_APPROVAL_SECONDS = 240
+"""How long the live card waits for the member, counted from when the card is sent.
+
+Desktop's platform bridge abandons a forwarded call after 300 seconds; the rest
+of that window is left for the approved action itself to run and answer.
+"""
+
+
 async def _decider(db: AsyncSession, organization_id: UUID, user_id: UUID) -> AuthContext:
     ctx = await member_context(db, organization_id=organization_id, user_id=user_id)
     if ctx is None or not ctx.has(Perm.APPROVALS_DECIDE):
@@ -93,7 +101,7 @@ async def decide_live(
         if len(body) > 31000:
             return ApprovalRejected("The complete action cannot fit in a live approval card")
         response = None
-        with anyio.move_on_after(40):
+        with anyio.move_on_after(LIVE_APPROVAL_SECONDS):
             response = await questions(
                 RuntimeQuestionRequest(
                     runtime_name="AgenticOS platform action",

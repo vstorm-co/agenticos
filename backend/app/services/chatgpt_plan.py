@@ -49,11 +49,14 @@ _PREFIX = "chatgpt-plan:sign-in:"
 _TTL = 900
 
 
-def require_enabled() -> None:
-    if not settings.OPENAI_CHATGPT_PLAN_USAGE_ENABLED or settings.OPENAI_CHATGPT_HOST_ID is None:
+def require_enabled() -> UUID:
+    """The installation's registration host, once the operator enabled plan usage."""
+    host_id = settings.OPENAI_CHATGPT_HOST_ID
+    if not settings.OPENAI_CHATGPT_PLAN_USAGE_ENABLED or host_id is None:
         raise BadRequestError(
             message="Official ChatGPT plan usage is disabled. The operator must verify this deployment's eligibility before enabling it."
         )
+    return host_id
 
 
 def as_secret(value: OpenAIChatGPTCredentials) -> OpenAIChatGPTSecret:
@@ -98,16 +101,15 @@ class ChatGPTPlanService:
         self.db, self.redis = db, redis
 
     async def start_sign_in(self, ctx: AuthContext) -> str:
-        require_enabled()
+        host_id = require_enabled()
         owner = personal_connection_owner(ctx)
-        assert settings.OPENAI_CHATGPT_HOST_ID is not None
         row = await registrations.start(
             self.db,
             organization_id=ctx.organization_id,
             user_id=owner,
-            host_id=settings.OPENAI_CHATGPT_HOST_ID,
+            host_id=host_id,
         )
-        if row.host_id != settings.OPENAI_CHATGPT_HOST_ID:
+        if row.host_id != host_id:
             raise BadRequestError(
                 message="The ChatGPT installation identity changed. Restore its original host ID before reconnecting."
             )
@@ -276,7 +278,7 @@ class VaultChatGPTCredentials(OpenAIChatGPTCredentialSource):
         return f"VaultChatGPTCredentials(secret_id={self.secret_id})"
 
     async def _row(self, db: AsyncSession, *, locked: bool = False) -> OrganizationSecret:
-        require_enabled()
+        host_id = require_enabled()
         read = organization_secret_repo.get_locked if locked else organization_secret_repo.get
         row = await read(db, self.secret_id, organization_id=self.organization_id)
         if (
@@ -295,7 +297,7 @@ class VaultChatGPTCredentials(OpenAIChatGPTCredentialSource):
         registration = await registrations.get(
             db, organization_id=self.organization_id, user_id=row.owner_user_id
         )
-        if registration is None or registration.host_id != settings.OPENAI_CHATGPT_HOST_ID:
+        if registration is None or registration.host_id != host_id:
             raise BadRequestError(
                 message="The ChatGPT installation registration changed. Restore its original host ID before another request."
             )

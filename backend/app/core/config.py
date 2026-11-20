@@ -4,9 +4,9 @@
 import ipaddress
 from decimal import Decimal
 from pathlib import Path
-from uuid import UUID
 from typing import Literal
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -50,6 +50,17 @@ def find_env_file() -> Path | None:
 class Settings(BaseSettings):
     """Application settings."""
 
+    model_config = SettingsConfigDict(
+        env_file=find_env_file(),
+        env_ignore_empty=True,
+        extra="ignore",
+    )
+
+    # Personal provider accounts and native conversation runtimes. Each person
+    # answers for their own account's terms; these switches let an operator
+    # withhold a runtime or attest plan-usage eligibility.
+    GITHUB_COPILOT_OAUTH_CLIENT_ID: str = Field(default="", max_length=128)
+
     CLAUDE_NATIVE_CONVERSATION_ENABLED: bool = True
     """Disable to withhold Claude Agent; each person answers for their own account's terms."""
 
@@ -70,14 +81,6 @@ class Settings(BaseSettings):
                 "OPENAI_CHATGPT_HOST_ID must be a stable installation UUID when official ChatGPT plan usage is enabled"
             )
         return self
-
-    model_config = SettingsConfigDict(
-        env_file=find_env_file(),
-        env_ignore_empty=True,
-        extra="ignore",
-    )
-
-    GITHUB_COPILOT_OAUTH_CLIENT_ID: str = Field(default="", max_length=128)
 
     PROJECT_NAME: str = "agenticos"
     API_V1_STR: str = "/api/v1"
