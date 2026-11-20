@@ -76,6 +76,7 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     authoring_repo,
+    context_repo,
     dataset_repo,
     eval_run_repo,
     eval_suite_repo,
@@ -775,8 +776,8 @@ class EvalRunService:
                 skill_bodies=dict(baseline_skills or {}),
                 context_bodies=dict(baseline_contexts or {}),
             )
-            # A projected body is no stored version a cached arm could have read, and a
-            # context file's stored body is live, so neither side is taken from the cache.
+            # A projected body is no stored version a cached arm could have read, so
+            # neither side is taken from the cache.
             cached = (
                 None
                 if candidate_skills or candidate_contexts or baseline_skills or baseline_contexts
@@ -1204,6 +1205,7 @@ class EvalRunService:
         be the ones that graded every case, or no judge at all when none would
         grade now. Every first answer must be in and scored: a reused arm's cases
         are never asked again, so a hole in it would read as a case nobody changed.
+        No context file it binds may have changed since that run was made.
 
         A draft baseline is what an improvement session measures each attempt
         against; while the draft is unchanged, its answers from the session's
@@ -1242,7 +1244,7 @@ class EvalRunService:
                 execution=execution,
                 since=since,
             )
-        if found is None:
+        if found is None or not await self._contexts_unchanged(ctx, arm.spec, found[1].created_at):
             return None
         attempts = await eval_run_repo.list_arm_cases(
             self.db, found[0].id, organization_id=ctx.organization_id
@@ -1263,6 +1265,20 @@ class EvalRunService:
             attempts=attempts,
         )
         return found if graded else None
+
+    async def _contexts_unchanged(self, ctx: AuthContext, spec: AgentSpec, since: datetime) -> bool:
+        """Whether every context file `spec` binds is still as it was at `since`.
+
+        A bound file's body is read live at every answer, so answers given before an
+        edit, or to a file since removed, were given to other text.
+        """
+        bound = set(spec.context_ids)
+        files = await context_repo.get_many(
+            self.db, list(bound), organization_id=ctx.organization_id
+        )
+        return len(files) == len(bound) and all(
+            (file.updated_at or file.created_at) <= since for file in files.values()
+        )
 
     async def _graded_as_now(
         self,

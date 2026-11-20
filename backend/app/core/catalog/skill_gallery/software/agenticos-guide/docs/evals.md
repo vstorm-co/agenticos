@@ -390,8 +390,10 @@ provider's, not the agent's.
 A completed baseline arm stands in for running one only when its version,
 dataset version, model, scoring and judge all match, it ran in the same
 environment with the same `from_recordings` and `live_reads`, and it finished within
-`EVAL_BASELINE_CACHE_HOURS`. The run says which run it reused. Only its first
-answers are reused: a case that flips is asked of it again in this run.
+`EVAL_BASELINE_CACHE_HOURS`. No context file the agent binds may have changed
+since that run: a context file is read live at every answer. The run says which
+run it reused. Only its first answers are reused: a case that flips is asked of
+it again in this run.
 
 A baseline that is the agent's draft - what an Improve session measures each
 attempt against - is matched by the draft's exact fingerprint, and only when the

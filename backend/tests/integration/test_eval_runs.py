@@ -47,6 +47,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.api_key import ApiKey
 from app.db.models.case_score import CaseScore
+from app.db.models.context import ContextFile
 from app.db.models.conversation import Conversation, Message
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import Dataset, DatasetCase
@@ -3222,6 +3223,44 @@ async def test_a_draft_still_equal_to_a_published_version_reuses_that_version_s_
     assert reused.reused_from_arm_id == answered.id
     assert len(model.calls) == 3
     assert (await service.compare(ctx, started.id)).compared == 3
+
+
+async def test_a_draft_whose_context_file_was_edited_since_is_answered_again(db) -> None:
+    """A bound context file is read live at every answer, so answers given before an
+    edit were given to other text, however unchanged the draft's spec is."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    prices = ContextFile(organization_id=ctx.organization_id, name="prices", content="£1 each")
+    db.add(prices)
+    await db.flush()
+    service = EvalRunService(db)
+    draft = AgentSpec(name="Clerk", instructions="Draft", context_ids=[prices.id])
+
+    async def check(instructions: str) -> EvalRunRead:
+        started = await service.start(
+            ctx,
+            agent.id,
+            EvalRunRequest(dataset_id=dataset.id, paired_baseline=True),
+            candidate_spec=AgentSpec(
+                name="Clerk", instructions=instructions, context_ids=[prices.id]
+            ),
+            baseline_spec=draft,
+        )
+        await _run_to_end(db, Model(db), started.id, ctx)
+        return started
+
+    first = await check("Attempt 1")
+    unchanged = await check("Attempt 2")
+    prices.content = "£2 each"
+    prices.updated_at = datetime.now(UTC)
+    await db.flush()
+    edited = await check("Attempt 3")
+
+    [answered] = [arm for arm in first.arms if arm.role == "baseline"]
+    [reused] = [arm for arm in unchanged.arms if arm.role == "baseline"]
+    assert reused.reused_from_arm_id == answered.id
+    assert all(arm.reused_from_arm_id is None for arm in edited.arms)
 
 
 async def test_a_version_run_that_asked_more_cases_than_the_check_is_not_reused(db) -> None:
