@@ -11,7 +11,7 @@ import {
   useRoomThreadContextSourceConversation,
   useRoomThreadContextSource,
 } from "@/hooks/use-room-thread-context";
-import type { ConversationMessage } from "@/types/conversation";
+import type { RawMessage } from "@/lib/conversation-to-chat";
 import type {
   RoomThreadContextCandidateMessage,
   RoomThreadContextRangeInput,
@@ -27,7 +27,7 @@ interface RoomThreadContextPanelProps {
   rootMessageId?: string | null;
   threadTitle?: string;
   context?: RoomThreadContextRead | null;
-  contextMessages?: readonly ConversationMessage[];
+  contextMessages?: readonly RawMessage[];
   canManage?: boolean;
   threadState?: "open" | "closed" | "archived";
   onCreated?: (rootMessageId: string) => void;

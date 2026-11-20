@@ -322,7 +322,9 @@ export function useRoomThreadContextActions(
           });
         }
         void queryClient.invalidateQueries({ queryKey: qk.conversations.all() });
-        announceRoomChange({ conversationId, accountId, organizationId });
+        if (conversationId !== null) {
+          announceRoomChange({ conversationId, accountId, organizationId });
+        }
         if (!operationIsCurrent()) return null;
         return result;
       } catch (error) {
