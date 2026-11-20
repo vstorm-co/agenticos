@@ -18,6 +18,7 @@ from app.core.exceptions import AuthorizationError, ConflictError
 from app.core.permissions import AuthContext
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.external_agent import ExternalAgent
+from app.db.models.knowledge_base import KBScope
 from app.db.models.project import Project
 from app.db.models.virtual_table import VirtualTable
 from app.repositories import (
@@ -42,6 +43,7 @@ from app.schemas.routine_sources import (
 )
 from app.services.access import (
     AGENT,
+    COLLECTION,
     CONTEXT,
     SECRET,
     SKILL,
@@ -681,13 +683,17 @@ class RoutineSourceService:
             await context_repo.get_many(self.db, context_ids, organization_id=organization_id),
             CONTEXT,
         )
-        collections = {
-            identifier: collection
-            for identifier, collection in (
-                await knowledge_base_repo.get_by_ids(self.db, collection_ids)
-            ).items()
-            if await readable_kb(self.db, ctx, collection)
-        }
+        found_collections = await knowledge_base_repo.get_by_ids(self.db, collection_ids)
+        special_scopes = {KBScope.APP.value, KBScope.PERSONAL.value}
+        collections = await self._viewable(
+            ctx,
+            {key: kb for key, kb in found_collections.items() if kb.scope not in special_scopes},
+            COLLECTION,
+        )
+        # App/personal visibility is independent of organization grants and does no I/O.
+        for key, kb in found_collections.items():
+            if kb.scope in special_scopes and await readable_kb(self.db, ctx, kb):
+                collections[key] = kb
         agents = await self._viewable(
             ctx,
             await agent_repo.get_many(self.db, delegates, organization_id=organization_id),
