@@ -565,6 +565,7 @@ class MatrixAdapter(ChannelAdapter):
         api_base_url: str | None,
     ) -> None:
         base_url = self._directory_base(api_base_url)
+        self._audience(base_url, channel_id)
         symbol = REACTION_EMOJI.get(emoji)
         if symbol is None:
             raise ChannelDirectoryUnsupported("Choose a supported standard emoji name")
@@ -652,15 +653,16 @@ class MatrixAdapter(ChannelAdapter):
     async def is_channel_member(
         self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None
     ) -> bool:
-        joined = await self._joined(
-            self._directory_base(api_base_url), bot_token, self._room(channel_id)
-        )
+        base_url = self._directory_base(api_base_url)
+        self._audience(base_url, channel_id)
+        joined = await self._joined(base_url, bot_token, self._room(channel_id))
         return platform_user_id in joined
 
     async def channel_members(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
     ) -> list[ChannelMember]:
         base_url = self._directory_base(api_base_url)
+        self._audience(base_url, channel_id)
         own = await self._account(base_url, bot_token)
         joined = await self._joined(base_url, bot_token, self._room(channel_id))
         return [
@@ -710,6 +712,17 @@ class MatrixAdapter(ChannelAdapter):
         # cannot establish that sending plaintext is safe.
         return True
 
+    @staticmethod
+    def _audience(base_url: str, key: str) -> str | None:
+        """Reject a destination from another authority before any server request."""
+        server, recipient = audience_of(key)
+        if server is not None and server != server_fingerprint(base_url):
+            raise ChannelDirectoryUnsupported(
+                "This Matrix conversation belongs to a different homeserver. "
+                "Start a new conversation with the bot."
+            )
+        return recipient
+
     async def _require_recipient(
         self, base_url: str, token: str, room_id: str, audience_key: str
     ) -> None:
@@ -719,11 +732,7 @@ class MatrixAdapter(ChannelAdapter):
         context. Recounting two members is insufficient if the original person
         left: both identities must still be the same before posting any bytes.
         """
-        server, recipient = audience_of(audience_key)
-        if server is not None and server != server_fingerprint(base_url):
-            raise ChannelDirectoryUnsupported(
-                "This Matrix conversation belongs to a different homeserver. Start a new conversation with the bot."
-            )
+        recipient = self._audience(base_url, audience_key)
         if recipient is None:
             return
         own = await self._account(base_url, token)
@@ -738,6 +747,7 @@ class MatrixAdapter(ChannelAdapter):
         self, bot_token: str, channel_id: str, *, api_base_url: str | None
     ) -> ChannelDetails:
         base_url = self._directory_base(api_base_url)
+        self._audience(base_url, channel_id)
         room_id = self._room(channel_id)
         name = (await self._state(base_url, bot_token, room_id, "m.room.name")).get("name")
         topic = (await self._state(base_url, bot_token, room_id, "m.room.topic")).get("topic")
@@ -793,6 +803,7 @@ class MatrixAdapter(ChannelAdapter):
         thread.
         """
         base_url = self._directory_base(api_base_url)
+        self._audience(base_url, channel_id)
         room_id = self._room(channel_id)
         if thread_id:
             events = await self._thread_events(base_url, bot_token, room_id, thread_id, limit)
@@ -842,6 +853,7 @@ class MatrixAdapter(ChannelAdapter):
         have the agent answering about its own output.
         """
         base_url = self._directory_base(api_base_url)
+        self._audience(base_url, channel_id)
         own = await self._account(base_url, bot_token)
         found: list[IncomingAttachment] = []
         for event in await self._thread_events(
@@ -1015,6 +1027,7 @@ class MatrixAdapter(ChannelAdapter):
             incoming = self.parse_incoming(
                 {
                     "room_id": room_id,
+                    "server_url": base_url,
                     "event": event,
                     "direct": direct,
                     "bot_thread": not direct
@@ -1238,6 +1251,11 @@ class MatrixAdapter(ChannelAdapter):
             or not isinstance(event, dict)
             or account is None
             or base_url is None
+        ):
+            return None
+        source = raw_payload.get("server_url")
+        if isinstance(source, str) and canonical_matrix_server(source) != canonical_matrix_server(
+            base_url
         ):
             return None
         message = read_message(event)

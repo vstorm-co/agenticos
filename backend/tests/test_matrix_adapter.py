@@ -1451,3 +1451,40 @@ async def test_a_queued_destination_cannot_send_on_another_homeserver(
     with pytest.raises(ChannelDirectoryUnsupported, match="homeserver"):
         await adapter.send_message("tok", msg)
     assert server.calls == []
+
+
+@pytest.mark.parametrize(
+    "operation", ["member", "members", "details", "history", "files", "reaction"]
+)
+async def test_directory_calls_never_reinterpret_a_room_on_another_server(
+    adapter: MatrixAdapter, server: _Homeserver, operation: str
+) -> None:
+    key = room_key(ROOM, server_url="https://original.example.org")
+    with pytest.raises(ChannelDirectoryUnsupported, match="homeserver"):
+        if operation == "member":
+            await adapter.is_channel_member("tok", key, USER, api_base_url=BASE)
+        elif operation == "members":
+            await adapter.channel_members("tok", key, api_base_url=BASE, limit=10)
+        elif operation == "details":
+            await adapter.channel_details("tok", key, api_base_url=BASE)
+        elif operation == "history":
+            await adapter.channel_history("tok", key, api_base_url=BASE, limit=10)
+        elif operation == "files":
+            await adapter.thread_attachments(
+                "tok", key, thread_id="$root", api_base_url=BASE, limit=10
+            )
+        else:
+            await adapter.react_to_message("tok", key, "$question", "eyes", api_base_url=BASE)
+    assert server.calls == []
+
+
+def test_an_old_sync_stream_cannot_assert_the_new_connections_authority(
+    adapter: MatrixAdapter,
+) -> None:
+    adapter.prepare_connection(BOT, api_base_url="https://other.example.org", app_token=None)
+    assert (
+        adapter.parse_incoming(
+            {"room_id": ROOM, "event": _event(), "server_url": BASE, "direct": True}, BOT
+        )
+        is None
+    )
