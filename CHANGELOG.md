@@ -82,6 +82,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Refuse external model overrides for CLIs that persist session picker changes as user defaults, including safe behavior with older Mistral Vibe Desktop replies (#3108).
 
+## [1.86.1] - 2026-11-20
+
+### Fixed
+
 - Require a fresh decision for every platform MCP call marked as always asking,
   including organization administration. Session-wide and remembered approvals
   cannot release these calls. Routine source reviews reveal resource names only
@@ -22275,7 +22279,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.86.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.86.1...HEAD
+[1.86.1]: https://github.com/vstorm-co/agenticos/compare/v1.86.0...v1.86.1
 [1.86.0]: https://github.com/vstorm-co/agenticos/compare/v1.85.1...v1.86.0
 [1.85.1]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...v1.85.1
 [1.85.0]: https://github.com/vstorm-co/agenticos/compare/v1.84.0...v1.85.0
