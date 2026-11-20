@@ -1816,9 +1816,14 @@ as on Slack and Mattermost. Each message is read as its latest edit says, and
 files the bot posted itself are left out. Where the binding allows it, the agent
 can describe the room, list its members and read its history.
 
-**Who is speaking** is the Matrix user ID (`@ada:example.org`), linked to a member
-with `/link` as on every platform. A conversation from a room is shown in the
-console to those still joined to that room.
+**Who is speaking** is the Matrix user ID (`@ada:example.org`) together with the
+configured homeserver client URL. `/link` confirms that pair; another homeserver
+requires a separate link, even if it claims the same user ID. The confirmation
+page and connected accounts show the server URL. Host case, default ports and
+trailing slashes are normalized; different paths remain separate authorities.
+Changing the bot's server cannot resume an old identity or send an old answer
+through the new server. A conversation from a room is shown in the console to
+those still joined to that room.
 
 ## A bot that cannot start stops, rather than retrying
 

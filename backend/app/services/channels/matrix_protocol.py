@@ -11,6 +11,7 @@ cut in two, so the chat id this module hands the router percent-encodes it
 version 12 on have ids without a server part; older rooms are still everywhere.
 """
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -22,6 +23,7 @@ from markdown_it import MarkdownIt
 
 from app.services.channels.attachments import routed_type
 from app.services.channels.base import IncomingAttachment, mentionable_text
+from app.services.channels.identity_scope import canonical_matrix_server
 
 CLIENT_API = "/_matrix/client/v3"
 RELATIONS_API = "/_matrix/client/v1"
@@ -84,26 +86,50 @@ def _identifier(value: str, sigil: str) -> bool:
         return False
 
 
-def room_key(room_id: str, *, private_recipient: str | None = None) -> str:
-    """An opaque room key, carrying a private turn's original recipient.
+def server_fingerprint(server_url: str) -> str:
+    return hashlib.sha256(canonical_matrix_server(server_url).encode()).hexdigest()
 
-    The recipient survives queued runs, prompts and resumptions in the same key
-    the router already carries. A group turn has a different conversation key.
-    Colons and literal pipes in either identifier are percent-encoded.
+
+def room_key(
+    room_id: str, *, server_url: str | None = None, private_recipient: str | None = None
+) -> str:
+    """An opaque room key retaining its asserting server and private recipient.
+
+    The authority survives queued runs, prompts and resumptions in the key the
+    router already carries. Group and private turns use separate conversations.
     """
     key = quote(room_id, safe="!")
-    return key if private_recipient is None else f"{key}|{quote(private_recipient, safe='')}"
+    if server_url is not None:
+        key += f"|s={server_fingerprint(server_url)}"
+    if private_recipient is not None:
+        if server_url is None:
+            raise ValueError("A private Matrix destination requires its homeserver")
+        key += f"|u={quote(private_recipient, safe='')}"
+    return key
+
+
+def audience_of(key: str) -> tuple[str | None, str | None]:
+    """The asserting server fingerprint and original private recipient."""
+    server = None
+    recipient = None
+    for part in key.split("|")[1:]:
+        if part.startswith("s=") and server is None:
+            server = part[2:]
+            if re.fullmatch(r"[a-f0-9]{64}", server) is None:
+                raise ValueError("A Matrix homeserver fingerprint is required")
+        elif part.startswith("u=") and recipient is None:
+            recipient = unquote(part[2:])
+            if not _identifier(recipient, "@"):
+                raise ValueError("A Matrix user id is required")
+        else:
+            raise ValueError("Invalid Matrix destination")
+    if recipient is not None and server is None:
+        raise ValueError("A private Matrix destination requires its homeserver")
+    return server, recipient
 
 
 def recipient_of(key: str) -> str | None:
-    """The original private recipient, or no audience restriction for a group."""
-    _, marker, encoded = key.partition("|")
-    if not marker:
-        return None
-    recipient = unquote(encoded)
-    if not _identifier(recipient, "@"):
-        raise ValueError("A Matrix user id is required")
-    return recipient
+    return audience_of(key)[1]
 
 
 def room_of(key: str) -> str:

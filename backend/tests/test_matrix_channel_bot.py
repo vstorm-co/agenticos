@@ -115,7 +115,11 @@ async def test_an_invitation_is_admitted_as_a_message_from_the_inviter_would_be(
     ):
         assert (
             await ingress.invite_admitted(
-                str(bot.id), "@ada:example.org", "%21room%3Aexample.org", direct=False
+                str(bot.id),
+                "@ada:example.org",
+                "%21room%3Aexample.org",
+                direct=False,
+                server_url=HOMESERVER,
             )
             is admitted
         )
@@ -127,3 +131,13 @@ def test_history_filters_accept_native_matrix_user_identifiers() -> None:
     user = "@" + "u" * 242 + ":example.org"
     assert len(user.encode()) == 255
     assert HistoryQuery(author_id=user).author_id == user
+
+
+@pytest.mark.parametrize(
+    "url", ["https://user:secret@matrix.example.org", "https://matrix.example.org?token=secret"]
+)
+def test_matrix_refuses_secret_bearing_homeserver_urls(url: str) -> None:
+    with pytest.raises(ValidationError):
+        ChannelBotCreate(platform="matrix", name="bot", token="token", api_base_url=url)
+    with pytest.raises(BadRequestError):
+        ChannelBotService._check_server_url("matrix", url)

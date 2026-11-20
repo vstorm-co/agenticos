@@ -470,6 +470,7 @@ async def test_native_redeliveries_are_durable_and_thread_queues_stay_isolated(
         organization_id=uuid4(),
         authorization_generation=uuid4(),
         platform=platform,
+        api_base_url="https://matrix.example.org" if platform == "matrix" else None,
         access_policy={"discord_guild_ids": ["123456789"]},
         name="Queue test",
         token_encrypted="unused",
@@ -480,6 +481,7 @@ async def test_native_redeliveries_are_durable_and_thread_queues_stay_isolated(
         organization_id=bot.organization_id,
         authorization_generation=uuid4(),
         platform=platform,
+        api_base_url="https://matrix.example.org" if platform == "matrix" else None,
         access_policy={"discord_guild_ids": ["123456789"]},
         name="Other queue",
         token_encrypted="unused",
@@ -494,7 +496,11 @@ async def test_native_redeliveries_are_durable_and_thread_queues_stay_isolated(
         text="Use Friday",
         message_id="native-1",
         addressed=True,
-        raw={"token": "must-not-persist", "guild_id": "123456789"},
+        raw={
+            "token": "must-not-persist",
+            "guild_id": "123456789",
+            **({"server_url": "https://matrix.example.org"} if platform == "matrix" else {}),
+        },
     )
     await queue_message(db, bot, incoming)
     await queue_message(db, bot, incoming)
@@ -925,7 +931,12 @@ async def test_a_matrix_room_with_a_colon_queues_per_thread_and_restores_whole(
     db.add_all(
         [
             OrganizationMember(organization_id=org.id, user_id=user.id, role="member"),
-            ChannelIdentity(platform="matrix", platform_user_id=recipient, user_id=user.id),
+            ChannelIdentity(
+                platform="matrix",
+                platform_user_id=recipient,
+                user_id=user.id,
+                server_url="https://matrix.example.org",
+            ),
         ]
     )
     await db.flush()
@@ -936,12 +947,21 @@ async def test_a_matrix_room_with_a_colon_queues_per_thread_and_restores_whole(
         platform="matrix",
         access_policy={"mode": "open"},
         name="Matrix queue test",
+        api_base_url="https://matrix.example.org",
         token_encrypted="unused",
         secret_key_version=1,
     )
     room = "!room:example.org"
-    key = room_key(room, private_recipient=recipient if private else None)
-    changed = room_key(room, private_recipient=None if private else recipient)
+    key = room_key(
+        room,
+        private_recipient=recipient if private else None,
+        server_url="https://matrix.example.org",
+    )
+    changed = room_key(
+        room,
+        private_recipient=None if private else recipient,
+        server_url="https://matrix.example.org",
+    )
     changed_type = "group" if private else "private"
     incoming = IncomingMessage(
         platform="matrix",
@@ -952,7 +972,7 @@ async def test_a_matrix_room_with_a_colon_queues_per_thread_and_restores_whole(
         text="Use Friday",
         message_id="$question",
         addressed=True,
-        raw={"room_id": room, "event_id": "$question"},
+        raw={"room_id": room, "event_id": "$question", "server_url": "https://matrix.example.org"},
     )
     await queue_message(db, bot, incoming)
     await queue_message(

@@ -2815,7 +2815,11 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
             native_room = "!" + "r" * 242 + ":example.org"
             root = "$" + "e" * 254
             private_key = thread_key(
-                room_key(native_room, private_recipient=native_user),
+                room_key(
+                    native_room,
+                    private_recipient=native_user,
+                    server_url="https://matrix.example.org",
+                ),
                 thread_id=root,
                 message_id=None,
             )
@@ -2882,6 +2886,24 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
             db.execute(delete(ChannelSession).where(ChannelSession.id == session_id))
             db.execute(delete(ChannelIdentity).where(ChannelIdentity.id == identity_id))
             db.execute(delete(ChannelLinkRequest).where(ChannelLinkRequest.id == link_id))
+            db.commit()
+        with DatabaseSession(engine) as db:
+            scoped_identity = ChannelIdentity(
+                platform="matrix",
+                platform_user_id="@short:example.org",
+                server_url="https://matrix.example.org",
+            )
+            db.add(scoped_identity)
+            db.flush()
+            scoped_id = scoped_identity.id
+            db.commit()
+        result = _alembic("downgrade", "0344_user_appearance")
+        assert result.returncode != 0
+        assert "homeserver-bound accounts" in result.stderr
+        with DatabaseSession(engine) as db:
+            assert db.get(AgentExposure, matrix_id) is not None
+            assert db.get(ChannelIdentity, scoped_id) is not None
+            db.execute(delete(ChannelIdentity).where(ChannelIdentity.id == scoped_id))
             db.commit()
         result = _alembic("downgrade", "0344_user_appearance")
         assert result.returncode == 0, result.stderr

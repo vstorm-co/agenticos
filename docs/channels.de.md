@@ -1,5 +1,5 @@
 ---
-source_sha: "d883fdda6283"
+source_sha: "7c98112dc096"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2006,9 +2006,15 @@ Bearbeitung sie zeigt, und Dateien, die der Bot selbst gepostet hat, bleiben
 außen vor. Wo die Anbindung es erlaubt, kann der Agent den Raum beschreiben,
 seine Mitglieder auflisten und seinen Verlauf lesen.
 
-**Wer spricht**, ist die Matrix-Benutzer-ID (`@ada:example.org`), mit `/link` wie
-auf jeder Plattform mit einem Mitglied verknüpft. Eine Unterhaltung aus einem
-Raum wird in der Konsole denen gezeigt, die diesem Raum noch angehören.
+**Wer spricht**, bestimmen die Matrix-Benutzer-ID (`@ada:example.org`) und die
+konfigurierte Client-URL des Homeservers gemeinsam. `/link` bestätigt dieses
+Paar; ein anderer Homeserver erfordert eine eigene Verknüpfung, auch bei gleicher
+Benutzer-ID. Bestätigungsseite und verknüpfte Konten zeigen die Server-URL.
+Host-Schreibweise, Standardports und abschließende Schrägstriche werden
+normalisiert; unterschiedliche Pfade bleiben getrennte Identitätsquellen.
+Ein Serverwechsel kann weder die alte Identität fortsetzen noch eine alte
+Antwort über den neuen Server senden. Eine Raumunterhaltung sehen in der
+Konsole nur Personen, die weiterhin dem Raum angehören.
 
 ## Ein Bot, der nicht starten kann, hört auf, statt es erneut zu versuchen { #a-bot-that-cannot-start-stops-rather-than-retrying }
 

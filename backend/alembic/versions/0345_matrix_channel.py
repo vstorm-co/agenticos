@@ -35,7 +35,21 @@ _IDENTIFIER_LIMITS: tuple[tuple[str, str, int, int | None], ...] = (
 )
 
 
+_SCOPED_ACCOUNTS: tuple[tuple[str, str], ...] = (
+    ("channel_identities", "uq_channel_identity_platform_user"),
+    ("channel_link_requests", "channel_link_requests_identity_key"),
+)
+
+
 def upgrade() -> None:
+    for table, constraint in _SCOPED_ACCOUNTS:
+        op.add_column(
+            table, sa.Column("server_url", sa.String(500), nullable=False, server_default="")
+        )
+        op.drop_constraint(op.f(constraint), table, type_="unique")
+        op.create_unique_constraint(
+            op.f(constraint), table, ["platform", "platform_user_id", "server_url"]
+        )
     for table, column, previous, current in _IDENTIFIER_LIMITS:
         op.alter_column(
             table,
@@ -56,10 +70,13 @@ def downgrade() -> None:
         f"EXISTS (SELECT 1 FROM {table} WHERE char_length({column}) > {previous})"
         for table, column, previous, _ in _IDENTIFIER_LIMITS
     )
+    scoped = " OR ".join(
+        f"EXISTS (SELECT 1 FROM {table} WHERE server_url <> '')" for table, _ in _SCOPED_ACCOUNTS
+    )
     op.execute(
-        "DO $$ BEGIN IF " + oversized + " THEN RAISE EXCEPTION "
-        "'Cannot downgrade Matrix identifiers: remove or migrate channel identifiers "
-        "that exceed the legacy limits first; conversation history is preserved'; "
+        "DO $$ BEGIN IF " + oversized + " OR " + scoped + " THEN RAISE EXCEPTION "
+        "'Cannot downgrade Matrix identifiers: remove or migrate homeserver-bound accounts "
+        "and identifiers exceeding legacy limits first; conversation history is preserved'; "
         "END IF; END $$"
     )
     op.execute("DELETE FROM agent_exposures WHERE surface = 'matrix'")
@@ -76,3 +93,7 @@ def downgrade() -> None:
             existing_type=sa.Text() if current is None else sa.String(current),
             type_=sa.String(previous),
         )
+    for table, constraint in reversed(_SCOPED_ACCOUNTS):
+        op.drop_constraint(op.f(constraint), table, type_="unique")
+        op.create_unique_constraint(op.f(constraint), table, ["platform", "platform_user_id"])
+        op.drop_column(table, "server_url")

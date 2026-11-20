@@ -85,7 +85,7 @@ _CLAIM_FIELDS = (
     "derived_from",
     "episode",
 )
-_IDENTITY_FIELDS = ("id", "platform", "platform_user_id", "platform_username")
+_IDENTITY_FIELDS = ("id", "platform", "platform_user_id", "platform_username", "server_url")
 _COMMAND_FIELDS = ("id", "name", "prompt", "created_at")
 _LAYOUT_FIELDS = ("id", "organization_id", "entries", "updated_at")
 # Which site, where and when - never `sealed_state`, which is their live session

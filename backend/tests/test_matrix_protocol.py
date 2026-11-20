@@ -312,7 +312,7 @@ def test_messages_without_a_thread_do_not_invent_a_relation() -> None:
 def test_private_room_keys_preserve_recipient_and_thread_separately(room: str, user: str) -> None:
     from app.services.channels.matrix_protocol import recipient_of
 
-    key = room_key(room, private_recipient=user)
+    key = room_key(room, private_recipient=user, server_url="https://matrix.example.org")
     channel, root = split_thread(thread_key(key, thread_id="$root:remote", message_id=None))
     assert (room_of(channel), recipient_of(channel), root) == (room, user, "$root:remote")
     assert key != room_key(room)
@@ -320,7 +320,12 @@ def test_private_room_keys_preserve_recipient_and_thread_separately(room: str, u
 
 
 @pytest.mark.parametrize(
-    "key", ["!room|", "!room|not-a-user", room_key(ROOM, private_recipient="@" + "é" * 128)]
+    "key",
+    [
+        "!room|u=",
+        "!room|u=not-a-user",
+        room_key(ROOM, private_recipient="@" + "é" * 128, server_url="https://matrix.example.org"),
+    ],
 )
 def test_invalid_private_recipient_is_refused(key: str) -> None:
     from app.services.channels.matrix_protocol import recipient_of

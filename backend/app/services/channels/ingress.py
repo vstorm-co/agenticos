@@ -20,6 +20,7 @@ from app.repositories import background_job as job_repo
 from app.services.background_jobs import enqueue
 from app.services.channels.base import IncomingAttachment, IncomingMessage, is_run_control
 from app.services.channels.dedupe import edited_delivery_is_eligible
+from app.services.channels.identity_scope import canonical_matrix_server, identity_scope
 from app.worker.jobs import (
     PROCESS_CHANNEL_CONTROL,
     PROCESS_CHANNEL_MESSAGE,
@@ -74,6 +75,7 @@ def normalize(bot: ChannelBot, incoming: IncomingMessage) -> ChannelMessage:
             "organization_id": bot.organization_id,
             "bot_id": bot.id,
             "authorization_generation": bot.authorization_generation,
+            "server_url": identity_scope(bot).get("server_url", ""),
             "interaction_handle": None if interaction is None else interaction.ciphertext,
             "interaction_key_version": 1 if interaction is None else interaction.key_version,
             **{
@@ -137,7 +139,10 @@ def restore(message: ChannelMessage) -> IncomingMessage:
             )
         ),
         bot_id=str(message.bot_id),
-        raw=dict(message.metadata),
+        raw={
+            **dict(message.metadata),
+            **({"server_url": message.server_url} if message.platform == "matrix" else {}),
+        },
         attachments=[
             IncomingAttachment(
                 **file.model_dump(exclude={"handle", "handle_key_version"}),
@@ -166,7 +171,11 @@ async def queue_message(db: AsyncSession, bot: ChannelBot, incoming: IncomingMes
         native += ":edit"
     # Matrix event ids are globally unique. Its private audience can change the
     # conversation key on a redelivery, which must not release a second run.
-    native_scope = "" if incoming.platform == "matrix" else f"{incoming.platform_chat_id}:"
+    native_scope = (
+        f"{identity_scope(bot)['server_url']}:"
+        if incoming.platform == "matrix"
+        else f"{incoming.platform_chat_id}:"
+    )
     key = (
         None
         if native is None
@@ -255,7 +264,9 @@ async def admit_message(incoming: IncomingMessage) -> None:
             await queue_message(db, bot, incoming)
 
 
-async def invite_admitted(bot_id: str, inviter: str, chat_id: str, *, direct: bool) -> bool:
+async def invite_admitted(
+    bot_id: str, inviter: str, chat_id: str, *, direct: bool, server_url: str
+) -> bool:
     """Whether a bot's access policy would answer the person inviting it, where it is invited.
 
     For a platform whose bot joins a room on an invitation (Matrix): the same
@@ -277,6 +288,7 @@ async def invite_admitted(bot_id: str, inviter: str, chat_id: str, *, direct: bo
         platform_chat_id=chat_id,
         chat_type="private" if direct else "group",
         text="",
+        raw={"server_url": canonical_matrix_server(server_url)},
     )
     try:
         ChannelMessageRouter()._check_access(probe, bot)

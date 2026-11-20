@@ -1,5 +1,5 @@
 ---
-source_sha: "d883fdda6283"
+source_sha: "7c98112dc096"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1868,9 +1868,14 @@ czytana w brzmieniu jej ostatniej edycji, a pliki wrzucone przez samego bota są
 pomijane. Gdy pozwala na to powiązanie, agent może opisać pokój, wypisać jego
 członków i czytać jego historię.
 
-**Kto mówi**, to identyfikator użytkownika Matrixa (`@ada:example.org`), łączony z
-członkiem przez `/link` jak na każdej platformie. Rozmowa z pokoju jest pokazywana
-w konsoli tym, którzy nadal należą do tego pokoju.
+**Kto mówi**, określa identyfikator Matrixa (`@ada:example.org`) razem z adresem
+klienta skonfigurowanego homeservera. `/link` potwierdza tę parę; inny serwer
+wymaga osobnego powiązania, nawet gdy podaje ten sam identyfikator użytkownika.
+Adres serwera widać przed potwierdzeniem oraz na liście połączonych kont.
+Wielkość liter hosta, domyślne porty i końcowe ukośniki są normalizowane;
+różne ścieżki pozostają osobnymi źródłami tożsamości. Zmiana serwera bota nie
+pozwala wznowić starej tożsamości ani wysłać starej odpowiedzi przez nowy serwer.
+Rozmowę z pokoju widzą w konsoli osoby, które nadal do niego należą.
 
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 

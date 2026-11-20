@@ -192,10 +192,16 @@ Durable Mattermost edit admission checks the ignored-original Redis receipt once
 
 ## Matrix private destinations
 
-Matrix room keys are opaque: a private key retains the original recipient as well
+Matrix room keys are opaque: every native key retains the asserting homeserver; a private key retains the original recipient as well
 as the room, and the thread key retains the root. Pass the complete key through
 jobs, prompts, resumptions and file delivery; decode with `room_of` only at the
 Matrix API boundary. Never rebuild an outgoing private destination from the bare
 room ID. The adapter rechecks both original participants before sending private
 content, so a membership change cannot release a queued or resumed private reply
 into a group. Private and group turns use distinct conversation keys.
+
+Matrix identities and pending `/link` requests are keyed by canonical configured
+homeserver URL and native user ID. Always use `identity_scope(bot)` for identity
+queries, including backfill authors and prompt decisions. Retain the source
+server through durable ingress; reject old-server admission and resumptions after
+a bot changes endpoint. Show that URL before consent and on connected accounts.

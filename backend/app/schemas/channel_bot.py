@@ -8,6 +8,7 @@ from pydantic import Field, computed_field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.urls import ServiceAddress
+from app.services.channels.identity_scope import canonical_matrix_server
 from app.services.channels.webhooks import STREAM_ONLY, inbound_command_url, inbound_webhook_url
 from app.services.speech_to_text import is_offered
 
@@ -282,6 +283,8 @@ class ChannelBotCreate(BaseSchema):
         Telegram and Slack have one address for everybody, so a server URL on
         one of those is a value nothing will ever read.
         """
+        if self.platform == "matrix" and self.api_base_url is not None:
+            canonical_matrix_server(self.api_base_url)
         if self.platform in SELF_HOSTED and self.api_base_url is None:
             raise ValueError(
                 "A self-hosted bot needs its server's URL - "
@@ -502,6 +505,8 @@ class ChannelLinkRequestRead(BaseSchema):
     """
 
     platform: str
+    server_url: str | None = None
+    """The Matrix homeserver whose identity claim was confirmed."""
     platform_username: str | None = None
     platform_display_name: str | None = None
     expires_at: datetime
@@ -554,6 +559,8 @@ class ChannelIdentityRead(BaseSchema):
     id: UUID
     user_id: UUID | None = None
     platform: str
+    server_url: str | None = None
+    """The Matrix homeserver whose identity claim was confirmed."""
     platform_user_id: str
     platform_username: str | None = None
     platform_display_name: str | None = None

@@ -73,6 +73,7 @@ from app.services.channels.base import (
 )
 from app.services.channels.discord_protocol import Recent
 from app.services.channels.exceptions import ChannelNotConfigured
+from app.services.channels.identity_scope import canonical_matrix_server
 from app.services.channels.matrix_protocol import (
     CLIENT_API,
     MEDIA_UPLOAD,
@@ -81,6 +82,7 @@ from app.services.channels.matrix_protocol import (
     SYNC_TIMEOUT_MS,
     Message,
     attachment_of,
+    audience_of,
     chunks,
     display_names,
     edit_content,
@@ -90,10 +92,10 @@ from app.services.channels.matrix_protocol import (
     names,
     reaction_content,
     read_message,
-    recipient_of,
     retry_after,
     room_key,
     room_of,
+    server_fingerprint,
     text_content,
     with_latest_edit,
     without_mention,
@@ -133,10 +135,10 @@ def configure(redis: RedisClient | None) -> None:
     _redis = redis
 
 
-def _since_key(bot_id: str, user_id: str) -> str:
+def _since_key(bot_id: str, user_id: str, server_url: str) -> str:
     # Keyed on the account as well: a token for another account must not resume
     # from a position that was never its own.
-    return f"channel:matrix:since:{bot_id}:{hashlib.sha256(user_id.encode()).hexdigest()}"
+    return f"channel:matrix:since:{bot_id}:{hashlib.sha256(f'{server_fingerprint(server_url)}:{user_id}'.encode()).hexdigest()}"
 
 
 @dataclass(frozen=True)
@@ -265,9 +267,9 @@ class MatrixAdapter(ChannelAdapter):
         audience_key: str,
     ) -> str:
         """Send one event and return its id. The transaction id makes a retry idempotent."""
+        await self._require_recipient(base_url, token, room_id, audience_key)
         if await self._encrypted(base_url, token, room_id):
             raise ChannelDirectoryUnsupported(_ENCRYPTED_DECLINED)
-        await self._require_recipient(base_url, token, room_id, audience_key)
         response = await self._call(
             "PUT",
             f"{base_url}{CLIENT_API}/rooms/{_segment(room_id)}/send/{event_type}/{uuid4().hex}",
@@ -286,9 +288,9 @@ class MatrixAdapter(ChannelAdapter):
         *,
         audience_key: str,
     ) -> str:
+        await self._require_recipient(base_url, token, room_id, audience_key)
         if await self._encrypted(base_url, token, room_id):
             raise ChannelDirectoryUnsupported(_ENCRYPTED_DECLINED)
-        await self._require_recipient(base_url, token, room_id, audience_key)
         response = await self._call(
             "POST",
             f"{base_url}{MEDIA_UPLOAD}",
@@ -717,7 +719,11 @@ class MatrixAdapter(ChannelAdapter):
         context. Recounting two members is insufficient if the original person
         left: both identities must still be the same before posting any bytes.
         """
-        recipient = recipient_of(audience_key)
+        server, recipient = audience_of(audience_key)
+        if server is not None and server != server_fingerprint(base_url):
+            raise ChannelDirectoryUnsupported(
+                "This Matrix conversation belongs to a different homeserver. Start a new conversation with the bot."
+            )
         if recipient is None:
             return
         own = await self._account(base_url, token)
@@ -895,14 +901,14 @@ class MatrixAdapter(ChannelAdapter):
         await connection_state.record_up(bot_id)
         beat = asyncio.create_task(connection_state.heartbeat(bot_id))
         try:
-            since = await self._load_since(bot_id, account.user_id)
+            since = await self._load_since(bot_id, account.user_id, base_url)
             while True:
                 batch = await self._sync(base_url, bot_token, since)
                 await self._on_sync(
                     bot_id, bot_token, base_url, account, batch, backlog=since is None, since=since
                 )
                 since = str(batch["next_batch"])
-                await self._store_since(bot_id, account.user_id, since)
+                await self._store_since(bot_id, account.user_id, since, base_url)
         finally:
             beat.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -926,13 +932,13 @@ class MatrixAdapter(ChannelAdapter):
         return response.json()
 
     @staticmethod
-    async def _load_since(bot_id: str, user_id: str) -> str | None:
-        return None if _redis is None else await _redis.get(_since_key(bot_id, user_id))
+    async def _load_since(bot_id: str, user_id: str, server_url: str) -> str | None:
+        return None if _redis is None else await _redis.get(_since_key(bot_id, user_id, server_url))
 
     @staticmethod
-    async def _store_since(bot_id: str, user_id: str, since: str) -> None:
+    async def _store_since(bot_id: str, user_id: str, since: str, server_url: str) -> None:
         if _redis is not None:
-            await _redis.set(_since_key(bot_id, user_id), since, ttl=_SINCE_TTL_SECONDS)
+            await _redis.set(_since_key(bot_id, user_id, server_url), since, ttl=_SINCE_TTL_SECONDS)
 
     async def _on_sync(
         self,
@@ -991,7 +997,7 @@ class MatrixAdapter(ChannelAdapter):
         events: list[dict[str, Any]] = timeline.get("events") or []
         state: list[dict[str, Any]] = (joined.get("state") or {}).get("events") or []
         for user, name in display_names([*state, *events]).items():
-            self._names.put(f"{room_id}|{user}", name)
+            self._names.put(f"{bot_id}:{room_id}|{user}", name)
         key = f"{bot_id}:{room_id}"
         # Cache group classifications only within this batch. Private rooms are
         # always rechecked: lazy state can omit a silent membership change.
@@ -1013,7 +1019,7 @@ class MatrixAdapter(ChannelAdapter):
                     "direct": direct,
                     "bot_thread": not direct
                     and await self._in_bot_thread(bot_id, token, base_url, account, room_id, event),
-                    "display_name": self._names.get(f"{room_id}|{event.get('sender')}"),
+                    "display_name": self._names.get(f"{bot_id}:{room_id}|{event.get('sender')}"),
                 },
                 bot_id,
             )
@@ -1175,7 +1181,9 @@ class MatrixAdapter(ChannelAdapter):
         body: dict[str, str] = {}
         if encrypted_invitation(stripped):
             action, body["reason"] = "leave", _ENCRYPTED_DECLINED
-        elif await invite_admitted(bot_id, own["sender"], room_key(room_id), direct=direct):
+        elif await invite_admitted(
+            bot_id, own["sender"], room_key(room_id), direct=direct, server_url=base_url
+        ):
             action = "join"
         else:
             action = "leave"
@@ -1245,13 +1253,21 @@ class MatrixAdapter(ChannelAdapter):
             bot_id=bot_id,
             platform_user_id=message.sender,
             platform_chat_id=thread_key(
-                room_key(room_id, private_recipient=message.sender if direct else None),
+                room_key(
+                    room_id,
+                    server_url=base_url,
+                    private_recipient=message.sender if direct else None,
+                ),
                 thread_id=message.thread_root or "",
                 message_id=message.event_id,
             ),
             chat_type="private" if direct else "group",
             text=text,
-            raw={"room_id": room_id, "event_id": message.event_id},
+            raw={
+                "room_id": room_id,
+                "event_id": message.event_id,
+                "server_url": canonical_matrix_server(base_url),
+            },
             platform_username=message.sender,
             platform_display_name=raw_payload.get("display_name")
             if isinstance(raw_payload.get("display_name"), str)

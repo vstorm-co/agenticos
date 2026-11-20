@@ -1,5 +1,5 @@
 ---
-source_sha: "d883fdda6283"
+source_sha: "7c98112dc096"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1908,9 +1908,15 @@ lee según su última edición, y los archivos que publicó el propio bot se dej
 fuera. Donde la vinculación lo permite, el agent puede describir la sala, listar
 sus miembros y leer su historial.
 
-**Quién habla** es el ID de usuario de Matrix (`@ada:example.org`), vinculado a
-un miembro con `/link` como en todas las plataformas. Una conversación de una
-sala se muestra en la consola a quienes siguen unidos a esa sala.
+**Quién habla** lo determinan conjuntamente el ID de Matrix (`@ada:example.org`)
+y la URL de cliente del homeserver configurado. `/link` confirma esa pareja;
+otro homeserver requiere un vínculo separado, aunque declare el mismo ID.
+La página de confirmación y las cuentas conectadas muestran la URL del servidor.
+Se normalizan las mayúsculas del host, los puertos predeterminados y las barras
+finales; las rutas diferentes conservan autoridades separadas. Cambiar el
+servidor del bot no permite reanudar la identidad anterior ni enviar una
+respuesta anterior por el servidor nuevo. Una conversación de sala se muestra
+en la consola a quienes siguen perteneciendo a esa sala.
 
 ## Un bot que no puede arrancar se detiene, en vez de reintentar { #a-bot-that-cannot-start-stops-rather-than-retrying }
 

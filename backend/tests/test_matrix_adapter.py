@@ -138,7 +138,7 @@ class TestReading:
             BOT,
         )
         assert incoming is not None
-        assert incoming.platform_chat_id == f"{room_key(ROOM)}:$question"
+        assert incoming.platform_chat_id == f"{room_key(ROOM, server_url=BASE)}:$question"
         assert (incoming.chat_type, incoming.addressed) == ("group", True)
         assert incoming.text == "what is the refund window?"
         assert incoming.platform_user_id == USER
@@ -151,7 +151,7 @@ class TestReading:
             {"room_id": ROOM, "event": event, "direct": False, "bot_thread": True}, BOT
         )
         assert incoming is not None
-        assert incoming.platform_chat_id == f"{room_key(ROOM)}:$root"
+        assert incoming.platform_chat_id == f"{room_key(ROOM, server_url=BASE)}:$root"
         assert incoming.addressed is True
 
     def test_a_room_message_that_names_nobody_is_not_addressed(self, adapter: MatrixAdapter):
@@ -371,7 +371,7 @@ class TestSync:
                 backlog=True,
             )
         assert check.await_args.args == (BOT, USER, room_key(ROOM))
-        assert check.await_args.kwargs == {"direct": True}
+        assert check.await_args.kwargs == {"direct": True, "server_url": BASE}
         assert ("POST", _room_path(ROOM, action), {}) in server.calls
 
     async def test_an_encrypted_room_is_declined_with_a_reason_before_policy_is_asked(
@@ -864,8 +864,8 @@ class TestHistoryAndFiles:
 class TestFailureBoundaries:
     async def test_redis_can_be_withdrawn_and_a_stream_without_it_has_no_cursor(self) -> None:
         matrix.configure(None)
-        assert await MatrixAdapter._load_since(BOT, OWN) is None
-        await MatrixAdapter._store_since(BOT, OWN, "s1")
+        assert await MatrixAdapter._load_since(BOT, OWN, BASE) is None
+        await MatrixAdapter._store_since(BOT, OWN, "s1", BASE)
 
     async def test_stream_lifecycle_starts_once_and_cancels_before_shutdown(
         self, adapter: MatrixAdapter
@@ -1319,7 +1319,7 @@ class TestPrivateAudience:
     async def test_a_changed_private_audience_refuses_all_output_paths(
         self, adapter: MatrixAdapter, server: _Homeserver, method: str, members: dict[str, object]
     ) -> None:
-        key = room_key(ROOM, private_recipient=USER)
+        key = room_key(ROOM, private_recipient=USER, server_url="https://matrix.example.org")
         chat = f"{key}:$question"
         server.answer("GET", f"{API}/account/whoami", httpx.Response(200, json={"user_id": OWN}))
         server.answer(
@@ -1377,7 +1377,7 @@ class TestPrivateAudience:
             httpx.Response(200, json={"joined": {OWN: {}, USER: {}}}),
             httpx.Response(200, json={"joined": {OWN: {}, USER: {}, "@third:x": {}}}),
         )
-        chat = f"{room_key(ROOM, private_recipient=USER)}:$question"
+        chat = f"{room_key(ROOM, private_recipient=USER, server_url='https://matrix.example.org')}:$question"
         handle = await adapter.begin_reply("tok", _out("working", chat))
         assert handle is not None
         before = len(server.sent())
@@ -1403,7 +1403,7 @@ class TestPrivateAudience:
             _room_path(ROOM, "send", "m.room.message") + "/*",
             httpx.Response(200, json={"event_id": "$collision"}),
         )
-        private_chat = f"{room_key(ROOM, private_recipient=USER)}:$question"
+        private_chat = f"{room_key(ROOM, private_recipient=USER, server_url='https://matrix.example.org')}:$question"
         handle = await adapter.begin_reply("tok", _out("working", private_chat))
         untrusted = _out("another connection")
         untrusted.api_base_url = other_base
@@ -1436,3 +1436,18 @@ class TestPrivateAudience:
         with pytest.raises(ChannelDirectoryUnsupported, match="not in"):
             await adapter.send_message("tok", _out("private result"))
         assert server.sent() == []
+
+
+@pytest.mark.parametrize("private", [False, True])
+@pytest.mark.parametrize("file", [False, True])
+async def test_a_queued_destination_cannot_send_on_another_homeserver(
+    adapter: MatrixAdapter, server: _Homeserver, private: bool, file: bool
+) -> None:
+    key = room_key(ROOM, server_url=BASE, private_recipient=USER if private else None)
+    msg = _out("" if file else "confidential answer", f"{key}:$question")
+    msg.api_base_url = "https://other.example.org"
+    if file:
+        msg.attachments = [OutgoingAttachment("private.txt", b"confidential file")]
+    with pytest.raises(ChannelDirectoryUnsupported, match="homeserver"):
+        await adapter.send_message("tok", msg)
+    assert server.calls == []
