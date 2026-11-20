@@ -224,38 +224,23 @@ describe("platformProxy", () => {
     const transcript = JSON.stringify({ items: Array(200).fill({ content: "said something" }) });
     const compressed = { headers: { "Content-Encoding": "gzip", "Content-Length": "60" } };
 
-    async function gunzip(response: Response): Promise<string> {
-      const body = response.body?.pipeThrough(new DecompressionStream("gzip"));
-      return new Response(body).text();
-    }
-
-    it("is compressed again for a browser that accepts gzip", async () => {
+    it("is not compressed again, whatever the browser accepts (#194)", async () => {
       backendReplies(transcript, compressed);
 
       const response = await platformProxy().GET(
         request("/api/conversations/c1/messages", { headers: { "Accept-Encoding": "gzip, br" } }),
       );
 
-      expect(response.headers.get("Content-Encoding")).toBe("gzip");
-      expect(response.headers.get("Vary")).toBe("Accept-Encoding");
-      expect(response.headers.get("Content-Length")).toBeNull();
-      expect(await gunzip(response)).toBe(transcript);
-    });
-
-    it("is not compressed for a client that refuses gzip by quality", async () => {
-      backendReplies(transcript, compressed);
-
-      const response = await platformProxy().GET(
-        request("/api/conversations/c1/messages", {
-          headers: { "Accept-Encoding": "br, gzip;q=0" },
-        }),
-      );
-
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      // Not gzip magic bytes: the body is the decoded JSON, parseable as is.
+      expect(bytes.slice(0, 2)).not.toEqual(new Uint8Array([0x1f, 0x8b]));
+      expect(new TextDecoder().decode(bytes)).toBe(transcript);
       expect(response.headers.get("Content-Encoding")).toBeNull();
-      expect(await response.text()).toBe(transcript);
+      expect(response.headers.get("Content-Length")).toBeNull();
+      expect(response.headers.get("Vary")).toBe("Accept-Encoding");
     });
 
-    it("arrives whole and plain for a client that does not", async () => {
+    it("is untouched for a client that sends no Accept-Encoding", async () => {
       backendReplies(transcript, compressed);
 
       const response = await platformProxy().GET(request("/api/conversations/c1/messages"));
