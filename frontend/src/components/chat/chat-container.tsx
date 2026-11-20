@@ -1466,7 +1466,12 @@ function ChatUI({
     !compact && messages.length === 0 && voice.call.phase === "idle" && !isLoadingConversation;
   const showDailyBriefing = showWorkspaceHome && mainChat && !emptyState && !conversationId;
   const variant = showDailyBriefing ? homeVariant : undefined;
-  const hintsAfter = variant === "calm" || variant === "shelf" || variant === "commands";
+  const hintsAfter =
+    variant === "calm" ||
+    variant === "shelf" ||
+    variant === "timeline" ||
+    variant === "commands" ||
+    variant === "journal";
   const inboxBefore = variant === "timeline" || variant === "briefing" || variant === "journal";
   const composeSuggestion = (text: string) => setIncoming({ id: Date.now(), files: [], text });
   const homeInbox = showDailyBriefing && (

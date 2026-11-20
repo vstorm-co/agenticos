@@ -89,6 +89,7 @@ it("shows real Inbox entries in chronological order and composes a question abou
   ];
   const discuss = vi.fn();
   render(<ChatHomeInbox variant="timeline" onDiscuss={discuss} />);
+  expect(screen.getByRole("list").tagName).toBe("OL");
   const [latest, older] = screen.getAllByRole("listitem");
   if (!latest || !older) throw new Error("Expected two timeline entries");
   expect(within(latest).getByRole("link")).toHaveAttribute("href", "/inbox#suggestion-latest");
@@ -96,6 +97,17 @@ it("shows real Inbox entries in chronological order and composes a question abou
   expect(older).toHaveTextContent("Topic urgent");
   await userEvent.click(within(latest).getByRole("button", { name: "Discuss with agent" }));
   expect(discuss).toHaveBeenCalledExactlyOnceWith("Does Inbox item latest need my attention?");
+});
+
+it("keeps a journal summary only for the featured Inbox item", () => {
+  state.items = [
+    { ...suggestion("ordinary"), detail: "Secondary detail" },
+    { ...suggestion("urgent", true), detail: "Featured detail" },
+  ];
+  render(<ChatHomeInbox variant="journal" />);
+  expect(screen.getByRole("link", { name: /Topic urgent/ })).toHaveTextContent("Featured detail");
+  expect(screen.getByRole("link", { name: /Topic ordinary/ })).toBeVisible();
+  expect(screen.queryByText("Secondary detail")).not.toBeInTheDocument();
 });
 
 it("does not turn a failed read into an empty inbox and retries both reads", async () => {

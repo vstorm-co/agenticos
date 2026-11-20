@@ -34,6 +34,8 @@ export function ChatHomeInbox({
   const hasCachedContent = suggested.suggestions.length > 0 || pending.count > 0;
   const previewLimit = expanded ? 8 : 4;
   const timeline = variant === "timeline";
+  const journal = variant === "journal";
+  const InboxList = timeline ? "ol" : "ul";
   const summary =
     variant === "calm" ||
     variant === "spotlight" ||
@@ -50,7 +52,9 @@ export function ChatHomeInbox({
   return (
     <section
       className={cn(
-        "chat-home-inbox chat-home-hints chat-composer-width bg-card border-border mt-4 rounded-2xl border p-2 sm:p-3",
+        "chat-home-inbox chat-home-hints chat-composer-width mt-4",
+        !(timeline || journal || variant === "commands") &&
+          "bg-card border-border rounded-2xl border p-2 sm:p-3",
         summary && "chat-variant-inbox-summary",
       )}
       aria-label={t("title")}
@@ -58,9 +62,11 @@ export function ChatHomeInbox({
     >
       <header className="flex min-h-10 flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2 pb-2">
         <h3 className="flex min-w-0 items-center gap-2 text-sm font-medium">
-          <span className="bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-lg">
-            <Sunrise className="size-4" aria-hidden />
-          </span>
+          {!timeline && !journal && variant !== "commands" && (
+            <span className="bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-lg">
+              <Sunrise className="size-4" aria-hidden />
+            </span>
+          )}
           {t("title")}
           {summary && !loading && !failed && (
             <span className="text-muted-foreground text-xs font-normal">
@@ -116,11 +122,15 @@ export function ChatHomeInbox({
           {!loading && !summary && (!failed || hasCachedContent) && (
             <>
               {items.length > 0 ? (
-                <ul className="chat-home-briefing-items">
-                  {items.map((item) => (
+                <InboxList
+                  className="chat-home-briefing-items"
+                  role={timeline ? "list" : undefined}
+                >
+                  {items.map((item, index) => (
                     <li
                       key={item.id}
                       className={timeline ? "chat-variant-timeline-entry" : undefined}
+                      data-priority={timeline && item.urgent ? "" : undefined}
                     >
                       {timeline && Number.isFinite(Date.parse(item.created_at)) && (
                         <time
@@ -145,7 +155,7 @@ export function ChatHomeInbox({
                             )}
                           </span>
                           <span className="chat-home-inbox-title">{item.title}</span>
-                          {variant === "journal" && item.detail && (
+                          {journal && index === 0 && item.detail && (
                             <span className="chat-variant-journal-detail text-muted-foreground line-clamp-2 text-xs">
                               {item.detail}
                             </span>
@@ -157,15 +167,17 @@ export function ChatHomeInbox({
                         <button
                           type="button"
                           className="chat-variant-discuss"
+                          aria-label={inbox("discuss")}
+                          title={inbox("discuss")}
                           onClick={() => onDiscuss(inbox("discussPrompt", { id: item.id }))}
                         >
                           <MessageSquare className="size-3.5 shrink-0" aria-hidden />
-                          {inbox("discuss")}
+                          <span>{inbox("discuss")}</span>
                         </button>
                       )}
                     </li>
                   ))}
-                </ul>
+                </InboxList>
               ) : (
                 !failed &&
                 pending.count === 0 && <p className="chat-home-inbox-notice">{t("empty")}</p>
