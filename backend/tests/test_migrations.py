@@ -63,6 +63,11 @@ MIGRATION_DATABASE = f"agenticos_migrations_test_p{os.getpid()}"
 # uses ships it.
 _MAINTENANCE_DATABASE = "postgres"
 
+# Historical schemas must not receive columns introduced by today's User mapping.
+_HISTORICAL_USER_INSERT = text(
+    "INSERT INTO users (id, email, is_active, is_app_admin) VALUES (:id, :email, true, false)"
+)
+
 
 def _url(database: str) -> str:
     """The DSN alembic builds, pointed at a different database on that server.
@@ -203,16 +208,18 @@ def test_coding_task_revert_columns_round_trip_without_changing_existing_diffs()
     files = [{"path": "old.py", "status": "modified", "patch": "-before\n+after\n"}]
     try:
         with DatabaseSession(engine) as db:
-            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
-            db.add(owner)
-            db.flush()
+            owner_id = uuid4()
+            db.execute(
+                _HISTORICAL_USER_INSERT,
+                {"id": owner_id, "email": f"{owner_id}@example.com"},
+            )
             organization = Organization(
-                name="Legacy diff", slug=f"legacy-{uuid4()}", created_by_user_id=owner.id
+                name="Legacy diff", slug=f"legacy-{uuid4()}", created_by_user_id=owner_id
             )
             db.add(organization)
             db.flush()
             conversation = Conversation(
-                organization_id=organization.id, user_id=owner.id, title="Old task"
+                organization_id=organization.id, user_id=owner_id, title="Old task"
             )
             db.add(conversation)
             db.flush()
@@ -287,10 +294,14 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
     engine = create_engine(_url(MIGRATION_DATABASE))
     try:
         with DatabaseSession(engine, expire_on_commit=False) as db:
-            creator = User(email=f"{uuid4()}@example.com", hashed_password="x")
-            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
-            db.add_all([creator, owner])
-            db.flush()
+            creator_id, owner_id = uuid4(), uuid4()
+            db.execute(
+                _HISTORICAL_USER_INSERT,
+                [
+                    {"id": identity, "email": f"{identity}@example.com"}
+                    for identity in (creator_id, owner_id)
+                ],
+            )
             # This is the 0304 schema, before columns added by later migrations.
             org_id = uuid4()
             db.execute(
@@ -298,10 +309,10 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
                     "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) "
                     "VALUES (:id, 'Crosslinks', :slug, false, :creator)"
                 ),
-                {"id": org_id, "slug": f"crosslinks-{org_id}", "creator": creator.id},
+                {"id": org_id, "slug": f"crosslinks-{org_id}", "creator": creator_id},
             )
             agent = Agent(organization_id=org_id, name="Reporter", slug=f"reporter-{uuid4()}")
-            chat = Conversation(organization_id=org_id, user_id=owner.id, title="Private")
+            chat = Conversation(organization_id=org_id, user_id=owner_id, title="Private")
             db.add_all([agent, chat])
             db.flush()
             version = AgentVersion(organization_id=org_id, agent_id=agent.id, version=1, spec={})
@@ -322,7 +333,7 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
             routine = AgentTrigger(
                 organization_id=org_id,
                 agent_id=agent.id,
-                created_by_user_id=owner.id,
+                created_by_user_id=owner_id,
                 prompt="Report",
                 interval_seconds=300,
                 next_fire_at=datetime.now(UTC),
@@ -331,7 +342,7 @@ def test_delete_crosslink_migration_preserves_rows_and_defers_only_checks() -> N
             )
             db.add_all([page, routine])
             db.commit()
-            owner_id, agent_id = owner.id, agent.id
+            agent_id = agent.id
             page_id, routine_id = page.id, routine.id
             environment_id, chat_id = environment.id, chat.id
 
@@ -515,20 +526,24 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
     engine = create_engine(_url(MIGRATION_DATABASE))
     try:
         with DatabaseSession(engine, expire_on_commit=False) as db:
-            creator = User(email=f"{uuid4()}@example.com", hashed_password="x")
-            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
-            db.add_all([creator, owner])
-            db.flush()
+            creator_id, owner_id = uuid4(), uuid4()
+            db.execute(
+                _HISTORICAL_USER_INSERT,
+                [
+                    {"id": identity, "email": f"{identity}@example.com"}
+                    for identity in (creator_id, owner_id)
+                ],
+            )
             org_id = uuid4()
             db.execute(
                 text(
                     "INSERT INTO organizations (id, name, slug, is_personal, created_by_user_id) "
                     "VALUES (:id, 'Erasure', :slug, false, :creator)"
                 ),
-                {"id": org_id, "slug": f"erasure-{org_id}", "creator": creator.id},
+                {"id": org_id, "slug": f"erasure-{org_id}", "creator": creator_id},
             )
             agent = Agent(organization_id=org_id, name="Helper", slug=f"helper-{uuid4()}")
-            chat = Conversation(organization_id=org_id, user_id=owner.id, title="Private")
+            chat = Conversation(organization_id=org_id, user_id=owner_id, title="Private")
             db.add_all([agent, chat])
             db.flush()
             # A Core insert names only these columns: the model is at head and the
@@ -540,13 +555,12 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
                     organization_id=org_id,
                     agent_id=agent.id,
                     started_at=datetime.now(UTC),
-                    user_id=owner.id,
+                    user_id=owner_id,
                     conversation_id=chat.id,
                     routine_policy={"approved_sources": []},
                 )
             )
             db.commit()
-            owner_id = owner.id
 
         # Re-creating a constraint gives its RI triggers a newer OID, so its action
         # fires after the other one. Each statement forces one of the two orders.
@@ -1227,12 +1241,16 @@ class TestLegacyCookieSessionRevocation:
         factory = async_sessionmaker(engine, expire_on_commit=False)
         try:
             async with factory() as db:
-                user = User(email=f"cookie-migration-{uuid4()}@example.com")
-                admin = User(email=f"cookie-admin-{uuid4()}@example.com")
-                db.add_all([user, admin])
-                await db.flush()
+                user_id, admin_id = uuid4(), uuid4()
+                await db.execute(
+                    _HISTORICAL_USER_INSERT,
+                    [
+                        {"id": user_id, "email": f"cookie-migration-{user_id}@example.com"},
+                        {"id": admin_id, "email": f"cookie-admin-{admin_id}@example.com"},
+                    ],
+                )
                 now = datetime.now(UTC)
-                old_id, impersonation_id, ended_id, user_id = uuid4(), uuid4(), uuid4(), user.id
+                old_id, impersonation_id, ended_id = uuid4(), uuid4(), uuid4()
                 # Seed the historical schema without today's app/push columns.
                 await db.execute(
                     text(
@@ -1241,7 +1259,7 @@ class TestLegacyCookieSessionRevocation:
                     [
                         {
                             "id": old_id,
-                            "user": user.id,
+                            "user": user_id,
                             "impersonator": None,
                             "current": hash_token("legacy-current"),
                             "previous": hash_token("legacy-spent"),
@@ -1251,8 +1269,8 @@ class TestLegacyCookieSessionRevocation:
                         },
                         {
                             "id": impersonation_id,
-                            "user": user.id,
-                            "impersonator": admin.id,
+                            "user": user_id,
+                            "impersonator": admin_id,
                             "current": hash_token("legacy-impersonation"),
                             "previous": None,
                             "rotated": None,
@@ -1261,7 +1279,7 @@ class TestLegacyCookieSessionRevocation:
                         },
                         {
                             "id": ended_id,
-                            "user": user.id,
+                            "user": user_id,
                             "impersonator": None,
                             "current": hash_token("legacy-ended"),
                             "previous": None,
@@ -2378,11 +2396,13 @@ def test_routine_activation_index_round_trip_preserves_legacy_policy() -> None:
     run_id = uuid4()
     try:
         with DatabaseSession(engine) as db:
-            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
-            db.add(owner)
-            db.flush()
+            owner_id = uuid4()
+            db.execute(
+                _HISTORICAL_USER_INSERT,
+                {"id": owner_id, "email": f"{owner_id}@example.com"},
+            )
             org = Organization(
-                name="Legacy activation", slug=f"activation-{uuid4()}", created_by_user_id=owner.id
+                name="Legacy activation", slug=f"activation-{uuid4()}", created_by_user_id=owner_id
             )
             db.add(org)
             db.flush()
@@ -2564,11 +2584,13 @@ def test_github_filter_diagnostic_preserves_existing_routine_policy() -> None:
     trigger_id = uuid4()
     try:
         with DatabaseSession(engine) as db:
-            owner = User(email=f"{uuid4()}@example.com", hashed_password="x")
-            db.add(owner)
-            db.flush()
+            owner_id = uuid4()
+            db.execute(
+                _HISTORICAL_USER_INSERT,
+                {"id": owner_id, "email": f"{owner_id}@example.com"},
+            )
             org = Organization(
-                name="Legacy routine", slug=f"routine-{uuid4()}", created_by_user_id=owner.id
+                name="Legacy routine", slug=f"routine-{uuid4()}", created_by_user_id=owner_id
             )
             db.add(org)
             db.flush()
@@ -2582,7 +2604,7 @@ def test_github_filter_diagnostic_preserves_existing_routine_policy() -> None:
                     id=trigger_id,
                     organization_id=org.id,
                     agent_id=agent.id,
-                    created_by_user_id=owner.id,
+                    created_by_user_id=owner_id,
                     trigger_type="event",
                     event_source="github",
                     event_config={"actions": ["opened"]},
