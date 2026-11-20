@@ -937,7 +937,7 @@ class Settings(BaseSettings):
     # the pools in `WORKER_POOLS`; a deployment that wants ingestion on its own
     # container runs two workers, one with `agent,eval,system,workflow` and one
     # with `ingest`.
-    WORKER_POOLS: str = "agent,eval,ingest,system,workflow"
+    WORKER_POOLS: str = "agent,eval,ingest,system,workflow,network"
     # Agent runs at once per worker process. They wait on models rather than
     # compute, so this is bounded by the database pool and the providers' rate
     # limits more than by CPU.
@@ -952,6 +952,12 @@ class Settings(BaseSettings):
     WORKER_WORKFLOW_CONCURRENCY: int = Field(default=5, ge=1)
     # Sweeps, cleanups and reports at once per worker process.
     WORKER_SYSTEM_CONCURRENCY: int = Field(default=4, ge=1)
+    WORKER_NETWORK_CONCURRENCY: int = Field(default=2, ge=1, le=16)
+    """Dedicated Tailscale enrollment slots; waiting for sign-in cannot starve sweeps."""
+    TAILSCALE_ENABLED: bool = False
+    """Allow explicit enrollment of isolated personal or organization Tailscale nodes."""
+    TAILSCALE_BROKER_PATH: str = "/app/bin/t3os-tailscale-broker"
+    """Operator-installed broker executable; never a command supplied by a member."""
     # Child processes of the ingest pool: one parse each at a time. Each holds an
     # imported application (about 450 MB) plus what its parse needs.
     WORKER_INGEST_CHILDREN: int = Field(default=2, ge=1)

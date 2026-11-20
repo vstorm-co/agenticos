@@ -5124,6 +5124,7 @@
     "allApps": "All apps",
     "apps": "Apps",
     "connectors": "Connections",
+    "devicesNetworks": "Devices & networks",
     "failureLearning": "Failure learning",
     "noFavouriteApps": "Star an app to pin it here. <link>All apps</link>",
     "onboarding": "Onboarding"
@@ -5150,6 +5151,10 @@
       "connect-app": {
         "body": "Choose a useful starting task, authorize one app, and ask your assistant to use it. You can skip any step.",
         "title": "Connect an app?"
+      },
+      "connect-tailscale": {
+        "body": "Add a personal or organization-owned Tailscale connection, then explicitly enroll a device. Enrollment does not start compute or make remote tools available.",
+        "title": "Connect a Tailscale device?"
       },
       "connect-personal-model": {
         "body": "Connect your Claude subscription or a personal API key, then choose a model for your signed-in agent runs. Saving a connection or model does not send an inference request.",
@@ -6558,6 +6563,46 @@
       "connections-more": {
         "body": "The More tab holds channels, remote agents, vault and sandbox settings available to your role.",
         "title": "More connections"
+      },
+      "connectors-devices": {
+        "body": "Open Devices & networks to manage Tailscale enrollment separately from app accounts and MCP servers.",
+        "title": "Devices and networks"
+      },
+      "network-connections": {
+        "body": "Connections you may view for this organization appear here. Opening the page only reads saved state; it does not enroll a device or start compute.",
+        "title": "Network connections"
+      },
+      "network-connect-action": {
+        "body": "Connect explicitly to start device enrollment and show a private sign-in link. Runtime readiness and remote service adapters are tracked separately.",
+        "title": "Enroll a device"
+      },
+      "network-add": {
+        "body": "Add a personal or organization-owned connection record. Creation does not start enrollment or compute.",
+        "title": "Add a Tailscale connection"
+      },
+      "flow-tailscale-add": {
+        "title": "Add a connection",
+        "body": "Choose Add Tailscale to create a personal or organization-owned connection. This only saves a record."
+      },
+      "flow-tailscale-name": {
+        "title": "Name the connection",
+        "body": "Choose a label and ownership scope. Saving this record does not start enrollment or compute."
+      },
+      "flow-tailscale-create": {
+        "title": "Save the connection",
+        "body": "Create the record. Next, choose Connect on its card when you are ready to enroll a device."
+      },
+      "flow-tailscale-connect": {
+        "title": "Start device enrollment",
+        "body": "Connect explicitly to begin enrollment and request a private sign-in link. No device enrollment begins before this action."
+      },
+      "flow-tailscale-enrollment": {
+        "title": "Review enrollment status",
+        "body": "Sign-in, Tailscale approval and runtime readiness have separate states. T3OS service adapters are not connected yet, so this does not provide remote browser or terminal actions."
+      },
+      "flow-tailscale-login": {
+        "title": "Sign in with Tailscale",
+        "body": "Open the private sign-in link and approve the device if Tailscale asks. Return here to check the enrollment state."
       },
       "flow-agent-message-body": {
         "body": "Say what the other agent needs to hear — up to 16,000 characters.",
@@ -9057,6 +9102,7 @@
         "agent": "Agent runs",
         "eval": "Eval runs",
         "ingest": "Ingestion",
+        "network": "Network connections",
         "system": "System",
         "workflow": "Workflows"
       },
@@ -9402,10 +9448,11 @@
       "operationsHint": "Application updates and deployment diagnostics."
     },
     "connectors": {
-      "advancedDescription": "Manage chat channels, remote agents, the vault and sandboxes.",
+      "advancedDescription": "Manage Tailscale devices, chat channels, remote agents, the vault and sandboxes.",
       "apps": "Apps",
       "channelsDescription": "Chat platforms your organization is reachable on.",
-      "description": "Connect app accounts and MCP servers, and manage them in one place.",
+      "description": "Connect app accounts and MCP servers, and manage network devices and other connections in one place.",
+      "devicesNetworksDescription": "Enroll Tailscale devices and review known network peers.",
       "mcp": "MCP servers",
       "more": "More",
       "remoteAgentsDescription": "Other vendors' agents your agents can delegate to.",
@@ -22822,6 +22869,115 @@
     "useAccount": "Use this account",
     "verifying": "Verifying your connection…",
     "yourAccounts": "Your connected accounts"
+  },
+  "networkConnections": {
+    "accessDenied": "You do not have permission to view network connections in this organization.",
+    "actions": {
+      "connectDevice": "Connect device",
+      "continueApproval": "Continue approval",
+      "continueSignIn": "Continue sign-in",
+      "pause": "Pause",
+      "resume": "Resume",
+      "revoke": "Revoke"
+    },
+    "addTailscale": "Add Tailscale",
+    "cancel": "Cancel",
+    "cleanup": {
+      "complete": "Cleanup complete",
+      "manual": "Manual cleanup needed",
+      "manualInstructions": "Remove the inactive node from the Tailscale admin console. T3OS has not confirmed provider-side deletion.",
+      "pending": "Cleanup pending"
+    },
+    "create": {
+      "description": "Save a personal or organization-owned connection record. This does not start enrollment or compute.",
+      "nameLabel": "Connection name",
+      "scopeLabel": "Ownership",
+      "submit": "Create connection",
+      "title": "Add Tailscale"
+    },
+    "deploymentUnavailable": "Tailscale runtime is not configured for this deployment. You can save a connection record, but Connect and status refresh are disabled.",
+    "enrollment": {
+      "adapterNotice": "Network enrollment and peer metadata are separate from service access. Remote browser and terminal adapters are not connected here.",
+      "approval": "The device is waiting for approval in Tailscale. Complete approval there, then refresh status here.",
+      "checking": "Checking the enrollment state…",
+      "description": "Complete provider sign-in or approval, then return here to review the distinct enrollment and runtime states.",
+      "enrolledIdle": "Enrolled; the network runtime is stopped.",
+      "enrolledTitle": "Enrolled: {name}",
+      "expired": "This enrollment attempt expired. Start enrollment again to request a new sign-in link.",
+      "expires": "This private sign-in link expires at {time}.",
+      "failed": "Enrollment reported an error. Review the status and try again.",
+      "openLogin": "Open Tailscale sign-in",
+      "refreshFailed": "The latest enrollment state could not be loaded.",
+      "restart": "Start enrollment again",
+      "runtimeReady": "The network runtime reports running. Remote service adapters are not available here yet.",
+      "runtimeUnavailable": "The network runtime is unavailable. Service access cannot start from this connection.",
+      "signIn": "Sign in to Tailscale in the new tab, then return here. If the device needs approval, Tailscale will show that separately.",
+      "starting": "The network runtime is starting.",
+      "title": "Enroll {name}"
+    },
+    "lastSeen": "Last seen {time}",
+    "list": {
+      "count": "{count, plural, =0 {No connections} =1 {1 connection} other {# connections}}",
+      "emptyDescription": "Add a connection record first. Connecting a device is a separate, explicit action.",
+      "emptyTitle": "No Tailscale connections",
+      "next": "Next",
+      "pageChanged": "The list changed while you were viewing it. Return to the last available page.",
+      "paginationLabel": "Network connections pages",
+      "paginationRange": "{start}–{end} of {total}",
+      "previous": "Previous",
+      "title": "Devices & networks"
+    },
+    "pageDescription": "Manage Tailscale enrollment and known peer metadata for this organization.",
+    "pageTitle": "Devices & networks",
+    "peers": {
+      "disclaimer": "Known peer metadata from the last enrollment or explicit status refresh. Opening this list does not start remote access.",
+      "dnsName": "DNS name",
+      "empty": "No peer metadata is available yet. Connect a device or refresh its status.",
+      "hide": "Hide peers",
+      "ips": "IP addresses",
+      "observed": "Observed at {time}",
+      "offline": "Offline",
+      "online": "Online",
+      "os": "Operating system",
+      "show": "Show known peers"
+    },
+    "readOnly": "View only",
+    "refreshStatus": "Refresh status",
+    "retry": "Try again",
+    "revoke": {
+      "description": "Revoke this connection in T3OS. If cleanup later shows Manual, remove the inactive node from the Tailscale admin console; this action does not verify provider-side deletion.",
+      "title": "Revoke {name}?"
+    },
+    "scope": {
+      "org": "Organization-owned",
+      "user": "Personal"
+    },
+    "serviceAdaptersUnavailable": "Tailscale enrollment and peer metadata are separate from service access. This page does not start remote browser or terminal sessions.",
+    "status": {
+      "auth": {
+        "approval_required": "Tailscale approval required",
+        "authenticated": "Authenticated",
+        "error": "Enrollment error",
+        "expired": "Sign-in expired",
+        "not_connected": "Not connected",
+        "sign_in_required": "Sign-in required"
+      },
+      "groupLabel": "Connection states",
+      "paused": "Paused",
+      "revoked": "Revoked",
+      "runtime": {
+        "running": "Runtime running",
+        "starting": "Runtime starting",
+        "stopped": "Runtime stopped",
+        "unavailable": "Runtime unavailable"
+      }
+    },
+    "success": {
+      "created": "Connection record created.",
+      "paused": "Connection paused.",
+      "refreshQueued": "Status refresh queued.",
+      "revoked": "Connection revoked."
+    }
   },
   "appUpdate": {
     "description": "Reload to get the newest version.",

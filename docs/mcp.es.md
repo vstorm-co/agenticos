@@ -1,5 +1,5 @@
 ---
-source_sha: "3da9f2a96156"
+source_sha: "3f414ebcdc35"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -57,6 +57,26 @@ personalizados y la verificación de identidad de callbacks. La [guía de
 configuración de Composio del fork](https://github.com/t3grp/agenticos/blob/t3/integrations/composio/README.md)
 describe la configuración, el tratamiento de datos y las comprobaciones de
 aceptación en vivo requeridas.
+
+## Dispositivos y redes { #tailscale-device-connections }
+
+Usa **Connections → More → Devices & networks** para añadir una conexión de Tailscale a la organización actual de T3OS. Elige un registro personal, visible solo para ti, o uno de organización, visible en esa organización. Crear el registro no inicia sesión; selecciona **Connect** para empezar el inicio de sesión de ese registro.
+
+El enlace de inicio de sesión solo está disponible en la sesión que inició el proceso. No lo compartas ni pidas a otra persona que termine el inicio de sesión. Tailscale puede exigir que un administrador apruebe el nuevo dispositivo. Cada intento de alta vence a los 10 minutos; vuelve a seleccionar **Connect** si vence.
+
+Después del alta, T3OS muestra el tailnet de la conexión y una instantánea de sus peers. Selecciona **Refresh** para solicitar una instantánea nueva; no se actualiza continuamente.
+
+**Pause** detiene el runtime de la conexión y conserva su identidad de Tailscale para usarla más adelante. **Revoke** bloquea de inmediato el uso de la conexión desde T3OS. Cuando se detiene el runtime, T3OS borra las claves guardadas localmente. Si la limpieza aparece como **Manual**, elimina el nodo inactivo en la administración de Tailscale; T3OS no puede confirmar esa eliminación en el servidor.
+
+Los registros de conexión pertenecen a una organización de T3OS. La misma persona debe completar el alta por separado en cada organización de T3OS donde necesite una conexión.
+
+- Puedes tener un alta pendiente por persona en una organización, con un máximo de cuatro altas pendientes por organización.
+- Cada creador puede tener hasta 10 registros de conexión no revocados en una organización.
+- Cada alta vence a los 10 minutos.
+
+La función está desactivada por defecto en cada despliegue. Si está desactivada, **Devices & networks** explica que no está disponible y no permite crear conexiones.
+
+Esta función solo gestiona altas y el inventario de peers. Todavía no da acceso a agentes ni apps al tráfico de dispositivos, terminales, navegadores o archivos mediante Tailscale.
 
 ## Una conexión { #a-connection }
 

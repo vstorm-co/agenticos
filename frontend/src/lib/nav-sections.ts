@@ -223,7 +223,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Plug,
         // Each area of the page keeps its own gate; the entry shows to anyone
         // who can reach one of them.
-        permissions: [Perm.agentsView, Perm.secretsView, Perm.connectionsView],
+        permissions: [Perm.agentsView, Perm.secretsView, Perm.connectionsView, Perm.networksView],
       },
     ],
   },

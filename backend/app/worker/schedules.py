@@ -65,6 +65,7 @@ class Schedule:
 
 
 SCHEDULES: tuple[Schedule, ...] = (
+    Schedule("sweep-network-connections", jobs.SWEEP_NETWORK_CONNECTIONS, timedelta(seconds=15)),
     Schedule("sweep-browser-procedure-teachings", jobs.SWEEP_BROWSER_PROCEDURE_TEACHINGS, _MINUTE),
     Schedule("reconcile-room-requests", jobs.RECONCILE_ROOM_REQUESTS, timedelta(seconds=15)),
     Schedule(

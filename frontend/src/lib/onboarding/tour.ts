@@ -189,7 +189,16 @@ export interface TourStep {
    * means both.
    */
   agentKind?: "ordinary" | "system";
+  /** Skip the step unless this deployment feature is available (see `TourFeatures`). */
+  feature?: keyof TourFeatures;
 }
+
+/** What this deployment offers; a step naming a feature is hidden while it is off. */
+export interface TourFeatures {
+  networks: boolean;
+}
+
+const ALL_FEATURES: TourFeatures = { networks: true };
 
 export const TOUR_STEPS: readonly TourStep[] = [
   {
@@ -1586,6 +1595,38 @@ export const TOUR_STEPS: readonly TourStep[] = [
     page: ROUTES.CONNECTORS,
     target: "connectors-more",
   },
+  {
+    id: "connectors-devices",
+    page: ROUTES.CONNECTORS,
+    activate: "connectors-more",
+    target: "connectors-devices",
+    permission: Perm.networksView,
+    feature: "networks",
+  },
+  {
+    id: "network-connections",
+    page: ROUTES.CONNECTOR_DEVICES,
+    target: "network-connections",
+    permission: Perm.networksView,
+    inTour: true,
+    feature: "networks",
+  },
+  {
+    id: "network-connect-action",
+    page: ROUTES.CONNECTOR_DEVICES,
+    target: "network-connect-actions",
+    permission: Perm.networksManage,
+    optional: true,
+    feature: "networks",
+  },
+  {
+    id: "network-add",
+    page: ROUTES.CONNECTOR_DEVICES,
+    target: "tailscale-add",
+    permission: Perm.networksManage,
+    optional: true,
+    feature: "networks",
+  },
 
   // The chat platforms the organization is reachable on — beside MCP because it
   // is the same kind of thing, a connection the organization owns. The add button
@@ -1893,8 +1934,13 @@ function flowFor(pageId: string): readonly string[] {
   return SECTION_FLOWS.find((flow) => flow.includes(pageId)) ?? [pageId];
 }
 
-function canVisitStep(step: TourStep, can: (permission: Permission) => boolean): boolean {
+function canVisitStep(
+  step: TourStep,
+  can: (permission: Permission) => boolean,
+  features: TourFeatures,
+): boolean {
   return (
+    (step.feature === undefined || features[step.feature]) &&
     (!step.permission || can(step.permission)) &&
     (!step.anyPermission || step.anyPermission.some(can))
   );
@@ -1904,8 +1950,11 @@ function canVisitStep(step: TourStep, can: (permission: Permission) => boolean):
  * The curated first-run walkthrough: the `inTour` steps, permission-filtered the
  * way the sidebar is, so a Viewer's tour is exactly the sections they can act on.
  */
-export function visibleTourSteps(can: (permission: Permission) => boolean): readonly TourStep[] {
-  return TOUR_STEPS.filter((step) => step.inTour && canVisitStep(step, can));
+export function visibleTourSteps(
+  can: (permission: Permission) => boolean,
+  features: TourFeatures = ALL_FEATURES,
+): readonly TourStep[] {
+  return TOUR_STEPS.filter((step) => step.inTour && canVisitStep(step, can, features));
 }
 
 /**
@@ -1927,6 +1976,7 @@ export function stepsForPage(
   path: string,
   can: (permission: Permission) => boolean,
   systemAgent = false,
+  features: TourFeatures = ALL_FEATURES,
 ): readonly TourStep[] {
   const current = pageKey(path);
   const flow = flowFor(current);
@@ -1936,7 +1986,7 @@ export function stepsForPage(
     (step) =>
       step.page !== undefined &&
       reachable.has(step.page) &&
-      canVisitStep(step, can) &&
+      canVisitStep(step, can, features) &&
       (step.agentKind === undefined || step.agentKind === kind),
   );
 }

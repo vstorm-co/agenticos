@@ -494,6 +494,10 @@ class TestAccessChangeAudit:
                 "app.services.member.agent_embed_repo.pause_for_owner",
                 new=AsyncMock(return_value=0),
             ),
+            patch(
+                "app.services.member.NetworkConnectionService.revoke_member",
+                new=AsyncMock(return_value=0),
+            ),
             patch("app.services.member.member_repo.delete", new=AsyncMock()),
             patch("app.services.member.resource_grant_repo.lower_edit_data", new=AsyncMock()),
         )

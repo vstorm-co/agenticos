@@ -975,6 +975,17 @@ export const qk = {
     list: (userId: string, orgId: string | null) =>
       ["app-connections", userId, orgId, "list"] as const,
   },
+  networkConnections: {
+    all: () => ["network-connections"] as const,
+    list: (userId: string, orgId: string | null, skip?: number, limit?: number) =>
+      skip === undefined
+        ? (["network-connections", userId, orgId, "list"] as const)
+        : (["network-connections", userId, orgId, "list", skip, limit] as const),
+    detail: (userId: string, orgId: string | null, id: string) =>
+      ["network-connections", userId, orgId, "detail", id] as const,
+    peers: (userId: string, orgId: string | null, id: string) =>
+      ["network-connections", userId, orgId, "peers", id] as const,
+  },
   connectedAccounts: {
     all: () => ["connected-accounts"] as const,
     // A person's own, and the organization's: two owners, two lists.

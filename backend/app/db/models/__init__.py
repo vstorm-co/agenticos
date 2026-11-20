@@ -60,6 +60,7 @@ from app.db.models.diagnostics import DiagnosticsIdentity
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dashboard_preset import DashboardPreset
 from app.db.models.mcp_connection import McpConnection
+from app.db.models.network_connection import NetworkConnection
 from app.db.models.mcp_registry_server import McpRegistryServer
 from app.db.models.mcp_server_check import McpServerCheck
 from app.db.models.agent_embed import AgentEmbed
@@ -348,6 +349,7 @@ __all__ = [
     "DashboardLayout",
     "DashboardPreset",
     "McpConnection",
+    "NetworkConnection",
     "McpRegistryServer",
     "McpServerCheck",
     "AgentEmbed",

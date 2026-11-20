@@ -97,6 +97,7 @@ from app.repositories import deployment_settings as deployment_settings_repo
 from app.repositories import dashboard_preset as dashboard_preset_repo
 
 from app.repositories import mcp_connection as mcp_connection_repo
+from app.repositories import network_connection as network_connection_repo
 from app.repositories import mcp_registry_server as mcp_registry_server_repo
 from app.repositories import mcp_server_check as mcp_server_check_repo
 from app.repositories import organization_secret as organization_secret_repo
@@ -140,6 +141,7 @@ __all__ = [
     "deployment_settings_repo",
     "dashboard_preset_repo",
     "mcp_connection_repo",
+    "network_connection_repo",
     "mcp_registry_server_repo",
     "mcp_server_check_repo",
     "organization_secret_repo",

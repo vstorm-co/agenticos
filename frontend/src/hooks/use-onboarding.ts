@@ -5,11 +5,13 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { useNetworkConnections } from "@/hooks/use-network-connections";
 import { usePermissions } from "@/hooks/use-permissions";
 import { stripLocale } from "@/lib/active-route";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { stepsForPage, visibleTourSteps, type TourStep } from "@/lib/onboarding/tour";
 import { useAuthStore, useOnboardingStore } from "@/stores";
+import { Perm } from "@/types/permissions";
 import type { User } from "@/types";
 import { getErrorMessage } from "@/lib/api-error";
 
@@ -82,14 +84,22 @@ export function useOnboardingTour(): OnboardingTourState {
     setAnchor(null);
   }
 
+  // Only the deployment says whether Tailscale is on; until it answers true the
+  // networks stops stay out of the walk.
+  const networkConnections = useNetworkConnections({
+    enabled: isOpen && !permissionsLoading && can(Perm.networksView),
+    limit: 1,
+  });
+  const networks = networkConnections.available === true;
+
   const steps = useMemo(
     () =>
       permissionsLoading
         ? []
         : mode === "page"
-          ? stepsForPage(anchor ?? path, can, systemAgentPage)
-          : visibleTourSteps(can),
-    [mode, anchor, path, can, permissionsLoading, systemAgentPage],
+          ? stepsForPage(anchor ?? path, can, systemAgentPage, { networks })
+          : visibleTourSteps(can, { networks }),
+    [mode, anchor, path, can, permissionsLoading, systemAgentPage, networks],
   );
   const lastIndex = steps.length - 1;
   const clamped = Math.min(index, Math.max(lastIndex, 0));
