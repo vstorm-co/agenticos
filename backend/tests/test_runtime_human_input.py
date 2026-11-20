@@ -691,3 +691,129 @@ async def test_an_empty_native_input_is_recorded_as_an_intentional_answer(
     assert not result.cancelled and result.answers[0].answer == ""
     timeline = session._current_timeline.stored()
     assert timeline is not None and timeline[-1].answer == "(empty text)"
+
+
+async def test_a_well_formed_native_question_is_answered_on_the_same_request_id() -> None:
+    from app.agents.capabilities.coding_agent._acp import Conversation, _Collector
+    from tests.test_coding_agent_acp import ScriptedAgent, ScriptedPipe, _nothing
+
+    pipe = ScriptedPipe(ScriptedAgent())
+    human = Human([RuntimeAnswer(selected=["A"])])
+    conversation = Conversation(
+        pipe, access="edit", collector=_Collector(), shown=_nothing, runtime_questions=human
+    )
+    await conversation._handle(
+        {
+            "id": "question",
+            "method": "_agenticos/request_questions",
+            "params": {"questions": [{"id": "q", "question": "Pick", "options": [{"label": "A"}]}]},
+        }
+    )
+    reply = pipe.agent.seen[-1]
+    assert reply["id"] == "question" and reply["result"]["answers"][0]["selected"] == ["A"]
+    assert human.seen[0].runtime_name == "Muse"
+
+
+async def test_platform_tool_requests_are_refused_when_the_run_did_not_enable_them() -> None:
+    from app.agents.capabilities.coding_agent._acp import AcpError, Conversation, _Collector
+    from tests.test_coding_agent_acp import ScriptedAgent, ScriptedPipe, _nothing
+
+    conversation = Conversation(
+        ScriptedPipe(ScriptedAgent()), access="edit", collector=_Collector(), shown=_nothing
+    )
+    with pytest.raises(AcpError, match="not enabled platform tools"):
+        await conversation._handle(
+            {"id": "tool", "method": "_agenticos/tools/call", "params": {"name": "x"}}
+        )
+
+
+async def test_the_device_pipe_requires_desktops_platform_bridge_acknowledgement() -> None:
+    from app.agents.capabilities.coding_agent._acp import AcpError, DevicePipe
+    from tests.test_coding_agent_acp import FakeDevice
+
+    old = FakeDevice([], opened={"id": "proc"})
+    with pytest.raises(AcpError, match="Update Desktop"):
+        await DevicePipe(old, "codex", platform_tools=True).open()
+    assert old.calls[0][1]["platform_tools"] is True and old.calls[-1][0] == "agent.close"
+    current = FakeDevice([], opened={"id": "proc", "platform_tools_version": 1})
+    await DevicePipe(current, "codex", platform_tools=True).open()
+
+
+async def test_a_duplex_request_surfaces_its_own_failure_and_keeps_several_together(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import MagicMock
+
+    from app.agents.capabilities.coding_agent import _acp
+    from app.agents.capabilities.coding_agent._acp import AcpError, Conversation, _Collector
+    from tests.test_coding_agent_acp import ScriptedAgent, ScriptedPipe, _nothing
+
+    class Broken(ScriptedPipe):
+        async def receive(self) -> dict[str, object]:
+            raise AcpError("the agent went away")
+
+    conversation = Conversation(
+        Broken(ScriptedAgent()),
+        access="edit",
+        collector=_Collector(),
+        shown=_nothing,
+        runtime_questions=Human(),
+    )
+    with pytest.raises(AcpError, match="went away"):
+        await conversation.request("session/prompt", {"sessionId": "s", "prompt": []})
+
+    class Group:
+        cancel_scope = MagicMock()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc) -> None:
+            raise BaseExceptionGroup("both", [ValueError("one"), KeyError("two")])
+
+    async def answered(_identifier, _group):
+        return {"ok": True}
+
+    monkeypatch.setattr(_acp.anyio, "create_task_group", Group)
+    monkeypatch.setattr(conversation, "_receive_result", answered)
+    with pytest.raises(BaseExceptionGroup):
+        await conversation.request("session/new", {})
+
+
+async def test_runtime_choices_and_short_text_are_recorded_as_answered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from app.services.chat_timeline import TurnTimeline
+    from tests.test_agent_session import _next_frame, _sent_events, _session, _wait
+
+    session = _session()
+    session._current_timeline = TurnTimeline()
+    monkeypatch.setattr(session, "_reauthorize_write", AsyncMock(return_value=True))
+    request = RuntimeQuestionRequest(
+        runtime_name="Muse",
+        questions=[
+            RuntimeQuestion(id="pick", question="Pick one", options=[RuntimeChoice(label="A")]),
+            RuntimeQuestion(id="name", question="Name it"),
+        ],
+    )
+    visible = _next_frame(session)
+    task = asyncio.create_task(session._runtime_questions(request))
+    await _wait(visible)
+    frame = next(data for kind, data in _sent_events(session) if kind == "ask_user")
+    await session.handle_frame(
+        {
+            "type": "ask_user_response",
+            "runtime_question_id": frame["runtime_question_id"],
+            "answers": [
+                {"selected": ["A"], "skipped": False},
+                {"answer": "Report", "skipped": False},
+            ],
+        }
+    )
+    result = await task
+    assert not result.cancelled and result.answers[0].selected == ["A"]
+    stored = session._current_timeline.stored()
+    assert stored is not None and [entry.asked_by for entry in stored[-2:]] == ["Muse", "Muse"]

@@ -3,7 +3,7 @@
 import hashlib
 import json
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -449,3 +449,102 @@ async def test_a_listed_model_does_not_replace_the_required_native_state_acknowl
     assert pi.closed
     assert any(message["type"] == "set_model" for message in pi.seen)
     assert not any(message["type"] == "prompt" for message in pi.seen)
+
+
+async def test_a_gemini_keyed_delegation_screens_questions_and_forwards_platform_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.agents.audience import RunAudience
+    from app.agents.capabilities.coding_agent import _toolset as coding_toolset
+    from app.agents.capabilities.coding_agent._harness import CodingReport
+    from app.agents.capabilities.external_acp._capability import ExternalAcp
+    from app.agents.runtime_questions import RuntimeQuestionResponse
+    from app.services.device_hub import workspace as workspace_module
+    from tests.test_runtime_tools import bridge
+
+    gemini = NativeRuntimeKey(provider="gemini", api_key="AIza-private-key", revision="d" * 64)
+    launched: dict[str, object] = {}
+
+    async def call(_session_id: object, op: str, args: dict[str, object], *, timeout: float):
+        if op == "agent.open":
+            launched.update(args)
+            return {
+                "id": "owned",
+                "protocol": "acp",
+                "gemini_key": True,
+                "platform_tools_version": 1,
+            }
+        return {}
+
+    seen: list[object] = []
+
+    async def run(pipe, **options) -> CodingReport:
+        seen.append(options["platform_tools"])
+        leaking = MagicMock()
+        leaking.model_dump_json.return_value = '{"title": "AIza-private-key"}'
+        with pytest.raises(AcpError, match="credential material"):
+            await options["runtime_questions"](leaking)
+        clean = MagicMock()
+        clean.model_dump_json.return_value = '{"title": "Continue?"}'
+        seen.append(await options["runtime_questions"](clean))
+        return CodingReport(
+            harness="custom", access="edit", outcome="completed", answer="", session_id="s"
+        )
+
+    monkeypatch.setattr(workspace_module._hub, "call", call)
+    monkeypatch.setattr(
+        "app.agents.capabilities.external_acp._toolset.selected_key", AsyncMock(return_value=gemini)
+    )
+    monkeypatch.setattr(coding_toolset, "run_task", run)
+    context = _ctx(_local_workspace(), [])
+    person = context.workspace.backend.owner_id
+    context.deps.run_person = person
+    context.deps.user_id = str(person)
+    context.deps.audience = RunAudience(user_id=person)
+    tools, _calls = await bridge()
+    context.tool_manager = tools._ctx.tool_manager
+    function = (
+        ExternalAcp("agy-key", api_provider="gemini", secret_id=uuid4(), platform_tools=True)
+        .get_toolset()
+        .tools["run_acp_agent"]
+        .function
+    )
+    result = await function(context, task="Work")
+    assert launched["gemini_key"] == "AIza-private-key" and launched["platform_tools"] is True
+    assert seen[0] is not None
+    assert seen[1] == RuntimeQuestionResponse(cancelled=True)
+    assert "AIza-private-key" not in result and json.loads(result)["outcome"] == "completed"
+
+
+def test_a_pi_key_lane_with_its_own_provider_model_is_accepted() -> None:
+    config = ExternalAcpConfig.model_validate(
+        {"agent_id": "pi-key", "api_provider": "deepseek", "model_id": "deepseek/chat"}
+    )
+    assert config.model_id == "deepseek/chat"
+
+
+@pytest.mark.parametrize("change", ["shared", "no_audience", "other_person", "cloud"])
+async def test_forwarded_platform_tools_need_the_initiators_private_computer(change: str) -> None:
+    from dataclasses import replace as replaced
+
+    from app.agents.audience import RunAudience
+    from app.agents.capabilities.external_acp._capability import ExternalAcp
+
+    context = _ctx(_local_workspace(), [])
+    person = context.workspace.backend.owner_id
+    context.deps.run_person = person
+    context.deps.user_id = str(person)
+    context.deps.audience = RunAudience(user_id=person)
+    if change == "shared":
+        context.deps.audience = replaced(context.deps.audience, shared_transcript=True)
+    elif change == "no_audience":
+        context.deps.audience = None
+    elif change == "other_person":
+        context.deps.audience = RunAudience(user_id=uuid4())
+    else:
+        context = replaced(context, workspace=MagicMock(attached=False))
+    function = ExternalAcp("agy", platform_tools=True).get_toolset().tools["run_acp_agent"].function
+    from pydantic_ai.exceptions import ModelRetry
+
+    with pytest.raises(ModelRetry, match="private approved computer"):
+        await function(context, task="Work")

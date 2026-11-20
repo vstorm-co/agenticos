@@ -755,3 +755,58 @@ def test_subscription_tokens_are_never_priced_as_a_metered_openai_api_bill() -> 
     for provider in ["openai_chatgpt", "openai-chatgpt"]:
         assert price_request(usage, "gpt-4.1", provider) is None
     assert price_request(usage, "gpt-4.1", "openai") is not None
+
+
+async def test_the_vault_source_refuses_a_registration_from_another_installation(
+    setup, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, registration, _, _ = setup
+    row = MagicMock(
+        id=uuid4(),
+        owner_user_id=ctx.user_id,
+        authorization_generation=uuid4(),
+        kind="openai_chatgpt",
+    )
+    monkeypatch.setattr(plan.organization_secret_repo, "get", AsyncMock(return_value=row))
+    monkeypatch.setattr(plan.member_repo, "get", AsyncMock(return_value=MagicMock()))
+    registration.host_id = uuid4()
+    source = VaultChatGPTCredentials(
+        organization_id=ctx.organization_id,
+        secret_id=row.id,
+        generation=row.authorization_generation,
+    )
+    with pytest.raises(BadRequestError, match="installation registration changed"):
+        await source.load()
+
+
+async def test_an_oversized_account_catalog_is_refused_while_streaming(
+    setup, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, _, _, _ = setup
+    row = MagicMock(id=uuid4(), authorization_generation=uuid4())
+    monkeypatch.setattr(plan.OrganizationSecretService, "get_usable", AsyncMock(return_value=row))
+    monkeypatch.setattr(plan.VaultChatGPTCredentials, "load", AsyncMock(return_value=grant()))
+    monkeypatch.setattr(plan.VaultChatGPTCredentials, "assert_current", AsyncMock())
+    original = ChatGPTPlanProvider
+    huge = b'{"models": [' + b" " * (3 * 1024 * 1024) + b"]}"
+    async with httpx2.AsyncClient(
+        transport=httpx2.MockTransport(lambda _request: httpx2.Response(200, content=huge))
+    ) as client:
+        monkeypatch.setattr(
+            "app.agents.chatgpt_plan.ChatGPTPlanProvider",
+            lambda source: original(source, http_client=client),
+        )
+        with pytest.raises(BadRequestError, match="excessive model catalog"):
+            await plan.account_models(MagicMock(), ctx, row.id)
+
+
+async def test_the_secret_service_lists_only_the_selected_chatgpt_accounts_models(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services.organization_secret import OrganizationSecretService
+
+    listed = AsyncMock(return_value=["gpt-x"])
+    monkeypatch.setattr(plan, "account_models", listed)
+    db, ctx, secret = MagicMock(), _ctx(), uuid4()
+    assert await OrganizationSecretService(db).chatgpt_models(ctx, secret) == ["gpt-x"]
+    listed.assert_awaited_once_with(db, ctx, secret)

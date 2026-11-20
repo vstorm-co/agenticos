@@ -801,3 +801,15 @@ async def test_a_stream_without_a_settled_response_fails_explicitly(
         receiver=anyio.create_memory_object_stream[str](1)[1],
     )
     await idle.close_stream()
+
+
+def test_a_selected_native_runtime_changes_the_local_consent_fingerprint() -> None:
+    from app.schemas.local_target import NativeConversationTarget
+
+    plain = LocalTarget(folder="/work", mode="full_access")
+    native_target = plain.model_copy(
+        update={
+            "conversation_runtime": NativeConversationTarget(harness="codex", session_epoch=uuid4())
+        }
+    )
+    assert plain.fingerprint() != native_target.fingerprint()

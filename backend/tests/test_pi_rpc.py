@@ -487,3 +487,118 @@ async def test_unknown_runtime_protocol_is_refused_and_native_child_closed(
     with pytest.raises(AcpError, match="unsupported runtime protocol"):
         await pipe.open()
     assert device.calls[-1][0] == "agent.close"
+
+
+class _OneShot:
+    def __init__(self, *records: dict[str, object]) -> None:
+        self.records = list(records)
+        self.sent: list[dict[str, object]] = []
+
+    async def receive(self) -> dict[str, object]:
+        return self.records.pop(0)
+
+    async def send(self, message: dict[str, object]) -> None:
+        self.sent.append(message)
+
+    async def close(self) -> None:
+        pass
+
+
+async def _no_items(_items: list[LiveItem]) -> None:
+    return None
+
+
+async def test_a_bridge_cancellation_stops_only_its_own_platform_call() -> None:
+    pipe = _OneShot(
+        {"method": "_agenticos/cancel_request", "params": {"id": "t1"}},
+        {"method": "_agenticos/cancel_request", "params": "malformed"},
+    )
+    session = _Session(pipe, _no_items)
+    mine, other = anyio.CancelScope(), anyio.CancelScope()
+    session.tool_scopes.update({"t1": mine, "t2": other})
+    assert (await session.receive()).type == "agenticos_bridge"
+    assert mine.cancel_called and not other.cancel_called
+    assert (await session.receive()).type == "agenticos_bridge"
+
+
+async def test_platform_requests_without_an_enabled_bridge_are_refused() -> None:
+    session = _Session(
+        _OneShot({"id": "t1", "method": "_agenticos/tools/call", "params": {}}), _no_items
+    )
+    with pytest.raises(AcpError, match="unadmitted"):
+        await session.receive()
+
+
+async def test_a_malformed_platform_request_is_retired_without_dispatch() -> None:
+    session = _Session(_OneShot(), _no_items)
+    scope = anyio.CancelScope()
+    session.tool_scopes["t1"] = scope
+    with pytest.raises(AcpError, match="Malformed"):
+        await session.answer_tool({"method": "_agenticos/tools/call", "params": []}, "t1", scope)
+    assert "t1" in session.retired_tools and "t1" not in session.tool_scopes
+
+
+async def test_an_unsupported_dialog_without_an_identifier_is_cancelled() -> None:
+    pipe = _OneShot()
+    session = _Session(pipe, _no_items)
+    record = _Record.model_validate({"type": "extension_ui_request", "method": "select"})
+    with pytest.raises(AcpError, match="unsupported human-input"):
+        await session.answer_dialog(record)
+    assert pipe.sent[-1]["cancelled"] is True
+
+
+async def test_ignoring_live_items_is_a_no_op() -> None:
+    from app.agents.capabilities.external_acp import _pi
+
+    assert await _pi._ignore([Said("x")]) is None
+
+
+async def test_discovery_without_a_selected_model_keeps_the_catalog_order() -> None:
+    pi = Pi()
+    pi.state = {**STATE, "model": None}
+    pi.models = [MODEL, {**MODEL, "id": "second"}]
+    catalog = await inspect_pi(pi, timeout_seconds=1)
+    assert catalog.current_model is None
+    assert [model.id for model in catalog.models] == [
+        "configured-provider/configured-model",
+        "configured-provider/second",
+    ]
+
+
+async def test_several_pi_task_failures_are_not_reduced_to_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import MagicMock
+
+    from app.agents.capabilities.external_acp import _pi
+
+    class Group:
+        cancel_scope = MagicMock()
+
+        def start_soon(self, *_args) -> None:
+            return None
+
+        async def __aenter__(self):
+            raise BaseExceptionGroup("both", [ValueError("one"), KeyError("two")])
+
+        async def __aexit__(self, *_exc) -> None:
+            return None
+
+    monkeypatch.setattr(_pi.anyio, "create_task_group", Group)
+    with pytest.raises(BaseExceptionGroup):
+        await run_pi(Pi(), task="Work", timeout_seconds=1, shown=_no_items)
+
+
+async def test_a_declined_dialog_without_an_identifier_still_answers_pi() -> None:
+    from app.agents.runtime_questions import RuntimeQuestionResponse
+
+    async def declined(_request):
+        return RuntimeQuestionResponse(cancelled=True)
+
+    pipe = _OneShot()
+    session = _Session(pipe, _no_items, runtime_questions=declined)
+    record = _Record.model_validate(
+        {"type": "extension_ui_request", "method": "confirm", "title": "Continue?"}
+    )
+    await session.answer_dialog(record)
+    assert pipe.sent[-1]["type"] == "extension_ui_response"
