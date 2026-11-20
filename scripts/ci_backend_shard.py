@@ -98,7 +98,9 @@ def load_times(path: str | None) -> dict[str, float]:
         return {}
     if not isinstance(loaded, dict):
         return {}
-    return {str(key): float(value) for key, value in loaded.items() if isinstance(value, int | float)}
+    return {
+        str(key): float(value) for key, value in loaded.items() if isinstance(value, int | float)
+    }
 
 
 def file_times(reports: list[str], files: list[str]) -> dict[str, float]:
@@ -106,7 +108,8 @@ def file_times(reports: list[str], files: list[str]) -> dict[str, float]:
     modules = {path.removesuffix(".py").replace("/", "."): path for path in files}
     totals: dict[str, float] = {}
     for report in reports:
-        for case in ElementTree.parse(report).iter("testcase"):
+        # The reports are pytest's own JUnit output from this workflow's shards.
+        for case in ElementTree.parse(report).iter("testcase"):  # noqa: S314
             classname = case.get("classname", "")
             parts = classname.split(".")
             for end in range(len(parts), 0, -1):
@@ -121,7 +124,11 @@ def verify(files: list[str], shards: list[list[str]]) -> list[str]:
     """Every problem with `shards` as a partition of `files`; empty when it is one."""
     ran = [path for shard in shards for path in shard]
     problems = [f"{path} ran in no shard" for path in sorted(set(files) - set(ran))]
-    problems += [f"{path} ran in {ran.count(path)} shards" for path in sorted(set(ran)) if ran.count(path) > 1]
+    problems += [
+        f"{path} ran in {ran.count(path)} shards"
+        for path in sorted(set(ran))
+        if ran.count(path) > 1
+    ]
     problems += [f"{path} is not a test file" for path in sorted(set(ran) - set(files))]
     return problems
 
@@ -142,7 +149,10 @@ def main(argv: list[str]) -> int:
     if argv[:1] == ["verify"] and len(argv) > 2:
         lists = [Path(path).read_text(encoding="utf-8").split() for path in argv[2:]]
         problems = verify(test_files(Path(argv[1])), lists)
-        print("\n".join(problems) or f"{sum(map(len, lists))} files, each in exactly one shard", file=sys.stderr)
+        print(
+            "\n".join(problems) or f"{sum(map(len, lists))} files, each in exactly one shard",
+            file=sys.stderr,
+        )
         return 1 if problems else 0
     if len(argv) != 2:
         print("usage: ci_backend_shard.py K/N TESTS_DIR", file=sys.stderr)

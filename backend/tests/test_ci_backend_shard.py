@@ -142,9 +142,15 @@ def test_recorded_times_balance_the_shards_better_than_test_counts(tmp_path: Pat
     for name in ("slow", "quick_a", "quick_b", "quick_c"):
         (tmp_path / f"test_{name}.py").write_text("def test_one(): ...\ndef test_two(): ...\n")
     files = ci_backend_shard.test_files(tmp_path)
-    times = {str(tmp_path / "test_slow.py"): 90.0, **{str(tmp_path / f"test_quick_{x}.py"): 10.0 for x in "abc"}}
+    times = {
+        str(tmp_path / "test_slow.py"): 90.0,
+        **{str(tmp_path / f"test_quick_{x}.py"): 10.0 for x in "abc"},
+    }
 
-    shards = [ci_backend_shard.select(files, i, 2, ci_backend_shard.recorded_weight(times)) for i in (1, 2)]
+    shards = [
+        ci_backend_shard.select(files, i, 2, ci_backend_shard.recorded_weight(times))
+        for i in (1, 2)
+    ]
 
     assert [str(tmp_path / "test_slow.py")] in shards
 
@@ -217,7 +223,9 @@ def test_junit_times_are_summed_per_file(tmp_path: Path) -> None:
         "</testsuite></testsuites>"
     )
 
-    assert ci_backend_shard.file_times([str(report)], ["tests/api/test_routes.py", "tests/test_a.py"]) == {
+    assert ci_backend_shard.file_times(
+        [str(report)], ["tests/api/test_routes.py", "tests/test_a.py"]
+    ) == {
         "tests/api/test_routes.py": 1.5,
         "tests/test_a.py": 3.25,
     }
