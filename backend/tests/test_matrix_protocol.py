@@ -351,3 +351,19 @@ def test_invalid_thread_roots_are_not_admitted(root: object) -> None:
     assert (
         read_message(_event({"m.relates_to": {"rel_type": "m.thread", "event_id": root}})) is None
     )
+
+
+@pytest.mark.parametrize("msgtype", [[], {}, None, True])
+def test_malformed_message_types_cannot_poison_the_sync_cursor(msgtype: object) -> None:
+    assert read_message(_event({"msgtype": msgtype})) is None
+
+
+@pytest.mark.parametrize("text", ["bad\x00text", "bad\ud800text"])
+@pytest.mark.parametrize("field", ["body", "filename", "mimetype"])
+def test_unstorable_message_text_is_ignored(text: str, field: str) -> None:
+    content: dict[str, object] = {"msgtype": "m.file", "url": "mxc://example.org/file"}
+    if field == "mimetype":
+        content["info"] = {"mimetype": text}
+    else:
+        content[field] = text
+    assert read_message(_event(content)) is None

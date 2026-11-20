@@ -84,6 +84,7 @@ from app.services.channels.matrix_protocol import (
     attachment_of,
     audience_of,
     chunks,
+    display_label,
     display_names,
     edit_content,
     encrypted_invitation,
@@ -385,7 +386,7 @@ class MatrixAdapter(ChannelAdapter):
             "GET", f"{base_url}{CLIENT_API}/profile/{_segment(user_id)}/displayname", token
         )
         name = profile.json().get("displayname") if profile.status_code == 200 else None
-        account = _Account(user_id=user_id, display_name=name if isinstance(name, str) else None)
+        account = _Account(user_id=user_id, display_name=display_label(name))
         self._whoami.put(key, account)
         return account
 
@@ -1016,7 +1017,7 @@ class MatrixAdapter(ChannelAdapter):
         events: list[dict[str, Any]] = timeline.get("events") or []
         state: list[dict[str, Any]] = (joined.get("state") or {}).get("events") or []
         for user, name in display_names([*state, *events]).items():
-            self._names.put(f"{bot_id}:{room_id}|{user}", name)
+            self._names.put(f"{server_fingerprint(base_url)}:{bot_id}:{room_id}|{user}", name)
         key = f"{bot_id}:{room_id}"
         # Cache group classifications only within this batch. Private rooms are
         # always rechecked: lazy state can omit a silent membership change.
@@ -1039,7 +1040,9 @@ class MatrixAdapter(ChannelAdapter):
                     "direct": direct,
                     "bot_thread": not direct
                     and await self._in_bot_thread(bot_id, token, base_url, account, room_id, event),
-                    "display_name": self._names.get(f"{bot_id}:{room_id}|{event.get('sender')}"),
+                    "display_name": self._names.get(
+                        f"{server_fingerprint(base_url)}:{bot_id}:{room_id}|{event.get('sender')}"
+                    ),
                 },
                 bot_id,
             )
@@ -1146,7 +1149,7 @@ class MatrixAdapter(ChannelAdapter):
         message = read_message(event)
         if message is None or message.thread_root is None:
             return False
-        key = f"{bot_id}:{message.thread_root}"
+        key = _reply_key(base_url, token, f"{bot_id}:{message.thread_root}")
         known = self._bot_threads.get(key)
         if known is not None:
             return known
@@ -1294,9 +1297,7 @@ class MatrixAdapter(ChannelAdapter):
                 "server_url": canonical_matrix_server(base_url),
             },
             platform_username=message.sender,
-            platform_display_name=raw_payload.get("display_name")
-            if isinstance(raw_payload.get("display_name"), str)
-            else None,
+            platform_display_name=display_label(raw_payload.get("display_name")),
             message_id=message.event_id,
             attachments=[attachment] if attachment is not None else [],
             broadcast_mention=_room_mentioned(message),

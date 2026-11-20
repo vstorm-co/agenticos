@@ -1541,3 +1541,60 @@ async def test_rate_limit_retries_revalidate_private_disclosure(
     ):
         await adapter.send_message("tok", msg)
     assert len([method for method, _, _ in server.calls if method in {"PUT", "POST"}]) == 1
+
+
+@pytest.mark.parametrize("label", ["a" * 1000, "\x00bad", "\ud800bad", None])
+def test_display_labels_always_fit_the_identity_storage_contract(
+    adapter: MatrixAdapter, label: str | None
+) -> None:
+    incoming = adapter.parse_incoming(
+        {"room_id": ROOM, "event": _event(), "direct": True, "display_name": label}, BOT
+    )
+    assert incoming is not None
+    assert incoming.platform_display_name == (
+        "a" * 255 if label and label.startswith("a") else None
+    )
+
+
+async def test_thread_addressing_cache_does_not_cross_server_or_account_changes(
+    adapter: MatrixAdapter, server: _Homeserver
+) -> None:
+    event = _event("reply", **{"m.relates_to": {"rel_type": "m.thread", "event_id": "$root"}})
+    root = {**_event(), "event_id": "$root"}
+    server.answer(
+        "GET",
+        _room_path(ROOM, "event", "$root"),
+        httpx.Response(200, json={**root, "sender": OWN}),
+        httpx.Response(200, json=root),
+        httpx.Response(200, json=root),
+    )
+    account = _Account(user_id=OWN, display_name="Agent")
+    assert await adapter._in_bot_thread(BOT, "tok", BASE, account, ROOM, event)
+    assert not await adapter._in_bot_thread(
+        BOT, "tok", "https://other.example.org", account, ROOM, event
+    )
+    assert not await adapter._in_bot_thread(BOT, "another-token", BASE, account, ROOM, event)
+
+
+async def test_sender_labels_from_another_homeserver_are_not_reused(adapter: MatrixAdapter) -> None:
+    state = [
+        {
+            "type": "m.room.member",
+            "state_key": USER,
+            "content": {"displayname": "Alice on first server"},
+        }
+    ]
+    joined = {"state": {"events": state}, "timeline": {"events": [_event()]}}
+    batch = {"rooms": {"join": {ROOM: joined}}}
+    admitted = AsyncMock()
+    account = _Account(user_id=OWN, display_name="Agent")
+    with patch("app.services.channels.ingress.admit_message", admitted):
+        await adapter._on_sync(BOT, "tok", BASE, account, batch, backlog=False)
+        other_base = "https://other.example.org"
+        adapter.prepare_connection(BOT, api_base_url=other_base, app_token=None)
+        joined["state"] = {"events": []}
+        await adapter._on_sync(BOT, "tok", other_base, account, batch, backlog=False)
+    assert [call.args[0].platform_display_name for call in admitted.await_args_list] == [
+        "Alice on first server",
+        None,
+    ]

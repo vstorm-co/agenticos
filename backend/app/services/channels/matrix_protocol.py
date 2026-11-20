@@ -15,7 +15,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeGuard
 from urllib.parse import quote, unquote
 
 import httpx
@@ -74,6 +74,22 @@ _MARKDOWN = (
     .enable("strikethrough")
 )
 """Raw HTML off: the model's own `<tags>` are escaped, never sent as markup."""
+
+
+def _valid_text(value: object) -> TypeGuard[str]:
+    """Text that can cross both JSONB and PostgreSQL text boundaries."""
+    if not isinstance(value, str) or "\x00" in value:
+        return False
+    try:
+        value.encode()
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def display_label(value: object) -> str | None:
+    """A best-effort display label, limited to the identity column's 255 characters."""
+    return value[:255] if _valid_text(value) else None
 
 
 def _identifier(value: str, sigil: str) -> bool:
@@ -301,7 +317,11 @@ def read_message(event: dict[str, Any]) -> Message | None:
         return None
     msgtype = content.get("msgtype")
     body = content.get("body")
-    if not isinstance(body, str) or msgtype not in TEXT_TYPES | ATTACHMENT_TYPES:
+    if (
+        not _valid_text(body)
+        or not isinstance(msgtype, str)
+        or msgtype not in TEXT_TYPES | ATTACHMENT_TYPES
+    ):
         return None
     attachment = None
     if msgtype in ATTACHMENT_TYPES:
@@ -310,6 +330,9 @@ def read_message(event: dict[str, Any]) -> Message | None:
             return None
         info = content.get("info") if isinstance(content.get("info"), dict) else {}
         name = content.get("filename") if isinstance(content.get("filename"), str) else body
+        mime_type = info.get("mimetype") or ""
+        if not _valid_text(name) or not _valid_text(mime_type):
+            return None
         size = info.get("size", 0)
         duration = info.get("duration")
         # Event content is chosen by the sender, not validated by the homeserver.
@@ -318,7 +341,7 @@ def read_message(event: dict[str, Any]) -> Message | None:
             return None
         attachment = (
             name or "attachment",
-            str(info.get("mimetype") or ""),
+            mime_type,
             size,
             uri,
             duration / 1000 if isinstance(duration, int | float) else None,
@@ -469,8 +492,9 @@ def display_names(events: list[dict[str, Any]]) -> dict[str, str]:
             event.get("state_key"),
             content.get("displayname") if isinstance(content, dict) else None,
         )
-        if event.get("type") == "m.room.member" and isinstance(user, str) and isinstance(name, str):
-            names_found[user] = name
+        label = display_label(name)
+        if event.get("type") == "m.room.member" and isinstance(user, str) and label is not None:
+            names_found[user] = label
     return names_found
 
 
