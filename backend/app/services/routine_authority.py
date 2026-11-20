@@ -10,6 +10,7 @@ import hashlib
 import json
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from functools import cache
 from typing import Literal, Self
 from uuid import UUID
 
@@ -21,7 +22,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities import get as capability
 from app.agents.capabilities._registry import READ_SKILL
 from app.agents.capabilities.skills._loader import SKILL_LOAD_KIND
-from app.agents.mcp import McpSourceIdentity, McpToolOrigin, needs_approval, tool_origin
+from app.agents.mcp import (
+    PLATFORM_MCP_NAME,
+    PLATFORM_TOOL,
+    McpSourceIdentity,
+    McpToolOrigin,
+    fitted_tool_name,
+    needs_approval,
+    tool_origin,
+    tool_prefix,
+)
 from app.agents.routine_actions import RoutineToolDecision
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
@@ -47,6 +57,7 @@ from app.schemas.routine_actions import (
     RoutineActionKey,
     RoutineConsent,
     RoutineMcpActionKey,
+    RoutinePlatformActionKey,
 )
 from app.schemas.routine_sources import RoutineSourcePolicy
 from app.schemas.watch_sources import WatchSources
@@ -70,6 +81,22 @@ from app.services.routine_sources import (
 )
 
 MCP_SOURCES = TypeAdapter(dict[UUID, McpSourceIdentity])
+
+SEARCH_TOOLS = "search_tools"
+"""Pydantic AI's own tool search: it reads the run's tool list and changes nothing."""
+
+
+@cache
+def _platform_tool_names() -> dict[str, str]:
+    """Each platform tool's name on its server, by the name a run's model calls it."""
+    # Imported here: the platform's tools reach workflow execution, whose node
+    # handlers import the agent registry, which this module imports.
+    from app.services.platform_mcp import platform_tool_catalog
+
+    prefix = tool_prefix(PLATFORM_MCP_NAME)
+    return {
+        fitted_tool_name(f"{prefix}_{tool.name}"): tool.name for tool in platform_tool_catalog()
+    }
 
 
 def _refused() -> AuthorizationError:
@@ -438,6 +465,26 @@ class RoutineAuthority:
                 return RoutineToolDecision()
             if tool.capability_id is None:
                 origin = tool_origin(tool)
+                if origin is None and tool.name == SEARCH_TOOLS:
+                    return RoutineToolDecision()
+                # The platform's own server, marked so by the run's toolset and
+                # never by the server: what it sends lands under `meta`.
+                platform = (
+                    _platform_tool_names().get(tool.name)
+                    if origin is None and (tool.metadata or {}).get(PLATFORM_TOOL) is True
+                    else None
+                )
+                if platform is not None:
+                    if not needs_approval(tool, "writes"):
+                        return RoutineToolDecision()
+                    return RoutineToolDecision(
+                        required=True,
+                        consented_by=await self._consent_in(
+                            db,
+                            agent_id,
+                            RoutinePlatformActionKey(kind="platform", tool_id=platform),
+                        ),
+                    )
                 if origin is not None:
                     await self._mcp_in(db, origin)
                 required = needs_approval(tool, "writes")

@@ -1,5 +1,5 @@
 ---
-source_sha: "90fbc02e70bd"
+source_sha: "9279a94553fb"
 ---
 
 # Aplicaciones { #artifacts }
@@ -908,9 +908,12 @@ un webhook, un formulario, un mensaje de canal, un correo o un evento de reposit
 sea cual sea la identidad con la que se ejecute. Una superficie sin nadie con sesión
 iniciada no previsualiza nada.
 
-Nada de lo que pide la página llega a la red: la API responde a cada
-petición con la página, el [conjunto de bibliotecas](#the-library-set) o un
-rechazo.
+El renderer responde a las peticiones con la página, el
+[conjunto de bibliotecas](#the-library-set) o un rechazo. Las vistas previas de
+aplicaciones y las exportaciones PDF con enlaces a datos en vivo bloquean las
+teselas de mapas, incluso cuando no hay registros disponibles: las coordenadas
+elegidas por la página podrían revelar esos registros al proveedor de mapas.
+Las visualizaciones sin enlaces a datos pueden usar el proxy de teselas configurado en el despliegue.
 
 La imagen necesita un navegador que ejecute el operador, indicado por
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), y el extra

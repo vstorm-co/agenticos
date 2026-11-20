@@ -77,6 +77,37 @@ async def test_real_pdf_uses_a_separate_context_and_closes_the_stream(
     assert browser.closed and browser.commands("Target.disposeBrowserContext")
 
 
+@pytest.mark.security
+async def test_pdf_exports_with_bound_records_cannot_send_them_through_map_tiles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services import visual_render
+
+    monkeypatch.setattr(renderer.settings, "ARTIFACT_RENDER_CDP_URL", "http://renderer:9222")
+    monkeypatch.setattr(renderer, "SETTLE_SECONDS", 0)
+    address = f"{renderer.tile_source()}3/4/5"
+    browser = PrintBrowser(pdf())
+    browser.events.append(
+        (
+            "Fetch.requestPaused",
+            {"requestId": "tile", "request": {"url": address, "method": "GET"}},
+            "PAGE",
+        )
+    )
+    proxy = AsyncMock(return_value=visual_render.Answer(body=b"tile", content_type="image/png"))
+    monkeypatch.setattr(visual_render, "answer", proxy)
+    request = RenderRequest(
+        document=b"<h1>Report</h1>", nonce="n", bindings=_preview().bindings, output="pdf"
+    )
+
+    found = await renderer.render(request, connect=AsyncMock(return_value=browser))
+
+    assert found.pdf == browser.data
+    assert browser.answered()["tile"] == "failRequest"
+    assert address in found.blocked
+    proxy.assert_not_awaited()
+
+
 @pytest.mark.parametrize("data", [b"", b"<html>not PDF</html>", pdf(51)])
 def test_invalid_or_truncated_exports_are_refused(data: bytes) -> None:
     with pytest.raises(ExternalServiceError):

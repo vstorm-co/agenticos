@@ -18,10 +18,12 @@ from typing import Any
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from fastmcp.exceptions import ValidationError as MCPValidationError
 from fastmcp.server.dependencies import get_access_token
 from fastmcp.server.http import StarletteWithLifespan
+from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from fastmcp.tools import ToolResult
-from mcp.types import ToolAnnotations
+from mcp.types import CallToolRequestParams, ToolAnnotations
 from starlette.requests import HTTPConnection
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -71,6 +73,13 @@ def _with_domain_errors(
             return ToolResult(
                 content=message, structured_content=json.loads(message), is_error=True
             )
+        except ToolError as error:
+            message = str(error)
+            if len(message.encode()) > 8192:
+                raise ToolError(
+                    message[:2000] + " [Diagnostic shortened; narrow the request before retrying.]"
+                ) from error
+            raise
 
     return call
 
@@ -81,8 +90,23 @@ Tools for operating an AgenticOS organization: its agents, runs, knowledge bases
 skills, projects and members. Every call acts as the person who issued the connection's key,
 within that key's permissions - a refusal names the permission that was missing.
 Use `whoami` when the organization or connection authority is unknown.
+For deployment/organization settings, assistant and system-agent configuration,
+search list_administration_actions and read only the selected action's schema.
+Administrative discovery does not grant access. Deployment actions need an external
+OAuth grant with deployment:admin and a live application administrator; internal
+agents and organization keys never inherit this scope. Organization operations
+retain the connection's tenant and all role, budget and scope checks.
+Credential and binary uploads use the console handoff; verify the saved metadata.
 Discover the resource and action you need, then use its current tool description
 and schema as the API contract. Ordinary reads and edits need no skill preflight.
+Prefer searched metadata and small pages, following next_skip. Read selected details
+only as needed. get_authoring_schema exposes large authoring contracts on demand.
+Oversized reads return a navigation receipt: use read_platform_details with the
+credential-bound continuation and selected JSON pointers. Handles expire after five
+minutes; if expired or changed, execute and authorize the original read again. Assemble JSON fragments before
+using a schema; continue a stable value with value_hash as expected_hash.
+A write receipt acknowledges the API request, not a completed background job;
+inspect status and read the saved resource, rather than repeating the write.
 Reuse existing resources; prefer managed task boards for commitments over creating
 a parallel task schema. Read back consequential writes before claiming success.
 An `error` envelope is an explicit domain refusal, never a successful change.
@@ -93,6 +117,26 @@ Use its code and field details to correct input; do not bypass permission refusa
 )
 
 
+class _BoundToolErrors(Middleware):
+    """Bound SDK validation diagnostics too, before any operation body executes."""
+
+    async def on_call_tool(
+        self,
+        context: MiddlewareContext[CallToolRequestParams],
+        call_next: CallNext[CallToolRequestParams, ToolResult],
+    ) -> ToolResult:
+        try:
+            return await call_next(context)
+        except (ToolError, MCPValidationError) as error:
+            message = str(error)
+            if len(message.encode()) > 8192:
+                raise ToolError(
+                    message[:1500]
+                    + " [Diagnostics omitted; narrow the input and use get_authoring_schema.]"
+                ) from error
+            raise
+
+
 def build_platform_mcp(app: ASGIApp) -> tuple[FastMCP, StarletteWithLifespan]:
     """The MCP server, and the ASGI app serving it, calling `app`'s public API."""
     server = FastMCP(
@@ -100,6 +144,7 @@ def build_platform_mcp(app: ASGIApp) -> tuple[FastMCP, StarletteWithLifespan]:
         mask_error_details=True,
         instructions=INSTRUCTIONS,
         auth=PlatformOAuthProvider(),
+        middleware=[_BoundToolErrors()],
     )
     api = PlatformApi(app, token=_mcp_token, on_refusal=_tool_error)
     for tool in platform_tools(api):

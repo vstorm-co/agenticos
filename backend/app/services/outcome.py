@@ -211,7 +211,13 @@ class OutcomeService:
             )
 
     async def list_mine(
-        self, ctx: AuthContext, *, open_only: bool, conversation_id: UUID | None, limit: int = 50
+        self,
+        ctx: AuthContext,
+        *,
+        open_only: bool,
+        conversation_id: UUID | None,
+        limit: int = 50,
+        skip: int = 0,
     ) -> list[Outcome]:
         _caller(ctx)
         await self._require_private_chat(ctx)
@@ -231,6 +237,7 @@ class OutcomeService:
             statuses=statuses,
             conversation_id=conversation_id,
             limit=limit,
+            **({"skip": skip} if skip else {}),
         )
 
     async def finding_sources(

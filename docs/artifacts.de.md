@@ -1,5 +1,5 @@
 ---
-source_sha: "90fbc02e70bd"
+source_sha: "9279a94553fb"
 ---
 
 # Apps { #artifacts }
@@ -1000,9 +1000,12 @@ eine Kanalnachricht, eine E-Mail oder ein Repository-Ereignis gestartet hat, gle
 als wer er ausgeführt wird. Eine Oberfläche, an der niemand angemeldet ist, zeigt
 keine Vorschau.
 
-Nichts, was die Seite anfragt,
-erreicht das Netzwerk: Die API beantwortet jede Anfrage mit der Seite, dem
-[Bibliothekssatz](#the-library-set) oder einer Ablehnung.
+Der Renderer beantwortet Anfragen mit der Seite, dem
+[Bibliothekssatz](#the-library-set) oder einer Ablehnung. App-Vorschauen und
+PDF-Exporte mit Live-Datenbindungen blockieren Kartenkacheln, auch wenn keine
+Datensätze verfügbar sind: Von der Seite gewählte Kachelkoordinaten könnten
+diese Datensätze an den Kartenanbieter weitergeben. Visuals ohne Datenbindungen
+können den konfigurierten Kachelproxy der Bereitstellung nutzen.
 
 Das Bild braucht einen Browser, den der Betreiber bereitstellt, benannt durch
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), und das Extra

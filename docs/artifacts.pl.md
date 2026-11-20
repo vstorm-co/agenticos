@@ -1,5 +1,5 @@
 ---
-source_sha: "90fbc02e70bd"
+source_sha: "9279a94553fb"
 ---
 
 # Aplikacje { #artifacts }
@@ -903,8 +903,11 @@ przez webhook, formularz, wiadomość w kanale, e-mail albo zdarzenie repozytori
 względu na to, jako kto się wykonuje. Powierzchnia, na której nikt nie jest zalogowany,
 nie podgląda niczego.
 
-Nic, o co prosi strona, nie trafia do sieci: API odpowiada na każde żądanie
-stroną, [zestawem bibliotek](#the-library-set) albo odmową.
+Renderer odpowiada na żądania stroną, [zestawem bibliotek](#the-library-set)
+albo odmową. Podglądy aplikacji i eksporty PDF z powiązaniami danych na żywo
+blokują kafelki map, także gdy nie ma dostępnych rekordów: współrzędne kafelków
+wybrane przez stronę mogłyby ujawnić te rekordy dostawcy map.
+Wizualizacje bez powiązań danych mogą korzystać z proxy kafelków skonfigurowanego we wdrożeniu.
 
 Obraz wymaga przeglądarki uruchomionej przez operatora, wskazanej w
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), i dodatku

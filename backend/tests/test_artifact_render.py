@@ -246,6 +246,26 @@ async def _render(browser: FakeBrowser, **overrides: Any) -> renderer.Rendered:
 
 
 class TestNothingReachesTheNetwork:
+    @pytest.mark.security
+    @pytest.mark.parametrize("bindings", [{}, {"tickets": _binding()}])
+    async def test_live_data_renders_never_forward_page_selected_map_tiles(
+        self, bindings: dict[str, BindingData], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.services import visual_render
+
+        address = f"{renderer.tile_source()}3/4/5"
+        browser = FakeBrowser(
+            events=[*_page_events(), ("Fetch.requestPaused", _paused("tile", address), "FRAME")]
+        )
+        proxy = AsyncMock(return_value=visual_render.Answer(body=b"tile", content_type="image/png"))
+        monkeypatch.setattr(visual_render, "answer", proxy)
+
+        drawn = await _render(browser, bindings=bindings)
+
+        assert browser.answered()["tile"] == "failRequest"
+        assert address in drawn.blocked
+        proxy.assert_not_awaited()
+
     async def test_only_the_host_the_page_and_the_library_set_are_answered(self) -> None:
         browser = FakeBrowser()
         drawn = await _render(browser)
@@ -337,7 +357,7 @@ class TestTheRender:
         browser = FakeBrowser(events=events)
         proxy = AsyncMock(return_value=visual_render.Answer(body=body, content_type="image/png"))
         monkeypatch.setattr(visual_render, "answer", proxy)
-        await _render(browser)
+        await _render(browser, bindings=None)
         assert browser.answered()["tile"] == (
             "fulfillRequest" if body is not None else "failRequest"
         )

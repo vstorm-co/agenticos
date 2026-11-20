@@ -873,9 +873,11 @@ for - one an outsider started through a webhook, a form, a channel message, an
 email or a repository event - whoever it executes as. A surface with nobody signed
 in previews nothing.
 
-Nothing the page asks for reaches the
-network: the API answers every request with the page, the
-[library set](#the-library-set) or a refusal.
+The renderer answers requests with the page, the
+[library set](#the-library-set) or a refusal. App previews and PDF exports with
+live-data bindings block map tiles, including when no records are available:
+page-selected tile coordinates could disclose those records to the tile provider.
+Unbound visuals can use the deployment's configured tile proxy.
 
 The picture needs a browser the operator runs, named by
 [`ARTIFACT_RENDER_CDP_URL`](configuration.md#published-artifacts), and the backend's

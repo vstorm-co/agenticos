@@ -10,8 +10,13 @@ import { NEW_PLATFORM_BINDING, PlatformServerCard } from "./platform-server-card
 
 const DEFAULT_TOOLS = () => ({
   tools: [
-    { name: "list_agents", description: "The agents this caller can see.", writes: false },
-    { name: "run_agent", description: "Run an agent.", writes: true },
+    {
+      name: "list_agents",
+      description: "The agents this caller can see.",
+      group: "agents",
+      writes: false,
+    },
+    { name: "run_agent", description: "Run an agent.", group: "agents", writes: true },
   ] as PlatformMcpTool[],
   isLoading: false,
   error: null as Error | null,
@@ -62,16 +67,18 @@ describe("the AgenticOS server in the Builder", () => {
 
     expect(onChange).toHaveBeenLastCalledWith(NEW_PLATFORM_BINDING);
     expect(screen.getByRole("dialog")).toHaveTextContent("exactly their permissions");
-    expect(screen.getByText("changes something")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Agents" })).toBeInTheDocument();
+    expect(screen.getAllByRole("img", { name: "Changes something" })).toHaveLength(1);
   });
 
-  it("marks the one write no policy holds - the person's own language (#2301)", async () => {
+  it("cannot ask before the person's own language, the write no policy holds (#2301)", async () => {
     tools.mockReturnValue({
       tools: [
-        { name: "publish_agent", description: "Publish.", writes: true },
+        { name: "publish_agent", description: "Publish.", group: "agents", writes: true },
         {
           name: "set_my_language",
           description: "Switch the language.",
+          group: "account",
           writes: true,
           ungated: true,
         },
@@ -82,60 +89,62 @@ describe("the AgenticOS server in the Builder", () => {
     render(<Harness initial={NEW_PLATFORM_BINDING} onChange={vi.fn()} />);
     await userEvent.click(screen.getByText("Asks before any change"));
 
-    expect(screen.getByText("changes something")).toBeInTheDocument();
-    expect(screen.getByText("your own setting, never asks")).toBeInTheDocument();
+    const language = screen.getByRole("button", { name: "Ask first before set_my_language" });
+    expect(language).toBeDisabled();
+    expect(language).toHaveAttribute("title", "your own setting, never asks");
+    expect(screen.getByRole("button", { name: "Ask first before publish_agent" })).toBeEnabled();
   });
 
-  it("marks the one read that asks first - a whole past conversation (Codex on #2324)", async () => {
-    tools.mockReturnValue({
-      tools: [
-        { name: "get_run", description: "One run.", writes: false },
-        {
-          name: "read_conversation",
-          description: "A whole conversation.",
-          writes: false,
-          held: true,
-        },
-      ],
-      isLoading: false,
-      error: null,
-    });
-    render(<Harness initial={NEW_PLATFORM_BINDING} onChange={vi.fn()} />);
-    await userEvent.click(screen.getByText("Asks before any change"));
-
-    expect(screen.getAllByText("reads past conversations, asks first")).toHaveLength(1);
-  });
-
-  it("narrows the tools, and every tool chosen again is no limit at all", async () => {
+  it("narrows the tools, and every tool chosen again is today's tools only", async () => {
     const onChange = vi.fn();
     render(<Harness initial={NEW_PLATFORM_BINDING} onChange={onChange} />);
     await userEvent.click(screen.getByText("Asks before any change"));
 
-    await userEvent.click(screen.getByRole("checkbox", { name: /run_agent/ }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "run_agent" }));
     expect(onChange).toHaveBeenLastCalledWith({
       ...NEW_PLATFORM_BINDING,
       allowed_tools: ["list_agents"],
     });
 
-    await userEvent.click(screen.getByRole("checkbox", { name: /run_agent/ }));
-    expect(onChange).toHaveBeenLastCalledWith({ ...NEW_PLATFORM_BINDING, allowed_tools: null });
+    await userEvent.click(screen.getByRole("checkbox", { name: "run_agent" }));
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...NEW_PLATFORM_BINDING,
+      allowed_tools: ["list_agents", "run_agent"],
+    });
   });
 
-  it("asks before every call when the author says so, and is removed from the dialog", async () => {
+  it("says when a tool runs freely, and is removed from the dialog", async () => {
     const onChange = vi.fn();
     render(<Harness initial={NEW_PLATFORM_BINDING} onChange={onChange} />);
-    expect(screen.getByText("Asks before any change")).toBeInTheDocument();
     await userEvent.click(screen.getByText("Asks before any change"));
 
-    await userEvent.click(screen.getByRole("radio", { name: /Asks before every call/ }));
-    expect(onChange).toHaveBeenLastCalledWith({ ...NEW_PLATFORM_BINDING, approval: "all" });
+    await userEvent.click(screen.getByRole("button", { name: "Ask first before run_agent" }));
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...NEW_PLATFORM_BINDING,
+      tool_approval: { run_agent: "never" },
+    });
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
-    expect(screen.getByText("Asks before every call")).toBeInTheDocument();
+    expect(screen.getByText("Some tools run without asking")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByText("Asks before every call"));
+    await userEvent.click(screen.getByText("Some tools run without asking"));
     await userEvent.click(screen.getByRole("button", { name: "Remove from this agent" }));
     expect(onChange).toHaveBeenLastCalledWith(null);
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("does not count a tool the agent cannot call as running freely", () => {
+    const binding = {
+      ...NEW_PLATFORM_BINDING,
+      allowed_tools: ["list_agents"],
+      tool_approval: { run_agent: "never" as const },
+    };
+    render(<Harness initial={binding} onChange={vi.fn()} />);
+    expect(screen.getByText("Asks before any change")).toBeInTheDocument();
+  });
+
+  it("says a binding that asks before every call does", () => {
+    render(<Harness initial={{ ...NEW_PLATFORM_BINDING, approval: "all" }} onChange={vi.fn()} />);
+    expect(screen.getByText("Asks before every call")).toBeInTheDocument();
   });
 
   it("offers to use it from the dialog when it is off, and holds while the tools load", async () => {
@@ -165,21 +174,6 @@ describe("the AgenticOS server in the Builder", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Use AgenticOS in this agent" }));
     expect(onChange).toHaveBeenLastCalledWith(null);
     expect(screen.queryByRole("dialog")).toBeNull();
-  });
-
-  it("reads a binding that names no policy as asking before writes, the server's own floor", async () => {
-    tools.mockReturnValueOnce({ tools: [], isLoading: true, error: null });
-    render(
-      <Harness
-        initial={{ account: "platform", allowed_tools: null, approval: "writes" }}
-        onChange={vi.fn()}
-      />,
-    );
-    await userEvent.click(screen.getByText("Asks before any change"));
-    expect(screen.getByRole("radio", { name: /Asks before any change/ })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
   });
 
   it("opens its settings from anywhere on the card", async () => {

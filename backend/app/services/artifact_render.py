@@ -20,7 +20,8 @@ text report alone.
 as it starts - and answered from this process: a host document at
 `FRONTEND_URL` that frames the page as the console does, the page at its real
 content address under its real `Content-Security-Policy`, and the library set
-from disk. Configured map tiles use the bounded server-side tile proxy.
+from disk. Renders without live-data bindings can use configured map tiles
+through the bounded server-side tile proxy; bound renders block them.
 Anything else fails as blocked by the client and is reported. The
 browser should run with no egress as well: this is the first barrier, and that
 is the second.
@@ -579,9 +580,10 @@ class _Render:
                     "Cross-Origin-Resource-Policy": "cross-origin",
                 },
             )
-        if address.startswith(tile_source()):
-            # Reuse the frame's bounded, administrator-configured tile proxy.
-            # No address supplied by the page is fetched by the renderer.
+        if self.request.bindings is None and address.startswith(tile_source()):
+            # A bound page could encode its records in tile coordinates. Even a
+            # fixed provider would receive those values, so only unbound renders
+            # can use the administrator-configured tile proxy.
             from app.services.visual_render import answer
 
             tile = await answer(address, self.request.document)

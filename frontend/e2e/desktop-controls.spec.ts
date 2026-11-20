@@ -318,9 +318,7 @@ test.describe("desktop pointer controls", () => {
       await expect(composer).toBeVisible();
       await settleEntrances(page);
       await page.getByRole("button", { name: /^Show the files/ }).click();
-      const panel = page
-        .getByRole("complementary")
-        .filter({ has: page.getByRole("button", { name: "Close the file panel" }) });
+      const panel = page.getByRole("tabpanel", { name: "Files", exact: true });
       const close = panel.getByRole("button", { name: "Close the file panel" });
       await expect(panel.getByRole("treeitem")).toHaveCount(120);
       await settleEntrances(page);
