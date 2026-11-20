@@ -361,6 +361,7 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | GitHub Models | `github` | API key | |
 | Groq | `groq` | API key | |
 | Heroku AI | `heroku` | API key | ✓ |
+| LLMTR | `llmtr` | API key | |
 | Mistral | `mistral` | API key | |
 | Moonshot AI | `moonshotai` | API key | |
 | Nebius AI Studio | `nebius` | API key | |
@@ -373,6 +374,8 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | xAI (Grok) | `xai` | API key | ✓ (`api_host`) |
 | Cohere | `cohere` | API key | |
 | Hugging Face | `huggingface` | API key | ✓ |
+
+LLMTR lists only models advertising `CHAT_COMPLETIONS`. A model without a reviewed price in the bundled snapshot can run only without an active dollar ceiling; its cost remains marked incomplete. A budgeted run also refuses further LLMTR calls when earlier usage has an unknown cost.
 
 ### Self-hosted
 

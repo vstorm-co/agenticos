@@ -911,6 +911,7 @@ class TestWhenTheWorkspaceWillNotTakeAWrite:
         assert "would not accept a write this turn" in prompt[0]
         assert "could not be processed" not in prompt[0]
 
+    @pytest.mark.security
     async def test_an_unavailable_sandbox_does_not_extend_the_inline_image_budget(
         self, storage, monkeypatch
     ):

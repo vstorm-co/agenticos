@@ -24,6 +24,7 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   imessage: "iMessage",
 
   discord: "Discord",
+  matrix: "Matrix",
 };
 
 interface ChannelBotsTableProps {

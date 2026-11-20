@@ -102,6 +102,7 @@ def runtime_context(
     """Facts the deployment knows, independent of an editable binding prompt."""
     names = {
         "discord": "Discord",
+        "matrix": "Matrix",
         "mattermost": "Mattermost",
         "slack": "Slack",
         "teams": "Microsoft Teams",
@@ -209,8 +210,20 @@ You are answering in Discord, which renders Markdown.
   split into several.
 """
 
+_MATRIX = """
+You are answering in Matrix (Element and other clients), which renders Markdown.
+
+- Bold `**like this**`, italic `*like this*`, inline code and fenced code blocks.
+- Links: `[what it is](https://example.com)`.
+- Headings, bulleted and numbered lists and simple tables work.
+- Lead a link with an emoji when it is an action or a destination, e.g.
+  📄 [the invoice](https://example.com/invoice).
+- Keep answers focused. A long answer is split into several messages.
+"""
+
 HOUSE_STYLE: dict[str, str] = {
     "discord": _DISCORD.strip(),
+    "matrix": _MATRIX.strip(),
     "mattermost": _MATTERMOST.strip(),
     "slack": _SLACK.strip(),
     "telegram": _TELEGRAM.strip(),

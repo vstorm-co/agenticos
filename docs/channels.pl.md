@@ -1,5 +1,5 @@
 ---
-source_sha: "17a1b5a9ba2f"
+source_sha: "9dab1088209c"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1759,10 +1759,128 @@ Gdy obie ścieżki dają członkostwo, przy logowaniu pierwszeństwo ma katalog.
 Po utracie dostępu z katalogu aktywna rola Discorda przejmuje ten sam wiersz bez
 cofania kluczy. Zobacz [przekazywanie członkostwa](directory.md#what-the-sync-never-touches).
 
+## Matrix { #matrix }
+
+Bot Matrixa to zwykłe konto na twoim własnym homeserverze, z którym wdrożenie
+rozmawia przez Client-Server API, bez biblioteki pośrodku (#2081). Wszystko
+przychodzi przez long-poll `/sync` bota, więc **wdrożenie nie potrzebuje
+publicznego adresu dla Matrixa**, a bot Matrixa nie ma trybu webhooka. Miejsce,
+w którym bot przestał czytać, jest przechowywane w Redisie wdrożenia, więc po
+restarcie bot wznawia od niego. Przy pierwszym starcie konta bot pomija historię
+pokoju, zamiast na nią odpowiadać.
+
+Luki w ograniczonym batchu `/sync` są odtwarzane chronologicznie stronami po
+50 wiadomości od ostatniego zapisanego kursora, także po restarcie. Każda strona
+trafia do kolejki przed odczytem następnej; kursor zmienia się dopiero po
+pomyślnym przyjęciu całego batcha.
+
+!!! warning "Na razie tylko pokoje nieszyfrowane"
+
+    Bot czyta pokoje bez szyfrowania end-to-end. Zaproszenie do zaszyfrowanego
+    pokoju lub czatu bezpośredniego odrzuca z powodem, który widzi zapraszający,
+    a w pokoju, w którym szyfrowanie włączono później, milczy. Szyfrowanie to
+    drugi etap #2081. Adapter sprawdza aktualny stan szyfrowania przed
+    przyjęciem wiadomości i przed wysłaniem odpowiedzi, edycji lub reakcji.
+    Jeśli nie może odczytać stanu, nie wysyła tekstu jawnego.
+    Jeśli zaproszenie pomija stan szyfrowania, bot sprawdza go po dołączeniu
+    i opuszcza pokój, gdy szyfrowanie jest włączone.
+
+1. Utwórz na homeserverze konto dla bota, na przykład `@agent:example.org`.
+2. Zdobądź dla niego **token dostępu** (access token):
+    - Na homeserverze za Matrix Authentication Service (MAS) wydaj token
+      zgodności na hoście MAS:
+      `mas-cli manage issue-compatibility-token <username>`. MAS 1.5 i nowsze
+      potrafią też utworzyć sesję osobistą w ustawieniach konta.
+    - Na homeserverze bez MAS zaloguj się raz hasłem konta:
+      `curl -XPOST https://matrix.example.org/_matrix/client/v3/login -d
+      '{"type":"m.login.password","identifier":{"type":"m.id.user","user":"agent"},"password":"…"}'`
+      i zachowaj `access_token` z odpowiedzi. Nie wylogowuj tej sesji: jej token
+      należy do bota.
+3. Zarejestruj go: **Kanały → Dodaj kanał**, platforma `matrix`, z tokenem i
+   **URL-em klienta** homeservera (`https://matrix.example.org`). Gdy strumień
+   się otwiera, bot pyta homeserver, kim jest. Token, który homeserver odrzuca,
+   zatrzymuje bota, a jego wiersz to mówi.
+4. Zaproś bota do pokoju albo zacznij z nim czat bezpośredni. Bot dołącza, gdy
+   zapraszający jest kimś, kogo dopuszcza jego polityka dostępu, a w przeciwnym
+   razie odmawia.
+
+**Znieś limit szybkości dla bota.** Odpowiedź to jedna wiadomość edytowana raz na
+sekundę, póki spływa, a domyślny limit wiadomości w Synapse dławi to po kilku
+sekundach. Bot czeka, gdy homeserver mówi, jak długo, więc nic nie przepada, ale
+długa odpowiedź pojawia się wtedy skokami. W Synapse administrator zwalnia bota
+z limitu przez
+`POST /_synapse/admin/v1/users/@agent:example.org/override_ratelimit` z
+`{"messages_per_second": 0, "burst_count": 0}`.
+
+| Gdzie | Kiedy odpowiada |
+|---|---|
+| Czat bezpośredni (pokój bota i jednej osoby) | Na każdą wiadomość |
+| Pokój | Gdy wiadomość wspomina bota. Odpowiedź otwiera wątek na pytaniu, a wątek jest rozmową |
+| Wątek, w którym zapytano bota | Na każdą wiadomość w nim |
+
+Wzmianka to bot wskazany w `m.mentions` wiadomości, „pigułka” (pill), która do
+niego linkuje, albo wpisany uchwyt: `@` i identyfikator użytkownika, część
+lokalna lub nazwa wyświetlana bota, np. `@AgenticOS co potrafisz?`. Niektóre
+klienty wysyłają wpisany uchwyt jako zwykły tekst, więc liczy się on także bez
+pigułki. Nazwa bez `@`, uchwyt w kodzie i dłuższy uchwyt, jak `@agent-ops`, się
+nie liczą.
+
+Na `@room` bot
+odpowiada tylko wtedy, gdy jego polityka każe odpowiadać na wzmianki całego
+kanału. Jak wszędzie indziej, czat bezpośredni też ma wątki: odpowiedź w wątku
+odpowiedzi kontynuuje rozmowę, a nowa wiadomość na dole zaczyna nową.
+
+**Odpowiedź jest pisana w miejscu.** Bot publikuje jedną wiadomość i edytuje ją
+przez `m.replace` w miarę, jak odpowiedź spływa. Po 4000 znakach odpowiedź
+przechodzi do kolejnych wiadomości w tym samym wątku. Zapisywany jest tylko
+tekst, który guardraile już sprawdziły. Nic, co publikuje bot, nie może nikogo
+powiadomić: każda wiadomość niesie puste `m.mentions`. Odpowiedzi są wysyłane
+jako Markdown wyrenderowany do HTML, a HTML w wyjściu modelu jest escapowany,
+nigdy nie jest wysyłany jako znaczniki.
+
+**Zatwierdzenia i pytania są numerowane.** Matrix nie ma przycisków, a ankiet nie
+ma w specyfikacji, więc prośba wypisuje swoje opcje jako ponumerowane wiersze w
+wątku. Odpowiedź, która jest samym numerem, rozstrzyga ją, tak jak w
+[SMS](#sms). Bot reaguje 👀 na pytanie, gdy ono przychodzi, i pokazuje, że pisze,
+gdy pracuje.
+
+**Polecenia w Element.** Element traktuje wiadomość zaczynającą się od `/` jako
+własne polecenie. `/help` otwiera pomoc Element i nigdy nie trafia do bota.
+Każde inne polecenie bota, np. `/new` lub `/link`, otwiera okno *Nieznane
+polecenie* w Element, w którym **Wyślij jako wiadomość** je wysyła. Wiadomość
+zaczynająca się od `//`, np. `//help`, jest wysyłana od razu.
+
+Przed każdą wiadomością klasyfikowaną jako prywatna bot sprawdza aktualną listę
+uczestników. Ciche dołączenie trzeciej osoby nie zachowuje dostępu do prywatnego
+kontekstu. Wynik klasyfikacji grupy jest pamiętany tylko w bieżącym batchu `/sync`.
+Prywatne odpowiedzi, edycje, pytania i pliki sprawdzają pierwotnego odbiorcę
+bezpośrednio przed wysłaniem, także po wznowieniu runu. Dołączenie osoby lub
+podmiana odbiorcy blokuje tę prywatną odpowiedź; rozmowa grupowa ma osobny kontekst.
+
+Pobieranie mediów nie podąża za przekierowaniami. Homeserver musi udostępniać
+uwierzytelnione media bezpośrednio; przekierowania do CDN są odrzucane.
+
+**Pliki** wrzucane przez ludzi są pobierane przez uwierzytelnione media
+homeservera tokenem bota, do limitu wysyłania; pliki i wykresy, które wysyła
+agent, są wysyłane tak samo. **Wątek, do którego bota dołączono w trakcie, jest
+czytany najpierw**, tak jak na Slacku i Mattermoście. Każda wiadomość jest
+czytana w brzmieniu jej ostatniej edycji, a pliki wrzucone przez samego bota są
+pomijane. Gdy pozwala na to powiązanie, agent może opisać pokój, wypisać jego
+członków i czytać jego historię.
+
+**Kto mówi**, określa identyfikator Matrixa (`@ada:example.org`) razem z adresem
+klienta skonfigurowanego homeservera. `/link` potwierdza tę parę; inny serwer
+wymaga osobnego powiązania, nawet gdy podaje ten sam identyfikator użytkownika.
+Adres serwera widać przed potwierdzeniem oraz na liście połączonych kont.
+Wielkość liter hosta, domyślne porty i końcowe ukośniki są normalizowane;
+różne ścieżki pozostają osobnymi źródłami tożsamości. Zmiana serwera bota nie
+pozwala wznowić starej tożsamości ani wysłać starej odpowiedzi przez nowy serwer.
+Rozmowę z pokoju widzą w konsoli osoby, które nadal do niego należą.
+
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
-Polling Telegrama, Socket Mode Slacka, strumień eventów Mattermosta i Gateway
-Discorda chodzą pod jednym supervisorem, który ponownie łączy zerwaną sesję. Brakująca albo odrzucona
+Polling Telegrama, Socket Mode Slacka, strumień eventów Mattermosta, Gateway
+Discorda i synchronizacja Matrixa chodzą pod jednym supervisorem, który ponownie łączy zerwaną sesję. Brakująca albo odrzucona
 wartość konfiguracyjna nie jest zerwaną sesją i supervisor traktuje ją inaczej:
 zapisuje bota jako położonego wraz z powodem, loguje raz i zatrzymuje się. Nic,
 co by zrobił, nie zmieniłoby tego wiersza — operator musi dodać slackowy token
