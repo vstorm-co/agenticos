@@ -304,3 +304,45 @@ def test_non_message_or_malformed_event_is_not_admitted(event: dict[str, Any]) -
 
 def test_messages_without_a_thread_do_not_invent_a_relation() -> None:
     assert "m.relates_to" not in text_content("hello", root=None)
+
+
+@pytest.mark.parametrize(
+    "room,user", [(ROOM, "@ada:example.org"), ("!literal|pipe:x", "@pipe|user:x")]
+)
+def test_private_room_keys_preserve_recipient_and_thread_separately(room: str, user: str) -> None:
+    from app.services.channels.matrix_protocol import recipient_of
+
+    key = room_key(room, private_recipient=user)
+    channel, root = split_thread(thread_key(key, thread_id="$root:remote", message_id=None))
+    assert (room_of(channel), recipient_of(channel), root) == (room, user, "$root:remote")
+    assert key != room_key(room)
+    assert recipient_of(room_key(room)) is None
+
+
+@pytest.mark.parametrize(
+    "key", ["!room|", "!room|not-a-user", room_key(ROOM, private_recipient="@" + "é" * 128)]
+)
+def test_invalid_private_recipient_is_refused(key: str) -> None:
+    from app.services.channels.matrix_protocol import recipient_of
+
+    with pytest.raises(ValueError, match="user id"):
+        recipient_of(key)
+
+
+def test_native_identifier_limits_count_bytes_instead_of_characters() -> None:
+    with pytest.raises(ValueError, match="room id"):
+        room_of(room_key("!" + "é" * 128))
+    assert read_message(_event({}, sender="@" + "é" * 128)) is None
+    assert read_message(_event({}, event_id="$" + "é" * 128)) is None
+
+
+@pytest.mark.parametrize("value", ["not-an-id", "", "@", "@bad\x00user:x", "@bad\ud800user:x"])
+def test_malformed_native_senders_do_not_poison_a_sync_batch(value: str) -> None:
+    assert read_message(_event({}, sender=value)) is None
+
+
+@pytest.mark.parametrize("root", [None, 17, "not-an-event", "$" + "e" * 255, "$bad\ud800event"])
+def test_invalid_thread_roots_are_not_admitted(root: object) -> None:
+    assert (
+        read_message(_event({"m.relates_to": {"rel_type": "m.thread", "event_id": root}})) is None
+    )

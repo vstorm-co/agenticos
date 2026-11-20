@@ -74,9 +74,36 @@ _MARKDOWN = (
 """Raw HTML off: the model's own `<tags>` are escaped, never sent as markup."""
 
 
-def room_key(room_id: str) -> str:
-    """The room as the router keys it: its id with the colon encoded."""
-    return quote(room_id, safe="!")
+def _identifier(value: str, sigil: str) -> bool:
+    """A native identifier fitting Matrix's byte limit and Unicode contract."""
+    if len(value) < 2 or not value.startswith(sigil) or "\x00" in value:
+        return False
+    try:
+        return len(value.encode()) <= 255
+    except UnicodeEncodeError:
+        return False
+
+
+def room_key(room_id: str, *, private_recipient: str | None = None) -> str:
+    """An opaque room key, carrying a private turn's original recipient.
+
+    The recipient survives queued runs, prompts and resumptions in the same key
+    the router already carries. A group turn has a different conversation key.
+    Colons and literal pipes in either identifier are percent-encoded.
+    """
+    key = quote(room_id, safe="!")
+    return key if private_recipient is None else f"{key}|{quote(private_recipient, safe='')}"
+
+
+def recipient_of(key: str) -> str | None:
+    """The original private recipient, or no audience restriction for a group."""
+    _, marker, encoded = key.partition("|")
+    if not marker:
+        return None
+    recipient = unquote(encoded)
+    if not _identifier(recipient, "@"):
+        raise ValueError("A Matrix user id is required")
+    return recipient
 
 
 def room_of(key: str) -> str:
@@ -86,8 +113,8 @@ def room_of(key: str) -> str:
         ValueError: If the key is not a room. A channel tool called with
             somebody else's id must not reach the homeserver as one.
     """
-    room_id = unquote(key)
-    if not room_id.startswith("!") or len(room_id) > 255:
+    room_id = unquote(key.partition("|")[0])
+    if not _identifier(room_id, "!"):
         raise ValueError("A Matrix room id is required")
     return room_id
 
@@ -238,6 +265,8 @@ def read_message(event: dict[str, Any]) -> Message | None:
         not isinstance(content, dict)
         or not isinstance(event_id, str)
         or not isinstance(sender, str)
+        or not _identifier(event_id, "$")
+        or not _identifier(sender, "@")
     ):
         return None
     relation = content.get("m.relates_to")
@@ -269,9 +298,12 @@ def read_message(event: dict[str, Any]) -> Message | None:
             duration / 1000 if isinstance(duration, int | float) else None,
         )
         body = ""
-    thread_root = relation.get("event_id") if relation.get("rel_type") == "m.thread" else None
-    if not isinstance(thread_root, str):
-        thread_root = None
+    thread_root = None
+    if relation.get("rel_type") == "m.thread":
+        candidate = relation.get("event_id")
+        if not isinstance(candidate, str) or not _identifier(candidate, "$"):
+            return None
+        thread_root = candidate
     if "m.in_reply_to" in relation and not relation.get("is_falling_back"):
         # A real reply, not a thread's fallback: older clients quote the replied-to
         # message above the text, and the agent must not read it as the question.

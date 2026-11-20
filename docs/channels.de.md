@@ -1,5 +1,5 @@
 ---
-source_sha: "0e8a53631478"
+source_sha: "d883fdda6283"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1989,6 +1989,10 @@ Nachricht mit `//`, etwa `//help`, wird sie sofort gesendet.
 Vor jeder als privat eingestuften Nachricht prüft der Bot die aktuellen
 Mitglieder. Eine dritte Person, die still beitritt, erhält dadurch keinen
 privaten Kontext. Gruppeneinstufungen gelten nur für den aktuellen Sync-Batch.
+Private Antworten, Änderungen, Rückfragen und Dateien prüfen den ursprünglichen
+Empfänger unmittelbar vor dem Senden, auch bei fortgesetzten Läufen. Neue
+Mitglieder oder ein anderer Empfänger blockieren die private Antwort;
+Gruppenbeiträge verwenden einen eigenen Gesprächskontext.
 
 Mediendownloads folgen keinen Weiterleitungen. Der Homeserver muss
 authentifizierte Medien direkt ausliefern; CDN-Weiterleitungen werden abgelehnt.

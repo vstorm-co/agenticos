@@ -2752,7 +2752,13 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
     from app.db.models.agent import Agent
     from app.db.models.agent_exposure import AgentExposure
     from app.db.models.channel_bot import ChannelBot
+    from app.db.models.channel_identity import ChannelIdentity
+    from app.db.models.channel_link_request import ChannelLinkRequest
+    from app.db.models.channel_observation import ChannelObservation
+    from app.db.models.channel_session import ChannelSession
     from app.db.models.organization import Organization
+    from app.services.channels.base import thread_key
+    from app.services.channels.matrix_protocol import room_key
 
     result = _alembic("upgrade", "head")
     assert result.returncode == 0, result.stderr
@@ -2805,9 +2811,78 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
             db.add(added)
             db.flush()
             matrix_id = added.id
+            native_user = "@" + "u" * 242 + ":example.org"
+            native_room = "!" + "r" * 242 + ":example.org"
+            root = "$" + "e" * 254
+            private_key = thread_key(
+                room_key(native_room, private_recipient=native_user),
+                thread_id=root,
+                message_id=None,
+            )
+            group_key = thread_key(room_key(native_room), thread_id=root, message_id=None)
+            assert (
+                len(native_user.encode()) == len(native_room.encode()) == len(root.encode()) == 255
+            )
+            assert len(group_key) > 512
+            identity = ChannelIdentity(
+                platform="matrix", platform_user_id=native_user, platform_username=native_user
+            )
+            db.add(identity)
+            db.flush()
+            session = ChannelSession(
+                bot_id=matrix_bot.id,
+                identity_id=identity.id,
+                platform_chat_id=private_key,
+                chat_type="private",
+            )
+            link = ChannelLinkRequest(
+                token=uuid4().hex,
+                platform="matrix",
+                platform_user_id=native_user,
+                platform_username=native_user,
+                expires_at=datetime.now(UTC) + timedelta(minutes=5),
+            )
+            observed = ChannelObservation(
+                organization_id=org_id,
+                exposure_id=matrix_id,
+                generation=added.observation_generation,
+                admission_hash="a" * 64,
+                platform_chat_id=group_key,
+                next_check_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+            db.add_all([session, link, observed])
+            db.flush()
+            identity_id, session_id, link_id, observed_id = (
+                identity.id,
+                session.id,
+                link.id,
+                observed.id,
+            )
             db.commit()
         result = _alembic("check")
         assert result.returncode == 0, result.stderr + result.stdout
+        result = _alembic("downgrade", "0344_user_appearance")
+        assert result.returncode != 0
+        assert "Cannot downgrade Matrix identifiers" in result.stderr
+        with DatabaseSession(engine) as db:
+            stored_identity = db.get(ChannelIdentity, identity_id)
+            stored_session = db.get(ChannelSession, session_id)
+            stored_link = db.get(ChannelLinkRequest, link_id)
+            stored_observation = db.get(ChannelObservation, observed_id)
+            assert stored_identity is not None and stored_identity.platform_user_id == native_user
+            assert stored_session is not None and stored_session.platform_chat_id == private_key
+            assert stored_link is not None and stored_link.platform_username == native_user
+            assert (
+                stored_observation is not None and stored_observation.platform_chat_id == group_key
+            )
+            assert db.get(AgentExposure, matrix_id) is not None
+            # Only test-owned long rows are removed to make legacy rollback possible.
+            db.execute(delete(ChannelObservation).where(ChannelObservation.id == observed_id))
+            db.execute(delete(ChannelSession).where(ChannelSession.id == session_id))
+            db.execute(delete(ChannelIdentity).where(ChannelIdentity.id == identity_id))
+            db.execute(delete(ChannelLinkRequest).where(ChannelLinkRequest.id == link_id))
+            db.commit()
         result = _alembic("downgrade", "0344_user_appearance")
         assert result.returncode == 0, result.stderr
         with DatabaseSession(engine) as db:

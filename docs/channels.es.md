@@ -1,5 +1,5 @@
 ---
-source_sha: "0e8a53631478"
+source_sha: "d883fdda6283"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1892,6 +1892,10 @@ empieza por `//`, como `//help`, se envía directamente.
 Antes de clasificar cada mensaje como privado, el bot consulta los miembros
 actuales. Una tercera persona que se una sin hablar no conserva el acceso al
 contexto privado. La clasificación de grupo solo se guarda durante el lote actual.
+Las respuestas privadas, ediciones, preguntas y archivos comprueban al destinatario
+original justo antes del envío, también al reanudar una ejecución. Los nuevos
+miembros o un destinatario distinto bloquean esa respuesta privada; los mensajes
+de grupo usan una conversación separada.
 
 Las descargas de medios no siguen redirecciones. El homeserver debe servir los
 medios autenticados directamente; se rechazan las redirecciones a CDN.

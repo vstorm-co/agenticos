@@ -164,11 +164,14 @@ async def queue_message(db: AsyncSession, bot: ChannelBot, incoming: IncomingMes
     edited = incoming.platform == "mattermost" and incoming.raw.get("event") == "post_edited"
     if native is not None and edited:
         native += ":edit"
+    # Matrix event ids are globally unique. Its private audience can change the
+    # conversation key on a redelivery, which must not release a second run.
+    native_scope = "" if incoming.platform == "matrix" else f"{incoming.platform_chat_id}:"
     key = (
         None
         if native is None
         else "channel-message:"
-        + hashlib.sha256(f"{bot.id}:{incoming.platform_chat_id}:{native}".encode()).hexdigest()
+        + hashlib.sha256(f"{bot.id}:{native_scope}{native}".encode()).hexdigest()
     )
     if key and await job_repo.get_by_idempotency_key(
         db, organization_id=bot.organization_id, idempotency_key=key

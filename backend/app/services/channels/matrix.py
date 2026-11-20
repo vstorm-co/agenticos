@@ -90,6 +90,7 @@ from app.services.channels.matrix_protocol import (
     names,
     reaction_content,
     read_message,
+    recipient_of,
     retry_after,
     room_key,
     room_of,
@@ -152,6 +153,7 @@ class _Reply:
 
     room_id: str
     root: str | None
+    audience_key: str
     ids: list[str]
     shown: list[str] = field(default_factory=list)
 
@@ -159,6 +161,13 @@ class _Reply:
 def _segment(value: str) -> str:
     """One path segment: room ids, event ids and user ids carry `!`, `$`, `@` and `:`."""
     return quote(value, safe="")
+
+
+def _reply_key(base_url: str, token: str, event_id: str) -> str:
+    # A configured homeserver controls its returned ids. It must not overwrite
+    # another connection's cached room or private audience by reusing one.
+    credential = hashlib.sha256(f"{base_url}\n{token}".encode()).hexdigest()
+    return f"{credential}:{event_id}"
 
 
 def _posted_at(timestamp: int | None) -> datetime | None:
@@ -246,11 +255,19 @@ class MatrixAdapter(ChannelAdapter):
             await asyncio.sleep(min(retry_after(response), _RATE_LIMIT_CEILING))
 
     async def _send(
-        self, base_url: str, token: str, room_id: str, event_type: str, content: dict[str, Any]
+        self,
+        base_url: str,
+        token: str,
+        room_id: str,
+        event_type: str,
+        content: dict[str, Any],
+        *,
+        audience_key: str,
     ) -> str:
         """Send one event and return its id. The transaction id makes a retry idempotent."""
         if await self._encrypted(base_url, token, room_id):
             raise ChannelDirectoryUnsupported(_ENCRYPTED_DECLINED)
+        await self._require_recipient(base_url, token, room_id, audience_key)
         response = await self._call(
             "PUT",
             f"{base_url}{CLIENT_API}/rooms/{_segment(room_id)}/send/{event_type}/{uuid4().hex}",
@@ -261,10 +278,17 @@ class MatrixAdapter(ChannelAdapter):
         return str(response.json()["event_id"])
 
     async def _upload(
-        self, base_url: str, token: str, room_id: str, item: OutgoingAttachment
+        self,
+        base_url: str,
+        token: str,
+        room_id: str,
+        item: OutgoingAttachment,
+        *,
+        audience_key: str,
     ) -> str:
         if await self._encrypted(base_url, token, room_id):
             raise ChannelDirectoryUnsupported(_ENCRYPTED_DECLINED)
+        await self._require_recipient(base_url, token, room_id, audience_key)
         response = await self._call(
             "POST",
             f"{base_url}{MEDIA_UPLOAD}",
@@ -365,7 +389,12 @@ class MatrixAdapter(ChannelAdapter):
         for piece in chunks(msg.text):
             if piece.strip():
                 sent = await self._send(
-                    base_url, bot_token, room_id, "m.room.message", text_content(piece, root=root)
+                    base_url,
+                    bot_token,
+                    room_id,
+                    "m.room.message",
+                    text_content(piece, root=root),
+                    audience_key=key,
                 )
         files = list(msg.attachments)
         if msg.image_png is not None:
@@ -376,13 +405,14 @@ class MatrixAdapter(ChannelAdapter):
                 ),
             )
         for item in files:
-            uri = await self._upload(base_url, bot_token, room_id, item)
+            uri = await self._upload(base_url, bot_token, room_id, item, audience_key=key)
             sent = await self._send(
                 base_url,
                 bot_token,
                 room_id,
                 "m.room.message",
                 file_content(item.filename, item.mime_type, len(item.content), uri, root=root),
+                audience_key=key,
             )
         return sent
 
@@ -393,10 +423,18 @@ class MatrixAdapter(ChannelAdapter):
         room_id = room_of(key)
         shown = chunks(msg.text)[0] or "…"
         event_id = await self._send(
-            base_url, bot_token, room_id, "m.room.message", text_content(shown, root=root)
+            base_url,
+            bot_token,
+            room_id,
+            "m.room.message",
+            text_content(shown, root=root),
+            audience_key=key,
         )
         self._replies.put(
-            event_id, _Reply(room_id=room_id, root=root or None, ids=[event_id], shown=[shown])
+            _reply_key(base_url, bot_token, event_id),
+            _Reply(
+                room_id=room_id, root=root or None, audience_key=key, ids=[event_id], shown=[shown]
+            ),
         )
         self._composing.put(msg.platform_chat_id, (base_url, bot_token))
         return event_id
@@ -409,12 +447,15 @@ class MatrixAdapter(ChannelAdapter):
         answer at the end.
         """
         base_url = self._base(msg.api_base_url)
-        reply = self._replies.get(handle)
+        cache_key = _reply_key(base_url, bot_token, handle)
+        reply = self._replies.get(cache_key)
         if reply is None:
             # Another worker opened it, or this one restarted.
             key, root = split_thread(msg.platform_chat_id)
-            reply = _Reply(room_id=room_of(key), root=root or None, ids=[handle], shown=[""])
-            self._replies.put(handle, reply)
+            reply = _Reply(
+                room_id=room_of(key), root=root or None, audience_key=key, ids=[handle], shown=[""]
+            )
+            self._replies.put(cache_key, reply)
         pieces = [piece or "…" for piece in chunks(msg.text)]
         for index, piece in enumerate(pieces):
             if index < len(reply.ids):
@@ -425,6 +466,7 @@ class MatrixAdapter(ChannelAdapter):
                         reply.room_id,
                         "m.room.message",
                         edit_content(piece, target=reply.ids[index]),
+                        audience_key=reply.audience_key,
                     )
                     reply.shown[index] = piece
             else:
@@ -435,6 +477,7 @@ class MatrixAdapter(ChannelAdapter):
                         reply.room_id,
                         "m.room.message",
                         text_content(piece, root=reply.root),
+                        audience_key=reply.audience_key,
                     )
                 )
                 reply.shown.append(piece)
@@ -507,6 +550,7 @@ class MatrixAdapter(ChannelAdapter):
             room_of(channel_key(incoming.platform_chat_id)),
             "m.reaction",
             reaction_content(incoming.message_id, symbol),
+            audience_key=channel_key(incoming.platform_chat_id),
         )
 
     async def react_to_message(
@@ -534,7 +578,12 @@ class MatrixAdapter(ChannelAdapter):
             raise ChannelDirectoryUnsupported("The selected message does not belong to this room")
         target.raise_for_status()
         await self._send(
-            base_url, bot_token, room_id, "m.reaction", reaction_content(message_id, symbol)
+            base_url,
+            bot_token,
+            room_id,
+            "m.reaction",
+            reaction_content(message_id, symbol),
+            audience_key=channel_id,
         )
 
     async def typing(self, bot_id: str, msg: OutgoingMessage) -> None:
@@ -645,8 +694,39 @@ class MatrixAdapter(ChannelAdapter):
         Do not cache the refusal boundary: neither a sync filter nor a previous
         plaintext message proves the room still accepts plaintext replies.
         """
-        content = await self._state(base_url, token, room_id, "m.room.encryption")
-        return "algorithm" in content
+        response = await self._call(
+            "GET",
+            f"{base_url}{CLIENT_API}/rooms/{_segment(room_id)}/state/m.room.encryption/",
+            token,
+        )
+        if response.status_code == 404:
+            return False
+        if response.status_code == 403:
+            raise ChannelDirectoryUnsupported("This bot is not in that Matrix room")
+        response.raise_for_status()
+        # Presence, not a recognized algorithm: even malformed encryption state
+        # cannot establish that sending plaintext is safe.
+        return True
+
+    async def _require_recipient(
+        self, base_url: str, token: str, room_id: str, audience_key: str
+    ) -> None:
+        """Keep a private turn's answer with its original recipient, even after a restart.
+
+        A room can change membership while a run is queued or using private
+        context. Recounting two members is insufficient if the original person
+        left: both identities must still be the same before posting any bytes.
+        """
+        recipient = recipient_of(audience_key)
+        if recipient is None:
+            return
+        own = await self._account(base_url, token)
+        joined = await self._joined(base_url, token, room_id)
+        if len(joined) != 2 or set(joined) != {own.user_id, recipient}:
+            raise ChannelDirectoryUnsupported(
+                "This Matrix conversation no longer has its original private audience. "
+                "Start a new conversation with the bot."
+            )
 
     async def channel_details(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None
@@ -1165,7 +1245,9 @@ class MatrixAdapter(ChannelAdapter):
             bot_id=bot_id,
             platform_user_id=message.sender,
             platform_chat_id=thread_key(
-                room_key(room_id), thread_id=message.thread_root or "", message_id=message.event_id
+                room_key(room_id, private_recipient=message.sender if direct else None),
+                thread_id=message.thread_root or "",
+                message_id=message.event_id,
             ),
             chat_type="private" if direct else "group",
             text=text,

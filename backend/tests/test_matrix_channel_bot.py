@@ -119,3 +119,11 @@ async def test_an_invitation_is_admitted_as_a_message_from_the_inviter_would_be(
             )
             is admitted
         )
+
+
+def test_history_filters_accept_native_matrix_user_identifiers() -> None:
+    from app.agents.capabilities.channel_tools._directory import HistoryQuery
+
+    user = "@" + "u" * 242 + ":example.org"
+    assert len(user.encode()) == 255
+    assert HistoryQuery(author_id=user).author_id == user

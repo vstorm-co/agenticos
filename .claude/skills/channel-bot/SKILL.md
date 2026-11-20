@@ -188,3 +188,14 @@ Automatic context is thread-only. `_sync_thread_context` imports a bounded page 
 Personal service diagnostics report missing identity and connection separately. A personal source does not make a group destination private. Readiness is configuration-only, for the current caller; it must not refresh credentials or claim provider authorization was tested.
 
 Durable Mattermost edit admission checks the ignored-original Redis receipt once, then retains eligibility under a unique original-post edit key in PostgreSQL. Never re-check that expiring receipt after the thread queue wait. Resolve Telegram addressing before absorbing queued or in-process steering; slashless commands stay commands. Pending reply snapshots consume message retention quotas, and every terminal queue transition compacts duplicate reply bodies while keeping delivery identities and submission fences.
+
+
+## Matrix private destinations
+
+Matrix room keys are opaque: a private key retains the original recipient as well
+as the room, and the thread key retains the root. Pass the complete key through
+jobs, prompts, resumptions and file delivery; decode with `room_of` only at the
+Matrix API boundary. Never rebuild an outgoing private destination from the bare
+room ID. The adapter rechecks both original participants before sending private
+content, so a membership change cannot release a queued or resumed private reply
+into a group. Private and group turns use distinct conversation keys.

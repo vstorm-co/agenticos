@@ -81,6 +81,8 @@ class _Homeserver:
         for (method, prefix), responses in self.routes.items():
             if method == request.method and prefix.endswith("*") and path.startswith(prefix[:-1]):
                 return responses[0]
+        if request.method == "GET" and path.endswith("/state/m.room.encryption/"):
+            return httpx.Response(404, json={"errcode": "M_NOT_FOUND"})
         self._next += 1
         return httpx.Response(200, json={"event_id": f"$sent{self._next}"})
 
@@ -569,7 +571,7 @@ class TestAnswering:
         handle = await adapter.begin_reply("tok", _out("working"))
         assert handle is not None
         await adapter.update_reply("tok", _out("x" * (MESSAGE_LIMIT + 20)), handle)
-        reply = adapter._replies.get(handle)
+        reply = adapter._replies.get(matrix._reply_key(BASE, "tok", handle))
         assert reply is not None
         stale = reply.ids[-1]
         redact_path = _room_path(ROOM, "redact", stale) + "/"
@@ -1304,3 +1306,133 @@ class TestFailureBoundaries:
                 "tok", IncomingAttachment("file.txt", "text/plain", 0, BASE + path)
             )
         assert [(method, path) for method, path, _ in server.calls] == [("GET", path)]
+
+
+class TestPrivateAudience:
+    @pytest.mark.parametrize(
+        "method", ["send", "begin", "update", "upload", "prompt", "reaction", "ack"]
+    )
+    @pytest.mark.parametrize(
+        "members",
+        [{OWN: {}, USER: {}, "@third:example.org": {}}, {OWN: {}, "@third:example.org": {}}],
+    )
+    async def test_a_changed_private_audience_refuses_all_output_paths(
+        self, adapter: MatrixAdapter, server: _Homeserver, method: str, members: dict[str, object]
+    ) -> None:
+        key = room_key(ROOM, private_recipient=USER)
+        chat = f"{key}:$question"
+        server.answer("GET", f"{API}/account/whoami", httpx.Response(200, json={"user_id": OWN}))
+        server.answer(
+            "GET", _room_path(ROOM, "joined_members"), httpx.Response(200, json={"joined": members})
+        )
+        server.answer(
+            "GET",
+            _room_path(ROOM, "event", "$question"),
+            httpx.Response(200, json={"room_id": ROOM}),
+        )
+        msg = _out("private result", chat)
+        with (
+            patch.object(matrix.sms_prompts, "reserve", AsyncMock(return_value=1)),
+            pytest.raises(ChannelDirectoryUnsupported, match="original private audience"),
+        ):
+            if method == "send":
+                await adapter.send_message("tok", msg)
+            elif method == "begin":
+                await adapter.begin_reply("tok", msg)
+            elif method == "update":
+                await adapter.update_reply("tok", msg, "$existing")
+            elif method == "upload":
+                msg.text = ""
+                msg.attachments = [OutgoingAttachment("private.txt", b"private file")]
+                await adapter.send_message("tok", msg)
+            elif method == "prompt":
+                await adapter.send_prompt(
+                    "tok",
+                    PromptMessage(
+                        platform_chat_id=chat,
+                        text="private question",
+                        choices=[ChannelChoice("yes", "approved")],
+                        api_base_url=BASE,
+                        bot_id=BOT,
+                    ),
+                )
+            elif method == "reaction":
+                await adapter.react_to_message("tok", key, "$question", "eyes", api_base_url=BASE)
+            else:
+                incoming = adapter.parse_incoming(
+                    {"room_id": ROOM, "event": _event(), "direct": True}, BOT
+                )
+                assert incoming is not None
+                await adapter.acknowledge_message("tok", incoming, "eyes")
+        assert server.sent() == [] and server.sent("m.reaction") == []
+        assert not any(method == "POST" for method, _, _ in server.calls)
+
+    async def test_an_edit_keeps_its_original_private_fence_even_if_the_caller_drops_it(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        server.answer("GET", f"{API}/account/whoami", httpx.Response(200, json={"user_id": OWN}))
+        server.answer(
+            "GET",
+            _room_path(ROOM, "joined_members"),
+            httpx.Response(200, json={"joined": {OWN: {}, USER: {}}}),
+            httpx.Response(200, json={"joined": {OWN: {}, USER: {}, "@third:x": {}}}),
+        )
+        chat = f"{room_key(ROOM, private_recipient=USER)}:$question"
+        handle = await adapter.begin_reply("tok", _out("working", chat))
+        assert handle is not None
+        before = len(server.sent())
+        with pytest.raises(ChannelDirectoryUnsupported, match="private audience"):
+            await adapter.update_reply("tok", _out("private result"), handle)
+        assert len(server.sent()) == before
+
+    @pytest.mark.parametrize(
+        "other_base,other_token", [("https://other.example.org", "tok"), (BASE, "other-token")]
+    )
+    async def test_other_connections_cannot_replace_a_replys_private_audience(
+        self, adapter: MatrixAdapter, server: _Homeserver, other_base: str, other_token: str
+    ) -> None:
+        server.answer("GET", f"{API}/account/whoami", httpx.Response(200, json={"user_id": OWN}))
+        server.answer(
+            "GET",
+            _room_path(ROOM, "joined_members"),
+            httpx.Response(200, json={"joined": {OWN: {}, USER: {}}}),
+            httpx.Response(200, json={"joined": {OWN: {}, USER: {}, "@third:x": {}}}),
+        )
+        server.answer(
+            "PUT",
+            _room_path(ROOM, "send", "m.room.message") + "/*",
+            httpx.Response(200, json={"event_id": "$collision"}),
+        )
+        private_chat = f"{room_key(ROOM, private_recipient=USER)}:$question"
+        handle = await adapter.begin_reply("tok", _out("working", private_chat))
+        untrusted = _out("another connection")
+        untrusted.api_base_url = other_base
+        assert await adapter.begin_reply(other_token, untrusted) == handle
+        assert handle is not None
+        sent = len(server.sent())
+        with pytest.raises(ChannelDirectoryUnsupported, match="private audience"):
+            await adapter.update_reply("tok", _out("private result"), handle)
+        assert len(server.sent()) == sent
+
+    @pytest.mark.parametrize("content", [{}, [], "upstream error"])
+    async def test_present_but_malformed_encryption_state_never_allows_plaintext(
+        self, adapter: MatrixAdapter, server: _Homeserver, content: object
+    ) -> None:
+        server.answer(
+            "GET",
+            _room_path(ROOM, "state", "m.room.encryption", ""),
+            httpx.Response(200, json=content),
+        )
+        with pytest.raises(ChannelDirectoryUnsupported, match="encrypted"):
+            await adapter.send_message("tok", _out("private result"))
+        assert server.sent() == []
+
+    async def test_forbidden_encryption_state_does_not_allow_plaintext(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ) -> None:
+        server.answer(
+            "GET", _room_path(ROOM, "state", "m.room.encryption", ""), httpx.Response(403)
+        )
+        with pytest.raises(ChannelDirectoryUnsupported, match="not in"):
+            await adapter.send_message("tok", _out("private result"))
+        assert server.sent() == []

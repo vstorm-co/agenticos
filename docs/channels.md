@@ -1801,7 +1801,10 @@ command* dialog, where **Send as message** sends it. Starting the message with
 
 Private-chat classification rechecks current joined members before every message,
 so a silent third joiner cannot retain private access. Group classifications
-are cached only within the current sync batch.
+are cached only within the current sync batch. Private replies, edits, prompts
+and uploads also recheck the original recipient immediately before delivery,
+including resumed runs. A room gaining members or replacing the recipient cannot
+receive that private turn; group turns use a separate conversation.
 
 Media downloads do not follow redirects. The homeserver must serve authenticated
 media directly; redirected CDN downloads are refused.

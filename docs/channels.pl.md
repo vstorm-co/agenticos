@@ -1,5 +1,5 @@
 ---
-source_sha: "0e8a53631478"
+source_sha: "d883fdda6283"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1853,6 +1853,9 @@ zaczynająca się od `//`, np. `//help`, jest wysyłana od razu.
 Przed każdą wiadomością klasyfikowaną jako prywatna bot sprawdza aktualną listę
 uczestników. Ciche dołączenie trzeciej osoby nie zachowuje dostępu do prywatnego
 kontekstu. Wynik klasyfikacji grupy jest pamiętany tylko w bieżącym batchu `/sync`.
+Prywatne odpowiedzi, edycje, pytania i pliki sprawdzają pierwotnego odbiorcę
+bezpośrednio przed wysłaniem, także po wznowieniu runu. Dołączenie osoby lub
+podmiana odbiorcy blokuje tę prywatną odpowiedź; rozmowa grupowa ma osobny kontekst.
 
 Pobieranie mediów nie podąża za przekierowaniami. Homeserver musi udostępniać
 uwierzytelnione media bezpośrednio; przekierowania do CDN są odrzucane.

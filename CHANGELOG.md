@@ -25,7 +25,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- Apply `0345_matrix_channel.py`, which lets an agent be exposed on Matrix. Give a Matrix bot account a rate-limit exemption on its homeserver so streamed answers are not throttled; [Channels → Matrix](docs/channels.md#matrix) has the Synapse call.
+- Apply `0345_matrix_channel.py`, which enables Matrix exposures and widens channel identifiers to fit native Matrix IDs. Downgrade refuses identifiers exceeding the legacy limits instead of truncating conversation history. Give a Matrix bot account a rate-limit exemption on its homeserver so streamed answers are not throttled; [Channels → Matrix](docs/channels.md#matrix) has the Synapse call.
 
 ## [1.86.1] - 2026-11-20
 
