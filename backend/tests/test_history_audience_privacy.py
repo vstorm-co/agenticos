@@ -89,7 +89,12 @@ async def test_another_author_cannot_replay_hidden_personal_tool_data(
     ]
     rows = [
         Message(
-            id=uuid4(), ordinal=1, role="user", content="Check my calendar", author_user_id=owner
+            id=uuid4(),
+            ordinal=1,
+            role="user",
+            content="Check my calendar PRIVATE_UNSCREENED_INPUT",
+            model_content="Check my calendar [screened]",
+            author_user_id=owner,
         ),
         Message(
             id=uuid4(),
@@ -123,6 +128,7 @@ async def test_another_author_cannot_replay_hidden_personal_tool_data(
     encoded = ModelMessagesTypeAdapter.dump_json(history).decode()
     assert "PRIVATE_EVENT_THERAPY" not in encoded
     assert "PRIVATE_ARGUMENT" not in encoded
+    assert "PRIVATE_UNSCREENED_INPUT" not in encoded
     assert "personal_calendar_list_events" not in encoded
     note = (
         "query_virtual_table (completed), update_virtual_table_record (2 calls, completed), "
@@ -141,7 +147,7 @@ async def test_another_author_cannot_replay_hidden_personal_tool_data(
         for part in turn.parts
         if isinstance(part, (TextPart, UserPromptPart))
     ]
-    assert "Mira: Check my calendar" in encoded
+    assert "Mira: Check my calendar [screened]" in encoded
     assert "You have an appointment." in encoded
     assert "Teo: I am another participant" in encoded
     assert history.revision == 0

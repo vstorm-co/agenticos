@@ -44,6 +44,7 @@ from app.agents.spec import AgentSpec
 from app.core.cron import cron_has_next, cron_next
 from app.core.exceptions import RunFailedError
 from app.core.permissions import AuthContext
+from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Message, ToolCall
@@ -418,6 +419,8 @@ def trace_errors(
             errors.append("missing channel author attribution")
         if "private_channel_fixture" in answer.casefold():
             errors.append("private tool data appeared in a channel answer")
+        if re.search(r"\beval-[a-f0-9]{8}\b", answer, re.IGNORECASE):
+            errors.append("internal channel user ID appeared in a channel answer")
     for expected in scenario.case.expected_tool_calls or []:
         if (
             scenario.id == "sandbox-file"
@@ -1045,6 +1048,7 @@ async def evaluate_agenticos(
                 conversation_id = await open_eval_conversation(ctx, item.id)
                 surface = CHANNEL_REPLAYS.get(item.id, RunSurface.WEB)
                 channel_author_context = ""
+                exposure = None
                 if surface == RunSurface.WEB:
                     history = build_message_history(
                         [
@@ -1056,6 +1060,8 @@ async def evaluate_agenticos(
                     history, channel_author_context = await channel_replay_fixture(
                         item, conversation_id, surface
                     )
+                    # The runner applies the production channel prompt from the binding.
+                    exposure = AgentExposure(surface=surface.value)
                 failure: RunFailedError | None = None
                 try:
                     async with get_db_context() as db:
@@ -1064,6 +1070,7 @@ async def evaluate_agenticos(
                             agent_id,
                             item.case.input,
                             surface=surface,
+                            exposure=exposure,
                             channel_author_context=channel_author_context,
                             conversation_id=conversation_id,
                             acts_for_sender=True,

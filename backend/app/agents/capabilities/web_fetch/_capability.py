@@ -67,7 +67,7 @@ FETCH_TEXT = ToolText(
     usage=(
         "Use it after a search to read a result rather than answering from its "
         "snippet, and whenever the user gives a link. For a long source, start "
-        "with offset=0 and limit=12000, then use the returned next_offset to "
+        "with offset=0, then use the returned next_offset to "
         "continue through the same URL."
     ),
     returns=(
@@ -192,7 +192,7 @@ class _ReadableFetch(WebFetchLocalTool):
         ctx: RunContext[object],
         url: str,
         offset: Annotated[int | None, Field(ge=0, lt=_MAX_PAGED_CHARS)] = None,
-        limit: Annotated[int, Field(ge=1_000, le=50_000)] = 12_000,
+        limit: Annotated[int, Field(ge=1_000, le=50_000)] = 40_000,
     ) -> WebFetchResult | PagedWebFetchResult | BinaryContent | str:
         """The tool the model calls: :meth:`__call__`, with a failure that cannot end the run.
 

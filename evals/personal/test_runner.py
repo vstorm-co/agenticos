@@ -139,6 +139,16 @@ class TraceTests(unittest.TestCase):
             ["expected the title Pilot from conversation history"],
         )
 
+    def test_channel_replay_checks_attribution_without_internal_ids(self) -> None:
+        scenario = next(item for item in runner.load("agenticos") if item.id == "slack-room-recall")
+        self.assertEqual(
+            runner.trace_errors(scenario, answer="Mira asked, then Teo.", calls=[]), []
+        )
+        self.assertEqual(
+            runner.trace_errors(scenario, answer="Mira (eval-197bed8a-...) and Teo.", calls=[]),
+            ["internal channel user ID appeared in a channel answer"],
+        )
+
     def test_new_connection_enforces_delegation_and_tool_budget(self) -> None:
         scenario = next(item for item in runner.load("agenticos") if item.id == "new-connection")
         watch = EvalCallRead(tool="agenticos_list_watches", args={}, outcome="executed")

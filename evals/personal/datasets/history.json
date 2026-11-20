@@ -3,7 +3,7 @@
     {"role": "user", "content": "Masz link do tej drugiej pozycji?"}
   ],
   "slack-room-recall": [
-    {"role": "user", "content": "Podeślesz link do pierwszej propozycji?"}
+    {"role": "user", "content": "Podeślesz URL pierwszego artykułu?"}
   ],
   "weekly-report": [
     {

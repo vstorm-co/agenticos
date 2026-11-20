@@ -624,7 +624,7 @@ class ConversationService:
         )
         spoken: dict[UUID, str] = {}
         for row in turns:
-            text = row.content
+            text = _said(row)
             answered = (
                 quoted.get(row.reply_to_message_id) if row.reply_to_message_id is not None else None
             )
