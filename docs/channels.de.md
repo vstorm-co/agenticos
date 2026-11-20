@@ -1,5 +1,5 @@
 ---
-source_sha: "7c98112dc096"
+source_sha: "9dab1088209c"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -2587,6 +2587,8 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
 Der gesamte Raumverlauf bleibt verfügbar, einschließlich Nachrichten anderer Teilnehmer. Run freely erlaubt daher auch durch diesen Kontext beeinflusste Werkzeugaufrufe; wähle es nur für vertrauenswürdige Werkzeuge und Räume und Ask first, wenn jeder Schreibzugriff bestätigt werden muss.
 
 Kanalnachrichten speichern nur den Text des Absenders. Autorenbezeichnungen werden unmittelbar vor der Modellanfrage aus Kanalidentitäten aufgelöst, außerhalb der Systemanweisungen. Konsole, Kopieren, Anheften und Kurzbefehle erhalten den reinen Text. Gespeicherte Verläufe und pausierte Runs behalten opake Identitätsreferenzen; Manifeste lassen die eingefügten Kanalreferenzteile aus. Die Kontolöschung entfernt dessen Kanalidentitäten, sodass spätere Anfragen die Plattformbezeichnungen der Person nicht mehr auflösen können. Geteilte Nachrichtentexte bleiben erhalten.
+
+Konsole und Nachrichtenkanäle verwenden denselben Gesprächsverlauf. Im geteilten Verlauf bleiben die Namen und Status der Werkzeugaufrufe pro Agentenantwort in ihrer Reihenfolge erhalten. Argumente und Ergebnisse können von den Berechtigungen der ursprünglichen Person abhängen. Für Rückfragen kann der Agent die Daten mit den aktuellen Berechtigungen erneut lesen.
 
 Editierbare Kanalnamen, Themen, Beschreibungen und Autorenbezeichnungen durchlaufen vor dem Modell die konfigurierten Eingabeprüfungen. Bereinigte Werte ersetzen die Originale; blockierte Referenzwerte werden zurückgehalten, während eine erlaubte Frage fortgesetzt werden kann. Feste Metadatensyntax, Plattformkennungen und Chat-Typen werden nicht als Fragetext geprüft.
 

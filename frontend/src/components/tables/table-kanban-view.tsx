@@ -107,14 +107,14 @@ function KanbanCard({
     >
       <div
         {...dragProps}
-        className="group border-border/60 bg-card hover:border-foreground/20 has-[[data-kanban-actions][data-state=open]]:border-foreground/20 space-y-4 rounded-xl border p-4 text-sm shadow-sm transition-[border-color,box-shadow] hover:shadow-md"
-        style={{ touchAction: canEdit ? "pan-y" : undefined }}
+        className="group border-border/60 bg-card hover:border-foreground/20 has-[[data-kanban-actions][data-state=open]]:border-foreground/20 relative isolate cursor-pointer space-y-4 rounded-xl border p-4 text-sm shadow-sm transition-[border-color,box-shadow] hover:shadow-md"
+        style={{ ...dragProps.style, touchAction: canEdit ? "pan-y" : undefined }}
       >
         <div className="flex items-start justify-between gap-2">
           <button
             type="button"
             onClick={onOpen}
-            className="min-w-0 flex-1 text-left leading-5 font-medium break-words"
+            className="focus-visible:after:outline-ring min-w-0 flex-1 text-left leading-5 font-medium break-words outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:outline-2 focus-visible:after:-outline-offset-2"
           >
             {title || record.id}
           </button>
@@ -125,7 +125,7 @@ function KanbanCard({
                   data-kanban-actions
                   variant="ghost"
                   size="icon"
-                  className="touch:opacity-100 size-7 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+                  className="touch:opacity-100 relative z-10 size-7 shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
                   aria-label={t("moveTo")}
                 >
                   <MoreHorizontal className="size-4" aria-hidden />
@@ -165,7 +165,7 @@ function KanbanCard({
           </dl>
         )}
         {conflict && (
-          <div className="bg-destructive/10 text-destructive space-y-1.5 rounded-md p-2 text-xs">
+          <div className="bg-destructive/10 text-destructive relative z-10 space-y-1.5 rounded-md p-2 text-xs">
             <div className="flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               <span>{t("conflict")}</span>

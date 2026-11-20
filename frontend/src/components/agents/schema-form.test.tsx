@@ -1432,6 +1432,40 @@ it("presents browser connections as one icon card choice and writes the selected
   expect(change).toHaveBeenCalledWith(expect.objectContaining({ connection: "local" }));
 });
 
+it("shows the default sandbox and describes parallel coding in cloud and desktop modes", () => {
+  function CodingModes() {
+    const copyFor = useCapabilityFieldCopy("coding_agent");
+    return (
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            runs_on: {
+              type: "string",
+              enum: ["sandbox", "personal_sandbox", "this_computer"],
+              default: "sandbox",
+              "x-widget": "coding-environment",
+            },
+          },
+        }}
+        copyFor={copyFor}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="coding-modes"
+      />
+    );
+  }
+  render(<CodingModes />);
+  const sandbox = screen.getByRole("radio", { name: "In the agent's sandbox", checked: true });
+  expect(sandbox).toHaveAccessibleDescription(/workspace.*organization/);
+  expect(
+    screen.getByRole("radio", { name: "Private cloud task with my account" }),
+  ).toHaveAccessibleDescription(/Claude Code and Codex in parallel in separate containers/);
+  expect(screen.getByRole("radio", { name: "On this computer" })).toHaveAccessibleDescription(
+    /Claude Code and Codex in parallel in separate sessions/,
+  );
+});
+
 it("offers local Codex read-only and clears it when returning to a sandbox", async () => {
   const schema: JsonSchema = {
     type: "object",

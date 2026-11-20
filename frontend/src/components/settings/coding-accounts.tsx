@@ -7,6 +7,7 @@ import { BrandIcon } from "@/components/icons/brand-icon";
 import { Badge, Button } from "@/components/ui";
 import { ErrorState } from "@/components/states";
 import { SectionCard } from "@/components/settings/settings-section";
+import { ExternalAgentSettings } from "@/components/desktop/external-agent-settings";
 import { LocalAgentSettings } from "@/components/desktop/local-agent-settings";
 import { useCodingAccounts } from "@/hooks/use-coding-accounts";
 import { useShell } from "@/hooks/use-shell";
@@ -36,17 +37,27 @@ export function CodingAccounts() {
       >
         <CodingAccountList harnesses={HARNESSES} />
       </SectionCard>
-      {isDesktopShell(shell) && <LocalAgentSettings />}
+      {isDesktopShell(shell) && (
+        <>
+          <LocalAgentSettings />
+          <ExternalAgentSettings />
+        </>
+      )}
     </>
   );
 }
 
 /**
- * The one account a chat's agent needs: its coding agent runs as a private cloud
- * task on the person's own account, so the chat offers to connect that account and
- * no other.
+ * One personal connection door. A cloud-coding agent offers both harnesses and
+ * resolves only the selected harness's enabled account when a task starts.
  */
-export function PersonalCodingAccount({ harness }: { harness: CodingHarness }) {
+export function PersonalCodingAccount({
+  harness,
+  compact = false,
+}: {
+  harness: CodingHarness;
+  compact?: boolean;
+}) {
   const t = useTranslations("codingAccounts");
   return (
     <section
@@ -54,8 +65,12 @@ export function PersonalCodingAccount({ harness }: { harness: CodingHarness }) {
       className="border-border border-b py-3 first:pt-0 last:border-b-0 last:pb-0"
       data-tour="chat-coding-accounts"
     >
-      <h3 className="text-[13px] font-medium">{t("chatTitle", { name: t(harness) })}</h3>
-      <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{t("chatHelp")}</p>
+      {!compact && (
+        <>
+          <h3 className="text-[13px] font-medium">{t("chatTitle", { name: t(harness) })}</h3>
+          <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{t("chatHelp")}</p>
+        </>
+      )}
       <CodingAccountList harnesses={[harness]} />
     </section>
   );

@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { toolLookupName } from "@/lib/tool-identity";
 
 import { memo } from "react";
@@ -34,6 +36,7 @@ import { ChartMessage, parseChartResult } from "./chart-message";
 import { YouFace } from "./you-face";
 import { ReplyQuote } from "./reply-quote";
 import { useTurnElapsed, WorkFold } from "./work-fold";
+import { useMinimalComposer } from "./main-chat-context";
 
 /**
  * A turn's body: its reasoning, its work and its words, in the order they arrived.
@@ -94,6 +97,7 @@ export function TurnParts({
   /** Includes a delegate paused outside the parent's own tool parts. */
   waitingFor?: "approval" | "answer";
 }) {
+  const directSteps = useMinimalComposer();
   const runs = runsOf(parts);
   const waiting =
     waitingFor === "answer"
@@ -126,7 +130,11 @@ export function TurnParts({
   const render = (run: PartRun, visuals = true, afterWork = false) =>
     run.kind === "tools" ? (
       <div key={run.parts[0].id} className="w-full">
-        <ToolGroup calls={run.parts.map((part) => part.toolCall!)} mcpServers={mcpServers}>
+        <ToolGroup
+          collapsible={!directSteps || visuals}
+          calls={run.parts.map((part) => part.toolCall!)}
+          mcpServers={mcpServers}
+        >
           <AgentSteps showAll>
             {run.parts.map((part, step) => (
               <ToolCallCard
@@ -189,6 +197,43 @@ export function TurnParts({
     );
 
   const active = !failed && (isStreaming || waiting !== undefined);
+  if (directSteps) {
+    const groups = groupWorkParts(runs);
+    const workCount = groups.filter((group) => group.kind === "work").length;
+    const lastWork = groups.findLast((group) => group.kind === "work");
+    return groups.map((group, index) => {
+      if (group.kind === "visible") {
+        return render(group.run, true, groups[index - 1]?.kind === "work");
+      }
+      const latestWork = group === lastWork;
+      const live = latestWork && active && (waiting !== undefined || index === groups.length - 1);
+      const first = group.runs[0];
+      const steps = group.runs.reduce(
+        (count, run) => count + (run.kind === "tools" ? run.parts.length : 0),
+        0,
+      );
+      return (
+        <div key={first.kind === "tools" ? first.parts[0].id : first.part.id} className="space-y-2">
+          <WorkFold
+            steps={steps}
+            live={live}
+            durationMs={workCount === 1 ? (durationMs ?? elapsed) : null}
+            stopped={latestWork && stopped}
+            failed={latestWork && failed}
+            running={live && isStreaming && !waiting}
+            activity={live ? activity : undefined}
+            waiting={live ? waiting : undefined}
+          >
+            {group.runs.map((run) => render(run, false))}
+          </WorkFold>
+          <TurnBrowses calls={browseCalls(group.runs)} />
+          <TurnCharts calls={chartCalls(group.runs)} />
+          <TurnVisuals calls={visualCalls(group.runs)} />
+          <TurnDrafts calls={draftCalls(group.runs)} />
+        </div>
+      );
+    });
+  }
   const split = foldWork(runs, stopped, active);
   if (split === null) {
     return <>{runs.map((run) => render(run))}</>;
@@ -234,7 +279,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
 }) {
   const t = useTranslations("chat");
   return (
-    <details className="group" open={open}>
+    <NativeDisclosure className="group" open={open}>
       {/* A line, not a box. The reasoning is an aside on the way to an answer, and a
           bordered panel around it gives it more weight on the page than the answer
           itself - which is backwards, and was the loudest thing in every turn. */}
@@ -257,7 +302,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
       <div className="text-muted-foreground border-border/70 mt-2 ml-4 max-h-72 overflow-y-auto border-l pl-5 text-[13px] leading-relaxed">
         <MarkdownContent content={text} />
       </div>
-    </details>
+    </NativeDisclosure>
   );
 });
 
@@ -318,7 +363,7 @@ export function AskUserBlock({
 }) {
   const t = useTranslations("chat");
   return (
-    <details className="group text-muted-foreground text-[13px]">
+    <NativeDisclosure className="group text-muted-foreground text-[13px]">
       <summary className="hover:text-foreground flex min-h-8 cursor-pointer items-center gap-2 rounded-md py-1 focus-visible:outline-2 focus-visible:outline-offset-2">
         <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
           <MessageCircleQuestion className="size-3.5" />
@@ -338,7 +383,7 @@ export function AskUserBlock({
         <div className="text-xs font-medium">{t("askUserAnswered")}</div>
         <p className="text-foreground/80 break-words whitespace-pre-wrap">{answer}</p>
       </div>
-    </details>
+    </NativeDisclosure>
   );
 }
 
@@ -445,6 +490,24 @@ export type PartRun =
       isLast: boolean;
     }
   | { kind: "other"; part: MessagePart; content: string; isLast: boolean };
+
+type WorkPartGroup =
+  { kind: "work"; runs: [PartRun, ...PartRun[]] } | { kind: "visible"; run: PartRun };
+
+/** Text, questions and explicit cards break the work rail and keep their position. */
+function groupWorkParts(runs: PartRun[]): WorkPartGroup[] {
+  const groups: WorkPartGroup[] = [];
+  for (const run of runs) {
+    if (run.kind === "other" && run.part.type !== "thinking") {
+      groups.push({ kind: "visible", run });
+      continue;
+    }
+    const previous = groups.at(-1);
+    if (previous?.kind === "work") previous.runs.push(run);
+    else groups.push({ kind: "work", runs: [run] });
+  }
+  return groups;
+}
 
 /**
  * The turn's parts, with consecutive tool calls gathered into one run.

@@ -1,5 +1,5 @@
 ---
-source_sha: "f0b3009ed75d"
+source_sha: "24f7a7b1655a"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -426,3 +426,9 @@ mit einem generierten Standardwert live gehen.
 
 
 Die Zustimmung zu externen A2A-Quellen bindet auch die Autorisierungsgeneration des referenzierten Tresorschlüssels. Ein neuer Wert macht die Prüfung ungültig, selbst bei gleicher Secret-ID. Umbenennen und Wartung der Tresorverschlüsselung erhalten diese Generation. Bestehende A2A-Zustimmungen müssen nach diesem Upgrade erneut geprüft werden.
+
+## Copilot OAuth { #copilot-oauth-storage }
+
+Persönliche Copilot-OAuth-Token liegen im bestehenden benutzerverschlüsselten Modellspeicher, ohne Organisationsschlüsselersatz. Geräteautorisierung ist an Eigentümer, Mandant und Agent gebunden und läuft in Redis ab; Token erscheinen weder in API-Antworten noch Auditdetails. Neue Anmeldung, Schlüsselwechsel und Trennen ändern eine Datenbankgeneration in derselben Transaktion. Diese Metadaten bleiben nach Schlüssellöschung zur Abwehr älterer Freigaben bestehen, erscheinen ohne Generationswert im persönlichen Datenexport und werden mit Mitgliedschaft oder Benutzer gelöscht. Trennen entfernt lokale Zugangsdaten; widerrufen Sie die OAuth-App separat in GitHub.
+
+Vor jeder Modellanfrage werden persönliche Copilot-Zugangsdaten gegen die gespeicherte Verbindungsversion geprüft. Das Trennen oder Ersetzen der Verbindung blockiert weitere Anfragen eines laufenden Durchlaufs; eine bereits gesendete Anfrage kann nicht zurückgezogen werden.

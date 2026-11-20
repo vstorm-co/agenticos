@@ -1,5 +1,5 @@
 ---
-source_sha: "28fef18e676b"
+source_sha: "a26f053e3a1c"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -338,7 +338,7 @@ Bezpośrednie selektory `provider:model` korzystają w budżetach AgenticOS z ka
 
 ## Providery { #providers }
 
-Providery czatu obsługiwane przez Pydantic AI oraz Otari przez jego pakiet integracyjny i Stav z routingiem regionalnym.
+Providery czatu obsługiwane przez Pydantic AI oraz Otari przez jego pakiet integracyjny, Stav z routingiem regionalnym i MiniMax przez zgodne API.
 
 Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic AI. Platforma opisuje kształt poświadczeń i w razie potrzeby integruje pakiety providerów.
 
@@ -371,10 +371,22 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | DeepSeek | `deepseek` | klucz API | |
 | Fireworks AI | `fireworks` | klucz API | |
 | GitHub Models | `github` | klucz API | |
+| GitHub Copilot | `github_copilot` | token konta / osobiste logowanie | |
 | Groq | `groq` | klucz API | |
 | Heroku AI | `heroku` | klucz API | ✓ |
 | LLMTR | `llmtr` | klucz API | |
 | Mistral | `mistral` | klucz API | |
+| MiniMax | `minimax` | klucz API | ✓ |
+| Kimi Code (plan) | `kimi_code` | klucz API | ✓ |
+| Alibaba Coding Plan | `alibaba_coding_plan` | klucz API | ✓ |
+| OpenCode Go | `opencode_go` | klucz API | ✓ |
+| Ollama Cloud | `ollama_cloud` | klucz API | ✓ |
+| Nous Portal | `nous_portal` | klucz API | ✓ |
+| Inception | `inception` | klucz API | ✓ |
+| Cline | `cline` | klucz API | ✓ |
+| Chutes | `chutes` | klucz API | ✓ |
+| Synthetic | `synthetic` | klucz API | ✓ |
+| CLIProxyAPI (subscription gateway) | `cliproxyapi` | klucz API | ✓ |
 | Moonshot AI | `moonshotai` | klucz API | |
 | Nebius AI Studio | `nebius` | klucz API | |
 | OVHcloud AI Endpoints | `ovhcloud` | klucz API | |
@@ -382,12 +394,75 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | Stav.ai | `stav` | klucz API | ✓ |
 | Together AI | `together` | klucz API | |
 | Vercel AI Gateway | `vercel` | klucz API | |
-| Z.AI | `zai` | klucz API | |
+| Z.AI | `zai` | klucz API | ✓ |
 | xAI (Grok) | `xai` | klucz API | ✓ (`api_host`) |
 | Cohere | `cohere` | klucz API | |
 | Hugging Face | `huggingface` | klucz API | ✓ |
 
 LLMTR pokazuje tylko modele deklarujące `CHAT_COMPLETIONS`. Model bez zweryfikowanej ceny we wbudowanym zestawie może działać tylko bez aktywnego limitu wydatków w dolarach; zapisany koszt pozostaje niepełny. Przy aktywnym limicie kolejne wywołanie LLMTR jest też odrzucane, jeśli koszt wcześniejszego użycia jest nieznany.
+
+Wybierz **MiniMax**, aby użyć jego API Chat Completions zgodnego z OpenAI. Zapisz klucz API M Plan jako klucz MiniMax w sejfie; zwykły klucz API korzysta z własnego rozliczenia. Pusty Endpoint oznacza `https://api.minimax.io/v1`; własny adres ustaw tylko dla regionu lub bramy właściwych dla klucza. Wpisz dokładny identyfikator modelu z konta, np. `MiniMax-M3.1-Flash`; integracja nie pobiera katalogu planu. Historia MiniMax ma osobną tożsamość dostawcy, więc nie wysyłamy tam zaszyfrowanego rozumowania OpenAI. Znane ceny tokenów służą do szacowania budżetu, a nie rachunku za subskrypcję.
+
+Dla **Z.AI GLM Coding Plan** wybierz **Z.AI** i ustaw **Endpoint** na `https://api.z.ai/api/coding/paas/v4` (globalny) lub `https://open.bigmodel.cn/api/coding/paas/v4` (Chiny), używając klucza właściwego dla planu i regionu. Puste pole Endpoint zachowuje zwykłe API rozliczane według użycia; istniejące profile się nie zmieniają.
+
+**Klucze planów subskrypcyjnych.** Czterech kolejnych dostawców rozlicza plan subskrypcyjny przez klucz planu do endpointu zgodnego z OpenAI. Zapisz klucz planu w skarbcu z odpowiadającym przeznaczeniem; lista modeli pochodzi z katalogu tego klucza, a puste pole Endpoint używa domyślnego adresu planu.
+
+| Provider | Domyślny endpoint | Inny region lub uwaga |
+|---|---|---|
+| Kimi Code (plan) | `https://api.kimi.ai/coding/v1` | Chiny: `https://api.kimi.com/coding/v1` |
+| Alibaba Coding Plan | `https://coding-intl.dashscope.aliyuncs.com/v1` | Chiny: `https://coding.dashscope.aliyuncs.com/v1` |
+| OpenCode Go | `https://opencode.ai/inference/go/openai/v1` | Modele nieobsługiwane w tym protokole endpoint odrzuca |
+| Ollama Cloud | `https://ollama.com/v1` | Modele chmurowe Twojego konta Ollama |
+
+Klucz planu nie jest zamienny z kluczem zwykłego API rozliczanego według użycia. Niektórzy dostawcy ograniczają klucze planów do narzędzi programistycznych; użycie ich z platformy agentów to Twoja decyzja i może skutkować ograniczeniem lub zawieszeniem planu. Budżety AgenticOS traktują to zużycie jako niewycenione użycie subskrypcji.
+
+**Kolejne konta zgodne z OpenAI.** Nous Portal, Inception, Cline, Chutes i Synthetic przyjmują klucz z konsoli danej usługi. Puste pole Endpoint używa domyślnego adresu poniżej, a lista modeli pochodzi z katalogu klucza. Subskrypcje Nous Portal, Chutes i Synthetic są traktowane jako niewyceniane; kredyty Cline i użycie Inception są wyceniane tylko tam, gdzie AgenticOS zna cenę modelu.
+
+| Provider | Domyślny endpoint |
+|---|---|
+| Nous Portal | `https://inference-api.nousresearch.com/v1` |
+| Inception | `https://api.inceptionlabs.ai/v1` |
+| Cline | `https://api.cline.bot/api/v1` |
+| Chutes | `https://llm.chutes.ai/v1` |
+| Synthetic | `https://api.synthetic.new/openai/v1` |
+
+**Własna brama CLIProxyAPI.** Konta, do których dostawcy nie wydają klucza planu (Antigravity, Grok Build, Devin, Muse Code, logowanie Kimi Code i inne), można używać przez bramę [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) uruchomioną przez Ciebie lub operatora poza stosem. [Konta subskrypcyjne](#subscription-accounts) to ten sam pomysł wbudowany w platformę, z kontami każdej osoby trzymanymi osobno. Zaloguj konta w bramie jej własnymi poleceniami logowania, dodaj klucz klienta w `access.api-keys`, a potem utwórz profil **CLIProxyAPI (subscription gateway)** z jej Endpointem (na przykład `http://cliproxyapi:8317/v1` dla kontenera bramy w sieci wdrożenia) i tym kluczem klienta. Każde konto trzymane przez bramę jest dostępne dla każdego, kto może użyć profilu, więc dla konta osobistego uruchom osobistą bramę. Dodaj host bramy do `OUTBOUND_PRIVATE_ALLOWLIST`; adresy pętli zwrotnej nigdy nie są osiągalne z serwera. Dostawcy mogą ograniczyć lub zawiesić konta używane w ten sposób; to ryzyko ponosi właściciel konta.
+
+Przed wczytaniem modeli wybierz klucz z sejfu i potwierdź adres docelowy. Własny katalog korzysta tylko z tego klucza i endpointu; brak listy pozwala wpisać model ręcznie, bez zastępowania jej katalogiem zwykłego API. Szacunki budżetu AgenticOS nie określają pozostałego limitu subskrypcji.
+
+### Konta subskrypcyjne { #subscription-accounts }
+
+Osoby logują się do własnych subskrypcji z konsoli, a modele dostawcy
+**Subscription accounts** działają na nich. W **Ustawienia → Profil → Konta
+subskrypcyjne** każda osoba łączy konta Claude (Pro, Max), ChatGPT (Codex),
+Google Antigravity, Grok, Kimi, Devin lub Meta AI. Logowanie pokazuje kod do
+wpisania na stronie dostawcy albo prosi o adres, na którym przeglądarka
+skończyła po zatwierdzeniu.
+
+Profil tego dostawcy przyjmuje tylko identyfikator modelu, bez klucza i bez
+endpointu. **Add model** pokazuje modele, które serwują Twoje własne konta. Gdy
+osoba rozmawia z agentem na takim profilu, uruchomienie korzysta z kont tej
+osoby i niczyich innych. Uruchomienie rozpoczęte kluczem API, przez gościa
+opublikowanego agenta albo przez pracę w tle nie ma za sobą osoby, więc jest
+odrzucane. Z tego samego powodu platforma nigdy nie wybiera takiego modelu dla
+nowego agenta.
+
+Usługa `subscription-gateway` jest częścią stosu i uruchamia
+[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) (MIT) osobno dla
+każdej osoby w każdej organizacji. Proces danej osoby startuje przy pierwszym
+użyciu i zatrzymuje się po dziesięciu minutach bezczynności. Każdy proces
+nasłuchuje na pętli zwrotnej z własnymi kluczami i katalogiem logowań, a API
+wyznacza, do którego trafia żądanie, z organizacji i osoby; przeglądarka nigdy
+go nie wskazuje. Gdy członek odchodzi, zadanie w tle usuwa jego logowania;
+usunięcie organizacji usuwa logowania wszystkich członków. Zalogowanie się do
+tego samego konta w dwóch organizacjach oznacza dwa logowania.
+
+Dostawcy mogą ograniczać używanie subskrypcji poza własnymi aplikacjami i
+zawiesić za to konto. Konsola mówi o tym ryzyku, a przyjmuje je właściciel
+konta. Cursor i Qwen Code nie mają logowania obsługiwanego przez bramę, więc nie
+są oferowane. Budżety AgenticOS zapisują te uruchomienia bez ceny, bo pozostały
+limit subskrypcji nie jest mierzony w tokenach. Uruchamianie bramy opisuje
+[konfiguracja](configuration.md#subscription-accounts).
 
 ### Samodzielnie hostowane { #self-hosted }
 
@@ -429,6 +504,8 @@ ani nic, czym się uwierzytelnić.
 | AWS Bedrock | `bedrock` | access key id, klucz tajny, region, opcjonalny token sesji |
 | Google Vertex AI | `google_cloud` | JSON konta serwisowego |
 | ChatGPT (Codex subscription) | `openai_codex` | logowanie do ChatGPT, zapisywane przez zalogowanie się, a nie wpisywane |
+| ChatGPT (oficjalne użycie planu) | `openai_chatgpt` | grant aplikacji z osobną zgodą na korzystanie z planu, utworzony przez logowanie |
+| Konta subskrypcyjne | `subscription_accounts` | własne logowania każdej osoby do subskrypcji, przez dołączoną bramę; bez klucza |
 
 Pierwsze trzy są powodem, dla którego sekret w ogóle ma *rodzaj*. Formularz, który
 zbierałby dla Azure jeden nieprzejrzysty token, zbierałby coś, co da się wypełnić
@@ -452,18 +529,22 @@ ChatGPT, a nie przez rozliczany za użycie klucz API. Jest przeznaczony do
 **użytku osobistego**: logowanie to subskrypcja jednej osoby, a każdy run na
 profilu, który go używa, wlicza się do limitów ChatGPT tej osoby.
 
-Nikt nie może wpisać tego poświadczenia. Zamiast tego logujesz się do ChatGPT:
+Nikt nie może wpisać tego poświadczenia. Zamiast tego logujesz się do ChatGPT,
+domyślnie krótkim kodem:
 
 1. W **Vault → add a secret** (albo w **Agents → add a model**, z wybranym
-   **ChatGPT (Codex subscription)**) wybierz **Sign in with ChatGPT**. Logowanie
-   do ChatGPT otwiera się w nowej karcie.
-2. Zatwierdź je. ChatGPT przekieruje wtedy przeglądarkę na
-   `http://localhost:1455/...`, który się nie załaduje. Tak ma być: OpenAI
-   przypina ten adres dla każdego klienta poza własnym.
-3. Skopiuj cały adres z paska adresu i wklej go z powrotem do formularza.
+   **ChatGPT (Codex subscription)**, albo w **Settings → Coding accounts**)
+   wybierz **Sign in with a code**. Strona urządzeń ChatGPT otwiera się w nowej
+   karcie, a formularz pokazuje kod.
+2. Wpisz kod na tej stronie i zatwierdź logowanie. Formularz sam zauważy
+   zatwierdzenie i dokończy; niczego nie trzeba wklejać.
 
-Kod w tym adresie działa raz, tylko dla osoby, która rozpoczęła logowanie,
-i tylko przez 15 minut.
+Kod działa przez 15 minut, tylko dla osoby, która rozpoczęła logowanie. Jeśli
+Twoje konto nie obsługuje kodów urządzeń, otwórz **Paste an address instead**:
+wybierz **Sign in with ChatGPT**, zatwierdź logowanie i wklej do formularza adres,
+na który ChatGPT przekieruje przeglądarkę (`http://localhost:1455/...`, który się
+nie załaduje). Ten adres też działa raz, tylko dla osoby, która rozpoczęła
+logowanie, i tylko przez 15 minut.
 
 Token dostępu wygasa i jest odświeżany w trakcie działania modeli. Każde
 odświeżenie zużywa refresh token, więc nowa para jest od razu zapieczętowywana
@@ -562,12 +643,14 @@ siedmiu providerów, co odpowiedź mówi wprost.
 
 ### Żywe { #live }
 
-Dwudziestu providerów publikuje endpoint listy i jest to jedyne źródło, które wie
+Trzydziestu providerów publikuje endpoint listy i jest to jedyne źródło, które wie
 o modelu wypuszczonym dziś rano:
 
 `anthropic`, `openai`, `google`, `openrouter`, `groq`, `mistral`, `together`,
 `cohere`, `deepseek`, `xai`, `sambanova`, `vercel`, `ovhcloud`, `huggingface`,
-`cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`.
+`cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`,
+`kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`, `cliproxyapi`, `nous_portal`,
+`inception`, `cline`, `chutes`, `synthetic`.
 
 Kształty odpowiedzi się różnią — tablica siedzi w `data`, w `models` albo w
 korzeniu dokumentu; id to `id`, `name` albo `model`; Gemini poprzedza je
@@ -625,11 +708,13 @@ tak właśnie literówka albo wycofany model jest łapany zamiast wysyłany jako
 rozwijana, na którą provider odpowiada 404. Model, który migawka zna, ale którego
 nie wycenia, po prostu nie ma okna, co jest nullem opisanym poniżej.
 
+Selektor subskrypcji pobiera po otwarciu listę dostarczaną z wdrożeniem. Nie pobiera katalogu dla danego konta na żywo. Wpisy GPT-6.2 sprawdzono w Codex app server. Rozmiar kontekstu pozostaje pusty do czasu uzupełnienia katalogu cen.
+
 | Provider | Kuratorowane id |
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
-| `openai_codex` | te same cztery co `openai` |
+| `openai_codex` | GPT-6.2 Sol i Astra, GPT-6.1 Sol i Terra, GPT-6 Sol, Astra i Luna oraz wcześniejsze identyfikatory Codex |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |
@@ -822,3 +907,25 @@ Automatyczne dołączanie do rozmów na kanałach może korzystać z modelu naty
 ElevenLabs Realtime udostępnia `eleven_realtime_v1_mini` oraz `eleven_realtime_v1_max` przez relay PCM 24 kHz, z domyślnym głosem `brian` i semantycznym wykrywaniem tur.
 
 SDK nie raportuje opłat za tokeny. Połączenia z ustawionym budżetem wydatków są odrzucane przed nawiązaniem; połączenia bez takiego budżetu zachowują limit czasu i zapisują koszt audio jako dolną granicę, a nie pełny rachunek. Stawka katalogowa audio wynosi 0,08 USD/minutę (0,16 USD w trybie burst); tokeny kosztują dodatkowo. Wartość kontekstu 16k jest ostrożnym limitem historii przyjętym przez platformę, a nie oknem kontekstu ogłoszonym przez dostawcę. Integrację sprawdzono offline na konstrukcji modeli SDK i kontrolowanych transportach, bez testów na rzeczywistym koncie. [SDK](https://pydantic.dev/docs/ai/api/realtime/elevenlabs/), [ElevenLabs API pricing](https://elevenlabs.io/pricing/api).
+
+## Konta GitHub Copilot { #github-copilot-accounts }
+
+**GitHub Copilot** (`github_copilot`) używa dialektu modeli Copilot z Pydantic AI, odrębnego od GitHub Models (`github`). Wysyła jawnie wybrane poświadczenia vaultu do stałej bramy `https://api.githubcopilot.com`, z tożsamością integracji AgenticOS i bez nagłówków edytora VS Code. Ustawienia żądania nie mogą zastąpić konta ani tożsamości integracji. Własne bramy i bramy Enterprise nie są tu obsługiwane.
+
+Administrator modeli może skonfigurować zatwierdzony profil z tokenem bearer Copilot w vaulcie. Ogólny token API GitHub nie potwierdza dostępu do Copilot. Wybierz osobiste poświadczenia modelu we współdzielonym agencie, aby każdy członek mógł połączyć własne konto w ustawieniach czatu. Administrator wdrożenia musi ustawić `GITHUB_COPILOT_OAUTH_CLIENT_ID` na identyfikator własnej aplikacji OAuth AgenticOS z włączonym device flow. Członek otwiera stronę GitHub, zatwierdza kod widoczny w AgenticOS i sprawdza autoryzację. Kod urządzenia i token nie trafiają do URL. Ponowne połączenie powtarza ten proces; odłączenie usuwa prywatny zapisany token, a zgodę OAuth cofa się osobno w GitHub.
+
+Samo logowanie GitHub nie wystarcza: przed zapisem tokenu AgenticOS sprawdza, czy konto i aplikacja oferują wybrany model przez `/chat/completions`. Katalog zależy od konta, filtruje obsługiwane endpointy i nie korzysta ze wspólnego katalogu zastępczego. Interfejsy Responses, Messages, embeddings i realtime Copilot nie są oferowane. Osobiste połączenia zachowują ograniczenie do zalogowanych czatów WWW, bez przełączania na klucz organizacji lub innego dostawcę.
+
+Device flow przyjmuje niewygasające zgody OAuth App. Wygasające zgody GitHub App lub zgody z refresh tokenem są jawnie odrzucane; ich odnawianie nie jest zaimplementowane i refresh tokeny nie są po cichu pomijane. Brak uprawnień, zasady konta, cofnięcie zgody i limity wymagają ponownego połączenia lub działania na koncie. Nazwa modelu nie ustala opłaty subskrypcji: użycie planu Copilot pozostaje bez wyceny do weryfikacji rozliczania w USD; wartości limitów nie są interpretowane jako dolary. Odbiór na prawdziwym koncie z własną aplikacją i tożsamością AgenticOS pozostaje otwarty. Zobacz [Pydantic AI Copilot](https://pydantic.dev/docs/ai/models/github-copilot/) i [konfigurację OAuth GitHub](https://docs.github.com/en/copilot/how-tos/copilot-sdk/setup/github-oauth).
+
+## Oficjalne użycie planu ChatGPT { #official-chatgpt-plan-usage }
+
+**ChatGPT plan usage (official)** używa grantu dla aplikacji i publicznego Responses API. **ChatGPT (Codex subscription)** pozostaje osobną integracją backendu Codex. Logowania, rodzaje sekretów i tokeny tych ścieżek nie są zamienne.
+
+Funkcja jest domyślnie wyłączona. Operator musi sprawdzić warunki wdrożenia, ustawić `OPENAI_CHATGPT_PLAN_USAGE_ENABLED=true` i zachować jeden UUID w `OPENAI_CHATGPT_HOST_ID` między restartami i replikami. Płatna lub zdalnie hostowana aplikacja wymaga zgody OpenAI. Ustawienia potwierdzają decyzję operatora, ale nie uzyskują zgody. Przy ponownym łączeniu przywróć oryginalny UUID instalacji.
+
+Wybierz oficjalnego dostawcę w skarbcu lub wyborze modelu, zaloguj się i wklej końcowy adres `http://127.0.0.1:1455/auth/callback?...`. Grant jest prywatny. Może go używać tylko właściciel; współdzielone profile, klucze API i zadania w tle nie pożyczają go innej osobie. Odmowa udostępnienia planu zachowuje rejestrację i grant, wyświetla ostrzeżenie i nie pozwala na inferencję. Połącz ponownie, by poprosić o zgodę. Rejestracja klienta przeżywa błąd wymiany tokenów. Callback jest jednorazowy i związany z osobą oraz organizacją; nowe logowanie unieważnia wcześniejsze.
+
+Wybierz model z bieżącego katalogu wybranego konta. Lista nie jest zastępowana globalnym katalogiem kluczy API. Rotacja tokenów używa zapisu warunkowego w skarbcu. Każde wywołanie sprawdza cofnięcie grantu i aktualne członkostwo właściciela. Usuń grant ze skarbca, by rozłączyć lokalnie; dostęp w OpenAI cofniesz w ustawieniach ChatGPT. Metadane rejestracji pozostają na kolejne połączenie.
+
+Pydantic AI wymusza strumieniowanie, `store=false`, lokalną historię i obsługiwany protokół preview. Odtwarzanie zawieszonej odpowiedzi, Batch API i nieobsługiwane narzędzia hostowane są niedostępne. Oficjalny plan nie bierze udziału w automatycznych fallbackach modeli. Koszt w AgenticOS pozostaje nieznany: cena API nie dowodzi opłaty planu. Uprawnienia konta, limity i rozliczenie wymagają testu na uprawnionym koncie. Zobacz [przepływ OpenAI](https://developers.openai.com/siwc/token-sharing-open-source) i [adapter Pydantic AI](https://pydantic.dev/docs/ai/models/openai-chatgpt/).

@@ -326,7 +326,7 @@ async def request_password_reset(
     if issued is not None:
         reset_user, token = issued
         try:
-            reset_url = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={token}"
+            reset_url = user_service.password_reset_url(token)
             await get_email_service().send_password_reset(
                 to=body.email,
                 name=reset_user.full_name or body.email,

@@ -6,12 +6,12 @@
   --xy-controls-button-color: var(--color-foreground);
   --xy-controls-button-color-hover: var(--color-foreground);
   --xy-controls-button-border-color: var(--color-border);
-  --xy-controls-box-shadow: 0 3px 12px rgb(0 0 0 / 8%);
+  --xy-controls-box-shadow: var(--shadow-float);
 }
 .canvas :global(.react-flow__controls) {
   overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: 1rem;
 }
 .canvas :global(.react-flow__controls-button) {
   width: 34px;
@@ -32,8 +32,15 @@
 }
 .canvas :global(.react-flow__minimap) {
   border-color: var(--color-border);
-  box-shadow: 0 3px 12px rgb(0 0 0 / 8%);
+  box-shadow: var(--shadow-float);
 }
 .canvas :global(.react-flow__node.selected) > [data-node-id] {
   border-color: var(--color-foreground);
+}
+
+@media (pointer: coarse) {
+  .canvas :global(.react-flow__controls-button) {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }

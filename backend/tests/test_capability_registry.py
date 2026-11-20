@@ -277,6 +277,7 @@ class TestToolDeclarations:
         )
 
     CONFIGS: dict[str, dict[str, Any]] = {
+        "external_acp": {"agent_id": "test-agent"},
         "phone_calls": {"endpoint_id": "00000000-0000-4000-8000-000000000001"},
         # The only capability whose *tools* are configuration rather than a fixed
         # list: a binding names which lookups it allows, so the widest
@@ -576,7 +577,6 @@ class TestReadOnlyDeclarations:
             ("background_tasks", "stop_background_task"),
             ("drafts", "write_draft"),
             ("memory_files", "correct_memory"),
-            ("memory_files", "recall"),
             ("memory_files", "remember"),
             ("memory_files", "share_memory"),
             ("mirage", "mirage_edit_file"),
@@ -615,6 +615,8 @@ class TestReadOnlyDeclarations:
             ("browser_use", "browser_switch_tab"),
             ("browser_use", "browser_close_tab"),
             ("coding_agent", "run_coding_agent"),
+            ("external_acp", "run_acp_agent"),
+            ("external_acp", "inspect_acp_agent"),
             ("monitor", "start_monitor"),
             ("monitor", "list_monitors"),
             ("monitor", "stop_monitor"),
@@ -1255,6 +1257,7 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
             "background_tools",
             "background_tasks",
             "coding_agent",
+            "external_acp",
             "video_generation",
             "monitor",
         },

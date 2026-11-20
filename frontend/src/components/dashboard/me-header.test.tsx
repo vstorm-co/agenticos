@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -41,6 +41,7 @@ beforeEach(() => {
 
 describe("partOfDay and firstName", () => {
   it("greets by the hour", () => {
+    expect(partOfDay(0)).toBe("night");
     expect(partOfDay(8)).toBe("morning");
     expect(partOfDay(13)).toBe("afternoon");
     expect(partOfDay(21)).toBe("evening");
@@ -59,7 +60,7 @@ describe("the Me view's header", () => {
     mount();
 
     expect(screen.getByRole("heading")).toHaveTextContent(
-      /Good (morning|afternoon|evening), Kacper/,
+      /(Good (morning|afternoon|evening)|Hello), Kacper/,
     );
     expect(screen.getByText(/73 times/)).toBeVisible();
     expect(screen.getByText("1 call")).toBeVisible();
@@ -74,12 +75,28 @@ describe("the Me view's header", () => {
     useUsageStatsMock.mockReturnValue({ usage: null });
     mount(false);
 
-    expect(screen.getByRole("heading")).toHaveTextContent(/^.*Good (morning|afternoon|evening)$/);
+    expect(screen.getByRole("heading")).toHaveTextContent(
+      /^.*(Good (morning|afternoon|evening)|Hello)$/,
+    );
     expect(screen.getByText(messages.dashboard.views.me.description)).toBeVisible();
     expect(useUsageStatsMock).toHaveBeenCalledWith(expect.anything(), {
       scope: "own",
       enabled: false,
     });
+  });
+
+  it("updates a mounted greeting at midnight", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 10, 19, 23, 59, 59));
+      useUsageStatsMock.mockReturnValue({ usage: null });
+      mount();
+      expect(screen.getByRole("heading")).toHaveTextContent("Good evening, Kacper");
+      act(() => vi.advanceTimersByTime(1_000));
+      expect(screen.getByRole("heading")).toHaveTextContent("Hello, Kacper");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("says nothing waits when nothing does", () => {

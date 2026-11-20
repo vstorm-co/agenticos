@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronLeft, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { useStepDirection } from "@/hooks/use-step-direction";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import {
@@ -40,9 +41,14 @@ function shown(answer: QuestionPromptAnswer | undefined, skipped: string): strin
  * has seen all their answers together. × skips everything that is left, which
  * the agent reads as declining.
  */
-export function QuestionPrompt({ questions, disabled = false, onComplete }: QuestionPromptProps) {
+export function QuestionPrompt(props: QuestionPromptProps) {
+  return <QuestionPromptRound key={props.questions[0]?.requestId} {...props} />;
+}
+
+function QuestionPromptRound({ questions, disabled = false, onComplete }: QuestionPromptProps) {
   const t = useTranslations("ui");
   const [step, setStep] = useState(0);
+  const direction = useStepDirection(step);
   const [answers, setAnswers] = useState<(QuestionPromptAnswer | undefined)[]>([]);
   // The furthest slide reached, so the dots can go forward again after Back.
   const [reached, setReached] = useState(0);
@@ -111,15 +117,20 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
                   disabled={disabled || index > reached}
                   onClick={() => setStep(index)}
                   aria-label={t("goToQuestion", { step: index + 1 })}
-                  className={cn(
-                    "h-1.5 rounded-full transition-all",
-                    index === step
-                      ? "bg-foreground w-4"
-                      : answers[index]
-                        ? "bg-foreground/50 w-1.5"
-                        : "bg-foreground/15 w-1.5",
-                  )}
-                />
+                  className="flex min-h-8 w-6 shrink-0 items-center justify-center rounded-md"
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "block h-1.5 w-4 rounded-full transition-[transform,background-color]",
+                      index === step
+                        ? "bg-foreground scale-x-100"
+                        : answers[index]
+                          ? "bg-foreground/50 scale-x-[0.375]"
+                          : "bg-foreground/15 scale-x-[0.375]",
+                    )}
+                  />
+                </button>
               ))}
             </div>
             {close}
@@ -127,44 +138,45 @@ export function QuestionPrompt({ questions, disabled = false, onComplete }: Ques
         </div>
       )}
 
-      {reviewing ? (
-        <div className="space-y-3 px-4 pb-3">
-          <dl className="space-y-2">
-            {questions.map((item, index) => (
-              <div key={`${item.header ?? item.question}-${index}`}>
-                <dt className="text-muted-foreground text-xs">{item.header ?? item.question}</dt>
-                <dd className="text-foreground text-sm">{shown(answers[index], t("skipped"))}</dd>
-              </div>
-            ))}
-          </dl>
-          <div className="flex justify-end">
-            <Button type="button" size="sm" disabled={disabled} onClick={settle}>
-              {t("sendAnswers")}
-            </Button>
+      <div key={step} data-direction={direction} className="wizard-step-in">
+        {reviewing ? (
+          <div className="space-y-3 px-4 pb-3">
+            <dl className="space-y-2">
+              {questions.map((item, index) => (
+                <div key={`${item.header ?? item.question}-${index}`}>
+                  <dt className="text-muted-foreground text-xs">{item.header ?? item.question}</dt>
+                  <dd className="text-foreground text-sm">{shown(answers[index], t("skipped"))}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="flex justify-end">
+              <Button type="button" size="sm" disabled={disabled} onClick={settle}>
+                {t("sendAnswers")}
+              </Button>
+            </div>
           </div>
-        </div>
-      ) : (
-        <>
-          <QuestionSlide
-            key={step}
-            item={questions[step]!}
-            previous={answers[step]}
-            disabled={disabled}
-            onAnswer={(given) => answer(step, given)}
-            aside={total > 1 ? undefined : close}
-            trailing={
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => answer(step, SKIPPED)}
-                className="text-muted-foreground hover:text-foreground text-xs transition-colors"
-              >
-                {t("skip")}
-              </button>
-            }
-          />
-        </>
-      )}
+        ) : (
+          <>
+            <QuestionSlide
+              item={questions[step]!}
+              previous={answers[step]}
+              disabled={disabled}
+              onAnswer={(given) => answer(step, given)}
+              aside={total > 1 ? undefined : close}
+              trailing={
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => answer(step, SKIPPED)}
+                  className="text-muted-foreground hover:text-foreground text-xs transition-colors"
+                >
+                  {t("skip")}
+                </button>
+              }
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { isChatGPTSignInKind, type SecretPurpose } from "@/types/secrets";
+
 import { useId, useState } from "react";
 import { Check, KeyRound, Plus, Save } from "lucide-react";
 
@@ -27,7 +29,10 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
+import { KEYED_LISTINGS, KEYED_PLAN_ENDPOINTS } from "@/hooks/use-model-providers";
 import { Perm } from "@/types/permissions";
+import Link from "next/link";
+import { ROUTES } from "@/lib/constants";
 import type { ModelApi, ModelProfile, ModelRegion, ProviderInfo } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
@@ -261,14 +266,31 @@ export function AddModel({
   const [failure, setFailure] = useState(NO_FAILURE);
   const [naming, setNaming] = useState(false);
 
-  const providers = purposes.filter(
-    (entry) =>
-      entry.category === "model_provider" &&
-      (purpose !== "decision" ||
-        catalog.some(
-          (provider) => provider.id === entry.id && provider.apis.includes("decisions"),
-        )),
-  );
+  const providers: SecretPurpose[] = [
+    ...purposes.filter(
+      (entry) =>
+        entry.category === "model_provider" &&
+        (purpose !== "decision" ||
+          catalog.some(
+            (provider) => provider.id === entry.id && provider.apis.includes("decisions"),
+          )),
+    ),
+    // Subscription accounts have no vault purpose - each person signs in to
+    // their own - so the catalog is what offers them. Never a decision model.
+    ...(purpose === "decision"
+      ? []
+      : catalog
+          .filter((entry) => entry.personal_gateway)
+          .map((entry): SecretPurpose => ({
+            id: entry.id,
+            label: entry.name,
+            category: "model_provider",
+            kind: "api_key",
+            help_url: null,
+            description: "",
+            icon: "",
+          }))),
+  ].sort((a, b) => a.label.localeCompare(b.label));
   /*
    * The provider an organization with exactly one key is obviously going to
    * pick, chosen for them.
@@ -297,7 +319,9 @@ export function AddModel({
   // provider is keyless *and* an endpoint says where to send the request, which is
   // the rule `ModelProfileService.create_profile` enforces; anything looser here
   // would offer a submit the API refuses.
-  const keyOptional = (capabilities?.keyless ?? false) && baseUrl.trim() !== "";
+  // Each person's own signed-in accounts: no key and no endpoint to choose.
+  const personal = capabilities?.personal_gateway ?? false;
+  const keyOptional = personal || ((capabilities?.keyless ?? false) && baseUrl.trim() !== "");
   // Only `openai` and `azure` serve both of OpenAI's APIs; for every other
   // provider there is nothing to choose and the field is not drawn.
   // What the provider publishes, where it publishes anything. Cached hard: a
@@ -318,7 +342,9 @@ export function AddModel({
   const endpoint = baseUrl.trim().replace(/\/+$/, "");
   const manualDiscovery =
     providerId !== "system-one" &&
-    (providerId === "otari" || (capabilities?.requires_base_url ?? false));
+    (providerId === "otari" ||
+      (KEYED_PLAN_ENDPOINTS.includes(providerId) && endpoint !== "") ||
+      (capabilities?.requires_base_url ?? false));
   const confirmedGateway =
     gatewayDiscovery?.endpoint === endpoint && gatewayDiscovery?.secretId === chosenKey;
   const listingEndpoint = manualDiscovery && !confirmedGateway ? undefined : endpoint || undefined;
@@ -353,9 +379,11 @@ export function AddModel({
     source,
     isLoading: loadingModels,
   } = useProviderModels(
-    providerId,
-    ["openrouter", "stav", "otari"].includes(providerId) ? listingEndpoint : undefined,
-    ["stav", "otari"].includes(providerId) ? chosenKey || undefined : undefined,
+    KEYED_PLAN_ENDPOINTS.includes(providerId) && manualDiscovery && !confirmedGateway
+      ? ""
+      : providerId,
+    ["openrouter", ...KEYED_LISTINGS].includes(providerId) ? listingEndpoint : undefined,
+    [...KEYED_LISTINGS, "openai_chatgpt"].includes(providerId) ? chosenKey || undefined : undefined,
     (pickedApi ?? startingApi) === "decisions" || ["typesafe", "system-one"].includes(providerId),
   );
 
@@ -613,6 +641,7 @@ export function AddModel({
           error={failure.fields.model}
         >
           <ModelCombobox
+            provider={provider?.id}
             id={`${fieldId}-add-model-id`}
             value={model}
             onChange={(next) => {
@@ -628,7 +657,22 @@ export function AddModel({
         </FormField>
       </div>
 
-      {provider !== undefined && (
+      {provider !== undefined && personal && (
+        <p role="note" className="text-muted-foreground text-xs">
+          {t.rich("subscriptionAccountsNote", {
+            link: (chunks) => (
+              <Link
+                href={ROUTES.SETTINGS_PROFILE}
+                className="text-foreground underline underline-offset-4"
+              >
+                {chunks}
+              </Link>
+            ),
+          })}
+        </p>
+      )}
+
+      {provider !== undefined && !personal && (
         <div className="space-y-1.5">
           {/* One key needs no question. The vault has exactly one OpenRouter
               key in most organizations, and a select with a single option is a
@@ -679,14 +723,16 @@ export function AddModel({
                   ? t("noProviderKeyAddOneHere", { provider: provider.label })
                   : t("noProviderKeyAskSomebody", { provider: provider.label })}
               </p>
-              {canStoreKey && provider.kind === "openai_codex" && (
+              {canStoreKey && isChatGPTSignInKind(provider.kind) && (
                 <InlineChatGPTSignIn
+                  key={provider.id}
+                  kind={isChatGPTSignInKind(provider.kind) ? provider.kind : "openai_codex"}
                   suggestedName={provider.label}
                   onCreated={chooseKey}
                   disabled={disabled}
                 />
               )}
-              {canStoreKey && provider.kind !== "openai_codex" && (
+              {canStoreKey && !isChatGPTSignInKind(provider.kind) && (
                 <InlineSecret
                   kind="api_key"
                   purpose={provider.id}

@@ -7,6 +7,7 @@ import { announceChange } from "@/lib/live-updates";
 import type { ChangeEvent } from "@/types/change-events";
 import { messageOf } from "./composer-editor";
 import { ChatContainer } from "./chat-container";
+import { MainChatContext } from "./main-chat-context";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { initialCall } from "@/lib/voice/call-reducer";
@@ -181,11 +182,13 @@ function receive(type: string, data: Record<string, unknown>): void {
   );
 }
 
-function mount(requestedConversationId?: string) {
+function mount(requestedConversationId?: string, mainChat = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ChatContainer requestedConversationId={requestedConversationId} />
+      <MainChatContext.Provider value={mainChat}>
+        <ChatContainer requestedConversationId={requestedConversationId} />
+      </MainChatContext.Provider>
     </QueryClientProvider>,
   );
 }
@@ -323,6 +326,7 @@ describe("the chat container - answering a durable question", () => {
     });
     const answer = screen.getByRole("button", { name: /Casual/ });
     expect(answer).toBeDisabled();
+    expect(answer.closest(".chat-composer-width")).toBeInTheDocument();
     act(() => {
       socket.isConnected = true;
       useChatStore.setState({ messages: [...useChatStore.getState().messages] });
@@ -729,7 +733,7 @@ describe("the chat container - server dictation", () => {
     expect(screen.queryByText("0:42 of audio")).not.toBeInTheDocument();
   });
 
-  it("says the browser is transcribing for an agent whose Dictation switch is off", async () => {
+  it("shows browser dictation in the composer without a setup prompt", async () => {
     readiness.current = { ...readiness.current, engine: "browser", requested: false };
     class FakeRecognition {
       start = vi.fn();
@@ -737,14 +741,14 @@ describe("the chat container - server dictation", () => {
     }
     vi.stubGlobal("SpeechRecognition", FakeRecognition);
     useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
-    mount();
+    mount(undefined, true);
     await waitFor(() => expect(get).toHaveBeenCalledWith("/agents/a-1/dictation"));
 
     fireEvent.click(await screen.findByRole("button", { name: "Voice input" }));
 
-    expect(
-      await screen.findByText("Dictation isn't turned on for this agent,", { exact: false }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Dictation" })).toBeVisible());
+    expect(screen.getByText("Listening").closest("[data-tour=chat-composer]")).not.toBeNull();
+    expect(screen.queryByRole("link", { name: "Open in the Agent Builder" })).toBeNull();
     vi.unstubAllGlobals();
   });
 
@@ -1904,7 +1908,7 @@ describe("the chat container - a conversation shared with the reader", () => {
   });
 });
 
-it("keeps actionable outcome notices beside the composer instead of above the transcript", async () => {
+it("keeps findings beside the composer and leaves approvals to decision cards", async () => {
   const originalGet = get.getMockImplementation();
   get.mockImplementation((url: string, ...args: unknown[]) =>
     url.startsWith("/outcomes?")
@@ -1918,16 +1922,94 @@ it("keeps actionable outcome notices beside the composer instead of above the tr
               context_url: "/runs?tab=approvals",
               source_conversation_id: "c-notice",
             },
+            {
+              id: "finding",
+              kind: "finding",
+              summary: "A finding from this conversation",
+              status: "open",
+              source_conversation_id: "c-notice",
+            },
           ],
         })
       : originalGet?.(url, ...args),
   );
   useConversationStore.getState().setCurrentConversationId("c-notice");
   mount();
-  const notice = await screen.findByText("Review the pending operation");
+  const notice = await screen.findByText("A finding from this conversation");
   const dock = screen.getByRole("textbox").closest("[data-chat-dock]");
   expect(dock).toContainElement(notice);
   expect(document.querySelector("[data-transcript]")).not.toContainElement(notice);
+  expect(screen.queryByText("Review the pending operation")).not.toBeInTheDocument();
+});
+
+describe("starting a new chat", () => {
+  it("puts the agent's opening prompts above the composer and the Daily briefing below it", async () => {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/agents"
+        ? Promise.resolve({
+            items: [
+              {
+                id: "first-agent",
+                slug: "first-agent",
+                name: "First agent",
+                status: "published",
+                starters: ["Draft a summary", "Find open questions"],
+              },
+            ],
+            total: 1,
+          })
+        : base(url),
+    );
+    useAgentSelectionStore.setState({ selectedAgentId: "first-agent" });
+    mount(undefined, true);
+    const openers = await screen.findAllByRole("button", {
+      name: /^(Draft a summary|Find open questions)$/,
+    });
+    expect(openers).toHaveLength(2);
+    const opener = openers[1]!;
+    const editor = screen.getByRole("textbox");
+    const briefing = screen.getByRole("region", { name: "Daily briefing" });
+    expect(opener.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      editor.compareDocumentPosition(briefing) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await userEvent.click(opener);
+    await waitFor(() => expect(editor.textContent).toContain(opener.textContent));
+    expect(
+      socket.send.mock.calls.some(([frame]) =>
+        JSON.stringify(frame).includes(opener.textContent ?? ""),
+      ),
+    ).toBe(false);
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
+  it("keeps the briefing when the selected agent turns off suggested prompts", async () => {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/agents"
+        ? Promise.resolve({
+            items: [
+              {
+                id: "quiet-agent",
+                slug: "quiet-agent",
+                name: "Quiet agent",
+                status: "published",
+                show_starters: false,
+                starters: ["Hidden suggested prompt"],
+              },
+            ],
+            total: 1,
+          })
+        : base(url),
+    );
+    useAgentSelectionStore.setState({ selectedAgentId: "quiet-agent" });
+    mount(undefined, true);
+    await screen.findByText("Quiet agent", { selector: ".chat-empty-state p span" });
+    expect(screen.queryByRole("button", { name: "Hidden suggested prompt" })).toBeNull();
+    expect(document.querySelector("[data-chat-welcome-hints]")).toBeNull();
+    expect(screen.getByRole("region", { name: "Daily briefing" })).toBeVisible();
+  });
 });
 
 describe("opening a saved chat", () => {

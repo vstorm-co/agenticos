@@ -82,6 +82,15 @@ services:
     # 28 MB - inside a reloader that never serves a request.
     command: python -m cli.reload_supervisor --host 0.0.0.0 --port 8000
 
+  # The gateway from the same source build, so a change to it is a restart away.
+  subscription-gateway:
+    image: agenticos_backend:dev
+    pull_policy: never
+    volumes:
+      - ./backend/app:/app/app:ro
+    depends_on:
+      - app
+
   worker:
     image: agenticos_backend:dev
     pull_policy: never

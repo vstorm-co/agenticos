@@ -31,6 +31,7 @@ export const startCodingSignIn = () =>
   apiClient.post<{ authorization_url: string }>("/coding-accounts/codex/sign-in", {});
 export const completeCodingSignIn = (data: {
   label: string;
-  callback_url: string;
+  callback_url?: string;
+  device_state?: string;
   enabled: boolean;
 }) => apiClient.post<CodingAccount>("/coding-accounts/codex/complete", data);

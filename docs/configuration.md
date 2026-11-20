@@ -83,7 +83,11 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 
 For production channel pictures, set `VISUAL_RENDER_CDP_URL=http://visual-render:9222` and `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` in `backend/.env`. `scripts/deploy.sh` then enables the `visuals` profile in `docker-compose-prod.yml`; for a manual start, add `--profile visuals`.
 
-Interactive public browsing needs a separate browser: set `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` and `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Deployment enables the `browser` profile. Configure each agent's `browser_use.cdp_url` as `http://browser:9222` and publish its draft. The interactive browser has only proxy egress; Squid refuses private and metadata destinations. Keep `VISUAL_RENDER_CDP_URL=http://visual-render:9222` for isolated drawing. A missing agent domain restriction permits public sites; an explicit domain list still applies.
+Interactive public browsing needs a separate browser: set `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` and `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Deployment enables the `browser` profile. Agents using **Built in** inherit `BROWSER_SIGN_IN_CDP_URL` when their own `cdp_url` is empty. The interactive browser has only proxy egress; Squid refuses private and metadata destinations. Keep `VISUAL_RENDER_CDP_URL=http://visual-render:9222` for isolated drawing. A missing agent domain restriction permits public sites; an explicit domain list still applies.
+
+The default AgenticOS uses **Built in** browsing with up to 100 steps per call and **Computer use → Docker / Sandbox** on the `desktop` runtime. That runtime includes the workbench coding and document tools. Without a container connection, desktop and personal cloud coding stay disabled. A missing browser endpoint or unavailable browser container affects browser calls only; it does not prevent the agent from being published or answering with its other tools. Configured endpoints still require the operator allowlist.
+
+AgenticOS works directly unless the user explicitly asks for subagents or parallel agent work. Its Delegates settings enable all accessible published agents in the current organization; permissions still apply, explicit pins retain their versions, and unattended routines do not gain this catalog. Dynamic specialist creation is off.
 
 The renderer has no published port or internet route, is shared by the API and worker, and is capped at 1 CPU and 1 GiB RAM. Published backend images include the `browser` extra; a custom image needs `EXTRAS="--extra browser"`. If rendering fails, the channel reply explicitly says the picture could not be attached. Each render permits at most 256 requests and 32 pending responses; map tiles also share `RATE_LIMIT_MAP_TILES_PER_MINUTE` across renderers.
 
@@ -1627,3 +1631,36 @@ operator removes them and do not replace off-host backups. Test restoration on a
 disposable deployment before enabling production updates. Multiple hosts, custom
 Compose overlays and external storage use your own pipeline instead:
 `UPDATE_PIPELINE_URL` exposes its HTTPS link without triggering a deployment.
+
+## Subscription accounts { #subscription-accounts }
+
+The `subscription-gateway` service runs people's own subscription sign-ins
+([Subscription accounts](models.md#subscription-accounts)). It uses the backend
+image with `python -m app.subscription_gateway`, publishes no port and keeps
+sign-ins in the `subscription_accounts` volume.
+
+| Variable | Read by | Meaning |
+|---|---|---|
+| `SUBSCRIPTION_GATEWAY_URL` | API, worker | The gateway's address, `http://subscription-gateway:8400` in compose. Unset turns subscription accounts off. |
+| `SUBSCRIPTION_GATEWAY_TOKEN` | API, worker, gateway | The shared token, at least 32 characters. The gateway refuses every request without it, and the API refuses to start with a URL but no such token. |
+| `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | gateway | How long a person's process may stay idle before it stops. Default 600. |
+| `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | gateway | How many people's processes may run at once. Default 64; past it, the least recently used idle one stops. |
+
+The token is generated for you. `make dev` and `scripts/deploy.sh` each write a
+random `SUBSCRIPTION_GATEWAY_TOKEN` into `backend/.env` the first time they run
+and keep it afterwards; `make dev` hands it to `docker-compose.yml`. To choose
+your own, write it there first (`openssl rand -hex 32`).
+
+In `docker-compose-prod.yml` and `docker-compose-dev.yml` the service is in the
+`subscriptions` profile. `scripts/deploy.sh` and the host updater enable that
+profile and set `SUBSCRIPTION_GATEWAY_URL` whenever `backend/.env` holds a
+token, so a server runs the gateway by default. To keep it off, leave the line
+in `backend/.env` empty: `SUBSCRIPTION_GATEWAY_TOKEN=`.
+
+`docker-compose.yml` started on its own, without a clone, falls back to a fixed
+local token. Set your own `SUBSCRIPTION_GATEWAY_TOKEN` in `.env` for any such
+deployment other people reach.
+
+## GitHub Copilot OAuth { #github-copilot-oauth }
+
+Set `GITHUB_COPILOT_OAUTH_CLIENT_ID` (empty by default) to the deployment’s own GitHub OAuth App client ID and enable device flow in that app. Without it, personal Copilot sign-in is refused. This setting is separate from GitHub Models and GitHub connector credentials. GitHub authorization does not establish Copilot entitlement; the account-specific chat-model check must also pass. Expiring GitHub App grants and custom Enterprise gateways are not supported. See [Copilot accounts](models.md#github-copilot-accounts).

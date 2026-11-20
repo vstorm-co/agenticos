@@ -80,6 +80,7 @@ function conversation(id: string, title: string, favourite = false): Conversatio
 /** Whatever the list route should answer with next. */
 function serve(items: ReturnType<typeof conversation>[], total = items.length) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path.startsWith("/conversations/search?")) return { items: [] };
     if (path.includes("/messages")) return { items: [], total: 0 };
     if (path.startsWith("/conversations/shared-with-me"))
       return { items: shared, total: shared.length };
@@ -99,6 +100,7 @@ function listRequests(): string[] {
       (path) =>
         !path.includes("/messages") &&
         !path.startsWith("/conversations/shared-with-me") &&
+        !path.startsWith("/conversations/search?") &&
         path !== "/agents" &&
         path !== "/orgs",
     );
@@ -532,7 +534,7 @@ describe("what the sidebar says about the list", () => {
     expect(useConversationStore.getState().currentConversationId).toBeNull();
   });
 
-  it("renames from the menu, with the focus left in the title's field", async () => {
+  it("renames from the menu, only when the dialog is submitted", async () => {
     serve([conversation("c-1", "Quarterly numbers")]);
     vi.mocked(apiClient.patch).mockResolvedValue({});
     mount();
@@ -540,10 +542,20 @@ describe("what the sidebar says about the list", () => {
 
     await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
-    const field = within(list()).getByDisplayValue("Quarterly numbers");
+    const dialog = screen.getByRole("dialog", { name: "Rename" });
+    const field = within(dialog).getByDisplayValue("Quarterly numbers");
     await waitFor(() => expect(field).toHaveFocus());
     await userEvent.clear(field);
-    await userEvent.type(field, "Q3 numbers{Enter}");
+    await userEvent.type(field, "Discard this title");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(apiClient.patch).not.toHaveBeenCalled();
+    await userEvent.click(within(list()).getByRole("button", { name: "Conversation actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    const reopened = screen.getByRole("dialog", { name: "Rename" });
+    const title = within(reopened).getByDisplayValue("Quarterly numbers");
+    await userEvent.clear(title);
+    await userEvent.type(title, "Q3 numbers");
+    await userEvent.click(within(reopened).getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith("/conversations/c-1", { title: "Q3 numbers" }),
@@ -665,7 +677,7 @@ describe("what the sidebar says about the list", () => {
     mount();
 
     await userEvent.click(within(list()).getByRole("button", { name: "Filter and sort" }));
-    await userEvent.click(screen.getByRole("button", { name: "Archived" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Archived" }));
 
     expect((await screen.findAllByText("No archived conversations"))[0]).toBeVisible();
     await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
@@ -746,7 +758,7 @@ describe("the collapsed rail", () => {
     const rail = await collapse();
 
     await userEvent.click(within(rail).getByRole("button", { name: "Filter and sort" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Archived" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Archived" }));
 
     await waitFor(() => expect(listRequests().at(-1)).toContain("archived_only=true"));
     expect(await within(rail).findByRole("img", { name: "Archived" })).toBeVisible();
@@ -810,12 +822,12 @@ describe("the three icons over the list", () => {
 
     await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
     const dialog = await screen.findByRole("dialog", { name: "Search conversations" });
-    expect(within(dialog).getByText("Type to search your conversations by title.")).toBeVisible();
+    expect(within(dialog).getByText("Search conversation titles and messages.")).toBeVisible();
 
     serve([conversation("c-9", "Refund policy")]);
-    await userEvent.type(within(dialog).getByRole("textbox"), "refund");
+    await userEvent.type(within(dialog).getByRole("combobox"), "refund");
     await waitFor(() => expect(listRequests().at(-1)).toContain("search=refund"));
-    await userEvent.click(await within(dialog).findByRole("button", { name: /Refund policy/ }));
+    await userEvent.click(await within(dialog).findByRole("option", { name: /Refund policy/ }));
 
     await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBe("c-9"));
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -828,7 +840,7 @@ describe("the three icons over the list", () => {
     const dialog = await screen.findByRole("dialog", { name: "Search conversations" });
 
     serve([]);
-    await userEvent.type(within(dialog).getByRole("textbox"), "nothing");
+    await userEvent.type(within(dialog).getByRole("combobox"), "nothing");
 
     expect(await within(dialog).findByText("No conversation matches.")).toBeVisible();
   });
@@ -985,20 +997,19 @@ describe("the favourites band", () => {
     );
   });
 
-  it("opens the band the open conversation lands in, once", async () => {
+  it("preserves an explicit fold even when the active conversation lands there", async () => {
     useChatBandsStore.setState({ folded: ["today"], opened: [] });
     useConversationStore.getState().setCurrentConversationId("c-1");
     serve([
       { ...conversation("c-1", "Just started"), updated_at: new Date().toISOString() },
     ] as unknown as ReturnType<typeof conversation>[]);
     mount();
-
-    expect(await within(list()).findByText("Just started")).toBeInTheDocument();
-    expect(useChatBandsStore.getState().folded).toEqual([]);
-
-    // Folding it again afterwards is the reader's choice, and it stays.
-    await userEvent.click(within(list()).getByRole("button", { name: /Today/ }));
+    const today = await within(list()).findByRole("button", { name: /Today/ });
+    expect(today).toHaveAttribute("aria-expanded", "false");
+    expect(useChatBandsStore.getState().folded).toEqual(["today"]);
     expect(within(list()).queryByText("Just started")).toBeNull();
+    await userEvent.click(today);
+    expect(within(list()).getByText("Just started")).toBeVisible();
   });
 
   it("leads with the threads holding an answer not yet seen", async () => {
@@ -1062,6 +1073,19 @@ describe("conversations opened over the API (#2122)", () => {
 });
 
 describe("who a row is with", () => {
+  it.each(["answerer=agenticos", "agent=agenticos"])(
+    "shows all agents when a link addresses AgenticOS using %s",
+    async (query) => {
+      urlParams = new URLSearchParams(query);
+      mount();
+      expect(await within(list()).findByText("Quarterly numbers")).toBeVisible();
+      await userEvent.click(within(list()).getByRole("button", { name: "Filter and sort" }));
+      expect(screen.getByRole("combobox", { name: "Filter by agent" })).toHaveTextContent(
+        "All agents",
+      );
+    },
+  );
+
   it("shows the addressed agent on the open thread before any run has named one", async () => {
     // A thread whose first run failed, or has not been listed yet, used to wear
     // a generic chat mark - while the console knew exactly whom it had asked.

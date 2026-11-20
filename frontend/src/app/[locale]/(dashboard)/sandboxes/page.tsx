@@ -73,7 +73,7 @@ export default function SandboxesPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col space-y-4">
+    <div className="flex min-w-0 flex-1 flex-col space-y-4">
       <PageHeader
         title={t("sandboxes2")}
         description={t("pageDescription")}
@@ -93,7 +93,7 @@ export default function SandboxesPage() {
       />
 
       <Tabs
-        className="flex flex-1 flex-col"
+        className="flex min-w-0 flex-col gap-2"
         value={tab}
         onValueChange={(value) => setTabParam(value === "connections" ? null : value)}
       >
@@ -108,9 +108,9 @@ export default function SandboxesPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="connections" className="flex-1 flex-col data-[state=active]:flex">
+        <TabsContent value="connections" className="min-w-0">
           <ListCard
-            fill
+            className="overflow-hidden"
             data-tour="sandboxes-connections"
             title={t("sandboxConnections")}
             namedByPage
@@ -142,7 +142,7 @@ export default function SandboxesPage() {
           </ListCard>
         </TabsContent>
 
-        <TabsContent value="running" className="flex flex-1 flex-col">
+        <TabsContent value="running" className="min-w-0">
           {isLoading ? (
             <SessionsPanelLoading />
           ) : error !== null ? (

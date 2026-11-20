@@ -81,6 +81,7 @@ The connected server is the authority: if a tool here is missing from the connec
 | `ensure_task_board` | `tables:create` on first use | yes, when the board is missing |
 | `create_task`, `update_task` | `tables:edit` on the scope | yes |
 | `list_inbox_cases`, `settle_inbox_case` | the person's own chat or console session; refused for an external MCP client | no / yes |
+| `list_inbox_items` | the person's own chat or console session | no |
 
 ## Knowledge and context
 

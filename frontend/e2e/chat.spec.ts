@@ -45,9 +45,8 @@ test.describe("Chat", () => {
   test("the composer is live, not merely rendered", async ({ page }) => {
     const input = await readyComposer(page);
 
-    // Nothing to send yet, so the call stands where Send is - an empty message
-    // would open a conversation with nothing in it (#2301).
-    await expect(page.getByRole("button", { name: "Start a voice call" })).toBeVisible();
+    // Dictation stays available before a first message; Send appears for a draft.
+    await expect(page.getByRole("button", { name: "Voice input" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Send message" })).toHaveCount(0);
 
     await input.fill("Hello, AI assistant!");

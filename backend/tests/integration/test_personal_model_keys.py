@@ -143,6 +143,14 @@ async def test_key_envelopes_and_metadata_never_cross_owner_or_tenant(db: AsyncS
     assert "sealed_secret" not in metadata and "vault-personal-private" not in metadata
     exported = await PersonalDataService(db).export(first.user_id, actor_user_id=first.user_id)
     assert len(exported.personal_model_keys) == 1
+    assert len(exported.personal_model_generations) == 1
+    assert set(exported.personal_model_generations[0].model_dump()) == {
+        "organization_id",
+        "provider",
+        "endpoint",
+        "created_at",
+        "updated_at",
+    }
     assert "vault-personal-private" not in exported.model_dump_json()
     assert "sealed_secret" not in exported.personal_model_keys[0].model_dump()
 
@@ -209,3 +217,33 @@ async def test_published_credential_mode_metadata_ignores_the_draft(db: AsyncSes
     assert await agent_repo.published_personal_model_keys(db, version_ids=[version.id]) == {
         version.id
     }
+
+
+async def test_deleting_a_missing_or_foreign_personal_key_cannot_remove_another_members_key(
+    db: AsyncSession,
+) -> None:
+    first, second, held = await setup(db)
+    service = PersonalModelKeyService(db)
+    with patch.object(service, "_profile", AsyncMock(return_value=held)):
+        await service.save(first, uuid4(), key_request(held, "private-test-key"))
+        row = await key_repo.get(
+            db,
+            organization_id=first.organization_id,
+            user_id=first.user_id,
+            provider=held.provider,
+            endpoint=held.base_url or "",
+        )
+        assert row is not None
+        assert not await key_repo.delete(
+            db,
+            organization_id=second.organization_id,
+            user_id=second.user_id,
+            key_id=row.id,
+        )
+        assert not await key_repo.delete(
+            db,
+            organization_id=first.organization_id,
+            user_id=first.user_id,
+            key_id=uuid4(),
+        )
+        assert (await service.status(first, uuid4())).connected

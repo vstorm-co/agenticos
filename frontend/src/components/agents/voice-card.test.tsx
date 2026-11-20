@@ -407,6 +407,22 @@ describe("the agent's Voice card", () => {
       window.history.replaceState({}, "", "/");
     });
 
+    it("opens the Voice section by default without a deep link", () => {
+      render(<VoiceCard collapsible value={null} onChange={vi.fn()} conversation={conversation} />);
+      expect(screen.getByRole("tab", { name: "Voice calls" }).closest("details")).toHaveAttribute(
+        "open",
+      );
+    });
+
+    it("opens the Voice section on Dictation for a deep link", () => {
+      window.history.replaceState({}, "", "/agents/a1#agent-voice-dictation");
+      render(<VoiceCard collapsible value={null} onChange={vi.fn()} conversation={conversation} />);
+      const tab = screen.getByRole("tab", { name: "Dictation" });
+      expect(tab.closest("details")).toHaveAttribute("open");
+      expect(tab).toHaveAttribute("aria-selected", "true");
+      window.history.replaceState({}, "", "/");
+    });
+
     it("give way to the Dictation tab for a link to the dictation setup", () => {
       window.history.replaceState({}, "", "/agents/a1#agent-voice-dictation");
       render(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} />);

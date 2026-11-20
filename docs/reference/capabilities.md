@@ -672,7 +672,9 @@ scope.
 
 ## Read web pages { #web-fetch }
 
-`web_fetch` — *Read the full page at a URL, as Markdown.*
+`web_fetch` — *Read the content of a URL as Markdown.*
+
+Local fetch accepts a character `offset` and `limit` for long pages. Start at zero and continue at `next_offset`. When the scan reaches its ceiling before the source ends, the result sets `reached_limit`.
 
 | Config | Default | Values |
 |---|---|---|
@@ -1639,7 +1641,13 @@ than steered: a second attempt would be billed again.
 
 **Personal cloud accounts.** In **Settings → Profile → Coding accounts**, connect an Anthropic API key/Claude setup token, OpenAI API key or a fresh ChatGPT sign-in, then explicitly enable it for this organization. Choose **Private cloud task with my account** in Coding agent. Only authenticated tasks you initiate in web/API chat can use it; schedules, channels, API keys and impersonation cannot. Another member cannot borrow your account.
 
-A separate run-scoped container receives a bounded source copy (500 files, 1 MiB per file, 16 MiB total; no symlinks or platform/cache folders). The final report identifies the account and snapshot, with a diff and ZIP in chat. Source files are not automatically changed. Account revocation cancels work; disconnect also requires revoking the external ChatGPT grant in ChatGPT Settings if desired. Existing tool-level organization credentials and approved desktop/local CLI sign-ins remain separate. Upgrade API/workers together after `0290_personal_coding_accounts.py`.
+Each named personal session retains a private user-scoped container, initialized once from a bounded source copy (500 files, 1 MiB per file, 16 MiB total; no symlinks or platform/cache folders). The final report identifies the account and snapshot, with a diff and ZIP in chat. Source files are not automatically changed. Account revocation cancels work; disconnect also requires revoking the external ChatGPT grant in ChatGPT Settings if desired. Existing tool-level organization credentials and approved desktop/local CLI sign-ins remain separate. Upgrade API/workers together after `0290_personal_coding_accounts.py`.
+
+Personal cloud tasks may choose `harness=claude_code` or `harness=codex` on each `run_coding_agent` call; omitting it uses **Default coding agent**. Both can work concurrently through the same agent in separate session containers and accounts. The configured model applies to the default harness; choosing the other harness uses its own default. Each account keeps its exclusive credential lease, so tasks on the same account wait in a bounded queue.
+
+A missing or disabled account is not replaced by an organization key or another person’s account. Codex is refused for read-only container tasks. The organization-sandbox mode remains pinned to its configured harness and credential.
+
+Personal cloud names retain separate native CLI histories and files within the same conversation and account generation. A new name copies the current source; reusing it continues its existing files. `fresh_session` resets CLI history while preserving files. Idle sandbox expiry can end a session. A failed task whose cleanup cannot be trusted is discarded; start a new name explicitly after unavailable state. Account consent changes, disconnect, membership removal and agent/conversation/user/organization deletion queue remote cleanup. Apply `0342_personal_coding_sessions.py` and update API/workers together.
 
 Personal cloud mode accepts only private source workspaces. It refuses projects, agent/channel workspaces, group chats and conversations shared for editing before loading a personal credential or copying files. A private destination container does not make collaborator-controlled source code trusted. Use the organization-configured coding mode for shared project work. Output redaction is not a credential boundary for executable source code.
 
@@ -1675,7 +1683,7 @@ refuses the combination. Whether a person says yes before each task is the
 capability's **Human approval**, set to **Always ask**. The Builder starts newly added bindings in this mode;
 existing bindings retain their policy. There is no Tools tab: the one tool is the capability.
 
-**Named sessions.** Each task names a `session` - `main` when it names none. The same name continues that session's earlier work in the conversation; a new name opens another, and independent local sessions run side by side when the agent calls the tool several times at once; sandbox calls in the same toolset queue to keep their workspace snapshots separate. `fresh_session` starts one session over. On this computer a session may also choose its `harness` - Claude Code or Codex, on the sign-in that computer has - and a `folder` inside the chat's folder, so two projects, or both harnesses, work at once. In a sandbox or a private cloud task the binding's harness is the only one, since its key or account belongs to it.
+**Named sessions.** Each task names a `session` - `main` when it names none. The same name continues that session's earlier work in the conversation; a new name opens another, and independent local sessions run side by side when the agent calls the tool several times at once; sandbox calls in the same toolset queue to keep their workspace snapshots separate. `fresh_session` starts one session over. On this computer a session may also choose its `harness` - Claude Code or Codex, on the sign-in that computer has - and a `folder` inside the chat's folder, so two projects, or both harnesses, work at once. An organization-sandbox task remains pinned to its configured harness. Personal cloud sessions may choose either harness through that person’s own account.
 
 **On this computer.** Set `runs_on` to `this_computer` to use the person's installed harness over the [Agent Client Protocol](https://agentclientprotocol.com). The desktop app launches a pinned adapter through `npx`; the server speaks ACP. Choose a full-access folder in **Work on** and confirm each start natively. The folder is a working directory, not an operating-system sandbox. The harness uses its own sign-in, so a vault key is optional. Permission requests follow `access`; approval applies once per task. Claude read-only disables bypass and writing tools; local Codex selects its native read-only mode.
 
@@ -3354,3 +3362,47 @@ Explicit bot grants for finding channels, searching messages and delivering requ
 | `send_chat_message` | Requested message or report, new post or existing thread |
 
 The service rechecks organization membership, agent access, the active binding and bot, then destination membership and thread ownership on each operation. It never joins channels or borrows another agent’s bot. Search and history are bounded pages; follow their cursors and treat empty matches as one scanned page. Provider failures are refusals, not empty results. Sending follows the approval policy; an unconfirmed submission must be checked at the destination before retrying. Other platforms retain their existing conversation tools; cross-channel actions are offered only where the adapter verifies membership.
+
+## External ACP agent { #external-acp }
+
+`external_acp` exposes `run_acp_agent` for delegating complete tasks to an installed
+ACP v1 program on the initiating person's computer. This uses the existing
+Desktop task lifecycle; it does not create an A2A endpoint, a background job or a
+primary conversation runtime.
+
+In **Settings → Desktop app → External ACP agents** (also available under profile
+coding accounts), register a stable ID, display name, absolute executable path
+and JSON array of arguments, such as `["acp"]`. Log in with the program's own
+command first. Do not put credentials in arguments. Native confirmation reviews
+the command. In the Builder, enable **External ACP agent** and enter the same ID.
+The published spec stores the ID, a 1–60 minute timeout (default 15), optional authentication/model choices, an optional Pi provider/key reference and the forwarding flag. Executables, command arguments and raw credentials stay outside the spec.
+
+Start chat work on this computer with an approved full-access folder. Launch needs
+native consent for this connection, folder and registration. The program runs as
+your local account without an OS sandbox and owns its tools, model and login;
+read-only confinement is not promised. Human approval can require a separate
+confirmation before each delegated task. Platform tools are off by default. Enable the [run-scoped bridge](../desktop.md#runtime-platform-tools) explicitly.
+
+Tasks stream their steps and answer through the existing delegation panel. Named
+sessions resume only if the program advertises `loadSession`; otherwise start a
+fresh session explicitly. Stop, timeout and folder revocation terminate the
+process. Removing or re-registering the ID stops its running tasks and discards
+saved permissions and session IDs. Register again after changing the program's
+account. Switching the Desktop connection clears registrations as well.
+
+The integration records usage as unpriced; subscription eligibility, quota and
+API charges depend on the program's account. Missing programs, required login,
+unsupported protocol versions and unsupported resume fail explicitly. This
+registration does not certify a vendor's subscription entitlement.
+
+`inspect_acp_agent` reads account/session model and thinking choices without an inference prompt. `auth_method` defaults to `configured`; `oauth-personal` explicitly requests Antigravity Google personal login. A Desktop Antigravity registration enforces that mode. Optional `model_id` selects an exact advertised runtime ID. See [Antigravity setup](../desktop.md#antigravity-acp) for billing boundaries and pending account verification.
+
+OpenCode registrations refresh delayed session catalog updates. The separate Go template filters discovery and restricts the primary model to `opencode-go/`; auxiliary models and Extra Usage remain CLI/account settings. See [OpenCode and Go setup](../desktop.md#opencode-acp).
+
+The Cursor template uses CLI account login with `cursor_login`, removes inherited API credential overrides and cancels unanswered human requests. API-key registration remains pending isolation verification. See [Cursor setup](../desktop.md#cursor-acp).
+
+Cline has separate account and inherited-API-key templates, both locked to the Cline provider and foreground `--acp`. See [Cline setup](../desktop.md#cline-acp) for credential, credit and acceptance boundaries.
+
+Mistral Vibe uses its own browser/key setup, with sanitized credential-source status in discovery and task reports. See [Vibe setup](../desktop.md#mistral-vibe-acp) for billing and account verification.
+
+Mistral Vibe reports `configuration_policy=cli`: keep External model ID empty and choose the model through Vibe itself. AgenticOS refuses model overrides before protocol setup because the runtime may persist them as user defaults.

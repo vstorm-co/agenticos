@@ -21,9 +21,17 @@ interface ThemeProviderProps {
 
 function applyTheme(resolved: "light" | "dark") {
   const root = document.documentElement;
-  root.classList.remove("light", "dark");
-  root.classList.add(resolved);
-  root.style.colorScheme = resolved;
+  root.classList.add("theme-switching");
+  try {
+    root.classList.remove("light", "dark");
+    root.classList.add(resolved);
+    root.style.colorScheme = resolved;
+    // Commit the new palette while descendant transitions are suppressed.
+    // Restore interaction motion synchronously, without a timer racing another toggle.
+    void root.offsetHeight;
+  } finally {
+    root.classList.remove("theme-switching");
+  }
 }
 
 /**

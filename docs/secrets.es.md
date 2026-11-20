@@ -1,5 +1,5 @@
 ---
-source_sha: "f0b3009ed75d"
+source_sha: "24f7a7b1655a"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -409,3 +409,9 @@ de salir a producción con un valor por defecto generado.
 
 
 El consentimiento de fuentes A2A externas también vincula la generación de autorización de la credencial de bóveda referenciada. Sustituir el valor invalida la revisión aunque conserve su identificador. Cambiar el nombre y mantener las claves de cifrado conserva esa generación. Las revisiones A2A existentes requieren una nueva revisión tras actualizar.
+
+## Copilot OAuth { #copilot-oauth-storage }
+
+Los tokens OAuth personales Copilot usan el almacén existente cifrado para el usuario, sin claves de organización de respaldo. La autorización está vinculada a propietario, tenant y agente y caduca en Redis; los tokens no aparecen en respuestas API ni auditoría. Nuevos accesos, sustitución de clave y desconexión avanzan una generación en la misma transacción. Estos metadatos sobreviven al borrado de la clave para rechazar concesiones antiguas, se exportan sin el valor de generación y se eliminan con la membresía o el usuario. Desconectar elimina la credencial local; revoca la aplicación OAuth por separado en GitHub.
+
+Antes de cada solicitud al modelo, las credenciales personales de Copilot se comprueban frente a la versión guardada de la conexión. Desconectar o sustituir la conexión bloquea las siguientes solicitudes de una ejecución activa; una solicitud ya enviada no puede retirarse.

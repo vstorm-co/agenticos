@@ -25,7 +25,17 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
-def installed():
+def installed(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        shipped_agents.SandboxConnectionService,
+        "can_provide",
+        AsyncMock(return_value=bool(agent_templates.settings.SANDBOXD_TOKEN)),
+    )
+    monkeypatch.setattr(
+        shipped_agents.ContextProposalService,
+        "bundled_product_context",
+        AsyncMock(return_value=None),
+    )
     ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
     spec = AgentSpec(name="AgenticOS", instructions="Old guidance")
     agent = SimpleNamespace(
@@ -301,3 +311,33 @@ async def test_architect_setup_uses_organization_identity_and_run_access(
     if case in ("disabled", "other"):
         service.registry.get.assert_not_awaited()
     assert await service.setup_candidate(ctx, None) is None
+
+
+async def test_remote_default_sandbox_keeps_shipped_personal_coding_enabled(
+    installed,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ctx, _, agent, service = installed
+    monkeypatch.setattr(agent_templates.settings, "SANDBOXD_TOKEN", "")
+    provides = AsyncMock(return_value=True)
+    monkeypatch.setattr(shipped_agents.SandboxConnectionService, "can_provide", provides)
+    service.ensure_skills = AsyncMock()
+    service.registry.template_skills = AsyncMock(return_value=[])
+    service.registry.save_draft = AsyncMock()
+    monkeypatch.setattr(shipped_agents.agent_repo, "update", AsyncMock(return_value=agent))
+    template = agent_templates.get(STARTER)
+    assert template is not None
+    old = AgentSpec(
+        name=template.name,
+        instructions="Previous shipped prompt",
+        capabilities=list(template.capabilities),
+    )
+    agent.draft_spec = old.model_dump(mode="json")
+    agent.current_version_id = None
+    agent.shipped_template = baseline(STARTER, old)
+    await service.refresh(ctx, agent, STARTER)
+    saved = service.registry.save_draft.call_args.args[2]
+    coding = next(binding for binding in saved.capabilities if binding.id == "coding_agent")
+    sandbox = next(binding for binding in saved.capabilities if binding.id == "sandbox")
+    assert coding.enabled and sandbox.config["backend"] == "service"
+    provides.assert_awaited_once_with(ctx.organization_id)

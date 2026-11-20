@@ -109,7 +109,7 @@ describe("PromptVariablesPanel", () => {
   });
 });
 
-it("opens variables by default and preserves a draft when reopened", async () => {
+it("starts open and preserves a draft when reopened", async () => {
   mount({ custom: [] });
   expect(screen.getByText("{{user_name}}")).toBeVisible();
   await userEvent.type(screen.getByLabelText("Name"), "draft_name");

@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { ChatContainer, type ChatPrompt } from "@/components/chat/chat-container";
+import { ArchitectChatContext } from "@/components/chat/main-chat-context";
 import type { IncomingFiles } from "@/components/chat/chat-input";
 import { useConversations } from "@/hooks/use-conversations";
 import { recallConversation, rememberConversation } from "@/lib/architect-conversation";
@@ -169,25 +170,27 @@ export function AssistantWindow({
           />
         )}
         <div className="flex min-w-0 flex-1 flex-col">
-          <ChatContainer
-            prompt={prompt}
-            agentFixed
-            incomingFiles={incoming}
-            emptyState={(onPick) => (
-              <AssistantWelcome
-                setup={
-                  assistant.status === "needs_model"
-                    ? { agentId, canConfigure: assistant.can_configure }
-                    : undefined
-                }
-                greeting={assistant.greeting}
-                name={name}
-                mark={<AssistantFace assistant={assistant} agentId={agentId} size="lg" />}
-                page={page}
-                onPick={onPick}
-              />
-            )}
-          />
+          <ArchitectChatContext.Provider value={true}>
+            <ChatContainer
+              prompt={prompt}
+              agentFixed
+              incomingFiles={incoming}
+              emptyState={(onPick) => (
+                <AssistantWelcome
+                  setup={
+                    assistant.status === "needs_model"
+                      ? { agentId, canConfigure: assistant.can_configure }
+                      : undefined
+                  }
+                  greeting={assistant.greeting}
+                  name={name}
+                  mark={<AssistantFace assistant={assistant} agentId={agentId} size="lg" />}
+                  page={page}
+                  onPick={onPick}
+                />
+              )}
+            />
+          </ArchitectChatContext.Provider>
         </div>
       </div>
     </div>

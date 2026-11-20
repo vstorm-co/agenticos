@@ -1,9 +1,10 @@
 import { createElement } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { MessagePart, ToolCall } from "@/types";
 
+import { MainChatContext } from "./main-chat-context";
 import { TurnParts, browseCalls, chartCalls, type PartRun } from "./turn-parts";
 
 vi.mock("./chart-message", () => ({
@@ -217,6 +218,28 @@ it("groups tool calls between progress messages in the live turn", () => {
   expect(screen.getByText("search_tools")).toBeInTheDocument();
 });
 
+it("keeps consecutive live tool and reasoning steps in one activity group", () => {
+  render(
+    createElement(
+      MainChatContext.Provider,
+      { value: true },
+      createElement(TurnParts, {
+        parts: [
+          tool("read", "read_file"),
+          { id: "thinking", type: "thinking", content: "Checking another source." },
+          tool("search", "search_tools"),
+        ],
+        isStreaming: true,
+        isUser: false,
+        mcpServers: [],
+      }),
+    ),
+  );
+  const activity = within(screen.getByRole("region"));
+  expect(activity.getByText("read_file")).toBeInTheDocument();
+  expect(activity.getByText("search_tools")).toBeInTheDocument();
+});
+
 it("keeps renamed browser calls in the browse summary and excludes external collisions", () => {
   const alias = tool("renamed", "open_page");
   alias.toolCall = { ...alias.toolCall!, tool_id: "browser_open" };
@@ -245,7 +268,8 @@ it("preserves the expanded timeline DOM while parking, resuming and completing a
   rerender(draw("running", true));
   expect(screen.getByText("create_routine")).toBe(step);
   rerender(draw("completed", false));
-  expect(screen.queryByText("create_routine")).toBeNull();
+  expect(screen.getByText("create_routine")).toBe(step);
+  expect(step.closest("[inert]")).toHaveAttribute("aria-hidden", "true");
   expect(screen.queryByRole("region")).toBeNull();
 });
 

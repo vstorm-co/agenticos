@@ -364,11 +364,6 @@ export function useDelegatedRuns(parentRunId: string) {
  * as "nothing waiting".
  */
 export function useApprovals(options?: { enabled?: boolean; skip?: number }) {
-  const t = useTranslations("pages.runs");
-  const tErrors = useTranslations("errors");
-
-  const queryClient = useQueryClient();
-
   // The queue is server-paged. It used to ask for no page at all and take the
   // route's default fifty, so with fifty or more waiting, the request an alert
   // was about was the one row its reader could not reach - the alert addresses
@@ -393,9 +388,23 @@ export function useApprovals(options?: { enabled?: boolean; skip?: number }) {
     placeholderData: keepPreviousData,
   });
 
-  const resume = useResumeRun({ ignoreStillParked: true });
+  const decide = useDecideApproval();
+  return {
+    approvals: data?.items ?? [],
+    total: data?.total ?? 0,
+    isLoading,
+    error,
+    decide,
+    refetch,
+  };
+}
 
-  const decide = useMutation({
+export function useDecideApproval() {
+  const t = useTranslations("pages.runs");
+  const tErrors = useTranslations("errors");
+  const queryClient = useQueryClient();
+  const resume = useResumeRun({ ignoreStillParked: true });
+  return useMutation({
     mutationFn: ({ id, approved, note }: { id: string; approved: boolean; note?: string }) =>
       apiClient.post<ToolApproval>(`/approvals/${id}`, { approved, note }),
     onSuccess: async (approval) => {
@@ -416,15 +425,6 @@ export function useApprovals(options?: { enabled?: boolean; skip?: number }) {
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
-
-  return {
-    approvals: data?.items ?? [],
-    total: data?.total ?? 0,
-    isLoading,
-    error,
-    decide,
-    refetch,
-  };
 }
 
 /**

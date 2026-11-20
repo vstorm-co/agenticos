@@ -6,6 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -54,6 +55,48 @@ class Settings(BaseSettings):
         env_ignore_empty=True,
         extra="ignore",
     )
+
+    # Personal provider accounts and native conversation runtimes. Each person
+    # answers for their own account's terms; these switches let an operator
+    # withhold a runtime or attest plan-usage eligibility.
+    GITHUB_COPILOT_OAUTH_CLIENT_ID: str = Field(default="", max_length=128)
+
+    SUBSCRIPTION_GATEWAY_URL: str | None = None
+    """The bundled subscription gateway (`subscription-gateway` in compose); unset turns
+    subscription accounts off."""
+
+    SUBSCRIPTION_GATEWAY_TOKEN: str = ""
+    """Shared with the gateway container; it accepts nothing without it."""
+
+    @model_validator(mode="after")
+    def subscription_gateway_token(self) -> Settings:
+        if self.SUBSCRIPTION_GATEWAY_URL and len(self.SUBSCRIPTION_GATEWAY_TOKEN) < 32:
+            raise ValueError(
+                "SUBSCRIPTION_GATEWAY_URL is set, so SUBSCRIPTION_GATEWAY_TOKEN must be "
+                "at least 32 characters - the same value the gateway container runs with"
+            )
+        return self
+
+    CLAUDE_NATIVE_CONVERSATION_ENABLED: bool = True
+    """Disable to withhold Claude Agent; each person answers for their own account's terms."""
+
+    EXTERNAL_NATIVE_CONVERSATION_ENABLED: bool = True
+    """Disable to withhold registered Desktop ACP agents as conversation runtimes."""
+
+    CODEX_NATIVE_CONVERSATION_ENABLED: bool = True
+    """Disable to withhold Codex; each person answers for their own account's terms."""
+
+    OPENAI_CHATGPT_PLAN_USAGE_ENABLED: bool = False
+    OPENAI_CHATGPT_HOST_ID: UUID | None = None
+    """Operator attestation that this deployment is eligible for official ChatGPT plan usage."""
+
+    @model_validator(mode="after")
+    def chatgpt_plan_host(self) -> Settings:
+        if self.OPENAI_CHATGPT_PLAN_USAGE_ENABLED and self.OPENAI_CHATGPT_HOST_ID is None:
+            raise ValueError(
+                "OPENAI_CHATGPT_HOST_ID must be a stable installation UUID when official ChatGPT plan usage is enabled"
+            )
+        return self
 
     PROJECT_NAME: str = "agenticos"
     API_V1_STR: str = "/api/v1"

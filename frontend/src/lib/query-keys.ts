@@ -38,6 +38,11 @@ export const qk = {
     all: () => ["coding-accounts"] as const,
     mine: (scope: string) => ["coding-accounts", scope] as const,
   },
+  subscriptionAccounts: {
+    mine: (scope: string) => ["subscription-accounts", scope] as const,
+    signIn: (scope: string, state: string) =>
+      ["subscription-accounts", scope, "sign-in", state] as const,
+  },
   durableTasks: {
     root: () => ["durable-tasks"] as const,
     all: (scope: string) => ["durable-tasks", scope] as const,
@@ -152,6 +157,7 @@ export const qk = {
     ceiling: () => ["agents", "ceiling"] as const,
     create: () => ["agents", "create"] as const,
     detail: (id: string) => ["agents", id] as const,
+    shippedUpdate: (id: string) => ["agents", id, "shipped-update"] as const,
     templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
     // answers, and caching one as another shows the wrong decade of the timeline.
@@ -678,6 +684,7 @@ export const qk = {
     list: (orgId: string) => ["invitations", orgId] as const,
   },
   conversations: {
+    search: (term: string) => ["conversations", "search", term] as const,
     all: () => ["conversations"] as const,
     /**
      * One page of the sidebar, under the filters it was fetched with.
@@ -1003,7 +1010,9 @@ export const qk = {
     local: () => ["desktop", "local"] as const,
     services: () => ["desktop", "services"] as const,
     agents: () => ["desktop", "agents"] as const,
+    externalAgents: () => ["desktop", "external-agents"] as const,
     codingOptions: (harness: string | null) => ["desktop", "coding-options", harness] as const,
+    externalOptions: (id: string | null) => ["desktop", "external-options", id] as const,
     skills: () => ["desktop", "skills"] as const,
     localFiles: (root: string) => ["desktop", "local", "files", root] as const,
     localFile: (root: string, path: string) => ["desktop", "local", "file", root, path] as const,

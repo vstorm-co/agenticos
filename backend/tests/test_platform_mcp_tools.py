@@ -1989,7 +1989,9 @@ async def test_an_unsupported_console_language_is_refused_before_any_api_call(
 
 async def test_mcp_can_find_and_settle_the_callers_working_case(api):
     tools = {tool.name: tool.function for tool in platform_tools(api)}
-    await tools["list_inbox_cases"](conversation_id=RUN)
+    api.request.return_value = {"items": []}
+    scoped = await tools["list_inbox_cases"](conversation_id=RUN)
+    assert scoped["whole_inbox"] is False
     api.request.assert_awaited_with(
         "GET",
         "/outcomes",
@@ -1999,6 +2001,12 @@ async def test_mcp_can_find_and_settle_the_callers_working_case(api):
     api.request.assert_awaited_with(
         "POST", f"/outcomes/{RUN}/settle", json={"action": "resolve", "via": "chat"}
     )
+
+
+async def test_mcp_reads_a_selected_inbox_card_without_settling_it(api):
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    await tools["list_inbox_items"](item_id=RUN)
+    api.request.assert_awaited_once_with("GET", "/outcomes/inbox", params={"item_id": str(RUN)})
 
 
 async def test_mcp_routine_result_policy_is_preserved_on_create_and_update(api):

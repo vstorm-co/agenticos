@@ -44,6 +44,12 @@ async def end_membership(db: AsyncSession, membership: OrganizationMember) -> No
     await api_key_repo.revoke_for_member(
         db, organization_id=organization_id, user_id=user_id, at=at
     )
+    from app.services.sandbox_workspace import SandboxWorkspaceService
+
+    await SandboxWorkspaceService(db).purge_personal_coding(
+        organization_id=organization_id,
+        user_id=user_id,
+    )
     await coding_account_repo.delete_for_member(
         db, organization_id=organization_id, user_id=user_id
     )
@@ -54,6 +60,9 @@ async def end_membership(db: AsyncSession, membership: OrganizationMember) -> No
         db, organization_id=organization_id, user_id=user_id
     )
     await telephony_repo.delete_member_contact(db, organization_id=organization_id, user_id=user_id)
+    from app.services.subscription_accounts import queue_wipe
+
+    await queue_wipe(db, organization_id, [user_id])
     await member_repo.delete(db, membership)
     # The editor keeps what they could always do on the leaver's pages; only the owner's
     # standing consent to their republishes goes with the owner.

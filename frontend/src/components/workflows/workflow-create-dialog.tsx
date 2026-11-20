@@ -166,6 +166,7 @@ export function WorkflowCreateDialog({
               <Label htmlFor="workflow-create-name">{t("createName")}</Label>
               <Input
                 id="workflow-create-name"
+                data-initial-focus
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 maxLength={128}

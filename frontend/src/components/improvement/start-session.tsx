@@ -1,4 +1,6 @@
 "use client";
+
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -140,14 +142,14 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
     </div>
   );
   const writeOwn = (
-    <details className="text-sm">
+    <NativeDisclosure className="text-sm">
       <summary className="text-muted-foreground hover:text-foreground cursor-pointer">
         {t("writeOwnInstead")}
       </summary>
       <div className="mt-3">
         <WriteQuestions agentId={agentId} onReady={questionsReady} />
       </div>
-    </details>
+    </NativeDisclosure>
   );
   async function start() {
     setError(null);
@@ -255,7 +257,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
         )}
         {!loading && <StartSignals agentId={agentId} datasetId={target} />}
         {target && (
-          <details
+          <NativeDisclosure
             className="border-t pt-4"
             data-tour="improvement-details"
             onToggle={(event) => setDetails(event.currentTarget.open)}
@@ -312,7 +314,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
                 </Link>
               )}
             </div>
-          </details>
+          </NativeDisclosure>
         )}
         {error && (
           <p role="alert" className="text-destructive-ink text-sm">

@@ -75,6 +75,7 @@ from app.schemas.agent import (
     AgentVersionDetail,
     AgentVersionList,
     AgentVersionRead,
+    ApplyShippedAgentUpdate,
     CapabilityCatalog,
     CapabilityCatalogEntry,
     CapabilityEnabled,
@@ -88,6 +89,7 @@ from app.schemas.agent import (
     PromptVariableCatalog,
     PromptVariableRead,
     RunRequestRead,
+    ShippedAgentUpdate,
     SpecialistPromote,
     SystemAgentCreate,
     TemplateInstallRequest,
@@ -100,6 +102,7 @@ from app.services import agent_templates, mcp_listing, transcription
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
 from app.services.platform_mcp import platform_tool_catalog
+from app.services.shipped_agents import ShippedAgentService
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -478,8 +481,29 @@ async def get_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> Any
             "can_run": await service.may_run(ctx, agent),
             "can_edit": await service.may_edit(ctx, agent),
             "can_publish": await service.may_publish(ctx, agent),
+            "can_review_shipped_update": (
+                ShippedAgentService.reviewable(agent)
+                and await service.may_edit(ctx, agent)
+                and await service.may_publish(ctx, agent)
+            ),
         }
     )
+
+
+@router.get("/{agent_id}/shipped-update", response_model=ShippedAgentUpdate, openapi_extra=INTERNAL)
+async def review_shipped_update(agent_id: UUID, db: DBSession, ctx: Auth) -> Any:
+    """Preview which fields the built-in defaults replace."""
+    return await ShippedAgentService(db).review_update(ctx, agent_id)
+
+
+@router.post(
+    "/{agent_id}/shipped-update", status_code=204, response_model=None, openapi_extra=INTERNAL
+)
+async def apply_shipped_update(
+    agent_id: UUID, data: ApplyShippedAgentUpdate, db: DBSession, ctx: Auth
+) -> Any:
+    """Apply the exact revision the caller reviewed."""
+    await ShippedAgentService(db).apply_update(ctx, agent_id, data.expected_revision)
 
 
 @router.get("/{agent_id}/draft-revision", response_model=AgentDraftRevision)

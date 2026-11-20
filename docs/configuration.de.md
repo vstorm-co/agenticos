@@ -1,5 +1,5 @@
 ---
-source_sha: "34f407ae78ff"
+source_sha: "1a74a11db7e0"
 ---
 
 # Konfiguration { #configuration }
@@ -88,7 +88,11 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 
 Für Bilder in Produktionskanälen setzen Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` und `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` in `backend/.env`. `scripts/deploy.sh` aktiviert dann das Profil `visuals` in `docker-compose-prod.yml`; beim manuellen Start ergänzen Sie `--profile visuals`.
 
-Öffentliches Browsen benötigt einen separaten Browser: setzen Sie `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` und `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Das Deployment aktiviert das Profil `browser`. Setzen Sie `browser_use.cdp_url` des Agents auf `http://browser:9222` und veröffentlichen Sie seinen Entwurf. Nur der Proxy erlaubt ausgehenden Verkehr; Squid verweigert private und Metadaten-Adressen. Behalten Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` für isoliertes Zeichnen. Ohne Domain-Einschränkung sind öffentliche Seiten erlaubt; eine ausdrückliche Domain-Liste gilt weiterhin.
+Öffentliches Browsen benötigt einen separaten Browser: setzen Sie `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` und `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Das Deployment aktiviert das Profil `browser`. Agents mit **Built in** verwenden `BROWSER_SIGN_IN_CDP_URL`, wenn ihr eigenes `cdp_url` leer ist. Nur der Proxy erlaubt ausgehenden Verkehr; Squid verweigert private und Metadaten-Adressen. Behalten Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` für isoliertes Zeichnen. Ohne Domain-Einschränkung sind öffentliche Seiten erlaubt; eine ausdrückliche Domain-Liste gilt weiterhin.
+
+AgenticOS verwendet standardmäßig **Built in** mit bis zu 100 Schritten pro Aufruf und **Computer use → Docker / Sandbox** mit der Laufzeit `desktop`. Diese enthält auch die Workbench-Werkzeuge für Code und Dokumente. Ohne Container-Verbindung bleiben Desktop und persönliche Cloud-Coding-Werkzeuge deaktiviert. Ein fehlender Browser-Endpunkt oder unerreichbarer Browser-Container betrifft nur Browser-Aufrufe; der Agent kann weiterhin veröffentlicht werden und mit seinen anderen Werkzeugen antworten. Konfigurierte Endpunkte benötigen weiterhin die Host-Freigabe des Betreibers.
+
+AgenticOS arbeitet selbstständig, sofern der Nutzer nicht ausdrücklich Subagents oder parallele Agent-Arbeit verlangt. Unter Delegates ist der Zugriff auf alle zugänglichen veröffentlichten Agents der aktuellen Organisation aktiviert. Berechtigungen gelten weiterhin, ausdrücklich festgelegte Versionen bleiben erhalten und unbeaufsichtigte Routinen erhalten diesen Katalog nicht. Dynamische Spezialisten sind deaktiviert.
 
 Der Renderer veröffentlicht keinen Port, hat keinen Internetzugang, bedient API und Worker und ist auf 1 CPU und 1 GiB RAM begrenzt. Veröffentlichte Backend-Images enthalten das Extra `browser`; eigene Images benötigen `EXTRAS="--extra browser"`. Schlägt das Rendern fehl, erklärt die Kanalantwort ausdrücklich, dass das Bild nicht angehängt werden konnte. Jeder Rendervorgang erlaubt höchstens 256 Anfragen und 32 ausstehende Antworten; Kartenkacheln teilen zusätzlich `RATE_LIMIT_MAP_TILES_PER_MINUTE` zwischen Renderern.
 
@@ -1756,3 +1760,36 @@ bleiben bis zur manuellen Entfernung auf dem Host und ersetzen keine externen
 Sicherungen. Testen Sie die Wiederherstellung zunächst auf einer Wegwerf-Installation.
 Mehrere Hosts, eigene Compose-Overlays und externer Dateispeicher benötigen Ihre
 Pipeline: `UPDATE_PIPELINE_URL` zeigt nur deren HTTPS-Link und startet kein Deployment.
+
+## Abonnement-Konten { #subscription-accounts }
+
+Der Dienst `subscription-gateway` betreibt die eigenen Abonnement-Anmeldungen
+der Personen ([Abonnement-Konten](models.md#subscription-accounts)). Er nutzt
+das Backend-Image mit `python -m app.subscription_gateway`, veröffentlicht
+keinen Port und hält die Anmeldungen im Volume `subscription_accounts`.
+
+| Variable | Gelesen von | Bedeutung |
+|---|---|---|
+| `SUBSCRIPTION_GATEWAY_URL` | API, Worker | Die Adresse des Gateways, in Compose `http://subscription-gateway:8400`. Leer schaltet Abonnement-Konten ab. |
+| `SUBSCRIPTION_GATEWAY_TOKEN` | API, Worker, Gateway | Das gemeinsame Token, mindestens 32 Zeichen. Das Gateway lehnt ohne es jede Anfrage ab, und die API startet nicht mit einer URL, aber ohne ein solches Token. |
+| `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | Gateway | Wie lange der Prozess einer Person im Leerlauf bleiben darf, bevor er stoppt. Standard 600. |
+| `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | Gateway | Wie viele Prozesse von Personen gleichzeitig laufen dürfen. Standard 64; darüber stoppt der am längsten unbenutzte Prozess im Leerlauf. |
+
+Das Token entsteht von selbst. `make dev` und `scripts/deploy.sh` schreiben beim
+ersten Lauf ein zufälliges `SUBSCRIPTION_GATEWAY_TOKEN` in `backend/.env` und
+behalten es danach; `make dev` reicht es an `docker-compose.yml` weiter. Für ein
+eigenes trage es vorher dort ein (`openssl rand -hex 32`).
+
+In `docker-compose-prod.yml` und `docker-compose-dev.yml` liegt der Dienst im
+Profil `subscriptions`. `scripts/deploy.sh` und der Host-Updater aktivieren das
+Profil und setzen `SUBSCRIPTION_GATEWAY_URL`, sobald `backend/.env` ein Token
+enthält; ein Server betreibt das Gateway also standardmäßig. Um es abzuschalten,
+lass die Zeile in `backend/.env` leer: `SUBSCRIPTION_GATEWAY_TOKEN=`.
+
+`docker-compose.yml` allein gestartet, ohne Klon, greift auf ein festes lokales
+Token zurück. Setze für jedes solche Deployment, das andere erreichen, ein
+eigenes `SUBSCRIPTION_GATEWAY_TOKEN` in `.env`.
+
+## GitHub Copilot OAuth { #github-copilot-oauth }
+
+Setzen Sie `GITHUB_COPILOT_OAUTH_CLIENT_ID` (standardmäßig leer) auf die eigene GitHub OAuth App des Deployments und aktivieren Sie Device Flow. Ohne sie wird persönliche Copilot-Anmeldung abgelehnt. Dies ist getrennt von GitHub Models und GitHub-Konnektoren. GitHub-Autorisierung bestätigt keine Copilot-Berechtigung; zusätzlich muss die kontobezogene Chat-Modellprüfung bestehen. Ablaufende GitHub-App-Freigaben und eigene Enterprise-Gateways werden nicht unterstützt. Siehe [Copilot-Konten](models.md#github-copilot-accounts).

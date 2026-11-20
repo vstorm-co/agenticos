@@ -1,5 +1,5 @@
 ---
-source_sha: "9a9b600834b2"
+source_sha: "b8c1be53f80f"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -720,7 +720,9 @@ scope aparte.
 
 ## Leer páginas web { #web-fetch }
 
-`web_fetch` — _Lee la página completa de una URL, como Markdown._
+`web_fetch` — *Lee el contenido de una URL como Markdown.*
+
+La lectura local de páginas largas acepta una posición de carácter `offset` y un límite `limit`. Empieza en cero y continúa en `next_offset`. Si la lectura alcanza el límite antes del final de la fuente, la respuesta incluye `reached_limit`.
 
 | Configuración | Valor por defecto | Valores |
 | --- | --- | --- |
@@ -1742,7 +1744,13 @@ segundo intento se cobraría de nuevo.
 
 **Cuentas personales en la nube.** En **Settings → Profile → Coding accounts**, conecta una clave de Anthropic/token de configuración de Claude, una clave de OpenAI o un nuevo inicio de sesión de ChatGPT y habilita su uso explícitamente en esta organización. Elige **Private cloud task with my account** en Coding agent. Solo las tareas autenticadas que inicies en el chat web/API pueden usarla; no horarios, canales, claves API ni suplantación. Otros miembros no pueden tomar prestada tu cuenta.
 
-Un contenedor independiente recibe una copia limitada del código (500 archivos, 1 MiB por archivo, 16 MiB en total; sin enlaces simbólicos ni carpetas de plataforma o caché). El informe final identifica cuenta y snapshot, con diff y ZIP en el chat. Los archivos de origen no cambian automáticamente. Revocar el acceso a la cuenta cancela el trabajo. También puedes revocar el permiso externo de ChatGPT en sus ajustes. Las credenciales organizativas existentes y los inicios de sesión CLI locales siguen separados. Actualiza API y workers juntos después de `0290_personal_coding_accounts.py`.
+Cada sesión personal con nombre conserva un contenedor privado del usuario, inicializado una vez con una copia limitada del código (500 archivos, 1 MiB por archivo, 16 MiB en total; sin enlaces simbólicos ni carpetas de plataforma o caché). El informe final identifica cuenta y snapshot, con diff y ZIP en el chat. Los archivos de origen no cambian automáticamente. Revocar el acceso a la cuenta cancela el trabajo. También puedes revocar el permiso externo de ChatGPT en sus ajustes. Las credenciales organizativas existentes y los inicios de sesión CLI locales siguen separados. Actualiza API y workers juntos después de `0290_personal_coding_accounts.py`.
+
+Las tareas privadas en la nube pueden elegir `harness=claude_code` o `harness=codex` en cada llamada a `run_coding_agent`; si se omite, se usa el agente de coding predeterminado. Ambos pueden trabajar simultáneamente mediante el mismo agente en contenedores de sesiones y cuentas separados. El modelo configurado corresponde al harness predeterminado; el otro usa su propio modelo por defecto. Cada cuenta conserva un bloqueo exclusivo de credenciales, por lo que las tareas de la misma cuenta esperan en una cola con tiempo limitado.
+
+Una cuenta ausente o deshabilitada no se sustituye por una clave de la organización ni por una cuenta ajena. Codex se rechaza para tareas de contenedor de solo lectura. El modo de sandbox de la organización sigue vinculado al harness y las credenciales configurados.
+
+Las sesiones privadas con nombre conservan historiales nativos de CLI y archivos separados dentro de la misma conversación y autorización de cuenta. Un nombre nuevo copia el código actual; el mismo nombre continúa sus archivos existentes. `fresh_session` reinicia el historial CLI y conserva los archivos. La caducidad del sandbox por inactividad puede terminar una sesión. Se descarta una tarea fallida cuya limpieza no se puede confirmar; elige explícitamente un nombre nuevo si se pierde el estado. Cambiar el consentimiento, desconectar la cuenta, retirar la membresía o eliminar el agente, conversación, usuario u organización encola la limpieza remota. Aplica `0342_personal_coding_sessions.py` y actualiza API y workers juntos.
 
 El modo personal en la nube solo acepta workspaces de origen privados. Rechaza proyectos, workspaces de agente/canal, chats grupales y conversaciones compartidas para editar antes de cargar credenciales o copiar archivos. Un contenedor privado de destino no convierte en fiable el código controlado por colaboradores. Usa el modo de programación configurado por la organización para proyectos compartidos. La redacción del resultado no protege credenciales frente al código ejecutable.
 
@@ -1780,7 +1788,7 @@ rechaza la combinación. Que una persona diga sí antes de cada tarea es la
 los existentes conservan su política. No hay pestaña de
 herramientas: la única herramienta es la capability.
 
-**Sesiones con nombre.** Cada tarea indica una `session` - `main` cuando no indica ninguna. El mismo nombre continúa el trabajo anterior de esa sesión en la conversación; un nombre nuevo abre otra, y las sesiones independientes se ejecutan en paralelo cuando el agente llama a la herramienta varias veces a la vez. `fresh_session` reinicia una sesión. En este ordenador una sesión también puede elegir su `harness` - Claude Code o Codex, con la sesión iniciada en ese ordenador - y una `folder` dentro de la carpeta del chat, de modo que dos proyectos, o ambos harnesses, trabajan a la vez. En una sandbox o en una tarea privada en la nube el harness del binding es el único, porque la clave o la cuenta le pertenecen.
+**Sesiones con nombre.** Cada tarea indica una `session` - `main` cuando no indica ninguna. El mismo nombre continúa el trabajo anterior de esa sesión en la conversación; un nombre nuevo abre otra, y las sesiones independientes se ejecutan en paralelo cuando el agente llama a la herramienta varias veces a la vez. `fresh_session` reinicia una sesión. En este ordenador una sesión también puede elegir su `harness` - Claude Code o Codex, con la sesión iniciada en ese ordenador - y una `folder` dentro de la carpeta del chat, de modo que dos proyectos, o ambos harnesses, trabajan a la vez. Las tareas en el sandbox de la organización conservan el harness configurado. Las sesiones privadas en la nube pueden elegir ambos agentes con la cuenta propia de la persona.
 
 **En este ordenador.** Configura `runs_on` como `this_computer` para usar el harness instalado mediante [Agent Client Protocol](https://agentclientprotocol.com). El escritorio inicia un adaptador con versión fijada mediante `npx`; el servidor habla ACP. Elige una carpeta con acceso completo en **Work on** y confirma cada inicio de forma nativa. La carpeta es un directorio de trabajo, no una sandbox del sistema. El harness usa su propia sesión; la clave de vault es opcional. Los permisos siguen `access`; la aprobación se aplica una vez por tarea. Claude read-only desactiva bypass y herramientas de escritura; Codex local selecciona su modo de lectura nativo.
 
@@ -3579,3 +3587,48 @@ Permisos explícitos del bot para encontrar canales, buscar mensajes y entregar 
 | `send_chat_message` | Mensaje o informe solicitado en una publicación nueva o un hilo existente |
 
 Cada operación vuelve a comprobar la pertenencia a la organización, acceso al agente, vinculación y bot activos, además de pertenencia al canal y correspondencia del hilo. No se une a canales ni utiliza bots de otros agentes. La búsqueda y el historial devuelven páginas limitadas con cursores; una página sin coincidencias no es el final si hay cursor. Los fallos del proveedor son rechazos, no resultados vacíos. Los envíos siguen la política de aprobación; una entrega no confirmada debe comprobarse antes de reintentarse. Las demás plataformas conservan sus herramientas de conversación; las acciones entre canales solo se ofrecen donde el adaptador verifica la pertenencia.
+
+## Agente ACP externo { #external-acp }
+
+`external_acp` ofrece `run_acp_agent` para delegar tareas completas a un programa
+ACP v1 instalado en el equipo de quien inicia la tarea. Utiliza el ciclo de tareas
+Desktop existente; no crea un endpoint A2A, una tarea en segundo plano ni un
+entorno que dirija la conversación principal.
+
+En **Ajustes → Aplicación Desktop → Agentes ACP externos** (también en las cuentas
+de programación del perfil), registra un ID estable, nombre, ruta absoluta del
+ejecutable y matriz JSON de argumentos, como `["acp"]`. Inicia sesión primero con
+el comando del programa. No incluyas credenciales en los argumentos. La confirmación
+nativa muestra el comando. Activa **Agente ACP externo** en el Builder con ese ID.
+La especificación guarda el ID, un límite de 1–60 minutos (15 por defecto), selección opcional de autenticación/modelo, referencia opcional de proveedor/clave Pi y la opción de reenvío. Ejecutable, argumentos y credenciales sin cifrar quedan fuera de la especificación.
+
+En el chat, elige trabajar en este equipo con una carpeta de acceso completo
+aprobado. El inicio requiere consentimiento nativo para la conexión, carpeta y
+registro. El programa se ejecuta con tu cuenta local sin aislamiento del sistema
+y gestiona sus herramientas, modelo y sesión. No se garantiza el aislamiento de
+solo lectura. La aprobación humana puede solicitar confirmación para cada tarea.
+Las herramientas de plataforma están desactivadas de forma predeterminada. Activa expresamente el [puente limitado a esta ejecución](../desktop.md#runtime-platform-tools).
+
+Los pasos y la respuesta aparecen en el panel de delegación existente. Las sesiones
+con nombre solo continúan si el programa anuncia `loadSession`; de lo contrario,
+inicia una sesión nueva expresamente. Detener, agotar el tiempo o revocar la carpeta
+termina el proceso. Eliminar o volver a registrar el ID detiene sus tareas y borra
+los permisos e IDs de sesión guardados. Regístralo de nuevo tras cambiar de cuenta.
+Cambiar la conexión Desktop también borra los registros.
+
+El uso se registra sin precio. La elegibilidad de la suscripción, las cuotas y los
+cargos de API dependen de la cuenta del programa. Un ejecutable ausente, un inicio
+de sesión requerido, un protocolo incompatible o una continuación no admitida
+producen errores explícitos. El registro no certifica derechos de suscripción.
+
+`inspect_acp_agent` lee las opciones de modelo y razonamiento de la cuenta/sesión sin prompt de inferencia. `auth_method` usa `configured` por defecto; `oauth-personal` solicita la cuenta personal de Google en Antigravity. El registro Desktop de Antigravity exige ese modo. `model_id` opcional selecciona un ID exacto del entorno. [Configurar Antigravity](../desktop.md#antigravity-acp) describe la facturación y las pruebas de cuenta pendientes.
+
+Las inscripciones OpenCode leen actualizaciones tardías del catálogo. La plantilla Go filtra los modelos y limita el modelo principal a `opencode-go/`; los modelos auxiliares y Extra Usage dependen del CLI y la cuenta. Consulta la [configuración de OpenCode y Go](../desktop.md#opencode-acp).
+
+La plantilla Cursor usa la cuenta CLI con `cursor_login`, elimina credenciales API heredadas y cancela solicitudes humanas sin respuesta. El registro de claves API espera verificar su aislamiento. Consulta la [configuración Cursor](../desktop.md#cursor-acp).
+
+Cline ofrece plantillas separadas para cuenta y clave API heredada, ambas fijadas al provider Cline y `--acp` directo. La [configuración Cline](../desktop.md#cline-acp) explica credenciales, créditos y aceptación.
+
+Mistral Vibe usa su configuración de navegador y claves; catálogo e informes indican el origen saneado. La [configuración Vibe](../desktop.md#mistral-vibe-acp) explica facturación y verificación de cuenta.
+
+Mistral Vibe indica `configuration_policy=cli`: deja vacío ID del modelo externo y elige el modelo en Vibe. AgenticOS rechaza cambios antes de iniciar el protocolo porque el runtime puede guardarlos como valores predeterminados del usuario.

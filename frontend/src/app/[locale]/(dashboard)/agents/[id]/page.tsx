@@ -1,6 +1,9 @@
 "use client";
 
+import { NATIVE_CHOICE } from "@/components/ui/control-styles";
+
 import { canonicalJson, sameJson } from "@/lib/canonical-json";
+import { BuildSection } from "@/components/agents/build-section";
 import { MoreOptions } from "@/components/ui/more-options";
 
 import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
@@ -16,6 +19,7 @@ import {
   Copy,
   Database,
   Download,
+  Pencil,
   FlaskConical,
   History,
   Lock,
@@ -94,6 +98,7 @@ import { MetadataEditor } from "@/components/agents/metadata-editor";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ObservabilityCard } from "@/components/agents/observability-card";
 import { VoiceCard } from "@/components/agents/voice-card";
+import { ShippedUpdateDialog } from "@/components/agents/shipped-update-dialog";
 import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishRefusal } from "@/components/agents/publish-refusal";
 import { PublishState } from "@/components/agents/publish-state";
@@ -363,8 +368,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [fixing, setFixing] = useState(false);
   const [confirming, setConfirming] = useState<"archive" | "delete" | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [shippedUpdateOpen, setShippedUpdateOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const moreActions = useRef<HTMLButtonElement>(null);
   // In the address, so a reload or a shared link lands on the same tab.
   const [tabParam, changeTab] = useUrlState("tab");
   const [gapTopic, gapTopicView] = useUrlOverlay("topic");
@@ -375,6 +383,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // From another tab the card mounts a render after the tab changes, so the
   // scroll waits for the card to attach rather than for the tab.
   const modelCard = useRef<HTMLDivElement | null>(null);
+  const [modelSectionOpen, setModelSectionOpen] = useState(true);
   const revealModel = useRef(false);
   const attachModelCard = useCallback((node: HTMLDivElement | null) => {
     modelCard.current = node;
@@ -384,6 +393,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     }
   }, []);
   const goToModel = () => {
+    setModelSectionOpen(true);
     if (tab === "build" && modelCard.current) {
       modelCard.current.scrollIntoView({ behavior: glideOrJump(), block: "start" });
       return;
@@ -1253,6 +1263,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   <Button
                     variant="outline"
                     size="icon"
+                    ref={moreActions}
                     aria-label={t("moreActions")}
                     data-tour="agent-share"
                   >
@@ -1260,6 +1271,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuItem onSelect={() => setDetailsOpen(true)}>
+                    <Pencil className="size-4" />
+                    {tc("details")}
+                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={continueConversation} disabled={!isPublished}>
                     <History className="size-4" />
                     {t("continueConversation")}
@@ -1272,6 +1287,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     <UserPlus className="size-4" />
                     {tSharing("share")}
                   </DropdownMenuItem>
+                  {agent.can_review_shipped_update && (
+                    <DropdownMenuItem
+                      disabled={isDirty || saveDraft.isPending}
+                      onSelect={() => setShippedUpdateOpen(true)}
+                    >
+                      <History className="h-4 w-4" />
+                      {t("shippedUpdate.review")}
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild className={DESCRIBED_ITEM}>
                     <a href={`/api/agents/${id}/spec.yaml`} download>
@@ -1414,6 +1438,73 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </div>
         )}
 
+        <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+          <DialogContent
+            className={cn(DIALOG_SCROLL, DIALOG_FORM)}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              moreActions.current?.focus();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>{tc("details")}</DialogTitle>
+              <DialogDescription>{t("identityHelp", { slug: agent.slug })}</DialogDescription>
+            </DialogHeader>
+            {draftConflict && (
+              <Alert variant="warning" role="alert">
+                <AlertDescription className="flex flex-wrap items-center gap-3">
+                  <span className="min-w-0 flex-1">{t("draftChanged")}</span>
+                  <Button size="sm" onClick={() => void reloadDraft()}>
+                    {t("reloadDraft")}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+            <section className="space-y-3">
+              <h3 className="text-sm font-semibold">{t("identity")}</h3>
+              <div className="space-y-2">
+                <Label htmlFor="agent-name">{t("agentNameLabel")}</Label>
+                <Input
+                  id="agent-name"
+                  value={spec.name}
+                  maxLength={128}
+                  disabled={!canEdit}
+                  aria-invalid={!spec.name.trim()}
+                  aria-describedby={spec.name.trim() ? undefined : "agent-name-error"}
+                  onChange={(event) => update({ name: event.target.value })}
+                />
+                {!spec.name.trim() && (
+                  <p id="agent-name-error" className="text-destructive text-xs">
+                    {t("agentNameRequired")}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="agent-description">{t("agentDescriptionLabel")}</Label>
+                <Textarea
+                  id="agent-description"
+                  value={spec.description ?? ""}
+                  maxLength={1000}
+                  rows={2}
+                  disabled={!canEdit}
+                  onChange={(event) => update({ description: event.target.value || null })}
+                />
+              </div>
+            </section>
+            {canEdit && (
+              <section className="border-border space-y-3 border-t pt-4">
+                <h3 className="text-sm font-semibold">{t("discovery")}</h3>
+                <p className="text-muted-foreground text-xs">{t("discoveryHelp")}</p>
+                <MetadataEditor
+                  agentId={id}
+                  categories={agent.categories ?? []}
+                  tags={agent.tags ?? []}
+                />
+              </section>
+            )}
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={shareOpen} onOpenChange={setShareOpen}>
           <DialogContent className={cn(DIALOG_SCROLL, DIALOG_FORM)}>
             <DialogHeader>
@@ -1509,6 +1600,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
           }}
         />
 
+        {shippedUpdateOpen && (
+          <ShippedUpdateDialog agentId={id} onClose={() => setShippedUpdateOpen(false)} />
+        )}
         <PublishDialog
           open={publishOpen}
           onOpenChange={setPublishOpen}
@@ -1699,7 +1793,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="build" className="mt-4 space-y-4">
+          <TabsContent value="build" className="mt-5 space-y-4 sm:mt-6">
             <Card data-tour="agent-instructions">
               <CardContent className="p-4 sm:p-5">
                 <InstructionsEditor
@@ -1748,182 +1842,136 @@ export default function AgentBuilderPage({ params }: PageProps) {
               onTimeZoneChange={(time_zone) => update({ time_zone })}
             />
 
-            {/* The model, then how it is asked: one card, apart from the
+            <div data-agent-build-settings className="space-y-4">
+              {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
-            <Card
-              ref={attachModelCard}
-              data-tour="agent-model"
-              className="scroll-mt-4 rounded-none border-0 border-b bg-transparent [&>div]:px-0"
-            >
-              <CardHeader>
-                <CardTitle>{t("model")}</CardTitle>
-                <CardDescription>{t("howAgentAsksIts")}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2" data-tour="agent-model-picker">
-                  <ModelProfilePicker
-                    // A model profile is `connections:manage`, which somebody who
-                    // may edit this agent need not hold - and both halves of this
-                    // panel write one: the form posts `/providers/model-profiles`
-                    // and the bin deletes one from under every agent pointed at
-                    // it. Ungated, they were a 403 dressed as a control, the same
-                    // way Connect server below would be without its own gate.
-                    allowAdd={can(Perm.connectionsManage)}
-                    // The Builder is where an organization's models are managed,
-                    // so it is the one panel that also takes one away.
-                    allowRemove={can(Perm.connectionsManage)}
-                    requireOrganizationKey={spec.model_credential_mode !== "personal"}
-                    profiles={profiles}
-                    profilesStatus={profilesStatus}
-                    value={spec.model_profile_id ?? null}
-                    onChange={(model_profile_id) => update({ model_profile_id })}
-                    disabled={!canEdit}
-                  />
-                  {/* Said where the missing control would be, because publish
-                    would otherwise be the first thing to say it. */}
-                  {modelDeadEnd && (
-                    <p className="text-muted-foreground text-xs">{t("noModelNeedsConnections")}</p>
-                  )}
-                </div>
-                <fieldset className="space-y-2" data-tour="agent-model-credentials">
-                  <legend className="text-sm font-medium">{t("modelCredentialMode")}</legend>
-                  {(["organization", "personal"] as const).map((mode) => (
-                    <label key={mode} className="flex min-h-11 items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        name="model-credential-mode"
-                        value={mode}
-                        checked={(spec.model_credential_mode ?? "organization") === mode}
-                        disabled={!canEdit}
-                        onChange={() => update({ model_credential_mode: mode })}
-                      />
-                      {t(mode === "organization" ? "organizationModelKey" : "personalModelKey")}
-                    </label>
-                  ))}
-                  {spec.model_credential_mode === "personal" && (
-                    <p className="text-muted-foreground text-xs">{t("personalModelLimits")}</p>
-                  )}
-                </fieldset>
-                <MoreOptions label={t("modelSettings")}>
-                  <ModelSettingsForm
-                    value={spec.model_settings}
-                    onChange={(model_settings) => update({ model_settings })}
-                    disabled={!canEdit}
-                    verdict={verdictKind(agent.kind)}
-                  />
-                </MoreOptions>
-                <ThinkingSetting
-                  definition={capabilities.find((entry) => entry.id === THINKING_ID)}
-                  binding={spec.capabilities.find((binding) => binding.id === THINKING_ID)}
-                  onToggle={() => toggleCapability(THINKING_ID)}
-                  onChange={updateCapability}
-                  disabled={!canEdit}
-                />
-              </CardContent>
-            </Card>
-
-            {
-              <>
-                <Card data-tour="agent-answer-format">
-                  <CardHeader>
-                    <CardTitle>{tAnswer("title")}</CardTitle>
-                    <CardDescription>{tAnswer("description")}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <AnswerFormatForm
-                      value={spec.output_schema ?? null}
-                      onChange={(output_schema) => update({ output_schema })}
+              <BuildSection
+                ref={attachModelCard}
+                data-tour="agent-model"
+                title={t("model")}
+                description={t("howAgentAsksIts")}
+                open={modelSectionOpen}
+                onOpenChange={setModelSectionOpen}
+                className="scroll-mt-4"
+              >
+                <div className="space-y-4">
+                  <div className="space-y-2" data-tour="agent-model-picker">
+                    <ModelProfilePicker
+                      // A model profile is `connections:manage`, which somebody who
+                      // may edit this agent need not hold - and both halves of this
+                      // panel write one: the form posts `/providers/model-profiles`
+                      // and the bin deletes one from under every agent pointed at
+                      // it. Ungated, they were a 403 dressed as a control, the same
+                      // way Connect server below would be without its own gate.
+                      allowAdd={can(Perm.connectionsManage)}
+                      // The Builder is where an organization's models are managed,
+                      // so it is the one panel that also takes one away.
+                      allowRemove={can(Perm.connectionsManage)}
+                      requireOrganizationKey={spec.model_credential_mode !== "personal"}
+                      profiles={profiles}
+                      profilesStatus={profilesStatus}
+                      value={spec.model_profile_id ?? null}
+                      onChange={(model_profile_id) => update({ model_profile_id })}
                       disabled={!canEdit}
                     />
-                  </CardContent>
-                </Card>
-
-                <VoiceCard
-                  value={spec.speech_to_text}
-                  onChange={(speech_to_text) => update({ speech_to_text })}
-                  conversation={{
-                    agentId: id,
-                    value: spec.voice,
-                    onChange: (voice) => update({ voice }),
-                    hasGuardrails: spec.capabilities.some(
-                      (binding) => binding.id === "guardrails" && binding.enabled !== false,
-                    ),
-                  }}
-                  disabled={!canEdit}
-                />
-              </>
-            }
-
-            <StartersPanel
-              starters={spec.starters ?? []}
-              icons={spec.starter_icons ?? {}}
-              titles={spec.starter_titles ?? {}}
-              disabled={!canEdit}
-              onChange={(starters, starter_icons, starter_titles) =>
-                update({ starters, starter_icons, starter_titles })
-              }
-            />
-
-            {/* Discovery metadata, not the spec: it autosaves at once like the
-              avatar, so it hangs off the same `canEdit` every other editing
-              control on this page does. */}
-            {canEdit && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t("discovery")}</CardTitle>
-                  <CardDescription>{t("discoveryHelp")}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <MetadataEditor
-                    agentId={id}
-                    categories={agent.categories ?? []}
-                    tags={agent.tags ?? []}
-                  />
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Last on the tab: what the agent does comes first, what it is called is
-                set once. The name is spec like everything else here, and autosaves with it:
-                a duplicate arrives as "<name> (copy)" and this is where it stops
-                being one. The handle is the row's, fixed at creation, so renaming
-                never breaks a delegation or an @mention wired to it. */}
-            <Card data-tour="agent-identity">
-              <CardHeader>
-                <CardTitle>{t("identity")}</CardTitle>
-                <CardDescription>{t("identityHelp", { slug: agent.slug })}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="agent-name">{t("agentNameLabel")}</Label>
-                  <Input
-                    id="agent-name"
-                    value={spec.name}
-                    maxLength={128}
-                    disabled={!canEdit}
-                    aria-invalid={!spec.name.trim()}
-                    aria-describedby={spec.name.trim() ? undefined : "agent-name-error"}
-                    onChange={(event) => update({ name: event.target.value })}
-                  />
-                  {!spec.name.trim() && (
-                    <p id="agent-name-error" className="text-destructive text-xs">
-                      {t("agentNameRequired")}
-                    </p>
-                  )}
+                    {/* Said where the missing control would be, because publish
+                    would otherwise be the first thing to say it. */}
+                    {modelDeadEnd && (
+                      <p className="text-muted-foreground text-xs">
+                        {t("noModelNeedsConnections")}
+                      </p>
+                    )}
+                  </div>
+                  <fieldset className="space-y-2" data-tour="agent-model-credentials">
+                    <legend className="text-sm font-medium">{t("modelCredentialMode")}</legend>
+                    {(["organization", "personal"] as const).map((mode) => (
+                      <label key={mode} className="flex min-h-11 items-center gap-2 text-sm">
+                        <input
+                          type="radio"
+                          className={NATIVE_CHOICE}
+                          name="model-credential-mode"
+                          value={mode}
+                          checked={(spec.model_credential_mode ?? "organization") === mode}
+                          disabled={!canEdit}
+                          onChange={() => update({ model_credential_mode: mode })}
+                        />
+                        {t(mode === "organization" ? "organizationModelKey" : "personalModelKey")}
+                      </label>
+                    ))}
+                    {spec.model_credential_mode === "personal" && (
+                      <p className="text-muted-foreground text-xs">{t("personalModelLimits")}</p>
+                    )}
+                  </fieldset>
+                  <MoreOptions label={t("modelSettings")}>
+                    <ModelSettingsForm
+                      value={spec.model_settings}
+                      onChange={(model_settings) => update({ model_settings })}
+                      disabled={!canEdit}
+                      verdict={verdictKind(agent.kind)}
+                    />
+                    {capabilities
+                      .filter((entry) => entry.id === THINKING_ID)
+                      .map((definition) => (
+                        <div key={definition.id} className="border-t pt-4">
+                          <ThinkingSetting
+                            definition={definition}
+                            binding={spec.capabilities.find(
+                              (binding) => binding.id === THINKING_ID,
+                            )}
+                            onToggle={() => toggleCapability(THINKING_ID)}
+                            onChange={updateCapability}
+                            disabled={!canEdit}
+                          />
+                        </div>
+                      ))}
+                    <div data-tour="agent-answer-format" className="space-y-3 border-t pt-4">
+                      <div>
+                        <h3 className="text-sm font-medium">{tAnswer("title")}</h3>
+                        <p className="text-muted-foreground text-xs">{tAnswer("description")}</p>
+                      </div>
+                      <AnswerFormatForm
+                        value={spec.output_schema ?? null}
+                        onChange={(output_schema) => update({ output_schema })}
+                        disabled={!canEdit}
+                      />
+                    </div>
+                  </MoreOptions>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="agent-description">{t("agentDescriptionLabel")}</Label>
-                  <Textarea
-                    id="agent-description"
-                    value={spec.description ?? ""}
-                    maxLength={1000}
-                    rows={2}
-                    disabled={!canEdit}
-                    onChange={(event) => update({ description: event.target.value || null })}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+              </BuildSection>
+
+              <VoiceCard
+                collapsible
+                value={spec.speech_to_text}
+                onChange={(speech_to_text) => update({ speech_to_text })}
+                conversation={{
+                  agentId: id,
+                  value: spec.voice,
+                  onChange: (voice) => update({ voice }),
+                  hasGuardrails: spec.capabilities.some(
+                    (binding) => binding.id === "guardrails" && binding.enabled !== false,
+                  ),
+                }}
+                disabled={!canEdit}
+              />
+              <StartersPanel
+                draws={spec.capabilities.some(
+                  (binding) => binding.id === VISUALS_ID && binding.enabled !== false,
+                )}
+                starters={spec.starters ?? []}
+                showStarters={spec.show_starters ?? true}
+                onShowStartersChange={(show_starters) => update({ show_starters })}
+                icons={spec.starter_icons ?? {}}
+                titles={spec.starter_titles ?? {}}
+                disabled={!canEdit}
+                onChange={(starters, starter_icons, starter_titles) =>
+                  update({
+                    starters,
+                    starter_icons,
+                    starter_titles,
+                  })
+                }
+              />
+            </div>
           </TabsContent>
 
           <TabsContent value="toolbox" className="mt-4 space-y-4">
@@ -1963,7 +2011,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             outside the deployment for - and the picker embeds the whole server
             catalog, so it pushed the capability workbench off the top of the
             screen on any organization with more than a handful of servers. */}
-          <TabsContent value="mcp" className="mt-4 space-y-4">
+          <TabsContent value="mcp" className="mt-5 space-y-4">
             <Card data-tour="agent-mcp">
               {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past

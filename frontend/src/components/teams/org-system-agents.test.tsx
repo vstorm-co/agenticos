@@ -179,13 +179,10 @@ describe("OrgSystemAgents", () => {
 
   it("keeps service configuration and activity hidden until expanded", async () => {
     render(<OrgSystemAgents org={ORG} />);
-    expect(
-      within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
-        name: "pick",
-        hidden: true,
-      }),
-    ).not.toBeVisible();
     const card = within(screen.getByTestId("system-agent-memory_maintenance"));
+    expect(card.queryByRole("button", { name: "pick" })).toBeNull();
+    expect(card.getByText("pick")).not.toBeVisible();
+    expect(card.getByText("pick").closest("[inert]")).toHaveAttribute("aria-hidden", "true");
     expect(card.getByText("noRuns")).not.toBeVisible();
     expect(card.getByText(/^spent:/)).not.toBeVisible();
     await userEvent.click(

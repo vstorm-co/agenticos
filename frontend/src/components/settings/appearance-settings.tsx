@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
 import { ContextHelp } from "@/components/ui/context-help";
-import { ChoiceGroup } from "@/components/settings/choice-group";
+import { ChoiceGroup } from "@/components/ui/choice-group";
 import { LookPicker } from "@/components/settings/look-picker";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useMounted } from "@/hooks/use-mounted";

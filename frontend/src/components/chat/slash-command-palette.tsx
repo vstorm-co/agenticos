@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 
+import { COMMAND_ITEM_FOCUS, MENU_ROW, MENU_LABEL } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 import type { SlashCommand } from "./slash-commands";
 
@@ -31,7 +32,7 @@ export function SlashCommandPalette({
 
   if (commands.length === 0) {
     return (
-      <div className="border-foreground/10 bg-popover absolute bottom-full left-0 mb-2 w-full max-w-sm rounded-xl border p-3 shadow-lg">
+      <div className="chat-command-palette border-foreground/10 bg-popover absolute bottom-full left-0 mb-2 w-full max-w-sm rounded-xl border p-3 shadow-lg">
         <p className="text-muted-foreground text-xs">
           {t.rich("noMatching", {
             key: (chunks) => <kbd className="font-mono">{chunks}</kbd>,
@@ -42,8 +43,10 @@ export function SlashCommandPalette({
   }
 
   return (
-    <div className="border-foreground/10 bg-popover absolute bottom-full left-0 mb-2 w-full max-w-md overflow-hidden rounded-xl border shadow-lg">
-      <div className="border-foreground/8 text-muted-foreground flex items-center justify-between border-b px-3 py-1.5 font-mono text-xs tracking-wider uppercase">
+    <div className="chat-command-palette border-foreground/10 bg-popover absolute bottom-full left-0 mb-2 w-full max-w-md overflow-hidden rounded-xl border shadow-lg">
+      <div
+        className={cn(MENU_LABEL, "chat-command-palette-header flex items-center justify-between")}
+      >
         <span>{t("commands")}</span>
         <span className="hidden sm:inline">{t("hint")}</span>
       </div>
@@ -60,7 +63,9 @@ export function SlashCommandPalette({
               onPick(cmd);
             }}
             className={cn(
-              "flex cursor-pointer items-center justify-between gap-3 px-3 py-1.5",
+              MENU_ROW,
+              COMMAND_ITEM_FOCUS,
+              "chat-command-palette-row cursor-pointer justify-between",
               selectedIndex === i ? "bg-foreground/[0.06]" : "hover:bg-foreground/[0.03]",
             )}
           >

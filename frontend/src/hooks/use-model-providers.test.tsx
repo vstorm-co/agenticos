@@ -627,14 +627,20 @@ it("isolates Stav catalogs by the selected vault key", async () => {
   );
 });
 
-it.each(["stav", "otari"])(
-  "does not list a custom %s endpoint before a key is selected",
-  (provider) => {
-    vi.mocked(apiClient.get).mockClear();
-    renderHook(() => useProviderModels(provider, "https://gateway.example/api/v1"), { wrapper });
-    expect(apiClient.get).not.toHaveBeenCalled();
-  },
-);
+it.each([
+  "stav",
+  "otari",
+  "zai",
+  "kimi_code",
+  "alibaba_coding_plan",
+  "opencode_go",
+  "ollama_cloud",
+  "cliproxyapi",
+])("does not list a custom %s endpoint before a key is selected", (provider) => {
+  vi.mocked(apiClient.get).mockClear();
+  renderHook(() => useProviderModels(provider, "https://gateway.example/api/v1"), { wrapper });
+  expect(apiClient.get).not.toHaveBeenCalled();
+});
 
 it("does not send an Otari key anywhere before its destination is chosen", () => {
   vi.mocked(apiClient.get).mockClear();
@@ -654,4 +660,38 @@ it("keeps native decision suggestions separate from chat models in the query cac
     "/providers/typesafe/models?api=decisions&secret_id=key-1",
   );
   expect(result.current.refused).toEqual([]);
+});
+
+it("lists official ChatGPT models only for an explicitly selected grant and separates accounts", async () => {
+  vi.mocked(apiClient.get).mockClear();
+  vi.mocked(apiClient.get).mockImplementation(async (url: string) => ({
+    items: [
+      {
+        id: url.includes("key-b") ? "account-b-model" : "account-a-model",
+        name: "Account model",
+        apis: ["responses"],
+        chat_capable: true,
+      },
+    ],
+    total: 1,
+    source: "live",
+  }));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const hook = renderHook(
+    ({ id }: { id: string | undefined }) => useProviderModels("openai_chatgpt", undefined, id),
+    {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+      initialProps: { id: undefined as string | undefined },
+    },
+  );
+  expect(apiClient.get).not.toHaveBeenCalled();
+  hook.rerender({ id: "key-a" });
+  await waitFor(() => expect(hook.result.current.models[0]?.id).toBe("account-a-model"));
+  hook.rerender({ id: "key-b" });
+  await waitFor(() => expect(hook.result.current.models[0]?.id).toBe("account-b-model"));
+  expect(apiClient.get).toHaveBeenLastCalledWith(
+    "/providers/openai_chatgpt/models?secret_id=key-b",
+  );
 });

@@ -73,10 +73,17 @@ describe("QuestionPrompt", () => {
     await userEvent.type(screen.getByPlaceholderText("Type your answer…"), "Soon");
     await userEvent.click(screen.getByRole("button", { name: "Use this" }));
     expect(screen.getByText("Question 2 of 2")).toBeInTheDocument();
+    expect(screen.getByText("Who will use it?").closest("[data-direction]")).toHaveAttribute(
+      "data-direction",
+      "forward",
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "Previous question" }));
 
     expect(screen.getByPlaceholderText("Type your answer…")).toHaveValue("Soon");
+    expect(
+      screen.getByPlaceholderText("Type your answer…").closest("[data-direction]"),
+    ).toHaveAttribute("data-direction", "backward");
     await userEvent.click(screen.getByRole("button", { name: "Go to question 2" }));
     expect(screen.getByText("Who will use it?")).toBeInTheDocument();
   });
@@ -178,4 +185,106 @@ describe("QuestionPrompt", () => {
     expect(screen.getByRole("button", { name: "Dismiss questions" })).toBeDisabled();
     fireEvent.keyDown(screen.getByRole("group"), { key: "1" });
   });
+});
+
+it("keeps native editor whitespace and permits an explicit empty replacement", async () => {
+  const onComplete = vi.fn();
+  render(
+    <QuestionPrompt
+      questions={[
+        {
+          question: "Edit",
+          requestId: "native-one",
+          multiline: true,
+          initialValue: "  original\n",
+          allowEmpty: true,
+        },
+      ]}
+      onComplete={onComplete}
+    />,
+  );
+  const editor = screen.getByRole("textbox");
+  expect(editor.tagName).toBe("TEXTAREA");
+  expect(editor).toHaveValue("  original\n");
+  await userEvent.clear(editor);
+  await userEvent.type(editor, "  indented{enter}next");
+  expect(onComplete).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Use this" }));
+  expect(onComplete).toHaveBeenLastCalledWith([{ answer: "  indented\nnext", skipped: false }]);
+  await userEvent.clear(editor);
+  await userEvent.click(screen.getByRole("button", { name: "Use this" }));
+  expect(onComplete).toHaveBeenLastCalledWith([{ answer: "", skipped: false }]);
+});
+
+it("enforces a native selection range and sends the offered identities", async () => {
+  const onComplete = vi.fn();
+  render(
+    <QuestionPrompt
+      questions={[
+        {
+          question: "Pick two",
+          multiSelect: true,
+          minSelections: 2,
+          maxSelections: 2,
+          allowCustom: false,
+          options: [{ label: "A" }, { label: "B" }, { label: "C" }],
+        },
+      ]}
+      onComplete={onComplete}
+    />,
+  );
+  const submit = screen.getByRole("button", { name: "Continue" });
+  expect(submit).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: /^1\s*A$/ }));
+  expect(submit).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: /^2\s*B$/ }));
+  expect(screen.getByRole("button", { name: /^3\s*C$/ })).toBeDisabled();
+  await userEvent.click(submit);
+  expect(onComplete).toHaveBeenCalledWith([{ answer: "", selected: ["A", "B"], skipped: false }]);
+});
+
+it("resets editor and carousel state for a new native request identity", async () => {
+  const onComplete = vi.fn();
+  const { rerender } = render(
+    <QuestionPrompt
+      questions={[
+        { question: "Edit", requestId: "one", multiline: true, initialValue: "original" },
+      ]}
+      onComplete={onComplete}
+    />,
+  );
+  await userEvent.clear(screen.getByRole("textbox"));
+  await userEvent.type(screen.getByRole("textbox"), "Stale answer");
+  rerender(
+    <QuestionPrompt
+      questions={[
+        { question: "Edit", requestId: "two", multiline: true, initialValue: "New request" },
+      ]}
+      onComplete={onComplete}
+    />,
+  );
+  expect(screen.getByRole("textbox")).toHaveValue("New request");
+});
+
+it("localizes synthetic native controls without changing the protocol label", async () => {
+  const onComplete = vi.fn();
+  render(
+    <QuestionPrompt
+      questions={[
+        {
+          question: "Review plan",
+          allowCustom: false,
+          options: [
+            { label: "approved-wire-value", labelKey: "runtimeApprovePlan" },
+            { label: "rejected-wire-value", labelKey: "runtimeRejectPlan" },
+          ],
+        },
+      ]}
+      onComplete={onComplete}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: /Approve plan/ }));
+  expect(onComplete).toHaveBeenCalledWith([
+    { answer: "", selected: ["approved-wire-value"], skipped: false },
+  ]);
 });

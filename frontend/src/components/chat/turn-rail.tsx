@@ -255,11 +255,11 @@ export function TurnRail({ entries, className }: TurnRailProps) {
                   so the shape of a conversation is readable before any of it is. */}
               <span
                 className={cn(
-                  "block h-px rounded-full transition-all",
+                  "block h-0.5 rounded-full transition-[transform,background-color]",
                   entry.isUser ? "w-3" : "w-5",
                   index === active
-                    ? "bg-foreground h-0.5"
-                    : "bg-foreground/25 group-hover:bg-foreground/50",
+                    ? "bg-foreground scale-y-100"
+                    : "bg-foreground/25 group-hover:bg-foreground/50 scale-y-50",
                 )}
               />
             </button>

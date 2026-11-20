@@ -1,5 +1,5 @@
 ---
-source_sha: "34f407ae78ff"
+source_sha: "1a74a11db7e0"
 ---
 
 # Konfiguracja { #configuration }
@@ -87,7 +87,11 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 
 Aby wysyłać grafiki na kanały w produkcji, ustaw `VISUAL_RENDER_CDP_URL=http://visual-render:9222` i `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` w `backend/.env`. `scripts/deploy.sh` włącza wtedy profil `visuals` w `docker-compose-prod.yml`; przy ręcznym uruchomieniu dodaj `--profile visuals`.
 
-Przeglądanie publicznych stron wymaga osobnej przeglądarki: ustaw `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` i `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Wdrożenie włącza profil `browser`. Ustaw `browser_use.cdp_url` agenta na `http://browser:9222` i opublikuj jego szkic. Przeglądarka ma wyjście wyłącznie przez proxy; Squid odrzuca prywatne adresy i metadane. Do izolowanego rysowania zachowaj `VISUAL_RENDER_CDP_URL=http://visual-render:9222`. Brak ograniczenia domen agenta pozwala na publiczne strony; jawna lista domen nadal obowiązuje.
+Przeglądanie publicznych stron wymaga osobnej przeglądarki: ustaw `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` i `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. Wdrożenie włącza profil `browser`. Agenci z opcją **Built in** korzystają z `BROWSER_SIGN_IN_CDP_URL`, gdy ich własne `cdp_url` jest puste. Przeglądarka ma wyjście wyłącznie przez proxy; Squid odrzuca prywatne adresy i metadane. Do izolowanego rysowania zachowaj `VISUAL_RENDER_CDP_URL=http://visual-render:9222`. Brak ograniczenia domen agenta pozwala na publiczne strony; jawna lista domen nadal obowiązuje.
+
+Domyślny AgenticOS używa przeglądarki **Built in**, z limitem 100 kroków na wywołanie, oraz **Computer use → Docker / Sandbox** w środowisku `desktop`. To środowisko zawiera również narzędzia workbench do kodu i dokumentów. Bez połączenia z kontenerem pulpit i osobiste narzędzia codingowe w chmurze pozostają wyłączone. Brak adresu przeglądarki lub niedostępny kontener przeglądarki powoduje błąd tylko jej wywołań; agent nadal może zostać opublikowany i odpowiadać za pomocą pozostałych narzędzi. Skonfigurowane adresy nadal wymagają listy dozwolonych hostów operatora.
+
+AgenticOS pracuje samodzielnie, chyba że użytkownik wyraźnie poprosi o subagentów lub równoległą pracę agentów. W ustawieniach Delegates ma włączony dostęp do wszystkich dostępnych opublikowanych agentów w bieżącej organizacji. Nadal obowiązują uprawnienia, jawne przypięcia zachowują swoje wersje, a rutyny bez użytkownika nie otrzymują tego katalogu. Tworzenie dynamicznych specjalistów jest wyłączone.
 
 Renderer nie publikuje portu i nie ma dostępu do internetu, obsługuje API i worker oraz ma limit 1 CPU i 1 GiB RAM. Publikowane obrazy backendu zawierają dodatek `browser`; własny obraz wymaga `EXTRAS="--extra browser"`. Jeżeli renderowanie zawiedzie, odpowiedź na kanale wyraźnie informuje, że nie udało się dołączyć grafiki. Każde renderowanie dopuszcza najwyżej 256 żądań i 32 oczekujące odpowiedzi; kafelki map podlegają też wspólnemu limitowi `RATE_LIMIT_MAP_TILES_PER_MINUTE`.
 
@@ -1659,3 +1663,36 @@ nie ma automatycznego cofania bazy. Backupy pozostają na hoście do ręcznego u
 i nie zastępują kopii poza serwerem. Najpierw przetestuj odzyskiwanie na środowisku
 jednorazowym. Wiele hostów, własne nakładki Compose i zewnętrzny magazyn plików
 obsługuj pipeline’em: `UPDATE_PIPELINE_URL` pokazuje link HTTPS bez uruchamiania wdrożenia.
+
+## Konta subskrypcyjne { #subscription-accounts }
+
+Usługa `subscription-gateway` obsługuje własne logowania osób do subskrypcji
+([Konta subskrypcyjne](models.md#subscription-accounts)). Używa obrazu backendu
+z poleceniem `python -m app.subscription_gateway`, nie publikuje portu i trzyma
+logowania w wolumenie `subscription_accounts`.
+
+| Zmienna | Czyta ją | Znaczenie |
+|---|---|---|
+| `SUBSCRIPTION_GATEWAY_URL` | API, worker | Adres bramy, w compose `http://subscription-gateway:8400`. Brak wartości wyłącza konta subskrypcyjne. |
+| `SUBSCRIPTION_GATEWAY_TOKEN` | API, worker, brama | Wspólny token, co najmniej 32 znaki. Brama odrzuca bez niego każde żądanie, a API nie wystartuje z adresem, ale bez takiego tokenu. |
+| `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | brama | Jak długo proces osoby może być bezczynny, zanim się zatrzyma. Domyślnie 600. |
+| `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | brama | Ile procesów osób może działać naraz. Domyślnie 64; powyżej tej liczby zatrzymuje się najdawniej używany bezczynny proces. |
+
+Token powstaje sam. `make dev` i `scripts/deploy.sh` przy pierwszym uruchomieniu
+zapisują losowy `SUBSCRIPTION_GATEWAY_TOKEN` w `backend/.env` i potem go
+zachowują; `make dev` przekazuje go do `docker-compose.yml`. Aby wybrać własny,
+wpisz go tam wcześniej (`openssl rand -hex 32`).
+
+W `docker-compose-prod.yml` i `docker-compose-dev.yml` usługa jest w profilu
+`subscriptions`. `scripts/deploy.sh` i aktualizator hosta włączają ten profil i
+ustawiają `SUBSCRIPTION_GATEWAY_URL`, gdy `backend/.env` zawiera token, więc
+serwer domyślnie uruchamia bramę. Aby ją wyłączyć, zostaw w `backend/.env` pustą
+linię: `SUBSCRIPTION_GATEWAY_TOKEN=`.
+
+`docker-compose.yml` uruchomiony samodzielnie, bez klonu repozytorium, używa
+stałego lokalnego tokenu. Dla każdego takiego wdrożenia, do którego dostęp mają
+inni, ustaw własny `SUBSCRIPTION_GATEWAY_TOKEN` w `.env`.
+
+## GitHub Copilot OAuth { #github-copilot-oauth }
+
+Ustaw `GITHUB_COPILOT_OAUTH_CLIENT_ID` (domyślnie puste) na identyfikator własnej aplikacji OAuth wdrożenia i włącz w niej device flow. Bez niego osobiste logowanie Copilot jest odrzucane. To ustawienie jest odrębne od GitHub Models i poświadczeń konektora GitHub. Autoryzacja GitHub nie ustala uprawnień Copilot; musi przejść także sprawdzenie modeli czatu dla konta. Wygasające zgody GitHub App i własne bramy Enterprise nie są obsługiwane. Zobacz [konta Copilot](models.md#github-copilot-accounts).

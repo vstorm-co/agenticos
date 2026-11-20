@@ -11,6 +11,8 @@ import { useTranslations } from "next-intl";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
 import { RememberedApprovals } from "./remembered-approvals";
+import { ChatComposerControls } from "./chat-layout";
+import { useMainChat } from "./main-chat-context";
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn, ConversationNotifications } from "./work-on";
 import { YourConnections } from "./your-connections";
@@ -36,6 +38,7 @@ const APPROVAL_MODES: readonly ApprovalMode[] = ["follow_agent", "approve_all", 
 export type { ApprovalMode } from "@/stores/chat-controls-store";
 
 interface ChatControlsProps {
+  settingsOnly?: boolean;
   usageSlot?: ReactNode;
   agentCapabilities?: readonly string[] | null;
   /** The model profile this conversation runs on, or null for the agent's own. */
@@ -80,6 +83,7 @@ interface ChatControlsProps {
  *   permission and no ceiling.
  */
 export function ChatControls({
+  settingsOnly = false,
   usageSlot,
   onModelProfileChange,
   onApprovalModeChange,
@@ -87,6 +91,7 @@ export function ChatControls({
   agentCapabilities = null,
 }: ChatControlsProps) {
   const t = useTranslations("chat.controls");
+  const mainChat = useMainChat();
   const panel = useRef<HTMLDivElement>(null);
   const tCommon = useTranslations("common");
   const waiverHintId = useId();
@@ -108,11 +113,7 @@ export function ChatControls({
   // has no coding binding itself. Keep both connection doors in that case.
   const delegates =
     (agentCapabilities ?? selectedAgent?.published_capabilities)?.includes("subagents") === true;
-  const harnesses = delegates
-    ? (["claude_code", "codex"] as const)
-    : personalHarness
-      ? [personalHarness]
-      : [];
+  const harnesses = delegates || personalHarness ? (["claude_code", "codex"] as const) : [];
   const tools = desktop || harnesses.length > 0;
   const selectedTab = !tools && tab === "tools" ? "model" : tab;
   const { profiles } = useModelProviders();
@@ -147,6 +148,18 @@ export function ChatControls({
     return model === null ? t("label") : t("modelTitle", { model });
   }, [selectedProfile, agentModel, t]);
   const hasOverride = profileId !== null || approvalMode !== "follow_agent";
+
+  if (mainChat)
+    return (
+      <ChatComposerControls
+        settingsOnly={settingsOnly}
+        usageSlot={usageSlot}
+        desktop={desktop}
+        harnesses={harnesses}
+        agentCapabilities={agentCapabilities}
+        onModelProfileChange={onModelProfileChange}
+      />
+    );
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

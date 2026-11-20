@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
@@ -162,12 +164,12 @@ export function AssistantStrip({
         )}
         {finished && <RejectedChanges report={withoutIdeas(finished.report)} />}
         {authoring?.verify?.report?.findings !== undefined && (
-          <details>
+          <NativeDisclosure>
             <summary className="cursor-pointer text-sm font-medium">{t("verifyReport")}</summary>
             <div className="pt-3">
               <VerifyReport findings={authoring.verify.report.findings} />
             </div>
-          </details>
+          </NativeDisclosure>
         )}
       </CardContent>
       {checking && (

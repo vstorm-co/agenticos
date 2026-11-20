@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Suspense, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -153,6 +154,12 @@ async function mount() {
   });
 }
 
+/** Categories and tags live in the agent's Details dialog, behind "More actions". */
+async function openDetails() {
+  await userEvent.click(await screen.findByRole("button", { name: "More actions" }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: "Details" }));
+}
+
 describe("the detail page's metadata editor gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -177,6 +184,7 @@ describe("the detail page's metadata editor gate", () => {
   it("shows the editor to a caller who may edit the agent, by a grant alone", async () => {
     allowed = new Set();
     await mount();
+    await openDetails();
 
     expect(await screen.findByRole("textbox", { name: "Add a category" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Add a tag" })).toBeInTheDocument();
@@ -211,8 +219,9 @@ describe("the detail page's metadata editor gate", () => {
     shown = AGENT;
     await mount();
 
-    // The instructions card renders for everyone; the editor does not.
-    await screen.findByText("Instructions");
+    // The details dialog opens for everyone; the editor inside it does not.
+    await openDetails();
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Add a category" })).toBeNull();
   });
 });

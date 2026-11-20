@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -14,10 +14,11 @@ import { returnToForAttempt } from "@/lib/oauth-return";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
 import { ApiError } from "@/lib/api-client";
-import { getErrorMessage, isTimeout } from "@/lib/api-error";
+import { credentialsRejected, getErrorMessage, isTimeout } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { registerHref } from "@/lib/invitation-links";
 import { EMAIL_RE } from "@/lib/utils";
+import { useRejectedFieldMotion } from "@/hooks/use-rejected-field-motion";
 
 export function LoginForm() {
   const t = useTranslations("auth");
@@ -38,6 +39,9 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
   const [directory, setDirectory] = useState(false);
+  const [rejectedAttempts, setRejectedAttempts] = useState(0);
+  const passwordRef = useRejectedFieldMotion(rejectedAttempts);
+  const errorId = useId();
 
   // Somebody already signed in - in this tab, or in another one the session
   // check hears about - goes on to where a sign-in would take them, not to a
@@ -62,6 +66,8 @@ export function LoginForm() {
       await login({ email, password }, returnTo);
       toast.success(t("loginSuccess"));
     } catch (err) {
+      if (credentialsRejected(err)) setRejectedAttempts((count) => count + 1);
+      else setRejectedAttempts(0);
       const message =
         err instanceof ApiError
           ? getErrorMessage(err, tErrors)
@@ -102,10 +108,15 @@ export function LoginForm() {
             </Label>
             <Input
               id="email"
+              name="email"
               type="email"
               placeholder={t("emailPlaceholder")}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setRejectedAttempts(0);
+              }}
+              spellCheck={false}
               onBlur={() => setEmailTouched(true)}
               required
               disabled={isLoading}
@@ -131,10 +142,17 @@ export function LoginForm() {
             </div>
             <Input
               id="password"
+              name="password"
+              ref={passwordRef}
               type="password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setRejectedAttempts(0);
+              }}
+              aria-invalid={rejectedAttempts > 0 && Boolean(error)}
+              aria-describedby={error ? errorId : undefined}
               required
               disabled={isLoading}
               autoComplete="current-password"
@@ -142,7 +160,11 @@ export function LoginForm() {
           </div>
 
           {error && (
-            <p className="border-destructive/35 bg-destructive/[0.07] text-foreground rounded-lg border px-3 py-2 text-sm">
+            <p
+              id={errorId}
+              role="alert"
+              className="border-destructive/35 bg-destructive/[0.07] text-foreground rounded-lg border px-3 py-2 text-sm"
+            >
               {error}
             </p>
           )}

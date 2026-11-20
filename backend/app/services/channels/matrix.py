@@ -545,7 +545,12 @@ class MatrixAdapter(ChannelAdapter):
         )
 
     async def acknowledge_message(
-        self, bot_token: str, incoming: IncomingMessage, reaction: str
+        self,
+        bot_token: str,
+        incoming: IncomingMessage,
+        reaction: str,
+        *,
+        api_base_url: str | None = None,
     ) -> None:
         """React to the question as it arrives, so the asker sees it was heard (#2084)."""
         if incoming.message_id is None:
@@ -553,7 +558,7 @@ class MatrixAdapter(ChannelAdapter):
         symbol = REACTION_EMOJI.get(reaction)
         if symbol is None:
             raise ValueError(f"'{reaction}' is not a reaction this bot can send on Matrix")
-        base_url = await self._homeserver(incoming.bot_id)
+        base_url = (api_base_url or await self._homeserver(incoming.bot_id)).rstrip("/")
         await self._send(
             base_url,
             bot_token,

@@ -31,16 +31,19 @@ interface CodingStep {
 /** What `run_coding_agent` returns - `CodingReport` in the backend. */
 interface CodingReport {
   kind: "coding_agent";
-  harness: "claude_code" | "codex";
+  harness: "claude_code" | "codex" | "custom";
   access: "edit" | "read_only";
   outcome: "completed" | "failed" | "timed_out";
   answer: string;
   session_id?: string;
+  session_name?: string;
+  session_resumed?: boolean;
   steps?: CodingStep[];
   files_changed?: string[];
   refused?: string[];
   /** The change set the task left in the sandbox, read by `TaskChanges` (#2480). */
   changes_id?: string;
+  runtime_name?: string;
   account_label?: string;
   base_revision?: string;
   result_archive?: string;
@@ -61,6 +64,8 @@ export const HARNESS_NAME: Record<CodingReport["harness"], string> = {
   claude_code: "Claude Code",
   // i18n-exempt: a product's own name
   codex: "Codex",
+  // i18n-exempt: protocol name
+  custom: "ACP",
 };
 
 export function parseCodingReport(text: string): CodingReport | null {
@@ -133,7 +138,11 @@ function Report({ report, fileSource }: { report: CodingReport; fileSource?: Tur
   return (
     <>
       <div className="flex items-center gap-2 text-xs">
-        <span className="text-foreground font-medium">{HARNESS_NAME[report.harness]}</span>
+        <span className="text-foreground font-medium">
+          {typeof report.runtime_name === "string"
+            ? report.runtime_name
+            : HARNESS_NAME[report.harness]}
+        </span>
         <span
           className={cn(
             "rounded-full px-2 py-0.5 font-medium",
@@ -148,6 +157,19 @@ function Report({ report, fileSource }: { report: CodingReport; fileSource?: Tur
       <div className="text-sm">
         <MarkdownContent content={report.answer} />
       </div>
+      {typeof report.session_name === "string" &&
+        /^[a-z0-9][a-z0-9_-]{0,39}$/.test(report.session_name) && (
+          <p className="text-muted-foreground text-xs">
+            {personal(
+              typeof report.session_resumed === "boolean"
+                ? report.session_resumed
+                  ? "continuedSession"
+                  : "newSession"
+                : "sessionName",
+              { name: report.session_name },
+            )}
+          </p>
+        )}
       {typeof report.account_label === "string" && (
         <p className="text-muted-foreground text-xs">
           {personal("personalAccount", { label: report.account_label })}

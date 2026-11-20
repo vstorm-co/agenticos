@@ -44,7 +44,7 @@ export function StartEntry() {
               : "welcome"
         }
         question={search.get("question")}
-        workspaceCount={organizations.data?.filter((org) => !org.is_personal).length}
+        workspaceCount={organizations.data?.length}
         steps={appAdmin ? 8 : search.get("start-step")?.startsWith("admin.") ? 7 : 4}
       />
     );

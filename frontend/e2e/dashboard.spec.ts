@@ -17,6 +17,39 @@ test.use({ storageState: AUTH_STATE });
  * them dresses a failed request as "no rows".
  */
 test.describe("Dashboard", () => {
+  test("keeps the scope switcher fixed below the greeting across views", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/dashboard?view=me");
+      await expect(page.getByText(/Your agents ran/)).toBeVisible();
+      const switcher = page.getByRole("group", { name: "Dashboard view" });
+      const before = await switcher.boundingBox();
+      expect(before).not.toBeNull();
+      await switcher.getByRole("button", { name: "Organization", exact: true }).click();
+      await expect(pageHeading(page, DASHBOARD_GREETING)).toBeVisible();
+      const panel = page.locator('[data-dashboard-view="org"]');
+      await expect(panel).toBeVisible();
+      await expect(panel).toHaveCSS("animation-name", "tab-panel-enter");
+      if (width >= 768) {
+        const period = await page
+          .getByRole("button", { name: "Period", exact: true })
+          .boundingBox();
+        const tabs = await switcher.boundingBox();
+        expect(period).not.toBeNull();
+        expect(period?.y ?? Infinity).toBeLessThan((tabs?.y ?? 0) + (tabs?.height ?? 0));
+        expect((period?.y ?? 0) + (period?.height ?? 0)).toBeGreaterThan(tabs?.y ?? Infinity);
+      }
+      await expect
+        .poll(async () => Math.abs(((await switcher.boundingBox())?.y ?? -1) - (before?.y ?? 0)))
+        .toBeLessThan(1);
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await switcher.getByRole("button", { name: "Me", exact: true }).click();
+      await expect(page.locator('[data-dashboard-view="me"]')).toHaveCSS("animation-name", "none");
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+    }
+  });
+
   test("keeps the greeting summary below its title at wide and narrow widths", async ({ page }) => {
     await page.goto("/dashboard?view=me");
     const title = pageHeading(page, DASHBOARD_GREETING);
@@ -263,7 +296,7 @@ test.describe("Dashboard", () => {
     // The sections are the organization's view; everybody opens on their own.
     await page.goto("/dashboard?view=org");
 
-    await expect(pageHeading(page, "Dashboard")).toBeVisible();
+    await expect(pageHeading(page, DASHBOARD_GREETING)).toBeVisible();
     await expect(page.getByRole("heading", { name: "Needs attention" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Usage & cost" })).toBeVisible();
 
@@ -292,7 +325,7 @@ test.describe("Dashboard", () => {
     await expect(pageHeading(page, DASHBOARD_GREETING)).toBeVisible();
 
     await page.getByRole("button", { name: "Period", exact: true }).click();
-    await page.getByRole("menuitemradio", { name: "Last 7 days" }).click();
+    await page.getByRole("button", { name: "Last 7 days", exact: true }).click();
 
     await expect(page).toHaveURL(/period=7d/);
   });

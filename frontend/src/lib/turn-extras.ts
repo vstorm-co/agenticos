@@ -179,7 +179,7 @@ export function filesChangedOf(
     if (toolLookupName(call) === "write_file" || toolLookupName(call) === "edit_file") {
       const path = pathArg(call.args);
       if (path) paths.add(path);
-    } else if (toolLookupName(call) === "run_coding_agent") {
+    } else if (["run_coding_agent", "run_acp_agent"].includes(toolLookupName(call))) {
       const report = jsonObject(call.result);
       if (typeof report?.changes_id === "string") {
         for (const file of changeSets.get(report.changes_id)?.files ?? []) paths.add(file.path);

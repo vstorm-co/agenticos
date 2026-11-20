@@ -749,3 +749,21 @@ class MessageList(BaseSchema):
             "before a cost could be read. Zeroes would be a claim this has none to make."
         ),
     )
+
+
+class ConversationSearchRead(BaseSchema):
+    """A readable thread with a highlighted excerpt from a matching message."""
+
+    conversation_id: UUID
+    title: str | None
+    updated_at: datetime
+    hits: int
+    snippet: str
+    speaker_role: str
+    speaker_name: str | None
+
+
+class ConversationSearchList(BaseSchema):
+    """The best matching threads, bounded by the requested limit."""
+
+    items: list[ConversationSearchRead]

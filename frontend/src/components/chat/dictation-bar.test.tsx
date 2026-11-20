@@ -316,6 +316,16 @@ describe("DictationPill", () => {
 });
 
 describe("BrowserDictationPill", () => {
+  it("finishes listening on Escape", () => {
+    const onDone = vi.fn();
+    render(<BrowserDictationPill level={0.4} onDone={onDone} />);
+    const done = screen.getByRole("button", { name: "Done dictating" });
+    fireEvent.keyDown(done, { key: "Tab" });
+    expect(onDone).not.toHaveBeenCalled();
+    fireEvent.keyDown(done, { key: "Escape" });
+    expect(onDone).toHaveBeenCalledOnce();
+  });
+
   it("listens with a wave and stops on Done", () => {
     const onDone = vi.fn();
     render(<BrowserDictationPill level={0.4} onDone={onDone} />);
@@ -343,4 +353,19 @@ describe("on the server", () => {
       "0:07",
     );
   });
+});
+
+it("keeps dictation actions and recording status on the subtle chat surface", () => {
+  const actions = fakeActions();
+  const view = render(<DictationPill subtle state={dictationState()} actions={actions} />);
+  expect(screen.getByRole("group", { name: "Dictation" })).toHaveClass("text-foreground");
+  expect(screen.getByRole("timer")).toHaveTextContent("0:07");
+  fireEvent.click(screen.getByRole("button", { name: "Stop and transcribe" }));
+  expect(actions.stop).toHaveBeenCalledOnce();
+  view.unmount();
+  const done = vi.fn();
+  render(<BrowserDictationPill subtle level={0.3} onDone={done} />);
+  expect(screen.getByText("Listening")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Done dictating" }));
+  expect(done).toHaveBeenCalledOnce();
 });

@@ -8,11 +8,13 @@ interface ArchitectAsk {
   text: string;
   /** Written into the Architect's message box for the person to send, rather than sent. */
   draft: boolean;
+  openOnly?: boolean;
 }
 
 interface ArchitectAskState {
   /** The last thing somewhere else in the console asked the Architect, or null. */
   request: ArchitectAsk | null;
+  open: () => void;
   ask: (text: string, options?: { draft?: boolean }) => void;
   /** Taken by the widget once asked, so a widget mounted later does not ask it again. */
   answered: (id: number) => void;
@@ -28,6 +30,7 @@ let asks = 0;
  */
 export const useArchitectAskStore = create<ArchitectAskState>((set) => ({
   request: null,
+  open: () => set({ request: { id: ++asks, text: "", draft: false, openOnly: true } }),
   ask: (text, options) => set({ request: { id: ++asks, text, draft: options?.draft ?? false } }),
   answered: (id) => set((state) => (state.request?.id === id ? { request: null } : state)),
 }));

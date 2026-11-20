@@ -441,7 +441,7 @@ class Computer:
             raise DeviceUnavailable(message="Your computer is not connected")
         if op == "agent.open":
             # Either harness, in the chat's folder or a project inside it.
-            assert args["agent"] in {"claude_code", "codex"}
+            assert args["agent"] in {"claude_code", "codex", "custom"}
             assert args["root"] == "/w" or args["root"].startswith("/w/")
             return {"id": "p1"}
         if op == "agent.send":
@@ -1301,7 +1301,7 @@ async def test_a_session_name_is_short_and_safe(session: str) -> None:
         await _local_tools()(_ctx(_local_workspace(), []), task="Fix", session=session)
 
 
-async def test_harness_and_folder_are_choices_only_on_the_persons_computer() -> None:
+async def test_an_organization_sandbox_stays_pinned_to_its_harness_and_workspace() -> None:
     from pydantic_ai.exceptions import ModelRetry
 
     call = (
@@ -1316,7 +1316,7 @@ async def test_harness_and_folder_are_choices_only_on_the_persons_computer() -> 
         .tools["run_coding_agent"]
         .function
     )
-    with pytest.raises(ModelRetry, match="runs only on the person's computer"):
+    with pytest.raises(ModelRetry, match="sandbox is configured for Claude Code only"):
         await call(_ctx(_local_workspace(), []), task="Fix", harness="codex")
     with pytest.raises(ModelRetry, match="`folder` chooses a project"):
         await call(_ctx(_local_workspace(), []), task="Fix", folder="app")

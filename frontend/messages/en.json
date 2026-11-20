@@ -6,6 +6,16 @@
     "ctaShort": "GitHub"
   },
   "admin": {
+    "activeSessions": "Active sessions",
+    "passwordReset": "Reset password",
+    "passwordResetHint": "Send a reset email to {email} or copy a one-hour link to share directly. The link can be used once.",
+    "copyPasswordResetLink": "Copy reset link",
+    "sendPasswordResetEmail": "Send reset email",
+    "passwordResetLink": "Password reset link",
+    "passwordResetLinkCopied": "Reset link copied",
+    "passwordResetEmailSent": "Reset email sent",
+    "passwordResetFailed": "Could not issue a password reset.",
+    "close": "Close",
     "actions": "Actions",
     "active": "Active",
     "all": "All",
@@ -205,6 +215,8 @@
     "delegateUnreachable": "An agent you cannot see",
     "delegateUnreachableDetail": "This organization no longer has it, or you may not see it. Publishing will refuse it either way - remove it, or ask for access to it.",
     "delegatesDetail": "Published agents this one may hand work to, each frozen at a version.",
+    "allPublishedDelegates": "All accessible published agents",
+    "allPublishedDelegatesDetail": "Offer published agents this person may run in this organization, without selecting them one by one. Explicit delegates below keep their pinned versions. Unattended routines use only explicit delegates.",
     "delegatesHeading": "Delegates",
     "delegatingNeedsRunPermission": "Delegating needs permission to run agents, which you do not have here. Publishing checks each delegate against the publisher's own access, so this is the same refusal, earlier.",
     "delegation": "Subagents",
@@ -962,11 +974,11 @@
     "speechFormat": "File format",
     "speechFormatDetail": "The formats this provider returns. mp3 is smaller, wav is uncompressed.",
     "startersTitle": "First messages",
-    "startersHint": "What the chat offers somebody opening this agent for the first time - one click sends one. Up to {max}; with none, the chat shows its own.",
+    "startersHint": "Choose up to {max} first messages. With suggestions enabled and no custom messages, the chat offers its defaults.",
+    "showStarters": "Show suggested prompts",
     "starterNumber": "First message {number}",
     "removeStarter": "Remove first message {number}",
     "newStarter": "New first message",
-    "newStarterPlaceholder": "What can you help me with?",
     "addStarter": "Add",
     "platformAlwaysAsksBadge": "always asks: it changes who has authority here",
     "platformUngatedBadge": "your own setting, never asks",
@@ -1085,9 +1097,8 @@
     "modelRegionEea": "EEA only",
     "modelRegionGlobal": "Global",
     "starterIcon": "Icon for first message {number}",
-    "starterTitle": "Title of first message {number}",
     "starterTitlePlaceholder": "Short title (optional)",
-    "starterMessageLabel": "Message shown below the title and sent on click",
+    "starterMessageLabel": "Message sent on click",
     "pipelineModelPlaceholder": "Choose a model",
     "pipelineNoMatches": "No matching models",
     "alreadyHasIt": "Uses it",
@@ -1140,7 +1151,8 @@
     "observationAuthorityHint": "The decision model has no tools. Automatic replies use the published agent’s main model and bound organization MCP accounts, with their normal approval rules. Personal accounts and other action tools require someone to mention the bot in the thread. Calls needing approval are not executed automatically. Both model costs appear in Activity.",
     "observationRequired": "Select the model that decides whether the agent should join.",
     "observationSaveFailed": "Could not save. Your edits remain in this form; try again.",
-    "observationSave": "Save participation settings"
+    "observationSave": "Save participation settings",
+    "subscriptionAccountsNote": "Each person runs these models on their own accounts. Connect yours in <link>Settings → Profile</link>."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1421,7 +1433,33 @@
         "off": "Off",
         "asksFirst": "Asks on first message",
         "noCloud": "This agent works on your computer, so it has no cloud workspace. Choose a folder or the whole computer.",
-        "agentComputerConsent": "Allowed for {agent} in every conversation on this computer. Commands run without individual native prompts. You can revoke access here; operating system permissions still apply."
+        "agentComputerConsent": "Allowed for {agent} in every conversation on this computer. Commands run without individual native prompts. You can revoke access here; operating system permissions still apply.",
+        "primaryRuntimeDisabled": "Your operator must enable an eligible deployment before this runtime can be selected. Signing in does not establish provider eligibility.",
+        "primaryRuntime": "Conversation runtime",
+        "nativeClaude": "Claude Agent · this computer",
+        "nativeCodex": "Codex · this computer",
+        "primaryRuntimeHelp": "The selected runtime answers using its own CLI login and model settings. AgenticOS tool permissions and approvals apply. Text only; disable model setting overrides, Code Mode, reviewers and platform compaction. Native usage remains unpriced.",
+        "primaryRuntimeAccess": "Runtime tool access",
+        "primaryRuntimeEdit": "Allow changes under the agent’s policies",
+        "primaryRuntimeModel": "Native model ID (optional)",
+        "primaryRuntimeReset": "Reset native session",
+        "primaryRuntimeResetHelp": "Keeps this chat and starts a fresh native context. Check completed or uncertain actions before continuing after Stop or a connection failure.",
+        "nativeExternal": "External agent · this computer",
+        "externalNotRegistered": "Register an ACP agent in Desktop settings, such as Antigravity, Cursor or Cline, and sign in to it before choosing it here.",
+        "externalRegistration": "Agent",
+        "externalModel": "Model",
+        "externalAccountDefault": "Agent default ({model})",
+        "externalAccountDefaultUnknown": "Agent default",
+        "externalModelsLoading": "Reading the models available to this agent's sign-in…",
+        "externalModelsFailed": "Could not read this agent's models. Check its sign-in and try again.",
+        "externalModelsRetry": "Read models again",
+        "externalHelp": "Uses the agent's own login and settings in its CLI; no other login or billing mode is substituted. Its own tools run with local access. A listed model is not proof of entitlement or remaining quota.",
+        "externalCliModels": "This agent chooses its model in its own settings.",
+        "geminiVaultKey": "Gemini API key",
+        "geminiDesktopKey": "Key inherited by Desktop (GEMINI_API_KEY)",
+        "geminiVaultUnavailable": "Your vault keys could not be listed here; the key inherited by Desktop is used.",
+        "primaryRuntimeTerms": "You use your own account with this CLI. Its provider's terms may restrict use through third-party apps, and the provider may limit or suspend the account; that risk is yours.",
+        "antigravityPersonalRisk": "This registration uses your Google personal sign-in. Google may limit or suspend accounts used through third-party tools; you accepted this risk when you registered it."
       },
       "modelSection": "Model",
       "permissionsSection": "Permissions",
@@ -1437,7 +1475,8 @@
         "follow_agent": "Agent rules",
         "approve_all": "Approve all",
         "ask_all": "Ask always"
-      }
+      },
+      "afterFirstMessage": "Available after the first message."
     },
     "conversationArchived": "This conversation is archived",
     "conversationDeleted": "Conversation deleted",
@@ -1613,6 +1652,18 @@
     "loading": "Loading…",
     "membersCouldNotBeRead": "The people in this organization could not be read.",
     "modelPicker": {
+      "noMatchingModels": "No matching models.",
+      "noSavedModels": "No saved models for this provider.",
+      "allModels": "Models",
+      "applyingModel": "Selecting model…",
+      "selected": "Selected",
+      "connectedProviders": "Connected",
+      "providersWithoutKey": "Not connected",
+      "searchModels": "Search models…",
+      "loadingModels": "Loading models…",
+      "savedModels": "Saved models",
+      "customModel": "Use model ID: {model}",
+      "searchOrType": "Search the catalog or enter a model ID.",
       "agentModel": "Agent's model",
       "chooseProvider": "Choose a provider",
       "model": "Model",
@@ -1711,7 +1762,7 @@
         "older": "Older"
       },
       "searchLabel": "Search conversations",
-      "searchHint": "Type to search your conversations by title.",
+      "searchHint": "Search conversation titles and messages.",
       "searching": "Searching…",
       "noSearchResults": "No conversation matches.",
       "untitled": "Untitled",
@@ -1723,7 +1774,10 @@
       "sharedHeading": "Shared with you",
       "sharedLoading": "Loading shared conversations…",
       "sharedFailed": "Shared conversations could not be loaded.",
-      "retryShared": "Retry shared conversations"
+      "retryShared": "Retry shared conversations",
+      "searchFailed": "Could not search conversations.",
+      "searchMatches": "{count, plural, one {# matching message} other {# matching messages}}",
+      "searchKeys": "↑ ↓ to navigate · Enter to open · Esc to close"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
@@ -2073,7 +2127,11 @@
         "column": "Column",
         "value": "Value",
         "recordLabel": "Record"
-      }
+      },
+      "runAcpAgent": "External ACP agent",
+      "runningAcpAgent": "External ACP agent",
+      "inspectAcpAgent": "Read ACP model choices",
+      "readingAcpModels": "Reading ACP model choices"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -2307,13 +2365,11 @@
         "rateLimitedBody": "Too many dictations in a minute.",
         "keptBody": "Your {duration} recording is kept until you retry or discard it.",
         "notSetUpTitle": "Dictation isn't set up.",
-        "notSetUpBody": "This agent's speech-to-text provider has no usable key any more.",
-        "browserOff": "<strong>Dictation isn't turned on for this agent,</strong> so your browser transcribes what you say. Turn it on to use a speech-to-text provider."
+        "notSetUpBody": "This agent's speech-to-text provider has no usable key any more."
       },
       "pill": "Dictation",
       "listening": "Listening",
-      "done": "Done dictating",
-      "openBuilder": "Open in the Agent Builder"
+      "done": "Done dictating"
     },
     "voice": {
       "start": "Start a voice call",
@@ -2555,9 +2611,7 @@
       }
     },
     "backgroundTasks": {
-      "heading": "Background topics · {count} active",
       "empty": "Ask an agent with Background topics to delegate work while you keep talking.",
-      "retry": "Reload background topics",
       "stop": "Stop {title}",
       "returnInterrupted": "Result delivery interrupted",
       "status": {
@@ -2635,7 +2689,17 @@
       "contact": "Contact your administrator"
     },
     "runFailedTitle": "Run did not finish",
-    "runFailedHint": "No final answer was produced. You can review the work above."
+    "runFailedHint": "No final answer was produced. You can review the work above.",
+    "homeInbox": {
+      "title": "Daily briefing",
+      "openInbox": "Open inbox",
+      "urgent": "Priority",
+      "approvalsLabel": "Approvals",
+      "approvals": "{count, plural, one {# approval needs your attention} other {# approvals need your attention}}",
+      "empty": "You’re all caught up. New findings and important topics will appear here.",
+      "failed": "Your inbox could not be loaded.",
+      "refreshFailed": "Could not refresh your inbox. Showing the last loaded items."
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -3704,6 +3768,8 @@
       }
     },
     "greeting": {
+      "night": "Hello",
+      "nightNamed": "Hello, {name}",
       "morning": "Good morning",
       "afternoon": "Good afternoon",
       "evening": "Good evening",
@@ -5623,7 +5689,7 @@
       },
       "agent-identity": {
         "title": "Call it something recognizable",
-        "body": "The name is what people pick in chat and find in the catalog. A duplicate starts as its source with a suffix, so rename it here; the handle other agents reach it by stays the same."
+        "body": "Open the three-dot menu and choose Details to edit the name, description, categories and tags. Renaming keeps the handle that other agents use."
       },
       "projects-new": {
         "title": "Start a project",
@@ -6001,10 +6067,6 @@
         "title": "Coding model and reasoning",
         "body": "Choose a model and reasoning level from the installed coding agent. Choices belong to this conversation; leaving them unset keeps the coding agent’s own settings."
       },
-      "chat-background-tasks": {
-        "title": "Background topics",
-        "body": "Independent work opens a fresh topic in this project. Keep talking here; the agent returns with the result. Open or stop each task from this strip."
-      },
       "memory-views": {
         "title": "Two ways agents remember",
         "body": "Memories holds facts, preferences and decisions. Notes holds longer files and checklists. Search the whole store, then open an entry to see its source and manage its use."
@@ -6024,6 +6086,10 @@
       "personal-coding-accounts": {
         "title": "Coding accounts",
         "body": "Connect your coding account and explicitly allow its use here. Private cloud tasks return a diff and result archive without automatically changing shared project files."
+      },
+      "personal-subscription-accounts": {
+        "title": "Subscription accounts",
+        "body": "Sign in to your own AI subscriptions. Models on \"Subscription accounts\" run on them only in your own chats."
       },
       "chat-coding-accounts": {
         "title": "Your coding accounts",
@@ -6929,7 +6995,6 @@
           "other": "Memory"
         },
         "editNoteHint": "Correct what the agent remembers about you. Your edits are recorded separately from the original agent write.",
-        "noteContent": "Note content",
         "noteDetails": "Memory details"
       }
     },
@@ -7097,6 +7162,15 @@
       "perMonth": "${amount} per month"
     },
     "agents": {
+      "shippedUpdate": {
+        "review": "Review built-in update",
+        "description": "Apply the shipped instructions, tools, skills and Context. Model, thinking and starter settings stay as saved. A published update goes live.",
+        "current": "Already using the built-in defaults.",
+        "apply": "Apply built-in update",
+        "reload": "Reload diff",
+        "draft": "Draft",
+        "published": "Published"
+      },
       "agentAposSBehaviour": "The agent's behaviour lives here, not in code. Be specific about what it should do, what it should refuse, and how it should cite. Markdown, and the model reads the structure - headings and lists are what make a long prompt followable, so being able to see them rendered is the point of the preview.",
       "agentAposSOwn": "This agent's own monthly spending limit. The organization's limit still applies on top - an agent can tighten it, never loosen it. The step limit catches the other kind of runaway: a tool loop that is cheap per call and never finishes.",
       "agentCannotBePublished": "This agent cannot be published yet",
@@ -7705,8 +7779,8 @@
       "shareLinkExpired": "This share link may have expired or been revoked.",
       "shareLinkNotFound": "Share link not found",
       "sharedConversation": "Shared Conversation",
-      "sharedConversationReadOnly": "Shared conversation - read-only",
-      "sharedConversationViewEdit": "Shared conversation - view & edit",
+      "sharedConversationReadOnly": "Read only",
+      "sharedConversationUser": "User",
       "signInFailedRedirecting": "Sign-in failed. Redirecting…",
       "somethingWentWrong": "Something went wrong",
       "tryAgain": "Try again",
@@ -8400,6 +8474,7 @@
       "title": "Browser sign-ins"
     },
     "backgroundJobs": {
+      "noSchedules": "No schedules.",
       "status": {
         "queued": "Queued",
         "running": "Running",
@@ -9905,6 +9980,11 @@
     "typeToConfirm": "Type <mono>{phrase}</mono> to confirm",
     "typeYourAnswer": "Type your answer…",
     "useProviderDefault": "Use provider default",
+    "runtimeApprovePlan": "Approve plan",
+    "runtimeRejectPlan": "Reject plan",
+    "runtimeYes": "Yes",
+    "runtimeNo": "No",
+    "pickBetween": "Pick between {minimum} and {maximum}.",
     "pickAnyNumber": "Pick as many as apply.",
     "useThisAnswer": "Use this",
     "continue": "Continue",
@@ -10017,7 +10097,18 @@
       "chatGPTSignIn": "{name} is a ChatGPT sign-in for model access through a ChatGPT subscription. Voice features require an OpenAI API key; this sign-in cannot be used here."
     },
     "notRecorded": "Not recorded",
-    "googleAccount": "Google account"
+    "googleAccount": "Google account",
+    "chatgptPlanDeclined": "Plan sharing was declined. The registration was saved, but this grant cannot run models. Reconnect and approve plan usage.",
+    "chatgptOfficialHelp": "Official ChatGPT application consent uses the public Responses API, separately from Codex. This deployment must be eligible and enabled by its operator. Copy the final 127.0.0.1 address back here. Declining plan sharing saves registration without enabling inference.",
+    "chatgptOwnerOnly": "Only you can run models on this grant. Shared profiles, API keys and background jobs cannot use it.",
+    "chatgptDeviceHelp": "Approve this sign-in on ChatGPT with a short code; nothing to copy back.",
+    "chatgptDeviceStart": "Sign in with a code",
+    "chatgptDeviceEnter": "Enter this code on ChatGPT. This page continues by itself once you approve it.",
+    "chatgptDeviceCopy": "Copy code",
+    "chatgptDeviceOpen": "Open ChatGPT",
+    "chatgptDeviceWaiting": "Waiting for your approval…",
+    "chatgptDeviceApproved": "Approved.",
+    "chatgptPasteInstead": "Paste an address instead"
   },
   "context": {
     "created": "Created {name}",
@@ -10807,6 +10898,57 @@
         "prepareNamed": "Set up {name}",
         "preparing": "Preparing…",
         "refresh": "Refresh status"
+      },
+      "externalAgents": {
+        "title": "External ACP agents",
+        "description": "Register an installed ACP program for tasks on this computer. It uses its own login and model, can change files and run commands, and may incur charges outside AgenticOS.",
+        "id": "Agent ID",
+        "name": "Display name",
+        "program": "Absolute executable path",
+        "args": "Arguments (JSON array)",
+        "save": "Register agent",
+        "remove": "Remove",
+        "removeNamed": "Remove {name}",
+        "help": "Use this ID in the External ACP agent capability. Arguments are separate strings, for example acp. Never include passwords or tokens. Log in using the program’s own command before starting tasks. Register it again after changing accounts to clear saved sessions.",
+        "invalidArgs": "Enter a JSON array containing only strings.",
+        "provider": "Setup template",
+        "custom": "Custom ACP program",
+        "antigravityHelp": "Use the absolute agy path and the acp argument. Google personal sign-in is enforced; Gemini API keys inherited from the app environment are removed. Run agy acp --login first. In the Builder, use this ID in External ACP agent; inspect_acp_agent reads this account’s model choices. This is delegated execution. Real-account eligibility and plan limits still need verification.",
+        "antigravityApi": "Antigravity · Gemini API key",
+        "antigravityKeyHelp": "Use the absolute agy path and the acp argument. A run uses the Gemini key chosen from the vault, otherwise the GEMINI_API_KEY inherited by Desktop, with the gemini-api-key login; a missing key refuses launch and never falls back to the saved Google sign-in. Gemini API pricing and terms apply, not a Google AI subscription; usage stays unpriced in AgenticOS.",
+        "antigravityRisk": "Google's Additional Terms (section 6) restrict using consumer sign-in through third-party tools, and Google may limit or suspend accounts it considers in breach. Using this template with AgenticOS agents is at your own risk; the Gemini API key template avoids it.",
+        "antigravityRiskAccept": "I understand that my Google account may be limited or suspended, and I accept this risk.",
+        "opencodeHelp": "Register the installed opencode executable with acp. Connect providers using opencode auth login or /connect in its TUI. inspect_acp_agent reads the current model snapshot, including delayed updates. Configure custom endpoints in OpenCode itself; AgenticOS does not copy vault keys or overwrite its files. Models may use free access, a subscription or an API balance.",
+        "opencodeGoHelp": "Coding tasks only. Connect the Go key specifically as opencode-go in OpenCode, then select an exact opencode-go/model ID from inspect_acp_agent. Other primary-model namespaces are refused. Go Extra Usage may spend Console credits, and OpenCode auxiliary-model settings can incur other charges. Check those settings separately; runtime usage is unpriced in AgenticOS.",
+        "cursorHelp": "Install Cursor CLI, run agent login and check agent status first. Choose the absolute agent executable path. This template uses the CLI account and removes inherited CURSOR_API_KEY and CURSOR_AUTH_TOKEN overrides; it supports no API-key registration. Models and charges depend on your Cursor account. Human questions and plan approvals stop the task for review in the CLI. Register again after changing accounts.",
+        "clineApi": "Cline API key",
+        "clineHelp": "Install an ACP-capable Cline CLI and choose its absolute path. For the account template, complete cline auth first; inherited keys are removed. The API-key template requires CLINE_API_KEY in the Desktop process environment and refuses a missing key without using saved login. Both fix the provider to Cline and launch --acp directly. Credits, free models and charges depend on your account. Register again after changing credentials.",
+        "vibeHelp": "Install Mistral Vibe and finish vibe --setup first. Choose the absolute vibe-acp path, with no arguments. Vibe owns browser sign-in and API keys; browser login does not prove Le Chat subscription access. This child disables telemetry and enables the experimental account catalog without changing your files. Credential status reports only key source, never a key or account identity. Register again after changing accounts. Keep External model ID empty; choose the model in Vibe itself because its ACP picker may persist user defaults.",
+        "grokHelp": "Install Grok Build and run grok login first (grok login --device-auth for device login). Choose the absolute grok executable path. The template disables background updates and API-key auth, removes inherited xAI keys and requests cached headless authentication. A CLI still advertising API-key auth is refused. Account and gateway settings determine billing; API-key registration is not supported. Register again after changing accounts.",
+        "kimiHelp": "Install Kimi Code CLI and complete kimi login first. Choose its absolute kimi executable path; this template launches acp and checks saved login readiness without importing credentials. Your CLI configuration can include separately billed custom providers. Keep External model ID empty and choose the model in Kimi itself. Human questions stop for review in the CLI. Register again after changing accounts.",
+        "qwenHelp": "Install Qwen Code and use /auth in qwen to choose Qwen Account with Subscription. Select the absolute qwen path. This template explicitly selects qwen-subscription without calling ACP authenticate or importing tokens, and removes inherited OpenAI key, endpoint and model overrides. Keep External model ID empty; choose a subscription model in Qwen. Older CLIs may not support this mode. Access and quotas depend on your account. Register again after changing accounts.",
+        "qwenSubscription": "Qwen subscription",
+        "museApi": "Muse API key",
+        "hermesHelp": "Select the Python executable in the documented Hermes environment, with no arguments. Desktop owns the foreground ACP host; it never attaches your shared gateway. Each private conversation has a separate Hermes home. The first launch shows native setup instructions for that home. Complete model/provider setup and Nous Portal login there; do not copy another home or token files. Native tools, API/subscription choice and charges remain Hermes-owned and unpriced in AgenticOS.",
+        "museHelp": "Muse requires CLI 1.4.23 and uses the pinned official SDK through an owned MSP host. Run muse to set up the account first. Environment and saved API keys take priority over browser sign-in; credential status reports the actual source. API-key mode requires META_API_KEY in Desktop. Native tools and extensions retain local access; charges are unpriced.",
+        "piHelp": "Pi uses native RPC with its own configured accounts, extensions and model. Run pi, sign in and select the provider/model first. Keep External model ID empty. Native tools and extensions have full local access. Supported human dialogs appear in live chat; no platform tools or vault credentials are forwarded. Charges remain unpriced.",
+        "devinHelp": "Install Devin CLI, run devin auth login and check devin auth status. Choose its absolute devin path. This template launches the local ACP agent with normal permissions and requires the advertised devin-browser method. Billing and enterprise CLI permission depend on your account. It does not launch --cloud or call the cloud task API. Keep External model ID empty and choose the model in Devin. Register again after changing accounts.",
+        "account": {
+          "status": "Check account",
+          "signIn": "Sign in to Muse",
+          "signOut": "Sign out of Muse",
+          "cancel": "Cancel",
+          "envKey": "Environment API key is active; sign-out cannot remove it.",
+          "apiKey": "Stored API key is active.",
+          "accountLogin": "Muse account is signed in.",
+          "loggedOut": "Muse is signed out.",
+          "keyless": "This endpoint requires no credential",
+          "openSignIn": "Open Muse sign-in",
+          "deviceCode": "Device code",
+          "waiting": "Waiting for you to complete sign-in. Keep this page open.",
+          "failed": "Account operation did not complete. Check the native confirmation, CLI version and environment key, then try again."
+        },
+        "piKeyHelp": "Pi 1.5.2 is required. This template receives the selected vault API key only when you independently have access to it. Choose the matching Pi vault-key provider and an exact model ID in the agent configuration. Pi uses an isolated configuration; saved logins and discovered extensions are excluded. The key is not stored in arguments or generated files. Native tools have full local access and API charges remain unpriced."
       }
     },
     "quickAsk": {
@@ -11129,10 +11271,32 @@
     },
     "coding_agent": {
       "runs_on": {
+        "sandbox": {
+          "label": "In the agent's sandbox",
+          "description": "Requires a sandbox with shell access. Tasks use the coding agent configured here and share the workspace.",
+          "summary": "Work directly in the agent's workspace using the organization's credential."
+        },
         "personal_sandbox": {
           "label": "Private cloud task with my account",
-          "description": "Use my profile account in an isolated container. Returns a diff and result archive for review; shared files remain unchanged.",
-          "summary": "Use my profile account in an isolated container. Returns a diff and result archive for review; shared files remain unchanged."
+          "description": "Each session works on its own copy and returns a diff and archive for review.",
+          "summary": "Run Claude Code and Codex in parallel in separate containers using your connected accounts."
+        },
+        "this_computer": {
+          "label": "On this computer",
+          "description": "Tasks use the local sign-ins and work in folders you approve in the desktop app.",
+          "summary": "Run Claude Code and Codex in parallel in separate sessions through the desktop app."
+        }
+      }
+    },
+    "external_acp": {
+      "auth_method": {
+        "configured": {
+          "label": "Program setting",
+          "description": "Use the program's configured account, or explicitly select Antigravity Google personal sign-in. A missing method fails without switching to an API key or another account."
+        },
+        "oauth-personal": {
+          "label": "Antigravity Google personal sign-in",
+          "description": "Use the program's configured account, or explicitly select Antigravity Google personal sign-in. A missing method fails without switching to an API key or another account."
         }
       }
     }
@@ -13645,6 +13809,14 @@
       "example2": "Schedule a weekly update to an agreed thread",
       "needs": "An active bot binding, selected actions and membership in each destination. Routines require source and action review.",
       "never": "Never joins a channel, borrows another agent’s bot or silently retries an uncertain send."
+    },
+    "external_acp": {
+      "name": "External ACP agent",
+      "does": "Hand a complete task to an installed ACP program on your computer.",
+      "example1": "Use a locally installed assistant to investigate a repository",
+      "example2": "Continue a named session with another task",
+      "needs": "Desktop app, a registered and signed-in ACP program, and an approved full-access folder.",
+      "never": "Runs with your local account’s access. No read-only confinement or platform tool forwarding. Set Human approval to Always ask to approve each task."
     }
   },
   "capabilityCategories": {
@@ -13926,6 +14098,10 @@
       "allow_personal": {
         "title": "Keep private notes per person",
         "description": "Whether the agent keeps private notes for each person it talks to, readable only when it is alone with them. Off drops that store entirely, for compliance or privacy; the notes it keeps in group chats stay."
+      },
+      "inject_context": {
+        "title": "Include memory automatically",
+        "description": "Show a bounded summary of personal memories and notes in private conversations. Off keeps memory tools and background maintenance available."
       }
     },
     "planning": {
@@ -14112,8 +14288,8 @@
     },
     "coding_agent": {
       "harness": {
-        "title": "Coding agent",
-        "description": "Which coding agent does the work: Claude Code, on an Anthropic key or a Claude subscription token, or Codex, on an OpenAI key or a ChatGPT sign-in."
+        "title": "Default coding agent",
+        "description": "The default when a task does not choose Claude Code or Codex. Personal cloud and desktop tasks use the person's own account for the selected coding agent. An organization sandbox uses only its configured coding agent and key."
       },
       "access": {
         "title": "What it may do",
@@ -14121,7 +14297,7 @@
       },
       "model": {
         "title": "Model",
-        "description": "The model the coding agent runs: a Claude model for Claude Code, an OpenAI one for Codex. Not set takes the coding agent's own default. Not available on this computer, where the agent uses its own setting."
+        "description": "The model for the default coding agent: Claude for Claude Code, OpenAI for Codex. Empty uses its own default. Choosing the other coding agent per task uses that agent's default model. Desktop tasks use their local setting."
       },
       "base_url": {
         "title": "Anthropic-compatible endpoint",
@@ -14288,6 +14464,32 @@
       "tools": {
         "title": "Allowed messaging actions",
         "description": "Actions explicitly granted on the agent's connected bots."
+      }
+    },
+    "external_acp": {
+      "agent_id": {
+        "title": "Desktop agent ID",
+        "description": "The ID registered under Desktop app settings on the initiating person's computer. Login and model settings belong to that program."
+      },
+      "timeout_minutes": {
+        "title": "Time limit (minutes)",
+        "description": "How long one task may run before it is stopped."
+      },
+      "auth_method": {
+        "title": "Authentication mode",
+        "description": "Use the program's configured account, or explicitly select Antigravity Google personal sign-in. A missing method fails without switching to an API key or another account."
+      },
+      "model_id": {
+        "title": "External model ID",
+        "description": "Optional exact ID from inspect_acp_agent on this account. Empty keeps the program's own model. This selects a runtime model, not an AgenticOS model profile."
+      },
+      "api_provider": {
+        "title": "Vault-key provider",
+        "description": "Optional vault API key for the native runtime: Inception, DeepSeek or OpenRouter through a Pi key template, or Gemini through the Antigravity Gemini API key template. Requires the matching native template and the initiating member's independent vault visibility. It never imports a CLI's saved credentials."
+      },
+      "platform_tools": {
+        "title": "Forward platform tools",
+        "description": "Allow this native runtime to call the tools already admitted to this AgenticOS run. Platform permissions, budgets, approvals and result screening still apply. Requires the initiating member's private approved computer."
       }
     }
   },
@@ -14893,16 +15095,15 @@
       "role_pack": "Routine pack",
       "finding": "Routine"
     },
+    "discuss": "Discuss with agent",
+    "moreActions": "More actions for {title}",
+    "discussPrompt": "Does Inbox item {id} need my attention?",
     "openWorkingChat": "Open conversation",
     "preferences": "Inbox preferences",
     "preferencesDescription": "Choose which automatic suggestions reach your Inbox.",
     "approvals": {
       "title": "Approval requests",
-      "open": "Open approvals",
-      "fromWorkflow": "Workflow {workflow}",
-      "fromAgent": "Agent {agent}",
-      "anAgent": "An agent",
-      "actionBy": "{source} · {action}"
+      "open": "Open approvals"
     }
   },
   "datasets": {
@@ -16363,10 +16564,7 @@
       "discarded": "Discarded the change to {name}"
     },
     "describe": {
-      "label": "Or describe it, and {name} drafts it with you",
-      "placeholder": "A support agent that answers refund questions from our policy and hands angry customers to a person.",
-      "send": "Describe it to the Architect",
-      "prompt": "Draft an agent for me: {description}"
+      "open": "Create with {name}"
     },
     "rejected": {
       "title": "{count, plural, =1 {1 more idea the assistant did not add} other {# more ideas the assistant did not add}}",
@@ -17508,10 +17706,6 @@
     "label": "Account label",
     "apiKey": "API key",
     "chatGPT": "ChatGPT sign-in",
-    "oauthHelp": "Start a fresh sign-in, finish it in your browser, then paste the complete localhost callback address here. Do not import a CLI auth.json file.",
-    "continueOpenAI": "Continue at OpenAI",
-    "startSignIn": "Start sign-in",
-    "callback": "Callback address",
     "credential": "API key or Claude setup token",
     "keyHelp": "Claude Code accepts an Anthropic API key or setup token; Codex accepts an OpenAI API key. Personal accounts connect directly to their provider.",
     "consent": "Allow agents in this organization to use this account for coding tasks I start.",
@@ -17529,9 +17723,45 @@
     "localHelp": "In the Coding agent tool, choose Private cloud task with my account to use this profile. On this computer uses the local CLI sign-in and your approved folder instead; local credentials stay on your computer.",
     "disconnectHelp": "Disconnect removes AgenticOS’s copy and stops its tasks. Revoke a ChatGPT grant at OpenAI from ChatGPT Settings. Scheduled and channel jobs do not use these accounts.",
     "personalAccount": "Personal account: {label}",
+    "continuedSession": "Session: {name} · continued",
+    "newSession": "Session: {name} · new",
+    "sessionName": "Session: {name}",
     "baseRevision": "Workspace snapshot: {revision}",
     "chatTitle": "Your {name} account",
     "chatHelp": "This agent runs coding tasks as a private cloud task on your own account. Other members cannot use it."
+  },
+  "subscriptionAccounts": {
+    "title": "Subscription accounts",
+    "description": "Sign in to your own Claude, ChatGPT, Antigravity, Grok, Kimi and other subscriptions. Models on the \"Subscription accounts\" provider then run on your accounts whenever you are the one chatting - never on anybody else's, and never in background work.",
+    "risk": "Providers may limit how a subscription is used outside their own apps and can suspend an account for it. You connect at your own risk.",
+    "notConnected": "Not connected",
+    "unavailable": "Unavailable",
+    "connect": "Connect",
+    "connectAnother": "Add account",
+    "disconnect": "Disconnect",
+    "loadFailed": "Your subscription accounts could not be loaded",
+    "retry": "Retry",
+    "dialogTitle": "Connect {name}",
+    "deviceHelp": "Open the sign-in page, enter this code and approve. This window finishes on its own.",
+    "browserHelp": "Open the sign-in page and approve. Your browser then lands on an address that does not load - copy that whole address here.",
+    "starting": "Starting the sign-in…",
+    "copyCode": "Copy the code",
+    "openSignIn": "Open {name} sign-in",
+    "redirectLabel": "Address your browser ended on",
+    "waiting": "Waiting for the provider to confirm…",
+    "refused": "The provider refused the sign-in. Close this window and try again.",
+    "finish": "Finish",
+    "connected": "{name} is connected",
+    "providers": {
+      "claude": "Claude (Pro, Max)",
+      "codex": "ChatGPT (Codex)",
+      "antigravity": "Google Antigravity",
+      "xai": "Grok (xAI)",
+      "kimi": "Kimi Code (Moonshot)",
+      "kimi-ai": "Kimi (kimi.com)",
+      "devin": "Devin",
+      "meta": "Meta AI"
+    }
   },
   "mirage": {
     "folders": "Folders",
@@ -17573,16 +17803,11 @@
       "organization": "Organization settings",
       "task": "First agent",
       "workspaceTitle": "Where will your team work?",
-      "workspaceHint": "Create a company organization or choose one you already belong to. A personal organization is optional.",
-      "createCompany": "Create a company organization",
-      "createCompanyHint": "Give it your company or team name. You will become its owner and can invite people immediately.",
-      "existingCompany": "Use an existing company organization",
-      "existingCompanyHint": "Continue setup in one of your organizations.",
-      "personalExplanation": "Personal is an organization created for your account. You do not have to use it for the company. The application administrator controls whether new accounts receive personal organizations.",
-      "usePersonal": "I want to use a personal organization",
-      "personalChoice": "Personal organization",
-      "selectWorkspace": "Choose an organization",
-      "continuePersonal": "Continue with this organization",
+      "workspaceHint": "Choose an organization you belong to or create a new one.",
+      "createCompany": "Create an organization",
+      "createCompanyHint": "Choose a name. You can work on your own or invite people later.",
+      "existingCompany": "Use an existing organization",
+      "existingCompanyHint": "Choose where to continue setup, or create a new organization.",
       "teamTitle": "Invite your team",
       "teamIntro": "Invitations and roles apply to {workspace}. You can invite people before configuring a model or agent.",
       "reachableAddress": "This installation is open on a local address. Invitation links will not work on another computer. Use a server address reachable by your team before sending invitations.",
@@ -17630,9 +17855,7 @@
       "context": "Your context",
       "contextTitle": "What should your agents know about you?",
       "contextHint": "Your role, current work and time zone help agents understand what you need.",
-      "backStep": "Back",
       "createInstead": "Create a new organization instead",
-      "chooseExisting": "Choose an existing organization",
       "identityBenefitTitle": "Your organization. Your identity.",
       "identityBenefitBody": "Your logo helps people recognize the right organization in every chat and shared resource.",
       "identityProfileTitle": "Make yourself at home",
@@ -17794,7 +18017,7 @@
       "loadFailed": "I couldn't load these settings",
       "retry": "Try again",
       "saveFailed": "Your changes weren't saved. Stay here and try again.",
-      "workspaceGuide": "Let's give your team a home. Choose the organization you want to prepare, or create one for your company.",
+      "workspaceGuide": "Choose the organization you want to set up, or create one.",
       "identityGuide": "A logo makes the right organization easy to recognize. Add one now, or keep your current look and continue.",
       "profileGuide": "Now it's your turn. A photo and a familiar name help your teammates know who they're working with. These details follow your account across organizations.",
       "contextGuide": "Tell me a little about your work. Your agents will read this context when a conversation starts. Everything here is optional.",
@@ -20984,6 +21207,20 @@
     "vaultHelp": "These keys belong only to you. Connect or replace them in the agent’s chat settings. Removing a key blocks future runs until you reconnect.",
     "remove": "Remove connection",
     "loading": "Loading connections…",
-    "defaultEndpoint": "Provider default"
+    "defaultEndpoint": "Provider default",
+    "copilot": {
+      "title": "Connect your Copilot account",
+      "destination": "Use your account for {model} on GitHub.com Copilot.",
+      "privacy": "Only your signed-in web chats can use this connection. Remove it in your personal model connections; revoke the OAuth grant separately in GitHub settings.",
+      "approveOwnCode": "Approve only the code shown in this AgenticOS window.",
+      "code": "GitHub device code",
+      "openGitHub": "Open GitHub device authorization",
+      "pending": "Not approved yet. Wait {seconds} seconds before checking again.",
+      "check": "Check authorization",
+      "restart": "Start a new sign-in",
+      "reconnect": "Reconnect with GitHub",
+      "connect": "Sign in with GitHub",
+      "retained": "Your current connection stays active until the replacement is verified."
+    }
   }
 }

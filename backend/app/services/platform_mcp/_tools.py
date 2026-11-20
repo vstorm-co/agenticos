@@ -2116,6 +2116,16 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("PUT", f"/tasks/{task_id}", json=task.model_dump(mode="json"))
 
+    async def list_inbox_items(item_id: UUID | None = None) -> dict[str, object]:
+        """Read the person's Inbox cards across chats: findings and suggestions.
+
+        Use for “check my Inbox” or to discuss a specific Inbox card by ID. Only for
+        the person's private chat or console. Read-only. The result has a bounded
+        preview, the full card count and, when allowed, a separate pending approval count.
+        """
+        params = {"item_id": str(item_id)} if item_id is not None else None
+        return await api.request("GET", "/outcomes/inbox", params=params)
+
     async def list_inbox_cases(
         conversation_id: UUID | None = None, limit: DiscoveryLimit = 10, skip: DiscoverySkip = 0
     ) -> dict[str, JsonValue]:
@@ -2127,7 +2137,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         params: dict[str, str | int] = {"include_source": "true", "limit": limit, "skip": skip}
         if conversation_id is not None:
             params["conversation_id"] = str(conversation_id)
-        return _JSON_OBJECT.validate_python(await api.request("GET", "/outcomes", params=params))
+        result = _JSON_OBJECT.validate_python(await api.request("GET", "/outcomes", params=params))
+        return {**result, "scope": "working_chat_cases", "whole_inbox": False}
 
     async def settle_inbox_case(
         outcome_id: UUID, action: Literal["acknowledge", "resolve", "mute"]
@@ -4581,6 +4592,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (get_task, False, PlatformToolGroup.TASKS),
         (create_task, True, PlatformToolGroup.TASKS),
         (update_task, True, PlatformToolGroup.TASKS),
+        (list_inbox_items, False, PlatformToolGroup.AUTOMATIONS),
         (list_inbox_cases, False, PlatformToolGroup.TASKS),
         (settle_inbox_case, True, PlatformToolGroup.TASKS),
         (list_routines, False, PlatformToolGroup.AUTOMATIONS),

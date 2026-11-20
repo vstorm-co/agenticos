@@ -1,5 +1,5 @@
 ---
-source_sha: "34f407ae78ff"
+source_sha: "1a74a11db7e0"
 ---
 
 # Configuración { #configuration }
@@ -89,7 +89,11 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 
 Para enviar imágenes a canales en producción, configura `VISUAL_RENDER_CDP_URL=http://visual-render:9222` y `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` en `backend/.env`. `scripts/deploy.sh` activa entonces el perfil `visuals` en `docker-compose-prod.yml`; para iniciar manualmente, añade `--profile visuals`.
 
-La navegación pública necesita un navegador separado: configure `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` y `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. El despliegue activa el perfil `browser`. Configure `browser_use.cdp_url` del agent como `http://browser:9222` y publique su borrador. El navegador solo sale mediante el proxy; Squid rechaza destinos privados y de metadatos. Mantenga `VISUAL_RENDER_CDP_URL=http://visual-render:9222` para dibujar con aislamiento. Sin restricción de dominios se permiten sitios públicos; una lista explícita de dominios sigue vigente.
+La navegación pública necesita un navegador separado: configure `BROWSER_SIGN_IN_CDP_URL=http://browser:9222`, `BROWSER_EGRESS_PROXY=http://browser-egress:3128` y `BROWSER_CDP_ALLOWED_HOSTS=["browser","visual-render"]`. El despliegue activa el perfil `browser`. Los agentes con **Built in** usan `BROWSER_SIGN_IN_CDP_URL` cuando su propio `cdp_url` está vacío. El navegador solo sale mediante el proxy; Squid rechaza destinos privados y de metadatos. Mantenga `VISUAL_RENDER_CDP_URL=http://visual-render:9222` para dibujar con aislamiento. Sin restricción de dominios se permiten sitios públicos; una lista explícita de dominios sigue vigente.
+
+AgenticOS usa por defecto **Built in**, con hasta 100 pasos por llamada, y **Computer use → Docker / Sandbox** con el entorno `desktop`. Este incluye también las herramientas de workbench para código y documentos. Sin conexión a contenedores, el escritorio y las herramientas personales de código en la nube permanecen desactivados. Un endpoint de navegador ausente o un contenedor inaccesible solo afecta a sus llamadas; el agente puede publicarse y responder con sus otras herramientas. Los endpoints configurados siguen sujetos a la lista de hosts permitidos del operador.
+
+AgenticOS trabaja directamente salvo que el usuario solicite explícitamente subagentes o trabajo paralelo de agentes. En Delegates se habilitan todos los agentes publicados accesibles de la organización actual. Se mantienen los permisos y las versiones fijadas explícitamente; las rutinas sin usuario no reciben este catálogo. La creación dinámica de especialistas está desactivada.
 
 El renderizador no publica puertos ni tiene acceso a Internet, sirve a la API y al worker y tiene un límite de 1 CPU y 1 GiB de RAM. Las imágenes publicadas del backend incluyen el extra `browser`; una imagen propia necesita `EXTRAS="--extra browser"`. Si falla la renderización, la respuesta del canal indica expresamente que no se pudo adjuntar la imagen. Cada renderizado permite como máximo 256 solicitudes y 32 respuestas pendientes; las teselas también comparten `RATE_LIMIT_MAP_TILES_PER_MINUTE` entre renderizadores.
 
@@ -1688,3 +1692,37 @@ permanecen hasta su eliminación manual y no sustituyen copias externas. Prueba 
 restauración en un despliegue desechable antes de producción. Varios hosts,
 superposiciones Compose propias y almacenamiento externo requieren tu pipeline:
 `UPDATE_PIPELINE_URL` muestra su enlace HTTPS sin iniciar el despliegue.
+
+## Cuentas de suscripción { #subscription-accounts }
+
+El servicio `subscription-gateway` ejecuta los inicios de sesión de las personas
+en sus propias suscripciones ([cuentas de suscripción](models.md#subscription-accounts)).
+Usa la imagen del backend con `python -m app.subscription_gateway`, no publica
+ningún puerto y guarda los inicios de sesión en el volumen
+`subscription_accounts`.
+
+| Variable | La lee | Significado |
+|---|---|---|
+| `SUBSCRIPTION_GATEWAY_URL` | API, worker | La dirección de la pasarela, `http://subscription-gateway:8400` en compose. Sin valor, las cuentas de suscripción se desactivan. |
+| `SUBSCRIPTION_GATEWAY_TOKEN` | API, worker, pasarela | El token compartido, de 32 caracteres como mínimo. La pasarela rechaza cualquier petición sin él, y la API no arranca con una URL pero sin ese token. |
+| `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | pasarela | Cuánto puede estar inactivo el proceso de una persona antes de detenerse. Por defecto 600. |
+| `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | pasarela | Cuántos procesos de personas pueden ejecutarse a la vez. Por defecto 64; por encima, se detiene el proceso inactivo usado hace más tiempo. |
+
+El token se genera solo. `make dev` y `scripts/deploy.sh` escriben un
+`SUBSCRIPTION_GATEWAY_TOKEN` aleatorio en `backend/.env` la primera vez que se
+ejecutan y lo conservan después; `make dev` se lo pasa a `docker-compose.yml`.
+Para elegir el tuyo, escríbelo ahí antes (`openssl rand -hex 32`).
+
+En `docker-compose-prod.yml` y `docker-compose-dev.yml` el servicio está en el
+perfil `subscriptions`. `scripts/deploy.sh` y el actualizador del host activan
+ese perfil y definen `SUBSCRIPTION_GATEWAY_URL` cuando `backend/.env` contiene un
+token, así que un servidor ejecuta la pasarela por defecto. Para mantenerla
+apagada, deja la línea vacía en `backend/.env`: `SUBSCRIPTION_GATEWAY_TOKEN=`.
+
+`docker-compose.yml` arrancado por sí solo, sin un clon, usa un token local
+fijo. Define tu propio `SUBSCRIPTION_GATEWAY_TOKEN` en `.env` para cualquier
+despliegue así al que lleguen otras personas.
+
+## GitHub Copilot OAuth { #github-copilot-oauth }
+
+Establece `GITHUB_COPILOT_OAUTH_CLIENT_ID` (vacío por defecto) con la aplicación OAuth propia del despliegue y habilita device flow. Sin ella se rechaza el inicio personal Copilot. Es distinto de GitHub Models y las credenciales del conector GitHub. Autorizar GitHub no confirma acceso Copilot; también debe pasar la comprobación de modelos de chat de la cuenta. No se admiten concesiones GitHub App caducables ni gateways Enterprise propios. Consulta [cuentas Copilot](models.md#github-copilot-accounts).

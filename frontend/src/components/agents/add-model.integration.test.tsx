@@ -308,7 +308,7 @@ describe("the add-model form", () => {
     await pickProvider("OpenAI");
 
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
     expect(screen.getByText(/No OpenAI key in the vault yet/)).toBeInTheDocument();
@@ -339,7 +339,7 @@ describe("the add-model form", () => {
     await pickProvider("OpenAI");
 
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.click(screen.getByLabelText("Key"));
     await userEvent.click(screen.getByRole("option", { name: /OpenAI staging/ }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
@@ -365,7 +365,7 @@ describe("the add-model form", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Store a key" }));
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeEnabled();
   });
@@ -403,7 +403,7 @@ describe("the add-model form", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -419,7 +419,7 @@ describe("the add-model form", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     await userEvent.click(screen.getByRole("button", { name: "Name it something else" }));
     await userEvent.type(screen.getByLabelText("Name"), "Cheap tier");
@@ -435,7 +435,7 @@ describe("the add-model form", () => {
     const { onCreated } = mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -511,7 +511,7 @@ describe("the add-model form", () => {
     const { onCreated } = mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -525,7 +525,7 @@ describe("the add-model form", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     await pickProvider("OpenRouter");
 
@@ -561,7 +561,7 @@ describe("the add-model form", () => {
     mount({ disabled: true });
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
   });
@@ -627,7 +627,7 @@ describe("storing the key the model runs on", () => {
     mount();
     await pickProvider("Ollama");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeEnabled();
@@ -666,7 +666,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "https://gateway.acme/v1");
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -701,7 +701,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
     expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
@@ -721,7 +721,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("Ollama");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -742,7 +742,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("Ollama");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
   });
@@ -779,7 +779,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("Anthropic");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "https://gateway.acme/v1");
 
     expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
@@ -808,7 +808,7 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.type(screen.getByLabelText("Endpoint"), url);
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
   }
@@ -942,7 +942,7 @@ describe("the two refusals that named a provider and the one that named a value"
     mount();
     await pickProvider("Ollama");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
@@ -961,7 +961,7 @@ describe("the two refusals that named a provider and the one that named a value"
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
@@ -979,7 +979,7 @@ describe("the two refusals that named a provider and the one that named a value"
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
     expect(screen.getByText(message)).toBeInTheDocument();
 
@@ -1001,7 +1001,7 @@ describe("the two refusals that named a provider and the one that named a value"
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
     expect(screen.getByText(message)).toBeInTheDocument();
@@ -1025,7 +1025,7 @@ describe("choosing which of OpenAI's APIs a model's requests go to", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
   }
 
   async function pickApi(name: string) {
@@ -1141,7 +1141,7 @@ describe("choosing where a Stav model's requests run", () => {
     mount();
     await pickProvider("Stav.ai");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /mistral-small-4/ }));
+    await userEvent.click(screen.getByRole("option", { name: /Mistral Small 4/ }));
   }
 
   function sent() {
@@ -1326,7 +1326,7 @@ describe("choosing where a Stav model's requests run", () => {
     mount();
     await pickProvider("OpenAI");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
 
     expect(sent()).not.toHaveProperty("region");
@@ -1346,7 +1346,7 @@ describe("a provider nobody can type a key for", () => {
     const { onCreated } = mount();
     await pickProvider("ChatGPT");
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/i }));
 
     expect(screen.queryByRole("button", { name: "Store a key" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Sign in instead" }));
@@ -1733,7 +1733,7 @@ it("creates an Otari profile using its selected vault key and gateway model sele
   );
   expect(screen.queryByLabelText("Region")).toBeNull();
   await userEvent.click(screen.getByLabelText("Model"));
-  await userEvent.click(screen.getByRole("option", { name: /anthropic:claude-sonnet-4-6/ }));
+  await userEvent.click(screen.getByRole("option", { name: /^Claude/ }));
   await userEvent.click(screen.getByRole("button", { name: "Add model" }));
   expect(state.createProfile.mutateAsync).toHaveBeenLastCalledWith(
     expect.objectContaining({
@@ -1818,7 +1818,7 @@ describe("native decision model setup", () => {
     expect(listingRequests).toHaveBeenLastCalledWith("openai", undefined, undefined, true);
     expect(screen.queryByLabelText("API")).not.toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("Model"));
-    await userEvent.click(screen.getByRole("option", { name: /gpt-6-luna/ }));
+    await userEvent.click(screen.getByRole("option", { name: /GPT-6 Luna/ }));
     await userEvent.click(screen.getByRole("button", { name: "Store a key" }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
     expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
@@ -1845,4 +1845,25 @@ describe("native decision model setup", () => {
     expect(screen.getByRole("option", { name: /OpenAI/ })).toBeVisible();
     expect(screen.queryByRole("option", { name: /OpenRouter/ })).not.toBeInTheDocument();
   });
+});
+
+it("confirms a Z.AI plan endpoint before listing and reconfirms after it changes", async () => {
+  state.purposes = [purpose("zai", "Z.AI")];
+  state.catalog = [capabilities("zai", "Z.AI", { supports_base_url: true })];
+  state.secrets = [secret({ id: "zai-plan", name: "Plan key", purpose: "zai" })];
+  mount();
+  expect(listingRequests).toHaveBeenLastCalledWith("zai", undefined, "zai-plan", false);
+  listingRequests.mockClear();
+  const endpoint = screen.getByLabelText("Endpoint");
+  await userEvent.type(endpoint, "https://api.z.ai/api/coding/paas/v4");
+  expect(listingRequests.mock.calls.every(([provider]) => provider === "")).toBe(true);
+  await userEvent.click(screen.getByRole("button", { name: "Load models" }));
+  expect(listingRequests).toHaveBeenLastCalledWith(
+    "zai",
+    "https://api.z.ai/api/coding/paas/v4",
+    "zai-plan",
+    false,
+  );
+  await userEvent.type(endpoint, "/changed");
+  expect(listingRequests).toHaveBeenLastCalledWith("", undefined, "zai-plan", false);
 });

@@ -33,6 +33,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 import httpx
+import httpx2
 from genai_prices.data_snapshot import get_snapshot
 from pydantic import TypeAdapter
 
@@ -159,9 +160,8 @@ class FallbackModel:
 # OpenAI is `ada`. A short current list beats a long misleading one.
 #
 # What the library *is* used for is the half that rots: every context length comes
-# from it at read time, and `test_model_catalog.py` fails when an id here is one
-# the snapshot has never heard of - which is how a typo or a retired model is
-# caught rather than shipped as a dropdown the provider refuses.
+# from it at read time. The catalog test requires either a pricing snapshot row
+# or direct evidence from the subscription catalog for a new Codex model.
 CURATED: dict[str, tuple[FallbackModel, ...]] = catalog.load(
     "curated_models.json", TypeAdapter(dict[str, tuple[FallbackModel, ...]])
 )
@@ -171,10 +171,8 @@ def priced_model(provider: str, model_id: str) -> Any | None:
     """This model as `genai-prices` knows it, or None where it has no row for it.
 
     Two questions come off this and they are not the same one: whether the model
-    exists at all, and whether anybody recorded how much context it takes. A
-    curated id the snapshot has never heard of is a typo or a retirement, which is
-    a build failure; a known model with no window is simply not recorded, and the
-    capability resolves one itself.
+    is recorded in the price catalog, and how much context that row says it takes.
+    A new subscription model can appear before the price snapshot records it.
 
     The provider ids differ in a handful of places - the snapshot writes `x-ai`
     where the platform writes `xai` - so the alias table is part of the lookup
@@ -417,12 +415,27 @@ def _fallback(curated: list[CatalogModel]) -> tuple[list[CatalogModel], CatalogS
     return (curated, "curated") if curated else ([], "unlisted")
 
 
-CUSTOM_LISTINGS: dict[str, bool] = {"openrouter": False, "stav": True, "otari": True}
+CUSTOM_LISTINGS: dict[str, bool] = {
+    "openrouter": False,
+    "stav": True,
+    "otari": True,
+    "zai": True,
+    "kimi_code": True,
+    "alibaba_coding_plan": True,
+    "opencode_go": True,
+    "ollama_cloud": True,
+    "nous_portal": True,
+    "inception": True,
+    "cline": True,
+    "chutes": True,
+    "synthetic": True,
+    "cliproxyapi": True,
+}
 """Providers whose model list can be read at an endpoint the caller names, and
 whether the vault key goes with that request.
 
 OpenRouter's list is public, so a regional OpenRouter is asked with no key.
-Stav and Otari need one; the key is the one the profile sends to that same
+The others need one; the key is the one the profile sends to that same
 endpoint on every run - listing there reaches no host the profile does not.
 """
 
@@ -480,6 +493,23 @@ async def models_for(
             authorized by the caller. Its catalog never uses the global curated
             fallback.
     """
+    if provider == "github_copilot":
+        from app.clients.github_copilot import CopilotAccountClient
+        from app.core.exceptions import BadRequestError
+
+        if base_url is not None:
+            raise ValueError("Copilot account models require the fixed GitHub.com gateway")
+        if api_key is None:
+            return [], "unlisted"
+        try:
+            models = await CopilotAccountClient().models(api_key)
+        except BadRequestError, httpx.HTTPError, httpx2.HTTPError:
+            logger.warning("Could not list this Copilot account's supported chat models")
+            return [], "unlisted"
+        return [
+            CatalogModel(id=model.id, name=model.name or model.id, surfaces=("chat",))
+            for model in models
+        ], "live"
     if is_decision_api(provider, api):
         return await _decision_models_for(provider, base_url=base_url)
     if (
@@ -494,7 +524,8 @@ async def models_for(
     if base_url is not None:
         if provider not in CUSTOM_LISTINGS or spec is None:
             raise ValueError(
-                "Custom model listing endpoints are supported only for OpenRouter, Stav and Otari"
+                "Custom model listing endpoints are supported only for "
+                + ", ".join(sorted(CUSTOM_LISTINGS))
             )
         # Regional catalogs must never inherit the global fallback or cache.
         endpoint = base_url.rstrip("/")

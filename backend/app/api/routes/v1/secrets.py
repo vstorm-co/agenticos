@@ -24,13 +24,19 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import Auth, OpenAICodexSvc, SecretSvc, require
+from app.api.deps import Auth, ChatGPTPlanSvc, OpenAICodexSvc, SecretSvc, require
 from app.api.public_api import ASSISTANT
 from app.core.permissions import Perm
 from app.core.secret_kinds import describe_kinds
 from app.core.secret_purposes import all_purposes
 from app.db.models.resource_grant import Visibility
 from app.schemas.secret import (
+    ChatGPTPlanComplete,
+    ChatGPTPlanCreate,
+    ChatGPTPlanReconnect,
+    ChatGPTPlanSignIn,
+    OpenAICodexDevicePoll,
+    OpenAICodexDeviceSignIn,
     OpenAICodexSecretCreate,
     OpenAICodexSecretReconnect,
     OpenAICodexSignIn,
@@ -148,6 +154,24 @@ async def start_openai_codex_sign_in(service: OpenAICodexSvc, ctx: Auth) -> Any:
     return OpenAICodexSignIn(authorization_url=await service.start_sign_in(ctx))
 
 
+@router.post("/openai-codex/device", response_model=OpenAICodexDeviceSignIn)
+async def start_openai_codex_device_sign_in(service: OpenAICodexSvc, ctx: Auth) -> Any:
+    """Begin a ChatGPT sign-in with a device code instead of a pasted address."""
+    started = await service.start_device_sign_in(ctx)
+    return OpenAICodexDeviceSignIn(
+        state=started.state,
+        user_code=started.user_code,
+        verification_url=started.verification_url,
+        interval_seconds=started.interval_seconds,
+    )
+
+
+@router.post("/openai-codex/device/{state}", response_model=OpenAICodexDevicePoll)
+async def poll_openai_codex_device_sign_in(state: str, service: OpenAICodexSvc, ctx: Auth) -> Any:
+    """Whether ChatGPT approved your device code; then send its state to finish."""
+    return OpenAICodexDevicePoll(authorized=await service.poll_device_sign_in(ctx, state))
+
+
 @router.post(
     "/openai-codex",
     response_model=SecretRead,
@@ -161,6 +185,7 @@ async def create_openai_codex_secret(
     return await service.create(
         ctx,
         callback_url=data.callback_url,
+        device_state=data.device_state,
         name=data.name,
         description=data.description,
         visibility=Visibility(data.visibility),
@@ -172,6 +197,41 @@ async def reconnect_openai_codex_secret(
     secret_id: UUID, data: OpenAICodexSecretReconnect, service: OpenAICodexSvc, ctx: Auth
 ) -> Any:
     """Sign in with ChatGPT again, in place of a sign-in that stopped working."""
+    return await service.reconnect(
+        ctx, secret_id, callback_url=data.callback_url, device_state=data.device_state
+    )
+
+
+@router.post("/openai-chatgpt/sign-in", response_model=ChatGPTPlanSignIn)
+async def start_official_chatgpt_sign_in(service: ChatGPTPlanSvc, ctx: Auth) -> Any:
+    """Start official application plan consent, separately from Codex authentication."""
+    return ChatGPTPlanSignIn(authorization_url=await service.start_sign_in(ctx))
+
+
+@router.post(
+    "/openai-chatgpt",
+    response_model=ChatGPTPlanComplete,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.SECRETS_EDIT))],
+)
+async def complete_official_chatgpt_sign_in(
+    data: ChatGPTPlanCreate, service: ChatGPTPlanSvc, ctx: Auth
+) -> Any:
+    """Persist a private application grant, including explicitly declined plan consent."""
+    return await service.create(
+        ctx,
+        callback_url=data.callback_url,
+        name=data.name,
+        description=data.description,
+        visibility=Visibility(data.visibility),
+    )
+
+
+@router.put("/{secret_id}/openai-chatgpt", response_model=ChatGPTPlanComplete)
+async def reconnect_official_chatgpt_sign_in(
+    secret_id: UUID, data: ChatGPTPlanReconnect, service: ChatGPTPlanSvc, ctx: Auth
+) -> Any:
+    """Replace the owner's official grant; application registration remains durable."""
     return await service.reconnect(ctx, secret_id, callback_url=data.callback_url)
 
 

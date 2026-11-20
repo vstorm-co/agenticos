@@ -60,6 +60,7 @@ export default defineConfig({
         "src/components/authoring/**/*.tsx",
         "src/components/improvement/**/*.tsx",
         "src/components/settings/service-card.tsx",
+        "src/components/ui/disclosure-content.tsx",
         "src/components/skill-improvement/**/*.tsx",
         "src/components/triggers/source-consents-panel.tsx",
         "src/components/triggers/action-selection.tsx",

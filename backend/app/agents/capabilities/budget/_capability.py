@@ -167,6 +167,26 @@ def price_request(
             back to another provider reports a model this hint does not match,
             so resolution is retried without it rather than mispricing.
     """
+    if provider in {
+        "github_copilot",
+        "github-copilot",
+        "openai_chatgpt",
+        "openai-chatgpt",
+        "native-codex",
+        "native-claude_code",
+        "native-external",
+        "kimi_code",
+        "alibaba_coding_plan",
+        "opencode_go",
+        "ollama_cloud",
+        "cliproxyapi",
+        "subscription_accounts",
+        "nous_portal",
+        "chutes",
+        "synthetic",
+    }:
+        # Subscription allowances have no verified per-token USD contract.
+        return None
     if (reported := _provider_reported_cost(usage)) is not None:
         return reported
     for name, provider_id in _price_lookups(model_name, provider):
@@ -447,7 +467,11 @@ class SpendLedger:
         self, model_name: str, usage: RequestUsage | RunUsage, provider: str | None = None
     ) -> SpendEntry:
         cost = price_request(usage, model_name, provider)
-        reported = _provider_reported_cost(usage)
+        reported = (
+            None
+            if provider in {"github_copilot", "github-copilot"}
+            else _provider_reported_cost(usage)
+        )
         reported_requests = _reported_requests(usage)
         incomplete = reported is not None and 0 < reported_requests < usage.requests
         if cost is None:
@@ -1038,4 +1062,12 @@ class BudgetGuard(AbstractCapability[Any]):
         model_name = getattr(response, "model_name", None) or "unknown"
         usage = getattr(response, "usage", None)
         if usage is not None:
-            self.ledger.record(model_name, usage, self.provider)
+            provider = self.provider
+            if provider in {"github_copilot", "github-copilot"} and response.provider_name not in {
+                None,
+                "github_copilot",
+                "github-copilot",
+            }:
+                # An explicitly configured fallback may have billed a metered API.
+                provider = response.provider_name
+            self.ledger.record(model_name, usage, provider)

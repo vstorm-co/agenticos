@@ -1,5 +1,6 @@
 "use client";
 
+import { CopilotModelConnection } from "./copilot-model-connection";
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button, Input, Label } from "@/components/ui";
@@ -32,7 +33,15 @@ export function PersonalModelConnection({
       : null;
   if (useChanged(`${agentId}|${JSON.stringify(destination)}`)) setKey("");
   if (status.isError) return <p role="alert">{getErrorMessage(status.error, errors)}</p>;
-  if (!destination || !agentId || (connection?.connected && !manage)) return null;
+  if (!connection || !destination || !agentId || (connection.connected && !manage)) return null;
+  if (destination.provider === "github_copilot")
+    return (
+      <CopilotModelConnection
+        agentId={agentId}
+        destination={destination}
+        connected={connection.connected}
+      />
+    );
   return (
     <form
       method="post"
@@ -54,7 +63,7 @@ export function PersonalModelConnection({
         })}
       </p>
       <p role="status" className="text-muted-foreground text-xs">
-        {t(connection?.connected ? "connected" : "required")}
+        {t(connection.connected ? "connected" : "required")}
       </p>
       <div className="space-y-1">
         <Label htmlFor={id}>{t("key")}</Label>
@@ -80,7 +89,7 @@ export function PersonalModelConnection({
         </p>
       )}
       <Button type="submit" size="sm" disabled={save.isPending}>
-        {t(connection?.connected ? "replace" : "connect")}
+        {t(connection.connected ? "replace" : "connect")}
       </Button>
       <p className="text-muted-foreground text-xs">{t("privacy")}</p>
     </form>

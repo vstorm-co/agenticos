@@ -357,7 +357,9 @@ describe("sharing by link", () => {
       generate_link: true,
       permission: "view",
     });
-    expect(screen.getByText(`${window.location.origin}/shared/tok-123`)).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue(`${window.location.origin}/shared/tok-123`),
+    ).toBeInTheDocument();
     expect(toast.success).toHaveBeenCalledWith("Share link generated");
   });
 
@@ -371,6 +373,16 @@ describe("sharing by link", () => {
     await userEvent.click(copyButton);
 
     expect(copySpy).toHaveBeenCalledWith(`${window.location.origin}/shared/tok-123`);
+  });
+
+  it("stops offering the URL after revoking a link minted in this dialog", async () => {
+    shareConversation.mockResolvedValue({ id: "s-1", share_token: "tok-123" });
+    renderDialog();
+    await userEvent.click(screen.getByRole("button", { name: "Generate share link" }));
+    await userEvent.click(screen.getByRole("button", { name: "Revoke access" }));
+
+    expect(revokeShare).toHaveBeenCalledWith("c1", "s-1");
+    expect(screen.queryByRole("button", { name: "Copy share link" })).not.toBeInTheDocument();
   });
 
   it("shows nothing when the server answered without a token", async () => {
@@ -438,7 +450,7 @@ describe("who it is shared with", () => {
     expect(screen.getByText("u-9")).toBeInTheDocument();
     // A link share is the general access, not a person in the list.
     expect(screen.getByText("Anyone with the link can view")).toBeInTheDocument();
-    expect(screen.getByText(/\/shared\/tok$/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/\/shared\/tok$/)).toBeInTheDocument();
     // The catalog's word, capitalised - not the API's raw `"view"`.
     expect(screen.getAllByText("View").length).toBeGreaterThan(0);
     expect(screen.queryByText("view")).toBeNull();

@@ -2,13 +2,27 @@
 
 import { ProjectAvatar } from "@/components/projects/project-avatar";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useAgents, useConversations } from "@/hooks";
 import { ConversationSearchDialog } from "@/components/chat/conversation-search-dialog";
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -27,6 +41,7 @@ import {
   useWorkingStore,
 } from "@/stores";
 import { DEFAULT_COLLAPSED_BANDS, LONG_LIST } from "@/stores/chat-sidebar-store";
+import { useFillChatBands } from "@/hooks/use-fill-chat-bands";
 import { useProjects } from "@/hooks/use-projects";
 import {
   useLeaveSharedConversation,
@@ -100,6 +115,7 @@ function ConversationItem({
 }: ConversationItemProps) {
   const t = useTranslations("chat");
   const tTime = useTranslations("time");
+  const common = useTranslations("common");
   const locale = useLocale();
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(conversation.title || "");
@@ -168,11 +184,8 @@ function ConversationItem({
   }, [handedOff, listed, conversation.id, settleWorking]);
   const agentLabel = useConversationAgentLabel(agents, conversation.coding_agents ?? []);
 
-  // Rename moves the focus into the title's field once the menu has closed: the
-  // open menu holds the focus, and a field focused under it would blur at once,
-  // which saves the rename and closes the field.
   const renaming = useRef(false);
-  const titleField = useRef<HTMLInputElement>(null);
+  const actionsButton = useRef<HTMLButtonElement>(null);
 
   const favouriteItem = (
     <DropdownMenuItem onSelect={() => onFavourite(conversation.is_favourite !== true)}>
@@ -191,14 +204,12 @@ function ConversationItem({
       )}
       onClick={onSelect}
     >
-      {!isEditing && (
-        <button
-          type="button"
-          aria-label={displayTitle}
-          aria-current={isActive ? "page" : undefined}
-          className="focus-visible:outline-ring absolute inset-0 rounded-xl outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
-        />
-      )}
+      <button
+        type="button"
+        aria-label={displayTitle}
+        aria-current={isActive ? "page" : undefined}
+        className="focus-visible:outline-ring absolute inset-0 rounded-xl outline-none focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+      />
       {/* Agent faces identify who took part; the title leads the text. */}
       <span className="relative shrink-0">
         {agents.length > 0 || conversation.coding_agents?.length ? (
@@ -225,81 +236,66 @@ function ConversationItem({
           />
         )}
       </span>
-      {isEditing ? (
-        <input
-          type="text"
-          value={editTitle}
-          onChange={(e) => setEditTitle(e.target.value)}
-          onBlur={handleRename}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleRename();
-            if (e.key === "Escape") setIsEditing(false);
-          }}
-          ref={titleField}
-          className="text-foreground relative min-w-0 flex-1 bg-transparent text-base font-medium outline-none md:text-[13px]"
-          onClick={(e) => e.stopPropagation()}
-        />
-      ) : (
-        // Titles lead scanning; identity and activity share the quieter second line.
-        <div className="pointer-events-none relative min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5">
-            {/* A fork keeps its source's title and agent, so without this the
+      {/* Titles lead scanning; identity and activity share the quieter second line. */}
+      <div className="pointer-events-none relative min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {/* A fork keeps its source's title and agent, so without this the
                 two rows differ only in their time. */}
-            {conversation.forked_from && (
-              <span
-                role="img"
-                aria-label={t("sidebar.forkOf", {
-                  title: conversation.forked_from.title || t("untitledFork"),
-                })}
-                title={t("sidebar.forkOf", {
-                  title: conversation.forked_from.title || t("untitledFork"),
-                })}
-                className="text-muted-foreground shrink-0"
-              >
-                <GitBranch className="h-3 w-3" aria-hidden />
-              </span>
-            )}
-            {/* Medium, and semibold only while it holds something unread - the
-                weight is the second half of the mark, as in a mail client. */}
+          {conversation.forked_from && (
             <span
-              className={cn(
-                "line-clamp-2 text-[13px] leading-5",
-                unread ? "text-foreground font-semibold" : "font-medium",
-                !unread && (isActive ? "text-foreground" : "text-foreground/80"),
-              )}
+              role="img"
+              aria-label={t("sidebar.forkOf", {
+                title: conversation.forked_from.title || t("untitledFork"),
+              })}
+              title={t("sidebar.forkOf", {
+                title: conversation.forked_from.title || t("untitledFork"),
+              })}
+              className="text-muted-foreground shrink-0"
             >
-              {displayTitle}
+              <GitBranch className="h-3 w-3" aria-hidden />
             </span>
-            {/* Opened by a script through an API key, not typed here (#2122). */}
-            {conversation.origin === "api" && (
-              <span className="border-border text-muted-foreground shrink-0 rounded border px-1 font-mono text-[10px] leading-4">
-                {t("sidebar.apiBadge")}
-              </span>
+          )}
+          {/* Medium, and semibold only while it holds something unread - the
+                weight is the second half of the mark, as in a mail client. */}
+          <span
+            className={cn(
+              "line-clamp-2 text-[13px] leading-5",
+              unread ? "text-foreground font-semibold" : "font-medium",
+              !unread && (isActive ? "text-foreground" : "text-foreground/80"),
             )}
-          </div>
-          <p className="text-muted-foreground mt-0.5 truncate text-xs leading-4">
-            {/* At work, the line says so and for how long, in place of who and
+          >
+            {displayTitle}
+          </span>
+          {/* Opened by a script through an API key, not typed here (#2122). */}
+          {conversation.origin === "api" && (
+            <span className="border-border text-muted-foreground shrink-0 rounded border px-1 font-mono text-[10px] leading-4">
+              {t("sidebar.apiBadge")}
+            </span>
+          )}
+        </div>
+        <p className="text-muted-foreground mt-0.5 truncate text-xs leading-4">
+          {/* At work, the line says so and for how long, in place of who and
                 when: beside the agent's name it was cut to nothing. The face
                 still says who. */}
-            {waiting ? (
-              tTools("toolState", { status: waiting })
-            ) : runningSince ? (
-              <RunningFor key={runningSince} since={runningSince} />
-            ) : (
-              <>
-                {agentLabel && <>{agentLabel} · </>}
-                {timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)}
-              </>
-            )}
-          </p>
-        </div>
-      )}
+          {waiting ? (
+            tTools("toolState", { status: waiting })
+          ) : runningSince ? (
+            <RunningFor key={runningSince} since={runningSince} />
+          ) : (
+            <>
+              {agentLabel && <>{agentLabel} · </>}
+              {timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)}
+            </>
+          )}
+        </p>
+      </div>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
+            ref={actionsButton}
             aria-label={t("conversationActions")}
             className={cn(
               // Reserve the action slot so revealing it never reflows the title,
@@ -323,7 +319,6 @@ function ConversationItem({
             if (!renaming.current) return;
             renaming.current = false;
             e.preventDefault();
-            titleField.current?.focus();
           }}
         >
           {/* Somebody else's thread: renaming, sharing, archiving and
@@ -344,6 +339,7 @@ function ConversationItem({
               <DropdownMenuItem
                 onSelect={() => {
                   renaming.current = true;
+                  setEditTitle(conversation.title ?? "");
                   setIsEditing(true);
                 }}
               >
@@ -383,6 +379,44 @@ function ConversationItem({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <Dialog open={isEditing} onOpenChange={setIsEditing}>
+        <DialogContent
+          className="sm:max-w-sm"
+          aria-describedby={undefined}
+          onClick={(event) => event.stopPropagation()}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            actionsButton.current?.focus();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>{t("rename")}</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleRename();
+            }}
+          >
+            <Input
+              aria-label={t("rename")}
+              value={editTitle}
+              onChange={(event) => setEditTitle(event.target.value)}
+              maxLength={255}
+              required
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
+                {common("cancel")}
+              </Button>
+              <Button type="submit" disabled={!editTitle.trim()}>
+                {common("save")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -543,7 +577,10 @@ function useBands(
     // Use the shared row once, retaining its reader controls in every band.
     const sharedRows = isArchivedView ? [] : shared;
     const sharedIds = new Set(sharedRows.map((conversation) => conversation.id));
-    const listedRows = conversations.filter((conversation) => !sharedIds.has(conversation.id));
+    const visibleRows = conversations.filter((conversation) => !sharedIds.has(conversation.id));
+    const { inProjects, outside: listedRows } = isArchivedView
+      ? { inProjects: [], outside: visibleRows }
+      : byProject(visibleRows, names, ts("unnamedProject"));
     const unread = isArchivedView
       ? []
       : [...listedRows, ...sharedRows].filter(
@@ -563,10 +600,9 @@ function useBands(
     const ordinaryShared = sharedRemaining.filter(
       (conversation) => conversation.is_favourite !== true,
     );
-    const { inProjects, outside: rest } = isArchivedView
-      ? { inProjects: [], outside: remaining.slice(ownStarred.length) }
-      : byProject(remaining.slice(ownStarred.length), names, ts("unnamedProject"));
+    const rest = remaining.slice(ownStarred.length);
     return [
+      ...inProjects,
       ...(unread.length > 0
         ? [{ key: "unread", heading: ts("unreadHeading"), icon: "unread" as const, rows: unread }]
         : []),
@@ -585,7 +621,6 @@ function useBands(
             },
           ]
         : []),
-      ...inProjects,
       // Under the date they were last active, the way a chat product's history
       // reads, when the list is in that order; any other order has no dates to
       // fall into, so it stays one run.
@@ -607,19 +642,43 @@ function useBands(
  * Which bands are drawn folded, and how to flip one.
  *
  * A band somebody folded or opened by hand stays that way. One nobody chose for
- * follows the default: the older bands (`DEFAULT_COLLAPSED_BANDS`) fold only on
- * a long list, and never the newest band on it - a person with nothing from the
- * last two days used to open Chats onto two folded headings and no thread.
+ * follows the available height: spare space opens the next default fold.
+ * Older bands fold only on a long list, and never the newest band on it.
+ * Automatic opening stays local; the store records only deliberate choices.
  */
-function useBandFolds(bands: Band[], loaded: number) {
+function useBandFolds(bands: Band[], loaded: number, scroller: RefObject<HTMLElement | null>) {
   const folded = useChatBandsStore((state) => state.folded);
   const opened = useChatBandsStore((state) => state.opened);
   const toggle = useChatBandsStore((state) => state.toggle);
   const newest = bands.find((band) => band.heading !== null)?.key;
+  const candidates = useMemo(
+    () =>
+      bands
+        .filter(
+          (band) =>
+            band.key !== newest &&
+            loaded > LONG_LIST &&
+            DEFAULT_COLLAPSED_BANDS.includes(band.key) &&
+            !folded.includes(band.key) &&
+            !opened.includes(band.key),
+        )
+        .map((band) => band.key),
+    [bands, newest, loaded, folded, opened],
+  );
+  const alreadyVisible = useMemo(
+    () =>
+      loaded <= LONG_LIST
+        ? bands
+            .filter((band) => band.heading !== null && !folded.includes(band.key))
+            .map((band) => band.key)
+        : [],
+    [bands, folded, loaded],
+  );
+  const autoOpened = useFillChatBands(scroller, candidates, alreadyVisible);
   const isFolded = (key: string): boolean => {
     if (folded.includes(key)) return true;
-    if (opened.includes(key)) return false;
-    return key !== newest && loaded > LONG_LIST && DEFAULT_COLLAPSED_BANDS.includes(key);
+    if (opened.includes(key) || autoOpened.includes(key)) return false;
+    return candidates.includes(key);
   };
   return { isFolded, flip: (key: string) => toggle(key, isFolded(key)) };
 }
@@ -656,7 +715,8 @@ function ConversationList({
 
   const isArchivedView = view === "archived";
   const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder, shared);
-  const { isFolded, flip } = useBandFolds(bands, conversations.length);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const { isFolded, flip } = useBandFolds(bands, conversations.length, scrollerRef);
   const foldedKeys = bands
     .filter((band) => isFolded(band.key))
     .map((band) => band.key)
@@ -668,7 +728,6 @@ function ConversationList({
   // Asked here instead, until the column is full or the list has ended - or the
   // last page drew nothing: rows that land in folded bands add no height, and
   // asking again for every one of them downloaded the whole history.
-  const scrollerRef = useRef<HTMLDivElement>(null);
   const pagedAtHeight = useRef<number | null>(null);
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -679,9 +738,7 @@ function ConversationList({
     onLoadMore?.();
   }, [conversations.length, foldedKeys, isLoading, onLoadMore]);
 
-  // The band the open conversation lands in opens, once per conversation - a new
-  // chat in a folded Today is otherwise a thread you are in that the list hides.
-  // Once: folding that band again afterwards is the reader's choice and stays.
+  // Reveal an active thread in an automatic fold; explicit user folds always win.
   const unfoldedFor = useRef<string | null>(null);
   useEffect(() => {
     if (currentConversationId === null || unfoldedFor.current === currentConversationId) return;
@@ -690,7 +747,8 @@ function ConversationList({
     );
     if (band === undefined) return;
     unfoldedFor.current = currentConversationId;
-    if (isFolded(band.key)) flip(band.key);
+    if (isFolded(band.key) && !useChatBandsStore.getState().folded.includes(band.key))
+      flip(band.key);
   }, [bands, currentConversationId, isFolded, flip]);
 
   return (
@@ -787,7 +845,7 @@ function ConversationList({
                     type="button"
                     aria-expanded={!isFolded(key)}
                     onClick={() => flip(key)}
-                    className="group/band text-muted-foreground hover:text-foreground flex w-full items-center gap-1.5 rounded-md px-2 pt-3 pb-1 text-left text-xs font-medium transition-colors"
+                    className="group/band text-muted-foreground hover:text-foreground hover:bg-muted/60 flex min-h-8 w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
                   >
                     {icon === "star" && <Star className="h-3.5 w-3.5" aria-hidden />}
                     {icon === "unread" && <Inbox className="h-3.5 w-3.5" aria-hidden />}
@@ -860,7 +918,11 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   const [view, setView] = useState<ConversationView>(
     searchParams.get("view") === "archived" ? "archived" : "active",
   );
-  const [agentId, setAgentId] = useState<string | null>(searchParams.get("agent"));
+  const [agentId, setAgentId] = useState<string | null>(() => {
+    const filter = searchParams.get("agent");
+    // Older Inbox notifications used the starter slug to address the composer.
+    return filter === "agenticos" ? null : filter;
+  });
   // Hidden unless asked for: an organization key's runs open a conversation
   // each, and a script calling the API every minute buried the chats a person
   // came here for. `?api=show` brings them back.
@@ -888,8 +950,33 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     view,
     agentId,
     hideApi,
+    projectScope: view === "active" ? "exclude" : "include",
     ...splitSort(sort),
   });
+  const projectList = useConversations(
+    {
+      view,
+      agentId,
+      hideApi,
+      projectScope: "only",
+      ...splitSort(sort),
+    },
+    view === "active",
+  );
+  const activeProjectRows =
+    view === "active"
+      ? projectList.conversations.filter(
+          (row) => row.project_id !== null && row.project_id !== undefined,
+        )
+      : [];
+  const rows = [
+    ...activeProjectRows,
+    ...conversations.filter((row) => view !== "active" || !row.project_id),
+  ];
+  const fetchMore = useCallback(() => {
+    void fetchMoreConversations();
+    if (view === "active") void projectList.fetchMoreConversations();
+  }, [fetchMoreConversations, projectList.fetchMoreConversations, view]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -943,8 +1030,8 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   };
 
   const listProps = {
-    conversations,
-    total,
+    conversations: rows,
+    total: total + (view === "active" ? projectList.total : 0),
     view,
     onViewChange: changeView,
     // The sort is not a filter: it reorders the same threads, so an empty list
@@ -953,14 +1040,14 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     isFiltered: agentId !== null,
     onClearFilters: clearFilters,
     currentConversationId,
-    isLoading,
+    isLoading: isLoading || (view === "active" && projectList.isLoading),
     onSelect: selectConversation,
     onDelete: deleteConversation,
     onArchive: archiveConversation,
     onUnarchive: unarchiveConversation,
     onFavourite: setFavourite,
     onRename: renameConversation,
-    onLoadMore: fetchMoreConversations,
+    onLoadMore: fetchMore,
     datedOrder: sort === DEFAULT_SORT,
     shared,
     onLeaveShared: (id: string) => void leave(id),
@@ -1154,7 +1241,8 @@ function CollapsedSidebar({
   const ts = useTranslations("chat.sidebar");
   const isArchivedView = view === "archived";
   const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder, shared);
-  const { isFolded, flip } = useBandFolds(bands, conversations.length);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const { isFolded, flip } = useBandFolds(bands, conversations.length, scrollerRef);
 
   return (
     <div className={cn("bg-sidebar-secondary hidden w-12 shrink-0 flex-col md:flex", className)}>
@@ -1174,6 +1262,7 @@ function CollapsedSidebar({
       <span aria-hidden className="bg-border mx-auto h-px w-6 shrink-0" />
 
       <div
+        ref={scrollerRef}
         className="flex flex-1 scrollbar-none flex-col items-center overflow-y-auto py-1"
         onScroll={(e) => {
           const el = e.currentTarget;

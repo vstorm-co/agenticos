@@ -129,6 +129,7 @@ in [Capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/)
 | Date and time | `clock` |
 | Calculations | `code_execution` |
 | Coding agent | `coding_agent` |
+| External ACP agent | `external_acp` |
 | Long conversations | `compaction` |
 | Computer use | `computer_use` |
 | Context | `context` |

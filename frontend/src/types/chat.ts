@@ -308,6 +308,7 @@ export type WSEventType =
   | "error"
   | "tool_approval_required"
   | "ask_user"
+  | "runtime_question_closed"
   | "user_question_required"
   | "run_answer_result"
   | "steer_applied"
@@ -576,11 +577,19 @@ export interface Decision {
 }
 
 export interface AskUserChoice {
+  labelKey?: "runtimeApprovePlan" | "runtimeRejectPlan" | "runtimeYes" | "runtimeNo";
   label: string;
   description?: string | null;
 }
 
 export interface AskUserQuestion {
+  requestId?: string;
+  minSelections?: number;
+  maxSelections?: number;
+  multiline?: boolean;
+  initialValue?: string;
+  allowEmpty?: boolean;
+  maxAnswerLength?: number;
   question: string;
   /** A short label for the question, shown as a chip (#2064). */
   header?: string | null;
@@ -685,7 +694,7 @@ export interface SubagentStartFrame extends SubagentFrameBase {
    * Set when the worker is Claude Code or Codex, started by the `coding_agent`
    * capability rather than delegated to an agent, so the panel draws its mark.
    */
-  harness?: CodingHarness | null;
+  harness?: CodingHarness | "custom" | null;
 }
 
 /** The coding harnesses the `coding_agent` capability runs. */
@@ -833,7 +842,7 @@ export interface Delegation {
    */
   specialist: SpecialistDefinition | null;
   /** Claude Code or Codex, when the worker is a coding harness rather than an agent. */
-  harness: CodingHarness | null;
+  harness: CodingHarness | "custom" | null;
   text: string;
   thinking: string;
   steps: DelegationStep[];

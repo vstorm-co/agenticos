@@ -1,5 +1,7 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+
 import { useState } from "react";
 import Image from "next/image";
 import { ChevronRight, Cloud, Container, Eye, EyeOff, Globe, Laptop, Network } from "lucide-react";
@@ -21,6 +23,8 @@ import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { BrandIcon, type BrandName } from "@/components/icons/brand-icon";
 import { useModelProviders } from "@/hooks";
 import { ProviderIcon } from "@/components/vault/provider-icon";
+import { PickerMark } from "@/components/icons/picker-mark";
+import { ModelIcon } from "@/components/icons/model-icon";
 import { useCustomIcons } from "@/components/icons/custom-icons";
 import { BRAND_GLYPHS } from "@/lib/brand-glyphs.generated";
 import type { FieldCopy, FieldCopyFor } from "@/components/agents/capability-field-copy";
@@ -223,13 +227,13 @@ function visible(
 function AdvancedFields({ open, children }: { open: boolean; children: React.ReactNode }) {
   const t = useTranslations("agents");
   return (
-    <details className="group" open={open}>
+    <NativeDisclosure className="group" open={open}>
       <summary className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-xs">
         <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
         {t("advancedSettings")}
       </summary>
       <div className="mt-3 space-y-4">{children}</div>
-    </details>
+    </NativeDisclosure>
   );
 }
 
@@ -402,6 +406,8 @@ function SchemaField({
           {...invalid}
         >
           {choices.map((choice) => {
+            const summary = copy?.options?.[choice]?.summary;
+            const summaryId = `${id}-${choice}-summary`;
             return (
               <button
                 key={choice}
@@ -409,6 +415,7 @@ function SchemaField({
                 role="radio"
                 aria-checked={selected === choice}
                 aria-label={enumLabel(property, choice, copy)}
+                aria-describedby={summary ? summaryId : undefined}
                 disabled={disabled}
                 onClick={() => onChange(choice)}
                 className={cn(
@@ -425,9 +432,9 @@ function SchemaField({
                   )}
                   {enumLabel(property, choice, copy)}
                 </span>
-                {copy?.options?.[choice]?.summary && (
-                  <span className="text-muted-foreground text-xs leading-relaxed">
-                    {copy?.options?.[choice]?.summary}
+                {summary && (
+                  <span id={summaryId} className="text-muted-foreground text-xs leading-relaxed">
+                    {summary}
                   </span>
                 )}
               </button>
@@ -797,7 +804,11 @@ function numberText(value: unknown, fallback: unknown, scale = 1): string {
 
 function CatalogChoiceMark({ name }: { name: string }) {
   const icons = useCustomIcons();
-  return icons.has(name) ? <ProviderIcon provider={name} className="h-3.5 w-3.5 shrink-0" /> : null;
+  return icons.has(name) ? (
+    <PickerMark>
+      <ProviderIcon provider={name} />
+    </PickerMark>
+  ) : null;
 }
 
 /**
@@ -850,12 +861,18 @@ function choiceMark(choice: string, field: string) {
     }
   }
   if (choice in BRAND_GLYPHS) {
-    return <BrandIcon name={choice as BrandName} className="h-3.5 w-3.5 shrink-0" />;
+    return (
+      <PickerMark>
+        <BrandIcon name={choice as BrandName} />
+      </PickerMark>
+    );
   }
   const [head] = choice.split(":");
   const provider = (head ?? "").replace(/-(responses|chat|vertex|gla)$/, "");
   if (provider === choice) return <CatalogChoiceMark name={choice} />;
-  return <ProviderIcon provider={provider} className="h-3.5 w-3.5" />;
+  return (
+    <ModelIcon model={`${provider}:${choice.slice(choice.indexOf(":") + 1)}`} provider={provider} />
+  );
 }
 
 /**

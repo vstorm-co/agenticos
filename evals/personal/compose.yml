@@ -1,0 +1,42 @@
+# Overlay on the repository Compose file. Keep the pinned runtime definitions.
+x-eval-app: &eval-app
+  image: agenticos-personal-eval:local
+  pull_policy: never
+  env_file: !override [./evals/personal/.env]
+
+services:
+  migrate:
+    !!merge <<: *eval-app
+  app:
+    !!merge <<: *eval-app
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        EXTRAS: "--extra browser"
+    ports: !override ["127.0.0.1:18080:8000"]
+    volumes:
+      - ./evals/personal/run.py:/personal-eval/run.py:ro
+      - ./evals/personal/watch_fixture.py:/personal-eval/watch_fixture.py:ro
+      - ./evals/personal/datasets:/personal-eval/datasets:ro
+    environment:
+      AGENTICOS_PERSONAL_EVAL: "1"
+      MCP_ALLOWED_HOSTS: '["eval-notion"]'
+      ARTIFACT_RENDER_CDP_URL: http://artifact-render:9222
+      BROWSER_EGRESS_PROXY: ""
+  worker:
+    !!merge <<: *eval-app
+    environment:
+      ARTIFACT_RENDER_CDP_URL: http://artifact-render:9222
+      BROWSER_EGRESS_PROXY: ""
+  sandboxd:
+    env_file: !override [./evals/personal/.env]
+    environment:
+      SANDBOXD_PERSIST_CONTAINERS: "false"
+  eval-notion:
+    image: agenticos-personal-eval:local
+    pull_policy: never
+    command: ["/app/.venv/bin/python", "/personal-eval/watch_fixture.py"]
+    volumes:
+      - ./evals/personal/watch_fixture.py:/personal-eval/watch_fixture.py:ro
+    networks: [backend]

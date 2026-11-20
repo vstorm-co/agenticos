@@ -2494,6 +2494,33 @@ describe("useChat - approvals and questions", () => {
     expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(1);
   });
 
+  it("restores a pending card when the transcript refreshes during the parked read", async () => {
+    let resolveParked!: (rows: unknown) => void;
+    const parkedRead = new Promise((resolve) => {
+      resolveParked = resolve;
+    });
+    get.mockImplementation(async (url: string) => (url.endsWith("/parked") ? parkedRead : false));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/runs/r-1/parked"));
+
+    act(() => {
+      useChatStore.getState().addMessage({
+        id: "refresh",
+        role: "user",
+        content: "An already saved message",
+        timestamp: new Date(),
+      });
+    });
+    await act(async () => {
+      resolveParked([{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", tool_args: {} }]);
+    });
+
+    expect(result.current.pendingApproval?.actionRequests[0]?.id).toBe("ar-1");
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(1);
+  });
+
   it("leaves a parked step from before runs were stamped on messages alone", async () => {
     // The step still reads "waiting for approval", but there is no run on the
     // message to ask about.
@@ -7147,4 +7174,32 @@ it("ends an existing streaming segment when a resumed background turn attaches",
   expect(
     useChatStore.getState().messages.find((message) => message.id === "old-segment")?.isStreaming,
   ).toBe(false);
+});
+
+it("correlates native human answers and ignores a close for an older card", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("ask_user", {
+    runtime_question_id: "native-two",
+    questions: [{ question: "Which?", options: [{ label: "A" }], allow_custom: false }],
+  });
+  receive("runtime_question_closed", { runtime_question_id: "native-one" });
+  expect(result.current.pendingQuestions?.[0]?.requestId).toBe("native-two");
+  act(() => result.current.sendAskUserResponses([{ answer: "", selected: ["A"], skipped: false }]));
+  expect(sent).toHaveBeenLastCalledWith({
+    type: "ask_user_response",
+    runtime_question_id: "native-two",
+    answers: [{ answer: "", selected: ["A"], skipped: false }],
+  });
+});
+
+it("closes an expired native card and cannot submit its late answer", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("ask_user", {
+    runtime_question_id: "native-one",
+    questions: [{ question: "Which?", options: [{ label: "A" }], allow_custom: false }],
+  });
+  receive("runtime_question_closed", { runtime_question_id: "native-one" });
+  expect(result.current.pendingQuestions).toBeNull();
+  act(() => result.current.sendAskUserResponses([{ answer: "", selected: ["A"], skipped: false }]));
+  expect(sent.mock.calls.filter(([frame]) => frame.type === "ask_user_response")).toHaveLength(0);
 });

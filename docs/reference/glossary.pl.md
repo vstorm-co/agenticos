@@ -1,5 +1,5 @@
 ---
-source_sha: "ef480f9f1969"
+source_sha: "9cbef9356d74"
 ---
 
 # Słownik { #glossary }
@@ -132,6 +132,7 @@ w [Capabilities](capabilities.md).
 | Data i godzina | `clock` |
 | Obliczenia | `code_execution` |
 | Coding agent | `coding_agent` |
+| Zewnętrzny agent ACP | `external_acp` |
 | Długie rozmowy | `compaction` |
 | Obsługa komputera | `computer_use` |
 | Kontekst | `context` |
