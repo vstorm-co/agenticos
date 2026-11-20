@@ -4,11 +4,13 @@ import argparse
 import asyncio
 import csv
 import json
+import logging
 import os
 import re
 import sys
-from collections.abc import Iterable, Iterator
-from contextlib import contextmanager
+from collections.abc import AsyncIterator, Iterable, Iterator
+from contextlib import asynccontextmanager, contextmanager
+from dataclasses import replace
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -30,6 +32,7 @@ if BACKEND.is_dir():
 
 from app.agents.isolation import RunIsolation
 from app.agents.spec import AgentSpec
+from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.session import get_db_context
 from app.repositories import agent_repo, credential_repo, intercepted_tool_call_repo
@@ -526,6 +529,16 @@ async def run_background(model: str, scenarios: list[Scenario]) -> int:
     return int(bool(progress.failed))
 
 
+@asynccontextmanager
+async def serve_eval_mcp() -> AsyncIterator[None]:
+    from app.main import app
+    from app.services.platform_mcp import serve_platform_mcp
+
+    # The CLI process does not enter the API lifespan of the in-process transport.
+    async with serve_platform_mcp(app, app.state):
+        yield
+
+
 async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> int:
     if os.getenv("AGENTICOS_PERSONAL_EVAL") != "1":
         raise SystemExit("Run AgenticOS through the isolated personal eval Compose stack.")
@@ -534,6 +547,9 @@ async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> 
         ctx = await job_context(db, organization_id=org, user_id=args.user_id, api_key_id=None)
         if ctx is None:
             raise SystemExit("The eval user must be an active member of the test organization.")
+        # These scenarios stand for an explicit test member, not a scheduled job
+        # borrowing the publisher's identity. Keep the membership checked above.
+        ctx = replace(ctx, subject_is_publisher_fallback=False)
         agent = await agent_repo.get_shipped_starter(db, organization_id=org)
         if agent is None or agent.current_version_id is None:
             raise SystemExit("Bootstrap a published AgenticOS in the eval stack first.")
@@ -560,11 +576,27 @@ async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> 
     if args.max_usd is None:
         if len(scenarios) < 50:
             console("Selected cases: " + ", ".join(item.id for item in scenarios))
+        console("Add --max-usd to run the model.")
         return 0
 
+    async with serve_eval_mcp():
+        return await evaluate_agenticos(
+            ctx, agent_id, version_id, profile_id, model, args.max_usd, scenarios
+        )
+
+
+async def evaluate_agenticos(
+    ctx: AuthContext,
+    agent_id: UUID,
+    version_id: UUID,
+    profile_id: UUID,
+    model: str,
+    budget: Decimal,
+    scenarios: list[Scenario],
+) -> int:
     progress = Progress("AgenticOS", len(scenarios))
     for item in scenarios:
-        remaining = args.max_usd - progress.cost
+        remaining = budget - progress.cost
         if remaining <= 0:
             console("Stopped before the next case: eval budget exhausted.")
             break
@@ -589,7 +621,7 @@ async def run_agenticos(args: argparse.Namespace, scenarios: list[Scenario]) -> 
                     reports_failure=True,
                 )
                 intercepted = await intercepted_tool_call_repo.list_for_run(
-                    db, run_id=run.id, organization_id=org
+                    db, run_id=run.id, organization_id=ctx.organization_id
                 )
                 trace = [EvalCallRead.model_validate(row) for row in trajectory(calls, intercepted)]
                 status = run.status
@@ -776,6 +808,7 @@ def run_live(args: argparse.Namespace) -> int:
 
 def main() -> int:
     os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
+    logging.getLogger("app.agents.cache_watch").setLevel(logging.ERROR)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", choices=SUITES)
     parser.add_argument(
@@ -784,7 +817,7 @@ def main() -> int:
     parser.add_argument(
         "--model", help="Run a paid production-prompt replay for one background suite."
     )
-    parser.add_argument("--limit", type=int, help="Required upper bound on paid background cases.")
+    parser.add_argument("--limit", type=int, help="Case limit. AgenticOS defaults to all 50 cases.")
     parser.add_argument("--case", action="append", help="Select case IDs in a background replay.")
     parser.add_argument("--api-url", help="Local API base URL for live probes only.")
     parser.add_argument("--organization-id", type=UUID)
@@ -875,8 +908,6 @@ def main() -> int:
         scenarios = [item for item in scenarios if item.id in args.case]
     selected = scenarios[: args.limit]
     if runtime:
-        if args.limit is None:
-            parser.error("The AgenticOS runtime requires a positive --limit")
         return asyncio.run(run_agenticos(args, selected))
     if args.model:
         if args.suite not in ("memory", "briefing") or args.limit is None:

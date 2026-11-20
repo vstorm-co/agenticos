@@ -16,6 +16,7 @@ import run as runner
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
+from app.core.permissions import AuthContext, OrgRoleName
 from app.schemas.eval_run import EvalCallRead
 
 
@@ -104,10 +105,25 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         args = Namespace(organization_id=uuid4(), user_id=uuid4(), model_profile=None, max_usd=None)
         scenario = next(item for item in runner.load("agenticos") if item.id == "natural-hello")
+        ctx = AuthContext(
+            organization_id=args.organization_id,
+            user_id=args.user_id,
+            role=OrgRoleName.OWNER,
+            subject_is_publisher_fallback=True,
+        )
+        mcp_started = False
+
+        @asynccontextmanager
+        async def serve():
+            nonlocal mcp_started
+            mcp_started = True
+            yield
+
         with (
             patch.dict(runner.os.environ, {"AGENTICOS_PERSONAL_EVAL": "1"}),
             patch.object(runner, "get_db_context", session),
-            patch.object(runner, "job_context", AsyncMock(return_value=object())),
+            patch.object(runner, "job_context", AsyncMock(return_value=ctx)),
+            patch.object(runner, "serve_eval_mcp", serve),
             patch.object(runner.agent_repo, "get_shipped_starter", AsyncMock(return_value=agent)),
             patch.object(runner.agent_repo, "get_version", AsyncMock(return_value=version)),
             patch.object(runner.credential_repo, "get_profile", AsyncMock(return_value=profile)),
@@ -126,6 +142,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             execute.assert_not_awaited()
             self.assertIn(f"Published version {version_id}", plan.getvalue())
             self.assertIn("preflight, no model calls", plan.getvalue())
+            self.assertFalse(mcp_started)
 
             review.return_value = SimpleNamespace(changes=[SimpleNamespace(version="published")])
             with self.assertRaisesRegex(SystemExit, "published AgenticOS differs from the code"):
@@ -143,6 +160,9 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             execute.assert_awaited_once()
             call = execute.await_args
             assert call is not None
+            self.assertTrue(mcp_started)
+            self.assertFalse(call.args[0].subject_is_publisher_fallback)
+            self.assertEqual(call.args[0].user_id, ctx.user_id)
             self.assertEqual(call.args[2], scenario.case.input)
             self.assertEqual(len(call.kwargs["message_history"]), len(scenario.case.history))
             self.assertEqual(call.kwargs["surface"], runner.RunSurface.EVAL)

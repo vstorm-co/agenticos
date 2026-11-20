@@ -52,7 +52,7 @@ JOIN users u ON u.id = m.user_id
 WHERE o.slug = 'agenticos-local-eval-deepseek-baseline' AND u.email = 'admin@example.com'"
 ```
 
-This preflight prints the selected model, published version and three case IDs without calling a model:
+Without `--max-usd`, the command only checks the published AgenticOS and selected model. Omit `--limit` to select all 50 cases. This example checks three cases without making model calls:
 
 ```sh
 evals/personal/stack.sh run --rm --no-deps -T app sh -c '
