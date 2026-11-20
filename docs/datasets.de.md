@@ -1,5 +1,5 @@
 ---
-source_sha: "be18b1f04a8d"
+source_sha: "eaf244fd2a07"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -470,6 +470,32 @@ Familie gemeinsam, Fall für Fall, sodass eine Änderung danach beurteilt wird, 
 sich über das Dataset hinweg bewegt hat, und nicht nach dem Muster eines
 einzelnen Falls. Eine Prüfung ohne Familie ist eine eigene Familie; bei einer mit
 Familie bleiben die Bewertung und ihr Fingerabdruck genau wie bisher.
+
+### Schlüssel ohne Quelle { #key-coverage }
+
+Eine Schlüssel-Prüfung sagt, welche Fakten ein geschriebenes Dokument enthalten
+muss; sie sagt nicht, ob der Agent sie kennen konnte. **Ergebnisse →
+Schlüsselabdeckung** beantwortet das für einen veröffentlichten Agenten Ihrer
+Wahl. Der Agent für Quellenabdeckung, ein System-Agent, liest die Bezeichnungen
+der Schlüssel in den Schlüssel-Prüfungen der neuesten Version - die ersten 200
+verschiedenen - neben dem, was die veröffentlichte Version des Agenten erreicht,
+und sagt für jede Bezeichnung, dass eine Quelle sie enthält, dass keine es tut
+oder dass es sich nicht sagen lässt. Aus jeder Quelle liest er:
+
+- aus einer Wissensbasis: eine Suche nach jeder Bezeichnung;
+- aus einer Kontextdatei oder einem Skill: die Stellen, die eine Bezeichnung nennen;
+- aus einem MCP-Server: seine Tools, nach dem, was jedes laut Beschreibung tut.
+
+Er sieht Bezeichnungen, nie die Werte. Er läuft in einem Job, als die Person,
+die gefragt hat und den Agenten bearbeiten können muss, abgerechnet und in der
+Aktivität. Jedes Paar aus Agent und Dataset behält einen Bericht, den der
+nächste ersetzt. Eine Quelle, die die fragende Person nicht sehen darf, wird
+nicht gelesen, und der Bericht sagt, wie viele ausgelassen wurden; wer eine im
+Bericht genannte Quelle nicht sehen darf, sieht sie ohne Namen.
+
+Ein Schlüssel ohne Quelle muss den Agenten als Wissen erreichen - ein Dokument,
+eine Kontextdatei, ein Tool -, denn keine Änderung seiner Anweisungen kann ihn
+liefern. [Improve](authoring.md#background-improvement-sessions) liest ihn so.
 
 ### Erwartete Tool-Aufrufe { #trajectory }
 

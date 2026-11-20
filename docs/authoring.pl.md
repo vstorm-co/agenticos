@@ -1,5 +1,5 @@
 ---
-source_sha: "9f2bffc2c0a6"
+source_sha: "782054201ec9"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -457,6 +457,8 @@ Nieudany krok propozycji lub ewaluacji można jawnie ponowić przez `/{run_id}/r
 Sesja zachowana jako wersja robocza jest zakończona: wersję roboczą publikuje się zwykłym **Opublikuj** agenta, a gdy to wersja zmierzona przez sesję, zostaje zapisana w sesji. Zakończenie może utworzyć suite uruchamianą przy publikacji, z zerowym limitem regresji. Nadal obowiązują standardowe uprawnienia i walidacja publikacji, a chronione środowiska czekają na swoje sprawdzenia. Zmiany edytowane po teście trzeba przetestować ponownie.
 
 Szacunek sesji obejmuje klasyfikację złych odpowiedzi z rozmów i nieudanych odpowiedzi treningowych względem edytowalnych baz wiedzy agenta oraz grupowanie ich braków w [tematy](knowledge-gaps.md#topics). Nie obejmuje szkiców: szkic powstaje tylko wtedy, gdy poprosi o niego człowiek, i jest rozliczany jako własny run szkicu. Każdy krok przed rozpoczęciem ponownie sprawdza swój pełny koszt. Klasyfikacja i grupowanie korzystają wyłącznie z przypiętych, niewymazanych rozmów i z odpowiedzi treningowych, z których uczy się sesja; odpowiedź treningowa z brakującą wiedzą pozostaje też materiałem agenta, a tekst kontrolny nie trafia do tych pomocników.
+
+Nieudana odpowiedź treningowa, której brakuje tylko kluczy niezawartych w żadnym źródle agenta według jego raportu [pokrycia kluczy](datasets.md#key-coverage) dla tego datasetu, liczy się jako brakująca wiedza, a nie błąd agenta. Pomocnik czyta, które to klucze, po etykiecie, i że musi je dostarczyć użytkownik: żadna zmiana instrukcji tego nie zrobi.
 
 Błąd klasyfikatora jest widoczny, rozmowy źródłowe pozostają dostępne, a sesja i tak zatrzymuje się na **Zrozumieniu**. Sesja wymagająca tylko wiedzy zatrzymuje się i wymienia tematy, których brakuje w bazie wiedzy, żeby napisać szkice tych, których potrzebujesz, bez pustej wersji agenta. Szkic staje się nieaktualny, gdy po jego napisaniu do bazy wiedzy zostanie dodany dokument, a **Napisz szkic od nowa** pisze go ponownie (zobacz [Szkic brakującej treści](knowledge-gaps.md#drafting-the-missing-content)). Sprawdzenie szkicu nadal wymaga własnej wyceny i potwierdzenia; dodanie treści pozostaje osobną decyzją człowieka.
 
