@@ -1,5 +1,5 @@
 ---
-source_sha: "b8c1a4d65015"
+source_sha: "890e2a5a2a7a"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -389,6 +389,7 @@ niej jest odrzucany ze wskazaniem `judge.pass_at`.
 | `max_latency_ms` | `value` | Run trwał nie dłużej niż tyle |
 | `length` | `unit` (`characters` lub `words`), `min` i/lub `max`, opcjonalnie `path` | Odpowiedź ma długość co najmniej `min` i najwyżej `max` |
 | `judge` | `criterion` | Sędzia ewaluacji ocenia kryterium na progu zaliczenia lub wyżej |
+| `keys` | `keys`: do 200 par `key` (etykieta) i `value` | Odpowiedź zawiera każdą wartość; wynik to udział tych, które zawiera |
 
 `path` sięga do wnętrza odpowiedzi, która jest JSON-em: `items.0.name` to nazwa
 pierwszego elementu. Bez niego reguła czyta całą odpowiedź. Reguły tekstowe nie
@@ -407,6 +408,21 @@ potrzebuje co najmniej jednej granicy.
 Sprawdzenie `judge` to kryterium tylko dla jednego przypadku, oceniane w tym
 samym runie sędziego co rubryka datasetu. Używaj go do tego, czego reguła nie
 wyrazi, np. „odmawia i nie ujawnia adresu klienta”.
+
+Sprawdzenie `keys` wymienia fakty, które musi zawierać napisany dokument -
+numer faktury, kwotę, nazwę klienta - każdy jako etykietę i wartość z dokumentu.
+Sprawdzenie przechodzi, gdy odpowiedź zawiera każdą wartość; jego wynik to udział
+tych, które zawiera, a uzasadnienie wymienia brakujące etykiety.
+
+Każdej wartości szuka się w odpowiedzi:
+
+- jako całego tokenu: `12` nie zostanie znalezione w `120`, a `INV-1` w `INV-10`;
+- bez względu na wielkość liter, ciągi białych znaków i formy Unicode, takie jak
+  ligatura czy twarda spacja;
+- z dopuszczeniem spacji grupującej tysiące w liczbie, więc `1234` i `1 234` się
+  odnajdują;
+- z przecinkiem i kropką bez zmian, bo w jednym języku oddzielają tysiące, a w
+  innym część dziesiętną: zapisz wartość tak, jak pokazuje ją dokument.
 
 Każde sprawdzenie przyjmuje opcjonalne `family` (najwyżej 80 znaków): to, co
 sprawdza w całym datasecie, np. `total including VAT` przy regexie każdego
@@ -667,7 +683,8 @@ Gdy osoba, która zadała pytanie przypadku, zostanie wymazana, znika też tekst
 Pytanie, wcześniejsze tury, obie odpowiedzi i notatka są zastępowane w każdej
 wersji, która zawiera przypadek, podobnie jak odpowiedzi i wywołania, które ewaluacja
 runy zapisały dla niego. Przypadek zachowuje swoje id, oczekiwane wywołania,
-sprawdzenia i tagi, i dostaje oznaczenie **Zanonimizowany po usunięciu osoby**,
+sprawdzenia i tagi - poza sprawdzeniem `keys`, którego wartości pochodziły z
+usuwanej odpowiedzi - i dostaje oznaczenie **Zanonimizowany po usunięciu osoby**,
 tak by jego kurator mógł go przepisać albo usunąć. Do tego czasu ewaluacja run go
 pomija, bo odpowiedź na placeholder niczego nie mierzy.
 
