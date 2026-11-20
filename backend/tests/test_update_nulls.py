@@ -75,7 +75,7 @@ from app.db.models.workflow import Workflow
 from app.db.models.workflow_exposure import WorkflowExposure
 from app.db.models.workflow_log_alert import WorkflowLogAlertRule
 from app.db.updates import cleared, writable
-from app.schemas.agent import AgentDraftUpdate
+from app.schemas.agent import AgentDraftUpdate, ApplyShippedAgentUpdate, ShippedAgentUpdate
 from app.schemas.agent_embed import EmbedUpdate
 from app.schemas.agent_environment import EnvironmentUpdate
 from app.schemas.agent_exposure import ExposureUpdate
@@ -148,6 +148,9 @@ from app.schemas.workflow_log_alert import WorkflowLogAlertUpdate
 # a schema-version row from a full column list rather than patching one.
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
+    # A diff response and a revision precondition, not partial row updates.
+    ShippedAgentUpdate: None,
+    ApplyShippedAgentUpdate: None,
     # Coding account and task updates merge credential/config or typed record cells, not row columns.
     CodingAccountUpdate: None,
     TaskUpdate: None,
@@ -315,6 +318,8 @@ class TestEveryUpdateSchemaIsAccountedFor:
         """
         assert {schema.__name__ for schema, model in UPDATE_TARGETS.items() if model is None} == {
             "AgentDraftUpdate",
+            "ShippedAgentUpdate",
+            "ApplyShippedAgentUpdate",
             "DatasetScoringUpdate",
             "JudgeScorerUpdate",
             "CodingAccountUpdate",

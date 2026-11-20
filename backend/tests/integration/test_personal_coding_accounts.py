@@ -6,6 +6,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 from zipfile import ZipFile
 
@@ -53,6 +54,56 @@ from tests.test_personal_coding import MemoryRedis
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 KEY = "sk-personal-test-private-value"
+
+
+@pytest.mark.parametrize("change", ["deleted", "disabled", "rotated"])
+async def test_revocation_between_admission_and_account_lock_never_opens_a_workspace(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    @asynccontextmanager
+    async def connection() -> AsyncGenerator[AsyncSession]:
+        async with AsyncSession(engine, expire_on_commit=False) as db:
+            yield db
+            await db.commit()
+
+    async with connection() as db:
+        owner = await person(db)
+        org = await organization(db, owner)
+        auth = context(owner, org)
+        saved = await CodingAccountService(db).create(auth, request(enabled=True))
+        account = await account_repo.get(
+            db, organization_id=org.id, user_id=owner.id, account_id=saved.id
+        )
+        assert account is not None
+    async with connection() as db:
+        changed = await db.get(CodingAccount, account.id)
+        assert changed is not None
+        if change == "deleted":
+            await db.delete(changed)
+        elif change == "disabled":
+            changed.enabled = False
+        else:
+            changed.generation = uuid4()
+
+    monkeypatch.setattr(coding_module, "get_db_context", connection)
+    monkeypatch.setattr(PersonalCodingSessionFactory, "_active", AsyncMock(return_value=True))
+    workspace_service = MagicMock()
+    monkeypatch.setattr(coding_module, "SandboxWorkspaceService", workspace_service)
+    factory = PersonalCodingSessionFactory(
+        auth, AgentSpec(name="Test"), SandboxConfig(backend="service"), uuid4(), redis=MemoryRedis()
+    )
+    run = RunContext(
+        deps=AgentDeps(organization_id=org.id, user_id=str(owner.id), conversation_id=uuid4()),
+        model=TestModel(),
+        usage=RunUsage(),
+        prompt="Task",
+    )
+    with pytest.raises(
+        AuthorizationError, match="Permission to use this coding account was revoked"
+    ):
+        async with factory._isolated(run, account, "claude_code"):
+            pytest.fail("Revoked credentials must not reach a workspace")
+    workspace_service.assert_not_called()
 
 
 async def person(db: AsyncSession) -> User:
