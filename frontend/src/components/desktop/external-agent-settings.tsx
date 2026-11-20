@@ -21,6 +21,9 @@ export function ExternalAgentSettings() {
   const [program, setProgram] = useState("");
   const [args, setArgs] = useState("[]");
   const [invalidArgs, setInvalidArgs] = useState(false);
+  // Consumer Google sign-in behind an agent risks the person's own account; they decide.
+  const [riskAccepted, setRiskAccepted] = useState(false);
+  const riskPending = provider === "antigravity" && !riskAccepted;
   const error = state.error ?? save.error ?? remove.error;
   return (
     <SectionCard title={t("title")} description={t("description")}>
@@ -69,6 +72,7 @@ export function ExternalAgentSettings() {
             { provider, id, name, program, args: argv },
             {
               onSuccess: () => {
+                setRiskAccepted(false);
                 setProvider("custom");
                 setId("");
                 setName("");
@@ -230,7 +234,19 @@ export function ExternalAgentSettings() {
           <p className="text-muted-foreground text-xs">{t("opencodeGoHelp")}</p>
         )}
         {provider === "antigravity" && (
-          <p className="text-muted-foreground text-xs">{t("antigravityHelp")}</p>
+          <>
+            <p className="text-muted-foreground text-xs">{t("antigravityHelp")}</p>
+            <p className="text-xs text-amber-700 dark:text-amber-400">{t("antigravityRisk")}</p>
+            <label className="flex items-start gap-2 text-xs">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={riskAccepted}
+                onChange={(event) => setRiskAccepted(event.target.checked)}
+              />
+              {t("antigravityRiskAccept")}
+            </label>
+          </>
         )}
         {provider === "antigravity_api_key" && (
           <p className="text-muted-foreground text-xs">{t("antigravityKeyHelp")}</p>
@@ -286,7 +302,7 @@ export function ExternalAgentSettings() {
         <p id="external-agent-help" className="text-muted-foreground text-xs">
           {t("help")}
         </p>
-        <Button type="submit" disabled={save.isPending || remove.isPending}>
+        <Button type="submit" disabled={save.isPending || remove.isPending || riskPending}>
           {t("save")}
         </Button>
       </form>

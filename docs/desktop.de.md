@@ -1,5 +1,5 @@
 ---
-source_sha: "c4a9ee7d537d"
+source_sha: "d5b32aacf0c4"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -818,16 +818,15 @@ erlauben nur das Argument `acp`, und keine kopiert Token-Dateien.
 | **Antigravity** | Persönliche Google-Anmeldung (`oauth-personal`). Führe zuerst `agy acp --login` aus. Geerbte Gemini-API-Schlüssel und API-/Vertex-Selektoren werden entfernt. | Dein Google-AI-Abo |
 | **Antigravity · Gemini-API-Schlüssel** | `gemini-api-key`, nur mit dem von Desktop geerbten `GEMINI_API_KEY`. Ein fehlender Schlüssel verhindert den Start; die gespeicherte Google-Anmeldung wird nie ersatzweise verwendet. AgenticOS speichert keinen Schlüssel. | Preise und Bedingungen der Gemini API |
 
-Die Bedingungen von Google schränken die erste Vorlage ein. Ein Google-Maintainer
+Die erste Vorlage birgt ein Risiko für dein Google-Konto. Abschnitt 6 der
+[Antigravity-Zusatzbedingungen](https://antigravity.google/terms) beschränkt die
+Verbraucheranmeldung über Drittanbieterwerkzeuge, und ein Google-Maintainer
 [schrieb im Issue-Tracker der CLI](https://github.com/google-antigravity/antigravity-cli/issues/1493),
-dass die Verbraucheranmeldung `agy acp` nur in einer direkt von einer Person
-geführten Sitzung betreiben darf, nicht als Backend eines fremden Agenten-Harness,
-gemäß Abschnitt 6 der [Antigravity-Zusatzbedingungen](https://antigravity.google/terms).
-Solcher Verkehr unterliegt Missbrauchsmaßnahmen und Kontosperrung. Ob eine
-Agentenplattform, die jede eingegebene Nachricht mit Anweisungen, Verlauf und
-Werkzeugen umgibt, darunter fällt, wurde dort gefragt und ist unbeantwortet.
-AgenticOS stellt die persönliche Vorlage nicht als erlaubt dar; nutze für Agenten
-bevorzugt die Vorlage mit Gemini-API-Schlüssel.
+dass sie kein fremdes Agenten-Harness betreiben darf, mit Missbrauchsmaßnahmen und
+Kontosperrung als Folge. Andere Clients wie T3 Code bieten dieselbe Anmeldung an.
+Die Konsole verlangt vor der Registrierung der Vorlage, dass du dieses Risiko
+akzeptierst; die Entscheidung und ihre Folgen liegen bei dir. Die Vorlage mit
+Gemini-API-Schlüssel vermeidet es.
 
 Aktiviere **External ACP agent** im Builder mit der registrierten ID. Desktop
 verlangt vor dem Sitzungsstart die ACP-Authentifizierungsmethode der Vorlage, auch
@@ -861,9 +860,10 @@ Anmeldung und ohne Modellturn und listet sie unter **Antigravity-Modell** auf.
 Ablehnung der CLI und **Modelle erneut lesen**. Ein aufgeführtes Modell belegt weder
 Berechtigung noch verbleibendes Kontingent.
 
-Der Betreiber muss `ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED=true` setzen; der
-Schalter ist standardmäßig aus. Das Einschalten belegt nicht, dass die Bedingungen
-von Google diese Nutzung der Verbraucheranmeldung erlauben. Antigravity hat keinen
+Die Laufzeit ist verfügbar, solange der Betreiber nicht
+`ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED=false` setzt. Bei einer Registrierung mit
+persönlicher Google-Anmeldung wiederholt die Auswahl das bei der Registrierung
+akzeptierte Kontorisiko. Antigravity hat keinen
 dokumentierten Nur-Lese-Modus, daher läuft die Laufzeit immer mit eigenem
 Werkzeugzugriff, und AgenticOS-Plattformwerkzeuge behalten die Freigaberichtlinie
 des Agenten. Der Server lehnt eine Registrierung, die Desktop nicht als eine der

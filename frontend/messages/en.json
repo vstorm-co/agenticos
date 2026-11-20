@@ -1441,7 +1441,8 @@
         "antigravityModelsLoading": "Reading the models available to your signed-in account…",
         "antigravityModelsFailed": "Could not read this account's models. Check the Antigravity sign-in and try again.",
         "antigravityModelsRetry": "Read models again",
-        "antigravityHelp": "Uses the registration's own login: Google personal sign-in, or the GEMINI_API_KEY inherited by Desktop for the key template; no other login or billing mode is substituted. Google does not permit consumer sign-in as the backend of a third-party agent and may suspend such accounts, so prefer the key template. Its own tools run with local access. A listed model is not proof of entitlement or remaining quota."
+        "antigravityHelp": "Uses the registration's own login: Google personal sign-in, or the GEMINI_API_KEY inherited by Desktop for the key template; no other login or billing mode is substituted. Its own tools run with local access. A listed model is not proof of entitlement or remaining quota.",
+        "antigravityPersonalRisk": "This registration uses your Google personal sign-in. Google may limit or suspend accounts used through third-party tools; you accepted this risk when you registered it."
       },
       "modelSection": "Model",
       "permissionsSection": "Permissions",
@@ -10849,9 +10850,11 @@
         "invalidArgs": "Enter a JSON array containing only strings.",
         "provider": "Setup template",
         "custom": "Custom ACP program",
-        "antigravityHelp": "Use the absolute agy path and the acp argument. Google personal sign-in is enforced; Gemini API keys inherited from the app environment are removed. Run agy acp --login first. In the Builder, use this ID in External ACP agent; inspect_acp_agent reads this account’s model choices. This is delegated execution. Real-account eligibility and plan limits still need verification. Google's Additional Terms (section 6) do not permit consumer sign-in as the backend of a third-party agent harness and may suspend such accounts; prefer the Gemini API key template.",
+        "antigravityHelp": "Use the absolute agy path and the acp argument. Google personal sign-in is enforced; Gemini API keys inherited from the app environment are removed. Run agy acp --login first. In the Builder, use this ID in External ACP agent; inspect_acp_agent reads this account’s model choices. This is delegated execution. Real-account eligibility and plan limits still need verification.",
         "antigravityApi": "Antigravity · Gemini API key",
         "antigravityKeyHelp": "Use the absolute agy path and the acp argument. Only the GEMINI_API_KEY inherited by Desktop is used, with the gemini-api-key login; a missing key refuses launch and never falls back to the saved Google sign-in. AgenticOS stores no key. Gemini API pricing and terms apply, not a Google AI subscription; usage stays unpriced in AgenticOS.",
+        "antigravityRisk": "Google's Additional Terms (section 6) restrict using consumer sign-in through third-party tools, and Google may limit or suspend accounts it considers in breach. Using this template with AgenticOS agents is at your own risk; the Gemini API key template avoids it.",
+        "antigravityRiskAccept": "I understand that my Google account may be limited or suspended, and I accept this risk.",
         "opencodeHelp": "Register the installed opencode executable with acp. Connect providers using opencode auth login or /connect in its TUI. inspect_acp_agent reads the current model snapshot, including delayed updates. Configure custom endpoints in OpenCode itself; AgenticOS does not copy vault keys or overwrite its files. Models may use free access, a subscription or an API balance.",
         "opencodeGoHelp": "Coding tasks only. Connect the Go key specifically as opencode-go in OpenCode, then select an exact opencode-go/model ID from inspect_acp_agent. Other primary-model namespaces are refused. Go Extra Usage may spend Console credits, and OpenCode auxiliary-model settings can incur other charges. Check those settings separately; runtime usage is unpriced in AgenticOS.",
         "cursorHelp": "Install Cursor CLI, run agent login and check agent status first. Choose the absolute agent executable path. This template uses the CLI account and removes inherited CURSOR_API_KEY and CURSOR_AUTH_TOKEN overrides; it supports no API-key registration. Models and charges depend on your Cursor account. Human questions and plan approvals stop the task for review in the CLI. Register again after changing accounts.",

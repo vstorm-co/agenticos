@@ -1,5 +1,5 @@
 ---
-source_sha: "c4a9ee7d537d"
+source_sha: "d5b32aacf0c4"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -808,17 +808,15 @@ permiten solo el argumento `acp` y ninguna copia archivos de tokens.
 | **Antigravity** | Inicio de sesión personal de Google (`oauth-personal`). Ejecuta antes `agy acp --login`. Se eliminan las claves de Gemini API heredadas y los selectores de API/Vertex. | Tu plan de Google AI |
 | **Antigravity · clave de Gemini API** | `gemini-api-key`, usando solo la `GEMINI_API_KEY` heredada por Desktop. Sin clave, el inicio se rechaza; nunca se usa en su lugar el inicio de sesión de Google guardado. AgenticOS no guarda ninguna clave. | Precios y condiciones de Gemini API |
 
-Las condiciones de Google limitan la primera plantilla. Un responsable de Google
-[indicó en el gestor de incidencias de la CLI](https://github.com/google-antigravity/antigravity-cli/issues/1493)
-que el inicio de sesión de consumidor solo puede manejar `agy acp` en una sesión
-que una persona dirige directamente, no como backend del arnés de un agente de
-terceros, según la sección 6 de las [condiciones adicionales de Antigravity](https://antigravity.google/terms).
-Ese tráfico está sujeto a medidas contra abusos y a la suspensión de la cuenta.
-
-Se preguntó allí si cuenta una plataforma de agentes que envuelve cada mensaje
-escrito con instrucciones, historial y herramientas, y no hay respuesta. AgenticOS
-no presenta la plantilla personal como permitida; para agentes, prefiere la
-plantilla con clave de Gemini API.
+La primera plantilla conlleva un riesgo para tu cuenta de Google. La sección 6 de
+las [condiciones adicionales de Antigravity](https://antigravity.google/terms)
+restringe el inicio de sesión de consumidor mediante herramientas de terceros, y un
+responsable de Google [indicó en el gestor de incidencias de la CLI](https://github.com/google-antigravity/antigravity-cli/issues/1493)
+que no puede servir de backend a un agente de terceros, con medidas contra abusos y
+suspensión de la cuenta como consecuencia. Otros clientes, como T3 Code, ofrecen el
+mismo inicio de sesión. La consola te pide aceptar este riesgo antes de registrar
+la plantilla; la decisión y sus consecuencias son tuyas. La plantilla con clave de
+Gemini API lo evita.
 
 Activa **External ACP agent** en el Builder con el ID registrado. Desktop exige el
 método de autenticación ACP de la plantilla antes de iniciar una sesión, incluso
@@ -850,9 +848,10 @@ sin turno de modelo, y los muestra en **Modelo de Antigravity**. **Predeterminad
 mantiene la selección de la CLI. Una lectura fallida muestra el rechazo de la CLI y
 **Volver a leer los modelos**. Un modelo de la lista no prueba derechos ni cuota restante.
 
-El operador debe establecer `ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED=true`; está
-desactivado de forma predeterminada. Activarlo no establece que las condiciones de
-Google permitan este uso del inicio de sesión de consumidor. Antigravity no tiene
+El entorno está disponible salvo que el operador establezca
+`ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED=false`. Con un registro de inicio de sesión
+personal, el selector recuerda el riesgo de la cuenta aceptado al registrarlo.
+Antigravity no tiene
 un modo de solo lectura documentado, así que el entorno siempre se ejecuta con su
 propio acceso a herramientas, y las herramientas de la plataforma AgenticOS
 mantienen la política de aprobación del agente. El servidor rechaza, antes de

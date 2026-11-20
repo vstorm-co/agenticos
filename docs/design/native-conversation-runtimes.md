@@ -96,11 +96,14 @@ that consumer `oauth-personal` sign-in is limited to sessions a person drives
 directly and excludes use as the backend of a third-party agent harness under
 section 6 of the Additional Terms, with suspension as the stated enforcement.
 Whether a platform wrapping each typed turn counts was asked and is unanswered.
-`ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED` therefore defaults to false, the console
-and documentation state the restriction, and the separate Gemini API key template
-(`gemini-api-key`, Desktop-inherited `GEMINI_API_KEY`, no sign-in fallback) is the
-recommended mode for agents. The switch is an operator decision, not evidence of
-Google's permission.
+Other clients, including T3 Code, offer the same sign-in. The account and its
+risk belong to the person, so the console states the restriction and requires an
+explicit risk acceptance before registering the personal template, and the chat
+picker repeats it. `ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED` defaults to true and
+lets an operator withhold the runtime. The separate Gemini API key template
+(`gemini-api-key`, Desktop-inherited `GEMINI_API_KEY`, no sign-in fallback) avoids
+the restriction. Neither the switch nor the acceptance is evidence of Google's
+permission.
 
 ## Hermes ownership decision
 

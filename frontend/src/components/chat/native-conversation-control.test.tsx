@@ -238,6 +238,7 @@ describe("native primary conversation choice", () => {
     expect(screen.queryByRole("combobox", { name: "Runtime tool access" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Native model ID (optional)" })).toBeNull();
     expect(screen.getByRole("option", { name: "Account default (gemini-3-pro)" })).toBeVisible();
+    expect(screen.getByText(/uses your Google personal sign-in/)).toBeVisible();
     fireEvent.change(screen.getByRole("combobox", { name: "Antigravity model" }), {
       target: { value: "gemini-3-flash" },
     });
@@ -267,7 +268,9 @@ describe("native primary conversation choice", () => {
         claudeEnabled
         codexEnabled
         antigravityEnabled
-        antigravityRegistrations={[agy("agy", "Antigravity")]}
+        antigravityRegistrations={[
+          { ...agy("agy", "Antigravity"), provider: "antigravity_api_key" },
+        ]}
         target={{
           ...base,
           conversation_runtime: {
@@ -281,6 +284,7 @@ describe("native primary conversation choice", () => {
       />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent(/Google personal login/);
+    expect(screen.queryByText(/uses your Google personal sign-in/)).toBeNull();
     expect(screen.getByRole("combobox", { name: "Antigravity model" })).toBeDisabled();
     expect(screen.queryByRole("combobox", { name: "Antigravity registration" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Read models again" }));

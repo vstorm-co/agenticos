@@ -163,6 +163,10 @@ function AntigravityChoices({
   const t = useTranslations("chat.controls.workOn");
   const options = useExternalAgentOptions(runtime.registration_id ?? null);
   const models = options.data?.models ?? [];
+  const personal = registrations.some(
+    (registration) =>
+      registration.id === runtime.registration_id && registration.provider === "antigravity",
+  );
   return (
     <div className="space-y-2">
       {registrations.length > 1 && (
@@ -217,6 +221,9 @@ function AntigravityChoices({
             {t("antigravityModelsRetry")}
           </Button>
         </div>
+      )}
+      {personal && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">{t("antigravityPersonalRisk")}</p>
       )}
       <p className="text-muted-foreground text-xs">{t("antigravityHelp")}</p>
     </div>

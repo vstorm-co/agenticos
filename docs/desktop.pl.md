@@ -1,5 +1,5 @@
 ---
-source_sha: "c4a9ee7d537d"
+source_sha: "d5b32aacf0c4"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -779,16 +779,15 @@ dopuszczają wyłącznie argument `acp` i żaden nie kopiuje plików z tokenami.
 | **Antigravity** | Osobiste logowanie Google (`oauth-personal`). Najpierw uruchom `agy acp --login`. Odziedziczone klucze Gemini API i selektory API/Vertex są usuwane. | Twój plan Google AI |
 | **Antigravity · klucz Gemini API** | `gemini-api-key`, wyłącznie z `GEMINI_API_KEY` odziedziczonym przez aplikację desktopową. Brak klucza blokuje uruchomienie; zapisane logowanie Google nigdy nie jest użyte zamiast niego. AgenticOS nie przechowuje klucza. | Cennik i warunki Gemini API |
 
-Warunki Google ograniczają pierwszy szablon. Opiekun projektu po stronie Google
-[napisał w trackerze CLI](https://github.com/google-antigravity/antigravity-cli/issues/1493),
-że logowanie konsumenckie może obsługiwać `agy acp` tylko w sesji prowadzonej
-bezpośrednio przez człowieka, a nie jako zaplecze agenta firmy trzeciej, zgodnie
-z sekcją 6 [dodatkowych warunków Antigravity](https://antigravity.google/terms).
-Taki ruch podlega egzekwowaniu przeciw nadużyciom i zawieszeniu konta. Pytanie, czy
-dotyczy to platformy, która otacza każdą wpisaną wiadomość instrukcjami, historią
-i narzędziami, zostało tam zadane i pozostaje bez odpowiedzi. AgenticOS nie
-przedstawia szablonu osobistego jako dozwolonego; dla agentów preferuj szablon
-z kluczem Gemini API.
+Pierwszy szablon niesie ryzyko dla Twojego konta Google. Sekcja 6
+[dodatkowych warunków Antigravity](https://antigravity.google/terms) ogranicza
+logowanie konsumenckie przez narzędzia firm trzecich, a opiekun projektu po stronie
+Google [napisał w trackerze CLI](https://github.com/google-antigravity/antigravity-cli/issues/1493),
+że nie może ono obsługiwać agenta firmy trzeciej, z egzekwowaniem przeciw
+nadużyciom i zawieszeniem konta jako konsekwencją. Inne klienty, na przykład
+T3 Code, oferują to samo logowanie. Konsola prosi o akceptację tego ryzyka przed
+rejestracją szablonu; decyzja i jej skutki należą do Ciebie. Szablon z kluczem
+Gemini API go nie niesie.
 
 Włącz **External ACP agent** w Builderze z zarejestrowanym ID. Aplikacja desktopowa
 wymaga metody uwierzytelnienia ACP danego szablonu, zanim sesja się zacznie, także
@@ -818,9 +817,10 @@ i pokazuje je w polu **Model Antigravity**. **Domyślny dla konta** zachowuje wy
 Nieudany odczyt pokazuje odmowę CLI i przycisk **Odczytaj modele ponownie**. Model na liście
 nie dowodzi uprawnień ani pozostałego limitu.
 
-Operator musi ustawić `ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED=true`; domyślnie
-przełącznik jest wyłączony. Jego włączenie nie oznacza, że warunki Google pozwalają
-na takie użycie logowania konsumenckiego. Antigravity nie ma udokumentowanego
+Środowisko jest dostępne, chyba że operator ustawi
+`ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED=false`. Przy rejestracji z osobistym
+logowaniem Google lista wyboru przypomina o ryzyku zaakceptowanym przy rejestracji.
+Antigravity nie ma udokumentowanego
 trybu tylko do odczytu, więc środowisko zawsze działa z własnym dostępem do narzędzi,
 a narzędzia platformy AgenticOS zachowują politykę zatwierdzania agenta. Serwer
 odrzuca rejestrację, której aplikacja desktopowa nie zgłasza jako jednego z dwóch

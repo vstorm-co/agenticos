@@ -27,9 +27,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Choose an Antigravity registration as the primary Desktop conversation runtime, with the signed-in account's models read by Desktop, a separate `ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED` operator switch and refusal of non-Antigravity registrations (#3177).
+- Choose an Antigravity registration as the primary Desktop conversation runtime, with the signed-in account's models read by Desktop, an `ANTIGRAVITY_NATIVE_CONVERSATION_ENABLED` switch (on by default) to withhold it, and refusal of non-Antigravity registrations (#3177).
 
-- Add an Antigravity Gemini API key template that uses only the Desktop-inherited `GEMINI_API_KEY` and never falls back to the saved Google sign-in. The personal sign-in template now states Google's restriction on consumer sign-in behind third-party agents.
+- Add an Antigravity Gemini API key template that uses only the Desktop-inherited `GEMINI_API_KEY` and never falls back to the saved Google sign-in. Registering the personal sign-in template now requires accepting the risk that Google limits or suspends the account.
 
 - Run Hermes through an owned foreground ACP host with isolated private-conversation profiles, Nous Portal setup handoff, model discovery and optional scoped platform tools.
 

@@ -111,7 +111,11 @@ it("registers the Antigravity personal-account template without an API key", asy
   expect(screen.getByLabelText("Agent ID")).toHaveValue("antigravity");
   expect(screen.getByLabelText("Arguments (JSON array)")).toHaveValue('["acp"]');
   await userEvent.type(screen.getByLabelText("Absolute executable path"), "/opt/bin/agy");
-  await userEvent.click(screen.getByRole("button", { name: "Register agent" }));
+  expect(screen.getByText(/at your own risk/)).toBeVisible();
+  const register = screen.getByRole("button", { name: "Register agent" });
+  expect(register).toBeDisabled();
+  await userEvent.click(screen.getByRole("checkbox", { name: /accept this risk/ }));
+  await userEvent.click(register);
   await waitFor(() =>
     expect(invoke).toHaveBeenCalledWith("external_save_agent", {
       registration: {
@@ -125,11 +129,10 @@ it("registers the Antigravity personal-account template without an API key", asy
   );
 });
 
-it("registers the Antigravity Gemini API key template and warns about consumer sign-in", async () => {
+it("registers the Antigravity Gemini API key template without the sign-in risk step", async () => {
   mount();
-  await userEvent.selectOptions(screen.getByLabelText("Setup template"), "antigravity");
-  expect(screen.getByText(/section 6/)).toBeVisible();
   await userEvent.selectOptions(screen.getByLabelText("Setup template"), "antigravity_api_key");
+  expect(screen.queryByRole("checkbox", { name: /accept this risk/ })).toBeNull();
   expect(screen.getByLabelText("Agent ID")).toHaveValue("antigravity-api-key");
   expect(screen.getByLabelText("Arguments (JSON array)")).toHaveValue('["acp"]');
   expect(screen.getByText(/never falls back to the saved Google sign-in/)).toBeVisible();
