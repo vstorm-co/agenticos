@@ -5650,7 +5650,7 @@
       },
       "agent-identity": {
         "title": "Call it something recognizable",
-        "body": "The name is what people pick in chat and find in the catalog. A duplicate starts as its source with a suffix, so rename it here; the handle other agents reach it by stays the same."
+        "body": "Open the three-dot menu and choose Details to edit the name, description, categories and tags. Renaming keeps the handle that other agents use."
       },
       "projects-new": {
         "title": "Start a project",

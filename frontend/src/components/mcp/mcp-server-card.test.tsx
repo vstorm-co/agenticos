@@ -17,6 +17,7 @@ it("keeps server actions separate from opening its resource card", () => {
       actions={<button onClick={connect}>Manage accounts</button>}
     />,
   );
+  expect(screen.getByRole("group", { name: "Team tools" })).toHaveClass("bg-card");
   fireEvent.click(screen.getByText("Search shared documents"));
   expect(open).toHaveBeenCalledOnce();
   fireEvent.click(screen.getByRole("button", { name: "Manage accounts" }));

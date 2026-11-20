@@ -407,7 +407,14 @@ describe("the agent's Voice card", () => {
       window.history.replaceState({}, "", "/");
     });
 
-    it("reveals the collapsed Voice section for a dictation deep link", () => {
+    it("opens the Voice section by default without a deep link", () => {
+      render(<VoiceCard collapsible value={null} onChange={vi.fn()} conversation={conversation} />);
+      expect(screen.getByRole("tab", { name: "Voice calls" }).closest("details")).toHaveAttribute(
+        "open",
+      );
+    });
+
+    it("opens the Voice section on Dictation for a deep link", () => {
       window.history.replaceState({}, "", "/agents/a1#agent-voice-dictation");
       render(<VoiceCard collapsible value={null} onChange={vi.fn()} conversation={conversation} />);
       const tab = screen.getByRole("tab", { name: "Dictation" });

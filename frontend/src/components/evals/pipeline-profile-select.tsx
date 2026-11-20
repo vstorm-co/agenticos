@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { ModelIcon } from "@/components/icons/model-icon";
 import { Badge, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { COMMAND_ITEM_FOCUS, FORM_CONTROL, MENU_ROW } from "@/components/ui/control-styles";
-import { hasKey, modelDetail, runsAgents, usableForAgents } from "@/lib/model-profiles";
+import { hasKey, runsAgents, usableForAgents } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import type { ModelProfile } from "@/types/providers";
 
@@ -84,14 +84,7 @@ export function PipelineProfileSelect({
                   )}
                 >
                   <ModelIcon model={profile.model} provider={profile.provider} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{profile.label}</span>
-                    {modelDetail(profile) && (
-                      <span className="text-muted-foreground block truncate text-xs">
-                        {modelDetail(profile)}
-                      </span>
-                    )}
-                  </span>
+                  <span className="min-w-0 flex-1 truncate font-medium">{profile.label}</span>
                   {!hasKey(profile) && <Badge variant="destructive">{t("noKey")}</Badge>}
                   {!runsAgents(profile) && (
                     <Badge variant="destructive">{t("notAChatModel")}</Badge>

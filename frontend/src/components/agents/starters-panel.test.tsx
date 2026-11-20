@@ -5,6 +5,20 @@ import { describe, expect, it, vi } from "vitest";
 import { StartersPanel } from "./starters-panel";
 
 describe("StartersPanel", () => {
+  it("opens the section and enables suggestions by default", () => {
+    render(
+      <StartersPanel
+        starters={[]}
+        disabled={false}
+        onShowStartersChange={vi.fn()}
+        onChange={vi.fn()}
+      />,
+    );
+    const toggle = screen.getByRole("switch", { name: "Show suggested prompts" });
+    expect(toggle).toBeVisible();
+    expect(toggle).toBeChecked();
+  });
+
   it("lets authors opt out of built-in first messages", async () => {
     const onShowStartersChange = vi.fn();
     render(
@@ -17,8 +31,6 @@ describe("StartersPanel", () => {
       />,
     );
     const toggle = screen.getByRole("switch", { name: "Show suggested prompts" });
-    expect(toggle).not.toBeVisible();
-    await userEvent.click(screen.getByText("First messages"));
     expect(toggle).toBeVisible();
     expect(toggle).not.toBeChecked();
     expect(screen.queryByRole("list")).toBeNull();
@@ -60,7 +72,6 @@ describe("StartersPanel", () => {
         onChange={onChange}
       />,
     );
-    await userEvent.click(screen.getByText("First messages"));
     await userEvent.click(screen.getByRole("button", { name: "Edit First" }));
     const dialog = screen.getByRole("dialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "Icon for first message 1" }));
@@ -80,7 +91,6 @@ describe("StartersPanel", () => {
   it("can add a new starter once the message has text", async () => {
     const onChange = vi.fn();
     render(<StartersPanel starters={["One"]} disabled={false} onChange={onChange} />);
-    await userEvent.click(screen.getByText("First messages"));
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
     const dialog = screen.getByRole("dialog");
     const save = within(dialog).getByRole("button", { name: "Save" });
@@ -96,7 +106,6 @@ describe("StartersPanel", () => {
   it("removes one starter without changing the others", async () => {
     const onChange = vi.fn();
     render(<StartersPanel starters={["One", "Two"]} disabled={false} onChange={onChange} />);
-    await userEvent.click(screen.getByText("First messages"));
     await userEvent.click(screen.getByRole("button", { name: "Edit One" }));
     await userEvent.click(screen.getByRole("button", { name: "Remove first message 1" }));
     expect(onChange).toHaveBeenCalledWith(["Two"], {}, {});
@@ -105,7 +114,6 @@ describe("StartersPanel", () => {
   it("keeps a draft title local when the editor is dismissed", async () => {
     const onChange = vi.fn();
     render(<StartersPanel starters={["One"]} disabled={false} onChange={onChange} />);
-    await userEvent.click(screen.getByText("First messages"));
     const edit = screen.getByRole("button", { name: "Edit One" });
     await userEvent.click(edit);
     await userEvent.type(screen.getByRole("textbox", { name: "Short title (optional)" }), "Draft");
@@ -138,13 +146,11 @@ describe("StartersPanel", () => {
 
   it("offers no fifth starter", async () => {
     render(<StartersPanel starters={["1", "2", "3", "4"]} disabled={false} onChange={vi.fn()} />);
-    await userEvent.click(screen.getByText("First messages"));
     expect(screen.queryByRole("button", { name: "Add" })).toBeNull();
   });
 
   it("keeps the cards read-only for readers", async () => {
     render(<StartersPanel starters={["One"]} disabled onChange={vi.fn()} />);
-    await userEvent.click(screen.getByText("First messages"));
     expect(screen.getByRole("button", { name: "One" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Add" })).toBeNull();
   });

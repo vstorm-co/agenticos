@@ -42,6 +42,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Move credential selection to a Key tab in the chat model picker and use single-line model labels across shared selectors.
+
+- Simplify Agent Builder section headers and open Variables, Voice, and First messages by default. Move name, description, categories, and tags to the Details dialog in the agent actions menu. Use the standard card surface for MCP servers in both the catalog and Builder.
+
 - Keep Back and the primary action in a shared onboarding footer as users move through organization and member setup.
 
 - Default personal Codex connections to the shared ChatGPT sign-in form and name coding accounts automatically.

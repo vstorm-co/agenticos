@@ -5529,7 +5529,7 @@
       },
       "agent-identity": {
         "title": "Geben Sie ihm einen erkennbaren Namen",
-        "body": "Den Namen wählt man im Chat aus und findet ihn im Katalog. Ein Duplikat beginnt mit dem Namen seiner Vorlage und einem Zusatz, benennen Sie es also hier um; das Handle, über das andere Agents es erreichen, bleibt gleich."
+        "body": "Öffnen Sie das Drei-Punkte-Menü und wählen Sie Details, um Name, Beschreibung, Kategorien und Tags zu ändern. Beim Umbenennen bleibt das Handle für andere Agents gleich."
       },
       "projects-new": {
         "title": "Ein Projekt anlegen",

@@ -8680,7 +8680,7 @@
       },
       "agent-identity": {
         "title": "Kolay tanınan bir ad verin",
-        "body": "Sohbette seçilen ve katalogda bulunan ad budur. Kopya, kaynak agent’ın adının sonuna bir ek alarak başlar; burada yeniden adlandırabilirsiniz. Diğer agent’ların kullandığı handle değişmez."
+        "body": "Adı, açıklamayı, kategorileri ve etiketleri düzenlemek için üç nokta menüsünden Ayrıntılar’ı seçin. Adı değiştirmek, diğer agent’ların kullandığı tanıtıcıyı değiştirmez."
       },
       "projects-new": {
         "title": "Bir proje başlatın",

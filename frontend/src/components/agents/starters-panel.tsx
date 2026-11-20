@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import { MessageSquare, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { BuildSection } from "./build-section";
@@ -119,7 +119,7 @@ export function StartersPanel({
     <BuildSection
       className="@container"
       data-tour="agent-starters"
-      icon={MessageSquare}
+      defaultOpen
       title={t("startersTitle")}
       description={t("startersHint", { max: MAX_STARTERS })}
       headerEnd={

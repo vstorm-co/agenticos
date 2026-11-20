@@ -30,7 +30,7 @@ import {
   useSecretPurposes,
   useSecrets,
 } from "@/hooks";
-import { hasKey, modelDetail, runsAgents, usableForAgents } from "@/lib/model-profiles";
+import { hasKey, modelName, runsAgents, usableForAgents } from "@/lib/model-profiles";
 import type { PublishedModel } from "@/types/agents";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
@@ -139,7 +139,6 @@ export function ChatModelPicker({
   );
   // An override profile and the agent's published model both carry
   // provider/model/label, so one summary renders whichever is current.
-  const currentDetail = current ? modelDetail(current) : null;
 
   const matching = profiles.filter(
     (profile) =>
@@ -278,13 +277,13 @@ export function ChatModelPicker({
               : "block text-sm leading-5 font-medium break-words whitespace-normal"
           }
         >
-          {current.label}
+          {modelName(
+            current,
+            current.provider === providerId
+              ? suggestions.find((entry) => entry.id === current.model)?.name
+              : undefined,
+          )}
         </span>
-        {currentDetail !== null && !compact && (
-          <span className="text-muted-foreground mt-1 block truncate font-mono text-[11px]">
-            {currentDetail}
-          </span>
-        )}
       </span>
     </>
   ) : (
@@ -313,7 +312,7 @@ export function ChatModelPicker({
         }
         credentialPicker={
           providerKeys.length > 1 && (
-            <div className="border-border grid gap-1.5 border-b p-2">
+            <div className="grid gap-1.5">
               <Label htmlFor="chat-model-key">{tRoot("vault.key")}</Label>
               <Select
                 value={

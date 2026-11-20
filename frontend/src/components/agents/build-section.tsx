@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useState, type HTMLAttributes, type ReactNode } from "react";
-import { ChevronRight, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { useChanged } from "@/hooks/use-changed";
@@ -12,7 +12,6 @@ export const BuildSection = forwardRef<
   HTMLDivElement,
   HTMLAttributes<HTMLDivElement> & {
     title: string;
-    icon?: LucideIcon;
     headerEnd?: ReactNode;
     description?: ReactNode;
     defaultOpen?: boolean;
@@ -22,7 +21,6 @@ export const BuildSection = forwardRef<
 >(function BuildSection(
   {
     title,
-    icon: Icon = SlidersHorizontal,
     headerEnd,
     description,
     defaultOpen = false,
@@ -58,11 +56,8 @@ export const BuildSection = forwardRef<
       >
         <summary
           aria-label={title}
-          className="hover:text-muted-foreground flex min-h-16 cursor-pointer list-none items-center gap-3 rounded-xl p-4 transition-colors outline-none motion-reduce:transition-none sm:p-5 [&::-webkit-details-marker]:hidden"
+          className="hover:text-muted-foreground flex min-h-12 cursor-pointer list-none items-center gap-3 rounded-xl px-4 py-3 transition-colors outline-none motion-reduce:transition-none sm:px-5 [&::-webkit-details-marker]:hidden"
         >
-          <span className="bg-muted text-foreground/80 grid size-9 shrink-0 place-items-center rounded-lg">
-            <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
-          </span>
           <span className="min-w-0 flex-1 text-sm font-semibold">{title}</span>
           {headerEnd}
           <ChevronRight

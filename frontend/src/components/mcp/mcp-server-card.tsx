@@ -66,7 +66,7 @@ export function McpServerCard({
       role="group"
       aria-label={name}
       className={cn(
-        "bg-muted h-full min-h-0 p-4 transition-colors",
+        "h-full min-h-0 p-4 transition-colors",
         selected && "border-foreground/40",
         onOpen && "hover:border-foreground/25 cursor-pointer",
       )}

@@ -3,7 +3,7 @@
 import { BuildSection } from "./build-section";
 
 import { useState } from "react";
-import { Braces, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -67,7 +67,7 @@ export function PromptVariablesPanel({
   };
 
   return (
-    <BuildSection icon={Braces} title={t("variablesTitle")} description={t("variablesHint")}>
+    <BuildSection defaultOpen title={t("variablesTitle")} description={t("variablesHint")}>
       <div className="flex flex-wrap gap-1.5">
         {[...system, ...custom].map((variable) => (
           <Button

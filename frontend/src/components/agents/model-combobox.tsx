@@ -6,6 +6,7 @@ import { Check, ChevronsUpDown, Pencil } from "lucide-react";
 
 import { Badge, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { COMMAND_ITEM_FOCUS, FORM_CONTROL, MENU_ROW } from "@/components/ui/control-styles";
+import { catalogModelName } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -117,8 +118,12 @@ export function ModelCombobox({
           )}
         >
           {value !== "" && <ModelIcon model={value} provider={provider} />}
-          <span className={cn("min-w-0 flex-1 truncate font-mono", value === "" && "font-sans")}>
-            {value === "" ? <span className="text-muted-foreground">{placeholder}</span> : value}
+          <span className="min-w-0 flex-1 truncate">
+            {value === "" ? (
+              <span className="text-muted-foreground">{placeholder}</span>
+            ) : (
+              catalogModelName(value, chosen?.name)
+            )}
           </span>
           {chosen?.context_length != null && (
             <span className="text-muted-foreground shrink-0 text-xs">
@@ -183,16 +188,11 @@ export function ModelCombobox({
                 // "opus" is the name and "claude-opus" is the id.
                 value={`${option.id} ${option.name}`}
                 onSelect={() => pick(option.id)}
-                className={cn(COMMAND_ITEM_FOCUS, MENU_ROW, "cursor-pointer items-start pr-9")}
+                className={cn(COMMAND_ITEM_FOCUS, MENU_ROW, "cursor-pointer pr-9")}
               >
                 <ModelIcon model={option.id} provider={provider} className="self-center" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-mono text-xs">{option.id}</span>
-                  {option.name !== option.id && (
-                    <span className="text-muted-foreground block truncate text-xs">
-                      {option.name}
-                    </span>
-                  )}
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  {catalogModelName(option.id, option.name)}
                 </span>
                 {option.context_length != null && (
                   <span className="text-muted-foreground shrink-0 text-xs">

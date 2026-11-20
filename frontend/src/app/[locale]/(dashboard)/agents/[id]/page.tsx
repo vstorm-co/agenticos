@@ -12,9 +12,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   SlidersHorizontal,
-  FileText,
-  IdCard,
-  Tags,
   Wrench,
   ShieldCheck,
   Archive,
@@ -22,6 +19,7 @@ import {
   Copy,
   Database,
   Download,
+  Pencil,
   FlaskConical,
   History,
   Lock,
@@ -373,6 +371,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [shippedUpdateOpen, setShippedUpdateOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const moreActions = useRef<HTMLButtonElement>(null);
   // In the address, so a reload or a shared link lands on the same tab.
   const [tabParam, changeTab] = useUrlState("tab");
   const [gapTopic, gapTopicView] = useUrlOverlay("topic");
@@ -1263,6 +1263,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   <Button
                     variant="outline"
                     size="icon"
+                    ref={moreActions}
                     aria-label={t("moreActions")}
                     data-tour="agent-share"
                   >
@@ -1270,6 +1271,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuItem onSelect={() => setDetailsOpen(true)}>
+                    <Pencil className="size-4" />
+                    {tc("details")}
+                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={continueConversation} disabled={!isPublished}>
                     <History className="size-4" />
                     {t("continueConversation")}
@@ -1432,6 +1437,73 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <p className="min-w-0 flex-1 text-sm">{t("systemAgentReadOnly")}</p>
           </div>
         )}
+
+        <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+          <DialogContent
+            className={cn(DIALOG_SCROLL, DIALOG_FORM)}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              moreActions.current?.focus();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>{tc("details")}</DialogTitle>
+              <DialogDescription>{t("identityHelp", { slug: agent.slug })}</DialogDescription>
+            </DialogHeader>
+            {draftConflict && (
+              <Alert variant="warning" role="alert">
+                <AlertDescription className="flex flex-wrap items-center gap-3">
+                  <span className="min-w-0 flex-1">{t("draftChanged")}</span>
+                  <Button size="sm" onClick={() => void reloadDraft()}>
+                    {t("reloadDraft")}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+            <section className="space-y-3">
+              <h3 className="text-sm font-semibold">{t("identity")}</h3>
+              <div className="space-y-2">
+                <Label htmlFor="agent-name">{t("agentNameLabel")}</Label>
+                <Input
+                  id="agent-name"
+                  value={spec.name}
+                  maxLength={128}
+                  disabled={!canEdit}
+                  aria-invalid={!spec.name.trim()}
+                  aria-describedby={spec.name.trim() ? undefined : "agent-name-error"}
+                  onChange={(event) => update({ name: event.target.value })}
+                />
+                {!spec.name.trim() && (
+                  <p id="agent-name-error" className="text-destructive text-xs">
+                    {t("agentNameRequired")}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="agent-description">{t("agentDescriptionLabel")}</Label>
+                <Textarea
+                  id="agent-description"
+                  value={spec.description ?? ""}
+                  maxLength={1000}
+                  rows={2}
+                  disabled={!canEdit}
+                  onChange={(event) => update({ description: event.target.value || null })}
+                />
+              </div>
+            </section>
+            {canEdit && (
+              <section className="border-border space-y-3 border-t pt-4">
+                <h3 className="text-sm font-semibold">{t("discovery")}</h3>
+                <p className="text-muted-foreground text-xs">{t("discoveryHelp")}</p>
+                <MetadataEditor
+                  agentId={id}
+                  categories={agent.categories ?? []}
+                  tags={agent.tags ?? []}
+                />
+              </section>
+            )}
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={shareOpen} onOpenChange={setShareOpen}>
           <DialogContent className={cn(DIALOG_SCROLL, DIALOG_FORM)}>
@@ -1735,9 +1807,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
                         data-tour="agent-instructions-header"
                         className="flex min-w-0 flex-1 items-center gap-1"
                       >
-                        <span className="bg-muted text-foreground/80 mr-2 grid size-9 shrink-0 place-items-center rounded-lg">
-                          <FileText className="size-[18px]" strokeWidth={1.75} aria-hidden />
-                        </span>
                         <CardTitle className="min-w-0 truncate text-sm">
                           {t("instructions")}
                         </CardTitle>
@@ -1899,67 +1968,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     starters,
                     starter_icons,
                     starter_titles,
-                    show_starters: starters.length > 0,
                   })
                 }
               />
-
-              {/* Discovery metadata, not the spec: it autosaves at once like the
-              avatar, so it hangs off the same `canEdit` every other editing
-              control on this page does. */}
-              {canEdit && (
-                <BuildSection icon={Tags} title={t("discovery")} description={t("discoveryHelp")}>
-                  <MetadataEditor
-                    agentId={id}
-                    categories={agent.categories ?? []}
-                    tags={agent.tags ?? []}
-                  />
-                </BuildSection>
-              )}
-
-              {/* Last on the tab: what the agent does comes first, what it is called is
-                set once. The name is spec like everything else here, and autosaves with it:
-                a duplicate arrives as "<name> (copy)" and this is where it stops
-                being one. The handle is the row's, fixed at creation, so renaming
-                never breaks a delegation or an @mention wired to it. */}
-              <BuildSection
-                data-tour="agent-identity"
-                icon={IdCard}
-                title={t("identity")}
-                description={t("identityHelp", { slug: agent.slug })}
-                defaultOpen={!spec.name.trim()}
-              >
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="agent-name">{t("agentNameLabel")}</Label>
-                    <Input
-                      id="agent-name"
-                      value={spec.name}
-                      maxLength={128}
-                      disabled={!canEdit}
-                      aria-invalid={!spec.name.trim()}
-                      aria-describedby={spec.name.trim() ? undefined : "agent-name-error"}
-                      onChange={(event) => update({ name: event.target.value })}
-                    />
-                    {!spec.name.trim() && (
-                      <p id="agent-name-error" className="text-destructive text-xs">
-                        {t("agentNameRequired")}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="agent-description">{t("agentDescriptionLabel")}</Label>
-                    <Textarea
-                      id="agent-description"
-                      value={spec.description ?? ""}
-                      maxLength={1000}
-                      rows={2}
-                      disabled={!canEdit}
-                      onChange={(event) => update({ description: event.target.value || null })}
-                    />
-                  </div>
-                </div>
-              </BuildSection>
             </div>
           </TabsContent>
 

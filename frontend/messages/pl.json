@@ -7284,7 +7284,7 @@
       },
       "agent-identity": {
         "title": "Nadaj mu rozpoznawalną nazwę",
-        "body": "Nazwę wybiera się w czacie i znajduje w katalogu. Duplikat zaczyna od nazwy źródła z dopiskiem, więc zmień ją tutaj; handle, przez który inne agenty do niego trafiają, pozostaje ten sam."
+        "body": "Otwórz menu z trzema kropkami i wybierz Szczegóły, żeby zmienić nazwę, opis, kategorie i tagi. Zmiana nazwy zachowuje identyfikator, którego używają inne agenty."
       },
       "projects-new": {
         "title": "Załóż projekt",

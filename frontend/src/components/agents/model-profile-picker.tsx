@@ -20,7 +20,7 @@ import { Badge, Button } from "@/components/ui";
 import { useModelProviders } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
-import { hasKey, modelDetail, runsAgents } from "@/lib/model-profiles";
+import { hasKey, runsAgents } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
@@ -91,8 +91,7 @@ interface ModelProfilePickerProps {
  * rotate a key or repoint every agent at once. What is gone is its claim on
  * being the first thing anybody sees.
  *
- * Either way the rows keep the vault's vocabulary - provider mark, label,
- * `provider · model`, and the `no key` badge. That badge decides whether the
+ * Either way the rows keep the vault's vocabulary - model mark, label, and the `no key` badge. That badge decides whether the
  * agent can run at all, and it was once visible on the vault page and invisible
  * here.
  *
@@ -177,7 +176,6 @@ export function ModelProfilePicker({
           selected={value === profile.id}
           onSelect={() => selectProfile(profile.id)}
           title={profile.label}
-          subtitle={modelDetail(profile)}
           provider={profile.provider}
           model={profile.model}
           // A picker that omits this lets somebody publish an agent onto a model
@@ -378,7 +376,6 @@ function ProfileRow({
   selected,
   onSelect,
   title,
-  subtitle,
   provider,
   model,
   noKey,
@@ -390,8 +387,6 @@ function ProfileRow({
   selected: boolean;
   onSelect: () => void;
   title: string;
-  /** `null` where the title already names the provider and the model. */
-  subtitle: string | null;
   provider: string;
   model: string;
   noKey?: boolean;
@@ -432,11 +427,6 @@ function ProfileRow({
             {noKey && <Badge variant="destructive">{t("noKey2")}</Badge>}
             {notChat && <Badge variant="destructive">{t("notAChatModel")}</Badge>}
           </span>
-          {subtitle !== null && (
-            <span className="text-muted-foreground mt-0.5 block truncate font-mono text-xs">
-              {subtitle}
-            </span>
-          )}
         </span>
         {selected && <Check className="text-foreground h-4 w-4 shrink-0" />}
       </button>

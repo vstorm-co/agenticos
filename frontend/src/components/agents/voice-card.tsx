@@ -273,13 +273,9 @@ export function VoiceCard({
         id={AGENT_CALLS_ANCHOR}
         data-tour="agent-voice"
         className="scroll-mt-20"
-        icon={Headphones}
         title={t("voiceTitle")}
         description={t("voiceDescription")}
-        defaultOpen={
-          typeof window !== "undefined" &&
-          [`#${AGENT_CALLS_ANCHOR}`, `#${AGENT_DICTATION_ANCHOR}`].includes(window.location.hash)
-        }
+        defaultOpen
       >
         {dictationAnchor}
         {fields}

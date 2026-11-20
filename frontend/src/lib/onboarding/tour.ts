@@ -512,8 +512,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "agent-identity",
     page: AGENT_BUILDER,
-    target: "agent-identity",
-    activate: "agent-tab-build",
+    target: "agent-share",
     permission: Perm.agentsView,
   },
   {

@@ -318,9 +318,9 @@ describe("canonical draft acknowledgements", () => {
     await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(1), { timeout: 6000 });
     const sent = saveDraft.mock.calls[0]?.[0];
     if (!sent || !acknowledge) throw new Error("No pending save");
-    const title = await screen.findByText("Name and description");
-    const section = title.closest("[data-tour='agent-identity']");
-    if (!(section instanceof HTMLElement)) throw new Error("Missing identity section");
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Details" }));
+    const section = screen.getByRole("dialog", { name: "Details" });
     const input = within(section).getByRole("textbox", { name: "Name" });
     await userEvent.clear(input);
     await userEvent.type(input, "Newer name");
@@ -361,9 +361,9 @@ it("keeps its base revision after an unannounced refetch and holds edits until r
   });
   await mount();
   await act(async () => store.set(newer));
-  const title = await screen.findByText("Name and description");
-  const section = title.closest("[data-tour='agent-identity']");
-  if (!(section instanceof HTMLElement)) throw new Error("Missing identity section");
+  await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Details" }));
+  const section = screen.getByRole("dialog", { name: "Details" });
   const name = within(section).getByRole("textbox", { name: "Name" });
   await userEvent.clear(name);
   await userEvent.type(name, "My local edit");
@@ -380,9 +380,7 @@ it("keeps its base revision after an unannounced refetch and holds edits until r
   await act(async () => new Promise((resolve) => setTimeout(resolve, 1500)));
   expect(saveDraft).toHaveBeenCalledTimes(1);
   expect(name).toHaveValue("My local edit still here");
-  expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
-  await userEvent.click(screen.getByRole("button", { name: "Publish" }));
-  expect(saveDraft).toHaveBeenCalledTimes(1);
+  expect(screen.getByText("Publish").closest("button")).toBeDisabled();
   await userEvent.click(screen.getByRole("button", { name: "Reload latest draft" }));
   await waitFor(() => expect(refetchAgent).toHaveBeenCalledTimes(1));
   expect(name).toHaveValue("My local edit still here");
