@@ -23,6 +23,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.context import ContextFile
 from app.db.models.knowledge_gap import (
     KnowledgeGapClassification,
+    KnowledgeGapEvalClassification,
     KnowledgeGapMember,
     KnowledgeGapTopic,
     KnowledgeSearch,
@@ -42,6 +43,7 @@ from app.services.knowledge_gaps import (
     _filename,
     _flags,
     _private,
+    _test_question,
     _verdicts,
 )
 from app.worker.jobs import ClassifyGaps, DraftTopic
@@ -542,9 +544,24 @@ class TestTheRepository:
             db, [], KB, organization_id=ORG, run_id=uuid.uuid4()
         )
         kept = await knowledge_gap_repo.still_asked(db, [], organization_id=ORG)
+        candidates = await knowledge_gap_repo.eval_answer_candidates(
+            db, KB, organization_id=ORG, run_ids=[], limit=10
+        )
 
-        assert (recorded, kept) == (0, set())
+        assert (recorded, kept, candidates) == (0, set(), [])
         db.execute.assert_not_awaited()
+
+    def test_only_a_miss_with_no_message_holds_a_test_question(self):
+        asked = "How long does a standard order take?"
+        eval_answer = KnowledgeSearch(query=asked, signal="answer", message_id=None)
+        chat_answer = KnowledgeSearch(query=asked, signal="answer", message_id=uuid.uuid4())
+        own_search = KnowledgeSearch(query="lead times", signal="retrieval", message_id=None)
+
+        assert [_test_question(miss) for miss in (eval_answer, chat_answer, own_search)] == [
+            asked,
+            None,
+            None,
+        ]
 
     def test_rows_name_themselves(self):
         search = KnowledgeSearch(id=uuid.uuid4(), run_id=uuid.uuid4(), top_similarity=0.2)
@@ -552,7 +569,9 @@ class TestTheRepository:
         member = KnowledgeGapMember(topic_id=topic.id, search_id=search.id)
 
         read = KnowledgeGapClassification(message_id=uuid.uuid4(), signal="none")
+        eval_read = KnowledgeGapEvalClassification(run_id=uuid.uuid4(), signal="answer")
         assert "none" in repr(read)
+        assert "answer" in repr(eval_read)
         assert "0.2" in repr(search)
         assert "open" in repr(topic)
         assert str(search.id) in repr(member)
