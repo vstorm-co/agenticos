@@ -24,12 +24,13 @@ from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.background_job import BackgroundJob
-from app.db.models.case_key_draft import KEY_DRAFT_RETENTION_DAYS, CaseKeyDraft
+from app.db.models.case_key_draft import KEY_DRAFT_RETENTION_DAYS, CaseKeyDraft, KeyDraftStatus
 from app.db.models.dataset import DatasetCase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import ResourceGrant
+from app.db.models.run_manifest import RunManifest
 from app.db.models.user import User
-from app.repositories import personal_data_repo
+from app.repositories import case_key_draft_repo, personal_data_repo
 from app.schemas.case_key_draft import ExtractedKeys
 from app.schemas.dataset import (
     DatasetCaseCreate,
@@ -127,6 +128,56 @@ def _answer(monkeypatch, output: ExtractedKeys | Exception, run: AgentRun | None
 def _runnable(monkeypatch) -> None:
     # Whether the extractor could run is the runner's to prove; these are about the draft.
     monkeypatch.setattr(SystemAgentRunner, "require_runnable", AsyncMock())
+
+
+async def _remembered(db, ctx: AuthContext) -> AgentRun:
+    """An extractor run whose manifest still holds the reference answer."""
+    run = await _run(db, ctx)
+    db.add(
+        RunManifest(
+            run_id=run.id,
+            organization_id=ctx.organization_id,
+            payload={"instructions": "List the facts.", "messages": [{"content": DOCUMENT}]},
+        )
+    )
+    await db.flush()
+    return run
+
+
+async def _forgotten(db, run: AgentRun) -> bool:
+    manifest = await db.scalar(
+        select(RunManifest)
+        .where(RunManifest.run_id == run.id)
+        .execution_options(populate_existing=True)
+    )
+    assert manifest is not None
+    return manifest.truncated and manifest.payload == {"instructions": "List the facts."}
+
+
+async def _gone(db, how: str, ctx: AuthContext, dataset, case) -> None:
+    """Delete a case's draft the way `how` names."""
+    service = CaseKeyDraftService(db)
+    if how == "replaced":
+        await service.start(ctx, dataset.id, case.case_id)
+    elif how == "dismissed":
+        await service.dismiss(ctx, dataset.id, case.case_id)
+    elif how == "expired":
+        await case_key_draft_repo.delete_expired(
+            db, created_before=datetime.now(UTC) + timedelta(1)
+        )
+    elif how == "anonymised":
+        revision = await db.get(DatasetCase, case.id)
+        assert revision is not None
+        revision.asked_by_user_id = ctx.user_id
+        await db.flush()
+        await personal_data_repo.anonymise_dataset_cases_of(
+            db, ctx.user_id, placeholder="[erased]", at=datetime.now(UTC)
+        )
+    else:
+        await DatasetService(db).delete(ctx, dataset.id)
+
+
+_WAYS = ["replaced", "dismissed", "expired", "anonymised", "dataset deleted"]
 
 
 async def _started(db, ctx: AuthContext):
@@ -420,6 +471,71 @@ class TestExpiry:
 
         left = await db.execute(select(CaseKeyDraft.id).execution_options(populate_existing=True))
         assert left.scalars().all() == [drafts[2]]
+
+
+class TestForgetting:
+    """The extractor's run read the reference answer; it keeps it no longer than the draft."""
+
+    @pytest.mark.parametrize("how", _WAYS)
+    async def test_every_way_a_draft_goes_forgets_its_run(self, db, how) -> None:
+        owner = await _owner(db)
+        dataset, case, draft = await _started(db, owner)
+        run = await _remembered(db, owner)
+        await case_key_draft_repo.finish(
+            db,
+            draft.id,
+            organization_id=owner.organization_id,
+            status=KeyDraftStatus.READY,
+            finished_at=datetime.now(UTC),
+            run_id=run.id,
+        )
+
+        await _gone(db, how, owner, dataset, case)
+
+        assert await db.get(CaseKeyDraft, draft.id, populate_existing=True) is None
+        assert await _forgotten(db, run)
+        assert await db.get(AgentRun, run.id) is not None
+
+    @pytest.mark.parametrize("how", _WAYS)
+    async def test_a_draft_gone_while_its_job_ran_ends_the_job_quietly(
+        self, db, monkeypatch, how
+    ) -> None:
+        owner = await _owner(db)
+        dataset, case, draft = await _started(db, owner)
+        run = await _remembered(db, owner)
+
+        async def answered(*_: object, **__: object) -> SystemAgentResult:
+            await _gone(db, how, owner, dataset, case)
+            return SystemAgentResult(output=ExtractedKeys(keys=[]), run=run)
+
+        monkeypatch.setattr(SystemAgentRunner, "run", AsyncMock(side_effect=answered))
+
+        await CaseKeyDraftService(db).extract(draft.id, owner.organization_id)
+
+        assert await db.get(CaseKeyDraft, draft.id, populate_existing=True) is None
+        assert await _forgotten(db, run)
+        if how == "replaced":
+            fresh = (await db.execute(select(CaseKeyDraft))).scalar_one()
+            assert (fresh.status, fresh.run_id) == ("running", None)
+
+    async def test_a_refused_run_of_a_draft_gone_meanwhile_is_forgotten(
+        self, db, monkeypatch
+    ) -> None:
+        owner = await _owner(db)
+        dataset, case, draft = await _started(db, owner)
+        run = await _remembered(db, owner)
+
+        async def refused(*_: object, **__: object) -> SystemAgentResult:
+            await _gone(db, "dismissed", owner, dataset, case)
+            raise SystemAgentRunError(
+                message="over budget", run_id=run.id, status="budget_exceeded"
+            )
+
+        monkeypatch.setattr(SystemAgentRunner, "run", AsyncMock(side_effect=refused))
+
+        await CaseKeyDraftService(db).extract(draft.id, owner.organization_id)
+
+        assert await _forgotten(db, run)
 
 
 class TestReviewing:

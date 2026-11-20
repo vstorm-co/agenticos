@@ -49,6 +49,7 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     case_generation_repo,
+    case_key_draft_repo,
     conversation_repo,
     credential_repo,
     dataset_repo,
@@ -701,6 +702,9 @@ class DatasetService:
             organization_id=ctx.organization_id,
             resource_type=DATASET.key,
             resource_id=dataset.id,
+        )
+        await case_key_draft_repo.delete_for_dataset(
+            self.db, organization_id=ctx.organization_id, dataset_id=dataset.id
         )
         await dataset_repo.delete(self.db, dataset)
         await record_audit(

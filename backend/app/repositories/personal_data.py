@@ -794,7 +794,12 @@ async def anonymise_dataset_cases_of(
     )
     revisions = list(result.scalars().all())
     if revisions:
-        await db.execute(sa_delete(CaseKeyDraft).where(CaseKeyDraft.revision_id.in_(revisions)))
+        drafts = await db.execute(
+            sa_delete(CaseKeyDraft)
+            .where(CaseKeyDraft.revision_id.in_(revisions))
+            .returning(CaseKeyDraft.run_id)
+        )
+        await forget_runs(db, [run_id for run_id in drafts.scalars() if run_id is not None])
     await db.flush()
     return revisions
 

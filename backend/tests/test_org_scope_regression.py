@@ -164,6 +164,8 @@ TENANT_REQUIRED = [
     (case_key_draft_repo, "get"),
     (case_key_draft_repo, "replace"),
     (case_key_draft_repo, "delete_for_case"),
+    (case_key_draft_repo, "delete_for_dataset"),
+    (case_key_draft_repo, "finish"),
     (case_generation_repo, "create_generation"),
     (case_generation_repo, "get_generation"),
     (case_generation_repo, "list_generations"),

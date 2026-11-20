@@ -166,19 +166,19 @@ class CaseKeyDraftService:
                 api_key_id=draft.created_by_api_key_id,
             )
         except AuthenticationError as exc:
-            await self._fail(draft, exc.message)
+            await self._fail(draft_id, organization_id, exc.message)
             return
         if ctx is None:
-            await self._fail(draft, REQUESTER_GONE)
+            await self._fail(draft_id, organization_id, REQUESTER_GONE)
             return
         try:
             dataset, case = await self.datasets.editable_case(ctx, draft.dataset_id, draft.case_id)
         except AppException as exc:
-            await self._fail(draft, exc.message)
+            await self._fail(draft_id, organization_id, exc.message)
             return
         document = (case.reference_answer or "").strip()
         if not document:
-            await self._fail(draft, NO_REFERENCE)
+            await self._fail(draft_id, organization_id, NO_REFERENCE)
             return
         try:
             result = await SystemAgentRunner(self.db).run(
@@ -189,26 +189,32 @@ class CaseKeyDraftService:
                 output_type=ExtractedKeys,
             )
         except AppException as exc:
-            await self._fail(draft, exc.message, run_id=getattr(exc, "run_id", None))
+            await self._fail(
+                draft_id, organization_id, exc.message, run_id=getattr(exc, "run_id", None)
+            )
             return
         except Exception:
             logger.exception("case_key_draft_failed", extra={"draft_id": str(draft_id)})
             await self.db.rollback()
-            await self._fail(draft, FAILED)
+            await self._fail(draft_id, organization_id, FAILED)
             return
         await case_key_draft_repo.finish(
             self.db,
-            draft,
+            draft_id,
+            organization_id=organization_id,
             status=KeyDraftStatus.READY,
             finished_at=datetime.now(UTC),
             keys=kept_keys(document, result.output.keys),
             run_id=result.run.id,
         )
 
-    async def _fail(self, draft: CaseKeyDraft, error: str, *, run_id: UUID | None = None) -> None:
+    async def _fail(
+        self, draft_id: UUID, organization_id: UUID, error: str, *, run_id: UUID | None = None
+    ) -> None:
         await case_key_draft_repo.finish(
             self.db,
-            draft,
+            draft_id,
+            organization_id=organization_id,
             status=KeyDraftStatus.FAILED,
             finished_at=datetime.now(UTC),
             error=error[:500],
@@ -229,9 +235,11 @@ async def settle_lost(draft_id: UUID, organization_id: UUID) -> None:
     would ever finish it. A draft the job already ended is left as it is.
     """
     async with get_worker_db_context() as db:
-        draft = await case_key_draft_repo.get(db, draft_id, organization_id=organization_id)
-        if draft is None or draft.status != KeyDraftStatus.RUNNING.value:
-            return
         await case_key_draft_repo.finish(
-            db, draft, status=KeyDraftStatus.FAILED, finished_at=datetime.now(UTC), error=STOPPED
+            db,
+            draft_id,
+            organization_id=organization_id,
+            status=KeyDraftStatus.FAILED,
+            finished_at=datetime.now(UTC),
+            error=STOPPED,
         )
