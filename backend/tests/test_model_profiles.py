@@ -2294,6 +2294,23 @@ class TestStavRegion:
             )
 
 
+class TestLlmtrEndpoint:
+    """LLMTR has no Pydantic AI provider of its own, so its endpoint is the platform's to set."""
+
+    def test_requests_go_to_llmtr_over_chat_completions(self):
+        credential = ResolvedCredential(
+            provider="llmtr", secret=ApiKeySecret(api_key="sk_llmtr_test")
+        )
+        model = build_model(credential, "llmtr/qwen3-8-27b")
+
+        from app.agents.llmtr import LlmtrModel
+
+        assert isinstance(model, LlmtrModel)
+        assert isinstance(model.wrapped, OpenAIChatModel)
+        # Inferred from `openai-chat` alone, the client would point at api.openai.com.
+        assert str(model.wrapped._provider.client.base_url) == "https://llmtr.com/v1/"
+
+
 @pytest.mark.anyio
 @pytest.mark.security
 @pytest.mark.parametrize("region", ["eu", "eea", "global"])

@@ -27,6 +27,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Apply `0345_matrix_channel.py`, which enables Matrix exposures and widens channel identifiers to fit native Matrix IDs. Matrix account links are bound to the configured homeserver URL; each other server needs a separate `/link`. Unscoped preview links must be linked again. Downgrade refuses homeserver-bound accounts and identifiers exceeding the legacy limits instead of truncating conversation history. Give a Matrix bot account a rate-limit exemption on its homeserver so streamed answers are not throttled; [Channels → Matrix](docs/channels.md#matrix) has the Synapse call.
 
+## [1.86.2] - 2026-11-20
+
+### Added
+
+- **LLMTR as a model provider.** `llmtr` takes an API key and runs on Chat Completions at `https://llmtr.com/v1`. The model picker reads only Chat Completions entries from LLMTR's live list, where `llmtr/...` ids are models hosted in Turkey and the others are routed to their vendors. Models without a known price cannot run under an active dollar ceiling; uncapped runs keep explicitly partial costs.
+
+### Fixed
+
+- Mount a writable `/app/.next/server/route-cache` in the Helm chart's frontend
+  (chart 0.1.2). Next.js copies each prerendered page there on its first request,
+  which failed on a read-only root filesystem such as OpenShift's `restricted-v2`.
+- Log why an OIDC sign-in was refused: the failed condition and the names of the
+  claims received, never their values. Document the Entra ID optional claims
+  (`email`, `xms_edov` on the ID token) that its UserInfo endpoint does not return.
+
 ## [1.86.1] - 2026-11-20
 
 ### Fixed
@@ -22224,7 +22239,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.86.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.86.2...HEAD
+[1.86.2]: https://github.com/vstorm-co/agenticos/compare/v1.86.1...v1.86.2
 [1.86.1]: https://github.com/vstorm-co/agenticos/compare/v1.86.0...v1.86.1
 [1.86.0]: https://github.com/vstorm-co/agenticos/compare/v1.85.1...v1.86.0
 [1.85.1]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...v1.85.1

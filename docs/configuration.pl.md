@@ -1,5 +1,5 @@
 ---
-source_sha: "321cae7a1b30"
+source_sha: "34f407ae78ff"
 ---
 
 # Konfiguracja { #configuration }
@@ -218,7 +218,7 @@ Gdzie mieszka który issuer i co zarejestrować:
 
 | Dostawca | Issuer | Redirect URI rejestruj jako |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect URI platformy **Web** w rejestracji aplikacji. Nadaj `openid`, `email`, `profile` w API permissions |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Redirect URI platformy **Web** w rejestracji aplikacji. Nadaj `openid`, `email`, `profile` w API permissions. W **Token configuration** dodaj opcjonalne claimy `email` i `xms_edov` do tokenu **ID** |
 | **Okta** | `https://<org>.okta.com` (albo `/oauth2/<id>` własnego serwera autoryzacji) | Sign-in redirect URI w aplikacji typu **Web** |
 | **Keycloak** | `https://<host>/realms/<realm>` | Valid redirect URI w kliencie confidential z włączonym standard flow |
 
@@ -233,6 +233,13 @@ Dwie rzeczy, których platforma wymaga od dowolnego dostawcy, na którego ją sk
   potwierdzenia: niepotwierdzony adres oznacza, że ktokolwiek u tego dostawcy może
   zgłosić czyjś służbowy adres, a lista dozwolonych domen niżej stoi na tym, że
   adres coś znaczy.
+  W Entra claim musi być w **ID tokenie**: jego endpoint UserInfo zwraca tylko
+  `sub`, `name`, `family_name`, `given_name`, `picture` i `email`.
+  `OIDC_VERIFIED_CLAIM` musi wskazywać claim, którego *wartość* jest prawdą dla
+  potwierdzonego adresu; claim obecny w każdym tokenie, jak `sub`, niczego nie
+  potwierdza i nie jest akceptowany. Odrzucone logowanie zapisuje w logu
+  `oauth_callback_claims_rejected` z warunkiem, który nie przeszedł (`reason`),
+  oraz nazwami, nigdy wartościami, otrzymanych claimów.
 - **Stabilny `sub`.** Konto jest kluczowane po nim, nie po adresie, więc osoba,
   która zmieni nazwisko albo której domenę ktoś wykupi, zachowuje swoją historię
   — a kolejny właściciel zwolnionego adresu jej nie dziedziczy. Zapisywany jest

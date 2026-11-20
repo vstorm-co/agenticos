@@ -1,5 +1,5 @@
 ---
-source_sha: "321cae7a1b30"
+source_sha: "34f407ae78ff"
 ---
 
 # Configuración { #configuration }
@@ -224,7 +224,7 @@ Dónde vive cada issuer, y qué registrar:
 
 | Proveedor | Issuer | Registra la redirect URI como |
 | --- | --- | --- |
-| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Una redirect URI de plataforma **Web** en el registro de la aplicación. Concede `openid`, `email`, `profile` en API permissions |
+| **Entra ID** | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Una redirect URI de plataforma **Web** en el registro de la aplicación. Concede `openid`, `email`, `profile` en API permissions. En **Token configuration**, añade los claims opcionales `email` y `xms_edov` al token **ID** |
 | **Okta** | `https://<org>.okta.com` (o `/oauth2/<id>` de un authorization server propio) | Una sign-in redirect URI en una aplicación **Web** |
 | **Keycloak** | `https://<host>/realms/<realm>` | Una valid redirect URI en un cliente confidencial con el standard flow activado |
 
@@ -240,6 +240,13 @@ Dos cosas que la plataforma exige del proveedor al que se la apunte:
   que cualquiera en ese proveedor puede reclamar la dirección de trabajo de otra
   persona, y la lista de dominios permitidos de abajo se sostiene sobre que una
   dirección signifique algo.
+  En Entra el claim tiene que ir en el **token ID**: su endpoint UserInfo solo
+  devuelve `sub`, `name`, `family_name`, `given_name`, `picture` y `email`.
+  `OIDC_VERIFIED_CLAIM` tiene que nombrar un claim cuyo *valor* sea verdadero para
+  una dirección confirmada; uno que lleva todo token, como `sub`, no confirma nada
+  y no se acepta. Un acceso rechazado registra `oauth_callback_claims_rejected` con
+  la condición que falló (`reason`) y los nombres, nunca los valores, de los
+  claims recibidos.
 - **Un `sub` estable.** La cuenta se indexa por él, no por la dirección, así que
   quien cambie de apellido o cuyo dominio sea comprado conserva su historial — y
   el siguiente titular de una dirección liberada no la hereda. Se guarda **con el
