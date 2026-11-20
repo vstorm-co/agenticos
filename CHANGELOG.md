@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- MCP administration with searchable actions and on-demand schemas for organization settings, AI Architect, system agents, retention, members and groups, plus installation settings and updates. Global access requires explicit external OAuth `deployment:admin` consent and live application-admin authority; internal agents and routines never inherit it. Configuration reads do not install resources; secret entry and binary branding use secure console handoffs.
+
 - Ship the AgenticOS Claude plugin with deployment, fork, organization-operation, release and custom-solution skills; a checked tool map and MCP contract discovery; secure dependency setup, datasets, evals and environment promotion tools; atomic draft-only solution bundles with retry receipts; three example solutions and a disposable published-image smoke check. Compose, image publishing and deployment support a fork's own application image prefix.
 
 - MCP contract 2: bounded metadata discovery, paged detail readers, on-demand

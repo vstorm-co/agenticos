@@ -295,6 +295,8 @@ CALLS: tuple[Call, ...] = (
         body={"name": "ci", "scopes": ["agents:view"]},
     ),
     Call("PATCH", "/assistant", Perm.ORG_SETTINGS, body={"enabled": False}),
+    Call("GET", "/assistant/configuration", Perm.ORG_SETTINGS),
+    Call("POST", "/assistant/install", Perm.ORG_SETTINGS),
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
     Call("GET", "/agents/capabilities/mirage/backends", Perm.AGENTS_VIEW),
     Call("GET", "/agents/prompt-variables", Perm.AGENTS_VIEW),

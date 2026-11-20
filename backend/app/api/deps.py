@@ -1937,6 +1937,22 @@ async def _require_app_admin(user: CurrentUser) -> User:
     return user
 
 
+async def require_deployment_mcp_scope(request: Request, user: CurrentUser) -> None:
+    """An MCP credential needs explicit global consent in addition to the live admin flag.
+
+    Session behavior is unchanged. Ordinary organization keys cannot reach
+    assistant-only routes, and org permissions never imply deployment authority.
+    """
+    caller = _key_caller(request)
+    if caller is not None and not user.is_app_admin:
+        raise AuthorizationError(message="App admin privileges required")
+    if caller is not None and (caller.surface != "mcp" or not caller.context.is_app_admin):
+        raise AuthorizationError(
+            message="This operation requires an external OAuth grant with deployment:admin",
+            details={"required_scope": "deployment:admin"},
+        )
+
+
 CurrentAppAdmin = Annotated[User, Depends(_require_app_admin)]
 
 

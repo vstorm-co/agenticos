@@ -1,5 +1,5 @@
 ---
-source_sha: "fee3ce48942b"
+source_sha: "486b74fc34ac"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1587,3 +1587,40 @@ sincronizan las preferencias aproximadamente cada diez segundos. Ajustes escribe
 mismas preferencias de cuenta. La migración `0344_user_appearance.py` añade columnas
 opcionales; las cuentas existentes conservan los valores del dispositivo hasta
 guardar una elección.
+
+## Administración mediante MCP {#administration-through-mcp}
+
+Busca tareas o campos con `list_administration_actions` y consulta el contrato de
+ruta y datos con `get_administration_schema`. El catálogo incluye configuración de
+la instalación, actualizaciones, diagnóstico y estado de push, además de ajustes
+de organización, retención, AI Architect, agentes del sistema, miembros, grupos e
+invitaciones. Las listas contienen metadatos; `read_administration` lee la
+configuración seleccionada mediante ventanas de detalles limitadas.
+
+Las acciones de organización requieren sus permisos existentes y se limitan a la
+organización conectada. `change_organization` no concede administración de la
+instalación. Leer la configuración de AI Architect o de los agentes del sistema
+no crea recursos. Instalar o actualizar los asistentes incluidos es una escritura
+explícita y puede publicar configuraciones predeterminadas preparadas.
+
+Las acciones de instalación requieren tanto el indicador vigente de administrador
+de aplicación como una concesión OAuth explícita de `deployment:admin`. Solo estos
+administradores ven una casilla separada, inicialmente desmarcada, en el
+consentimiento. Vuelve a autorizar una conexión existente para añadir este alcance.
+No pertenece a los permisos ni a las configuraciones predefinidas de organización.
+Los agentes internos, las rutinas y las claves API ordinarias nunca lo heredan;
+`change_deployment` se excluye de las herramientas de los agentes internos.
+
+Usa `change_deployment` para escribir y vuelve a leer el resultado. Preparar,
+aplicar y cancelar una actualización son acciones distintas: aceptar una petición
+no significa terminarla. La autenticación MCP permanece disponible durante el
+mantenimiento para que un cliente autorizado pueda desactivarlo; las operaciones
+API ordinarias siguen bloqueadas. Retirar el indicador de administrador bloquea
+la siguiente petición de instalación, aunque el token siga indicando el alcance
+concedido originalmente.
+
+La clave privada APNs y las imágenes binarias del logo o favicon se introducen en
+formularios seguros de la consola. Los secretos y bytes de imágenes quedan fuera
+del contexto del modelo. Los ajustes gestionados por el entorno siguen siendo de
+solo lectura. La caché del frontend puede tardar hasta cinco minutos en reflejar
+un cambio de identidad visual realizado directamente mediante MCP.

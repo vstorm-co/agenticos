@@ -15,6 +15,7 @@ class PlatformContextRead(BaseSchema):
     authentication: str
     granted_scopes: list[str] | None
     features: list[str]
+    deployment_admin: bool = False
 
 
 class PermissionEntry(BaseSchema):

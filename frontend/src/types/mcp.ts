@@ -110,7 +110,8 @@ export type PlatformToolGroup =
   | "apps"
   | "runs"
   | "connections"
-  | "account";
+  | "account"
+  | "administration";
 
 /** One tool of this deployment's own MCP server, as a binding chooses from (#2190). */
 export interface PlatformMcpTool {

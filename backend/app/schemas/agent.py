@@ -895,6 +895,7 @@ class PlatformToolGroup(StrEnum):
     RUNS = "runs"
     CONNECTIONS = "connections"
     ACCOUNT = "account"
+    ADMINISTRATION = "administration"
 
 
 class PlatformMcpTool(BaseSchema):

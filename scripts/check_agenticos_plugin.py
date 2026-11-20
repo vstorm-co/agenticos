@@ -19,6 +19,7 @@ def registered_tools(root: Path) -> set[str]:
         ("_tools.py", "platform_tools"),
         ("_lifecycle.py", "lifecycle_operations"),
         ("_details.py", "detail_operations"),
+        ("_administration.py", "administration_operations"),
         ("_disclosure.py", "disclosure_operations"),
     ):
         tree = ast.parse((root / "backend/app/services/platform_mcp" / filename).read_text())

@@ -10004,7 +10004,7 @@
     "platformUseIt": "Użyj w tym agencie",
     "toolChangesSomething": "Zmienia coś",
     "platformSomeRunFreely": "Niektóre narzędzia działają bez pytania",
-    "platformToolGroup": "{group, select, tables {Tabele} tasks {Zadania i Inbox} workflows {Workflowy} agents {Agenci} knowledge {Bazy wiedzy i kontekst} skills {Skille} projects {Projekty} automations {Rutyny i obserwacje} apps {Aplikacje} runs {Runy, rozmowy i wydatki} connections {Połączenia} account {Organizacja i konto} other {Inne}}",
+    "platformToolGroup": "{group, select, tables {Tabele} tasks {Zadania i Inbox} workflows {Workflowy} agents {Agenci} knowledge {Bazy wiedzy i kontekst} skills {Skille} projects {Projekty} automations {Rutyny i obserwacje} apps {Aplikacje} runs {Runy, rozmowy i wydatki} connections {Połączenia} account {Organizacja i konto} administration {Administracja} other {Inne}}",
     "platformRemove": "Usuń z tego agenta",
     "voiceTitle": "Głos",
     "voiceDescription": "Jak można rozmawiać z tym agentem: rozmowa głosowa na żywo albo dyktowanie, które zamienia mowę na tekst. Działa po opublikowaniu agenta.",
@@ -13369,7 +13369,9 @@
     "disconnected": "Aplikacja odłączona",
     "couldNotLoad": "Nie udało się wczytać podłączonych aplikacji",
     "emptyTitle": "Brak podłączonych aplikacji",
-    "emptyWhy": "Dodaj AgenticOS do Claude Code albo innego klienta MCP i zaloguj się; pojawi się tutaj."
+    "emptyWhy": "Dodaj AgenticOS do Claude Code albo innego klienta MCP i zaloguj się; pojawi się tutaj.",
+    "deploymentAdminTitle": "Administracja całą instalacją",
+    "deploymentAdminHint": "Pozwala zmieniać ustawienia i aktualizować instalację poza wybraną organizacją. Tylko administrator aplikacji może nadać deployment:admin; zakres nigdy nie jest częścią profilu organizacji."
   },
   "liveUpdates": {
     "changedElsewhere": "{actor} zmienił(a) to {surface} w trakcie twojej edycji. Przeładuj, aby zobaczyć tę wersję, albo zachowaj swoje zmiany i zapisz je zamiast niej.",

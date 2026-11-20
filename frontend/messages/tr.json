@@ -2469,7 +2469,9 @@
     "disconnected": "Uygulamanın bağlantısı kesildi",
     "couldNotLoad": "Bağlı uygulamalar yüklenemedi",
     "emptyTitle": "Bağlı uygulama yok",
-    "emptyWhy": "AgenticOS'u Claude Code'a veya başka bir MCP client'a ekleyip oturum açın; burada görünür."
+    "emptyWhy": "AgenticOS'u Claude Code'a veya başka bir MCP client'a ekleyip oturum açın; burada görünür.",
+    "deploymentAdminTitle": "Tüm kurulumu yönet",
+    "deploymentAdminHint": "Seçilen kuruluşun ötesindeki kurulum ayarlarına ve güncellemelere izin verir. deployment:admin kapsamını yalnızca uygulama yöneticisi verebilir; kuruluş profillerine dahil edilmez."
   },
   "pages": {
     "retention": {
@@ -6829,7 +6831,7 @@
     "platformUseIt": "Bu Agent'ta kullan",
     "toolChangesSomething": "Değişiklik yapar",
     "platformSomeRunFreely": "Bazı araçlar sormadan çalışır",
-    "platformToolGroup": "{group, select, tables {Tablolar} tasks {Görevler ve Inbox} workflows {Workflow'lar} agents {Agent'lar} knowledge {Bilgi tabanları ve bağlam} skills {Skill'ler} projects {Projeler} automations {Rutinler ve izlemeler} apps {Uygulamalar} runs {Run'lar, konuşmalar ve harcama} connections {Bağlantılar} account {Organizasyon ve hesap} other {Diğer}}",
+    "platformToolGroup": "{group, select, tables {Tablolar} tasks {Görevler ve Inbox} workflows {Workflow'lar} agents {Agent'lar} knowledge {Bilgi tabanları ve bağlam} skills {Skill'ler} projects {Projeler} automations {Rutinler ve izlemeler} apps {Uygulamalar} runs {Run'lar, konuşmalar ve harcama} connections {Bağlantılar} account {Organizasyon ve hesap} administration {Yönetim} other {Diğer}}",
     "platformRemove": "Bu Agent'tan kaldır",
     "voiceTitle": "Voice",
     "voiceDescription": "İnsanların bu Agent'la konuşma yolları: canlı voice call veya konuşmayı metne çeviren dikte. Agent yayınlandığında etkinleşir.",

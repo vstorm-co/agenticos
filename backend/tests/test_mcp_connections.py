@@ -7196,3 +7196,33 @@ async def test_only_the_owned_in_process_transport_can_stamp_platform_tool_prove
     )
     tools = await ApprovalMarked(inner, in_process=in_process).get_tools(MagicMock())
     assert tools[definition.name].tool_def.metadata[PLATFORM_TOOL] is in_process
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("internal", [False, True])
+@pytest.mark.parametrize("allowlist", [None, ["change_deployment", "change_organization"]])
+async def test_deployment_mutation_is_external_only_even_when_allowlisted(
+    internal: bool,
+    allowlist: list[str] | None,
+) -> None:
+    from pydantic_ai import RunContext
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.toolsets import FunctionToolset
+    from pydantic_ai.usage import RunUsage
+
+    def change_deployment() -> str:
+        return "deployment"
+
+    def change_organization() -> str:
+        return "organization"
+
+    inner = FunctionToolset([change_deployment, change_organization])
+    spec = McpServerSpec(
+        name="agenticos", url="http://agenticos/mcp", in_process=internal, allowed_tools=allowlist
+    )
+    with patch("app.agents.mcp.MCPToolset", return_value=inner):
+        named = await _make_toolset(spec).get_tools(
+            RunContext(deps=object(), model=TestModel(), usage=RunUsage())
+        )
+    assert "agenticos_change_organization" in named
+    assert ("agenticos_change_deployment" in named) is not internal

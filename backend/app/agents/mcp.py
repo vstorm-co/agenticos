@@ -511,6 +511,9 @@ def _make_toolset(spec: McpServerSpec) -> Any:
                 tool_prefix=tool_prefix(spec.name),
             ),
         )
+    if spec.in_process:
+        # Deployment authority belongs only to explicitly authorized external OAuth clients.
+        server = server.filtered(lambda _ctx, tool: tool.name != "change_deployment")
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
@@ -869,7 +872,9 @@ Named again rather than imported: the platform's server imports the application,
 which imports this layer.
 """
 
-PLATFORM_ALWAYS_ASK_TOOLS = frozenset({"invite_member", "update_proactivity_settings"})
+PLATFORM_ALWAYS_ASK_TOOLS = frozenset(
+    {"invite_member", "update_proactivity_settings", "change_deployment", "change_organization"}
+)
 """The platform's writes no binding lets run unasked - `platform_mcp._tools.ALWAYS_ASKS`.
 
 Named again for the same reason as `PLATFORM_UNGATED_TOOLS`.

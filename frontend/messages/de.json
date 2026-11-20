@@ -819,7 +819,7 @@
     "platformUseIt": "In diesem Agent nutzen",
     "toolChangesSomething": "Ändert etwas",
     "platformSomeRunFreely": "Manche Werkzeuge laufen ohne Rückfrage",
-    "platformToolGroup": "{group, select, tables {Tabellen} tasks {Aufgaben und Inbox} workflows {Workflows} agents {Agenten} knowledge {Wissensdatenbanken und Kontext} skills {Skills} projects {Projekte} automations {Routinen und Beobachtungen} apps {Apps} runs {Runs, Unterhaltungen und Ausgaben} connections {Verbindungen} account {Organisation und Konto} other {Sonstiges}}",
+    "platformToolGroup": "{group, select, tables {Tabellen} tasks {Aufgaben und Inbox} workflows {Workflows} agents {Agenten} knowledge {Wissensdatenbanken und Kontext} skills {Skills} projects {Projekte} automations {Routinen und Beobachtungen} apps {Apps} runs {Runs, Unterhaltungen und Ausgaben} connections {Verbindungen} account {Organisation und Konto} administration {Administration} other {Sonstiges}}",
     "platformRemove": "Aus diesem Agent entfernen",
     "voiceDescription": "Wie man mit diesem Agent sprechen kann: ein Sprachanruf in Echtzeit oder Diktieren, das Sprache in Text umwandelt. Wirkt, sobald der Agent veröffentlicht ist.",
     "voicePair": "Transkriptionsmodell",
@@ -12856,7 +12856,9 @@
     "disconnected": "Anwendung getrennt",
     "couldNotLoad": "Verbundene Anwendungen konnten nicht geladen werden",
     "emptyTitle": "Keine verbundenen Anwendungen",
-    "emptyWhy": "Fügen Sie AgenticOS zu Claude Code oder einem anderen MCP-Client hinzu und melden Sie sich an; es erscheint hier."
+    "emptyWhy": "Fügen Sie AgenticOS zu Claude Code oder einem anderen MCP-Client hinzu und melden Sie sich an; es erscheint hier.",
+    "deploymentAdminTitle": "Die gesamte Installation verwalten",
+    "deploymentAdminHint": "Erlaubt Einstellungen und Updates der Installation über die gewählte Organisation hinaus. Nur ein Anwendungsadministrator darf deployment:admin erteilen; Organisationsprofile enthalten diesen Bereich nie."
   },
   "liveUpdates": {
     "changedElsewhere": "{actor} hat das {surface} geändert, während Sie es bearbeitet haben. Laden Sie neu, um diese Version zu sehen, oder behalten Sie Ihre Änderungen und speichern Sie darüber.",

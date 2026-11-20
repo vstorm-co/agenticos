@@ -30,6 +30,7 @@ const GROUP_ORDER: PlatformToolGroup[] = [
   "runs",
   "connections",
   "account",
+  "administration",
 ];
 
 /** A platform tool as the shared rows read one: a change is a tool not marked read-only. */

@@ -1481,3 +1481,37 @@ from the tool's supported enum. In-chat results apply immediately; other open
 consoles synchronize preferences within about ten seconds while visible. Settings
 writes the same account choices. Existing accounts retain device defaults until
 a choice is saved; migration `0344_user_appearance.py` adds nullable columns.
+
+## Administration through MCP
+
+Search `list_administration_actions` by task or field, then use
+`get_administration_schema` for the selected action's path and body. The catalog
+covers installation settings, updates, diagnostics and push readiness, plus
+organization settings, retention, AI Architect, system agents, members, groups
+and invitations. Pages contain metadata; `read_administration` retrieves selected
+configuration with the same bounded detail windows as other MCP reads.
+
+Organization actions require the existing organization permissions and stay bound
+to the connected organization. `change_organization` cannot promote an organization
+administrator to installation administrator. Reading AI Architect or system-agent
+configuration creates no resources. Installing or refreshing shipped assistants is
+an explicit write; it may publish ready defaults.
+
+Installation actions require both the user's live application-admin flag and an
+explicit OAuth grant of `deployment:admin`. The consent screen offers a separate,
+initially unchecked checkbox only to application administrators. Reauthorize an
+existing connection to add this scope. It is outside organization permissions and
+presets. Internal agents, routines and ordinary API keys never inherit it;
+`change_deployment` is excluded from internal agent toolsets.
+
+Use `change_deployment` for installation writes and read back the selected action.
+Update preparation, application and cancellation are separate actions: acceptance
+does not mean an update finished. MCP authentication remains available during
+maintenance so an authorized client can reopen the installation; ordinary API
+operations remain blocked. Losing the application-admin flag blocks the next
+installation request, even if the token still lists the originally granted scope.
+
+APNs private-key entry and binary logo/favicon uploads return secure console
+handoffs. Secret values and image bytes stay out of model context. Environment-owned
+settings remain read-only. Console branding fetched through the frontend cache
+can take up to five minutes to reflect a direct MCP change.

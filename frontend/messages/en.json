@@ -819,7 +819,7 @@
     "platformUseIt": "Use it in this agent",
     "toolChangesSomething": "Changes something",
     "platformSomeRunFreely": "Some tools run without asking",
-    "platformToolGroup": "{group, select, tables {Tables} tasks {Tasks and Inbox} workflows {Workflows} agents {Agents} knowledge {Knowledge bases and context} skills {Skills} projects {Projects} automations {Routines and watches} apps {Apps} runs {Runs, conversations and spend} connections {Connections} account {Organization and account} other {Other}}",
+    "platformToolGroup": "{group, select, tables {Tables} tasks {Tasks and Inbox} workflows {Workflows} agents {Agents} knowledge {Knowledge bases and context} skills {Skills} projects {Projects} automations {Routines and watches} apps {Apps} runs {Runs, conversations and spend} connections {Connections} account {Organization and account} administration {Administration} other {Other}}",
     "platformRemove": "Remove from this agent",
     "voiceTitle": "Voice",
     "voiceDescription": "How people can talk to this agent: a live voice call, or dictation that turns speech into text. Takes effect when the agent is published.",
@@ -13170,7 +13170,9 @@
     "disconnected": "Application disconnected",
     "couldNotLoad": "Could not load connected applications",
     "emptyTitle": "No connected applications",
-    "emptyWhy": "Add AgenticOS to Claude Code or another MCP client and sign in; it appears here."
+    "emptyWhy": "Add AgenticOS to Claude Code or another MCP client and sign in; it appears here.",
+    "deploymentAdminTitle": "Administer the entire installation",
+    "deploymentAdminHint": "Allows deployment settings and updates beyond the selected organization. Only an application administrator can grant deployment:admin; it is never included in an organization preset."
   },
   "liveUpdates": {
     "changedElsewhere": "{actor} changed this {surface} while you were editing it. Reload to see their version, or keep your changes to save over it.",

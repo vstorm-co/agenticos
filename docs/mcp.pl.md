@@ -1,5 +1,5 @@
 ---
-source_sha: "fee3ce48942b"
+source_sha: "486b74fc34ac"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1538,3 +1538,38 @@ W czacie zmiana działa od razu; inne otwarte konsole synchronizują preferencje
 więcej co dziesięć sekund, gdy są widoczne. Ustawienia zapisują te same wybory na
 koncie. Migracja `0344_user_appearance.py` dodaje opcjonalne kolumny; dotychczasowe
 konta zachowują domyślny wygląd urządzenia, dopóki nie zapiszą wyboru.
+
+## Administracja przez MCP {#administration-through-mcp}
+
+Wyszukaj zadanie lub pole przez `list_administration_actions`, a następnie pobierz
+kontrakt ścieżki i danych przez `get_administration_schema`. Katalog obejmuje
+ustawienia instalacji, aktualizacje, diagnostykę i gotowość powiadomień push oraz
+ustawienia organizacji, retencję, AI Architect, agentów systemowych, członków,
+grupy i zaproszenia. Listy zawierają metadane; `read_administration` odczytuje
+wybraną konfigurację w ograniczonych oknach szczegółów.
+
+Działania organizacji wymagają jej dotychczasowych uprawnień i dotyczą wyłącznie
+organizacji połączenia. `change_organization` nie nadaje administratorowi organizacji
+uprawnień do instalacji. Odczyt konfiguracji AI Architect i agentów systemowych nie
+tworzy zasobów. Instalacja lub odświeżenie dostarczonych asystentów jest jawnym
+zapisem; może opublikować gotowe ustawienia domyślne.
+
+Działania instalacji wymagają bieżącej flagi administratora aplikacji oraz jawnego
+grantu OAuth `deployment:admin`. Ekran zgody pokazuje osobne, domyślnie niezaznaczone
+pole tylko administratorom aplikacji. Aby dodać ten zakres do istniejącego
+połączenia, autoryzuj je ponownie. Zakres nie należy do uprawnień ani zestawów
+organizacji. Wewnętrzni agenci, rutyny i zwykłe klucze API go nie dziedziczą;
+`change_deployment` jest wykluczone z narzędzi wewnętrznych agentów.
+
+Zapisuj ustawienia instalacji przez `change_deployment` i odczytaj wynik.
+Przygotowanie, zastosowanie i anulowanie aktualizacji to osobne działania:
+przyjęcie żądania nie oznacza ukończenia aktualizacji. Uwierzytelnianie MCP pozostaje
+dostępne w trybie konserwacji, aby uprawniony klient mógł go wyłączyć; zwykłe
+operacje API pozostają zablokowane. Odebranie flagi administratora aplikacji blokuje
+kolejne żądanie, nawet gdy token nadal wymienia wcześniej przyznany zakres.
+
+Wprowadzenie prywatnego klucza APNs i przesłanie binarnego logo lub favicony
+odbywa się przez bezpieczny formularz konsoli. Wartości sekretów i bajty obrazów
+nie trafiają do kontekstu modelu. Ustawienia zarządzane przez środowisko pozostają
+tylko do odczytu. Pamięć podręczna frontendu może opóźnić widoczność zmiany
+identyfikacji wizualnej wykonanej przez MCP o maksymalnie pięć minut.

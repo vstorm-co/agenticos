@@ -21,7 +21,13 @@ def package(tmp_path: Path) -> Path:
     shutil.copytree(ROOT / ".claude-plugin", tmp_path / ".claude-plugin")
     target = tmp_path / "backend/app/services/platform_mcp"
     target.mkdir(parents=True)
-    for name in ["_tools.py", "_lifecycle.py", "_details.py", "_disclosure.py"]:
+    for name in [
+        "_tools.py",
+        "_lifecycle.py",
+        "_details.py",
+        "_disclosure.py",
+        "_administration.py",
+    ]:
         shutil.copyfile(ROOT / "backend/app/services/platform_mcp" / name, target / name)
     return tmp_path
 

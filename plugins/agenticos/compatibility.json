@@ -25,7 +25,9 @@
       "bounded_disclosure",
       "prepared_solutions",
       "account_preferences",
-      "platform_tool_policies"
+      "platform_tool_policies",
+      "administration",
+      "deployment_admin_oauth"
     ]
   }
 }

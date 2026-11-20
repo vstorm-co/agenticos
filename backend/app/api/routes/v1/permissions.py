@@ -12,7 +12,7 @@ from fastapi import APIRouter, Request
 from app import __version__
 from app.api.deps import Auth
 from app.api.public_api import PUBLIC
-from app.core.permissions import RESOURCE_PERMS, ROLE_PERMS, Perm
+from app.core.permissions import DEPLOYMENT_ADMIN_SCOPE, RESOURCE_PERMS, ROLE_PERMS, Perm
 from app.schemas.permissions import (
     MyPermissions,
     PermissionEntry,
@@ -40,8 +40,20 @@ async def get_platform_context(request: Request, ctx: Auth) -> Any:
         user_id=ctx.user_id,
         authentication=caller.surface if isinstance(caller, KeyCaller) else "session",
         granted_scopes=(
-            sorted(perm.value for perm in ctx.key_scopes) if ctx.key_scopes is not None else None
+            sorted(
+                [
+                    *(perm.value for perm in ctx.key_scopes),
+                    *(
+                        [DEPLOYMENT_ADMIN_SCOPE]
+                        if isinstance(caller, KeyCaller) and caller.deployment_admin_granted
+                        else []
+                    ),
+                ]
+            )
+            if ctx.key_scopes is not None
+            else None
         ),
+        deployment_admin=ctx.is_app_admin,
         features=[
             "dependency_setup",
             "quality_lifecycle",
@@ -51,6 +63,8 @@ async def get_platform_context(request: Request, ctx: Auth) -> Any:
             "prepared_solutions",
             "account_preferences",
             "platform_tool_policies",
+            "administration",
+            "deployment_admin_oauth",
         ],
     )
 

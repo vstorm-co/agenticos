@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ShieldCheck, TimerOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -8,6 +9,7 @@ import { ScopePicker, useScopeChoice } from "@/components/settings/scope-picker"
 import { EmptyState, LoadingState } from "@/components/states";
 import {
   Button,
+  Checkbox,
   Label,
   Select,
   SelectContent,
@@ -17,7 +19,7 @@ import {
 } from "@/components/ui";
 import { useConsentRequest, useOrganizations } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
-import type { OAuthConsentRequest } from "@/types/mcp-oauth";
+import type { OAuthConsentChoice, OAuthConsentRequest } from "@/types/mcp-oauth";
 
 /** Send the browser back to the client. A full navigation: it leaves the console. */
 function leave(to: string) {
@@ -44,7 +46,7 @@ export function ConsentScreen({ requestId }: { requestId: string }) {
   return (
     <ConsentForm
       request={request}
-      onApprove={(scopes) => approve.mutateAsync(scopes)}
+      onApprove={(choice) => approve.mutateAsync(choice)}
       onDeny={() => deny.mutateAsync()}
       busy={approve.isPending || deny.isPending}
     />
@@ -58,7 +60,7 @@ function ConsentForm({
   busy,
 }: {
   request: OAuthConsentRequest;
-  onApprove: (scopes: OAuthConsentRequest["catalog"]["scopes"]) => Promise<{ redirect_to: string }>;
+  onApprove: (choice: OAuthConsentChoice) => Promise<{ redirect_to: string }>;
   onDeny: () => Promise<{ redirect_to: string }>;
   busy: boolean;
 }) {
@@ -66,6 +68,8 @@ function ConsentForm({
   const tErrors = useTranslations("errors");
   const { orgs, switchOrg } = useOrganizations();
   const choice = useScopeChoice(request.catalog);
+  const [deploymentAdmin, setDeploymentAdmin] = useState(false);
+  const allowDeployment = request.deployment_admin_available === true && deploymentAdmin;
 
   const answer = async (send: () => Promise<{ redirect_to: string }>) => {
     if (!busy) {
@@ -106,14 +110,38 @@ function ConsentForm({
         </Select>
       </div>
       <ScopePicker catalog={request.catalog} choice={choice} id="consent-access" disabled={busy} />
+      {request.deployment_admin_available && (
+        <div className="border-border space-y-2 rounded-lg border p-4">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="deployment-admin"
+              checked={allowDeployment}
+              disabled={busy}
+              aria-describedby="deployment-admin-hint"
+              onCheckedChange={(checked) => setDeploymentAdmin(checked === true)}
+            />
+            <Label htmlFor="deployment-admin">{t("deploymentAdminTitle")}</Label>
+          </div>
+          <p id="deployment-admin-hint" className="text-muted-foreground text-xs">
+            {t("deploymentAdminHint")}
+          </p>
+        </div>
+      )}
       <p className="text-muted-foreground text-xs">{t("revokeLater")}</p>
       <div className="flex justify-end gap-2">
         <Button variant="outline" disabled={busy} onClick={() => void answer(onDeny)}>
           {t("deny")}
         </Button>
         <Button
-          disabled={busy || choice.scopes.length === 0}
-          onClick={() => void answer(() => onApprove(choice.scopes))}
+          disabled={busy || (choice.scopes.length === 0 && !allowDeployment)}
+          onClick={() =>
+            void answer(() =>
+              onApprove({
+                scopes: choice.scopes,
+                ...(allowDeployment ? { deployment_admin: true } : {}),
+              }),
+            )
+          }
         >
           {t("allow")}
         </Button>

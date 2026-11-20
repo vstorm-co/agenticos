@@ -66,6 +66,7 @@ PLATFORM_MODULES = (
     "app/services/solution.py",
     "app/services/platform_mcp/_disclosure.py",
     "app/services/platform_mcp/_details.py",
+    "app/services/platform_mcp/_administration.py",
     "app/repositories/solution_installation.py",
     "app/services/agent_exposure.py",
     "app/services/agent_registry.py",

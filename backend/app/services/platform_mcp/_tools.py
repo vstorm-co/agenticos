@@ -42,6 +42,7 @@ from app.schemas.virtual_table import (
     SchemaUpdate,
 )
 from app.schemas.workflow import NodeCatalog
+from app.services.platform_mcp._administration import administration_operations
 from app.services.platform_mcp._api import PlatformApi
 from app.services.platform_mcp._details import detail_operations
 from app.services.platform_mcp._disclosure import (
@@ -92,7 +93,9 @@ not be able to write it unseen. `app.agents.mcp` names the same set as
 `PLATFORM_UNGATED_TOOLS`, and a test holds the two equal.
 """
 
-ALWAYS_ASKS = frozenset({"invite_member", "update_proactivity_settings"})
+ALWAYS_ASKS = frozenset(
+    {"invite_member", "update_proactivity_settings", "change_deployment", "change_organization"}
+)
 """Writes every binding holds for the person's approval, a tool's own `never` included.
 
 They widen who has authority in the organization - a member and their role, the
@@ -4670,6 +4673,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         PlatformToolGroup.AUTOMATIONS: "get_routine get_watch",
         PlatformToolGroup.WORKFLOWS: "list_workflow_definition_nodes get_workflow_definition_node get_workflow_execution_step",
         PlatformToolGroup.ACCOUNT: "read_platform_details",
+        PlatformToolGroup.ADMINISTRATION: "list_administration_actions get_administration_schema read_administration change_deployment change_organization",
     }
     groups = {function.__name__: group for function, _, group in operations}
     groups.update({name: group for group, names in extra_groups.items() for name in names.split()})
@@ -4677,6 +4681,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         tuple((function.__name__, function, writes) for function, writes, _ in operations)
         + lifecycle_operations(api)
         + detail_operations(api)
+        + administration_operations(api)
     )
     all_operations = raw + disclosure_operations(raw, api.credential_id)
     return tuple(

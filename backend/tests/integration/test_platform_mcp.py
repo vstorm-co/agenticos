@@ -1119,12 +1119,22 @@ async def test_platform_initialization_outliving_remote_connect_deadline_still_l
     assert not first
 
 
-async def _oauth_owner_key(db: AsyncSession, *scopes: Perm) -> tuple[str, Organization]:
+async def _oauth_owner_key(
+    db: AsyncSession, *scopes: Perm, deployment_admin: bool = False
+) -> tuple[str, Organization]:
     from datetime import UTC, datetime, timedelta
 
     from app.db.models.oauth import OAuthClient, OAuthGrant
 
     _plain, org = await _owner_key(db, *scopes)
+    issued_scopes = [scope.value for scope in scopes]
+    if deployment_admin:
+        from app.core.permissions import DEPLOYMENT_ADMIN_SCOPE
+
+        owner = await db.get(User, org.created_by_user_id)
+        assert owner is not None
+        owner.is_app_admin = True
+        issued_scopes.append(DEPLOYMENT_ADMIN_SCOPE)
     client_id = uuid.uuid4().hex
     db.add(OAuthClient(client_id=client_id, info={"client_name": "Lifecycle test"}))
     await db.flush()
@@ -1132,7 +1142,7 @@ async def _oauth_owner_key(db: AsyncSession, *scopes: Perm) -> tuple[str, Organi
         client_id=client_id,
         user_id=org.created_by_user_id,
         organization_id=org.id,
-        scopes=[scope.value for scope in scopes],
+        scopes=issued_scopes,
     )
     db.add(grant)
     await db.flush()
@@ -1141,7 +1151,7 @@ async def _oauth_owner_key(db: AsyncSession, *scopes: Perm) -> tuple[str, Organi
         organization_id=org.id,
         user_id=org.created_by_user_id,
         client_name="Lifecycle test",
-        scopes=[scope.value for scope in scopes],
+        scopes=issued_scopes,
         expires_at=datetime.now(UTC) + timedelta(hours=1),
     )
     await db.commit()
@@ -1560,3 +1570,171 @@ async def test_mcp_preferences_persist_only_for_the_caller(db: AsyncSession, ser
     other = await db.get(User, other_org.created_by_user_id)
     assert user is not None and (user.theme, user.look, user.locale) == ("system", "glass", "pl")
     assert other is not None and other.theme is None and other.look is None
+
+
+@pytest.mark.security
+async def test_mcp_administration_keeps_global_and_organization_authority_separate(
+    db: AsyncSession, served: None
+) -> None:
+    org_key, org = await _oauth_owner_key(db, Perm.ORG_SETTINGS)
+    global_key, _ = await _oauth_owner_key(db, Perm.ORG_SETTINGS, deployment_admin=True)
+    foreign_key, foreign_org = await _oauth_owner_key(db, Perm.ORG_SETTINGS)
+    async with _connected(org_key) as session:
+        changed = _content(
+            await session.call_tool(
+                "change_organization",
+                {
+                    "action_id": "organization.settings.update",
+                    "parameters": {"org_id": str(org.id)},
+                    "changes": {"name": "Managed through MCP"},
+                },
+            )
+        )
+        assert changed["result"]["name"] == "Managed through MCP"
+        await db.commit()
+        global_refused = await session.call_tool(
+            "change_deployment",
+            {"action_id": "deployment.settings.update", "changes": {"app_name": "Must not change"}},
+        )
+        assert global_refused.is_error
+        budget_refused = await session.call_tool(
+            "change_organization",
+            {
+                "action_id": "organization.settings.update",
+                "parameters": {"org_id": str(org.id)},
+                "changes": {"monthly_budget_usd": "1"},
+            },
+        )
+        assert budget_refused.is_error
+        foreign_refused = await session.call_tool(
+            "change_organization",
+            {
+                "action_id": "organization.settings.update",
+                "parameters": {"org_id": str(foreign_org.id)},
+                "changes": {"name": "Must not cross tenants"},
+            },
+        )
+        assert foreign_refused.is_error
+    async with _connected(global_key) as session:
+        context = _content(await session.call_tool("get_platform_context", {}))
+        assert context["deployment_admin"] and "deployment:admin" in context["granted_scopes"]
+        changed = _content(
+            await session.call_tool(
+                "change_deployment",
+                {
+                    "action_id": "deployment.settings.update",
+                    "changes": {"app_name": "MCP-managed installation"},
+                },
+            )
+        )
+        assert changed["result"]["app_name"] == "MCP-managed installation"
+        await db.commit()
+        settings = _content(
+            await session.call_tool(
+                "read_administration", {"action_id": "deployment.settings.read"}
+            )
+        )
+        assert settings["app_name"] == "MCP-managed installation"
+    async with _connected(foreign_key) as session:
+        assert (
+            await session.call_tool(
+                "read_administration", {"action_id": "deployment.settings.read"}
+            )
+        ).is_error
+    await db.refresh(foreign_org)
+    assert foreign_org.name == "Acme"
+
+
+@pytest.mark.security
+async def test_mcp_configuration_reads_do_not_install_assistants_or_system_profiles(
+    db: AsyncSession, served: None
+) -> None:
+    from sqlalchemy import func
+
+    from app.db.models.organization_assistant import OrganizationAssistant
+    from app.db.models.system_agent_profile import SystemAgentProfile
+
+    key, org = await _oauth_owner_key(db, Perm.ORG_SETTINGS, Perm.BUDGETS_MANAGE)
+    async with _connected(key) as session:
+        before_agents = await db.scalar(
+            select(func.count()).select_from(Agent).where(Agent.organization_id == org.id)
+        )
+        configuration = _content(
+            await session.call_tool(
+                "read_administration", {"action_id": "organization.assistant.read"}
+            )
+        )
+        assert configuration["installed"] is False
+        roles = _content(
+            await session.call_tool(
+                "read_administration", {"action_id": "organization.system_agents.read"}
+            )
+        )
+        assert roles["total"] == 2
+        assert await db.get(OrganizationAssistant, org.id) is None
+        assert (
+            await db.scalar(
+                select(func.count())
+                .select_from(SystemAgentProfile)
+                .where(SystemAgentProfile.organization_id == org.id)
+            )
+            == 0
+        )
+        assert (
+            await db.scalar(
+                select(func.count()).select_from(Agent).where(Agent.organization_id == org.id)
+            )
+            == before_agents
+        )
+        saved = _content(
+            await session.call_tool(
+                "change_organization",
+                {
+                    "action_id": "organization.system_agents.update",
+                    "parameters": {"role": "memory_maintenance"},
+                    "changes": {"enabled": False, "monthly_budget_usd": "2"},
+                },
+            )
+        )
+        assert saved["result"]["enabled"] is False
+        await db.commit()
+        assert (
+            await db.scalar(
+                select(func.count())
+                .select_from(SystemAgentProfile)
+                .where(SystemAgentProfile.organization_id == org.id)
+            )
+            == 1
+        )
+
+
+@pytest.mark.security
+async def test_global_mcp_can_reopen_maintenance_without_opening_ordinary_operations(
+    db: AsyncSession, served: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core import maintenance
+
+    global_key, _ = await _oauth_owner_key(db, Perm.ORG_SETTINGS, deployment_admin=True)
+    org_key, org = await _oauth_owner_key(db, Perm.ORG_SETTINGS)
+    monkeypatch.setattr(maintenance, "_verdict", AsyncMock(return_value=(True, "Maintenance")))
+    async with _connected(global_key) as session:
+        changed = _content(
+            await session.call_tool(
+                "change_deployment",
+                {"action_id": "deployment.settings.update", "changes": {"maintenance_mode": False}},
+            )
+        )
+        assert changed["result"]["maintenance_mode"] is False
+        await db.commit()
+    async with _connected(org_key) as session:
+        refused = await session.call_tool(
+            "change_organization",
+            {
+                "action_id": "organization.settings.update",
+                "parameters": {"org_id": str(org.id)},
+                "changes": {"name": "Still blocked"},
+            },
+        )
+        assert refused.is_error
+    await db.refresh(org)
+    assert org.name == "Acme"

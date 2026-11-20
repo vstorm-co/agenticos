@@ -1,5 +1,5 @@
 ---
-source_sha: "fee3ce48942b"
+source_sha: "486b74fc34ac"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1604,3 +1604,41 @@ Im Chat gilt die Änderung sofort, andere sichtbare Konsolen synchronisieren die
 Einstellungen ungefähr alle zehn Sekunden. Einstellungen schreiben dieselben Kontowerte.
 Migration `0344_user_appearance.py` ergänzt nullable Spalten; bestehende Konten
 behalten die Gerätevorgaben, bis eine Auswahl gespeichert wird.
+
+## Administration über MCP {#administration-through-mcp}
+
+Suche Aufgaben oder Felder mit `list_administration_actions` und lade den Vertrag
+für Pfad und Eingabedaten mit `get_administration_schema`. Der Katalog umfasst
+Installationseinstellungen, Updates, Diagnose und Push-Bereitschaft sowie
+Organisationseinstellungen, Aufbewahrung, AI Architect, Systemagenten, Mitglieder,
+Gruppen und Einladungen. Listen enthalten Metadaten; `read_administration` liest
+die gewählte Konfiguration in begrenzten Detailfenstern.
+
+Organisationsaktionen benötigen die bisherigen Organisationsberechtigungen und
+bleiben auf die verbundene Organisation beschränkt. `change_organization` verleiht
+keine Installationsrechte. Das Lesen der Konfiguration von AI Architect und
+Systemagenten erzeugt keine Ressourcen. Installation oder Aktualisierung der
+mitgelieferten Assistenten ist ein ausdrücklicher Schreibvorgang und kann fertige
+Standardkonfigurationen veröffentlichen.
+
+Installationsaktionen benötigen das aktuelle Anwendungsadministrator-Flag und eine
+ausdrückliche OAuth-Freigabe für `deployment:admin`. Nur Anwendungsadministratoren
+sehen dafür ein separates, zunächst nicht ausgewähltes Kontrollkästchen. Bestehende
+Verbindungen müssen erneut autorisiert werden. Der Bereich gehört nicht zu den
+Organisationsberechtigungen oder deren Vorgaben. Interne Agenten, Routinen und
+normale API-Schlüssel erben ihn niemals; `change_deployment` fehlt in internen
+Agenten-Toolsets.
+
+Schreibe Installationseinstellungen mit `change_deployment` und lies das Ergebnis
+zurück. Vorbereitung, Anwendung und Abbruch eines Updates sind getrennte Aktionen;
+eine Annahme bedeutet keinen Abschluss. MCP-Authentifizierung bleibt im
+Wartungsmodus verfügbar, damit ein autorisierter Client ihn beenden kann; normale
+API-Operationen bleiben gesperrt. Nach Entzug des Administrator-Flags wird die
+nächste Installationsanfrage abgelehnt, auch wenn das Token den ursprünglich
+gewährten Bereich weiterhin aufführt.
+
+Private APNs-Schlüssel und binäre Logos oder Favicons werden über sichere
+Konsolenformulare eingegeben. Geheimwerte und Bilddaten gelangen nicht in den
+Modellkontext. Umgebungsverwaltete Einstellungen bleiben schreibgeschützt. Wegen
+des Frontend-Caches kann eine direkte MCP-Änderung am Branding bis zu fünf Minuten
+später sichtbar werden.

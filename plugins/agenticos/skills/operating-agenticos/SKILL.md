@@ -113,3 +113,19 @@ Read the one that matches the task.
 ## Reporting back
 
 End with the resource and its ID, what was checked, whether it is a draft or published, what is now active unattended, and anything still waiting on the user in the console.
+
+
+## Administration
+
+On servers advertising `administration`, search `list_administration_actions` by
+task or field, inspect `get_administration_schema`, read current state through
+`read_administration` and use the appropriate change tool. Organization settings,
+AI Architect, system-agent budgets, retention, members and groups retain their
+normal permissions and tenant boundary. Reads do not install defaults.
+
+Installation settings and updates require a live app administrator and explicit
+external OAuth `deployment:admin` consent. Ask the user to reauthorize the existing
+connection if this scope is missing. It is never inherited by built-in agents or
+routines. Use secure console handoffs for secret values and binary branding.
+Before applying an update, explain downtime and inspect its prepared operation;
+read status afterwards and do not equate accepted with finished.

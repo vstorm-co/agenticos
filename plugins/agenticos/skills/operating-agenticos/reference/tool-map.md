@@ -232,3 +232,22 @@ ordinary organization API key is refused on those routes.
 | `create_eval_suite`, `update_eval_suite` | agent/dataset access and standing personal authority | yes |
 | `plan_solution` | `agents:view`; validates caller-supplied content only | no |
 | `install_solution` | `agents:edit` and every permission in the plan | yes, private drafts atomically |
+
+## Administration
+
+| Tool | Needs | Changes something |
+|---|---|---|
+| `list_administration_actions` | authenticated caller; metadata discovery only | no |
+| `get_administration_schema` | authenticated caller; selected action contract only | no |
+| `read_administration` | selected action's organization permissions, or explicit external OAuth `deployment:admin` plus live app-admin flag | no |
+| `change_organization` | selected action's organization permissions; connected tenant only | yes; internal agents always ask |
+| `change_deployment` | explicit external OAuth `deployment:admin` plus live app-admin flag | yes; unavailable to internal agents |
+
+Search actions by task or field, inspect the exact body/path schema, read current
+configuration and send only intended changes. Never treat role ownership as an
+OAuth grant. Reauthorize an existing external connection with the separate,
+initially unchecked deployment-administration consent option. Built-in agents,
+routines and ordinary keys cannot acquire global authority. Secret entry and
+binary uploads return secure console links. Assistant configuration reads do not
+install anything; installation/refresh is a write that can publish ready defaults.
+Read update status after preparation/application; a receipt is not completion.
