@@ -1,5 +1,5 @@
 ---
-source_sha: "ed987fe8a046"
+source_sha: "d4710a3108db"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -183,7 +183,8 @@ un departamento ve las lagunas de las bases de conocimiento compartidas con
 
 Un tema muestra cuántas veces se preguntó y cuántas personas lo preguntaron,
 cuándo fue la última vez, qué agents lo preguntaron y hasta tres de sus
-preguntas. Quienes preguntaron por un canal cuentan por su cuenta de chat;
+preguntas. Las preguntas de prueba que respondió un eval se cuentan aparte: nadie
+las hizo. Quienes preguntaron por un canal cuentan por su cuenta de chat;
 todos los que preguntaron de forma anónima, a través de un widget o sin una
 persona detrás del run, cuentan como una. Ábrelo para ver las preguntas más
 recientes: qué preguntó la persona, qué buscó el agent, lo cerca que estaba el

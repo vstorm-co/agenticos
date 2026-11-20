@@ -1,5 +1,5 @@
 ---
-source_sha: "ed987fe8a046"
+source_sha: "d4710a3108db"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -173,7 +173,8 @@ czyta tę bazę wiedzy. Nie ma osobnego filtra według działu: dział widzi luk
 baz wiedzy, które mu udostępniono.
 
 Temat pokazuje, ile razy go zadano i przez ile osób, kiedy ostatnio, którzy
-agenci go zadali, i do trzech jego pytań. Osoby pytające przez kanał są liczone
+agenci go zadali, i do trzech jego pytań. Pytania testowe, na które odpowiedziała
+ewaluacja, są liczone osobno: nikt ich nie zadał. Osoby pytające przez kanał są liczone
 według konta czatu; wszyscy, którzy pytali anonimowo, przez widżet albo w runie
 bez osoby za nim, liczą się jako jedna. Otwórz go, żeby zobaczyć najnowsze pytania: o co zapytała
 osoba, czego szukał agent, jak blisko był najbliższy fragment i komentarz

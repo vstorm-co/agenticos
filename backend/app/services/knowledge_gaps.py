@@ -730,6 +730,7 @@ class KnowledgeGapService:
                 label=row.subjects[0] if row.subjects else row.queries[0] if row.queries else "",
                 question_count=row.question_count,
                 asker_count=row.asker_count,
+                test_question_count=row.test_questions,
                 last_asked_at=row.last_asked_at,
                 examples=_distinct(row.queries, keep=EXAMPLES),
                 agents=[agents[a] for a in row.agent_ids if a in agents],

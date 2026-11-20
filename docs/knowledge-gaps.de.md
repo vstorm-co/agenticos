@@ -1,5 +1,5 @@
 ---
-source_sha: "ed987fe8a046"
+source_sha: "d4710a3108db"
 title: "Wissenslücken"
 description: "Wissenslücken zeigen die Fragen, zu denen ein Agent in seiner Wissensbasis nichts Passendes gefunden oder ohne Wissen geantwortet hat, nach Thema gruppiert, damit klar ist, welches Dokument fehlt."
 ---
@@ -182,7 +182,8 @@ nicht: Eine Abteilung sieht die Lücken der Wissensdatenbanken, die mit ihr
 geteilt sind.
 
 Ein Thema zeigt, wie oft und von wie vielen Personen es gestellt wurde, wann
-zuletzt, welche Agents es gestellt haben, und bis zu drei seiner Fragen. Wer
+zuletzt, welche Agents es gestellt haben, und bis zu drei seiner Fragen.
+Testfragen, die ein Eval beantwortet hat, zählen getrennt: Niemand hat sie gestellt. Wer
 über einen Channel gefragt hat, zählt nach seinem Chat-Konto; alle, die anonym
 gefragt haben, über ein Widget oder ohne Person hinter dem Run, zählen als eine
 Person. Öffne es, um die neuesten Fragen

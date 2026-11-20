@@ -15294,6 +15294,8 @@
     "retry": "Spróbuj ponownie",
     "topic": "Temat",
     "topicSummary": "{count, plural, one {Zadane raz} few {Zadane # razy} many {Zadane # razy} other {Zadane # razy}} przez {askers, plural, one {jedną osobę} few {# osoby} many {# osób} other {# osoby}} w {knowledgeBase}",
+    "topicSummaryTests": "{count, plural, one {Pojawił się w # pytaniu testowym} few {Pojawił się w # pytaniach testowych} many {Pojawił się w # pytaniach testowych} other {Pojawił się w # pytania testowego}} w {knowledgeBase}",
+    "topicSummaryMixed": "{count, plural, one {Zadane raz} few {Zadane # razy} many {Zadane # razy} other {Zadane # razy}} przez {askers, plural, one {jedną osobę} few {# osoby} many {# osób} other {# osoby}} i w {tests, plural, one {# pytaniu testowym} few {# pytaniach testowych} many {# pytaniach testowych} other {# pytania testowego}} w {knowledgeBase}",
     "questions": "Pytania",
     "noConversation": "Dla tego runu nie zachowano rozmowy, więc znane jest tylko wyszukiwanie.",
     "testQuestion": "Pytanie testowe",

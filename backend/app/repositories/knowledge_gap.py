@@ -346,6 +346,8 @@ class TopicRow(NamedTuple):
     agent_ids: list[UUID]
     subjects: list[str] = []
     """What the classifier named the misses read from answers, the oldest first."""
+    test_questions: int = 0
+    """Of `question_count`, the misses read from an eval's answer to a test question."""
 
 
 class QuestionRow(NamedTuple):
@@ -384,12 +386,17 @@ async def list_topics(
     """Topics of these knowledge bases, the most asked first, with how many there are."""
     question_count = func.count(KnowledgeSearch.id)
     last_asked_at = func.max(KnowledgeSearch.created_at)
+    # A miss read from an eval's answer is a test question, which nobody asked.
+    tested = and_(
+        KnowledgeSearch.message_id.is_(None),
+        KnowledgeSearch.signal != GapSignal.RETRIEVAL.value,
+    )
     grouped = (
         select(
             KnowledgeGapTopic,
             _status().label("status"),
             question_count.label("question_count"),
-            func.count(distinct(_asker())).label("asker_count"),
+            func.count(distinct(_asker())).filter(~tested).label("asker_count"),
             last_asked_at.label("last_asked_at"),
             func.array_agg(
                 aggregate_order_by(KnowledgeSearch.query, KnowledgeSearch.created_at),
@@ -405,6 +412,7 @@ async def list_topics(
                 ),
                 None,
             ).label("subjects"),
+            func.count(KnowledgeSearch.id).filter(tested).label("test_questions"),
         )
         .join(KnowledgeGapMember, KnowledgeGapMember.topic_id == KnowledgeGapTopic.id)
         .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
@@ -437,6 +445,7 @@ async def list_topics(
             queries=list(row[5] or []),
             agent_ids=[agent for agent in row[6] or [] if agent is not None],
             subjects=list(row[7] or []),
+            test_questions=row[8],
         )
         for row in result.all()
     ], total

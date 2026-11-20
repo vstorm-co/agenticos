@@ -15207,6 +15207,8 @@
     "retry": "Erneut versuchen",
     "topic": "Thema",
     "topicSummary": "{count, plural, =1 {Einmal gefragt} other {# Mal gefragt}} von {askers, plural, =1 {einer Person} other {# Personen}} in {knowledgeBase}",
+    "topicSummaryTests": "{count, plural, =1 {Kam in 1 Testfrage vor} other {Kam in # Testfragen vor}} in {knowledgeBase}",
+    "topicSummaryMixed": "{count, plural, =1 {Einmal gefragt} other {# Mal gefragt}} von {askers, plural, =1 {einer Person} other {# Personen}} und in {tests, plural, =1 {1 Testfrage} other {# Testfragen}}, in {knowledgeBase}",
     "questions": "Fragen",
     "noConversation": "Zu diesem Run ist kein Gespräch gespeichert, daher ist nur die Suche bekannt.",
     "testQuestion": "Testfrage",

@@ -264,7 +264,13 @@ class KnowledgeGapTopicRead(BaseSchema):
     question_count: int = Field(description="Searches in the topic that found nothing relevant")
     asker_count: int = Field(
         default=0,
-        description="Distinct people who asked; everybody who asked anonymously counts as one",
+        description="Distinct people who asked; everybody who asked anonymously counts as one. "
+        "A test question is nobody's",
+    )
+    test_question_count: int = Field(
+        default=0,
+        description="Of `question_count`, the questions read from an eval's answer to a test "
+        "question",
     )
     last_asked_at: datetime
     examples: list[str] = Field(description="Up to three of the questions, as searched")

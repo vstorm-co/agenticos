@@ -169,7 +169,8 @@ knowledge base. There is no separate filter by department: a department sees
 the gaps of the knowledge bases shared with it.
 
 A topic shows how many times it was asked and by how many people, when it was
-last asked, which agents asked it, and up to three of its questions. People
+last asked, which agents asked it, and up to three of its questions. Test
+questions an eval answered are counted apart: nobody asked them. People
 who asked through a channel count by their chat account; everybody who asked
 anonymously, through a widget or with no person behind the run, counts as one. Open it to see the most
 recent questions: what the person asked, what the agent searched for, how

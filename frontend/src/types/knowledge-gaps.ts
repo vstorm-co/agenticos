@@ -35,6 +35,8 @@ export interface KnowledgeGapTopic {
   question_count: number;
   /** Distinct people who asked; everybody who asked anonymously counts as one. */
   asker_count: number;
+  /** Of `question_count`, the questions read from an eval's answer to a test question. */
+  test_question_count?: number;
   last_asked_at: string;
   /** Up to three of the questions, as searched. */
   examples: string[];

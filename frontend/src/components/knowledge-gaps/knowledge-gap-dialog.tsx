@@ -14,6 +14,7 @@ import {
 import { useKnowledgeGap } from "@/hooks/use-knowledge-gaps";
 import { DIALOG_BODY, DIALOG_FILL, DIALOG_BROAD } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
+import type { KnowledgeGapTopic } from "@/types/knowledge-gaps";
 import { KnowledgeGapActions } from "./knowledge-gap-actions";
 import { KnowledgeGapDraftPanel } from "./knowledge-gap-draft";
 import { KnowledgeGapQuestionItem } from "./knowledge-gap-question";
@@ -40,13 +41,7 @@ export function KnowledgeGapDialog({ topicId, onClose, wizard = false }: Knowled
               {topic && <KnowledgeGapActions topic={topic} />}
             </div>
             <DialogDescription>
-              {topic
-                ? t("topicSummary", {
-                    count: topic.question_count,
-                    askers: topic.asker_count,
-                    knowledgeBase: topic.knowledge_base_name,
-                  })
-                : t("nothingAutomatic")}
+              {topic ? <TopicSummary topic={topic} /> : t("nothingAutomatic")}
             </DialogDescription>
           </DialogHeader>
           <div className={cn(DIALOG_BODY, "space-y-4")}>
@@ -78,4 +73,19 @@ export function KnowledgeGapDialog({ topicId, onClose, wizard = false }: Knowled
       </Dialog>
     </InImproveWizard.Provider>
   );
+}
+
+/** How often a topic came up: people's questions, and test questions apart, which nobody asked. */
+function TopicSummary({ topic }: { topic: KnowledgeGapTopic }) {
+  const t = useTranslations("knowledgeGaps");
+  const tests = topic.test_question_count ?? 0;
+  const asked = topic.question_count - tests;
+  if (asked === 0)
+    return t("topicSummaryTests", { count: tests, knowledgeBase: topic.knowledge_base_name });
+  return t(tests === 0 ? "topicSummary" : "topicSummaryMixed", {
+    count: asked,
+    askers: topic.asker_count,
+    tests,
+    knowledgeBase: topic.knowledge_base_name,
+  });
 }
