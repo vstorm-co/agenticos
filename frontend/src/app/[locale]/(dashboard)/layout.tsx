@@ -11,6 +11,7 @@ import { PullToRefresh } from "@/components/mobile/pull-to-refresh";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
 import { MainViewport } from "@/components/layout/main-viewport";
+import { AccountAppearance } from "@/components/layout/account-appearance";
 import { AccountLocale } from "@/components/layout/account-locale";
 import { AccountTimeZone } from "@/components/layout/account-time-zone";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
@@ -38,6 +39,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <ReleaseNotes />
       {/* The language the account chose, here or on another device or by asking an agent. */}
       <AccountLocale />
+      <AccountAppearance />
       <AccountTimeZone />
       <DiagnosticsPresence />
       {/* Changes made through the API, MCP or the assistant reach open pages. */}

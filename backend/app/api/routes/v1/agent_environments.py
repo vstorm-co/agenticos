@@ -13,6 +13,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 
 from app.api.deps import AgentEnvironmentSvc, Auth, PromotionGateSvc
+from app.api.public_api import ASSISTANT
 from app.schemas.agent_environment import (
     EnvironmentCreate,
     EnvironmentList,
@@ -24,7 +25,7 @@ from app.schemas.promotion_gate import PromotionGateRead, PromotionGateRun, Prom
 router = APIRouter()
 
 
-@router.get("/{agent_id}/environments", response_model=EnvironmentList)
+@router.get("/{agent_id}/environments", dependencies=[ASSISTANT], response_model=EnvironmentList)
 async def list_environments(agent_id: UUID, ctx: Auth, service: AgentEnvironmentSvc) -> Any:
     """Every named environment of this agent, default first."""
     items = await service.list_for_agent(ctx, agent_id)
@@ -33,6 +34,7 @@ async def list_environments(agent_id: UUID, ctx: Auth, service: AgentEnvironment
 
 @router.post(
     "/{agent_id}/environments",
+    dependencies=[ASSISTANT],
     response_model=EnvironmentRead,
     status_code=status.HTTP_201_CREATED,
 )
@@ -47,7 +49,11 @@ async def create_environment(
     return next(item for item in items if item.name == data.name)
 
 
-@router.patch("/{agent_id}/environments/{environment_id}", response_model=EnvironmentRead)
+@router.patch(
+    "/{agent_id}/environments/{environment_id}",
+    dependencies=[ASSISTANT],
+    response_model=EnvironmentRead,
+)
 async def update_environment(
     agent_id: UUID,
     environment_id: UUID,
@@ -73,7 +79,11 @@ async def delete_environment(
     await service.delete(ctx, agent_id, environment_id)
 
 
-@router.get("/{agent_id}/environments/{environment_id}/gate", response_model=PromotionGateRead)
+@router.get(
+    "/{agent_id}/environments/{environment_id}/gate",
+    dependencies=[ASSISTANT],
+    response_model=PromotionGateRead,
+)
 async def read_promotion_gate(
     agent_id: UUID,
     environment_id: UUID,
@@ -86,7 +96,9 @@ async def read_promotion_gate(
 
 
 @router.post(
-    "/{agent_id}/environments/{environment_id}/gate/run", response_model=PromotionGateRunRead
+    "/{agent_id}/environments/{environment_id}/gate/run",
+    dependencies=[ASSISTANT],
+    response_model=PromotionGateRunRead,
 )
 async def run_promotion_gate(
     agent_id: UUID,

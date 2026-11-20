@@ -105,3 +105,14 @@ org-scoped goes through `Auth` (`AuthContext`) plus a permission.
 
 `references/catalog.md` — the permission list, the role matrix, and how
 `resolve_access` decides.
+
+
+## External deployment administration
+
+`DEPLOYMENT_ADMIN_SCOPE` is deliberately outside `Perm` and all organization
+presets. Effective global MCP authority requires an external OAuth grant carrying
+`deployment:admin` and the live issuer's app-admin flag. Only the consent screen's
+separate opt-in may grant it. Internal run keys and routines never inherit it;
+`change_deployment` is filtered out of in-process toolsets. Keep deployment routes
+behind `require_deployment_mcp_scope` as well as their existing application-admin
+checks. Test role demotion, an app admin without consent and ordinary/internal keys.

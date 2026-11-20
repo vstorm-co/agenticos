@@ -62,10 +62,10 @@ class SystemAgentService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def overview(self, ctx: AuthContext) -> SystemAgentList:
+    async def overview(self, ctx: AuthContext, *, provision: bool = True) -> SystemAgentList:
         """Both roles with their configuration, this month's spend and recent executions."""
         briefing = await self._briefing(ctx)
-        maintenance = await self._maintenance(ctx)
+        maintenance = await self._maintenance(ctx, provision=provision)
         return SystemAgentList(items=[briefing, maintenance])
 
     async def update(self, ctx: AuthContext, role: str, data: SystemAgentUpdate) -> SystemAgentRead:
@@ -150,18 +150,18 @@ class SystemAgentService:
         )
         return [_run(row) for row in rows]
 
-    async def _maintenance(self, ctx: AuthContext) -> SystemAgentRead:
-        profile = await system_agent_repo.provision(
+    async def _maintenance(self, ctx: AuthContext, *, provision: bool = True) -> SystemAgentRead:
+        profile = await (system_agent_repo.provision if provision else system_agent_repo.get)(
             self.db, organization_id=ctx.organization_id, role=MEMORY_MAINTENANCE
         )
-        label = await self._label(ctx, profile.model_profile_id)
+        label = await self._label(ctx, profile.model_profile_id) if profile is not None else None
         return SystemAgentRead(
             role=MEMORY_MAINTENANCE,
             unavailable=None,
-            enabled=profile.enabled and label is not None,
-            model_profile_id=profile.model_profile_id,
+            enabled=profile is not None and profile.enabled and label is not None,
+            model_profile_id=profile.model_profile_id if profile is not None else None,
             model_label=label,
-            monthly_budget_usd=profile.monthly_budget_usd,
+            monthly_budget_usd=profile.monthly_budget_usd if profile is not None else None,
             spent_this_month=await self._spent(ctx, MEMORY_MAINTENANCE),
             runs=await self._runs(ctx, MEMORY_MAINTENANCE),
         )

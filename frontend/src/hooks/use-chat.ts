@@ -17,6 +17,7 @@ import { useTranslations } from "next-intl";
 import { useWebSocket } from "./use-websocket";
 import { usePermissions } from "./use-permissions";
 import { adoptAccountContext, contextSavedBy } from "@/lib/account-context";
+import { appearanceChosenBy } from "@/lib/account-appearance";
 import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
 import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { turnFileSourceFromEvent } from "@/lib/turn-file-source";
@@ -1169,6 +1170,7 @@ export function useChat(options: UseChatOptions = {}) {
             const name = owner?.toolCalls?.find((call) => call.id === tool_call_id)?.name;
             const chosen = name ? localeChosenBy(name, content) : null;
             if (chosen) adoptAccountLocale(chosen);
+            if (name) appearanceChosenBy(name, content);
             const saved = name ? contextSavedBy(name, content) : null;
             if (saved) adoptAccountContext(saved);
           }
