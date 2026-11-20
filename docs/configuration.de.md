@@ -1,5 +1,5 @@
 ---
-source_sha: "d44dc5de4e86"
+source_sha: "321cae7a1b30"
 ---
 
 # Konfiguration { #configuration }
@@ -111,8 +111,9 @@ ihr Body gelesen wird. Diese Grenze folgt den Upload-Einstellungen automatisch.
 unterliegen den Grenzen der jeweiligen Route, die tatsächliche Bytes messen.
 Setzen Sie zusätzlich eine Body-Grenze im Reverse Proxy. Bei Nginx ist das auch
 nötig, um Uploads über dem Standard von 1 MiB zu erlauben: Die Vorlage setzt
-`client_max_body_size 55m;` auf **beiden** HTTPS-Hosts. Erhöhen Sie beide Werte
-mit dem größten Upload-Limit. Siehe [Nginx-Deployment](deploy.md#option-b-nginx).
+`client_max_body_size 55m;` auf dem API-Host und für Multipart-Upload-Locations
+der Konsole. Konsolenseiten, Authentifizierung und gewöhnliches JSON behalten
+die Grenze von 1 MiB. Erhöhen Sie beide Upload-Grenzen mit dem größten Upload-Limit. Siehe [Nginx-Deployment](deploy.md#option-b-nginx).
 Die Compose-Dateien starten uvicorn ohne eigene Body-Grenze.
 
 ## Authentifizierung { #authentication }

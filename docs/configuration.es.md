@@ -1,5 +1,5 @@
 ---
-source_sha: "d44dc5de4e86"
+source_sha: "321cae7a1b30"
 ---
 
 # Configuración { #configuration }
@@ -111,8 +111,10 @@ El cliente proporciona `Content-Length`; las peticiones chunked no declaran
 longitud y quedan sujetas a los límites por ruta que miden los bytes reales.
 Fija también un límite en el proxy para esas peticiones. En Nginx es necesario
 además para permitir cargas por encima del valor predeterminado de 1 MiB:
-la plantilla fija `client_max_body_size 55m;` en **ambos** hosts HTTPS. Sube ambos
-valores al aumentar el mayor límite de carga. Consulta el
+la plantilla fija `client_max_body_size 55m;` en el host de la API y las rutas
+multipart de la consola. Las páginas de la consola, la autenticación y el JSON
+ordinario conservan el límite de 1 MiB. Sube ambos límites de carga al aumentar
+el mayor ajuste. Consulta el
 [despliegue con Nginx](deploy.md#option-b-nginx). Compose ejecuta uvicorn sin
 un límite de cuerpo propio.
 

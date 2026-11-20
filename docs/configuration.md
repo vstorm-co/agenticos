@@ -105,7 +105,9 @@ The caller supplies `Content-Length`; chunked requests declare none and remain
 subject to the per-route limits, which measure actual bytes. Set a body limit on
 the reverse proxy to bound those too. With Nginx this is also necessary to allow
 uploads above its default 1 MiB: the shipped template sets
-`client_max_body_size 55m;` on **both** HTTPS hosts. Raise both values when raising
+`client_max_body_size 55m;` on the API host and the console's multipart upload
+locations. Console pages, authentication and ordinary JSON keep a 1 MiB limit.
+Raise both upload allowances when raising
 the largest upload setting. See [Nginx deployment](deploy.md#option-b-nginx).
 The Compose files run uvicorn without its own body limit.
 

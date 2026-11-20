@@ -1,5 +1,5 @@
 ---
-source_sha: "67e2f9e7189f"
+source_sha: "72f8f14fb53a"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -423,12 +423,16 @@ Nginx 1.24 z Ubuntu 24.04 wymaga nowszego pakietu albo zastąpienia osobnych
 Umieść szablon w kontekście `http`, np. jako
 `/etc/nginx/conf.d/agenticos.conf`, i uruchom `nginx -t` przed przeładowaniem.
 
-Oba hosty HTTPS mają `client_max_body_size 55m;`: największy z limitów
+Host API i wymienione trasy uploadu multipart konsoli mają
+`client_max_body_size 55m;`: największy z limitów
 `MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` i
 `ML_MAX_UPLOAD_SIZE_MB` plus 5 MiB na opakowanie multipart. Zwiększ limity proxy
 na **obu** hostach, gdy podnosisz największe ustawienie. Domyślny limit Nginx
 wynosi 1 MiB razem z opakowaniem i odrzuca upload przed dotarciem do aplikacji.
 Konsola przekazuje pliki ze swojego hosta; hostowane strony używają hosta API.
+
+Strony konsoli, uwierzytelnianie i zwykły JSON zachowują limit 1 MiB. Dodając
+nową trasę uploadu konsoli, dopisz ją do listy lokalizacji w szablonie.
 Proxy API przekazuje nagłówki WebSocket na każdej ścieżce, w tym `/api/v1/ws/`,
 czatu i głosu w osadzonym widżecie oraz mediów telefonicznych. Zwykły HTTP
 zachowuje `Connection: close`.

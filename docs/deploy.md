@@ -414,12 +414,16 @@ Ubuntu 24.04's Nginx 1.24 needs either a newer package or `listen 443 ssl http2;
 Install the template inside the `http` context, for example as
 `/etc/nginx/conf.d/agenticos.conf`, then run `nginx -t` before reloading.
 
-Both HTTPS hosts set `client_max_body_size 55m;`: the largest of
+The API host and the console's listed multipart upload routes set
+`client_max_body_size 55m;`: the largest of
 `MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` and
 `ML_MAX_UPLOAD_SIZE_MB`, plus 5 MiB for multipart framing. Raise **both** proxy
 limits when raising that largest setting. Nginx otherwise defaults to 1 MiB,
 including framing, and rejects uploads before they reach the application.
 The console forwards uploads from its own host; hosted pages call the API host.
+
+Console pages, authentication and ordinary JSON keep a 1 MiB limit. Add new
+console upload routes to the template's upload location list when introducing them.
 The API proxy forwards WebSocket upgrades on every path, including `/api/v1/ws/`,
 embedded chat and voice, and phone media. Ordinary HTTP keeps `Connection: close`.
 

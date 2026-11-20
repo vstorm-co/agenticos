@@ -1,5 +1,5 @@
 ---
-source_sha: "67e2f9e7189f"
+source_sha: "72f8f14fb53a"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -439,13 +439,18 @@ directivas separadas `http2 on;` por `listen 443 ssl http2;` y su equivalente
 IPv6. Instala la plantilla dentro del contexto `http`, por ejemplo como
 `/etc/nginx/conf.d/agenticos.conf`, y ejecuta `nginx -t` antes de recargar.
 
-Ambos hosts HTTPS fijan `client_max_body_size 55m;`: el mayor de
+El host de la API y las rutas multipart enumeradas de la consola fijan
+`client_max_body_size 55m;`: el mayor de
 `MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` y
 `ML_MAX_UPLOAD_SIZE_MB`, más 5 MiB para el formato multipart. Aumenta los límites
 del proxy en **ambos** hosts cuando subas el mayor ajuste. Nginx permite solo
 1 MiB por defecto, incluido el formato, y rechaza las cargas antes de la aplicación.
 La consola reenvía archivos desde su propio host; las páginas alojadas usan el
-host de la API. El proxy de la API reenvía las conexiones WebSocket en cualquier
+host de la API.
+
+Las páginas de la consola, la autenticación y el JSON ordinario
+conservan el límite de 1 MiB. Añade nuevas rutas de carga de la consola a la
+lista de ubicaciones de la plantilla. El proxy de la API reenvía las conexiones WebSocket en cualquier
 ruta, incluidas `/api/v1/ws/`, el chat y la voz integrados y los medios telefónicos.
 El HTTP normal conserva `Connection: close`.
 

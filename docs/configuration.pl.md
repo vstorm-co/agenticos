@@ -1,5 +1,5 @@
 ---
-source_sha: "d44dc5de4e86"
+source_sha: "321cae7a1b30"
 ---
 
 # Konfiguracja { #configuration }
@@ -109,7 +109,9 @@ odczytaniem treści. Limit całego żądania automatycznie podąża za tymi usta
 limitom konkretnych tras mierzącym rzeczywiste bajty. Ustaw limit także na proxy,
 aby objąć nim te żądania. W Nginx jest to również konieczne, żeby przyjmować
 uploady powyżej domyślnego 1 MiB: szablon ma `client_max_body_size 55m;` na
-**obu** hostach HTTPS. Podnoś obie wartości razem z największym limitem uploadu.
+hoście API i w lokalizacjach uploadu multipart konsoli. Strony konsoli,
+uwierzytelnianie i zwykły JSON zachowują limit 1 MiB. Podnoś oba limity uploadu
+razem z największym ustawieniem.
 Zobacz [wdrożenie z Nginx](deploy.md#option-b-nginx). Pliki Compose uruchamiają
 uvicorn bez własnego limitu treści żądania.
 

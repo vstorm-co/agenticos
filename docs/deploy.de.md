@@ -1,5 +1,5 @@
 ---
-source_sha: "67e2f9e7189f"
+source_sha: "72f8f14fb53a"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -456,13 +456,18 @@ Nginx 1.24 unter Ubuntu 24.04 benötigt ein neueres Paket oder
 beispielsweise als `/etc/nginx/conf.d/agenticos.conf`, und führen Sie vor dem
 Neuladen `nginx -t` aus.
 
-Beide HTTPS-Hosts setzen `client_max_body_size 55m;`: den größten Wert aus
+Der API-Host und die aufgeführten Multipart-Upload-Routen der Konsole setzen
+`client_max_body_size 55m;`: den größten Wert aus
 `MAX_UPLOAD_SIZE_MB`, `CHAT_MAX_UPLOAD_SIZE_MB`, `EMBED_MAX_UPLOAD_SIZE_MB` und
 `ML_MAX_UPLOAD_SIZE_MB` plus 5 MiB für den Multipart-Rahmen. Erhöhen Sie **beide**
 Proxy-Grenzen, wenn Sie diesen größten Wert erhöhen. Nginx erlaubt sonst nur
 1 MiB einschließlich Rahmen und lehnt Uploads vor der Anwendung ab.
 Die Konsole leitet Uploads über ihren eigenen Host weiter; gehostete Seiten
-verwenden den API-Host. Der API-Proxy leitet WebSocket-Upgrades auf allen Pfaden
+verwenden den API-Host.
+
+Konsolenseiten, Authentifizierung und gewöhnliches JSON
+behalten die Grenze von 1 MiB. Ergänzen Sie neue Upload-Routen der Konsole in
+der Location-Liste der Vorlage. Der API-Proxy leitet WebSocket-Upgrades auf allen Pfaden
 weiter, einschließlich `/api/v1/ws/`, eingebettetem Chat und Sprache sowie
 Telefonmedien. Gewöhnliches HTTP behält `Connection: close`.
 

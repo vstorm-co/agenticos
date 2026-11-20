@@ -209,6 +209,7 @@ class DeploymentProxies(unittest.TestCase):
                     if status == 200:
                         break
                 except OSError, http.client.HTTPException:
+                    # A proxy may still be binding its listener during startup.
                     pass
                 time.sleep(0.25)
             else:
@@ -310,7 +311,7 @@ class DeploymentProxies(unittest.TestCase):
                             proxy,
                             host,
                             "POST",
-                            "/api/kb/documents",
+                            "/api/kb/KB/documents",
                             body,
                             {"Content-Type": "multipart/form-data; boundary=file"},
                         )
@@ -320,9 +321,68 @@ class DeploymentProxies(unittest.TestCase):
     def test_nginx_refuses_bodies_over_the_envelope_ceiling(self) -> None:
         for host in ("api.example.test", "app.example.test"):
             status, _, _ = self.request(
-                "nginx", host, "POST", "/upload", headers={"Content-Length": str(55 * MIB + 1)}
+                "nginx",
+                host,
+                "POST",
+                "/api/kb/KB/documents",
+                headers={"Content-Length": str(55 * MIB + 1)},
             )
             self.assertEqual(status, 413)
+
+    def test_nginx_keeps_a_small_limit_on_authentication_and_json(self) -> None:
+        for path in (
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/invitations/stage",
+            "/api/users/me",
+            "/ordinary",
+        ):
+            with self.subTest(path=path):
+                status, _, _ = self.request(
+                    "nginx",
+                    "app.example.test",
+                    "POST",
+                    path,
+                    headers={"Content-Type": "application/json", "Content-Length": str(2 * MIB)},
+                )
+                self.assertEqual(status, 413)
+
+    def test_nginx_allows_every_console_upload_route(self) -> None:
+        paths = (
+            "files/upload",
+            "kb/KB/documents",
+            "rag/collections/KB/ingest",
+            "projects/ID/files",
+            "skills/ID/resources/upload",
+            "datasets/ID/import",
+            "users/me/avatar",
+            "orgs/ID/avatar",
+            "admin/organizations/ID/avatar",
+            "admin/settings/logo",
+            "admin/settings/favicon",
+            "agents/ID/avatar",
+            "agents/ID/dictation",
+            "agents/ID/embeds/ID/logo",
+            "ml/documents/analyze",
+            "ml/documents/ocr",
+            "ml/audio/transcriptions",
+            "tables/ID/media",
+            "conversations/ID/visuals/ID/thumbnail",
+        )
+        for path in paths:
+            for suffix in ("", "/"):
+                with self.subTest(path=path, suffix=suffix):
+                    body = b"x" * (2 * MIB)
+                    status, data, _ = self.request(
+                        "nginx",
+                        "app.example.test",
+                        "POST",
+                        f"/api/{path}{suffix}",
+                        body,
+                        {"Content-Type": "multipart/form-data; boundary=test"},
+                    )
+                    self.assertEqual(status, 200)
+                    self.assertEqual(mapping(json.loads(data))["bytes"], len(body))
 
     def test_normal_http_keeps_forwarded_origin_and_hsts(self) -> None:
         for proxy in self.ports:
