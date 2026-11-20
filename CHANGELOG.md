@@ -38,6 +38,13 @@ Two things are versioned separately from this file and worth knowing about:
 - A skill check keeps each agent's families of criteria, so its details table one row per family - every case's check of one thing together - instead of one row per case's check. Agents expose `families`; `skill_check_agents` gains the column (#3178).
 - A skill check's agent whose runs graded every answer on fewer held-out questions than a result needs is unknown for `too_few_questions` rather than `inconclusive`, and its row says how many came out better and worse and that they are too few to be sure (#3178).
 
+### Upgrading
+
+- Migration `backend/alembic/versions/0343_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
+- Migration `backend/alembic/versions/0344_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
+
+## [1.85.1] - 2026-11-20
+
 ### Fixed
 
 - The Nginx deployment template now forwards WebSocket upgrades on every API
@@ -51,11 +58,6 @@ Two things are versioned separately from this file and worth knowing about:
   recording the release as healthy or advancing its rollback image pins.
 - Frontend image builds exclude every `.env.*` file except `.env.example`,
   including `.env.production`, `.env.development` and `.env.test`.
-
-### Upgrading
-
-- Migration `backend/alembic/versions/0343_skill_check_families.py` adds `skill_check_agents.families`, empty for agents judged before it. Its downgrade drops the column.
-- Migration `backend/alembic/versions/0344_skill_check_too_few.py` lets `skill_check_agents.unknown_reason` take `too_few_questions`. Its downgrade reads it as `inconclusive`.
 
 ## [1.85.0] - 2026-11-19
 
@@ -22201,7 +22203,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.85.1...HEAD
+[1.85.1]: https://github.com/vstorm-co/agenticos/compare/v1.85.0...v1.85.1
 [1.85.0]: https://github.com/vstorm-co/agenticos/compare/v1.84.0...v1.85.0
 [1.84.0]: https://github.com/vstorm-co/agenticos/compare/v1.83.0...v1.84.0
 [1.83.0]: https://github.com/vstorm-co/agenticos/compare/v1.82.2...v1.83.0
