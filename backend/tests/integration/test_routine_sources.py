@@ -14,7 +14,7 @@ from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.mcp_connection import McpConnection
-from app.schemas.routine_sources import RoutineSourceConsent
+from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceItem
 from app.services.agent_trigger import AgentTriggerService
 from app.services.routine_authority import RoutineAuthority
 from app.services.routine_sources import (
@@ -1317,3 +1317,39 @@ async def test_the_review_names_each_source_and_never_another_organizations(db: 
     assert (
         await RoutineSourceService(db).options(ctx, trigger)
     ).review_token == review.review_token
+
+
+async def test_the_review_does_not_name_a_source_its_reader_may_not_view(db: AsyncSession):
+    """Running a shared agent does not reveal the name of a private skill it uses."""
+    from app.db.models.skill import Skill
+
+    owner, _, spec, _ = await world(db)
+    member = replace(owner, role="member")
+
+    def skill(name: str, visibility: str) -> Skill:
+        return Skill(
+            organization_id=owner.organization_id,
+            name=name,
+            description=name,
+            content=f"# {name}",
+            visibility=visibility,
+        )
+
+    shared, private = skill("deck-review", "org"), skill("salary-bands", "private")
+    db.add_all([shared, private])
+    await db.flush()
+    spec = spec.model_copy(update={"skill_ids": [shared.id, private.id]})
+    service = RoutineSourceService(db)
+
+    def names(items: list[RoutineSourceItem]) -> dict[str, str | None]:
+        return {item.id: item.name for item in items if item.kind == "skill"}
+
+    assert names(await service._named(member, [spec], delegates=[], credentials=[])) == {
+        str(shared.id): "deck-review",
+        str(private.id): None,
+    }
+    # An owner reaches every skill in the organization, so the same review names both.
+    assert names(await service._named(owner, [spec], delegates=[], credentials=[])) == {
+        str(shared.id): "deck-review",
+        str(private.id): "salary-bands",
+    }

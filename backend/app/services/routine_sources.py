@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
@@ -18,6 +19,7 @@ from app.core.permissions import AuthContext
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.external_agent import ExternalAgent
 from app.db.models.project import Project
+from app.db.models.virtual_table import VirtualTable
 from app.repositories import (
     agent_repo,
     agent_trigger_repo,
@@ -38,7 +40,18 @@ from app.schemas.routine_sources import (
     RoutineSourcePolicy,
     RoutineSourceReview,
 )
+from app.services.access import (
+    AGENT,
+    CONTEXT,
+    SECRET,
+    SKILL,
+    TABLE,
+    OwnedResource,
+    ResourceType,
+    accessible_ids,
+)
 from app.services.agent_registry import AgentRegistryService
+from app.services.collection_access import readable_kb
 from app.services.mcp_connection import reviewed_personal_sources
 from app.services.project import ProjectService
 
@@ -646,8 +659,10 @@ class RoutineSourceService:
     ) -> list[RoutineSourceItem]:
         """The agent's own sources and its delegates', by name, each read in one query.
 
-        A source that no longer exists, or that this organization cannot see,
-        keeps its id and has no name - never another organization's.
+        A source that no longer exists, or that the reviewer may not view,
+        keeps its id and has no name: running a shared agent does not reveal
+        the name of a private skill, table or credential it uses, and never
+        another organization's.
         """
         organization_id = ctx.organization_id
         skill_ids = sorted({identifier for spec in specs for identifier in spec.skill_ids})
@@ -655,22 +670,44 @@ class RoutineSourceService:
         collection_ids = sorted(
             {identifier for spec in specs for identifier in spec.collection_ids}
         )
-        skills = await skill_repo.get_many(self.db, skill_ids, organization_id=organization_id)
-        contexts = await context_repo.get_many(
-            self.db, context_ids, organization_id=organization_id
+        table_ids = sorted({grant.table_id for spec in specs for grant in spec.table_bindings})
+        skills = await self._viewable(
+            ctx,
+            await skill_repo.get_many(self.db, skill_ids, organization_id=organization_id),
+            SKILL,
+        )
+        contexts = await self._viewable(
+            ctx,
+            await context_repo.get_many(self.db, context_ids, organization_id=organization_id),
+            CONTEXT,
         )
         collections = {
             identifier: collection
             for identifier, collection in (
                 await knowledge_base_repo.get_by_ids(self.db, collection_ids)
             ).items()
-            if collection.organization_id == organization_id
-            or collection.owner_user_id == ctx.subject_id
+            if await readable_kb(self.db, ctx, collection)
         }
-        agents = await agent_repo.get_many(self.db, delegates, organization_id=organization_id)
-        secrets = await organization_secret_repo.get_many(
-            self.db, credentials, organization_id=organization_id
+        agents = await self._viewable(
+            ctx,
+            await agent_repo.get_many(self.db, delegates, organization_id=organization_id),
+            AGENT,
         )
+        secrets = await self._viewable(
+            ctx,
+            await organization_secret_repo.get_many(
+                self.db, credentials, organization_id=organization_id
+            ),
+            SECRET,
+        )
+        found_tables: dict[UUID, VirtualTable] = {}
+        for table_id in table_ids:
+            table = await virtual_table_repo.get_table(
+                self.db, table_id, organization_id=organization_id
+            )
+            if table is not None:
+                found_tables[table_id] = table
+        tables = await self._viewable(ctx, found_tables, TABLE)
         # A capability this deployment no longer ships keeps its id and no name.
         labels = {definition.id: definition.name for definition in all_capabilities()}
         named: list[RoutineSourceItem] = []
@@ -680,9 +717,7 @@ class RoutineSourceService:
                 for binding in spec.capabilities
             )
             for grant in spec.table_bindings:
-                table = await virtual_table_repo.get_table(
-                    self.db, grant.table_id, organization_id=organization_id
-                )
+                table = tables.get(grant.table_id)
                 named.append(
                     RoutineSourceItem(
                         kind="table",
@@ -708,6 +743,15 @@ class RoutineSourceService:
                     )
                 )
         return named
+
+    async def _viewable[Row: OwnedResource](
+        self, ctx: AuthContext, rows: Mapping[UUID, Row], resource_type: ResourceType
+    ) -> dict[UUID, Row]:
+        """The rows `ctx` may view, as the resource's own page decides it."""
+        allowed = await accessible_ids(
+            self.db, ctx, rows.values(), resource_type.view, resource_type=resource_type
+        )
+        return {identifier: row for identifier, row in rows.items() if row.id in allowed}
 
     async def initial(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourcePolicy:
         """Creating the responsibility freezes its configured sources, never new grants."""
