@@ -119,6 +119,9 @@ class ListingSpec:
     # Dotted path to the list of APIs a model is served on, where the listing
     # says. Only Stav.ai states it (`stav_surfaces`).
     surfaces_path: str | None = None
+    # A gateway may list embeddings, audio and Responses-only models alongside chat.
+    operations_path: str | None = None
+    required_operation: str | None = None
 
 
 # Loaded from data rather than written out here. Every field is declarative - a
@@ -255,6 +258,10 @@ def _read_listing(payload: Any, spec: ListingSpec, *, bounded: bool = False) -> 
             continue
         raw = row.get(spec.id_field)
         if not isinstance(raw, str) or not raw:
+            continue
+        if spec.required_operation is not None and spec.required_operation not in _modalities(
+            row, spec.operations_path
+        ):
             continue
         model_id = raw.removeprefix(spec.id_prefix)
         name = row.get(spec.name_field) if spec.name_field else None

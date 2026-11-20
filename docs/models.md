@@ -362,6 +362,7 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | GitHub Copilot | `github_copilot` | account token / personal sign-in | |
 | Groq | `groq` | API key | |
 | Heroku AI | `heroku` | API key | ✓ |
+| LLMTR | `llmtr` | API key | |
 | Mistral | `mistral` | API key | |
 | MiniMax | `minimax` | API key | ✓ |
 | Kimi Code (plan) | `kimi_code` | API key | ✓ |
@@ -386,6 +387,8 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | xAI (Grok) | `xai` | API key | ✓ (`api_host`) |
 | Cohere | `cohere` | API key | |
 | Hugging Face | `huggingface` | API key | ✓ |
+
+LLMTR lists only models advertising `CHAT_COMPLETIONS`. A model without a reviewed price in the bundled snapshot can run only without an active dollar ceiling; its cost remains marked incomplete. A budgeted run also refuses further LLMTR calls when earlier usage has an unknown cost.
 
 Select **MiniMax** for its OpenAI-compatible Chat Completions API. Store your M Plan API key as a MiniMax vault key; a metered API key uses its own billing instead. An empty Endpoint uses `https://api.minimax.io/v1`; set a custom Endpoint only for the region or gateway your key belongs to. Enter the exact model ID from your account, for example `MiniMax-M3.1-Flash`; this integration does not enumerate a plan-specific catalog. MiniMax history has its own provider identity, so OpenAI encrypted reasoning is not sent to it. Token prices, when known, are budget estimates rather than your subscription bill.
 

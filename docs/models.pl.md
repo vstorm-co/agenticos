@@ -1,5 +1,5 @@
 ---
-source_sha: "fb77a07d22c7"
+source_sha: "8bd13a03cf07"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -374,6 +374,7 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | GitHub Copilot | `github_copilot` | token konta / osobiste logowanie | |
 | Groq | `groq` | klucz API | |
 | Heroku AI | `heroku` | klucz API | ✓ |
+| LLMTR | `llmtr` | klucz API | |
 | Mistral | `mistral` | klucz API | |
 | MiniMax | `minimax` | klucz API | ✓ |
 | Kimi Code (plan) | `kimi_code` | klucz API | ✓ |
@@ -398,6 +399,8 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | xAI (Grok) | `xai` | klucz API | ✓ (`api_host`) |
 | Cohere | `cohere` | klucz API | |
 | Hugging Face | `huggingface` | klucz API | ✓ |
+
+LLMTR pokazuje tylko modele deklarujące `CHAT_COMPLETIONS`. Model bez zweryfikowanej ceny we wbudowanym zestawie może działać tylko bez aktywnego limitu wydatków w dolarach; zapisany koszt pozostaje niepełny. Przy aktywnym limicie kolejne wywołanie LLMTR jest też odrzucane, jeśli koszt wcześniejszego użycia jest nieznany.
 
 Wybierz **MiniMax**, aby użyć jego API Chat Completions zgodnego z OpenAI. Zapisz klucz API M Plan jako klucz MiniMax w sejfie; zwykły klucz API korzysta z własnego rozliczenia. Pusty Endpoint oznacza `https://api.minimax.io/v1`; własny adres ustaw tylko dla regionu lub bramy właściwych dla klucza. Wpisz dokładny identyfikator modelu z konta, np. `MiniMax-M3.1-Flash`; integracja nie pobiera katalogu planu. Historia MiniMax ma osobną tożsamość dostawcy, więc nie wysyłamy tam zaszyfrowanego rozumowania OpenAI. Znane ceny tokenów służą do szacowania budżetu, a nie rachunku za subskrypcję.
 

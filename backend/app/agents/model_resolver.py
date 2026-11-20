@@ -108,6 +108,8 @@ STAV_BASE_URL = "https://api.stav.ai/v1"
 STAV_REGION_HEADER = "X-Stav-Runs-In"
 STAV_DEFAULT_REGION: ModelRegion = "eu"
 
+LLMTR_BASE_URL = "https://llmtr.com/v1"
+
 
 @dataclass(frozen=True)
 class ProviderSpec:
@@ -330,6 +332,10 @@ PROVIDERS: dict[str, ProviderSpec] = {
         _api_key("github", "GitHub Models"),
         _api_key("groq", "Groq"),
         _api_key("heroku", "Heroku AI", base_url_param="base_url"),
+        # An OpenAI-compatible gateway that Pydantic AI has no provider for, so it
+        # runs on the Chat Completions model at LLMTR's endpoint. `llmtr/...` ids
+        # are models hosted in Turkey; the others are routed to their vendors.
+        _api_key("llmtr", "LLMTR", model_prefix="openai-chat"),
         _api_key("mistral", "Mistral"),
         _api_key("minimax", "MiniMax", base_url_param="base_url", model_prefix="openai-chat"),
         # Subscription plans that issue a plan key for an OpenAI-compatible
@@ -643,6 +649,8 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
             base_url=credential.base_url or STAV_BASE_URL,
             region=credential.region or STAV_DEFAULT_REGION,
         )
+    if spec.id == "llmtr":
+        return OpenAIProvider(api_key=secret.api_key.get_secret_value(), base_url=LLMTR_BASE_URL)
     if spec.id == "openrouter" and credential.base_url is not None:
         return _EndpointOpenRouterProvider(
             api_key=secret.api_key.get_secret_value(), base_url=credential.base_url
@@ -721,6 +729,10 @@ def build_model(credential: ResolvedCredential, model: str) -> Model:
         BadRequestError: If the provider has no catalog entry.
     """
     model_client = _build_model(credential, model)
+    if credential.provider == "llmtr":
+        from app.agents.llmtr import LlmtrModel
+
+        return LlmtrModel(model_client)
     if credential.provider == "stav":
         from app.agents.stav_cost import StavCostModel
 
