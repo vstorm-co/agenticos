@@ -96,7 +96,11 @@ export function RunHistoryTab({
   focusedRunId?: string | null;
   initialDurationSort?: boolean;
 }) {
-  const [detailColumns, setDetailColumns] = useState<RunDetailColumn[]>(["user", "surface"]);
+  const [detailColumns, setDetailColumns] = useState<RunDetailColumn[]>([
+    "user",
+    "surface",
+    "model",
+  ]);
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.runs");
   const router = useRouter();

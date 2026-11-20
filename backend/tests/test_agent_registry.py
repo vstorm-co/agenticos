@@ -5140,9 +5140,11 @@ class TestAgentTemplates:
         first.key, first.name, first.description = "healthcare/a", "Procedure Assistant", "d"
         first.capabilities, first.skills, first.mcp, first.attach = ({"id": "clock"},), (), (), ()
         first.budget_usd = None
+        first.avatar.read_bytes.return_value = b"art"
         second.key, second.name, second.description = "healthcare/b", "Front Desk", "d"
         second.capabilities, second.skills, second.mcp, second.attach = (), (), (), ()
         second.budget_usd = 40.0
+        second.avatar = None
         industry.templates = [first, second]
 
         with (
@@ -5158,6 +5160,12 @@ class TestAgentTemplates:
             ("Procedure Assistant", True),
             ("Front Desk", False),
         ]
+
+        installed, available = catalog.industries[0].templates
+        assert installed.slug == "procedure-assistant"
+        assert installed.avatar_url == "data:image/png;base64,YXJ0"
+        assert available.slug == "front-desk"
+        assert available.avatar_url is None
 
     @pytest.mark.anyio
     async def test_installing_a_template_leaves_a_draft_with_no_model(self):

@@ -93,7 +93,7 @@ export default function SandboxesPage() {
       />
 
       <Tabs
-        className="flex min-w-0 flex-1 flex-col"
+        className="flex min-w-0 flex-col gap-2"
         value={tab}
         onValueChange={(value) => setTabParam(value === "connections" ? null : value)}
       >
@@ -108,9 +108,8 @@ export default function SandboxesPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="connections" className="flex-1 flex-col data-[state=active]:flex">
+        <TabsContent value="connections" className="min-w-0">
           <ListCard
-            fill
             className="overflow-hidden"
             data-tour="sandboxes-connections"
             title={t("sandboxConnections")}
@@ -143,7 +142,7 @@ export default function SandboxesPage() {
           </ListCard>
         </TabsContent>
 
-        <TabsContent value="running" className="flex flex-1 flex-col">
+        <TabsContent value="running" className="min-w-0">
           {isLoading ? (
             <SessionsPanelLoading />
           ) : error !== null ? (

@@ -22,7 +22,7 @@ function BotsCard({ count, children }: { count: number | null; children: ReactNo
   const t = useTranslations("pages.channels");
   return (
     <ListCard
-      fill
+      className="overflow-hidden"
       data-tour="channels-list"
       namedByPage
       title={t("bots")}

@@ -1701,6 +1701,16 @@
     "releaseCheckUnavailable": "Nie udało się sprawdzić nowych wydań. Spróbuj później."
   },
   "admin": {
+    "activeSessions": "Aktywne sesje",
+    "passwordReset": "Resetuj hasło",
+    "passwordResetHint": "Wyślij wiadomość na adres {email} lub skopiuj link i przekaż go bezpośrednio. Link jest ważny godzinę i można go użyć raz.",
+    "copyPasswordResetLink": "Kopiuj link do resetu",
+    "sendPasswordResetEmail": "Wyślij e-mail z linkiem",
+    "passwordResetLink": "Link do resetowania hasła",
+    "passwordResetLinkCopied": "Skopiowano link do resetu",
+    "passwordResetEmailSent": "Wysłano e-mail z linkiem",
+    "passwordResetFailed": "Nie udało się zainicjować resetu hasła.",
+    "close": "Zamknij",
     "conversations": "Konwersacje",
     "copy": "Kopiuj",
     "copyFailed": "Nie udało się skopiować",
@@ -4565,6 +4575,7 @@
       "title": "Logowania w przeglądarce"
     },
     "backgroundJobs": {
+      "noSchedules": "Brak harmonogramów.",
       "status": {
         "queued": "W kolejce",
         "running": "W trakcie",

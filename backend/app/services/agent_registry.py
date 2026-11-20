@@ -15,6 +15,7 @@ moving a pointer backwards - would make run history lie about what was live.
 import contextlib
 import logging
 import re
+from base64 import b64encode
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -1714,6 +1715,13 @@ class AgentRegistryService:
                         AgentTemplateRead(
                             key=template.key,
                             name=template.name,
+                            slug=slugify(template.name),
+                            avatar_url=(
+                                "data:image/png;base64,"
+                                + b64encode(template.avatar.read_bytes()).decode("ascii")
+                                if template.avatar is not None
+                                else None
+                            ),
                             description=template.description,
                             capabilities=[binding["id"] for binding in template.capabilities],
                             skills=list(template.skills),

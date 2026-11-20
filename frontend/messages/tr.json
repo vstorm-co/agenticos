@@ -2650,6 +2650,7 @@
       "title": "Tarayıcı oturumları"
     },
     "backgroundJobs": {
+      "noSchedules": "Zamanlama yok.",
       "status": {
         "queued": "Sırada",
         "running": "Çalışıyor",
@@ -2964,6 +2965,16 @@
       "noRecordedAction": "Kayıtlı işlem yok"
     },
     "admin": {
+    "activeSessions": "Etkin oturumlar",
+    "passwordReset": "Parolayı sıfırla",
+    "passwordResetHint": "{email} adresine sıfırlama e-postası gönder veya bağlantıyı kopyalayıp doğrudan paylaş. Bağlantı bir saat geçerlidir ve tek kullanımlıktır.",
+    "copyPasswordResetLink": "Sıfırlama bağlantısını kopyala",
+    "sendPasswordResetEmail": "Sıfırlama e-postası gönder",
+    "passwordResetLink": "Parola sıfırlama bağlantısı",
+    "passwordResetLinkCopied": "Sıfırlama bağlantısı kopyalandı",
+    "passwordResetEmailSent": "Sıfırlama e-postası gönderildi",
+    "passwordResetFailed": "Parola sıfırlama başlatılamadı.",
+    "close": "Kapat",
       "active": "Etkin",
       "active24h": "Son 24 saatte etkin",
       "agents": "Agentlar",

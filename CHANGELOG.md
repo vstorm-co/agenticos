@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Let deployment administrators send account recovery emails or copy a one-hour, single-use password reset link from the user inspector. Show users' last activity and active session counts.
+
 - Open an Inbox item in a new private chat with an editable question. The assistant can read the signed-in person's findings and suggestions and link back to them.
 
 - Show the same approval cards in Inbox and Activity, with details and inline approval and rejection.
@@ -41,6 +43,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Let private cloud coding tasks choose Claude Code or Codex per task through one agent, using the initiating person’s own enabled account and an isolated container. Show both account connections in chat while preserving per-account exclusivity, read-only policy and organization-sandbox credentials.
 
 ### Changed
+
+- Preview agent avatars in the template catalog, including the artwork installed with bundled agents.
+
+- Lighten file editors and file selection in the light theme. Show Model by default in Activity, put background job lists behind paginated disclosures, and align Sandboxes and Channels with the Vault tables.
 
 - Render conversations shared by link as read-only chat transcripts with formatted answers, readable message widths, and inline visuals.
 

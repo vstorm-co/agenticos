@@ -275,8 +275,8 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
 
   if (connection === null && !loadingConnections)
     return (
-      <Card className="flex flex-1 flex-col">
-        <CardContent className="flex flex-1 flex-col p-0">
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
           <ListCardEmpty
             icon={Activity}
             title={t("noContainerConnection")}
@@ -290,7 +290,7 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
 
   return (
     <Card
-      className="@container/sessions flex min-w-0 flex-1 flex-col overflow-hidden"
+      className="@container/sessions min-w-0 overflow-hidden"
       role={loadingConnections ? "status" : undefined}
       aria-label={loadingConnections ? states("loading") : undefined}
       aria-busy={loadingConnections || undefined}
@@ -365,7 +365,7 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
           </>
         )}
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col p-0">
+      <CardContent className="p-0">
         <ListCardControlsRow>
           {loadingConnections ? (
             <Skeleton aria-hidden="true" className="h-9 w-64 max-w-full" />
@@ -377,7 +377,6 @@ export function SessionsPanel({ connections, loadingConnections = false }: Sessi
           columns={columns}
           rows={visible}
           stackOnNarrow
-          fillHeight
           getRowKey={(session) => session.session_id}
           loading={isLoading}
           error={

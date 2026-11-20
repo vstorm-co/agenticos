@@ -6,6 +6,16 @@
     "ctaShort": "GitHub"
   },
   "admin": {
+    "activeSessions": "Aktive Sitzungen",
+    "passwordReset": "Passwort zurücksetzen",
+    "passwordResetHint": "Sende eine E-Mail an {email} oder kopiere den Link zum direkten Weitergeben. Er ist eine Stunde gültig und einmal verwendbar.",
+    "copyPasswordResetLink": "Link zum Zurücksetzen kopieren",
+    "sendPasswordResetEmail": "E-Mail zum Zurücksetzen senden",
+    "passwordResetLink": "Link zum Zurücksetzen des Passworts",
+    "passwordResetLinkCopied": "Link kopiert",
+    "passwordResetEmailSent": "E-Mail zum Zurücksetzen gesendet",
+    "passwordResetFailed": "Das Zurücksetzen konnte nicht gestartet werden.",
+    "close": "Schließen",
     "actions": "Aktionen",
     "active": "Aktiv",
     "all": "Alle",
@@ -7700,6 +7710,7 @@
       "title": "Browser-Anmeldungen"
     },
     "backgroundJobs": {
+      "noSchedules": "Keine Zeitpläne.",
       "status": {
         "queued": "Wartend",
         "running": "Laufend",

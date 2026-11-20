@@ -6,6 +6,16 @@
     "ctaShort": "GitHub"
   },
   "admin": {
+    "activeSessions": "Active sessions",
+    "passwordReset": "Reset password",
+    "passwordResetHint": "Send a reset email to {email} or copy a one-hour link to share directly. The link can be used once.",
+    "copyPasswordResetLink": "Copy reset link",
+    "sendPasswordResetEmail": "Send reset email",
+    "passwordResetLink": "Password reset link",
+    "passwordResetLinkCopied": "Reset link copied",
+    "passwordResetEmailSent": "Reset email sent",
+    "passwordResetFailed": "Could not issue a password reset.",
+    "close": "Close",
     "actions": "Actions",
     "active": "Active",
     "all": "All",
@@ -8429,6 +8439,7 @@
       "title": "Browser sign-ins"
     },
     "backgroundJobs": {
+      "noSchedules": "No schedules.",
       "status": {
         "queued": "Queued",
         "running": "Running",

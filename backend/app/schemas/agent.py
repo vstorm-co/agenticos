@@ -1204,6 +1204,10 @@ class AgentTemplateRead(BaseSchema):
 
     key: str = Field(description="`<industry>/<folder>`, how an install request names it")
     name: str
+    slug: str
+    avatar_url: str | None = Field(
+        default=None, description="Bundled PNG as a data URL, if present"
+    )
     description: str
     capabilities: list[str] = Field(description="Capability ids it switches on")
     skills: list[str] = Field(description="Gallery keys installed with it, if missing")
