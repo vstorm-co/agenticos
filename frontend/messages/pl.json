@@ -16320,7 +16320,10 @@
     "rated": "{count, plural, one {1 odpowiedź oceniona w dół} few {# odpowiedzi ocenione w dół} many {# odpowiedzi ocenionych w dół} other {# odpowiedzi ocenionej w dół}}",
     "failed": "{count, plural, one {1 nieudany run} few {# nieudane runy} many {# nieudanych runów} other {# nieudanego runu}}",
     "suites": "{count, plural, one {1 oblana suita} few {# oblane suity} many {# oblanych suit} other {# oblanej suity}}",
-    "improveLabel": "Wymaga uwagi: {reasons}. Popraw tego agenta"
+    "improveLabel": "Wymaga uwagi: {reasons}. Popraw tego agenta",
+    "tabLabel": "Wymaga uwagi: {reasons}",
+    "improvementWaiting": "poprawka czeka na Ciebie",
+    "gapsLabel": "{count, plural, one {1 otwarta luka w wiedzy} few {# otwarte luki w wiedzy} many {# otwartych luk w wiedzy} other {# otwartej luki w wiedzy}}"
   },
   "improvement": {
     "attributionUnconfirmed": "Zmiana {number}: wynik nie jest potwierdzony.",

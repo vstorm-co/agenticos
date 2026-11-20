@@ -16547,7 +16547,10 @@
     "rated": "{count, plural, =1 {1 answer rated down} other {# answers rated down}}",
     "failed": "{count, plural, =1 {1 failed run} other {# failed runs}}",
     "suites": "{count, plural, =1 {1 failing suite} other {# failing suites}}",
-    "improveLabel": "Needs attention: {reasons}. Improve this agent"
+    "improveLabel": "Needs attention: {reasons}. Improve this agent",
+    "tabLabel": "Needs attention: {reasons}",
+    "improvementWaiting": "an improvement waits for you",
+    "gapsLabel": "{count, plural, =1 {1 open knowledge gap} other {# open knowledge gaps}}"
   },
   "improvement": {
     "attributionUnconfirmed": "Change {number}: the result is not confirmed.",
