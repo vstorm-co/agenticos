@@ -243,3 +243,168 @@ async def test_pi_reverse_calls_keep_the_rpc_reader_live_until_the_platform_resu
     )
     assert report.outcome == "completed" and calls == [8]
     assert pipe.closed
+
+
+async def _custom_bridge(build) -> tuple[RuntimeTools, list[object]]:
+    """A run whose single tool is defined by the test, with the bridge's deps."""
+    seen: list[object] = []
+    tools = FunctionToolset[AgentDeps]()
+    build(tools, seen)
+    ctx = RunContext(deps=AgentDeps(), model=TestModel(), usage=RunUsage())
+    ctx.tool_manager = ToolManager(
+        toolset=tools,
+        root_capability=AbstractCapability(),
+        ctx=ctx,
+        tools=await tools.get_tools(ctx),
+    )
+    return RuntimeTools(ctx), seen
+
+
+async def _call(runtime: RuntimeTools, name: str, arguments: dict[str, object]):
+    return await runtime.dispatch("_agenticos/tools/call", {"name": name, "arguments": arguments})
+
+
+async def test_oversized_native_arguments_are_refused_before_validation() -> None:
+    runtime, calls = await bridge()
+    with pytest.raises(ValueError, match="request limit"):
+        await _call(runtime, "increment", {"value": 1, "padding": "x" * (130 << 10)})
+    assert not calls
+
+
+async def test_an_unapproved_action_without_a_live_surface_never_runs() -> None:
+    runtime, calls = await bridge()
+    tool = runtime._parent.tools["increment"]
+    runtime._parent.tools["increment"] = replace(
+        tool, tool_def=replace(tool.tool_def, kind="unapproved")
+    )
+    runtime = RuntimeTools(runtime._ctx)
+    result = await _call(runtime, "increment", {"value": 1})
+    assert result["isError"] is True and calls == []
+
+
+async def test_a_nested_approval_must_repeat_the_exact_live_approval() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+    from uuid import uuid4
+
+    from app.agents.approval import ApprovalGranted, ApprovalRequest
+
+    def build(tools: FunctionToolset[AgentDeps], seen: list[object]) -> None:
+        @tools.tool
+        async def send(ctx: RunContext[AgentDeps], value: int) -> str:
+            """Send after confirming the exact action again."""
+            decision = await ctx.deps.request_approval(
+                ApprovalRequest(
+                    capability_id=None,
+                    tool_name="send",
+                    tool_call_id="nested",
+                    tool_args={"value": value if value < 10 else value + 1},
+                )
+            )
+            seen.append(decision)
+            return "sent"
+
+    runtime, seen = await _custom_bridge(build)
+    runtime._ctx.deps.user_id = str(uuid4())
+    runtime._ctx.deps.runtime_questions = AsyncMock()
+    approvals = MagicMock()
+    approvals.live = AsyncMock(side_effect=lambda request, **_: ApprovalGranted(request.tool_args))
+    runtime._ctx.deps.request_approval = approvals
+    tool = runtime._parent.tools["send"]
+    runtime._parent.tools["send"] = replace(
+        tool, tool_def=replace(tool.tool_def, kind="unapproved")
+    )
+    runtime = RuntimeTools(runtime._ctx)
+    same = await _call(runtime, "send", {"value": 2})
+    assert same["isError"] is False and isinstance(seen[-1], ApprovalGranted)
+    changed = await _call(runtime, "send", {"value": 12})
+    assert changed["isError"] is True and "Do not claim" in changed["content"][0]["text"]
+
+
+async def test_tool_questions_reach_the_live_chat_or_are_cancelled_without_one() -> None:
+    from unittest.mock import AsyncMock
+
+    from pydantic_ai_harness.ask_user import AskUserRequest, Question
+    from pydantic_ai_harness.ask_user._types import QuestionOption
+
+    from app.agents.runtime_questions import RuntimeAnswer, RuntimeQuestionResponse
+
+    def build(tools: FunctionToolset[AgentDeps], seen: list[object]) -> None:
+        @tools.tool
+        async def choose(ctx: RunContext[AgentDeps]) -> str:
+            """Ask which option to use."""
+            response = await ctx.deps.ask_questions(
+                AskUserRequest(
+                    questions=(
+                        Question(
+                            header="Pick",
+                            question="Which one?",
+                            options=(
+                                QuestionOption(label="A", description="first"),
+                                QuestionOption(label="B", description="second"),
+                            ),
+                        ),
+                    )
+                )
+            )
+            seen.append(response)
+            return "asked"
+
+    runtime, seen = await _custom_bridge(build)
+    assert (await _call(runtime, "choose", {}))["isError"] is False
+    assert seen[-1].cancelled
+    asked = AsyncMock(return_value=RuntimeQuestionResponse(answers=[RuntimeAnswer(selected=["B"])]))
+    runtime._ctx.deps.runtime_questions = asked
+    runtime = RuntimeTools(runtime._ctx)
+    await _call(runtime, "choose", {})
+    assert not seen[-1].cancelled
+    assert asked.call_args.args[0].questions[0].question == "Which one?"
+    asked.return_value = RuntimeQuestionResponse(cancelled=True)
+    await _call(runtime, "choose", {})
+    assert seen[-1].cancelled
+
+
+@pytest.mark.parametrize(
+    ("outcome", "message"),
+    [
+        ("deferred", "No approval or successful result"),
+        ("refused", "Not allowed here"),
+        ("content", "cannot represent"),
+        ("huge", "exceeded the native bridge limit"),
+    ],
+)
+async def test_unrepresentable_or_deferred_results_are_explicit_failures(
+    outcome: str, message: str
+) -> None:
+    from pydantic_ai import CallDeferred, ToolReturn
+
+    from app.core.exceptions import BadRequestError
+
+    def build(tools: FunctionToolset[AgentDeps], seen: list[object]) -> None:
+        @tools.tool_plain
+        def act() -> object:
+            """Do the thing."""
+            if outcome == "deferred":
+                raise CallDeferred
+            if outcome == "refused":
+                raise BadRequestError(message="Not allowed here")
+            if outcome == "content":
+                return ToolReturn(return_value="ok", content=["an image would be here"])
+            return "x" * (3 << 20)
+
+    runtime, _seen = await _custom_bridge(build)
+    result = await _call(runtime, "act", {})
+    assert result["isError"] is True and message in result["content"][0]["text"]
+
+
+async def test_a_plain_tool_return_is_unwrapped_for_the_text_bridge() -> None:
+    from pydantic_ai import ToolReturn
+
+    def build(tools: FunctionToolset[AgentDeps], seen: list[object]) -> None:
+        @tools.tool_plain
+        def act() -> ToolReturn:
+            """Return a wrapped value."""
+            return ToolReturn(return_value={"done": True})
+
+    runtime, _seen = await _custom_bridge(build)
+    result = await _call(runtime, "act", {})
+    assert result["isError"] is False and "done" in result["content"][0]["text"]

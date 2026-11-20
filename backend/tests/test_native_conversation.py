@@ -503,3 +503,301 @@ async def test_a_keyed_runtime_refuses_a_question_carrying_the_key(
         [ModelRequest.user_text_prompt("again")], None, ModelRequestParameters(), context
     ) as stream:
         _ = [event async for event in stream]
+
+
+async def _private_context():
+    from app.agents.audience import RunAudience
+
+    context = _ctx(_local_workspace(), [])
+    context.deps.run_person = context.workspace.backend.owner_id
+    context.deps.user_id = str(context.deps.run_person)
+    context.deps.audience = RunAudience(user_id=context.deps.run_person)
+    tools, _calls = await bridge()
+    context.tool_manager = tools._ctx.tool_manager
+    return context
+
+
+def _fake_pipe(closed: list[str] | None = None, *, close_error: BaseException | None = None):
+    class Pipe:
+        def __init__(self, *_args, **_kwargs) -> None:
+            self.session_id = None
+            self.auth_method = None
+            self.configuration_policy = "session"
+            self.model_prefix = None
+            self.protocol = "acp"
+
+        async def open(self) -> None:
+            pass
+
+        async def remember(self, identifier: str) -> None:
+            pass
+
+        async def close(self) -> None:
+            if closed is not None:
+                closed.append("closed")
+            if close_error is not None:
+                raise close_error
+
+    return Pipe
+
+
+async def _stream_all(model, messages, context, parameters=None):
+    async with model.request_stream(
+        messages, None, parameters or ModelRequestParameters(), context
+    ) as stream:
+        _ = [event async for event in stream]
+        return stream.get()
+
+
+def test_history_keeps_tools_and_corrections_and_drops_instructions_and_thinking() -> None:
+    from pydantic_ai.messages import (
+        RetryFeedbackPart,
+        RetryInfo,
+        SystemPromptPart,
+        ThinkingPart,
+        ToolCallPart,
+        ToolReturnPart,
+    )
+
+    rows = native.history_rows(
+        [
+            ModelRequest([SystemPromptPart("system"), native.UserPromptPart(["a", "b"])]),
+            ModelResponse(
+                [ThinkingPart("hidden"), ToolCallPart("lookup", {"q": 1}, tool_call_id="c1")]
+            ),
+            ModelRequest(
+                [
+                    ToolReturnPart("lookup", "found", tool_call_id="c1"),
+                    RetryFeedbackPart("try again", retry=RetryInfo("model_retry")),
+                ]
+            ),
+        ]
+    )
+    assert rows[0] == {"role": "request", "parts": [{"user": "a\nb"}]}
+    assert rows[1]["parts"] == [{"tool": "lookup", "arguments": '{"q":1}', "id": "c1"}]
+    assert rows[2]["parts"][0] == {"tool_result": "found", "id": "c1"}
+    assert "correction" in rows[2]["parts"][1]
+
+
+def test_history_refuses_files_and_parts_it_cannot_represent() -> None:
+    from pydantic_ai.messages import BinaryContent, FilePart
+
+    image = BinaryContent(data=b"\x89PNG", media_type="image/png")
+    with pytest.raises(native.AcpError, match="text only"):
+        native.history_rows([ModelRequest([native.UserPromptPart(["look", image])])])
+    with pytest.raises(native.AcpError, match="cannot represent"):
+        native.history_rows([ModelResponse([FilePart(image)])])
+
+
+async def test_requests_without_their_owned_run_context_are_refused() -> None:
+    model = NativeConversationModel(harness="codex", epoch=str(uuid4()), access="edit")
+    with pytest.raises(native.AcpError, match="owned run context"):
+        await model.request([], None, ModelRequestParameters())
+    with pytest.raises(native.AcpError, match="owned run context"):
+        async with model.request_stream([], None, ModelRequestParameters()):
+            pass
+
+
+async def test_the_non_streaming_signature_uses_the_bound_context_and_discards_deltas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.agents.native_model_spec import _BOUND
+
+    context = await _private_context()
+    seen: list[object] = []
+
+    async def run(self, ctx, messages, parameters, text):
+        seen.append(ctx)
+        await text("ignored delta")
+        return ModelResponse([TextPart("whole")])
+
+    monkeypatch.setattr(NativeConversationModel, "_run", run)
+    token = _BOUND.set(context)
+    try:
+        model = NativeConversationModel(harness="codex", epoch=str(uuid4()), access="edit")
+        response = await model.request([], None, ModelRequestParameters())
+    finally:
+        _BOUND.reset(token)
+    assert seen == [context] and response.parts == [TextPart("whole")]
+
+
+async def test_several_concurrent_stream_failures_are_not_reduced_to_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Group:
+        cancel_scope = MagicMock()
+
+        async def __aenter__(self):
+            return self
+
+        async def start(self, _function) -> None:
+            return None
+
+        async def __aexit__(self, *_exc) -> None:
+            raise BaseExceptionGroup("both", [ValueError("one"), KeyError("two")])
+
+    monkeypatch.setattr(native.anyio, "create_task_group", Group)
+    context = await _private_context()
+    model = NativeConversationModel(harness="codex", epoch=str(uuid4()), access="edit")
+    with pytest.raises(BaseExceptionGroup) as raised:
+        async with model.request_stream([], None, ModelRequestParameters(), context):
+            pass
+    assert len(raised.value.exceptions) == 2
+
+
+async def test_structured_output_is_refused_before_any_native_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = await _private_context()
+    launched = MagicMock()
+    monkeypatch.setattr(native, "DevicePipe", launched)
+    model = NativeConversationModel(harness="codex", epoch=str(uuid4()), access="edit")
+    with pytest.raises(native.AcpError, match="text answers"):
+        await _stream_all(
+            model,
+            [ModelRequest.user_text_prompt("hi")],
+            context,
+            ModelRequestParameters(output_mode="native"),
+        )
+    launched.assert_not_called()
+
+
+async def test_an_incompatible_receipt_requires_an_explicit_reset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = await _private_context()
+    monkeypatch.setattr(native, "DevicePipe", _fake_pipe())
+    model = NativeConversationModel(harness="codex", epoch=str(uuid4()), access="edit")
+    broken = ModelResponse([TextPart("old")])
+    broken.provider_details = {"agenticos_native_conversation": {"scope": "nope"}}
+    with pytest.raises(native.AcpError, match="incompatible"):
+        await _stream_all(
+            model,
+            [ModelRequest.user_text_prompt("a"), broken, ModelRequest.user_text_prompt("b")],
+            context,
+        )
+
+
+async def test_another_scopes_receipt_and_plain_answers_start_a_fresh_native_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = await _private_context()
+    monkeypatch.setattr(native, "DevicePipe", _fake_pipe())
+    prompts: list[dict[str, object]] = []
+
+    async def run(pipe, **options) -> CodingReport:
+        prompts.append(json.loads(options["task"]))
+        return CodingReport(
+            harness="codex", access="edit", outcome="completed", answer="fresh", session_id="n1"
+        )
+
+    monkeypatch.setattr(native, "run_task", run)
+    other = ModelResponse([TextPart("from another runtime")])
+    other.provider_details = {
+        "agenticos_native_conversation": {"scope": "a" * 64, "digest": "b" * 64, "session_id": "x"}
+    }
+    plain = ModelResponse([TextPart("from the model profile")])
+    model = NativeConversationModel(harness="codex", epoch=str(uuid4()), access="edit")
+    response = await _stream_all(
+        model,
+        [ModelRequest.user_text_prompt("a"), other, ModelRequest.user_text_prompt("b"), plain],
+        context,
+    )
+    assert response.parts == [TextPart("fresh")]
+    assert len(prompts[0]["conversation_context"]) == 4
+
+
+async def test_oversized_context_and_answers_are_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.agents.capabilities.coding_agent._harness import CodingStep, StepStarted
+
+    context = await _private_context()
+    closed: list[str] = []
+    monkeypatch.setattr(native, "DevicePipe", _fake_pipe(closed))
+    model = NativeConversationModel(harness="codex", epoch=str(uuid4()), access="edit")
+    with pytest.raises(native.AcpError, match="2 MiB"):
+        await _stream_all(model, [ModelRequest.user_text_prompt("x" * (3 << 20))], context)
+
+    async def chatty(pipe, **options) -> CodingReport:
+        await options["shown"](
+            [StepStarted(key="s", step=CodingStep(kind="read", title="Reading"))]
+        )
+        await options["shown"]([Said("y" * 128001)])
+        raise AssertionError("unreachable")
+
+    monkeypatch.setattr(native, "run_task", chatty)
+    with pytest.raises(native.AcpError, match="retention limit"):
+        await _stream_all(model, [ModelRequest.user_text_prompt("hi")], context)
+    assert closed == ["closed"]
+
+
+@pytest.mark.parametrize(
+    ("report", "message"),
+    [
+        ({"outcome": "failed", "answer": "", "session_id": "s"}, "did not settle"),
+        ({"outcome": "completed", "answer": "", "session_id": None}, "did not settle"),
+        ({"outcome": "completed", "answer": "", "session_id": "s"}, "without a text answer"),
+    ],
+)
+async def test_an_unsettled_or_empty_turn_records_no_receipt(
+    monkeypatch: pytest.MonkeyPatch, report: dict[str, object], message: str
+) -> None:
+    context = await _private_context()
+    monkeypatch.setattr(native, "DevicePipe", _fake_pipe())
+
+    async def run(pipe, **options) -> CodingReport:
+        return CodingReport(harness="codex", access="edit", **report)
+
+    monkeypatch.setattr(native, "run_task", run)
+    model = NativeConversationModel(harness="codex", epoch=str(uuid4()), access="edit")
+    with pytest.raises(native.AcpError, match=message):
+        await _stream_all(model, [ModelRequest.user_text_prompt("hi")], context)
+
+
+async def test_a_failed_close_after_settlement_is_still_counted_and_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = await _private_context()
+    monkeypatch.setattr(native, "DevicePipe", _fake_pipe(close_error=OSError("pipe broke")))
+    recorded = MagicMock()
+    monkeypatch.setattr(native, "record_ambient_usage", recorded)
+
+    async def run(pipe, **options) -> CodingReport:
+        return CodingReport(
+            harness="codex", access="edit", outcome="completed", answer="ok", session_id="s"
+        )
+
+    monkeypatch.setattr(native, "run_task", run)
+    model = NativeConversationModel(harness="codex", epoch=str(uuid4()), access="edit")
+    with pytest.raises(OSError, match="pipe broke"):
+        await _stream_all(model, [ModelRequest.user_text_prompt("hi")], context)
+    recorded.assert_called_once()
+
+    async def failing(pipe, **options) -> CodingReport:
+        raise native.AcpError("runtime exited")
+
+    monkeypatch.setattr(native, "run_task", failing)
+    with pytest.raises(OSError, match="pipe broke"):
+        await _stream_all(model, [ModelRequest.user_text_prompt("hi")], context)
+    assert recorded.call_count == 2
+
+
+async def test_a_stream_without_a_settled_response_fails_explicitly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = await _private_context()
+
+    async def nothing(self, ctx, messages, parameters, text):
+        return None
+
+    monkeypatch.setattr(NativeConversationModel, "_run", nothing)
+    model = NativeConversationModel(harness="codex", epoch=str(uuid4()), access="edit")
+    with pytest.raises(native.AcpError, match="without settlement"):
+        await _stream_all(model, [ModelRequest.user_text_prompt("hi")], context)
+    import anyio
+
+    idle = native.NativeStream(
+        model_request_parameters=ModelRequestParameters(),
+        native=model,
+        receiver=anyio.create_memory_object_stream[str](1)[1],
+    )
+    await idle.close_stream()
