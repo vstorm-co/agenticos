@@ -12,10 +12,12 @@ let opener: HTMLButtonElement;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  hide.mockReset();
   layer = document.createElement("div");
   slot = document.createElement("div");
   opener = document.createElement("button");
   layer.tabIndex = -1;
+  layer.setAttribute("popover", "manual");
   layer.showPopover = show;
   layer.hidePopover = hide;
   document.body.append(opener, slot, layer);
@@ -90,5 +92,20 @@ it("does not refocus or hide a layer removed by navigation", () => {
   expect(document.activeElement).toBe(layer);
   layer.remove();
   view.unmount();
+  expect(hide).not.toHaveBeenCalled();
+});
+
+it("does not call the native popover API after React removes the attribute on close", () => {
+  hide.mockImplementation(() => {
+    if (!layer.hasAttribute("popover")) throw new DOMException("No popover", "NotSupportedError");
+  });
+  const ref = { current: layer };
+  const close = vi.fn();
+  const view = renderHook(({ open }) => useVisualWorkspaceLayout(ref, slot, open, false, close), {
+    initialProps: { open: true },
+  });
+  layer.removeAttribute("popover");
+
+  expect(() => view.rerender({ open: false })).not.toThrow();
   expect(hide).not.toHaveBeenCalled();
 });

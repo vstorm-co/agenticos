@@ -90,7 +90,9 @@ export function useVisualWorkspaceLayout(
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       dialogs.disconnect();
-      if (element.isConnected) element.hidePopover();
+      // Removing the attribute already closes the popover. React may do that
+      // before cleanup, and hidePopover then throws on an ordinary inline node.
+      if (element.isConnected && element.hasAttribute("popover")) element.hidePopover();
     };
   }, [layer, open, dismiss, close]);
   return { bounds, inlineHeight, dismiss };

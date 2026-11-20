@@ -64,7 +64,7 @@ export function VisualWorkspace({
         <div
           ref={ref}
           id={id}
-          popover="manual"
+          popover={workspace.open ? "manual" : undefined}
           tabIndex={workspace.open ? -1 : undefined}
           role={workspace.open ? (workspace.shared ? "tabpanel" : "region") : undefined}
           aria-labelledby={

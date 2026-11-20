@@ -135,6 +135,22 @@ Object.defineProperty(HTMLElement.prototype, "hidePopover", {
 });
 
 describe("a visual workspace", () => {
+  it("only marks the open workspace as a popover while retaining the inline document", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const frame = screen.getByTitle("one");
+    const inline = frame.closest("[data-visual-workspace]")!;
+    expect(inline).not.toHaveAttribute("popover");
+
+    await user.click(screen.getByRole("button", { name: "Open one" }));
+    expect(inline).toHaveAttribute("popover", "manual");
+
+    await user.click(screen.getByRole("button", { name: "Close visual" }));
+    expect(inline).not.toHaveAttribute("popover");
+    expect(screen.getByTitle("one")).toBe(frame);
+    expect(inline).toBeVisible();
+  });
+
   it("keeps one iframe and its browsing context through tabs, expansion, close and reopen", async () => {
     const user = userEvent.setup();
     const view = render(<Harness />);
@@ -161,9 +177,9 @@ describe("a visual workspace", () => {
     expect(frame.contentWindow).toBe(browsingContext);
     expect(Reflect.get(frame.contentWindow!, "scenario")).toBe("keep this value");
     expect(showPopover).toHaveBeenCalledTimes(2);
-    expect(hidePopover).toHaveBeenCalledTimes(1);
+    expect(hidePopover).not.toHaveBeenCalled();
     view.unmount();
-    expect(hidePopover).toHaveBeenCalledTimes(2);
+    expect(hidePopover).toHaveBeenCalledTimes(1);
   });
 
   it("uses the full window in narrow chats and follows layout changes without a new frame", () => {
@@ -231,7 +247,7 @@ describe("a visual workspace", () => {
     expect(screen.getByRole("region", { name: "Visual: two" })).toBeInTheDocument();
     expect(screen.getByTitle("one")).toBe(first);
     expect(showPopover).toHaveBeenCalledTimes(2);
-    expect(hidePopover).toHaveBeenCalledTimes(1);
+    expect(hidePopover).not.toHaveBeenCalled();
   });
 
   it("clears the workspace on conversation changes while keeping a newly named conversation", () => {
